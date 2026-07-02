@@ -492,6 +492,54 @@ export type Database = {
           },
         ]
       }
+      payment_requests: {
+        Row: {
+          amount: number
+          created_at: string | null
+          id: string
+          note: string | null
+          payer_id: string
+          requester_id: string
+          resolved_at: string | null
+          status: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          payer_id: string
+          requester_id: string
+          resolved_at?: string | null
+          status?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          id?: string
+          note?: string | null
+          payer_id?: string
+          requester_id?: string
+          resolved_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_requests_payer_id_fkey"
+            columns: ["payer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_requests_requester_id_fkey"
+            columns: ["requester_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -504,6 +552,7 @@ export type Database = {
           omiq_wallet_address: string | null
           oniq_pay_enabled: boolean | null
           updated_at: string | null
+          upi_vpa: string | null
           username: string
         }
         Insert: {
@@ -517,6 +566,7 @@ export type Database = {
           omiq_wallet_address?: string | null
           oniq_pay_enabled?: boolean | null
           updated_at?: string | null
+          upi_vpa?: string | null
           username: string
         }
         Update: {
@@ -530,6 +580,7 @@ export type Database = {
           omiq_wallet_address?: string | null
           oniq_pay_enabled?: boolean | null
           updated_at?: string | null
+          upi_vpa?: string | null
           username?: string
         }
         Relationships: []
@@ -686,6 +737,10 @@ export type Database = {
         }
         Returns: string
       }
+      create_payment_request: {
+        Args: { _amount: number; _from_username: string; _note?: string }
+        Returns: string
+      }
       demo_top_up: { Args: { _amount: number }; Returns: number }
       find_or_create_direct_conversation: {
         Args: { other_user_id: string }
@@ -705,6 +760,10 @@ export type Database = {
           _items: Json
           _restaurant_id: string
         }
+        Returns: string
+      }
+      respond_payment_request: {
+        Args: { _accept: boolean; _request_id: string }
         Returns: string
       }
       send_payment: {
