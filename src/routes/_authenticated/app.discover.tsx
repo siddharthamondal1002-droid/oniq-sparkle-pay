@@ -98,7 +98,7 @@ function DiscoverScreen() {
     if (error) toast.error(error.message);
     else {
       toast.success("Posted to Moments");
-      setContent(""); setImageUrl(""); setShowImg(false);
+      setContent(""); setImageUrl("");
       refetch();
     }
     setPosting(false);
