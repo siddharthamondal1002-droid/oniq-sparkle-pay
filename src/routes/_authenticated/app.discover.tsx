@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X } from "lucide-react";
+import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/app/discover")({
