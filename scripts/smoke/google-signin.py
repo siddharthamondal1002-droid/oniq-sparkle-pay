@@ -48,8 +48,7 @@ async def check_button_initiates_oauth(context, base_url: str) -> bool:
     page = await context.new_page()
     broker_hits: list[str] = []
 
-    def on_request(req):
-        url = req.url
+    def record(url: str) -> None:
         if (
             "/~oauth" in url
             or "oauth.lovable.app" in url
@@ -57,7 +56,9 @@ async def check_button_initiates_oauth(context, base_url: str) -> bool:
         ):
             broker_hits.append(url)
 
-    page.on("request", on_request)
+    page.on("request", lambda req: record(req.url))
+    page.on("framenavigated", lambda fr: record(fr.url))
+    context.on("page", lambda pg: record(pg.url))
 
     await page.goto(f"{base_url}/auth", wait_until="domcontentloaded")
     await page.screenshot(path=str(SHOTS / "1_auth_page.png"))
@@ -69,27 +70,27 @@ async def check_button_initiates_oauth(context, base_url: str) -> bool:
         return False
     log("Auth page renders Google button", True)
 
-    # Click and give the broker a moment to fire. We don't wait for the
+    # The helper either opens a popup or navigates the current page to
+    # /~oauth/initiate. Either counts as a broker start. Don't wait for the
     # consent screen — we only need proof the flow started.
     try:
-        async with context.expect_page(timeout=3000) as popup_info:
-            await btn.click()
-        popup = await popup_info.value
-        broker_hits.append(popup.url)
-        await popup.close()
+        await btn.click()
     except Exception:
-        # Full-page redirect flow (no popup) is also valid; just wait briefly.
-        await page.wait_for_timeout(2500)
+        pass
+    await page.wait_for_timeout(3000)
+    # Also inspect the final URL of every open page in the context.
+    for pg in context.pages:
+        record(pg.url)
 
-    await page.screenshot(path=str(SHOTS / "2_after_click.png"))
     ok = len(broker_hits) > 0
     log(
         "Google button initiates OAuth broker",
         ok,
-        f"{len(broker_hits)} broker request(s), first: {broker_hits[0] if broker_hits else 'none'}",
+        f"{len(broker_hits)} hit(s); first: {broker_hits[0] if broker_hits else 'none'}",
     )
     await page.close()
     return ok
+
 
 
 async def check_injected_session_reaches_app(context, base_url: str) -> bool:
