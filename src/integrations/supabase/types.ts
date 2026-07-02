@@ -78,6 +78,50 @@ export type Database = {
           },
         ]
       }
+      bank_accounts: {
+        Row: {
+          account_last4: string
+          bank_name: string
+          created_at: string | null
+          holder_name: string
+          id: string
+          ifsc: string
+          is_primary: boolean
+          nickname: string | null
+          user_id: string
+        }
+        Insert: {
+          account_last4: string
+          bank_name: string
+          created_at?: string | null
+          holder_name: string
+          id?: string
+          ifsc: string
+          is_primary?: boolean
+          nickname?: string | null
+          user_id: string
+        }
+        Update: {
+          account_last4?: string
+          bank_name?: string
+          created_at?: string | null
+          holder_name?: string
+          id?: string
+          ifsc?: string
+          is_primary?: boolean
+          nickname?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bank_accounts_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_members: {
         Row: {
           conversation_id: string
@@ -632,6 +676,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_bank_account: {
+        Args: {
+          _account_number: string
+          _bank_name: string
+          _holder_name: string
+          _ifsc: string
+          _nickname?: string
+        }
+        Returns: string
+      }
       demo_top_up: { Args: { _amount: number }; Returns: number }
       find_or_create_direct_conversation: {
         Args: { other_user_id: string }
@@ -657,8 +711,13 @@ export type Database = {
         Args: { _amount: number; _note?: string; _recipient_username: string }
         Returns: string
       }
+      set_primary_bank: { Args: { _bank_id: string }; Returns: undefined }
       toggle_moment_like: { Args: { _post_id: string }; Returns: boolean }
       unread_count: { Args: { _conversation_id: string }; Returns: number }
+      withdraw_to_bank: {
+        Args: { _amount: number; _bank_id: string }
+        Returns: string
+      }
     }
     Enums: {
       [_ in never]: never
