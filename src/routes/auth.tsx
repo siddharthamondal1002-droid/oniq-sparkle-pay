@@ -80,13 +80,17 @@ function AuthPage() {
   }
 
   async function handleGoogle() {
+    if (loading) return;
     setLoading(true);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin + "/app" },
-    });
-    if (error) {
-      toast.error(error.message || "Google sign-in failed");
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin + "/app" },
+      });
+      if (error) throw error;
+    } catch (err) {
+      toast.error(friendlyAuthError(err));
+    } finally {
       setLoading(false);
     }
   }
