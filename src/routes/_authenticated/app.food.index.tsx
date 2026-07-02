@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Star, Clock } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/app/food")({
+export const Route = createFileRoute("/_authenticated/app/food/")({
   component: FoodScreen,
 });
 
