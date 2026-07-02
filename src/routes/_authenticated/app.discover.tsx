@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X } from "lucide-react";
+import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/app/discover")({
@@ -14,11 +14,47 @@ function DiscoverScreen() {
   const qc = useQueryClient();
   const [content, setContent] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [showImg, setShowImg] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [posting, setPosting] = useState(false);
   const [me, setMe] = useState<string | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [openComments, setOpenComments] = useState<string | null>(null);
+
+  async function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image must be under 10MB");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("Not signed in");
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${u.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("moments")
+        .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
+      if (upErr) throw upErr;
+      // 100 years — effectively permanent while bucket exists
+      const { data: signed, error: sErr } = await supabase.storage
+        .from("moments")
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
+      if (sErr || !signed) throw sErr ?? new Error("Failed to sign URL");
+      setImageUrl(signed.signedUrl);
+    } catch (err: any) {
+      toast.error(err.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
@@ -62,7 +98,7 @@ function DiscoverScreen() {
     if (error) toast.error(error.message);
     else {
       toast.success("Posted to Moments");
-      setContent(""); setImageUrl(""); setShowImg(false);
+      setContent(""); setImageUrl("");
       refetch();
     }
     setPosting(false);
@@ -100,26 +136,37 @@ function DiscoverScreen() {
             rows={2}
             className="w-full resize-none bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
           />
-          {showImg && (
-            <input
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="Paste an image URL"
-              className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none"
-            />
-          )}
           {imageUrl && (
-            <img src={imageUrl} alt="" className="mt-2 max-h-64 w-full rounded-2xl object-cover" />
+            <div className="relative mt-2">
+              <img src={imageUrl} alt="" className="max-h-64 w-full rounded-2xl object-cover" />
+              <button
+                type="button"
+                onClick={() => setImageUrl("")}
+                className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePickFile}
+          />
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
             <div className="flex gap-2 text-muted-foreground">
               <button
-                onClick={() => setShowImg(v => !v)}
-                className={`grid h-8 w-8 place-items-center rounded-full hover:bg-muted ${showImg ? "text-primary" : ""}`}
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className={`grid h-8 w-8 place-items-center rounded-full hover:bg-muted ${uploading ? "opacity-50" : ""}`}
+                aria-label="Add photo from gallery"
               >
-                <ImageIcon className="h-4 w-4" />
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
               </button>
-              <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted">
+              <button type="button" className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted">
                 <Globe className="h-4 w-4" />
               </button>
             </div>
