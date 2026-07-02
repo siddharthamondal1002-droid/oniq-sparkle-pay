@@ -21,10 +21,10 @@ import { Route as AuthenticatedAppRidesRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/app.profile'
 import { Route as AuthenticatedAppPayRouteImport } from './routes/_authenticated/app.pay'
 import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenticated/app.miniapps'
-import { Route as AuthenticatedAppFoodRouteImport } from './routes/_authenticated/app.food'
 import { Route as AuthenticatedAppDiscoverRouteImport } from './routes/_authenticated/app.discover'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
 import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/app.ai'
+import { Route as AuthenticatedAppFoodIndexRouteImport } from './routes/_authenticated/app.food.index'
 import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
 import { Route as AuthenticatedAppFoodIdRouteImport } from './routes/_authenticated/app.food.$id'
 import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
@@ -89,11 +89,6 @@ const AuthenticatedAppMiniappsRoute =
     path: '/miniapps',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppFoodRoute = AuthenticatedAppFoodRouteImport.update({
-  id: '/food',
-  path: '/food',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
 const AuthenticatedAppDiscoverRoute =
   AuthenticatedAppDiscoverRouteImport.update({
     id: '/discover',
@@ -110,6 +105,12 @@ const AuthenticatedAppAiRoute = AuthenticatedAppAiRouteImport.update({
   path: '/ai',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppFoodIndexRoute =
+  AuthenticatedAppFoodIndexRouteImport.update({
+    id: '/food/',
+    path: '/food/',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppChatIndexRoute =
   AuthenticatedAppChatIndexRouteImport.update({
     id: '/',
@@ -117,9 +118,9 @@ const AuthenticatedAppChatIndexRoute =
     getParentRoute: () => AuthenticatedAppChatRoute,
   } as any)
 const AuthenticatedAppFoodIdRoute = AuthenticatedAppFoodIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => AuthenticatedAppFoodRoute,
+  id: '/food/$id',
+  path: '/food/$id',
+  getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const AuthenticatedAppChatConversationIdRoute =
   AuthenticatedAppChatConversationIdRouteImport.update({
@@ -135,7 +136,6 @@ export interface FileRoutesByFullPath {
   '/app/ai': typeof AuthenticatedAppAiRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/discover': typeof AuthenticatedAppDiscoverRoute
-  '/app/food': typeof AuthenticatedAppFoodRouteWithChildren
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/pay': typeof AuthenticatedAppPayRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
@@ -147,13 +147,13 @@ export interface FileRoutesByFullPath {
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
   '/app/chat/': typeof AuthenticatedAppChatIndexRoute
+  '/app/food/': typeof AuthenticatedAppFoodIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app/ai': typeof AuthenticatedAppAiRoute
   '/app/discover': typeof AuthenticatedAppDiscoverRoute
-  '/app/food': typeof AuthenticatedAppFoodRouteWithChildren
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/pay': typeof AuthenticatedAppPayRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
@@ -165,6 +165,7 @@ export interface FileRoutesByTo {
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
   '/app/chat': typeof AuthenticatedAppChatIndexRoute
+  '/app/food': typeof AuthenticatedAppFoodIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -175,7 +176,6 @@ export interface FileRoutesById {
   '/_authenticated/app/ai': typeof AuthenticatedAppAiRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/_authenticated/app/discover': typeof AuthenticatedAppDiscoverRoute
-  '/_authenticated/app/food': typeof AuthenticatedAppFoodRouteWithChildren
   '/_authenticated/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/_authenticated/app/pay': typeof AuthenticatedAppPayRoute
   '/_authenticated/app/profile': typeof AuthenticatedAppProfileRoute
@@ -187,6 +187,7 @@ export interface FileRoutesById {
   '/_authenticated/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/_authenticated/app/food/$id': typeof AuthenticatedAppFoodIdRoute
   '/_authenticated/app/chat/': typeof AuthenticatedAppChatIndexRoute
+  '/_authenticated/app/food/': typeof AuthenticatedAppFoodIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -197,7 +198,6 @@ export interface FileRouteTypes {
     | '/app/ai'
     | '/app/chat'
     | '/app/discover'
-    | '/app/food'
     | '/app/miniapps'
     | '/app/pay'
     | '/app/profile'
@@ -209,13 +209,13 @@ export interface FileRouteTypes {
     | '/app/chat/$conversationId'
     | '/app/food/$id'
     | '/app/chat/'
+    | '/app/food/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/app/ai'
     | '/app/discover'
-    | '/app/food'
     | '/app/miniapps'
     | '/app/pay'
     | '/app/profile'
@@ -227,6 +227,7 @@ export interface FileRouteTypes {
     | '/app/chat/$conversationId'
     | '/app/food/$id'
     | '/app/chat'
+    | '/app/food'
   id:
     | '__root__'
     | '/'
@@ -236,7 +237,6 @@ export interface FileRouteTypes {
     | '/_authenticated/app/ai'
     | '/_authenticated/app/chat'
     | '/_authenticated/app/discover'
-    | '/_authenticated/app/food'
     | '/_authenticated/app/miniapps'
     | '/_authenticated/app/pay'
     | '/_authenticated/app/profile'
@@ -248,6 +248,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/chat/$conversationId'
     | '/_authenticated/app/food/$id'
     | '/_authenticated/app/chat/'
+    | '/_authenticated/app/food/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -342,13 +343,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppMiniappsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/food': {
-      id: '/_authenticated/app/food'
-      path: '/food'
-      fullPath: '/app/food'
-      preLoaderRoute: typeof AuthenticatedAppFoodRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
     '/_authenticated/app/discover': {
       id: '/_authenticated/app/discover'
       path: '/discover'
@@ -370,6 +364,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppAiRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/food/': {
+      id: '/_authenticated/app/food/'
+      path: '/food'
+      fullPath: '/app/food/'
+      preLoaderRoute: typeof AuthenticatedAppFoodIndexRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/chat/': {
       id: '/_authenticated/app/chat/'
       path: '/'
@@ -379,10 +380,10 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/app/food/$id': {
       id: '/_authenticated/app/food/$id'
-      path: '/$id'
+      path: '/food/$id'
       fullPath: '/app/food/$id'
       preLoaderRoute: typeof AuthenticatedAppFoodIdRouteImport
-      parentRoute: typeof AuthenticatedAppFoodRoute
+      parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/chat/$conversationId': {
       id: '/_authenticated/app/chat/$conversationId'
@@ -408,22 +409,10 @@ const AuthenticatedAppChatRouteChildren: AuthenticatedAppChatRouteChildren = {
 const AuthenticatedAppChatRouteWithChildren =
   AuthenticatedAppChatRoute._addFileChildren(AuthenticatedAppChatRouteChildren)
 
-interface AuthenticatedAppFoodRouteChildren {
-  AuthenticatedAppFoodIdRoute: typeof AuthenticatedAppFoodIdRoute
-}
-
-const AuthenticatedAppFoodRouteChildren: AuthenticatedAppFoodRouteChildren = {
-  AuthenticatedAppFoodIdRoute: AuthenticatedAppFoodIdRoute,
-}
-
-const AuthenticatedAppFoodRouteWithChildren =
-  AuthenticatedAppFoodRoute._addFileChildren(AuthenticatedAppFoodRouteChildren)
-
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
   AuthenticatedAppDiscoverRoute: typeof AuthenticatedAppDiscoverRoute
-  AuthenticatedAppFoodRoute: typeof AuthenticatedAppFoodRouteWithChildren
   AuthenticatedAppMiniappsRoute: typeof AuthenticatedAppMiniappsRoute
   AuthenticatedAppPayRoute: typeof AuthenticatedAppPayRoute
   AuthenticatedAppProfileRoute: typeof AuthenticatedAppProfileRoute
@@ -432,13 +421,14 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppWalletRoute: typeof AuthenticatedAppWalletRoute
   AuthenticatedAppWeatherRoute: typeof AuthenticatedAppWeatherRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
+  AuthenticatedAppFoodIdRoute: typeof AuthenticatedAppFoodIdRoute
+  AuthenticatedAppFoodIndexRoute: typeof AuthenticatedAppFoodIndexRoute
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAiRoute: AuthenticatedAppAiRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
   AuthenticatedAppDiscoverRoute: AuthenticatedAppDiscoverRoute,
-  AuthenticatedAppFoodRoute: AuthenticatedAppFoodRouteWithChildren,
   AuthenticatedAppMiniappsRoute: AuthenticatedAppMiniappsRoute,
   AuthenticatedAppPayRoute: AuthenticatedAppPayRoute,
   AuthenticatedAppProfileRoute: AuthenticatedAppProfileRoute,
@@ -447,6 +437,8 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppWalletRoute: AuthenticatedAppWalletRoute,
   AuthenticatedAppWeatherRoute: AuthenticatedAppWeatherRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
+  AuthenticatedAppFoodIdRoute: AuthenticatedAppFoodIdRoute,
+  AuthenticatedAppFoodIndexRoute: AuthenticatedAppFoodIndexRoute,
 }
 
 const AuthenticatedAppRouteWithChildren =
