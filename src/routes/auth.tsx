@@ -119,8 +119,24 @@ function AuthPage() {
         </div>
 
         <div className="mt-8 rounded-3xl border border-border glass p-6">
-          
+          <button
+            type="button"
+            onClick={handleGoogle}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-xl border border-border bg-card py-3 text-sm font-semibold transition hover:bg-muted disabled:opacity-50"
+          >
+            <GoogleIcon className="h-4 w-4" />
+            Continue with Google
+          </button>
+
+          <div className="my-4 flex items-center gap-3 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <div className="h-px flex-1 bg-border" />
+            or
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
           <form onSubmit={handleEmail} className="space-y-3">
+
             <Field
               icon={Mail}
               type="email"
