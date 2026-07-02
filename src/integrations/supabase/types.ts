@@ -585,6 +585,54 @@ export type Database = {
         }
         Relationships: []
       }
+      red_packets: {
+        Row: {
+          amount: number
+          created_at: string | null
+          greeting: string
+          id: string
+          recipient_id: string
+          resolved_at: string | null
+          sender_id: string
+          status: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string | null
+          greeting?: string
+          id?: string
+          recipient_id: string
+          resolved_at?: string | null
+          sender_id: string
+          status?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string | null
+          greeting?: string
+          id?: string
+          recipient_id?: string
+          resolved_at?: string | null
+          sender_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "red_packets_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "red_packets_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       restaurants: {
         Row: {
           address: string
@@ -754,6 +802,7 @@ export type Database = {
         Args: { _conversation_id: string }
         Returns: undefined
       }
+      open_red_packet: { Args: { _packet_id: string }; Returns: number }
       place_order: {
         Args: {
           _delivery_address: string
@@ -762,12 +811,17 @@ export type Database = {
         }
         Returns: string
       }
+      reclaim_red_packet: { Args: { _packet_id: string }; Returns: number }
       respond_payment_request: {
         Args: { _accept: boolean; _request_id: string }
         Returns: string
       }
       send_payment: {
         Args: { _amount: number; _note?: string; _recipient_username: string }
+        Returns: string
+      }
+      send_red_packet: {
+        Args: { _amount: number; _greeting?: string; _to_username: string }
         Returns: string
       }
       set_primary_bank: { Args: { _bank_id: string }; Returns: undefined }
