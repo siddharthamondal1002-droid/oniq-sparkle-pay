@@ -2,7 +2,6 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-
 import { ArrowLeft, Mail, Lock } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
@@ -14,6 +13,28 @@ export const Route = createFileRoute("/auth")({
   }),
   component: AuthPage,
 });
+
+/** Map raw Supabase auth errors to copy a human can act on. */
+function friendlyAuthError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err ?? "");
+  const m = msg.toLowerCase();
+  if (m.includes("weak") || m.includes("pwned") || m.includes("breach")) {
+    return "That password has shown up in data breaches — pick a stronger, unique one 🔐";
+  }
+  if (m.includes("invalid login credentials") || m.includes("invalid_credentials")) {
+    return "Wrong email or password — no account found with those details";
+  }
+  if (m.includes("already registered") || m.includes("already exists")) {
+    return "That email already has an account — sign in instead";
+  }
+  if (m.includes("rate limit") || m.includes("too many")) {
+    return "Too many attempts — take a breath and try again in a minute";
+  }
+  if (m.includes("confirm") && m.includes("email")) {
+    return "Check your inbox — confirm your email to finish signing up 📬";
+  }
+  return msg || "Something went wrong — try again";
+}
 
 function AuthPage() {
   const navigate = useNavigate();
@@ -28,31 +49,6 @@ function AuthPage() {
     });
   }, [navigate]);
 
-  function friendlyAuthError(err: unknown): string {
-    const raw =
-      (err as { message?: string } | null)?.message ??
-      (typeof err === "string" ? err : "") ??
-      "";
-    const msg = raw.toLowerCase();
-    if (
-      msg.includes("weak_password") ||
-      msg.includes("pwned") ||
-      msg.includes("leaked") ||
-      msg.includes("compromised") ||
-      msg.includes("password should")
-    ) {
-      return "That password's been leaked in breaches — pick a stronger one 🔐";
-    }
-    if (
-      msg.includes("invalid_credentials") ||
-      msg.includes("invalid login") ||
-      msg.includes("invalid email or password")
-    ) {
-      return "Wrong email or password — no account found";
-    }
-    return raw || "Something went wrong";
-  }
-
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
@@ -65,7 +61,7 @@ function AuthPage() {
           options: { emailRedirectTo: window.location.origin + "/app" },
         });
         if (error) throw error;
-        toast.success("Account created — welcome to ONIQ");
+        toast.success("Account created — welcome to ONIQ ✨");
         navigate({ to: "/app" });
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -79,21 +75,6 @@ function AuthPage() {
     }
   }
 
-  async function handleGoogle() {
-    if (loading) return;
-    setLoading(true);
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: window.location.origin + "/app" },
-      });
-      if (error) throw error;
-    } catch (err) {
-      toast.error(friendlyAuthError(err));
-    } finally {
-      setLoading(false);
-    }
-  }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background bg-hero p-5">
@@ -118,22 +99,7 @@ function AuthPage() {
         </div>
 
         <div className="mt-8 rounded-3xl border border-border glass p-6">
-          <button
-            type="button"
-            onClick={handleGoogle}
-            disabled={loading}
-            className="flex w-full items-center justify-center gap-3 rounded-xl border border-border bg-card py-3 text-sm font-medium hover:bg-muted disabled:opacity-50"
-          >
-            <GoogleIcon />
-            Continue with Google
-          </button>
-
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-            <div className="h-px flex-1 bg-border" />
-            or with email
-            <div className="h-px flex-1 bg-border" />
-          </div>
-
+          
           <form onSubmit={handleEmail} className="space-y-3">
             <Field
               icon={Mail}
@@ -146,12 +112,17 @@ function AuthPage() {
             <Field
               icon={Lock}
               type="password"
-              placeholder="Password (min 6 chars)"
+              placeholder="Password — strong & unique"
               value={password}
               onChange={setPassword}
               required
-              minLength={6}
+              minLength={8}
             />
+            {mode === "signup" && (
+              <p className="px-1 text-[11px] text-muted-foreground">
+                Common passwords get rejected for your safety — mix words, numbers & symbols.
+              </p>
+            )}
             <button
               type="submit"
               disabled={loading}
@@ -203,25 +174,3 @@ function Field({
   );
 }
 
-function GoogleIcon() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24">
-      <path
-        fill="#4285F4"
-        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-      />
-      <path
-        fill="#34A853"
-        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84A11 11 0 0 0 12 23z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.07H2.18A11 11 0 0 0 1 12c0 1.77.43 3.45 1.18 4.93l3.66-2.83z"
-      />
-      <path
-        fill="#EA4335"
-        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.83C6.71 7.31 9.14 5.38 12 5.38z"
-      />
-    </svg>
-  );
-}
