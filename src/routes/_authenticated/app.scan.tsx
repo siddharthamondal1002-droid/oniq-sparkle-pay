@@ -278,7 +278,7 @@ function MyQrTab() {
       {profile?.upi_vpa && qrDataUrl ? (
         <div className="rounded-3xl border border-border bg-card p-5 text-center">
           <div className="mx-auto w-64 overflow-hidden rounded-2xl bg-white p-3">
-            <img src={qrDataUrl} alt="Your UPI QR code" className="h-full w-full" />
+            <img data-testid="my-qr-img" src={qrDataUrl} alt="Your UPI QR code" className="h-full w-full" />
           </div>
           <div className="mt-4 font-display text-lg font-semibold">
             {profile.display_name || profile.username}
