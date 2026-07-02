@@ -76,6 +76,25 @@ function AuthPage() {
     }
   }
 
+  async function handleGoogle() {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin + "/app",
+      });
+      if (result.redirected) return; // browser is navigating to Google
+      if (result.error) throw result.error;
+      navigate({ to: "/app" });
+    } catch (err) {
+      toast.error(friendlyAuthError(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+
+
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background bg-hero p-5">
