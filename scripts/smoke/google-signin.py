@@ -60,7 +60,9 @@ async def check_button_initiates_oauth(context, base_url: str) -> bool:
     page.on("framenavigated", lambda fr: record(fr.url))
     context.on("page", lambda pg: record(pg.url))
 
-    await page.goto(f"{base_url}/auth", wait_until="domcontentloaded")
+    await page.goto(f"{base_url}/auth", wait_until="networkidle")
+    await page.wait_for_timeout(1000)
+
     await page.screenshot(path=str(SHOTS / "1_auth_page.png"))
 
     btn = page.get_by_role("button", name="Continue with Google")
