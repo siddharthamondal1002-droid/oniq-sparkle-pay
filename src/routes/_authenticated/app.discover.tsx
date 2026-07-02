@@ -136,26 +136,37 @@ function DiscoverScreen() {
             rows={2}
             className="w-full resize-none bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
           />
-          {showImg && (
-            <input
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="Paste an image URL"
-              className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2 text-xs focus:outline-none"
-            />
-          )}
           {imageUrl && (
-            <img src={imageUrl} alt="" className="mt-2 max-h-64 w-full rounded-2xl object-cover" />
+            <div className="relative mt-2">
+              <img src={imageUrl} alt="" className="max-h-64 w-full rounded-2xl object-cover" />
+              <button
+                type="button"
+                onClick={() => setImageUrl("")}
+                className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
           )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePickFile}
+          />
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
             <div className="flex gap-2 text-muted-foreground">
               <button
-                onClick={() => setShowImg(v => !v)}
-                className={`grid h-8 w-8 place-items-center rounded-full hover:bg-muted ${showImg ? "text-primary" : ""}`}
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className={`grid h-8 w-8 place-items-center rounded-full hover:bg-muted ${uploading ? "opacity-50" : ""}`}
+                aria-label="Add photo from gallery"
               >
-                <ImageIcon className="h-4 w-4" />
+                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
               </button>
-              <button className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted">
+              <button type="button" className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted">
                 <Globe className="h-4 w-4" />
               </button>
             </div>
