@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, IndianRupee, Copy, AtSign } from "lucide-react";
 import { toast } from "sonner";
-import { UPI_APPS, upiLink, isValidVpa, openDeepLink } from "@/lib/miniapps";
+import { UPI_APPS, upiLink, isValidVpa } from "@/lib/miniapps";
 
 export const Route = createFileRoute("/_authenticated/app/upi")({
   component: UpiScreen,
@@ -34,9 +34,10 @@ function UpiScreen() {
     return true;
   }
 
-  function payWith(scheme: (p: typeof params) => string) {
-    if (!validate()) return;
-    openDeepLink(scheme(params));
+  const ready = isValidVpa(vpa) && (!amount || (Number.isFinite(amt) && amt > 0 && amt <= 100000));
+
+  function guard(e: React.MouseEvent) {
+    if (!validate()) e.preventDefault();
   }
 
   async function copyLink() {
@@ -109,14 +110,17 @@ function UpiScreen() {
       </h2>
       <div className="mt-3 grid grid-cols-2 gap-2">
         {UPI_APPS.map((app) => (
-          <button
+          <a
             key={app.id}
-            onClick={() => payWith(app.scheme)}
-            className="rounded-2xl border border-border bg-card p-4 text-sm font-semibold transition hover:border-primary/40"
+            href={ready ? app.scheme(params) : "#"}
+            data-testid={`upi-${app.id}`}
+            data-upi-ready={ready ? "true" : "false"}
+            onClick={guard}
+            className="rounded-2xl border border-border bg-card p-4 text-center text-sm font-semibold transition hover:border-primary/40"
             style={{ color: app.color }}
           >
             {app.name}
-          </button>
+          </a>
         ))}
       </div>
 
