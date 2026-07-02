@@ -28,8 +28,34 @@ function AuthPage() {
     });
   }, [navigate]);
 
+  function friendlyAuthError(err: unknown): string {
+    const raw =
+      (err as { message?: string } | null)?.message ??
+      (typeof err === "string" ? err : "") ??
+      "";
+    const msg = raw.toLowerCase();
+    if (
+      msg.includes("weak_password") ||
+      msg.includes("pwned") ||
+      msg.includes("leaked") ||
+      msg.includes("compromised") ||
+      msg.includes("password should")
+    ) {
+      return "That password's been leaked in breaches — pick a stronger one 🔐";
+    }
+    if (
+      msg.includes("invalid_credentials") ||
+      msg.includes("invalid login") ||
+      msg.includes("invalid email or password")
+    ) {
+      return "Wrong email or password — no account found";
+    }
+    return raw || "Something went wrong";
+  }
+
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     try {
       if (mode === "signup") {
@@ -47,7 +73,7 @@ function AuthPage() {
         navigate({ to: "/app" });
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Something went wrong");
+      toast.error(friendlyAuthError(err));
     } finally {
       setLoading(false);
     }
