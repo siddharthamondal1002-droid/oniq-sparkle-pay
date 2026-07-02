@@ -14,11 +14,47 @@ function DiscoverScreen() {
   const qc = useQueryClient();
   const [content, setContent] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [showImg, setShowImg] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [posting, setPosting] = useState(false);
   const [me, setMe] = useState<string | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [openComments, setOpenComments] = useState<string | null>(null);
+
+  async function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image must be under 10MB");
+      return;
+    }
+    setUploading(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("Not signed in");
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      const path = `${u.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from("moments")
+        .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
+      if (upErr) throw upErr;
+      // 100 years — effectively permanent while bucket exists
+      const { data: signed, error: sErr } = await supabase.storage
+        .from("moments")
+        .createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
+      if (sErr || !signed) throw sErr ?? new Error("Failed to sign URL");
+      setImageUrl(signed.signedUrl);
+    } catch (err: any) {
+      toast.error(err.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
