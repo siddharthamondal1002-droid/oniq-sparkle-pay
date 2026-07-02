@@ -23,6 +23,7 @@ import { Route as AuthenticatedAppPayRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenticated/app.miniapps'
 import { Route as AuthenticatedAppDiscoverRouteImport } from './routes/_authenticated/app.discover'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
+import { Route as AuthenticatedAppBanksRouteImport } from './routes/_authenticated/app.banks'
 import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/app.ai'
 import { Route as AuthenticatedAppFoodIndexRouteImport } from './routes/_authenticated/app.food.index'
 import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
@@ -100,6 +101,11 @@ const AuthenticatedAppChatRoute = AuthenticatedAppChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppBanksRoute = AuthenticatedAppBanksRouteImport.update({
+  id: '/banks',
+  path: '/banks',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppAiRoute = AuthenticatedAppAiRouteImport.update({
   id: '/ai',
   path: '/ai',
@@ -134,6 +140,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/app/ai': typeof AuthenticatedAppAiRoute
+  '/app/banks': typeof AuthenticatedAppBanksRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/discover': typeof AuthenticatedAppDiscoverRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
@@ -153,6 +160,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/app/ai': typeof AuthenticatedAppAiRoute
+  '/app/banks': typeof AuthenticatedAppBanksRoute
   '/app/discover': typeof AuthenticatedAppDiscoverRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/pay': typeof AuthenticatedAppPayRoute
@@ -174,6 +182,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/_authenticated/app/ai': typeof AuthenticatedAppAiRoute
+  '/_authenticated/app/banks': typeof AuthenticatedAppBanksRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/_authenticated/app/discover': typeof AuthenticatedAppDiscoverRoute
   '/_authenticated/app/miniapps': typeof AuthenticatedAppMiniappsRoute
@@ -196,6 +205,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/app'
     | '/app/ai'
+    | '/app/banks'
     | '/app/chat'
     | '/app/discover'
     | '/app/miniapps'
@@ -215,6 +225,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/app/ai'
+    | '/app/banks'
     | '/app/discover'
     | '/app/miniapps'
     | '/app/pay'
@@ -235,6 +246,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/app'
     | '/_authenticated/app/ai'
+    | '/_authenticated/app/banks'
     | '/_authenticated/app/chat'
     | '/_authenticated/app/discover'
     | '/_authenticated/app/miniapps'
@@ -357,6 +369,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppChatRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/banks': {
+      id: '/_authenticated/app/banks'
+      path: '/banks'
+      fullPath: '/app/banks'
+      preLoaderRoute: typeof AuthenticatedAppBanksRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/ai': {
       id: '/_authenticated/app/ai'
       path: '/ai'
@@ -411,6 +430,7 @@ const AuthenticatedAppChatRouteWithChildren =
 
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
+  AuthenticatedAppBanksRoute: typeof AuthenticatedAppBanksRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
   AuthenticatedAppDiscoverRoute: typeof AuthenticatedAppDiscoverRoute
   AuthenticatedAppMiniappsRoute: typeof AuthenticatedAppMiniappsRoute
@@ -427,6 +447,7 @@ interface AuthenticatedAppRouteChildren {
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAiRoute: AuthenticatedAppAiRoute,
+  AuthenticatedAppBanksRoute: AuthenticatedAppBanksRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
   AuthenticatedAppDiscoverRoute: AuthenticatedAppDiscoverRoute,
   AuthenticatedAppMiniappsRoute: AuthenticatedAppMiniappsRoute,
