@@ -17,7 +17,7 @@ export const Route = createFileRoute("/_authenticated")({
       return { user };
     }
 
-    const { data, error } = await supabase.auth.getUser();
+    const { data } = await supabase.auth.getUser();
     return { user: data.user ?? session.user };
   },
   component: () => <Outlet />,
