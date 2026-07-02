@@ -81,7 +81,7 @@ function AuthPage() {
     setLoading(true);
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin + "/app",
+        redirect_uri: window.location.origin + "/auth",
       });
       if (result.redirected) return; // browser is navigating to Google
       if (result.error) throw result.error;
