@@ -4,15 +4,24 @@ import { ArrowLeft, IndianRupee, Copy, AtSign } from "lucide-react";
 import { toast } from "sonner";
 import { UPI_APPS, upiLink, isValidVpa } from "@/lib/miniapps";
 
+type UpiSearch = { pa?: string; pn?: string; am?: string; tn?: string };
+
 export const Route = createFileRoute("/_authenticated/app/upi")({
+  validateSearch: (search: Record<string, unknown>): UpiSearch => ({
+    pa: typeof search.pa === "string" ? search.pa : undefined,
+    pn: typeof search.pn === "string" ? search.pn : undefined,
+    am: typeof search.am === "string" ? search.am : undefined,
+    tn: typeof search.tn === "string" ? search.tn : undefined,
+  }),
   component: UpiScreen,
 });
 
 function UpiScreen() {
-  const [vpa, setVpa] = useState("");
-  const [name, setName] = useState("");
-  const [amount, setAmount] = useState("");
-  const [note, setNote] = useState("");
+  const prefill = Route.useSearch();
+  const [vpa, setVpa] = useState(prefill.pa ?? "");
+  const [name, setName] = useState(prefill.pn ?? "");
+  const [amount, setAmount] = useState(prefill.am ?? "");
+  const [note, setNote] = useState(prefill.tn ?? "");
 
   const amt = parseFloat(amount);
   const params = {
