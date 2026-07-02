@@ -123,6 +123,7 @@ function RestaurantPage() {
                     {qty === 0 ? (
                       <button
                         onClick={() => add(it.id)}
+                        aria-label={`Add ${it.name} to cart`}
                         className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground"
                       >
                         <Plus className="h-4 w-4" />
@@ -131,6 +132,7 @@ function RestaurantPage() {
                       <div className="flex items-center gap-2">
                         <button
                           onClick={() => remove(it.id)}
+                          aria-label={`Remove one ${it.name}`}
                           className="grid h-8 w-8 place-items-center rounded-full border border-border bg-background"
                         >
                           <Minus className="h-4 w-4" />
@@ -138,6 +140,7 @@ function RestaurantPage() {
                         <span className="w-5 text-center text-sm font-semibold">{qty}</span>
                         <button
                           onClick={() => add(it.id)}
+                          aria-label={`Add one more ${it.name}`}
                           className="grid h-8 w-8 place-items-center rounded-full bg-primary text-primary-foreground"
                         >
                           <Plus className="h-4 w-4" />
@@ -157,6 +160,8 @@ function RestaurantPage() {
         <div className="fixed inset-x-0 bottom-20 z-40 mx-auto max-w-md px-5">
           <button
             onClick={() => setShowCheckout(true)}
+            data-testid="checkout-bar"
+            aria-label="Open checkout"
             className="flex w-full items-center justify-between rounded-2xl bg-primary px-5 py-4 font-semibold text-primary-foreground shadow-card"
           >
             <span className="flex items-center gap-2">
@@ -283,6 +288,7 @@ function CheckoutSheet({
         <button
           onClick={placeOrder}
           disabled={placing}
+          data-testid="place-order"
           className="mt-5 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-50"
         >
           {placing ? "Placing order…" : `Pay $${total.toFixed(2)} with ONIQ Pay`}

@@ -7,7 +7,6 @@ import {
   uberLink,
   olaLink,
   openInApp,
-  openDeepLink,
   type GeoResult,
 } from "@/lib/miniapps";
 
@@ -38,20 +37,18 @@ function RidesScreen() {
     }
   }
 
-  function book(provider: "uber" | "ola" | "rapido") {
-    if (!destination && provider !== "rapido") {
-      toast.error("Pick a destination first, bestie");
-      return;
-    }
-    if (provider === "uber" && destination) {
-      // Universal link: opens the Uber app if installed (pickup = current
-      // location), otherwise Uber's mobile web — still inside ONIQ's browser.
-      openDeepLink(uberLink({ lat: destination.lat, lon: destination.lon, label: destination.label }));
-    } else if (provider === "ola" && destination) {
-      openInApp(olaLink({ lat: destination.lat, lon: destination.lon, label: destination.label }));
-    } else {
-      openInApp("https://rapido.bike");
-    }
+  // Real hrefs when a destination is chosen — inspectable, accessible, and
+  // universal links work best as genuine anchors on mobile.
+  const uberHref = destination
+    ? uberLink({ lat: destination.lat, lon: destination.lon, label: destination.label })
+    : undefined;
+  const olaHref = destination
+    ? olaLink({ lat: destination.lat, lon: destination.lon, label: destination.label })
+    : undefined;
+
+  function needDestination(e: React.MouseEvent) {
+    e.preventDefault();
+    toast.error("Pick a destination first, bestie");
   }
 
   return (
@@ -143,21 +140,28 @@ function RidesScreen() {
           desc={destination ? "Opens Uber with your destination pre-filled" : "Cabs, autos & moto"}
           color="#000000"
           icon={Car}
-          onClick={() => book("uber")}
+          href={uberHref}
+          testId="ride-uber"
+          onBlocked={needDestination}
         />
         <Provider
           name="Ola"
           desc={destination ? "Opens Ola booking with your drop location" : "Cabs & autos"}
           color="#3b7d0e"
           icon={Car}
-          onClick={() => book("ola")}
+          href={olaHref}
+          testId="ride-ola"
+          onBlocked={needDestination}
+          inApp
         />
         <Provider
           name="Rapido"
           desc="Bike taxis & autos"
           color="#c99a00"
           icon={Bike}
-          onClick={() => book("rapido")}
+          href="https://rapido.bike"
+          testId="ride-rapido"
+          inApp
         />
       </div>
 
@@ -173,19 +177,22 @@ function Provider({
   desc,
   color,
   icon: Icon,
-  onClick,
+  href,
+  testId,
+  onBlocked,
+  inApp,
 }: {
   name: string;
   desc: string;
   color: string;
   icon: typeof Car;
-  onClick: () => void;
+  href?: string;
+  testId: string;
+  onBlocked?: (e: React.MouseEvent) => void;
+  inApp?: boolean;
 }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary/40"
-    >
+  const body = (
+    <>
       <div className="grid h-11 w-11 place-items-center rounded-xl text-white" style={{ backgroundColor: color }}>
         <Icon className="h-5 w-5" />
       </div>
@@ -193,6 +200,32 @@ function Provider({
         <div className="text-sm font-semibold">{name}</div>
         <div className="text-xs text-muted-foreground">{desc}</div>
       </div>
-    </button>
+    </>
+  );
+  const cls =
+    "flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary/40";
+  if (!href) {
+    return (
+      <a href="#" data-testid={testId} aria-disabled="true" onClick={onBlocked} className={cls + " opacity-70"}>
+        {body}
+      </a>
+    );
+  }
+  return (
+    <a
+      href={href}
+      data-testid={testId}
+      className={cls}
+      onClick={
+        inApp
+          ? (e) => {
+              e.preventDefault();
+              openInApp(href);
+            }
+          : undefined
+      }
+    >
+      {body}
+    </a>
   );
 }
