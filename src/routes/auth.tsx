@@ -45,9 +45,26 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    let mounted = true;
+
+    const goToApp = () => {
+      if (mounted) navigate({ to: "/app", replace: true });
+    };
+
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/app" });
+      if (data.session) goToApp();
     });
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session) {
+        goToApp();
+      }
+    });
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
   }, [navigate]);
 
   async function handleEmail(e: React.FormEvent) {
@@ -59,7 +76,7 @@ function AuthPage() {
         const { error } = await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: window.location.origin + "/app" },
+          options: { emailRedirectTo: window.location.origin + "/auth" },
         });
         if (error) throw error;
         toast.success("Account created — welcome to ONIQ ✨");
@@ -81,7 +98,7 @@ function AuthPage() {
     setLoading(true);
     try {
       const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
+        redirect_uri: `${window.location.origin}/auth`,
       });
       if (result.redirected) return; // browser is navigating to Google
       if (result.error) throw result.error;
