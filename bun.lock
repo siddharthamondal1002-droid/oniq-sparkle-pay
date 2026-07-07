@@ -9,6 +9,7 @@
         "@capacitor/browser": "^8.0.0",
         "@capacitor/cli": "^8.4.1",
         "@capacitor/core": "^8.4.1",
+        "@capacitor/geolocation": "^8.0.0",
         "@capacitor/ios": "^8.4.1",
         "@fontsource-variable/jetbrains-mono": "^5.2.8",
         "@fontsource/inter": "^5.2.8",
@@ -142,7 +143,11 @@
 
     "@capacitor/core": ["@capacitor/core@8.4.1", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@capacitor/core/-/core-8.4.1.tgz", { "dependencies": { "tslib": "^2.1.0" } }, "sha512-xqhOGLbTAYeOWK+IDUNSjQJAPapQjRHrIcgk9PYp52or9zFTaaMko31uNi16N6W+CRJ8VrRram6fOYILkBG2Hg=="],
 
+    "@capacitor/geolocation": ["@capacitor/geolocation@8.2.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@capacitor/geolocation/-/geolocation-8.2.0.tgz", { "dependencies": { "@capacitor/synapse": "^1.0.4" }, "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-N29QcoIPmme0xSxRkm7+3hjoHp6mBAOarxecvtCCZKyOBeKiJsFUq981cezg2XWBa6fhCXJMCCjQPngKK/dIag=="],
+
     "@capacitor/ios": ["@capacitor/ios@8.4.1", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@capacitor/ios/-/ios-8.4.1.tgz", { "peerDependencies": { "@capacitor/core": "^8.4.0" } }, "sha512-EgcAk7NYheHMTyP3CUrA65qKs4D2UEAKgw44HI6Uk3dTw6KjLQkdLOQWvbeRncHaZ2gklfOojUoc5DlSw2lhYg=="],
+
+    "@capacitor/synapse": ["@capacitor/synapse@1.0.4", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/@capacitor/synapse/-/synapse-1.0.4.tgz", {}, "sha512-/C1FUo8/OkKuAT4nCIu/34ny9siNHr9qtFezu4kxm6GY1wNFxrCFWjfYx5C1tUhVGz3fxBABegupkpjXvjCHrw=="],
 
     "@date-fns/tz": ["@date-fns/tz@1.4.1", "", {}, "sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA=="],
 
