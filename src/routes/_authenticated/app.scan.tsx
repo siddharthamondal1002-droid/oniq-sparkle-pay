@@ -241,7 +241,7 @@ function MyQrTab() {
         setQrDataUrl(null);
         return;
       }
-      const link = upiLink({ vpa: profile.upi_vpa, name: profile.display_name || profile.username });
+      const link = upiLink({ vpa: profile.upi_vpa, name: profile.display_name || profile.username || "" });
       const QRCode = (await import("qrcode")).default;
       const url = await QRCode.toDataURL(link, {
         width: 480,
