@@ -21,7 +21,7 @@ export const MINI_APPS: MiniApp[] = [
   // Rides
   { id: "uber", name: "Uber", tagline: "Book a cab", category: "rides", url: "https://m.uber.com", color: "#000000", letter: "U" },
   { id: "ola", name: "Ola", tagline: "Cabs & autos", category: "rides", url: "https://book.olacabs.com", color: "#a4c639", letter: "O" },
-  { id: "rapido", name: "Rapido", tagline: "Bike taxis", category: "rides", url: "https://rapido.bike", color: "#FFCB05", letter: "R" },
+  { id: "rapido", name: "Rapido", tagline: "Bike taxis", category: "rides", url: "https://rapido.bike", color: "#A67C00", letter: "R" },
   // Payments
   { id: "gpay", name: "Google Pay", tagline: "UPI payments", category: "payments", url: "https://pay.google.com", color: "#4285F4", letter: "G" },
   { id: "phonepe", name: "PhonePe", tagline: "UPI & recharges", category: "payments", url: "https://www.phonepe.com", color: "#5F259F", letter: "P" },
@@ -31,6 +31,16 @@ export const MINI_APPS: MiniApp[] = [
   { id: "youtube", name: "YouTube", tagline: "Videos & shorts", category: "social", url: "https://m.youtube.com", color: "#FF0000", letter: "Y" },
   { id: "x", name: "X", tagline: "What's happening", category: "social", url: "https://x.com", color: "#111111", letter: "X" },
   { id: "reddit", name: "Reddit", tagline: "Communities", category: "social", url: "https://www.reddit.com", color: "#FF4500", letter: "R" },
+  { id: "facebook", name: "Facebook", tagline: "Friends & groups", category: "social", url: "https://m.facebook.com", color: "#1877F2", letter: "F" },
+  { id: "whatsapp", name: "WhatsApp", tagline: "Messaging", category: "social", url: "https://www.whatsapp.com", color: "#25D366", letter: "W" },
+  { id: "telegram", name: "Telegram", tagline: "Chats & channels", category: "social", url: "https://web.telegram.org", color: "#26A5E4", letter: "T" },
+  { id: "tiktok", name: "TikTok", tagline: "Short videos", category: "social", url: "https://www.tiktok.com", color: "#010101", letter: "T" },
+  { id: "linkedin", name: "LinkedIn", tagline: "Professional network", category: "social", url: "https://www.linkedin.com", color: "#0A66C2", letter: "L" },
+  { id: "snapchat", name: "Snapchat", tagline: "Snaps & stories", category: "social", url: "https://web.snapchat.com", color: "#C9A200", letter: "S" },
+  { id: "pinterest", name: "Pinterest", tagline: "Ideas & inspo", category: "social", url: "https://www.pinterest.com", color: "#E60023", letter: "P" },
+  { id: "threads", name: "Threads", tagline: "Text conversations", category: "social", url: "https://www.threads.net", color: "#1A1A1A", letter: "T" },
+  { id: "discord", name: "Discord", tagline: "Servers & voice", category: "social", url: "https://discord.com/app", color: "#5865F2", letter: "D" },
+  { id: "twitch", name: "Twitch", tagline: "Live streams", category: "social", url: "https://m.twitch.tv", color: "#9146FF", letter: "T" },
   // Shopping
   { id: "amazon", name: "Amazon", tagline: "Everything store", category: "shopping", url: "https://www.amazon.in", color: "#FF9900", letter: "A" },
   { id: "flipkart", name: "Flipkart", tagline: "Fashion & electronics", category: "shopping", url: "https://www.flipkart.com", color: "#2874F0", letter: "F" },
