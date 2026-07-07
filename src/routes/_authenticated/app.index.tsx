@@ -123,6 +123,7 @@ function HomeScreen() {
           <Tile to="/app/rides" icon={Car} label="Rides" />
           <Tile to="/app/miniapps" icon={LayoutGrid} label="Mini Apps" />
           <Tile to="/app/upi" icon={IndianRupee} label="UPI Pay" />
+          <Tile to="/app/clips" icon={Clapperboard} label="Clips" />
         </div>
       </div>
     </div>
