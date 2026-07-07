@@ -1,4 +1,4 @@
-// Translate edge function — uses Lovable AI Gateway
+// Translate edge function — Claude primary, Lovable AI Gateway fallback
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -6,10 +6,34 @@ const corsHeaders = {
 };
 
 const LANG_NAMES: Record<string, string> = {
-  en: "English",
+  auto: "auto-detect",
+  // Indian
   bn: "Bengali",
   hi: "Hindi",
-  auto: "auto-detect",
+  ta: "Tamil",
+  te: "Telugu",
+  mr: "Marathi",
+  gu: "Gujarati",
+  kn: "Kannada",
+  ml: "Malayalam",
+  pa: "Punjabi",
+  or: "Odia",
+  ur: "Urdu",
+  as: "Assamese",
+  // International
+  en: "English",
+  es: "Spanish",
+  fr: "French",
+  de: "German",
+  pt: "Portuguese",
+  ar: "Arabic",
+  zh: "Chinese (Simplified)",
+  ja: "Japanese",
+  ko: "Korean",
+  ru: "Russian",
+  it: "Italian",
+  tr: "Turkish",
+  id: "Indonesian",
 };
 
 Deno.serve(async (req) => {
@@ -26,19 +50,59 @@ Deno.serve(async (req) => {
       return json({ error: "Unsupported language" }, 400);
     }
 
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) return json({ error: "AI not configured" }, 500);
-
     const sourceLabel = from === "auto" ? "the source language (auto-detect)" : LANG_NAMES[from];
     const system =
       `You are a professional translator. Translate the user's text from ${sourceLabel} to ${LANG_NAMES[to]}. ` +
-      "Preserve tone and meaning. Return ONLY the translation as plain text — no quotes, no commentary, no explanations, no romanization.";
+      "Preserve tone, register, and formatting. Return ONLY the translation as plain text — no quotes, no commentary, no explanations. " +
+      "Do not include romanization unless the target language uses the Latin script.";
+
+    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
+    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+
+    // Primary: Claude
+    if (anthropicKey) {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": anthropicKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 2048,
+          system,
+          messages: [{ role: "user", content: text }],
+        }),
+      });
+      if (res.status === 429) return json({ error: "Rate limit — try again in a moment 🐢" }, 429);
+      if (res.status === 402) return json({ error: "AI credits exhausted — top up" }, 402);
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        console.error("anthropic error", res.status, t);
+        // fall through to gateway if available
+        if (!lovableKey) return json({ error: "Translator glitched — try again" }, 502);
+      } else {
+        const data = await res.json();
+        const blocks = Array.isArray(data?.content) ? data.content : [];
+        const translation = blocks
+          .filter((b: any) => b?.type === "text")
+          .map((b: any) => b.text ?? "")
+          .join("")
+          .trim();
+        if (!translation) return json({ error: "Empty response from translator" }, 502);
+        return json({ translation, engine: "claude" });
+      }
+    }
+
+    // Fallback: Lovable AI Gateway
+    if (!lovableKey) return json({ error: "Translator not configured" }, 500);
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+        Authorization: `Bearer ${lovableKey}`,
       },
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
@@ -61,7 +125,7 @@ Deno.serve(async (req) => {
     const translation: string = data?.choices?.[0]?.message?.content?.trim() ?? "";
     if (!translation) return json({ error: "Empty response from translator" }, 502);
 
-    return json({ translation });
+    return json({ translation, engine: "gateway" });
   } catch (e) {
     console.error("translate fn error", e);
     return json({ error: "Something went sideways — try again" }, 500);
