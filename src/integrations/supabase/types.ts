@@ -122,6 +122,158 @@ export type Database = {
           },
         ]
       }
+      clips: {
+        Row: {
+          caption: string | null
+          comment_count: number
+          created_at: string | null
+          hashtags: string[] | null
+          id: string
+          is_deleted: boolean
+          like_count: number
+          user_id: string
+          video_url: string
+          view_count: number
+        }
+        Insert: {
+          caption?: string | null
+          comment_count?: number
+          created_at?: string | null
+          hashtags?: string[] | null
+          id?: string
+          is_deleted?: boolean
+          like_count?: number
+          user_id: string
+          video_url: string
+          view_count?: number
+        }
+        Update: {
+          caption?: string | null
+          comment_count?: number
+          created_at?: string | null
+          hashtags?: string[] | null
+          id?: string
+          is_deleted?: boolean
+          like_count?: number
+          user_id?: string
+          video_url?: string
+          view_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clips_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clips_comments: {
+        Row: {
+          clip_id: string
+          content: string
+          created_at: string | null
+          id: string
+          user_id: string
+        }
+        Insert: {
+          clip_id: string
+          content: string
+          created_at?: string | null
+          id?: string
+          user_id: string
+        }
+        Update: {
+          clip_id?: string
+          content?: string
+          created_at?: string | null
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clips_comments_clip_id_fkey"
+            columns: ["clip_id"]
+            isOneToOne: false
+            referencedRelation: "clips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clips_comments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clips_likes: {
+        Row: {
+          clip_id: string
+          created_at: string | null
+          user_id: string
+        }
+        Insert: {
+          clip_id: string
+          created_at?: string | null
+          user_id: string
+        }
+        Update: {
+          clip_id?: string
+          created_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clips_likes_clip_id_fkey"
+            columns: ["clip_id"]
+            isOneToOne: false
+            referencedRelation: "clips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clips_likes_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      clips_views: {
+        Row: {
+          clip_id: string
+          created_at: string | null
+          user_id: string
+        }
+        Insert: {
+          clip_id: string
+          created_at?: string | null
+          user_id: string
+        }
+        Update: {
+          clip_id?: string
+          created_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clips_views_clip_id_fkey"
+            columns: ["clip_id"]
+            isOneToOne: false
+            referencedRelation: "clips"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clips_views_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversation_members: {
         Row: {
           conversation_id: string
@@ -196,6 +348,39 @@ export type Database = {
           {
             foreignKeyName: "conversations_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      follows: {
+        Row: {
+          created_at: string | null
+          followee_id: string
+          follower_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          followee_id: string
+          follower_id: string
+        }
+        Update: {
+          created_at?: string | null
+          followee_id?: string
+          follower_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "follows_followee_id_fkey"
+            columns: ["followee_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "follows_follower_id_fkey"
+            columns: ["follower_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -785,6 +970,27 @@ export type Database = {
         }
         Returns: string
       }
+      clips_feed: {
+        Args: { _limit?: number; _offset?: number }
+        Returns: {
+          caption: string | null
+          comment_count: number
+          created_at: string | null
+          hashtags: string[] | null
+          id: string
+          is_deleted: boolean
+          like_count: number
+          user_id: string
+          video_url: string
+          view_count: number
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "clips"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       create_payment_request: {
         Args: { _amount: number; _from_username: string; _note?: string }
         Returns: string
@@ -820,6 +1026,7 @@ export type Database = {
         Returns: string
       }
       reclaim_red_packet: { Args: { _packet_id: string }; Returns: number }
+      record_clip_view: { Args: { _clip_id: string }; Returns: undefined }
       respond_payment_request: {
         Args: { _accept: boolean; _request_id: string }
         Returns: string
@@ -833,6 +1040,7 @@ export type Database = {
         Returns: string
       }
       set_primary_bank: { Args: { _bank_id: string }; Returns: undefined }
+      toggle_clip_like: { Args: { _clip_id: string }; Returns: boolean }
       toggle_moment_like: { Args: { _post_id: string }; Returns: boolean }
       unread_count: { Args: { _conversation_id: string }; Returns: number }
       withdraw_to_bank: {
