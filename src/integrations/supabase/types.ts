@@ -794,6 +794,14 @@ export type Database = {
         Args: { other_user_id: string }
         Returns: string
       }
+      get_my_profile_private: {
+        Args: never
+        Returns: {
+          omiq_wallet_address: string
+          oniq_pay_enabled: boolean
+          upi_vpa: string
+        }[]
+      }
       is_conversation_member: {
         Args: { _conv: string; _user: string }
         Returns: boolean

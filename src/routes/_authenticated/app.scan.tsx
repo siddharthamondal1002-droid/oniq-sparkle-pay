@@ -221,14 +221,17 @@ function MyQrTab() {
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return null;
-      const { data } = await supabase
+      const { data: pub } = await supabase
         .from("profiles")
-        .select("display_name, username, upi_vpa")
+        .select("display_name, username")
         .eq("id", u.user.id)
         .maybeSingle();
-      return data;
+      const { data: priv } = await supabase.rpc("get_my_profile_private");
+      const row = Array.isArray(priv) ? priv[0] : priv;
+      return { ...(pub ?? {}), upi_vpa: row?.upi_vpa ?? null };
     },
   });
+
 
   // Render the QR whenever we have a saved VPA
   useEffect(() => {
@@ -238,7 +241,7 @@ function MyQrTab() {
         setQrDataUrl(null);
         return;
       }
-      const link = upiLink({ vpa: profile.upi_vpa, name: profile.display_name || profile.username });
+      const link = upiLink({ vpa: profile.upi_vpa, name: profile.display_name || profile.username || "" });
       const QRCode = (await import("qrcode")).default;
       const url = await QRCode.toDataURL(link, {
         width: 480,
