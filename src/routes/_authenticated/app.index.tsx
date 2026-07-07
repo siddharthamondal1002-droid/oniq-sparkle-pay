@@ -14,6 +14,7 @@ import {
   LayoutGrid,
   IndianRupee,
   Lock,
+  Clapperboard,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app/")({
