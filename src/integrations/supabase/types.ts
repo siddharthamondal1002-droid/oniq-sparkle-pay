@@ -387,6 +387,168 @@ export type Database = {
           },
         ]
       }
+      learn_courses: {
+        Row: {
+          created_at: string
+          description: string | null
+          emoji: string
+          id: string
+          sort: number
+          title: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          emoji?: string
+          id?: string
+          sort?: number
+          title: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          emoji?: string
+          id?: string
+          sort?: number
+          title?: string
+        }
+        Relationships: []
+      }
+      learn_lessons: {
+        Row: {
+          course_id: string
+          created_at: string
+          id: string
+          sort: number
+          title: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          id?: string
+          sort?: number
+          title: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          id?: string
+          sort?: number
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learn_lessons_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "learn_courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learn_progress: {
+        Row: {
+          completed_at: string | null
+          lesson_id: string
+          score: number
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          lesson_id: string
+          score: number
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          lesson_id?: string
+          score?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learn_progress_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "learn_lessons"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learn_progress_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learn_questions: {
+        Row: {
+          correct_index: number
+          created_at: string
+          id: string
+          lesson_id: string
+          options: string[]
+          prompt: string
+          sort: number
+        }
+        Insert: {
+          correct_index: number
+          created_at?: string
+          id?: string
+          lesson_id: string
+          options: string[]
+          prompt: string
+          sort?: number
+        }
+        Update: {
+          correct_index?: number
+          created_at?: string
+          id?: string
+          lesson_id?: string
+          options?: string[]
+          prompt?: string
+          sort?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learn_questions_lesson_id_fkey"
+            columns: ["lesson_id"]
+            isOneToOne: false
+            referencedRelation: "learn_lessons"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learn_stats: {
+        Row: {
+          last_active: string | null
+          streak: number
+          user_id: string
+          xp: number
+        }
+        Insert: {
+          last_active?: string | null
+          streak?: number
+          user_id: string
+          xp?: number
+        }
+        Update: {
+          last_active?: string | null
+          streak?: number
+          user_id?: string
+          xp?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learn_stats_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       menu_items: {
         Row: {
           category: string
@@ -990,6 +1152,10 @@ export type Database = {
           isOneToOne: false
           isSetofReturn: true
         }
+      }
+      complete_lesson: {
+        Args: { _lesson_id: string; _score: number }
+        Returns: Json
       }
       create_payment_request: {
         Args: { _amount: number; _from_username: string; _note?: string }
