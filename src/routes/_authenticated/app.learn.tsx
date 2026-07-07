@@ -91,7 +91,7 @@ function LearnScreen() {
           onClick={() => setTab("translate")}
           className={`rounded-xl py-2 font-semibold ${tab === "translate" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
         >
-          Translate
+          Lingo 🗣️
         </button>
         <button
           onClick={() => setTab("lessons")}
