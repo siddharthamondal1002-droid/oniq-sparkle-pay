@@ -274,10 +274,11 @@ function RidesScreen() {
           <div className="mt-3">
             <button
               data-testid="retry-gps"
-              onClick={locateMe}
-              className="w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground"
+              onClick={() => locateMe(true)}
+              disabled={locating}
+              className="w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
-              📍 Use my location
+              {locating ? "Locating…" : "📍 Use my location"}
             </button>
             <p className="mt-2 text-[11px] text-muted-foreground">
               or type a pickup in the Genie: "from X to Y"
