@@ -167,3 +167,67 @@ export async function geocode(query: string): Promise<GeoResult[]> {
     }))
     .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon));
 }
+
+// ---------------- Ride Genie: routing + fare estimation ----------------
+
+export type RouteInfo = { km: number; mins: number };
+
+export async function getRoute(
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number },
+): Promise<RouteInfo> {
+  if (
+    !Number.isFinite(from.lat) ||
+    !Number.isFinite(from.lon) ||
+    !Number.isFinite(to.lat) ||
+    !Number.isFinite(to.lon)
+  ) {
+    throw new Error("Invalid coordinates");
+  }
+  const url = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`;
+  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  if (!res.ok) throw new Error("Route service unavailable");
+  const data = (await res.json()) as { routes?: Array<{ distance: number; duration: number }> };
+  const r = data.routes?.[0];
+  if (!r) throw new Error("No route found");
+  return {
+    km: Math.round((r.distance / 1000) * 10) / 10,
+    mins: Math.ceil(r.duration / 60),
+  };
+}
+
+export type RideOption = {
+  providerId: "uber" | "ola" | "rapido-bike" | "rapido-auto";
+  providerName: string;
+  vehicle: string;
+  color: string;
+  fareLow: number;
+  fareHigh: number;
+  etaMins: number;
+};
+
+export function estimateRides(km: number, mins: number): RideOption[] {
+  const models: Array<{
+    providerId: RideOption["providerId"];
+    providerName: string;
+    vehicle: string;
+    color: string;
+    base: number;
+  }> = [
+    { providerId: "uber", providerName: "Uber", vehicle: "Uber Go", color: "#000000", base: 50 + 15 * km + 1.5 * mins },
+    { providerId: "ola", providerName: "Ola", vehicle: "Ola Mini", color: "#3b7d0e", base: 55 + 14 * km + 1.5 * mins },
+    { providerId: "rapido-bike", providerName: "Rapido", vehicle: "Bike", color: "#A67C00", base: 20 + 8 * km + 1.0 * mins },
+    { providerId: "rapido-auto", providerName: "Rapido", vehicle: "Auto", color: "#A67C00", base: 30 + 11 * km + 1.25 * mins },
+  ];
+  return models
+    .map((m) => ({
+      providerId: m.providerId,
+      providerName: m.providerName,
+      vehicle: m.vehicle,
+      color: m.color,
+      fareLow: Math.round(m.base * 0.9),
+      fareHigh: Math.round(m.base * 1.2),
+      etaMins: mins,
+    }))
+    .sort((a, b) => a.fareLow - b.fareLow);
+}
