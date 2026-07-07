@@ -46,22 +46,21 @@ function RidesScreen() {
     if (w.SpeechRecognition || w.webkitSpeechRecognition) setMicSupported(true);
   }, []);
 
-  // Default pickup = current location
+  // Default pickup = current phone location (native GPS on device, browser API on web)
+  async function locateMe() {
+    setGeoState("locating");
+    try {
+      const { lat, lon } = await getCurrentLocation();
+      const label = await reverseGeocode(lat, lon);
+      setPickup({ lat, lon, label });
+      setPickupIsCurrent(true);
+      setGeoState("ready");
+    } catch {
+      setGeoState("denied");
+    }
+  }
   useEffect(() => {
-    if (typeof navigator === "undefined" || !navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setPickup((prev) =>
-          prev && !pickupIsCurrent
-            ? prev
-            : { lat: pos.coords.latitude, lon: pos.coords.longitude, label: "Your current location" },
-        );
-      },
-      () => {
-        // silent — user can still search destination and open provider apps
-      },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
-    );
+    locateMe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
