@@ -114,8 +114,59 @@ function TranslatePanel() {
   const [to, setTo] = useState<Lang>("bn");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState("");
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recRef = useRef<any>(null);
 
   const canSwap = from !== "auto";
+
+  useEffect(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setSpeechSupported(!!SR);
+    return () => {
+      try { recRef.current?.stop?.(); } catch {}
+    };
+  }, []);
+
+  function toggleMic() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) return;
+    if (listening) {
+      try { recRef.current?.stop?.(); } catch {}
+      return;
+    }
+    try {
+      const rec = new SR();
+      rec.lang = localeFor(from === "auto" ? "en" : from);
+      rec.interimResults = false;
+      rec.continuous = false;
+      rec.onresult = (e: any) => {
+        const transcript = Array.from(e.results)
+          .map((r: any) => r[0]?.transcript ?? "")
+          .join(" ")
+          .trim();
+        if (transcript) {
+          setText((prev) => {
+            const joined = prev ? `${prev} ${transcript}` : transcript;
+            return joined.slice(0, 1000);
+          });
+        }
+      };
+      rec.onerror = () => {
+        toast.error("Mic didn't catch that — type it instead");
+      };
+      rec.onend = () => {
+        setListening(false);
+        recRef.current = null;
+      };
+      recRef.current = rec;
+      rec.start();
+      setListening(true);
+    } catch {
+      toast.error("Mic didn't catch that — type it instead");
+      setListening(false);
+    }
+  }
 
   async function doTranslate() {
     const t = text.trim();
@@ -165,7 +216,7 @@ function TranslatePanel() {
           <button
             onClick={() => {
               if (!canSwap) return;
-              const f = from as Exclude<Lang, "auto">;
+              const f = from;
               setFrom(to);
               setTo(f);
             }}
@@ -177,15 +228,31 @@ function TranslatePanel() {
           </button>
           <LangSelect value={to} onChange={setTo} />
         </div>
-        <textarea
-          value={text}
-          onChange={(e) => setText(e.target.value.slice(0, 1000))}
-          rows={4}
-          placeholder="type or paste text…"
-          className="w-full resize-none rounded-xl border border-border bg-background p-3 text-sm focus:border-primary focus:outline-none"
-        />
+        <div className="relative">
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value.slice(0, 1000))}
+            rows={4}
+            placeholder="type, paste, or tap the mic…"
+            className="w-full resize-none rounded-xl border border-border bg-background p-3 pr-12 text-sm focus:border-primary focus:outline-none"
+          />
+          {speechSupported && (
+            <button
+              data-testid="translate-mic"
+              onClick={toggleMic}
+              aria-label={listening ? "Stop dictation" : "Start dictation"}
+              className={`absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full border transition ${
+                listening
+                  ? "border-red-500 bg-red-500/20 text-red-400 animate-pulse"
+                  : "border-border bg-background text-muted-foreground hover:text-primary"
+              }`}
+            >
+              <Mic className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
-          <span>{LANG_LABEL[from]} → {LANG_LABEL[to]}</span>
+          <span>{LANG_LABEL[from] ?? from} → {LANG_LABEL[to] ?? to}</span>
           <span>{text.length}/1000</span>
         </div>
         <button
@@ -203,7 +270,7 @@ function TranslatePanel() {
         <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4">
           <div className="mb-2 flex items-center justify-between">
             <div className="text-[11px] font-medium uppercase tracking-wider text-primary">
-              {LANG_LABEL[to]}
+              {LANG_LABEL[to] ?? to}
             </div>
             <button
               onClick={copy}
@@ -231,16 +298,24 @@ function LangSelect({
   return (
     <select
       value={value}
-      onChange={(e) => onChange(e.target.value as Lang)}
+      onChange={(e) => onChange(e.target.value)}
       className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
     >
       {includeAuto && <option value="auto">Auto detect</option>}
-      <option value="en">English</option>
-      <option value="bn">বাংলা</option>
-      <option value="hi">हिंदी</option>
+      <optgroup label="Indian languages">
+        {INDIAN_LANGS.map((l) => (
+          <option key={l.code} value={l.code}>{l.label}</option>
+        ))}
+      </optgroup>
+      <optgroup label="International">
+        {INTL_LANGS.map((l) => (
+          <option key={l.code} value={l.code}>{l.label}</option>
+        ))}
+      </optgroup>
     </select>
   );
 }
+
 
 /* ================= LESSONS ================= */
 
