@@ -231,3 +231,51 @@ export function estimateRides(km: number, mins: number): RideOption[] {
     }))
     .sort((a, b) => a.fareLow - b.fareLow);
 }
+
+// ---------------- Phone GPS: native-first with browser fallback ----------------
+
+export async function getCurrentLocation(): Promise<{ lat: number; lon: number }> {
+  try {
+    const mod: any = await import(/* @vite-ignore */ "@capacitor/geolocation");
+    const Geolocation = mod.Geolocation;
+    if (Geolocation) {
+      try {
+        await Geolocation.requestPermissions();
+      } catch {
+        // ignore — getCurrentPosition will surface a real failure
+      }
+      const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+      const lat = pos?.coords?.latitude;
+      const lon = pos?.coords?.longitude;
+      if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+    }
+  } catch {
+    // native path unavailable — fall through to browser
+  }
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    throw new Error("location unavailable");
+  }
+  return await new Promise<{ lat: number; lon: number }>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => reject(new Error("location unavailable")),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+    );
+  });
+}
+
+export async function reverseGeocode(lat: number, lon: number): Promise<string> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16`,
+      { headers: { Accept: "application/json" } },
+    );
+    if (!res.ok) return "Your current location";
+    const data = (await res.json()) as { display_name?: string };
+    const dn = data?.display_name;
+    if (!dn) return "Your current location";
+    return dn.split(",").slice(0, 3).join(",").trim();
+  } catch {
+    return "Your current location";
+  }
+}
