@@ -1,24 +1,66 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { ArrowLeft, MapPin, Navigation, Search, Car, Bike } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import {
   geocode,
   uberLink,
   olaLink,
   openInApp,
+  getRoute,
+  estimateRides,
   type GeoResult,
+  type RideOption,
+  type RouteInfo,
 } from "@/lib/miniapps";
 
 export const Route = createFileRoute("/_authenticated/app/rides")({
   component: RidesScreen,
 });
 
+type Point = { lat: number; lon: number; label: string };
+
 function RidesScreen() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeoResult[]>([]);
-  const [destination, setDestination] = useState<GeoResult | null>(null);
+  const [destination, setDestination] = useState<Point | null>(null);
+  const [pickup, setPickup] = useState<Point | null>(null);
+  const [pickupIsCurrent, setPickupIsCurrent] = useState(true);
   const [searching, setSearching] = useState(false);
+
+  const [genie, setGenie] = useState("");
+  const [micSupported, setMicSupported] = useState(false);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const [route, setRoute] = useState<RouteInfo | null>(null);
+  const [options, setOptions] = useState<RideOption[]>([]);
+  const [comparing, setComparing] = useState(false);
+
+  // Detect mic support (browser-only)
+  useEffect(() => {
+    const w = window as any;
+    if (w.SpeechRecognition || w.webkitSpeechRecognition) setMicSupported(true);
+  }, []);
+
+  // Default pickup = current location
+  useEffect(() => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setPickup((prev) =>
+          prev && !pickupIsCurrent
+            ? prev
+            : { lat: pos.coords.latitude, lon: pos.coords.longitude, label: "Your current location" },
+        );
+      },
+      () => {
+        // silent — user can still search destination and open provider apps
+      },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 60000 },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function search() {
     if (query.trim().length < 3) {
@@ -37,10 +79,97 @@ function RidesScreen() {
     }
   }
 
-  // Real hrefs when a destination is chosen — inspectable, accessible, and
-  // universal links work best as genuine anchors on mobile.
+  async function runCompare(from: Point | null, to: Point | null) {
+    if (!from || !to) {
+      toast.error("Need pickup and destination first");
+      return;
+    }
+    setComparing(true);
+    setRoute(null);
+    setOptions([]);
+    try {
+      const r = await getRoute({ lat: from.lat, lon: from.lon }, { lat: to.lat, lon: to.lon });
+      setRoute(r);
+      setOptions(estimateRides(r.km, r.mins));
+    } catch {
+      toast.error("Route service is busy — try again in a sec");
+    } finally {
+      setComparing(false);
+    }
+  }
+
+  async function handleGenie(text: string) {
+    const raw = text.trim();
+    if (!raw) return;
+    const stripped = raw.replace(/^(book me a ride|book a ride|ride|cab)\s+/i, "").trim();
+    const m = stripped.match(/(?:from\s+)?(.+?)\s+to\s+(.+)/i);
+    try {
+      let pickPt: Point | null = null;
+      let dropPt: Point | null = null;
+      if (m) {
+        const [, fromStr, toStr] = m;
+        const [fromRes, toRes] = await Promise.all([geocode(fromStr.trim()), geocode(toStr.trim())]);
+        if (!fromRes.length || !toRes.length) {
+          toast.error("couldn't find that place — add your city name");
+          return;
+        }
+        pickPt = { lat: fromRes[0].lat, lon: fromRes[0].lon, label: fromRes[0].label };
+        dropPt = { lat: toRes[0].lat, lon: toRes[0].lon, label: toRes[0].label };
+        setPickup(pickPt);
+        setPickupIsCurrent(false);
+      } else {
+        const toRes = await geocode(stripped);
+        if (!toRes.length) {
+          toast.error("couldn't find that place — add your city name");
+          return;
+        }
+        dropPt = { lat: toRes[0].lat, lon: toRes[0].lon, label: toRes[0].label };
+        pickPt = pickup;
+        if (!pickPt) {
+          toast.error("Waiting on your location — try again in a sec");
+        }
+      }
+      if (dropPt) {
+        setDestination(dropPt);
+        setQuery(dropPt.label);
+        setResults([]);
+      }
+      if (pickPt && dropPt) await runCompare(pickPt, dropPt);
+    } catch {
+      toast.error("Genie glitched — try again");
+    }
+  }
+
+  function toggleMic() {
+    const w = window as any;
+    const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SR) return;
+    if (listening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "en-IN";
+    rec.interimResults = false;
+    rec.maxAlternatives = 1;
+    rec.onresult = (e: any) => {
+      const t = e.results?.[0]?.[0]?.transcript ?? "";
+      setGenie(t);
+      handleGenie(t);
+    };
+    rec.onerror = () => toast.error("Mic didn't catch that — type it instead");
+    rec.onend = () => setListening(false);
+    recognitionRef.current = rec;
+    setListening(true);
+    rec.start();
+  }
+
+  const explicitPickup = !pickupIsCurrent ? pickup : undefined;
   const uberHref = destination
-    ? uberLink({ lat: destination.lat, lon: destination.lon, label: destination.label })
+    ? uberLink(
+        { lat: destination.lat, lon: destination.lon, label: destination.label },
+        explicitPickup ? { lat: explicitPickup.lat, lon: explicitPickup.lon, label: explicitPickup.label } : undefined,
+      )
     : undefined;
   const olaHref = destination
     ? olaLink({ lat: destination.lat, lon: destination.lon, label: destination.label })
@@ -60,15 +189,65 @@ function RidesScreen() {
         <h1 className="font-display text-2xl font-bold">Book a ride</h1>
       </div>
 
-      {/* Pickup (always current location) */}
-      <div className="mt-5 flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
+      {/* Genie bar */}
+      <div className="mt-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-3">
+        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-primary">
+          <Sparkles className="h-3 w-3" /> Ride Genie
+        </div>
+        <div className="flex gap-2">
+          <input
+            data-testid="genie-input"
+            value={genie}
+            onChange={(e) => setGenie(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleGenie(genie);
+              }
+            }}
+            placeholder={`try: "ride from Park Street to Howrah" 🧞`}
+            className="flex-1 rounded-xl border border-border bg-background py-3 px-3 text-sm focus:border-primary focus:outline-none"
+          />
+          {micSupported && (
+            <button
+              data-testid="genie-mic"
+              onClick={toggleMic}
+              className={`grid h-11 w-11 place-items-center rounded-xl ${listening ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
+              aria-label="Voice command"
+            >
+              <Mic className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Pickup */}
+      <div className="mt-3 flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
         <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/15 text-primary">
           <Navigation className="h-4 w-4" />
         </div>
-        <div>
+        <div className="flex-1 min-w-0">
           <div className="text-[11px] text-muted-foreground">Pickup</div>
-          <div className="text-sm font-medium">Your current location</div>
+          <div className="text-sm font-medium truncate">
+            {pickup ? pickup.label : "Locating you…"}
+          </div>
         </div>
+        {!pickupIsCurrent && (
+          <button
+            onClick={() => {
+              setPickupIsCurrent(true);
+              setPickup(null);
+              if (typeof navigator !== "undefined" && navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) =>
+                  setPickup({ lat: pos.coords.latitude, lon: pos.coords.longitude, label: "Your current location" }),
+                );
+              }
+            }}
+            className="text-xs text-primary underline"
+          >
+            reset
+          </button>
+        )}
       </div>
 
       {/* Destination search */}
@@ -102,7 +281,7 @@ function RidesScreen() {
               <button
                 key={i}
                 onClick={() => {
-                  setDestination(r);
+                  setDestination({ lat: r.lat, lon: r.lon, label: r.label });
                   setResults([]);
                   setQuery(r.label);
                 }}
@@ -120,6 +299,8 @@ function RidesScreen() {
             onClick={() => {
               setDestination(null);
               setQuery("");
+              setRoute(null);
+              setOptions([]);
             }}
             className="mt-3 flex w-full items-center gap-2 rounded-xl bg-primary/10 p-2.5 text-left text-sm text-primary"
           >
@@ -128,9 +309,52 @@ function RidesScreen() {
             <span className="text-xs underline">change</span>
           </button>
         )}
+
+        {destination && pickup && (
+          <button
+            data-testid="ride-compare"
+            onClick={() => runCompare(pickup, destination)}
+            disabled={comparing}
+            className="mt-3 w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {comparing ? "Comparing…" : "Compare rides"}
+          </button>
+        )}
       </div>
 
-      {/* Providers */}
+      {/* Comparison results */}
+      {comparing && (
+        <div className="mt-4 space-y-2">
+          <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+          <div className="h-20 animate-pulse rounded-2xl bg-muted" />
+          <div className="h-20 animate-pulse rounded-2xl bg-muted" />
+        </div>
+      )}
+
+      {!comparing && route && options.length > 0 && (
+        <div className="mt-5">
+          <div className="px-1 text-xs text-muted-foreground">
+            {route.km} km · {route.mins} min
+          </div>
+          <div className="mt-2 space-y-2">
+            {options.map((opt, i) => (
+              <FareCard
+                key={opt.providerId}
+                opt={opt}
+                best={i === 0}
+                uberHref={uberHref}
+                olaHref={olaHref}
+                onBlocked={needDestination}
+              />
+            ))}
+          </div>
+          <p className="mt-2 px-1 text-[11px] text-muted-foreground">
+            Estimates — final fare & driver assignment happen in the provider's app.
+          </p>
+        </div>
+      )}
+
+      {/* Classic providers (always available) */}
       <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
         pick your ride, main character
       </h2>
@@ -157,7 +381,7 @@ function RidesScreen() {
         <Provider
           name="Rapido"
           desc="Bike taxis & autos"
-          color="#c99a00"
+          color="#A67C00"
           icon={Bike}
           href="https://rapido.bike"
           testId="ride-rapido"
@@ -169,6 +393,83 @@ function RidesScreen() {
         Rides are booked and paid in the provider's app. Pickup uses your live location.
       </p>
     </div>
+  );
+}
+
+function FareCard({
+  opt,
+  best,
+  uberHref,
+  olaHref,
+  onBlocked,
+}: {
+  opt: RideOption;
+  best: boolean;
+  uberHref?: string;
+  olaHref?: string;
+  onBlocked: (e: React.MouseEvent) => void;
+}) {
+  const isUber = opt.providerId === "uber";
+  const isOla = opt.providerId === "ola";
+  const href = isUber ? uberHref : isOla ? olaHref : "https://rapido.bike";
+  const inApp = !isUber;
+
+  const inner = (
+    <>
+      <div
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white"
+        style={{ backgroundColor: opt.color }}
+      >
+        {opt.providerId.startsWith("rapido-bike") ? <Bike className="h-5 w-5" /> : <Car className="h-5 w-5" />}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-semibold">{opt.providerName}</div>
+          <div className="text-[11px] text-muted-foreground">{opt.vehicle}</div>
+          {best && (
+            <span className="ml-auto rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
+              Best price 💸
+            </span>
+          )}
+        </div>
+        <div className="mt-1 text-base font-bold">
+          ₹{opt.fareLow}–{opt.fareHigh}
+        </div>
+        <div className="text-[11px] text-muted-foreground">~{opt.etaMins} min trip</div>
+      </div>
+    </>
+  );
+
+  const cls = "flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary/40";
+  if (!href) {
+    return (
+      <a
+        href="#"
+        data-testid={`fare-card-${opt.providerId}`}
+        aria-disabled="true"
+        onClick={onBlocked}
+        className={cls + " opacity-70"}
+      >
+        {inner}
+      </a>
+    );
+  }
+  return (
+    <a
+      href={href}
+      data-testid={`fare-card-${opt.providerId}`}
+      className={cls}
+      onClick={
+        inApp
+          ? (e) => {
+              e.preventDefault();
+              openInApp(href);
+            }
+          : undefined
+      }
+    >
+      {inner}
+    </a>
   );
 }
 
