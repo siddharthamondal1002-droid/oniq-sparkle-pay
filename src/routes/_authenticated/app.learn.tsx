@@ -91,7 +91,7 @@ function LearnScreen() {
           onClick={() => setTab("translate")}
           className={`rounded-xl py-2 font-semibold ${tab === "translate" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
         >
-          Translate
+          Lingo 🗣️
         </button>
         <button
           onClick={() => setTab("lessons")}
@@ -245,6 +245,9 @@ function TranslatePanel() {
   return (
     <div className="mt-4 space-y-3">
       <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-primary/80">
+          say it in any lingo — 25 languages, powered by Claude
+        </div>
         <div className="mb-2 flex items-center gap-2">
           <LangSelect value={from} onChange={setFrom} includeAuto />
           <button
