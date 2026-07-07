@@ -119,7 +119,7 @@ function HomeScreen() {
           <Tile to="/app/food" icon={UtensilsCrossed} label="Food" />
           <Tile to="/app/pay" icon={Wallet} label="Pay" />
           <Tile to="/app/wallet" icon={Coins} label="Wallet" />
-          <Tile to="/app/ai" icon={Sparkles} label="AI" />
+          <Tile to="/app/ai" icon={Sparkles} label="Ting" />
           <Tile to="/app/weather" icon={CloudSun} label="Weather" />
           <Tile to="/app/rides" icon={Car} label="Rides" />
           <Tile to="/app/miniapps" icon={LayoutGrid} label="Mini Apps" />
