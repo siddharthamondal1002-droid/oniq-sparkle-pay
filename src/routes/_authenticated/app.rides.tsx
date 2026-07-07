@@ -29,6 +29,7 @@ function RidesScreen() {
   const [pickup, setPickup] = useState<Point | null>(null);
   const [pickupIsCurrent, setPickupIsCurrent] = useState(true);
   const [geoState, setGeoState] = useState<"locating" | "ready" | "denied">("locating");
+  const [locating, setLocating] = useState(false);
   const [searching, setSearching] = useState(false);
 
   const [genie, setGenie] = useState("");
@@ -47,22 +48,40 @@ function RidesScreen() {
   }, []);
 
   // Default pickup = current phone location (native GPS on device, browser API on web)
-  async function locateMe() {
+  async function locateMe(fromTap = false) {
     setGeoState("locating");
+    setLocating(true);
     try {
       const { lat, lon } = await getCurrentLocation();
       const label = await reverseGeocode(lat, lon);
       setPickup({ lat, lon, label });
       setPickupIsCurrent(true);
       setGeoState("ready");
+      if (fromTap) toast.success("Locked in 📍 " + label);
     } catch {
       setGeoState("denied");
+      if (fromTap) {
+        toast.error(
+          "Location is blocked for this site — tap the padlock/⋮ in your browser bar → Permissions → Location → Allow, then retry",
+        );
+      }
+    } finally {
+      setLocating(false);
     }
   }
   useEffect(() => {
     locateMe();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // If the browser never surfaces the permission prompt, flip to denied after ~12s
+  useEffect(() => {
+    if (geoState !== "locating") return;
+    const t = setTimeout(() => {
+      setGeoState((s) => (s === "locating" && !pickup ? "denied" : s));
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [geoState, pickup]);
 
   async function search() {
     if (query.trim().length < 3) {
@@ -255,10 +274,11 @@ function RidesScreen() {
           <div className="mt-3">
             <button
               data-testid="retry-gps"
-              onClick={locateMe}
-              className="w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground"
+              onClick={() => locateMe(true)}
+              disabled={locating}
+              className="w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
-              📍 Use my location
+              {locating ? "Locating…" : "📍 Use my location"}
             </button>
             <p className="mt-2 text-[11px] text-muted-foreground">
               or type a pickup in the Genie: "from X to Y"
