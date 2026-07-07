@@ -128,18 +128,32 @@ function TranslatePanel() {
     };
   }, []);
 
-  function toggleMic() {
+  async function toggleMic() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
     if (listening) {
       try { recRef.current?.stop?.(); } catch {}
       return;
     }
+
+    const blockedMsg = "Mic is blocked for this site — tap the padlock/⋮ in your browser bar → Permissions → Microphone → Allow, then retry";
+
+    // Force the permission prompt reliably before starting recognition
     try {
-      const rec = new SR();
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+    } catch {
+      toast.error(blockedMsg);
+      return;
+    }
+
+    let rec: any = null;
+    try {
+      rec = new SR();
       rec.lang = localeFor(from === "auto" ? "en" : from);
       rec.interimResults = false;
       rec.continuous = false;
+      console.log("[translate-mic] rec.lang =", rec.lang);
       rec.onresult = (e: any) => {
         const transcript = Array.from(e.results)
           .map((r: any) => r[0]?.transcript ?? "")
@@ -152,21 +166,41 @@ function TranslatePanel() {
           });
         }
       };
-      rec.onerror = () => {
-        toast.error("Mic didn't catch that — type it instead");
+      rec.onerror = (e: any) => {
+        const code = e?.error;
+        if (code === "not-allowed" || code === "service-not-allowed") {
+          toast.error(blockedMsg);
+        } else if (code === "no-speech") {
+          toast.info("Didn't hear anything — hold the phone closer and try again 🎙️");
+        } else if (code === "network") {
+          toast.error("Speech service needs internet — check your connection");
+        } else if (code === "language-not-supported") {
+          recRef.current = null;
+          toast.info("That language isn't supported for dictation on this device — try English mic + auto-detect");
+        } else {
+          toast.error("Mic glitched — type it instead");
+        }
       };
       rec.onend = () => {
         setListening(false);
         recRef.current = null;
       };
       recRef.current = rec;
-      rec.start();
-      setListening(true);
+      try {
+        rec.start();
+        setListening(true);
+      } catch {
+        toast.error("Mic glitched — type it instead");
+        setListening(false);
+        recRef.current = null;
+      }
     } catch {
-      toast.error("Mic didn't catch that — type it instead");
+      toast.error("Mic glitched — type it instead");
       setListening(false);
     }
   }
+
+
 
   async function doTranslate() {
     const t = text.trim();
