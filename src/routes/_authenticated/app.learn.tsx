@@ -22,14 +22,56 @@ export const Route = createFileRoute("/_authenticated/app/learn")({
 });
 
 type Tab = "translate" | "lessons";
-type Lang = "auto" | "en" | "bn" | "hi";
+type Lang = string;
 
-const LANG_LABEL: Record<Lang, string> = {
-  auto: "Auto detect",
-  en: "English",
-  bn: "বাংলা",
-  hi: "हिंदी",
+const INDIAN_LANGS: Array<{ code: string; label: string }> = [
+  { code: "bn", label: "বাংলা · Bengali" },
+  { code: "hi", label: "हिन्दी · Hindi" },
+  { code: "ta", label: "தமிழ் · Tamil" },
+  { code: "te", label: "తెలుగు · Telugu" },
+  { code: "mr", label: "मराठी · Marathi" },
+  { code: "gu", label: "ગુજરાતી · Gujarati" },
+  { code: "kn", label: "ಕನ್ನಡ · Kannada" },
+  { code: "ml", label: "മലയാളം · Malayalam" },
+  { code: "pa", label: "ਪੰਜਾਬੀ · Punjabi" },
+  { code: "or", label: "ଓଡ଼ିଆ · Odia" },
+  { code: "ur", label: "اردو · Urdu" },
+  { code: "as", label: "অসমীয়া · Assamese" },
+];
+
+const INTL_LANGS: Array<{ code: string; label: string }> = [
+  { code: "en", label: "English" },
+  { code: "es", label: "Español · Spanish" },
+  { code: "fr", label: "Français · French" },
+  { code: "de", label: "Deutsch · German" },
+  { code: "pt", label: "Português · Portuguese" },
+  { code: "ar", label: "العربية · Arabic" },
+  { code: "zh", label: "中文 · Chinese (Simplified)" },
+  { code: "ja", label: "日本語 · Japanese" },
+  { code: "ko", label: "한국어 · Korean" },
+  { code: "ru", label: "Русский · Russian" },
+  { code: "it", label: "Italiano · Italian" },
+  { code: "tr", label: "Türkçe · Turkish" },
+  { code: "id", label: "Bahasa Indonesia · Indonesian" },
+];
+
+const LANG_LABEL: Record<string, string> = Object.fromEntries([
+  ["auto", "Auto detect"],
+  ...INDIAN_LANGS.map((l) => [l.code, l.label] as const),
+  ...INTL_LANGS.map((l) => [l.code, l.label] as const),
+]);
+
+const SPEECH_LOCALE: Record<string, string> = {
+  bn: "bn-IN", hi: "hi-IN", ta: "ta-IN", te: "te-IN", mr: "mr-IN",
+  gu: "gu-IN", kn: "kn-IN", ml: "ml-IN", pa: "pa-IN", ur: "ur-IN",
+  en: "en-IN", es: "es-ES", fr: "fr-FR", de: "de-DE", pt: "pt-BR",
+  ar: "ar-SA", zh: "zh-CN", ja: "ja-JP", ko: "ko-KR", ru: "ru-RU",
+  it: "it-IT", tr: "tr-TR", id: "id-ID",
 };
+
+function localeFor(code: string): string {
+  return SPEECH_LOCALE[code] ?? "en-IN";
+}
 
 function LearnScreen() {
   const [tab, setTab] = useState<Tab>("translate");
