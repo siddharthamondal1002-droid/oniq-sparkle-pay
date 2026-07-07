@@ -224,31 +224,46 @@ function RidesScreen() {
       </div>
 
       {/* Pickup */}
-      <div className="mt-3 flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
-        <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/15 text-primary">
-          <Navigation className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="text-[11px] text-muted-foreground">Pickup</div>
-          <div className="text-sm font-medium truncate">
-            {pickup ? pickup.label : "Locating you…"}
+      <div className="mt-3 rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-center gap-3">
+          <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/15 text-primary">
+            <Navigation className="h-4 w-4" />
           </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-[11px] text-muted-foreground">Pickup</div>
+            <div className="text-sm font-medium truncate">
+              {geoState === "locating" && !pickup
+                ? "Locating you…"
+                : pickup
+                  ? pickup.label
+                  : "Location off — tap below"}
+            </div>
+          </div>
+          {!pickupIsCurrent && (
+            <button
+              onClick={() => {
+                setPickup(null);
+                locateMe();
+              }}
+              className="text-xs text-primary underline"
+            >
+              reset
+            </button>
+          )}
         </div>
-        {!pickupIsCurrent && (
-          <button
-            onClick={() => {
-              setPickupIsCurrent(true);
-              setPickup(null);
-              if (typeof navigator !== "undefined" && navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition((pos) =>
-                  setPickup({ lat: pos.coords.latitude, lon: pos.coords.longitude, label: "Your current location" }),
-                );
-              }
-            }}
-            className="text-xs text-primary underline"
-          >
-            reset
-          </button>
+        {geoState === "denied" && pickupIsCurrent && (
+          <div className="mt-3">
+            <button
+              data-testid="retry-gps"
+              onClick={locateMe}
+              className="w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground"
+            >
+              📍 Use my location
+            </button>
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              or type a pickup in the Genie: "from X to Y"
+            </p>
+          </div>
         )}
       </div>
 
