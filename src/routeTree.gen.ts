@@ -22,6 +22,7 @@ import { Route as AuthenticatedAppRidesRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/app.profile'
 import { Route as AuthenticatedAppPayRouteImport } from './routes/_authenticated/app.pay'
 import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenticated/app.miniapps'
+import { Route as AuthenticatedAppLearnRouteImport } from './routes/_authenticated/app.learn'
 import { Route as AuthenticatedAppDiscoverRouteImport } from './routes/_authenticated/app.discover'
 import { Route as AuthenticatedAppClipsRouteImport } from './routes/_authenticated/app.clips'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
@@ -97,6 +98,11 @@ const AuthenticatedAppMiniappsRoute =
     path: '/miniapps',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
+const AuthenticatedAppLearnRoute = AuthenticatedAppLearnRouteImport.update({
+  id: '/learn',
+  path: '/learn',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppDiscoverRoute =
   AuthenticatedAppDiscoverRouteImport.update({
     id: '/discover',
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/clips': typeof AuthenticatedAppClipsRoute
   '/app/discover': typeof AuthenticatedAppDiscoverRoute
+  '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/pay': typeof AuthenticatedAppPayRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
@@ -177,6 +184,7 @@ export interface FileRoutesByTo {
   '/app/banks': typeof AuthenticatedAppBanksRoute
   '/app/clips': typeof AuthenticatedAppClipsRoute
   '/app/discover': typeof AuthenticatedAppDiscoverRoute
+  '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/pay': typeof AuthenticatedAppPayRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
@@ -202,6 +210,7 @@ export interface FileRoutesById {
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/_authenticated/app/clips': typeof AuthenticatedAppClipsRoute
   '/_authenticated/app/discover': typeof AuthenticatedAppDiscoverRoute
+  '/_authenticated/app/learn': typeof AuthenticatedAppLearnRoute
   '/_authenticated/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/_authenticated/app/pay': typeof AuthenticatedAppPayRoute
   '/_authenticated/app/profile': typeof AuthenticatedAppProfileRoute
@@ -227,6 +236,7 @@ export interface FileRouteTypes {
     | '/app/chat'
     | '/app/clips'
     | '/app/discover'
+    | '/app/learn'
     | '/app/miniapps'
     | '/app/pay'
     | '/app/profile'
@@ -248,6 +258,7 @@ export interface FileRouteTypes {
     | '/app/banks'
     | '/app/clips'
     | '/app/discover'
+    | '/app/learn'
     | '/app/miniapps'
     | '/app/pay'
     | '/app/profile'
@@ -272,6 +283,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/chat'
     | '/_authenticated/app/clips'
     | '/_authenticated/app/discover'
+    | '/_authenticated/app/learn'
     | '/_authenticated/app/miniapps'
     | '/_authenticated/app/pay'
     | '/_authenticated/app/profile'
@@ -386,6 +398,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppMiniappsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/learn': {
+      id: '/_authenticated/app/learn'
+      path: '/learn'
+      fullPath: '/app/learn'
+      preLoaderRoute: typeof AuthenticatedAppLearnRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/discover': {
       id: '/_authenticated/app/discover'
       path: '/discover'
@@ -472,6 +491,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
   AuthenticatedAppClipsRoute: typeof AuthenticatedAppClipsRoute
   AuthenticatedAppDiscoverRoute: typeof AuthenticatedAppDiscoverRoute
+  AuthenticatedAppLearnRoute: typeof AuthenticatedAppLearnRoute
   AuthenticatedAppMiniappsRoute: typeof AuthenticatedAppMiniappsRoute
   AuthenticatedAppPayRoute: typeof AuthenticatedAppPayRoute
   AuthenticatedAppProfileRoute: typeof AuthenticatedAppProfileRoute
@@ -491,6 +511,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
   AuthenticatedAppClipsRoute: AuthenticatedAppClipsRoute,
   AuthenticatedAppDiscoverRoute: AuthenticatedAppDiscoverRoute,
+  AuthenticatedAppLearnRoute: AuthenticatedAppLearnRoute,
   AuthenticatedAppMiniappsRoute: AuthenticatedAppMiniappsRoute,
   AuthenticatedAppPayRoute: AuthenticatedAppPayRoute,
   AuthenticatedAppProfileRoute: AuthenticatedAppProfileRoute,
