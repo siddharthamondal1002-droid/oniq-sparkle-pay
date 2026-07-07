@@ -28,6 +28,7 @@ function RidesScreen() {
   const [destination, setDestination] = useState<Point | null>(null);
   const [pickup, setPickup] = useState<Point | null>(null);
   const [pickupIsCurrent, setPickupIsCurrent] = useState(true);
+  const [geoState, setGeoState] = useState<"locating" | "ready" | "denied">("locating");
   const [searching, setSearching] = useState(false);
 
   const [genie, setGenie] = useState("");
