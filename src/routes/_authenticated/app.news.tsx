@@ -91,11 +91,12 @@ function NewsScreen() {
                 <button
                   key={c.id}
                   onClick={() => setCategory(c.id)}
-                  className={`whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium border transition-colors ${
+                  className={`press whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium border transition-colors ${
                     active
-                      ? "bg-primary text-primary-foreground border-primary"
+                      ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_hsl(var(--primary)/0.5)]"
                       : "bg-surface text-muted-foreground border-border hover:text-foreground"
                   }`}
+
                 >
                   {c.label}
                 </button>
