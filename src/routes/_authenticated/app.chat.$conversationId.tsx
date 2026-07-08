@@ -37,8 +37,9 @@ function ChatThread() {
 
   const { data: me } = useQuery({
     queryKey: ["me"],
-    queryFn: async () => (await supabase.auth.getUser()).data.user,
+    queryFn: async () => (await supabase.auth.getSession()).data.session?.user ?? null,
   });
+
 
   const { data: header } = useQuery({
     queryKey: ["conversation-header", conversationId, me?.id],
