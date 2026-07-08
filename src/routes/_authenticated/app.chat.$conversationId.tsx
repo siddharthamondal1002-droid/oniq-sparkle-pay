@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Send } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
+import { toast } from "sonner";
+
 
 type Message = {
   id: string;
@@ -35,8 +37,9 @@ function ChatThread() {
 
   const { data: me } = useQuery({
     queryKey: ["me"],
-    queryFn: async () => (await supabase.auth.getUser()).data.user,
+    queryFn: async () => (await supabase.auth.getSession()).data.session?.user ?? null,
   });
+
 
   const { data: header } = useQuery({
     queryKey: ["conversation-header", conversationId, me?.id],
@@ -124,7 +127,11 @@ function ChatThread() {
   const send = async (e: FormEvent) => {
     e.preventDefault();
     const content = text.trim();
-    if (!content || !me) return;
+    if (!content) return;
+    if (!me) {
+      toast.error("You're signed out — please sign in again");
+      return;
+    }
     setSending(true);
     setText("");
     const { error } = await supabase.from("messages").insert({
@@ -135,6 +142,7 @@ function ChatThread() {
     });
     if (error) {
       console.error("send failed", error);
+      toast.error(error.message || "Couldn't send — try again");
       setText(content);
     } else {
       await supabase
@@ -146,6 +154,7 @@ function ChatThread() {
     setSending(false);
     inputRef.current?.focus();
   };
+
 
   const title = header?.title ?? "Conversation";
 
