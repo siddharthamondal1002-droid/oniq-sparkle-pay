@@ -85,27 +85,45 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "ONIQ is the global lifestyle super app — messaging, social, food, payments, crypto, AI and more. One login. Every world.",
       },
       { name: "author", content: "ONIQ" },
-      { property: "og:title", content: "ONIQ — One App. Every World." },
-      {
-        property: "og:description",
-        content:
-          "Messaging, social, food, payments, crypto, AI and more — in a single app.",
-      },
+      { property: "og:site_name", content: "ONIQ" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: "ONIQ — One App. Every World." },
-      { name: "description", content: "The global lifestyle super app. Chat, pay, eat, invest, and create — all from one login. Built for the connected world." },
-      { property: "og:description", content: "The global lifestyle super app. Chat, pay, eat, invest, and create — all from one login. Built for the connected world." },
-      { name: "twitter:description", content: "The global lifestyle super app. Chat, pay, eat, invest, and create — all from one login. Built for the connected world." },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/44718bd9-fdc3-4687-a3db-8f539319e4d7/id-preview-ec3dcc04--08c67466-59a8-4f01-8571-50c0cf973c8a.lovable.app-1782981782852.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/44718bd9-fdc3-4687-a3db-8f539319e4d7/id-preview-ec3dcc04--08c67466-59a8-4f01-8571-50c0cf973c8a.lovable.app-1782981782852.png" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/icon-192.png" },
     ],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "ONIQ",
+          url: "https://oniq-sparkle-pay.lovable.app",
+          description:
+            "The global lifestyle super app — messaging, social, food, payments, crypto, AI and more.",
+          sameAs: [] as string[],
+        }),
+      },
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          name: "ONIQ",
+          url: "https://oniq-sparkle-pay.lovable.app",
+          potentialAction: {
+            "@type": "SearchAction",
+            target: "https://oniq-sparkle-pay.lovable.app/?q={search_term_string}",
+            "query-input": "required name=search_term_string",
+          },
+        }),
+      },
+    ],
   }),
+
   shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
