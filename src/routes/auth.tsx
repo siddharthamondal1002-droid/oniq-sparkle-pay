@@ -64,7 +64,9 @@ function normalizePhone(raw: string): string | null {
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [method, setMethod] = useState<"email" | "phone">("email");
+  // Phone sign-in hidden until SMS provider is configured; keep dormant handlers below.
+  const [method, _setMethod] = useState<"email" | "phone">("email");
+  void _setMethod;
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -194,22 +196,7 @@ function AuthPage() {
         </div>
 
         <div className="mt-8 rounded-3xl border border-border glass p-6">
-          <div className="mb-4 grid grid-cols-2 rounded-2xl border border-border bg-card p-1 text-xs">
-            <button
-              type="button"
-              onClick={() => { setMethod("email"); setOtpSent(false); }}
-              className={`rounded-xl py-2 font-semibold ${method === "email" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-            >
-              Email
-            </button>
-            <button
-              type="button"
-              onClick={() => { setMethod("phone"); }}
-              className={`rounded-xl py-2 font-semibold ${method === "phone" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-            >
-              Phone
-            </button>
-          </div>
+          {/* Phone sign-in pill hidden until SMS provider is configured. */}
 
           {method === "email" ? (
             confirmationSentTo ? (
