@@ -28,6 +28,14 @@ const ICE_SERVERS: RTCIceServer[] = [
 
 type Status = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "ended";
 
+const genId = () => {
+  try {
+    return crypto.randomUUID();
+  } catch {
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+};
+
 export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   { conversationId, meId, meName, peerName },
   ref,
@@ -44,11 +52,14 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const remoteStreamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const ringTimeoutRef = useRef<number | null>(null);
+  const connectTimeoutRef = useRef<number | null>(null);
   const timerRef = useRef<number | null>(null);
   const isCallerRef = useRef(false);
   const callTypeRef = useRef<CallType>("audio");
   const activeRef = useRef(false);
+  const callIdRef = useRef<string | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
 
@@ -61,8 +72,25 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     channelRef.current?.send({
       type: "broadcast",
       event,
-      payload: { ...payload, fromId: meId },
+      payload: { ...payload, fromId: meId, callId: callIdRef.current },
     });
+  };
+
+  const clearConnectTimeout = () => {
+    if (connectTimeoutRef.current) {
+      clearTimeout(connectTimeoutRef.current);
+      connectTimeoutRef.current = null;
+    }
+  };
+
+  const armConnectTimeout = () => {
+    clearConnectTimeout();
+    connectTimeoutRef.current = window.setTimeout(() => {
+      if (pcRef.current && pcRef.current.connectionState !== "connected") {
+        toast.error("Couldn't connect — network too strict, try again on WiFi 📶");
+        finishCall(true);
+      }
+    }, 25000);
   };
 
   const cleanupMedia = () => {
@@ -70,6 +98,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = null;
     }
+    clearConnectTimeout();
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -78,16 +107,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       try { t.stop(); } catch {}
     });
     localStreamRef.current = null;
-    remoteStreamRef.current?.getTracks().forEach((t) => {
-      try { t.stop(); } catch {}
-    });
+    // Remote tracks are owned by the peer connection; just drop the ref.
     remoteStreamRef.current = null;
     try { pcRef.current?.close(); } catch {}
     pcRef.current = null;
     pendingIceRef.current = [];
     isCallerRef.current = false;
     activeRef.current = false;
+    callIdRef.current = null;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     setMuted(false);
     setCamOff(false);
@@ -107,16 +136,21 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (e.candidate) sendSig("ice", { candidate: e.candidate.toJSON() });
     };
     pc.ontrack = (e) => {
-      const stream = remoteStreamRef.current ?? new MediaStream();
+      // Remote-only stream. Never mixed with local.
+      const incoming = e.streams[0];
+      const stream = incoming ?? (() => {
+        const s = remoteStreamRef.current ?? new MediaStream();
+        if (!s.getTracks().find((x) => x.id === e.track.id)) s.addTrack(e.track);
+        return s;
+      })();
       remoteStreamRef.current = stream;
-      e.streams[0]?.getTracks().forEach((t) => {
-        if (!stream.getTracks().find((x) => x.id === t.id)) stream.addTrack(t);
-      });
+      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
     };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
       if (st === "connected") {
+        clearConnectTimeout();
         setStatus("connected");
         if (!timerRef.current) {
           const started = Date.now();
@@ -127,6 +161,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         }
       } else if (st === "failed" || st === "closed") {
         if (activeRef.current) finishCall(false);
+      }
+    };
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "failed" && activeRef.current) {
+        toast.error("Couldn't connect — network too strict, try again on WiFi 📶");
+        finishCall(true);
       }
     };
     return pc;
@@ -163,6 +203,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (!meId || activeRef.current) return;
     activeRef.current = true;
     isCallerRef.current = true;
+    callIdRef.current = genId();
     setCallTypeBoth(type);
     setStatus("outgoing");
     sendSig("ring", { callType: type, fromName: meName });
@@ -184,26 +225,37 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     });
     channelRef.current = ch;
 
+    const matches = (p: { fromId?: string; callId?: string | null }, requireActive: boolean) => {
+      if (p.fromId === meId) return false;
+      if (requireActive) {
+        if (!activeRef.current) return false;
+        if (!callIdRef.current || p.callId !== callIdRef.current) return false;
+      }
+      return true;
+    };
+
     ch.on("broadcast", { event: "ring" }, ({ payload }) => {
-      const p = payload as { fromId: string; callType: CallType; fromName?: string };
+      const p = payload as { fromId: string; callType: CallType; fromName?: string; callId: string };
       if (p.fromId === meId) return;
       if (activeRef.current) return;
       activeRef.current = true;
       isCallerRef.current = false;
+      callIdRef.current = p.callId ?? genId();
       setCallTypeBoth(p.callType);
       setIncomingFromName(p.fromName || peerName);
       setStatus("incoming");
     });
 
     ch.on("broadcast", { event: "accept" }, async ({ payload }) => {
-      const p = payload as { fromId: string };
-      if (p.fromId === meId) return;
+      const p = payload as { fromId: string; callId: string };
+      if (!matches(p, true)) return;
       if (!isCallerRef.current) return;
       if (ringTimeoutRef.current) {
         clearTimeout(ringTimeoutRef.current);
         ringTimeoutRef.current = null;
       }
       setStatus("connecting");
+      armConnectTimeout();
       try {
         const stream = await getMedia(callTypeRef.current);
         pcRef.current = createPc();
@@ -217,16 +269,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     });
 
     ch.on("broadcast", { event: "decline" }, ({ payload }) => {
-      const p = payload as { fromId: string };
-      if (p.fromId === meId) return;
+      const p = payload as { fromId: string; callId: string };
+      if (!matches(p, true)) return;
       if (!isCallerRef.current) return;
       toast("Call declined");
       finishCall(false);
     });
 
     ch.on("broadcast", { event: "offer" }, async ({ payload }) => {
-      const p = payload as { fromId: string; sdp: RTCSessionDescriptionInit };
-      if (p.fromId === meId) return;
+      const p = payload as { fromId: string; sdp: RTCSessionDescriptionInit; callId: string };
+      if (!matches(p, true)) return;
       if (isCallerRef.current || !pcRef.current) return;
       await pcRef.current.setRemoteDescription(new RTCSessionDescription(p.sdp));
       for (const c of pendingIceRef.current) {
@@ -239,8 +291,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     });
 
     ch.on("broadcast", { event: "answer" }, async ({ payload }) => {
-      const p = payload as { fromId: string; sdp: RTCSessionDescriptionInit };
-      if (p.fromId === meId) return;
+      const p = payload as { fromId: string; sdp: RTCSessionDescriptionInit; callId: string };
+      if (!matches(p, true)) return;
       if (!isCallerRef.current || !pcRef.current) return;
       await pcRef.current.setRemoteDescription(new RTCSessionDescription(p.sdp));
       for (const c of pendingIceRef.current) {
@@ -250,8 +302,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     });
 
     ch.on("broadcast", { event: "ice" }, async ({ payload }) => {
-      const p = payload as { fromId: string; candidate: RTCIceCandidateInit };
-      if (p.fromId === meId) return;
+      const p = payload as { fromId: string; candidate: RTCIceCandidateInit; callId: string };
+      if (!matches(p, true)) return;
       if (!p.candidate) return;
       if (pcRef.current?.remoteDescription) {
         try { await pcRef.current.addIceCandidate(p.candidate); } catch {}
@@ -261,9 +313,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     });
 
     ch.on("broadcast", { event: "end" }, ({ payload }) => {
-      const p = payload as { fromId: string };
-      if (p.fromId === meId) return;
-      if (!activeRef.current) return;
+      const p = payload as { fromId: string; callId: string };
+      if (!matches(p, true)) return;
       finishCall(false);
     });
 
@@ -280,6 +331,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const accept = async () => {
     if (status !== "incoming") return;
     setStatus("connecting");
+    armConnectTimeout();
     try {
       const stream = await getMedia(callTypeRef.current);
       pcRef.current = createPc();
@@ -331,6 +383,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
+      {/* Always-on hidden remote audio sink — required for voice-only calls. */}
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
       {callType === "video" && (
         <video
           ref={remoteVideoRef}
@@ -365,7 +420,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           autoPlay
           muted
           playsInline
-          className="absolute right-4 top-16 z-10 h-40 w-28 rounded-2xl border border-white/20 bg-black object-cover"
+          className="absolute right-4 top-16 z-10 h-40 w-28 -scale-x-100 rounded-2xl border border-white/20 bg-black object-cover"
         />
       )}
 
