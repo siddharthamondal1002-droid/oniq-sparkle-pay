@@ -10,7 +10,7 @@ export const Route = createFileRoute("/_authenticated/app/news")({
   component: NewsScreen,
 });
 
-type NewsItem = { title: string; link: string; source: string; publishedAt: string };
+type NewsItem = { title: string; link: string; source: string; publishedAt: string; image?: string };
 
 const CATEGORIES = [
   { id: "top", label: "Top" },
