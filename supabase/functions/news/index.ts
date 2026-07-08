@@ -99,9 +99,12 @@ Deno.serve(async (req) => {
     const res = await fetch(FEEDS[category], {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        Accept: "application/rss+xml, application/xml;q=0.9, */*;q=0.8",
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+        Accept: "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
         "Accept-Language": "en-IN,en;q=0.9",
+        "Cache-Control": "no-cache",
+        Cookie: "CONSENT=YES+cb.20210328-17-p0.en+FX+000",
+        Referer: "https://news.google.com/",
       },
     });
     if (!res.ok) throw new Error(`feed ${res.status}`);
