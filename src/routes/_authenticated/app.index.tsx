@@ -128,15 +128,6 @@ function HomeScreen() {
                 { key: "wander", to: "/app/travel", icon: Plane, label: "Wander", color: "#22D3EE" },
                 { key: "pulse", to: "/app/news", icon: Newspaper, label: "Pulse", color: "#F472B6" },
               ] as const
-              [
-                { key: "wallet", to: "/app/wallet", icon: Coins, label: "Wallet", color: "#F59E0B" },
-                { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting", color: "#8B5CF6" },
-                { key: "rides", to: "/app/rides", icon: Car, label: "Rides", color: "#38BDF8" },
-                { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "Mini Apps", color: "#A3E635" },
-                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "UPI Pay", color: "#22C55E" },
-                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "Learn", color: "#FB923C" },
-                { key: "wander", to: "/app/travel", icon: Plane, label: "Wander", color: "#22D3EE" },
-              ] as const
             ).map((t, i) => (
               <Tile
                 key={t.label}
