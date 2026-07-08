@@ -14,6 +14,7 @@ import {
   GraduationCap,
   Plane,
   Newspaper,
+  Tv,
 } from "lucide-react";
 import { CompactLiveNews } from "@/components/landing/LiveNewsSection";
 import {
@@ -96,12 +97,13 @@ function HomeScreen() {
           </div>
           <div className="mt-3 grid grid-cols-4 auto-rows-[5.25rem] gap-3">
             <HeroTile
-              tileKey="pulse"
-              skin={skins.pulse}
+              tileKey="watch"
+              skin={skins.watch}
               to="/app/news"
-              icon={Newspaper}
-              label="Pulse"
-              tagline="what's happening"
+              search={{ tab: "watch" as const }}
+              icon={Tv}
+              label="Watch"
+              tagline="live tv rn"
               gradient="from-primary/30 via-primary/10 to-accent/30"
               delay={0}
             />
@@ -124,6 +126,7 @@ function HomeScreen() {
                 { key: "upi", to: "/app/upi", icon: IndianRupee, label: "UPI Pay", color: "#22C55E" },
                 { key: "learn", to: "/app/learn", icon: GraduationCap, label: "Learn", color: "#FB923C" },
                 { key: "wander", to: "/app/travel", icon: Plane, label: "Wander", color: "#22D3EE" },
+                { key: "pulse", to: "/app/news", icon: Newspaper, label: "Pulse", color: "#F472B6" },
               ] as const
             ).map((t, i) => (
               <Tile
@@ -208,6 +211,7 @@ function Tile({
 
 function HeroTile({
   to,
+  search,
   icon: Icon,
   label,
   tagline,
@@ -217,6 +221,7 @@ function HeroTile({
 }: {
   tileKey: TileKey;
   to: string;
+  search?: Record<string, unknown>;
   icon: typeof Send;
   label: string;
   tagline: string;
@@ -227,9 +232,11 @@ function HeroTile({
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
   return (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     <Link
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       to={to as any}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      search={search as any}
       style={{ animationDelay: `${delay}ms` }}
       className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
     >

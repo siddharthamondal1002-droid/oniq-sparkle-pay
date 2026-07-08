@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { ArrowRight, Radio } from "lucide-react";
+import { ArrowRight, Radio, SkipForward } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 type NewsItem = {
@@ -95,28 +95,133 @@ export function CompactLiveNews() {
 // ---- Watch Live (YouTube official live embeds) ----
 type Channel = { id: string; name: string };
 const LIVE_CHANNELS: Channel[] = [
-  { id: "UCYPvAwZP8pZhSMW8qs7cVCw", name: "India Today" },
+  { id: "UCNye-wNBqNL5ZzHSJj3l8Bg", name: "Al Jazeera" },
+  { id: "UCknLrEdhRCp1aegoMqRaCZg", name: "DW News" },
+  { id: "UCQfwfsi5VrQ8yKZ-UWmAEFg", name: "France 24" },
+  { id: "UCoMdktPbSTixAyNGwb-UYkQ", name: "Sky News" },
+  { id: "UC83jt4dlz1Gjl58fzQrrKZg", name: "CNA" },
   { id: "UC_gUM8rL-Lrg6O3adPW9K1g", name: "WION" },
   { id: "UCZFMm1mMw0F81Z37aaEzTUA", name: "NDTV 24x7" },
-  { id: "UCNye-wNBqNL5ZzHSJj3l8Bg", name: "Al Jazeera English" },
-  { id: "UCyPHmVe6qFtWzoJRZKa8s7A", name: "DD India" },
+  { id: "UCYPvAwZP8pZhSMW8qs7cVCw", name: "India Today" },
 ];
 
+const YT_API_SRC = "https://www.youtube.com/iframe_api";
+
+function loadYouTubeApi(): Promise<any> {
+  const w = window as any;
+  if (w.YT && w.YT.Player) return Promise.resolve(w.YT);
+  if (w.__ytApiPromise) return w.__ytApiPromise;
+  w.__ytApiPromise = new Promise((resolve) => {
+    const prev = w.onYouTubeIframeAPIReady;
+    w.onYouTubeIframeAPIReady = () => {
+      if (typeof prev === "function") try { prev(); } catch { /* noop */ }
+      resolve(w.YT);
+    };
+    if (!document.querySelector(`script[src="${YT_API_SRC}"]`)) {
+      const s = document.createElement("script");
+      s.src = YT_API_SRC;
+      s.async = true;
+      document.head.appendChild(s);
+    }
+  });
+  return w.__ytApiPromise;
+}
+
 export function WatchLive() {
-  const [ch, setCh] = useState<Channel>(LIVE_CHANNELS[0]);
-  const src = `https://www.youtube.com/embed/live_stream?channel=${ch.id}&autoplay=1&mute=1`;
+  const [idx, setIdx] = useState(0);
+  const [allDead, setAllDead] = useState(false);
+  const mountRef = useRef<HTMLDivElement | null>(null);
+  const playerRef = useRef<any>(null);
+  const failStreakRef = useRef(0);
+  const advanceTimerRef = useRef<number | null>(null);
+
+  const ch = LIVE_CHANNELS[idx];
+
+  const advance = (reason: "error" | "ended") => {
+    failStreakRef.current += reason === "error" ? 1 : 0;
+    if (failStreakRef.current >= LIVE_CHANNELS.length) {
+      setAllDead(true);
+      return;
+    }
+    if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
+    advanceTimerRef.current = window.setTimeout(() => {
+      setIdx((i) => (i + 1) % LIVE_CHANNELS.length);
+    }, 800);
+  };
+
+  const pickChannel = (i: number) => {
+    failStreakRef.current = 0;
+    setAllDead(false);
+    setIdx(i);
+  };
+
+  useEffect(() => {
+    if (allDead) return;
+    let cancelled = false;
+    const host = mountRef.current;
+    if (!host) return;
+    host.innerHTML = "";
+    const div = document.createElement("div");
+    div.id = `yt-live-${Date.now()}`;
+    host.appendChild(div);
+
+    loadYouTubeApi().then((YT) => {
+      if (cancelled || !YT) return;
+      try {
+        playerRef.current = new YT.Player(div.id, {
+          width: "100%",
+          height: "100%",
+          host: "https://www.youtube-nocookie.com",
+          playerVars: {
+            channel: ch.id,
+            live: 1,
+            autoplay: 1,
+            mute: 1,
+            playsinline: 1,
+            rel: 0,
+            modestbranding: 1,
+          },
+          events: {
+            onReady: (e: any) => { try { e.target.playVideo(); } catch { /* noop */ } },
+            onError: (e: any) => {
+              // 2 invalid param, 5 html5 err, 100 not found, 101/150 embed disabled
+              console.warn("[WatchLive] error", e?.data, "for", ch.name);
+              advance("error");
+            },
+            onStateChange: (e: any) => {
+              if (e?.data === 0) advance("ended"); // ENDED
+              if (e?.data === 1) failStreakRef.current = 0; // PLAYING
+            },
+          },
+        });
+      } catch (err) {
+        console.warn("[WatchLive] player init failed", err);
+        advance("error");
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
+      try { playerRef.current?.destroy?.(); } catch { /* noop */ }
+      playerRef.current = null;
+      if (host) host.innerHTML = "";
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ch.id, allDead]);
+
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-2">
-        {LIVE_CHANNELS.map((c) => {
-          const active = c.id === ch.id;
+        {LIVE_CHANNELS.map((c, i) => {
+          const active = c.id === ch.id && !allDead;
           return (
             <button
               key={c.id}
-              onClick={() => setCh(c)}
-              className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
+              onClick={() => pickChannel(i)}
+              className={`press whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
                 active
-                  ? "bg-primary text-primary-foreground border-primary"
+                  ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_var(--primary)]"
                   : "bg-surface text-muted-foreground border-border hover:text-foreground"
               }`}
             >
@@ -124,20 +229,28 @@ export function WatchLive() {
             </button>
           );
         })}
+        <button
+          onClick={() => {
+            if (allDead) { setAllDead(false); setIdx(0); failStreakRef.current = 0; return; }
+            setIdx((i) => (i + 1) % LIVE_CHANNELS.length);
+          }}
+          className="press ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium hover:text-foreground"
+          aria-label="Next channel"
+        >
+          <SkipForward className="h-3 w-3" /> Next
+        </button>
       </div>
-      <div className="aspect-video overflow-hidden rounded-2xl border border-border bg-black">
-        <iframe
-          key={ch.id}
-          src={src}
-          title={`${ch.name} live`}
-          loading="lazy"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          allowFullScreen
-          className="h-full w-full"
-        />
+      <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black">
+        {allDead ? (
+          <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted-foreground">
+            streams are napping — try later 📺
+          </div>
+        ) : (
+          <div ref={mountRef} className="h-full w-full" />
+        )}
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground">
-        Live streams by the broadcasters via YouTube
+        Live streams by broadcasters via YouTube
       </p>
     </div>
   );

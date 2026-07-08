@@ -7,6 +7,7 @@ import { Palette, Upload, RotateCcw, X } from "lucide-react";
 const SIGNED_TTL_SECONDS = 60 * 60 * 24 * 365 * 100; // ~100 years
 
 export type TileKey =
+  | "watch"
   | "pulse"
   | "clips"
   | "wallet"
@@ -18,6 +19,7 @@ export type TileKey =
   | "wander";
 
 export const TILE_LABELS: Record<TileKey, string> = {
+  watch: "Watch",
   pulse: "Pulse",
   clips: "Clips",
   wallet: "Wallet",
