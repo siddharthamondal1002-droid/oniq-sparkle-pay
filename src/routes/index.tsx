@@ -46,11 +46,10 @@ const features = [
   { icon: MessageCircle, title: "Messaging", desc: "Real-time chat, voice & video. End-to-end and lightning fast." },
   { icon: Sparkles, title: "Moments & Channels", desc: "Share moments with friends, follow creators, go live." },
   { icon: UtensilsCrossed, title: "Food Delivery", desc: "Order from local restaurants — alcohol-free, family-safe." },
-  { icon: Wallet, title: "ONIQ Pay", desc: "Send money to anyone, anywhere. Free P2P, instant settlement." },
   { icon: Coins, title: "OMIQ Wallet", desc: "Built-in crypto wallet on Polygon. Your keys, your coins." },
   { icon: Sparkles, title: "AI Assistant", desc: "On-demand AI for chat, search, planning and creativity." },
   { icon: CloudSun, title: "Weather & Travel", desc: "Hyperlocal forecasts and trip tools in one tap." },
-  { icon: ShieldCheck, title: "Fraud Protection", desc: "AI-powered fraud detection on every payment." },
+  { icon: ShieldCheck, title: "Fraud Protection", desc: "AI-powered fraud detection on every transaction." },
 ];
 
 function Landing() {
