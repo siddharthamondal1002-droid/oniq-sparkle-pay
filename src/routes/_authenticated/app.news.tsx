@@ -7,6 +7,9 @@ import { openInApp } from "@/lib/miniapps";
 import { WatchLive } from "@/components/landing/LiveNewsSection";
 
 export const Route = createFileRoute("/_authenticated/app/news")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    tab: s.tab === "watch" ? ("watch" as const) : undefined,
+  }),
   component: NewsScreen,
 });
 
@@ -40,7 +43,8 @@ function relTime(iso: string): string {
 }
 
 function NewsScreen() {
-  const [category, setCategory] = useState<string>("top");
+  const { tab } = Route.useSearch();
+  const [category, setCategory] = useState<string>(tab === "watch" ? "watch" : "top");
   const qc = useQueryClient();
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
