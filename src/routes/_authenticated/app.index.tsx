@@ -14,6 +14,7 @@ import {
   GraduationCap,
   Plane,
   Newspaper,
+  Tv,
 } from "lucide-react";
 import { CompactLiveNews } from "@/components/landing/LiveNewsSection";
 import {
@@ -96,12 +97,13 @@ function HomeScreen() {
           </div>
           <div className="mt-3 grid grid-cols-4 auto-rows-[5.25rem] gap-3">
             <HeroTile
-              tileKey="pulse"
-              skin={skins.pulse}
+              tileKey="watch"
+              skin={skins.watch}
               to="/app/news"
-              icon={Newspaper}
-              label="Pulse"
-              tagline="what's happening"
+              search={{ tab: "watch" as const }}
+              icon={Tv}
+              label="Watch"
+              tagline="live tv rn"
               gradient="from-primary/30 via-primary/10 to-accent/30"
               delay={0}
             />
@@ -116,6 +118,16 @@ function HomeScreen() {
               delay={60}
             />
             {(
+              [
+                { key: "wallet", to: "/app/wallet", icon: Coins, label: "Wallet", color: "#F59E0B" },
+                { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting", color: "#8B5CF6" },
+                { key: "rides", to: "/app/rides", icon: Car, label: "Rides", color: "#38BDF8" },
+                { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "Mini Apps", color: "#A3E635" },
+                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "UPI Pay", color: "#22C55E" },
+                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "Learn", color: "#FB923C" },
+                { key: "wander", to: "/app/travel", icon: Plane, label: "Wander", color: "#22D3EE" },
+                { key: "pulse", to: "/app/news", icon: Newspaper, label: "Pulse", color: "#F472B6" },
+              ] as const
               [
                 { key: "wallet", to: "/app/wallet", icon: Coins, label: "Wallet", color: "#F59E0B" },
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting", color: "#8B5CF6" },
