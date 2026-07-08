@@ -67,7 +67,6 @@ function Landing() {
           <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
             <a href="#features" className="hover:text-foreground">Features</a>
             <a href="#worlds" className="hover:text-foreground">Worlds</a>
-            <a href="#pay" className="hover:text-foreground">ONIQ Pay</a>
             <a href="#download" className="hover:text-foreground">Get the app</a>
           </nav>
           <Link
