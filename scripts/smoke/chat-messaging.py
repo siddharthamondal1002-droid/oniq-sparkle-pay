@@ -102,7 +102,7 @@ async def main():
             await page_a.get_by_role("button", name="New chat").first.click()
             await page_a.get_by_placeholder("Search @username").fill(b["username"])
             # Wait for the user row to appear
-            user_button = page_a.get_by_role("button", name=lambda n: b["username"] in (n or ""))
+            user_button = page_a.locator("button", has_text=f"@{b['username']}")
             await expect(user_button.first).to_be_visible(timeout=10000)
             await page_a.screenshot(path=str(SCREENSHOTS / "2_a_search.png"))
             await user_button.first.click()
