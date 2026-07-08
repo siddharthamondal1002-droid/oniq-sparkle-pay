@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Mail, Lock } from "lucide-react";
+import { ArrowLeft, Mail, Lock, Phone } from "lucide-react";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -33,14 +33,38 @@ function friendlyAuthError(err: unknown): string {
   if (m.includes("confirm") && m.includes("email")) {
     return "Check your inbox — confirm your email to finish signing up 📬";
   }
+  if (m.includes("provider is not enabled") || m.includes("unsupported provider")) {
+    return "That sign-in is warming up — use email or phone for now ✨";
+  }
+  if (
+    m.includes("sms provider") ||
+    m.includes("phone provider") ||
+    m.includes("sms not") ||
+    m.includes("phone not") ||
+    (m.includes("phone") && m.includes("not enabled")) ||
+    (m.includes("sms") && m.includes("not configured"))
+  ) {
+    return "Phone sign-in isn't switched on yet — use email for now 📧";
+  }
   return msg || "Something went wrong — try again";
+}
+
+function normalizePhone(raw: string): string | null {
+  const trimmed = raw.trim().replace(/\s|-/g, "");
+  if (/^[6-9][0-9]{9}$/.test(trimmed)) return "+91" + trimmed;
+  if (/^\+?[0-9]{8,15}$/.test(trimmed)) return trimmed.startsWith("+") ? trimmed : "+" + trimmed;
+  return null;
 }
 
 function AuthPage() {
   const navigate = useNavigate();
+  const [method, setMethod] = useState<"email" | "phone">("email");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -71,7 +95,67 @@ function AuthPage() {
     } catch (err) {
       toast.error(friendlyAuthError(err));
     } finally {
-      // ALWAYS reset — the button must never hang on "Please wait…"
+      setLoading(false);
+    }
+  }
+
+  async function handleSendOtp(e: React.FormEvent) {
+    e.preventDefault();
+    if (loading) return;
+    const normalized = normalizePhone(phone);
+    if (!normalized) {
+      toast.error("Enter a valid phone — try +91 98765 43210");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOtp({ phone: normalized });
+      if (error) throw error;
+      setPhone(normalized);
+      setOtpSent(true);
+      toast.success("Code sent — check your SMS 📩");
+    } catch (err) {
+      toast.error(friendlyAuthError(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleVerifyOtp(e: React.FormEvent) {
+    e.preventDefault();
+    if (loading) return;
+    if (!/^[0-9]{6}$/.test(otp.trim())) {
+      toast.error("That code should be 6 digits");
+      return;
+    }
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.verifyOtp({
+        phone,
+        token: otp.trim(),
+        type: "sms",
+      });
+      if (error) throw error;
+      navigate({ to: "/app" });
+    } catch (err) {
+      toast.error(friendlyAuthError(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSocial(provider: "google" | "facebook" | "apple") {
+    if (loading) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: window.location.origin + "/app" },
+      });
+      if (error) throw error;
+    } catch (err) {
+      toast.error(friendlyAuthError(err));
+    } finally {
       setLoading(false);
     }
   }
@@ -99,47 +183,132 @@ function AuthPage() {
         </div>
 
         <div className="mt-8 rounded-3xl border border-border glass p-6">
-          <form onSubmit={handleEmail} className="space-y-3">
-            <Field
-              icon={Mail}
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={setEmail}
-              required
-            />
-            <Field
-              icon={Lock}
-              type="password"
-              placeholder="Password — strong & unique"
-              value={password}
-              onChange={setPassword}
-              required
-              minLength={8}
-            />
-            {mode === "signup" && (
-              <p className="px-1 text-[11px] text-muted-foreground">
-                Common passwords get rejected for your safety — mix words, numbers & symbols.
-              </p>
-            )}
+          <div className="mb-4 grid grid-cols-2 rounded-2xl border border-border bg-card p-1 text-xs">
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+              type="button"
+              onClick={() => { setMethod("email"); setOtpSent(false); }}
+              className={`rounded-xl py-2 font-semibold ${method === "email" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
             >
-              {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+              Email
             </button>
-          </form>
+            <button
+              type="button"
+              onClick={() => { setMethod("phone"); }}
+              className={`rounded-xl py-2 font-semibold ${method === "phone" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+            >
+              Phone
+            </button>
+          </div>
 
-          <button
-            type="button"
-            onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-            className="mt-4 block w-full text-center text-xs text-muted-foreground hover:text-foreground"
-          >
-            {mode === "signin"
-              ? "New here? Create an account →"
-              : "Already have an account? Sign in →"}
-          </button>
+          {method === "email" ? (
+            <>
+              <form onSubmit={handleEmail} className="space-y-3">
+                <Field
+                  icon={Mail}
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={setEmail}
+                  required
+                />
+                <Field
+                  icon={Lock}
+                  type="password"
+                  placeholder="Password — strong & unique"
+                  value={password}
+                  onChange={setPassword}
+                  required
+                  minLength={8}
+                />
+                {mode === "signup" && (
+                  <p className="px-1 text-[11px] text-muted-foreground">
+                    Common passwords get rejected for your safety — mix words, numbers & symbols.
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {loading ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
+                </button>
+              </form>
+
+              <button
+                type="button"
+                onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+                className="mt-4 block w-full text-center text-xs text-muted-foreground hover:text-foreground"
+              >
+                {mode === "signin"
+                  ? "New here? Create an account →"
+                  : "Already have an account? Sign in →"}
+              </button>
+            </>
+          ) : (
+            <>
+              {!otpSent ? (
+                <form onSubmit={handleSendOtp} className="space-y-3">
+                  <Field
+                    icon={Phone}
+                    type="tel"
+                    placeholder="+91 98765 43210"
+                    value={phone}
+                    onChange={setPhone}
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {loading ? "Please wait…" : "Send OTP"}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handleVerifyOtp} className="space-y-3">
+                  <p className="px-1 text-[11px] text-muted-foreground">
+                    Code sent to {phone}
+                  </p>
+                  <Field
+                    icon={Lock}
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="6-digit code"
+                    value={otp}
+                    onChange={setOtp}
+                    maxLength={6}
+                    required
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
+                  >
+                    {loading ? "Please wait…" : "Verify & sign in"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setOtpSent(false); setOtp(""); }}
+                    className="block w-full text-center text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    ← use a different number
+                  </button>
+                </form>
+              )}
+            </>
+          )}
+
+          <div className="my-5 flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="h-px flex-1 bg-border" />
+            or continue with
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <SocialButton label="Google" onClick={() => handleSocial("google")} disabled={loading} />
+            <SocialButton label="Facebook" onClick={() => handleSocial("facebook")} disabled={loading} />
+            <SocialButton label="Apple" onClick={() => handleSocial("apple")} disabled={loading} />
+          </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
@@ -147,6 +316,19 @@ function AuthPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+function SocialButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      className="rounded-xl border border-border bg-card py-2.5 text-xs font-semibold text-foreground transition hover:border-primary/40 disabled:opacity-50"
+    >
+      {label}
+    </button>
   );
 }
 

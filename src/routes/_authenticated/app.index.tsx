@@ -16,6 +16,7 @@ import {
   Lock,
   Clapperboard,
   GraduationCap,
+  Plane,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app/")({
@@ -116,7 +117,7 @@ function HomeScreen() {
           the lineup
         </h2>
         <div className="mt-3 grid grid-cols-4 gap-3">
-          <Tile to="/app/food" icon={UtensilsCrossed} label="Food" />
+          <Tile to="/app/travel" icon={Plane} label="Wander" />
           <Tile to="/app/pay" icon={Wallet} label="Pay" />
           <Tile to="/app/wallet" icon={Coins} label="Wallet" />
           <Tile to="/app/ai" icon={Sparkles} label="Ting" />
@@ -126,6 +127,7 @@ function HomeScreen() {
           <Tile to="/app/upi" icon={IndianRupee} label="UPI Pay" />
           <Tile to="/app/clips" icon={Clapperboard} label="Clips" />
           <Tile to="/app/learn" icon={GraduationCap} label="Learn" />
+          <Tile to="/app/food" icon={UtensilsCrossed} label="Food" />
         </div>
       </div>
     </div>
