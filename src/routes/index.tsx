@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Zap,
 } from "lucide-react";
+import { LiveNewsSection } from "@/components/landing/LiveNewsSection";
 
 export const Route = createFileRoute("/")({
   head: () => ({
