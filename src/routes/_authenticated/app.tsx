@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
-import { Home, MessageCircle, Compass, Wallet, User } from "lucide-react";
+import { Home, MessageCircle, Compass, User } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app")({
   component: AppShell,
@@ -10,7 +10,6 @@ const tabs: Tab[] = [
   { to: "/app", label: "Home", icon: Home, exact: true },
   { to: "/app/chat", label: "Chat", icon: MessageCircle },
   { to: "/app/discover", label: "Discover", icon: Compass },
-  { to: "/app/pay", label: "Pay", icon: Wallet },
   { to: "/app/profile", label: "Profile", icon: User },
 ];
 

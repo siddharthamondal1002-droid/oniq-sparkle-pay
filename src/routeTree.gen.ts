@@ -22,7 +22,6 @@ import { Route as AuthenticatedAppTravelRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAppScanRouteImport } from './routes/_authenticated/app.scan'
 import { Route as AuthenticatedAppRidesRouteImport } from './routes/_authenticated/app.rides'
 import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/app.profile'
-import { Route as AuthenticatedAppPayRouteImport } from './routes/_authenticated/app.pay'
 import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenticated/app.miniapps'
 import { Route as AuthenticatedAppLearnRouteImport } from './routes/_authenticated/app.learn'
 import { Route as AuthenticatedAppDiscoverRouteImport } from './routes/_authenticated/app.discover'
@@ -99,11 +98,6 @@ const AuthenticatedAppProfileRoute = AuthenticatedAppProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppPayRoute = AuthenticatedAppPayRouteImport.update({
-  id: '/pay',
-  path: '/pay',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
 const AuthenticatedAppMiniappsRoute =
   AuthenticatedAppMiniappsRouteImport.update({
     id: '/miniapps',
@@ -177,7 +171,6 @@ export interface FileRoutesByFullPath {
   '/app/discover': typeof AuthenticatedAppDiscoverRoute
   '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
-  '/app/pay': typeof AuthenticatedAppPayRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
   '/app/rides': typeof AuthenticatedAppRidesRoute
   '/app/scan': typeof AuthenticatedAppScanRoute
@@ -201,7 +194,6 @@ export interface FileRoutesByTo {
   '/app/discover': typeof AuthenticatedAppDiscoverRoute
   '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
-  '/app/pay': typeof AuthenticatedAppPayRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
   '/app/rides': typeof AuthenticatedAppRidesRoute
   '/app/scan': typeof AuthenticatedAppScanRoute
@@ -229,7 +221,6 @@ export interface FileRoutesById {
   '/_authenticated/app/discover': typeof AuthenticatedAppDiscoverRoute
   '/_authenticated/app/learn': typeof AuthenticatedAppLearnRoute
   '/_authenticated/app/miniapps': typeof AuthenticatedAppMiniappsRoute
-  '/_authenticated/app/pay': typeof AuthenticatedAppPayRoute
   '/_authenticated/app/profile': typeof AuthenticatedAppProfileRoute
   '/_authenticated/app/rides': typeof AuthenticatedAppRidesRoute
   '/_authenticated/app/scan': typeof AuthenticatedAppScanRoute
@@ -257,7 +248,6 @@ export interface FileRouteTypes {
     | '/app/discover'
     | '/app/learn'
     | '/app/miniapps'
-    | '/app/pay'
     | '/app/profile'
     | '/app/rides'
     | '/app/scan'
@@ -281,7 +271,6 @@ export interface FileRouteTypes {
     | '/app/discover'
     | '/app/learn'
     | '/app/miniapps'
-    | '/app/pay'
     | '/app/profile'
     | '/app/rides'
     | '/app/scan'
@@ -308,7 +297,6 @@ export interface FileRouteTypes {
     | '/_authenticated/app/discover'
     | '/_authenticated/app/learn'
     | '/_authenticated/app/miniapps'
-    | '/_authenticated/app/pay'
     | '/_authenticated/app/profile'
     | '/_authenticated/app/rides'
     | '/_authenticated/app/scan'
@@ -423,13 +411,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppProfileRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/pay': {
-      id: '/_authenticated/app/pay'
-      path: '/pay'
-      fullPath: '/app/pay'
-      preLoaderRoute: typeof AuthenticatedAppPayRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
     '/_authenticated/app/miniapps': {
       id: '/_authenticated/app/miniapps'
       path: '/miniapps'
@@ -532,7 +513,6 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppDiscoverRoute: typeof AuthenticatedAppDiscoverRoute
   AuthenticatedAppLearnRoute: typeof AuthenticatedAppLearnRoute
   AuthenticatedAppMiniappsRoute: typeof AuthenticatedAppMiniappsRoute
-  AuthenticatedAppPayRoute: typeof AuthenticatedAppPayRoute
   AuthenticatedAppProfileRoute: typeof AuthenticatedAppProfileRoute
   AuthenticatedAppRidesRoute: typeof AuthenticatedAppRidesRoute
   AuthenticatedAppScanRoute: typeof AuthenticatedAppScanRoute
@@ -553,7 +533,6 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppDiscoverRoute: AuthenticatedAppDiscoverRoute,
   AuthenticatedAppLearnRoute: AuthenticatedAppLearnRoute,
   AuthenticatedAppMiniappsRoute: AuthenticatedAppMiniappsRoute,
-  AuthenticatedAppPayRoute: AuthenticatedAppPayRoute,
   AuthenticatedAppProfileRoute: AuthenticatedAppProfileRoute,
   AuthenticatedAppRidesRoute: AuthenticatedAppRidesRoute,
   AuthenticatedAppScanRoute: AuthenticatedAppScanRoute,
@@ -589,13 +568,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
