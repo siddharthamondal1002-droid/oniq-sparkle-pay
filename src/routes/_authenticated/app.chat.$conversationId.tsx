@@ -127,7 +127,11 @@ function ChatThread() {
   const send = async (e: FormEvent) => {
     e.preventDefault();
     const content = text.trim();
-    if (!content || !me) return;
+    if (!content) return;
+    if (!me) {
+      toast.error("You're signed out — please sign in again");
+      return;
+    }
     setSending(true);
     setText("");
     const { error } = await supabase.from("messages").insert({
@@ -138,6 +142,7 @@ function ChatThread() {
     });
     if (error) {
       console.error("send failed", error);
+      toast.error(error.message || "Couldn't send — try again");
       setText(content);
     } else {
       await supabase
@@ -149,6 +154,7 @@ function ChatThread() {
     setSending(false);
     inputRef.current?.focus();
   };
+
 
   const title = header?.title ?? "Conversation";
 
