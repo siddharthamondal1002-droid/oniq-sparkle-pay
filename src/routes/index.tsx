@@ -80,8 +80,10 @@ function Landing() {
         </div>
       </header>
 
+      <main>
       {/* Hero */}
       <section className="relative overflow-hidden bg-hero">
+
         <div className="mx-auto max-w-6xl px-5 pb-24 pt-20 md:pt-32">
           <div className="grid gap-12 md:grid-cols-[1.2fr_1fr] md:items-center">
             <div>
