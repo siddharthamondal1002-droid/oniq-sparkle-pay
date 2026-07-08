@@ -35,6 +35,7 @@ function ChatThread() {
   const [sending, setSending] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const callRef = useRef<CallHandle>(null);
 
   const { data: me } = useQuery({
     queryKey: ["me"],
