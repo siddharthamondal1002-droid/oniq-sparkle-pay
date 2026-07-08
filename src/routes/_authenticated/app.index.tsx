@@ -3,7 +3,6 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sparkles,
-  CloudSun,
   Coins,
   Wallet,
   ArrowUpRight,
@@ -77,20 +76,6 @@ function HomeScreen() {
             ) : (
               (profile?.display_name ?? profile?.username ?? "O").charAt(0).toUpperCase()
             )}
-          </Link>
-        </div>
-
-        {/* Weather placeholder */}
-        <div className="mt-5 rounded-2xl border border-border bg-card p-4 flex items-center gap-4">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary">
-            <CloudSun className="h-6 w-6" />
-          </div>
-          <div className="flex-1">
-            <div className="text-xs text-muted-foreground">outside rn</div>
-            <div className="font-display text-lg font-semibold">22° · Clear</div>
-          </div>
-          <Link to="/app/weather" className="text-primary text-xs font-semibold inline-flex items-center gap-1">
-            Forecast <ArrowUpRight className="h-3.5 w-3.5" />
           </Link>
         </div>
 
