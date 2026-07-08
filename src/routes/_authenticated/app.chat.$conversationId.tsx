@@ -2,9 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
+import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
 
 
 type Message = {
@@ -34,6 +35,7 @@ function ChatThread() {
   const [sending, setSending] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const callRef = useRef<CallHandle>(null);
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -189,7 +191,36 @@ function ChatThread() {
           <div className="font-medium">{title}</div>
           <div className="text-xs text-muted-foreground">Live · realtime</div>
         </div>
+        <button
+          data-testid="call-audio"
+          onClick={() => callRef.current?.startCall("audio")}
+          aria-label="Voice call"
+          className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+        >
+          <Phone className="h-4 w-4" />
+        </button>
+        <button
+          data-testid="call-video"
+          onClick={() => callRef.current?.startCall("video")}
+          aria-label="Video call"
+          className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+        >
+          <Video className="h-4 w-4" />
+        </button>
       </header>
+
+      <CallOverlay
+        ref={callRef}
+        conversationId={conversationId}
+        meId={me?.id}
+        meName={
+          (me?.user_metadata as { display_name?: string; full_name?: string } | undefined)?.display_name ||
+          (me?.user_metadata as { display_name?: string; full_name?: string } | undefined)?.full_name ||
+          me?.email ||
+          "Someone"
+        }
+        peerName={title}
+      />
 
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
         {isLoading ? (
