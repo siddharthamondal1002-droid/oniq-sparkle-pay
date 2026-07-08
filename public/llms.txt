@@ -1,0 +1,10 @@
+# ONIQ
+
+> ONIQ is a global lifestyle super app — one login for messaging, social, food delivery, payments, crypto, AI, weather, rides, travel, and more.
+
+ONIQ brings together everyday tools people already juggle across a dozen apps: chat with friends, send money, order food, book rides, plan trips, check the weather, watch short-form clips, and talk to an AI assistant — all inside one mobile-first, dark-themed interface.
+
+## Pages
+
+- [Home](/): Overview of ONIQ, its features, and the worlds it unlocks.
+- [Sign in](/auth): Create a free ONIQ account or sign in to an existing one.
