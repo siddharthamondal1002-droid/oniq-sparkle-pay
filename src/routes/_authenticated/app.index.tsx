@@ -160,7 +160,7 @@ function Tile({
   locked?: boolean;
   delay?: number;
 }) {
-  const [skinError, setSkinError] = require("react").useState(false);
+  const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
   const tint = color ?? "#00D4B8";
   const inner = (
@@ -224,7 +224,7 @@ function HeroTile({
   skin?: string;
   delay?: number;
 }) {
-  const [skinError, setSkinError] = require("react").useState(false);
+  const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
   return (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
