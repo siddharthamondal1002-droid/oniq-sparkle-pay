@@ -98,9 +98,11 @@
     "vite": "^8.0.16"
   },
   "overrides": {
-    "brace-expansion": "^2.0.2"
+    "brace-expansion": "^2.0.2",
+    "js-yaml": "^4.1.1"
   },
   "resolutions": {
-    "brace-expansion": "^2.0.2"
+    "brace-expansion": "^2.0.2",
+    "js-yaml": "^4.1.1"
   }
 }
