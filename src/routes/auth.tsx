@@ -271,6 +271,7 @@ function AuthPage() {
                   : "Already have an account? Sign in →"}
               </button>
             </>
+            )
           ) : (
             <>
               {!otpSent ? (
