@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Zap,
 } from "lucide-react";
+import { LiveNewsSection } from "@/components/landing/LiveNewsSection";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -80,18 +81,21 @@ function Landing() {
       <main>
       {/* Hero */}
       <section className="relative overflow-hidden bg-hero">
+        <div className="pointer-events-none absolute -top-24 -left-20 h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
+        <div className="pointer-events-none absolute top-40 -right-16 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
+        <div className="pointer-events-none absolute bottom-0 left-1/3 h-64 w-64 rounded-full bg-amber-400/15 blur-3xl" />
 
-        <div className="mx-auto max-w-6xl px-5 pb-24 pt-20 md:pt-32">
+        <div className="relative mx-auto max-w-6xl px-5 pb-24 pt-20 md:pt-32">
           <div className="grid gap-12 md:grid-cols-[1.2fr_1fr] md:items-center">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-3 py-1 text-xs text-muted-foreground">
-                <Zap className="h-3.5 w-3.5 text-primary" />
-                Now in early access
+              <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                <Zap className="h-3.5 w-3.5" />
+                Now in early access ⚡
               </div>
               <h1 className="mt-5 font-display text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
                 One app.
                 <br />
-                <span className="text-gradient-primary">Every world.</span>
+                <span className="bg-gradient-to-r from-[#00D4B8] via-[#8B5CF6] to-[#F59E0B] bg-clip-text text-transparent">Every world.</span>
               </h1>
               <p className="mt-6 max-w-xl text-lg text-muted-foreground">
                 ONIQ is the global lifestyle super app. Chat with friends, pay anyone,
@@ -124,6 +128,9 @@ function Landing() {
         </div>
       </section>
 
+      {/* Live news */}
+      <LiveNewsSection />
+
       {/* Features */}
       <section id="features" className="mx-auto max-w-6xl px-5 py-24">
         <div className="mx-auto max-w-2xl text-center">
@@ -139,7 +146,7 @@ function Landing() {
           {features.map((f) => (
             <div
               key={f.title}
-              className="group relative overflow-hidden rounded-3xl border border-border bg-[image:var(--gradient-card)] p-6 transition hover:border-primary/40"
+              className="group relative overflow-hidden rounded-3xl border border-border bg-[image:var(--gradient-card)] p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_10px_40px_-10px_hsl(var(--primary)/0.35)]"
             >
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary">
                 <f.icon className="h-5 w-5" />
