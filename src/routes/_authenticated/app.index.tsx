@@ -74,10 +74,10 @@ function HomeScreen() {
         </h2>
         <div className="mt-3 grid grid-cols-4 auto-rows-[5.25rem] gap-3">
           <HeroTile
-            to="/app/travel"
-            icon={Plane}
-            label="Wander"
-            tagline="go somewhere"
+            to="/app/news"
+            icon={Newspaper}
+            label="Pulse"
+            tagline="what's happening"
             gradient="from-primary/30 via-primary/10 to-accent/30"
             delay={0}
           />
@@ -96,7 +96,8 @@ function HomeScreen() {
             { to: "/app/miniapps", icon: LayoutGrid, label: "Mini Apps" },
             { to: "/app/upi", icon: IndianRupee, label: "UPI Pay" },
             { to: "/app/learn", icon: GraduationCap, label: "Learn" },
-            { to: "/app/news", icon: Newspaper, label: "Pulse" },
+            { to: "/app/travel", icon: Plane, label: "Wander" },
+
           ].map((t, i) => (
             <Tile key={t.label} to={t.to} icon={t.icon} label={t.label} delay={120 + i * 40} />
           ))}
