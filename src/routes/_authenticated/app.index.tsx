@@ -82,14 +82,6 @@ function HomeScreen() {
   );
 }
 
-function Action({ label, icon: Icon }: { label: string; icon: typeof Send }) {
-  return (
-    <div className="flex flex-col items-center gap-1 rounded-2xl bg-background/15 py-2.5 text-xs backdrop-blur">
-      <Icon className="h-4 w-4" />
-      {label}
-    </div>
-  );
-}
 
 function Tile({
   to,
