@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Send } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
+import { toast } from "sonner";
+
 
 type Message = {
   id: string;
