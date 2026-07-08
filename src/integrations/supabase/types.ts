@@ -1079,6 +1079,35 @@ export type Database = {
           },
         ]
       }
+      user_theme: {
+        Row: {
+          tile_skins: Json
+          updated_at: string
+          user_id: string
+          wallpaper_url: string | null
+        }
+        Insert: {
+          tile_skins?: Json
+          updated_at?: string
+          user_id: string
+          wallpaper_url?: string | null
+        }
+        Update: {
+          tile_skins?: Json
+          updated_at?: string
+          user_id?: string
+          wallpaper_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_theme_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       wallets: {
         Row: {
           created_at: string | null
