@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type {} from "@tanstack/react-start";
+import type {} from "@tanstack/start-client-core";
+
 
 const BASE_URL = "https://oniq-sparkle-pay.lovable.app";
 
