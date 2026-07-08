@@ -8,11 +8,17 @@ export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
       { title: "Sign in — ONIQ" },
-      { name: "description", content: "Sign in or create your free ONIQ account." },
+      { name: "description", content: "Sign in or create your free ONIQ account to access messaging, payments, food, and every ONIQ world." },
+      { property: "og:title", content: "Sign in — ONIQ" },
+      { property: "og:description", content: "Open your ONIQ account — one login for every world." },
+      { property: "og:url", content: "https://oniq-sparkle-pay.lovable.app/auth" },
+      { property: "og:type", content: "website" },
     ],
+    links: [{ rel: "canonical", href: "https://oniq-sparkle-pay.lovable.app/auth" }],
   }),
   component: AuthPage,
 });
+
 
 /** Map raw Supabase auth errors to copy a human can act on. */
 function friendlyAuthError(err: unknown): string {
