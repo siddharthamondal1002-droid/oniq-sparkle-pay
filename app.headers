@@ -1,0 +1,12 @@
+HTTP/2 200 
+date: Wed, 08 Jul 2026 07:04:05 GMT
+content-type: text/html; charset=utf-8
+cache-control: no-cache, must-revalidate, max-age=0
+strict-transport-security: max-age=31536000; includeSubDomains
+referrer-policy: strict-origin-when-cross-origin
+x-content-type-options: nosniff
+x-deployment-id: bf919af30f843b8c0100e41b3feab4f4bf4be185a8f80aac635efc9ba15f40eb
+set-cookie: __cf_bm=pyLuBMzCH5t9dMtqHMT4olfrFLyTAAWlJGUMIpFy19k-1783494244.9264936-1.0.1.1-4ZTynxbXz0yiizJPY11R.RFInyKfZ0BFznQDFqDMdB6cZdLIGcD5I7yEQXK4Aqt5mexNYTXFQGaooPuyhpqKeS5mGczIhSgbmKOW2EY2GC7s1K.00eDTSgpdfcgUyfv3; HttpOnly; SameSite=None; Secure; Path=/; Domain=lovable.app; Expires=Wed, 08 Jul 2026 07:34:05 GMT
+server: cloudflare
+cf-ray: a17d3b96cd44d0a7-CDG
+
