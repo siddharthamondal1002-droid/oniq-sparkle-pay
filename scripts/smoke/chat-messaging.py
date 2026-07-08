@@ -117,7 +117,12 @@ async def main():
             input_a = page_a.get_by_placeholder("Message")
             await input_a.fill(nonce_a)
             await page_a.locator("button[type='submit']").click()
-            await expect(page_a.get_by_text(nonce_a)).to_be_visible(timeout=10000)
+            try:
+                await expect(page_a.get_by_text(nonce_a)).to_be_visible(timeout=10000)
+            except Exception:
+                await page_a.screenshot(path=str(SCREENSHOTS / "3_a_sent_FAIL.png"))
+                print("A page HTML tail:", (await page_a.content())[-2000:])
+                raise
             await page_a.screenshot(path=str(SCREENSHOTS / "3_a_sent.png"))
             print(f"  A sent: {nonce_a}")
 
