@@ -4,10 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Sparkles,
   Coins,
-  Wallet,
-  ArrowUpRight,
   Send,
-  Plus,
   Car,
   LayoutGrid,
   IndianRupee,
