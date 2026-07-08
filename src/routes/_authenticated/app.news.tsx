@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ArrowLeft, RotateCw, ChevronRight, Newspaper } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { openInApp } from "@/lib/miniapps";
+import { WatchLive } from "@/components/landing/LiveNewsSection";
 
 export const Route = createFileRoute("/_authenticated/app/news")({
   component: NewsScreen,
