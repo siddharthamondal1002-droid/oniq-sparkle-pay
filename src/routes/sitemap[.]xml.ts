@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import type { RouteServerOptions } from "@tanstack/start-client-core";
-type _Ensure = RouteServerOptions<any, any, any, any, any, any, any, any, any, any, any>;
+import type {} from "@tanstack/react-start";
 
 
 
