@@ -257,7 +257,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
       <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold">New chat</h2>
-          <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
+          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>

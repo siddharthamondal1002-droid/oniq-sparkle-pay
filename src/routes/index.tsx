@@ -27,10 +27,20 @@ export const Route = createFileRoute("/")({
         content:
           "Messaging, social, food, payments, crypto, AI and more — in a single super app.",
       },
+      { property: "og:url", content: "https://oniq-sparkle-pay.lovable.app/" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:title", content: "ONIQ — One App. Every World." },
+      {
+        name: "twitter:description",
+        content:
+          "Messaging, social, food, payments, crypto, AI and more — in a single super app.",
+      },
     ],
+    links: [{ rel: "canonical", href: "https://oniq-sparkle-pay.lovable.app/" }],
   }),
   component: Landing,
 });
+
 
 const features = [
   { icon: MessageCircle, title: "Messaging", desc: "Real-time chat, voice & video. End-to-end and lightning fast." },
@@ -70,8 +80,10 @@ function Landing() {
         </div>
       </header>
 
+      <main>
       {/* Hero */}
       <section className="relative overflow-hidden bg-hero">
+
         <div className="mx-auto max-w-6xl px-5 pb-24 pt-20 md:pt-32">
           <div className="grid gap-12 md:grid-cols-[1.2fr_1fr] md:items-center">
             <div>
@@ -203,9 +215,11 @@ function Landing() {
           </div>
         </div>
       </section>
+      </main>
 
       {/* Footer */}
       <footer id="download" className="border-t border-border">
+
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-5 py-12 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-primary to-accent glow text-primary-foreground font-bold text-xl">
             O

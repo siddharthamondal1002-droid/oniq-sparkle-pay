@@ -56,6 +56,7 @@ function HomeScreen() {
 
   return (
     <div className="bg-hero pb-6 min-h-screen">
+      <h1 className="sr-only">Your ONIQ dashboard</h1>
       <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">
         <div className="flex items-center justify-between">
           <div>
@@ -63,9 +64,10 @@ function HomeScreen() {
             {profileLoading ? (
               <div className="mt-1 h-8 w-40 animate-pulse rounded-lg bg-surface" />
             ) : (
-              <h1 className="font-display text-3xl font-bold">yo, {first} 👋</h1>
+              <p className="font-display text-3xl font-bold">yo, {first} 👋</p>
             )}
           </div>
+
           <Link
             to="/app/profile"
             aria-label="Open profile"

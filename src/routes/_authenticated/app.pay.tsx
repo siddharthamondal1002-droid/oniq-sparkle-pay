@@ -349,7 +349,7 @@ function SendMoneySheet({ onClose, onDone }: { onClose: () => void; onDone: () =
       <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-card p-5" onClick={(e) => e.stopPropagation()}>
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold">Send money</h3>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-muted">
+          <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
