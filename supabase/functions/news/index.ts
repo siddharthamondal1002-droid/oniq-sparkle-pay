@@ -1,20 +1,46 @@
-// News edge function — Google News RSS (free, no API key).
+// News edge function — multi-source publisher RSS (free, no API key).
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const BASE = "hl=en-IN&gl=IN&ceid=IN:en";
-const FEEDS: Record<string, string> = {
-  top: `https://news.google.com/rss?${BASE}`,
-  india: `https://news.google.com/rss/headlines/section/topic/NATION?${BASE}`,
-  world: `https://news.google.com/rss/headlines/section/topic/WORLD?${BASE}`,
-  business: `https://news.google.com/rss/headlines/section/topic/BUSINESS?${BASE}`,
-  technology: `https://news.google.com/rss/headlines/section/topic/TECHNOLOGY?${BASE}`,
-  entertainment: `https://news.google.com/rss/headlines/section/topic/ENTERTAINMENT?${BASE}`,
-  sports: `https://news.google.com/rss/headlines/section/topic/SPORTS?${BASE}`,
-  science: `https://news.google.com/rss/headlines/section/topic/SCIENCE?${BASE}`,
+type Feed = { url: string; source: string };
+const FEEDS: Record<string, Feed[]> = {
+  top: [
+    { url: "https://feeds.bbci.co.uk/news/rss.xml", source: "BBC" },
+    { url: "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", source: "Times of India" },
+    { url: "https://feeds.feedburner.com/ndtvnews-top-stories", source: "NDTV" },
+  ],
+  india: [
+    { url: "https://timesofindia.indiatimes.com/rssfeeds/-2128936835.cms", source: "Times of India" },
+    { url: "https://feeds.feedburner.com/ndtvnews-india-news", source: "NDTV" },
+    { url: "https://www.thehindu.com/news/national/feeder/default.rss", source: "The Hindu" },
+  ],
+  world: [
+    { url: "https://feeds.bbci.co.uk/news/world/rss.xml", source: "BBC" },
+    { url: "https://timesofindia.indiatimes.com/rssfeeds/296589292.cms", source: "Times of India" },
+  ],
+  business: [
+    { url: "https://feeds.bbci.co.uk/news/business/rss.xml", source: "BBC" },
+    { url: "https://timesofindia.indiatimes.com/rssfeeds/1898055.cms", source: "Times of India" },
+  ],
+  technology: [
+    { url: "https://feeds.bbci.co.uk/news/technology/rss.xml", source: "BBC" },
+    { url: "https://timesofindia.indiatimes.com/rssfeeds/66949542.cms", source: "Times of India" },
+  ],
+  entertainment: [
+    { url: "https://timesofindia.indiatimes.com/rssfeeds/1081479906.cms", source: "Times of India" },
+    { url: "https://feeds.feedburner.com/ndtvmovies-latest", source: "NDTV" },
+  ],
+  sports: [
+    { url: "https://feeds.bbci.co.uk/sport/rss.xml", source: "BBC" },
+    { url: "https://timesofindia.indiatimes.com/rssfeeds/4719148.cms", source: "Times of India" },
+  ],
+  science: [
+    { url: "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml", source: "BBC" },
+    { url: "https://www.thehindu.com/sci-tech/science/feeder/default.rss", source: "The Hindu" },
+  ],
 };
 
 type NewsItem = { title: string; link: string; source: string; publishedAt: string };
@@ -30,7 +56,7 @@ function json(status: number, body: unknown) {
 
 function decodeEntities(s: string): string {
   return s
-    .replace(/<!\[CDATA\[(.*?)\]\]>/gs, "$1")
+    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
     .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
@@ -47,34 +73,41 @@ function extractTag(block: string, tag: string): string | null {
   return m ? decodeEntities(m[1]) : null;
 }
 
-function parseRss(xml: string): NewsItem[] {
+function parseRss(xml: string, source: string): NewsItem[] {
   const items: NewsItem[] = [];
-  const itemRe = /<item\b[\s\S]*?<\/item>/gi;
-  const blocks = xml.match(itemRe) ?? [];
+  const blocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) ?? [];
   for (const block of blocks) {
-    let title = extractTag(block, "title") ?? "";
+    const title = extractTag(block, "title") ?? "";
     const link = extractTag(block, "link") ?? "";
     const pubDate = extractTag(block, "pubDate") ?? "";
-    let source = extractTag(block, "source") ?? "";
-
-    if (!source) {
-      const idx = title.lastIndexOf(" - ");
-      if (idx > 0) {
-        source = title.slice(idx + 3).trim();
-        title = title.slice(0, idx).trim();
-      }
-    }
     if (!title || !link) continue;
-
     let iso = "";
     if (pubDate) {
       const d = new Date(pubDate);
       if (!isNaN(d.getTime())) iso = d.toISOString();
     }
-    items.push({ title, link, source: source || "News", publishedAt: iso });
-    if (items.length >= 25) break;
+    items.push({ title, link, source, publishedAt: iso });
   }
   return items;
+}
+
+async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 6000);
+  try {
+    const res = await fetch(feed.url, {
+      signal: ctl.signal,
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; ONIQ-News/1.0)",
+        Accept: "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
+      },
+    });
+    if (!res.ok) throw new Error(`${feed.source} ${res.status}`);
+    const xml = await res.text();
+    return parseRss(xml, feed.source);
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -85,31 +118,44 @@ Deno.serve(async (req) => {
       const body = await req.json().catch(() => ({}));
       if (body?.category) category = String(body.category);
     } else {
-      const url = new URL(req.url);
-      category = url.searchParams.get("category") ?? "top";
+      category = new URL(req.url).searchParams.get("category") ?? "top";
     }
-    if (!FEEDS[category]) return json(400, { error: "invalid category" });
+    const feeds = FEEDS[category];
+    if (!feeds) return json(400, { error: "invalid category" });
 
     const now = Date.now();
     const hit = cache.get(category);
-    if (hit && now - hit.at < TTL_MS) {
-      return json(200, { items: hit.items });
+    if (hit && now - hit.at < TTL_MS) return json(200, { items: hit.items });
+
+    const results = await Promise.allSettled(feeds.map(fetchFeed));
+    const failures: string[] = [];
+    const merged: NewsItem[] = [];
+    results.forEach((r, i) => {
+      if (r.status === "fulfilled") merged.push(...r.value);
+      else {
+        failures.push(`${feeds[i].source}: ${String(r.reason?.message ?? r.reason)}`);
+        console.error("[news] feed failed", feeds[i].url, r.reason);
+      }
+    });
+
+    if (merged.length === 0) {
+      return json(200, {
+        items: [],
+        error: "News is napping — try again in a minute 😴",
+        failures,
+      });
     }
 
-    const res = await fetch(FEEDS[category], {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
-        Accept: "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8",
-        "Accept-Language": "en-IN,en;q=0.9",
-        "Cache-Control": "no-cache",
-        Cookie: "CONSENT=YES+cb.20210328-17-p0.en+FX+000",
-        Referer: "https://news.google.com/",
-      },
-    });
-    if (!res.ok) throw new Error(`feed ${res.status}`);
-    const xml = await res.text();
-    const items = parseRss(xml);
+    const seen = new Set<string>();
+    const deduped: NewsItem[] = [];
+    for (const it of merged) {
+      const key = it.title.toLowerCase().slice(0, 80);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(it);
+    }
+    deduped.sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || ""));
+    const items = deduped.slice(0, 25);
     cache.set(category, { at: now, items });
     return json(200, { items });
   } catch (e) {
