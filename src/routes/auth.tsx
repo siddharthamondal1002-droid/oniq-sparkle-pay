@@ -212,6 +212,22 @@ function AuthPage() {
           </div>
 
           {method === "email" ? (
+            confirmationSentTo ? (
+              <div className="space-y-3 text-center">
+                <div className="text-2xl">📬</div>
+                <p className="font-display text-lg font-semibold">Confirm your email</p>
+                <p className="text-xs text-muted-foreground">
+                  We sent a link to <span className="text-foreground">{confirmationSentTo}</span>. Tap it, then sign in here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setConfirmationSentTo(null); setMode("signin"); setPassword(""); }}
+                  className="w-full rounded-xl border border-border bg-card py-3 text-sm font-semibold hover:border-primary/40"
+                >
+                  Back to sign in
+                </button>
+              </div>
+            ) : (
             <>
               <form onSubmit={handleEmail} className="space-y-3">
                 <Field
