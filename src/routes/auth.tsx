@@ -86,14 +86,18 @@ function AuthPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin + "/app" },
         });
         if (error) throw error;
-        toast.success("Account created — welcome to ONIQ ✨");
-        navigate({ to: "/app" });
+        if (data.session) {
+          toast.success("Account created — welcome to ONIQ ✨");
+          navigate({ to: "/app" });
+        } else {
+          setConfirmationSentTo(email);
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
