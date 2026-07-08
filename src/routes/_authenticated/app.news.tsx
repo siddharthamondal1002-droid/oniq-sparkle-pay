@@ -53,6 +53,7 @@ function NewsScreen() {
       return (data ?? { items: [] }) as { items: NewsItem[]; error?: string };
     },
     staleTime: 5 * 60 * 1000,
+    enabled: category !== "watch",
   });
 
   const items = data?.items ?? [];
