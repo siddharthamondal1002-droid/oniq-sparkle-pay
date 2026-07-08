@@ -281,17 +281,3 @@ function PhoneMockup() {
   );
 }
 
-function RedPacketCard() {
-  return (
-    <div className="relative mx-auto w-full max-w-sm rounded-3xl border border-border bg-gradient-to-br from-accent to-destructive p-6 text-primary-foreground shadow-card glow-magenta">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-widest opacity-80">
-        <Wallet className="h-4 w-4" /> Red packet
-      </div>
-      <div className="mt-6 font-display text-5xl font-bold">$88.88</div>
-      <div className="mt-1 text-sm opacity-80">From Maya · "Happy birthday 🎉"</div>
-      <button className="mt-6 w-full rounded-full bg-background/90 py-2.5 text-sm font-semibold text-foreground hover:bg-background">
-        Claim
-      </button>
-    </div>
-  );
-}
