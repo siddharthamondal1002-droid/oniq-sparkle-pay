@@ -68,7 +68,8 @@ async def seed_session(context, session: dict):
 
 async def open_chat_list(context):
     page = await context.new_page()
-    page.on("console", lambda m: print(f"[console:{m.type}]", m.text) if m.type == "error" else None)
+    page.on("console", lambda m: print(f"[console:{m.type}]", m.text))
+    page.on("pageerror", lambda e: print("[pageerror]", e))
     await page.goto(f"{APP_URL}/app/chat", wait_until="domcontentloaded")
     await page.wait_for_selector("h1:has-text('Chats')", timeout=15000)
     return page
