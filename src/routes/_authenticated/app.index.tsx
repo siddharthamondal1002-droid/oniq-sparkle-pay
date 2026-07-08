@@ -57,7 +57,7 @@ function HomeScreen() {
             className="h-full w-full object-cover"
             onError={(e) => ((e.currentTarget.style.display = "none"))}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/75 to-background/85 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/35 via-background/20 to-background/60" />
         </div>
       )}
       <div className="relative z-10">
@@ -193,7 +193,7 @@ function Tile({
     </>
   );
   const base =
-    "press fade-up flex flex-col items-center justify-center gap-2 rounded-2xl bg-card p-2 border border-border";
+    "press fade-up flex flex-col items-center justify-center gap-2 rounded-2xl bg-card/85 p-2 border border-border";
   const style = { animationDelay: `${delay}ms` };
   if (locked) {
     return <div className={`${base} opacity-60`} style={style}>{inner}</div>;
