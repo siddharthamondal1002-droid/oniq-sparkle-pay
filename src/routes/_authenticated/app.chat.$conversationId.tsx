@@ -2,9 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Send } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
+import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
 
 
 type Message = {
