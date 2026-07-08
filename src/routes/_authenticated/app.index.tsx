@@ -33,19 +33,6 @@ function HomeScreen() {
     },
   });
 
-  const { data: wallet } = useQuery({
-    queryKey: ["wallet"],
-    queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
-      const { data } = await supabase
-        .from("wallets")
-        .select("fiat_balance, omiq_balance")
-        .eq("user_id", u.user.id)
-        .maybeSingle();
-      return data;
-    },
-  });
 
   const first = profile?.display_name?.split(" ")[0] ?? profile?.username ?? "there";
 
