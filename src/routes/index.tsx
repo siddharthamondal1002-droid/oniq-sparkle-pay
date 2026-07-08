@@ -128,6 +128,9 @@ function Landing() {
         </div>
       </section>
 
+      {/* Live news */}
+      <LiveNewsSection />
+
       {/* Features */}
       <section id="features" className="mx-auto max-w-6xl px-5 py-24">
         <div className="mx-auto max-w-2xl text-center">
@@ -143,7 +146,7 @@ function Landing() {
           {features.map((f) => (
             <div
               key={f.title}
-              className="group relative overflow-hidden rounded-3xl border border-border bg-[image:var(--gradient-card)] p-6 transition hover:border-primary/40"
+              className="group relative overflow-hidden rounded-3xl border border-border bg-[image:var(--gradient-card)] p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_10px_40px_-10px_hsl(var(--primary)/0.35)]"
             >
               <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary">
                 <f.icon className="h-5 w-5" />
