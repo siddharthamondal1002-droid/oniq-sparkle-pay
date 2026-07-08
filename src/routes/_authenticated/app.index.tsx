@@ -128,7 +128,7 @@ function HomeScreen() {
           <Tile to="/app/upi" icon={IndianRupee} label="UPI Pay" />
           <Tile to="/app/clips" icon={Clapperboard} label="Clips" />
           <Tile to="/app/learn" icon={GraduationCap} label="Learn" />
-          <Tile to="/app/food" icon={UtensilsCrossed} label="Food" />
+          
         </div>
       </div>
     </div>
