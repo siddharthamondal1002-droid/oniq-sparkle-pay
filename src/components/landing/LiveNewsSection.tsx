@@ -64,7 +64,7 @@ export function CompactLiveNews() {
   return (
     <button
       onClick={() => navigate({ to: "/app/news" })}
-      className="press mt-5 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left hover:bg-surface-2 transition-colors"
+      className="press glass fade-up mt-5 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-colors"
       aria-label="Open Pulse news"
     >
       <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
