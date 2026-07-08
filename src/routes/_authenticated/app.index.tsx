@@ -12,6 +12,7 @@ import {
   Clapperboard,
   GraduationCap,
   Plane,
+  Newspaper,
 } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app/")({
@@ -76,6 +77,7 @@ function HomeScreen() {
           <Tile to="/app/upi" icon={IndianRupee} label="UPI Pay" />
           <Tile to="/app/clips" icon={Clapperboard} label="Clips" />
           <Tile to="/app/learn" icon={GraduationCap} label="Learn" />
+          <Tile to="/app/news" icon={Newspaper} label="Pulse" />
         </div>
       </div>
     </div>
