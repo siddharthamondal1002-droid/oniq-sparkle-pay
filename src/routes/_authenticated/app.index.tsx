@@ -211,6 +211,7 @@ function Tile({
 
 function HeroTile({
   to,
+  search,
   icon: Icon,
   label,
   tagline,
@@ -220,6 +221,7 @@ function HeroTile({
 }: {
   tileKey: TileKey;
   to: string;
+  search?: Record<string, unknown>;
   icon: typeof Send;
   label: string;
   tagline: string;
@@ -230,9 +232,11 @@ function HeroTile({
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
   return (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     <Link
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       to={to as any}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      search={search as any}
       style={{ animationDelay: `${delay}ms` }}
       className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
     >
