@@ -5,7 +5,6 @@ import {
   Sparkles,
   CloudSun,
   Coins,
-  UtensilsCrossed,
   Wallet,
   ArrowUpRight,
   Send,
