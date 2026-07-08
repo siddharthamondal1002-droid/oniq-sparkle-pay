@@ -291,7 +291,7 @@ function CheckoutSheet({
           data-testid="place-order"
           className="mt-5 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-50"
         >
-          {placing ? "Placing order…" : `Pay $${total.toFixed(2)} with ONIQ Pay`}
+          {placing ? "Placing order…" : `Pay $${total.toFixed(2)}`}
         </button>
       </div>
     </div>

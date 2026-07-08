@@ -4,10 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Sparkles,
   Coins,
-  Wallet,
-  ArrowUpRight,
   Send,
-  Plus,
   Car,
   LayoutGrid,
   IndianRupee,
@@ -36,19 +33,6 @@ function HomeScreen() {
     },
   });
 
-  const { data: wallet } = useQuery({
-    queryKey: ["wallet"],
-    queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
-      const { data } = await supabase
-        .from("wallets")
-        .select("fiat_balance, omiq_balance")
-        .eq("user_id", u.user.id)
-        .maybeSingle();
-      return data;
-    },
-  });
 
   const first = profile?.display_name?.split(" ")[0] ?? profile?.username ?? "there";
 
@@ -79,55 +63,25 @@ function HomeScreen() {
           </Link>
         </div>
 
-        {/* Wallet card */}
-        <Link
-          to="/app/pay"
-          className="mt-4 block overflow-hidden rounded-2xl bg-primary p-5 text-primary-foreground shadow-card"
-        >
-          <div className="flex items-center justify-between text-xs opacity-80">
-            ONIQ Pay balance <ArrowUpRight className="h-4 w-4" />
-          </div>
-          <div className="mt-3 font-display text-4xl font-bold">
-            {Number(wallet?.fiat_balance ?? 0).toLocaleString()}
-            <span className="text-lg ml-1 opacity-70">credits</span>
-          </div>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            <Action label="Send" icon={Send} />
-            <Action label="Top up" icon={Plus} />
-            <Action label="Wallet" icon={Wallet} />
-          </div>
-        </Link>
-
         {/* 2x4 service tiles */}
         <h2 className="mt-7 px-1 font-display text-xs uppercase tracking-wider text-muted-foreground">
           the lineup
         </h2>
         <div className="mt-3 grid grid-cols-4 gap-3">
           <Tile to="/app/travel" icon={Plane} label="Wander" />
-          <Tile to="/app/pay" icon={Wallet} label="Pay" />
           <Tile to="/app/wallet" icon={Coins} label="Wallet" />
           <Tile to="/app/ai" icon={Sparkles} label="Ting" />
-          
           <Tile to="/app/rides" icon={Car} label="Rides" />
           <Tile to="/app/miniapps" icon={LayoutGrid} label="Mini Apps" />
           <Tile to="/app/upi" icon={IndianRupee} label="UPI Pay" />
           <Tile to="/app/clips" icon={Clapperboard} label="Clips" />
           <Tile to="/app/learn" icon={GraduationCap} label="Learn" />
-          
         </div>
       </div>
     </div>
   );
 }
 
-function Action({ label, icon: Icon }: { label: string; icon: typeof Send }) {
-  return (
-    <div className="flex flex-col items-center gap-1 rounded-2xl bg-background/15 py-2.5 text-xs backdrop-blur">
-      <Icon className="h-4 w-4" />
-      {label}
-    </div>
-  );
-}
 
 function Tile({
   to,

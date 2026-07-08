@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   MessageCircle,
-  Wallet,
   UtensilsCrossed,
   Sparkles,
   CloudSun,
@@ -46,11 +45,10 @@ const features = [
   { icon: MessageCircle, title: "Messaging", desc: "Real-time chat, voice & video. End-to-end and lightning fast." },
   { icon: Sparkles, title: "Moments & Channels", desc: "Share moments with friends, follow creators, go live." },
   { icon: UtensilsCrossed, title: "Food Delivery", desc: "Order from local restaurants — alcohol-free, family-safe." },
-  { icon: Wallet, title: "ONIQ Pay", desc: "Send money to anyone, anywhere. Free P2P, instant settlement." },
   { icon: Coins, title: "OMIQ Wallet", desc: "Built-in crypto wallet on Polygon. Your keys, your coins." },
   { icon: Sparkles, title: "AI Assistant", desc: "On-demand AI for chat, search, planning and creativity." },
   { icon: CloudSun, title: "Weather & Travel", desc: "Hyperlocal forecasts and trip tools in one tap." },
-  { icon: ShieldCheck, title: "Fraud Protection", desc: "AI-powered fraud detection on every payment." },
+  { icon: ShieldCheck, title: "Fraud Protection", desc: "AI-powered fraud detection on every transaction." },
 ];
 
 function Landing() {
@@ -68,7 +66,6 @@ function Landing() {
           <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
             <a href="#features" className="hover:text-foreground">Features</a>
             <a href="#worlds" className="hover:text-foreground">Worlds</a>
-            <a href="#pay" className="hover:text-foreground">ONIQ Pay</a>
             <a href="#download" className="hover:text-foreground">Get the app</a>
           </nav>
           <Link
@@ -180,38 +177,10 @@ function Landing() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <WorldCard icon={MessageCircle} label="Chat" tint="from-primary to-blue-500" />
-            <WorldCard icon={Wallet} label="Pay" tint="from-accent to-amber" />
             <WorldCard icon={UtensilsCrossed} label="Food" tint="from-neon to-primary" />
             <WorldCard icon={Coins} label="Crypto" tint="from-amber to-magenta" />
             <WorldCard icon={Sparkles} label="AI" tint="from-magenta to-primary" />
             <WorldCard icon={CloudSun} label="Weather" tint="from-primary to-neon" />
-          </div>
-        </div>
-      </section>
-
-      {/* Pay CTA */}
-      <section id="pay" className="mx-auto max-w-6xl px-5 py-24">
-        <div className="relative overflow-hidden rounded-[2.5rem] border border-border bg-[image:var(--gradient-card)] p-10 md:p-16">
-          <div className="absolute inset-0 bg-hero opacity-60" aria-hidden />
-          <div className="relative grid gap-8 md:grid-cols-2 md:items-center">
-            <div>
-              <h2 className="font-display text-4xl font-bold md:text-5xl">
-                Send money like a
-                <br />
-                <span className="text-gradient-accent">text message.</span>
-              </h2>
-              <p className="mt-4 max-w-md text-muted-foreground">
-                ONIQ Pay is free, instant, and global. Drop money in a chat, split a bill
-                with a tap, or stash savings in OMIQ.
-              </p>
-              <Link
-                to="/auth"
-                className="mt-6 inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground transition hover:opacity-90 glow-magenta"
-              >
-                Open ONIQ Pay <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <RedPacketCard />
           </div>
         </div>
       </section>
@@ -284,12 +253,12 @@ function PhoneMockup() {
           <div className="text-xs text-muted-foreground">Good morning</div>
           <div className="font-display text-2xl font-bold">Alex</div>
           <div className="mt-4 rounded-2xl border border-border bg-card/70 p-4 backdrop-blur">
-            <div className="text-xs text-muted-foreground">ONIQ Pay balance</div>
+            <div className="text-xs text-muted-foreground">Wallet balance</div>
             <div className="mt-1 font-display text-2xl font-semibold">$1,284.50</div>
             <div className="mt-2 text-xs text-neon">+ 124 OMIQ</div>
           </div>
           <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-            {["Chat", "Pay", "Eat", "AI"].map((t) => (
+            {["Chat", "Eat", "AI", "Ride"].map((t) => (
               <div
                 key={t}
                 className="rounded-xl border border-border bg-card/50 py-3 text-xs text-muted-foreground"
@@ -311,17 +280,3 @@ function PhoneMockup() {
   );
 }
 
-function RedPacketCard() {
-  return (
-    <div className="relative mx-auto w-full max-w-sm rounded-3xl border border-border bg-gradient-to-br from-accent to-destructive p-6 text-primary-foreground shadow-card glow-magenta">
-      <div className="flex items-center gap-2 text-xs uppercase tracking-widest opacity-80">
-        <Wallet className="h-4 w-4" /> Red packet
-      </div>
-      <div className="mt-6 font-display text-5xl font-bold">$88.88</div>
-      <div className="mt-1 text-sm opacity-80">From Maya · "Happy birthday 🎉"</div>
-      <button className="mt-6 w-full rounded-full bg-background/90 py-2.5 text-sm font-semibold text-foreground hover:bg-background">
-        Claim
-      </button>
-    </div>
-  );
-}

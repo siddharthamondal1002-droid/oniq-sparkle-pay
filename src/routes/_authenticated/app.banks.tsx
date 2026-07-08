@@ -58,7 +58,7 @@ function BanksScreen() {
   return (
     <div className="px-5 pt-12 pb-6">
       <div className="flex items-center gap-3">
-        <Link to="/app/pay" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
+        <Link to="/app/wallet" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h1 className="font-display text-2xl font-bold">Linked banks</h1>
