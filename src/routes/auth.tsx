@@ -160,13 +160,17 @@ function AuthPage() {
 
   async function handleSocial(provider: "google" | "facebook" | "apple") {
     if (loading) return;
+    if (provider === "facebook") {
+      toast.info("Facebook sign-in isn't available yet — try Google or email");
+      return;
+    }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: { redirectTo: window.location.origin + "/app" },
+      const result = await lovable.auth.signInWithOAuth(provider, {
+        redirect_uri: window.location.origin + "/app",
       });
-      if (error) throw error;
+      if (result.error) throw result.error;
+      // On success, broker either redirects the browser or sets the session.
     } catch (err) {
       toast.error(friendlyAuthError(err));
     } finally {
