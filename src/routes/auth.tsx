@@ -71,6 +71,7 @@ function AuthPage() {
   const [phone, setPhone] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
+  const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -85,14 +86,18 @@ function AuthPage() {
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
+        const { data, error } = await supabase.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin + "/app" },
         });
         if (error) throw error;
-        toast.success("Account created — welcome to ONIQ ✨");
-        navigate({ to: "/app" });
+        if (data.session) {
+          toast.success("Account created — welcome to ONIQ ✨");
+          navigate({ to: "/app" });
+        } else {
+          setConfirmationSentTo(email);
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
@@ -207,6 +212,22 @@ function AuthPage() {
           </div>
 
           {method === "email" ? (
+            confirmationSentTo ? (
+              <div className="space-y-3 text-center">
+                <div className="text-2xl">📬</div>
+                <p className="font-display text-lg font-semibold">Confirm your email</p>
+                <p className="text-xs text-muted-foreground">
+                  We sent a link to <span className="text-foreground">{confirmationSentTo}</span>. Tap it, then sign in here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { setConfirmationSentTo(null); setMode("signin"); setPassword(""); }}
+                  className="w-full rounded-xl border border-border bg-card py-3 text-sm font-semibold hover:border-primary/40"
+                >
+                  Back to sign in
+                </button>
+              </div>
+            ) : (
             <>
               <form onSubmit={handleEmail} className="space-y-3">
                 <Field
@@ -250,6 +271,7 @@ function AuthPage() {
                   : "Already have an account? Sign in →"}
               </button>
             </>
+            )
           ) : (
             <>
               {!otpSent ? (

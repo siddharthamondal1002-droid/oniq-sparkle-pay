@@ -1,9 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useRef, useState } from "react";
-import { ArrowLeft, ExternalLink, Plane, Sparkles } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, ExternalLink, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { openInApp } from "@/lib/miniapps";
-import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/app/travel")({
   component: TravelScreen,
@@ -65,10 +64,7 @@ const SECTIONS: Section[] = [
 
 const MODE_RE = /^(flights?|fly|trains?|buses?|bus|ferry|hotels?|stays?|stay)\b/i;
 
-type GenieResult =
-  | { url: string }
-  | { flight: { from: string; to: string } }
-  | { error: string };
+type GenieResult = { url: string } | { error: string };
 
 function parseGenie(raw: string): GenieResult {
   const q = raw.trim();
@@ -82,7 +78,11 @@ function parseGenie(raw: string): GenieResult {
 
   if (mode.startsWith("flight") || mode === "fly") {
     if (!toMatch) return { error: "flights need 'from X to Y' — try: flight kolkata to goa" };
-    return { flight: { from: toMatch[1].trim(), to: toMatch[2].trim() } };
+    const from = toMatch[1].trim();
+    const to = toMatch[2].trim();
+    return {
+      url: `https://www.google.com/travel/flights?q=Flights%20from%20${encodeURIComponent(from)}%20to%20${encodeURIComponent(to)}`,
+    };
   }
   if (mode.startsWith("hotel") || mode.startsWith("stay")) {
     const place = inMatch ? inMatch[1] : rest;
@@ -95,80 +95,8 @@ function parseGenie(raw: string): GenieResult {
   return { error: "start with flight / train / bus / hotel / ferry 🧳" };
 }
 
-function todayISO() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString().slice(0, 10);
-}
-function plusDaysISO(days: number) {
-  const d = new Date();
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
-}
-function hhmm(iso?: string) {
-  if (!iso) return "--:--";
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "--:--";
-  return d.toTimeString().slice(0, 5);
-}
-function durationLabel(mins: number) {
-  if (!mins) return "";
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h ? `${h}h ${m}m` : `${m}m`;
-}
-
-type Offer = {
-  price: number;
-  airline: string;
-  departure?: string;
-  arrival?: string;
-  durationMinutes: number;
-  stops: number;
-};
-
 function TravelScreen() {
   const [q, setQ] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [date, setDate] = useState(plusDaysISO(7));
-  const [loading, setLoading] = useState(false);
-  const [offers, setOffers] = useState<Offer[] | null>(null);
-  const [fromCode, setFromCode] = useState<string | null>(null);
-  const [toCode, setToCode] = useState<string | null>(null);
-  const [unconfigured, setUnconfigured] = useState(false);
-  const panelRef = useRef<HTMLDivElement | null>(null);
-
-  async function runSearch(f: string, t: string, d: string) {
-    if (!f.trim() || !t.trim()) {
-      toast.error("enter both cities ✈️");
-      return;
-    }
-    setLoading(true);
-    setOffers(null);
-    setUnconfigured(false);
-    try {
-      const { data, error } = await supabase.functions.invoke("flight-search", {
-        body: { from: f.trim(), to: t.trim(), date: d },
-      });
-      if (error) throw error;
-      if (data?.configured === false) {
-        setUnconfigured(true);
-        return;
-      }
-      if (data?.error) {
-        toast.error(data.error);
-        return;
-      }
-      setOffers(Array.isArray(data?.offers) ? data.offers : []);
-      setFromCode(data?.fromCode ?? null);
-      setToCode(data?.toCode ?? null);
-    } catch (e: any) {
-      toast.error(e?.message || "Flight search failed");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -177,21 +105,8 @@ function TravelScreen() {
       toast.error(parsed.error);
       return;
     }
-    if ("flight" in parsed) {
-      setFrom(parsed.flight.from);
-      setTo(parsed.flight.to);
-      console.log("[travel-genie] flight", parsed.flight, date);
-      panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-      void runSearch(parsed.flight.from, parsed.flight.to, date);
-      return;
-    }
     console.log("[travel-genie]", parsed.url);
     openInApp(parsed.url);
-  }
-
-  function onSearchClick(e: React.FormEvent) {
-    e.preventDefault();
-    void runSearch(from, to, date);
   }
 
   return (
@@ -226,111 +141,6 @@ function TravelScreen() {
           </button>
         </div>
       </form>
-
-      <div ref={panelRef} className="mt-4 rounded-2xl border border-border bg-card p-3">
-        <div className="flex items-center gap-2">
-          <div className="grid h-8 w-8 place-items-center rounded-xl bg-primary/15 text-primary">
-            <Plane className="h-4 w-4" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold">Best price ✈️</div>
-            <div className="text-[11px] text-muted-foreground">live fare compare — powered by Amadeus</div>
-          </div>
-        </div>
-        <form onSubmit={onSearchClick} className="mt-3 grid grid-cols-2 gap-2">
-          <input
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-            placeholder="From (e.g. Kolkata)"
-            className="col-span-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary/40 focus:outline-none"
-          />
-          <input
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-            placeholder="To (e.g. Goa)"
-            className="col-span-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary/40 focus:outline-none"
-          />
-          <input
-            type="date"
-            value={date}
-            min={todayISO()}
-            onChange={(e) => setDate(e.target.value)}
-            className="col-span-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary/40 focus:outline-none"
-          />
-          <button
-            type="submit"
-            data-testid="flight-search"
-            disabled={loading}
-            className="col-span-1 rounded-xl bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-60"
-          >
-            {loading ? "Searching…" : "Search"}
-          </button>
-        </form>
-
-        {unconfigured && (
-          <div className="mt-3 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
-            Real-time fares need a free Amadeus key — add{" "}
-            <span className="font-mono text-primary">AMADEUS_API_KEY</span> and{" "}
-            <span className="font-mono text-primary">AMADEUS_API_SECRET</span> in project secrets. Grab them at
-            developers.amadeus.com ✈️
-          </div>
-        )}
-
-        {offers && offers.length === 0 && !unconfigured && (
-          <div className="mt-3 rounded-xl border border-border bg-background p-3 text-center text-xs text-muted-foreground">
-            No flights found for that day — try nearby dates 🛫
-          </div>
-        )}
-
-        {offers && offers.length > 0 && (
-          <>
-            <div className="mt-3 space-y-2">
-              {offers.map((o, i) => {
-                const bookUrl = `https://www.google.com/travel/flights?q=Flights%20from%20${encodeURIComponent(
-                  fromCode ?? from,
-                )}%20to%20${encodeURIComponent(toCode ?? to)}%20on%20${date}`;
-                return (
-                  <div
-                    key={i}
-                    data-testid="flight-offer"
-                    className="rounded-2xl border border-border bg-background p-3"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-md bg-muted px-2 py-0.5 font-mono text-[11px] font-semibold">
-                          {o.airline}
-                        </span>
-                        {i === 0 && (
-                          <span className="rounded-md bg-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary">
-                            Best price 💸
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-base font-bold">₹{Math.round(o.price).toLocaleString("en-IN")}</div>
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
-                      <div className="font-medium text-foreground">
-                        {hhmm(o.departure)} → {hhmm(o.arrival)}
-                      </div>
-                      <div>{durationLabel(o.durationMinutes)}</div>
-                      <div>{o.stops === 0 ? "Non-stop" : `${o.stops} stop${o.stops > 1 ? "s" : ""}`}</div>
-                    </div>
-                    <button
-                      onClick={() => openInApp(bookUrl)}
-                      className="mt-3 w-full rounded-xl border border-primary/40 bg-primary/10 py-2 text-xs font-semibold text-primary"
-                    >
-                      Book
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="mt-2 text-center text-[10px] text-muted-foreground">
-              Live fares via Amadeus (test data until production keys) — final price at booking.
-            </p>
-          </>
-        )}
-      </div>
 
       {SECTIONS.map((section) => (
         <section key={section.key}>
