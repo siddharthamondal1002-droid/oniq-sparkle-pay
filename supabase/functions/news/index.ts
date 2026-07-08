@@ -43,7 +43,7 @@ const FEEDS: Record<string, Feed[]> = {
   ],
 };
 
-type NewsItem = { title: string; link: string; source: string; publishedAt: string };
+type NewsItem = { title: string; link: string; source: string; publishedAt: string; image?: string };
 const TTL_MS = 5 * 60 * 1000;
 const cache = new Map<string, { at: number; items: NewsItem[] }>();
 
