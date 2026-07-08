@@ -14,6 +14,7 @@ import {
   Plane,
   Newspaper,
 } from "lucide-react";
+import { CompactLiveNews } from "@/components/landing/LiveNewsSection";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   component: HomeScreen,
@@ -63,6 +64,8 @@ function HomeScreen() {
             )}
           </Link>
         </div>
+
+        <CompactLiveNews />
 
         {/* 2x4 service tiles */}
         <h2 className="mt-7 px-1 font-display text-xs uppercase tracking-wider text-muted-foreground">

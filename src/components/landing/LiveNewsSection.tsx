@@ -1,7 +1,77 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { ArrowRight, Radio } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+
+function useLiveNews() {
+  const [items, setItems] = useState<NewsItem[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("news", {
+          body: { category: "top" },
+        });
+        if (!alive) return;
+        if (error) throw error;
+        const list: NewsItem[] = Array.isArray(data?.items) ? data.items.slice(0, 10) : [];
+        if (list.length === 0) setFailed(true);
+        else setItems(list);
+      } catch {
+        if (alive) setFailed(true);
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!items || items.length < 2) return;
+    const t = setInterval(() => setIdx((i) => (i + 1) % items.length), 5000);
+    return () => clearInterval(t);
+  }, [items]);
+
+  return { items, failed, idx };
+}
+
+export function CompactLiveNews() {
+  const { items, failed, idx } = useLiveNews();
+  const navigate = useNavigate();
+  if (failed) return null;
+  const current = items?.[idx];
+  return (
+    <button
+      onClick={() => navigate({ to: "/app/news" })}
+      className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left hover:bg-surface-2 transition-colors"
+      aria-label="Open Pulse news"
+    >
+      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+        </span>
+        LIVE
+      </span>
+      <span className="text-xs font-semibold text-primary">Pulse</span>
+      <div className="min-w-0 flex-1">
+        {!current ? (
+          <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+        ) : (
+          <>
+            <div className="truncate text-sm font-medium text-foreground">{current.title}</div>
+            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+              {current.source} · {relTime(current.publishedAt)}
+            </div>
+          </>
+        )}
+      </div>
+      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+    </button>
+  );
+}
+
 
 type NewsItem = {
   title: string;
