@@ -4,14 +4,16 @@ import { useState } from "react";
 import { ArrowLeft, RotateCw, ChevronRight, Newspaper } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { openInApp } from "@/lib/miniapps";
+import { WatchLive } from "@/components/landing/LiveNewsSection";
 
 export const Route = createFileRoute("/_authenticated/app/news")({
   component: NewsScreen,
 });
 
-type NewsItem = { title: string; link: string; source: string; publishedAt: string };
+type NewsItem = { title: string; link: string; source: string; publishedAt: string; image?: string };
 
 const CATEGORIES = [
+  { id: "watch", label: "Watch 📺" },
   { id: "top", label: "Top" },
   { id: "india", label: "India" },
   { id: "world", label: "World" },
@@ -51,6 +53,7 @@ function NewsScreen() {
       return (data ?? { items: [] }) as { items: NewsItem[]; error?: string };
     },
     staleTime: 5 * 60 * 1000,
+    enabled: category !== "watch",
   });
 
   const items = data?.items ?? [];
@@ -101,48 +104,63 @@ function NewsScreen() {
           </div>
         </div>
 
-        {/* List */}
-        <div className="mt-5 space-y-3">
-          {isLoading ? (
-            Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-20 animate-pulse rounded-2xl bg-surface" />
-            ))
-          ) : error || (softError && items.length === 0) ? (
-            <div className="rounded-2xl bg-surface p-6 text-center">
-              <Newspaper className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">{softError ?? "Couldn't load the feed"}</p>
-              <button
-                onClick={() => refetch()}
-                className="mt-3 rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
-              >
-                Retry
-              </button>
-            </div>
-          ) : items.length === 0 ? (
-            <div className="rounded-2xl bg-surface p-6 text-center">
-              <p className="text-sm text-muted-foreground">nothing dropping rn — check back soon ✨</p>
-            </div>
-          ) : (
-            items.map((it, i) => (
-              <button
-                key={`${it.link}-${i}`}
-                data-testid="news-item"
-                onClick={() => openInApp(it.link)}
-                className="flex w-full items-center gap-3 rounded-2xl bg-card border border-border p-4 text-left hover:bg-surface-2 transition-colors"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 text-[11px]">
-                    <span className="font-medium text-primary truncate max-w-[60%]">{it.source}</span>
-                    <span className="text-muted-foreground">·</span>
-                    <span className="text-muted-foreground">{relTime(it.publishedAt)}</span>
+        {/* Content */}
+        {category === "watch" ? (
+          <div className="mt-5">
+            <WatchLive />
+          </div>
+        ) : (
+          <div className="mt-5 space-y-3">
+            {isLoading ? (
+              Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-20 animate-pulse rounded-2xl bg-surface" />
+              ))
+            ) : error || (softError && items.length === 0) ? (
+              <div className="rounded-2xl bg-surface p-6 text-center">
+                <Newspaper className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground">{softError ?? "Couldn't load the feed"}</p>
+                <button
+                  onClick={() => refetch()}
+                  className="mt-3 rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : items.length === 0 ? (
+              <div className="rounded-2xl bg-surface p-6 text-center">
+                <p className="text-sm text-muted-foreground">nothing dropping rn — check back soon ✨</p>
+              </div>
+            ) : (
+              items.map((it, i) => (
+                <button
+                  key={`${it.link}-${i}`}
+                  data-testid="news-item"
+                  onClick={() => openInApp(it.link)}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-card border border-border p-4 text-left hover:bg-surface-2 transition-colors"
+                >
+                  {it.image && (
+                    <img
+                      src={it.image}
+                      alt=""
+                      loading="lazy"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      className="h-16 w-16 shrink-0 rounded-xl object-cover"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="font-medium text-primary truncate max-w-[60%]">{it.source}</span>
+                      <span className="text-muted-foreground">·</span>
+                      <span className="text-muted-foreground">{relTime(it.publishedAt)}</span>
+                    </div>
+                    <p className="mt-1 font-medium text-sm line-clamp-3">{it.title}</p>
                   </div>
-                  <p className="mt-1 font-medium text-sm line-clamp-3">{it.title}</p>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            ))
-          )}
-        </div>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
