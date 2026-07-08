@@ -254,12 +254,12 @@ function PhoneMockup() {
           <div className="text-xs text-muted-foreground">Good morning</div>
           <div className="font-display text-2xl font-bold">Alex</div>
           <div className="mt-4 rounded-2xl border border-border bg-card/70 p-4 backdrop-blur">
-            <div className="text-xs text-muted-foreground">ONIQ Pay balance</div>
+            <div className="text-xs text-muted-foreground">Wallet balance</div>
             <div className="mt-1 font-display text-2xl font-semibold">$1,284.50</div>
             <div className="mt-2 text-xs text-neon">+ 124 OMIQ</div>
           </div>
           <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-            {["Chat", "Pay", "Eat", "AI"].map((t) => (
+            {["Chat", "Eat", "AI", "Ride"].map((t) => (
               <div
                 key={t}
                 className="rounded-xl border border-border bg-card/50 py-3 text-xs text-muted-foreground"
