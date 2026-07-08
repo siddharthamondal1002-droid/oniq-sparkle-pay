@@ -178,38 +178,10 @@ function Landing() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <WorldCard icon={MessageCircle} label="Chat" tint="from-primary to-blue-500" />
-            <WorldCard icon={Wallet} label="Pay" tint="from-accent to-amber" />
             <WorldCard icon={UtensilsCrossed} label="Food" tint="from-neon to-primary" />
             <WorldCard icon={Coins} label="Crypto" tint="from-amber to-magenta" />
             <WorldCard icon={Sparkles} label="AI" tint="from-magenta to-primary" />
             <WorldCard icon={CloudSun} label="Weather" tint="from-primary to-neon" />
-          </div>
-        </div>
-      </section>
-
-      {/* Pay CTA */}
-      <section id="pay" className="mx-auto max-w-6xl px-5 py-24">
-        <div className="relative overflow-hidden rounded-[2.5rem] border border-border bg-[image:var(--gradient-card)] p-10 md:p-16">
-          <div className="absolute inset-0 bg-hero opacity-60" aria-hidden />
-          <div className="relative grid gap-8 md:grid-cols-2 md:items-center">
-            <div>
-              <h2 className="font-display text-4xl font-bold md:text-5xl">
-                Send money like a
-                <br />
-                <span className="text-gradient-accent">text message.</span>
-              </h2>
-              <p className="mt-4 max-w-md text-muted-foreground">
-                ONIQ Pay is free, instant, and global. Drop money in a chat, split a bill
-                with a tap, or stash savings in OMIQ.
-              </p>
-              <Link
-                to="/auth"
-                className="mt-6 inline-flex items-center gap-2 rounded-full bg-accent px-6 py-3 text-sm font-semibold text-accent-foreground transition hover:opacity-90 glow-magenta"
-              >
-                Open ONIQ Pay <ArrowRight className="h-4 w-4" />
-              </Link>
-            </div>
-            <RedPacketCard />
           </div>
         </div>
       </section>
