@@ -13,8 +13,12 @@ const SYSTEM =
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
+    const authFail = await requireAuth(req);
+    if (authFail) return authFail;
+
     const key = Deno.env.get("ANTHROPIC_API_KEY");
     if (!key) return json({ configured: false }, 200);
+
 
     const body = await req.json().catch(() => ({}));
     const messages = Array.isArray(body?.messages) ? body.messages : null;
@@ -94,4 +98,17 @@ function json(payload: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+async function requireAuth(req: Request): Promise<Response | null> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+  const url = Deno.env.get("SUPABASE_URL");
+  const anon = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !anon) return json({ error: "Auth unavailable" }, 500);
+  const res = await fetch(`${url}/auth/v1/user`, {
+    headers: { Authorization: authHeader, apikey: anon },
+  });
+  if (!res.ok) return json({ error: "Unauthorized" }, 401);
+  return null;
 }

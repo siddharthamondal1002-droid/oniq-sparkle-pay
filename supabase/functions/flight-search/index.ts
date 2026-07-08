@@ -16,6 +16,19 @@ function json(status: number, body: unknown) {
   });
 }
 
+async function requireAuth(req: Request): Promise<Response | null> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return json(401, { error: "Unauthorized" });
+  const url = Deno.env.get("SUPABASE_URL");
+  const anon = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !anon) return json(500, { error: "Auth unavailable" });
+  const res = await fetch(`${url}/auth/v1/user`, {
+    headers: { Authorization: authHeader, apikey: anon },
+  });
+  if (!res.ok) return json(401, { error: "Unauthorized" });
+  return null;
+}
+
 function parseIsoDuration(iso: string): number {
   // PT5H30M / PT45M / PT2H
   const m = /^PT(?:(\d+)H)?(?:(\d+)M)?/.exec(iso ?? "");
@@ -62,6 +75,9 @@ async function resolveCode(token: string, keyword: string): Promise<string | nul
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
+    const authFail = await requireAuth(req);
+    if (authFail) return authFail;
+
     const key = Deno.env.get("AMADEUS_API_KEY");
     const secret = Deno.env.get("AMADEUS_API_SECRET");
     if (!key || !secret) return json(200, { configured: false });
