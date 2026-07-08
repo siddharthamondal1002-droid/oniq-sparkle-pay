@@ -73,6 +73,21 @@ function extractTag(block: string, tag: string): string | null {
   return m ? decodeEntities(m[1]) : null;
 }
 
+function extractImage(block: string): string | undefined {
+  const patterns: RegExp[] = [
+    /<media:thumbnail[^>]*\burl=["']([^"']+)["']/i,
+    /<media:content[^>]*\bmedium=["']image["'][^>]*\burl=["']([^"']+)["']/i,
+    /<media:content[^>]*\burl=["']([^"']+\.(?:jpe?g|png|webp)[^"']*)["']/i,
+    /<enclosure[^>]*\btype=["']image\/[^"']+["'][^>]*\burl=["']([^"']+)["']/i,
+    /<enclosure[^>]*\burl=["']([^"']+)["'][^>]*\btype=["']image\/[^"']+["']/i,
+  ];
+  for (const re of patterns) {
+    const m = re.exec(block);
+    if (m?.[1]) return m[1];
+  }
+  return undefined;
+}
+
 function parseRss(xml: string, source: string): NewsItem[] {
   const items: NewsItem[] = [];
   const blocks = xml.match(/<item\b[\s\S]*?<\/item>/gi) ?? [];
@@ -86,7 +101,8 @@ function parseRss(xml: string, source: string): NewsItem[] {
       const d = new Date(pubDate);
       if (!isNaN(d.getTime())) iso = d.toISOString();
     }
-    items.push({ title, link, source, publishedAt: iso });
+    const image = extractImage(block);
+    items.push({ title, link, source, publishedAt: iso, image });
   }
   return items;
 }
