@@ -39,6 +39,9 @@ const LANG_NAMES: Record<string, string> = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
+    const authFail = await requireAuth(req);
+    if (authFail) return authFail;
+
     const body = await req.json().catch(() => ({}));
     const text = typeof body?.text === "string" ? body.text.trim() : "";
     const from = String(body?.from ?? "auto");
@@ -137,4 +140,17 @@ function json(payload: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+async function requireAuth(req: Request): Promise<Response | null> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
+  const url = Deno.env.get("SUPABASE_URL");
+  const anon = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!url || !anon) return json({ error: "Auth unavailable" }, 500);
+  const res = await fetch(`${url}/auth/v1/user`, {
+    headers: { Authorization: authHeader, apikey: anon },
+  });
+  if (!res.ok) return json({ error: "Unauthorized" }, 401);
+  return null;
 }
