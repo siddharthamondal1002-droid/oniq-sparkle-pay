@@ -215,9 +215,11 @@ function Landing() {
           </div>
         </div>
       </section>
+      </main>
 
       {/* Footer */}
       <footer id="download" className="border-t border-border">
+
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-5 py-12 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-primary to-accent glow text-primary-foreground font-bold text-xl">
             O
