@@ -64,7 +64,9 @@ function normalizePhone(raw: string): string | null {
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [method, setMethod] = useState<"email" | "phone">("email");
+  // Phone sign-in hidden until SMS provider is configured; keep dormant handlers below.
+  const [method, _setMethod] = useState<"email" | "phone">("email");
+  void _setMethod;
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
