@@ -65,9 +65,8 @@ function HomeScreen() {
           </Link>
         </div>
 
-        <div className="glass rounded-2xl mt-5 fade-up" style={{ animationDelay: "60ms" }}>
-          <CompactLiveNews />
-        </div>
+        <CompactLiveNews />
+
 
         {/* Bento grid — Wander + Clips as hero tiles */}
         <h2 className="mt-7 px-1 font-display text-xs uppercase tracking-wider text-muted-foreground">
