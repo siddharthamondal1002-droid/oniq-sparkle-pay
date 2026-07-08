@@ -42,20 +42,20 @@ function HomeScreen() {
     <div className="bg-hero pb-6 min-h-screen">
       <h1 className="sr-only">Your ONIQ dashboard</h1>
       <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between fade-up">
           <div>
             <div className="text-xs text-muted-foreground">main character detected ✨</div>
             {profileLoading ? (
               <div className="mt-1 h-8 w-40 animate-pulse rounded-lg bg-surface" />
             ) : (
-              <p className="font-display text-3xl font-bold">yo, {first} 👋</p>
+              <p className="font-display text-3xl font-bold text-gradient-primary">yo, {first} 👋</p>
             )}
           </div>
 
           <Link
             to="/app/profile"
             aria-label="Open profile"
-            className="grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground font-bold overflow-hidden"
+            className="press grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground font-bold overflow-hidden"
           >
             {profile?.avatar_url ? (
               <img src={profile.avatar_url} alt="avatar" className="h-full w-full object-cover" />
@@ -67,20 +67,39 @@ function HomeScreen() {
 
         <CompactLiveNews />
 
-        {/* 2x4 service tiles */}
+
+        {/* Bento grid — Wander + Clips as hero tiles */}
         <h2 className="mt-7 px-1 font-display text-xs uppercase tracking-wider text-muted-foreground">
           the lineup
         </h2>
-        <div className="mt-3 grid grid-cols-4 gap-3">
-          <Tile to="/app/travel" icon={Plane} label="Wander" />
-          <Tile to="/app/wallet" icon={Coins} label="Wallet" />
-          <Tile to="/app/ai" icon={Sparkles} label="Ting" />
-          <Tile to="/app/rides" icon={Car} label="Rides" />
-          <Tile to="/app/miniapps" icon={LayoutGrid} label="Mini Apps" />
-          <Tile to="/app/upi" icon={IndianRupee} label="UPI Pay" />
-          <Tile to="/app/clips" icon={Clapperboard} label="Clips" />
-          <Tile to="/app/learn" icon={GraduationCap} label="Learn" />
-          <Tile to="/app/news" icon={Newspaper} label="Pulse" />
+        <div className="mt-3 grid grid-cols-4 auto-rows-[5.25rem] gap-3">
+          <HeroTile
+            to="/app/travel"
+            icon={Plane}
+            label="Wander"
+            tagline="go somewhere"
+            gradient="from-primary/30 via-primary/10 to-accent/30"
+            delay={0}
+          />
+          <HeroTile
+            to="/app/clips"
+            icon={Clapperboard}
+            label="Clips"
+            tagline="watch the feed"
+            gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
+            delay={60}
+          />
+          {[
+            { to: "/app/wallet", icon: Coins, label: "Wallet" },
+            { to: "/app/ai", icon: Sparkles, label: "Ting" },
+            { to: "/app/rides", icon: Car, label: "Rides" },
+            { to: "/app/miniapps", icon: LayoutGrid, label: "Mini Apps" },
+            { to: "/app/upi", icon: IndianRupee, label: "UPI Pay" },
+            { to: "/app/learn", icon: GraduationCap, label: "Learn" },
+            { to: "/app/news", icon: Newspaper, label: "Pulse" },
+          ].map((t, i) => (
+            <Tile key={t.label} to={t.to} icon={t.icon} label={t.label} delay={120 + i * 40} />
+          ))}
         </div>
       </div>
     </div>
@@ -93,11 +112,13 @@ function Tile({
   icon: Icon,
   label,
   locked = false,
+  delay = 0,
 }: {
   to?: string;
   icon: typeof Send;
   label: string;
   locked?: boolean;
+  delay?: number;
 }) {
   const inner = (
     <>
@@ -113,14 +134,47 @@ function Tile({
     </>
   );
   const base =
-    "flex aspect-square flex-col items-center justify-center gap-2 rounded-2xl bg-card p-2 border border-border";
+    "press fade-up flex flex-col items-center justify-center gap-2 rounded-2xl bg-card p-2 border border-border";
+  const style = { animationDelay: `${delay}ms` };
   if (locked) {
-    return <div className={`${base} opacity-60`}>{inner}</div>;
+    return <div className={`${base} opacity-60`} style={style}>{inner}</div>;
   }
   return (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    <Link to={to as any} className={`${base} hover:bg-surface-2 transition-colors`}>
+    <Link to={to as any} className={`${base} hover:bg-surface-2 transition-colors`} style={style}>
       {inner}
     </Link>
   );
 }
+
+function HeroTile({
+  to,
+  icon: Icon,
+  label,
+  tagline,
+  gradient,
+  delay = 0,
+}: {
+  to: string;
+  icon: typeof Send;
+  label: string;
+  tagline: string;
+  gradient: string;
+  delay?: number;
+}) {
+  return (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    <Link
+      to={to as any}
+      style={{ animationDelay: `${delay}ms` }}
+      className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
+    >
+      <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
+      <div>
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{tagline}</div>
+        <div className="font-display text-2xl font-bold">{label}</div>
+      </div>
+    </Link>
+  );
+}
+
