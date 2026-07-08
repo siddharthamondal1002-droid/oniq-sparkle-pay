@@ -13,6 +13,7 @@ export const Route = createFileRoute("/_authenticated/app/news")({
 type NewsItem = { title: string; link: string; source: string; publishedAt: string; image?: string };
 
 const CATEGORIES = [
+  { id: "watch", label: "Watch 📺" },
   { id: "top", label: "Top" },
   { id: "india", label: "India" },
   { id: "world", label: "World" },
