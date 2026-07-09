@@ -872,3 +872,186 @@ function ChatThread() {
     </div>
   );
 }
+
+type Member = {
+  user_id: string;
+  role: string;
+  joined_at: string | null;
+  display_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+};
+
+function GroupMembersSheet({
+  conversationId,
+  groupName,
+  meId,
+  members,
+  myRole,
+  onClose,
+  onChanged,
+  onLeft,
+}: {
+  conversationId: string;
+  groupName: string;
+  meId: string | null;
+  members: Member[];
+  myRole: string | null;
+  onClose: () => void;
+  onChanged: () => void;
+  onLeft: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [q, setQ] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const isOwner = myRole === "owner";
+  const existingIds = useMemo(() => new Set(members.map((m) => m.user_id)), [members]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(q.trim()), 200);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const { data: results = [] } = useQuery({
+    queryKey: ["add-members-search", debounced, conversationId],
+    enabled: showAdd && debounced.length >= 1,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .or(`username.ilike.%${debounced}%,display_name.ilike.%${debounced}%`)
+        .limit(15);
+      return (data ?? []).filter((u) => !existingIds.has(u.id));
+    },
+  });
+
+  const removeMember = async (uid: string) => {
+    if (!confirm("Remove this member?")) return;
+    setBusy(true);
+    const { error } = await supabase.rpc("remove_group_member", {
+      _conversation_id: conversationId,
+      _user_id: uid,
+    });
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else { toast.success("Member removed"); onChanged(); }
+  };
+
+  const addMember = async (uid: string) => {
+    setBusy(true);
+    const { error } = await supabase.rpc("add_group_members", {
+      _conversation_id: conversationId,
+      _member_ids: [uid],
+    });
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else { toast.success("Member added"); setShowAdd(false); setQ(""); onChanged(); }
+  };
+
+  const leave = async () => {
+    if (!confirm("Leave this group?")) return;
+    setBusy(true);
+    const { error } = await supabase.rpc("leave_group", { _conversation_id: conversationId });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast("You left the group");
+    onLeft();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
+      <div
+        className="max-h-[80vh] w-full overflow-y-auto rounded-t-3xl border-t border-border bg-background p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-display text-lg font-semibold">{groupName}</h2>
+            <div className="text-xs text-muted-foreground">{members.length} members</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => setShowAdd((v) => !v)}
+            className="mt-3 flex w-full items-center gap-2 rounded-2xl border border-border px-3 py-2.5 text-sm hover:bg-muted"
+          >
+            <UserPlus className="h-4 w-4" /> Add members
+          </button>
+        )}
+
+        {showAdd && (
+          <div className="mt-2">
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search @username"
+              className="w-full rounded-2xl border border-border bg-input/40 px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            />
+            <div className="mt-1 max-h-40 overflow-y-auto">
+              {results.map((u) => (
+                <button
+                  key={u.id}
+                  disabled={busy}
+                  onClick={() => addMember(u.id)}
+                  className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-muted disabled:opacity-50"
+                >
+                  <div className="grid h-8 w-8 place-items-center overflow-hidden rounded-full text-xs font-semibold text-white" style={{ backgroundColor: colorFor(u.id) }}>
+                    {u.avatar_url ? <img src={u.avatar_url} alt="" className="h-full w-full object-cover" /> : (u.display_name || u.username || "?").charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{u.display_name}</div>
+                    <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <ul className="mt-3 divide-y divide-border/50">
+          {members.map((m) => (
+            <li key={m.user_id} className="flex items-center gap-3 py-2.5">
+              <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white" style={{ backgroundColor: colorFor(m.user_id) }}>
+                {m.avatar_url ? <img src={m.avatar_url} alt="" className="h-full w-full object-cover" /> : (m.display_name || m.username || "?").charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 truncate">
+                  <span className="truncate text-sm font-medium">{m.display_name || m.username}{m.user_id === meId ? " (you)" : ""}</span>
+                  {m.role === "owner" && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">owner</span>}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">@{m.username}</div>
+              </div>
+              {isOwner && m.user_id !== meId && (
+                <button
+                  type="button"
+                  onClick={() => removeMember(m.user_id)}
+                  disabled={busy}
+                  aria-label="Remove member"
+                  className="grid h-9 w-9 place-items-center rounded-full text-red-500 hover:bg-muted"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        <button
+          type="button"
+          onClick={leave}
+          disabled={busy}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-500/40 py-3 text-sm font-semibold text-red-500 hover:bg-red-500/10 disabled:opacity-50"
+        >
+          <LogOut className="h-4 w-4" /> Leave group
+        </button>
+      </div>
+    </div>
+  );
+}
