@@ -127,20 +127,13 @@ export function loadYouTubeApi(): Promise<any> {
   return w.__ytApiPromise;
 }
 
-type Genre = "news" | "sports" | "entertainment" | "finance" | "lifestyle";
-type LiveEntry = { id: string; name: string; videoId: string; genre: Genre };
-
-const GENRE_META: { key: Genre; label: string; emoji: string }[] = [
-  { key: "news", label: "News", emoji: "📰" },
-  { key: "sports", label: "Sports", emoji: "🏆" },
-  { key: "entertainment", label: "Fun", emoji: "🎬" },
-  { key: "finance", label: "Finance", emoji: "📈" },
-  { key: "lifestyle", label: "Life", emoji: "🌿" },
-];
+type GenreId = "news" | "sports" | "entertainment" | "finance" | "lifestyle";
+type LiveChannel = { id: string; name: string; videoId: string };
+type LiveGenre = { id: GenreId; name: string; emoji: string; channels: LiveChannel[] };
 
 export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
-  const [allChannels, setAllChannels] = useState<LiveEntry[] | null>(null);
-  const [genre, setGenre] = useState<Genre>("news");
+  const [genres, setGenres] = useState<LiveGenre[] | null>(null);
+  const [genreId, setGenreId] = useState<GenreId>("news");
   const [idx, setIdx] = useState(0);
   const [allDead, setAllDead] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -150,7 +143,7 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
   const tourTimerRef = useRef<number | null>(null);
 
 
-  // Load live channel list from edge function
+  // Load live genre list from edge function
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -158,21 +151,20 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
         const { data, error } = await supabase.functions.invoke("live-channels", { body: {} });
         if (!alive) return;
         if (error) throw error;
-        const list: LiveEntry[] = Array.isArray(data?.channels) ? data.channels : [];
-        setAllChannels(list);
+        const list: LiveGenre[] = Array.isArray(data?.genres) ? data.genres : [];
+        setGenres(list);
         if (list.length === 0) setAllDead(true);
       } catch (e) {
-        console.warn("[WatchLive] fetch channels failed", e);
-        if (alive) { setAllChannels([]); setAllDead(true); }
+        console.warn("[WatchLive] fetch genres failed", e);
+        if (alive) { setGenres([]); setAllDead(true); }
       }
     })();
     return () => { alive = false; };
   }, []);
 
-  const availableGenres = GENRE_META.filter((g) =>
-    (allChannels ?? []).some((c) => c.genre === g.key),
-  );
-  const channels = (allChannels ?? []).filter((c) => c.genre === genre);
+  const activeGenre =
+    (genres ?? []).find((g) => g.id === genreId) ?? (genres ?? [])[0] ?? null;
+  const channels = activeGenre?.channels ?? [];
   const ch = channels.length ? channels[idx % channels.length] : null;
 
   const advance = (reason: "error" | "ended") => {
@@ -195,13 +187,14 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
     setIdx(i);
   };
 
-  const pickGenre = (g: Genre) => {
-    if (g === genre) return;
+  const pickGenre = (g: GenreId) => {
+    if (g === (activeGenre?.id ?? genreId)) return;
     failStreakRef.current = 0;
     setAllDead(false);
-    setGenre(g);
+    setGenreId(g);
     setIdx(0);
   };
+
 
   useEffect(() => {
     if (allDead || !ch) return;
