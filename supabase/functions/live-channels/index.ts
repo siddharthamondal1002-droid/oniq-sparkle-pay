@@ -71,8 +71,13 @@ Deno.serve(async (req) => {
       });
     }
 
+    const debug: any[] = [];
     const settled = await Promise.allSettled(
-      CHANNELS.map(async (c) => ({ ...c, videoId: await resolveLive(c.id) })),
+      CHANNELS.map(async (c) => {
+        const r = await resolveLiveDebug(c.id);
+        debug.push({ name: c.name, ...r });
+        return { ...c, videoId: r.videoId };
+      }),
     );
     const channels = settled
       .map((s) => (s.status === "fulfilled" ? s.value : null))
@@ -80,7 +85,7 @@ Deno.serve(async (req) => {
 
     const data = { channels };
     cache = { at: Date.now(), data };
-    return new Response(JSON.stringify(data), {
+    return new Response(JSON.stringify({ ...data, debug }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
