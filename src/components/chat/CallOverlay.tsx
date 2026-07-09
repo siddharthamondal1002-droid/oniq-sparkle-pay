@@ -104,12 +104,47 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }, 25000);
   };
 
+  const stopUserRingBroadcast = () => {
+    if (userRingIntervalRef.current) {
+      clearInterval(userRingIntervalRef.current);
+      userRingIntervalRef.current = null;
+    }
+    for (const c of userRingChannelsRef.current) {
+      try { supabase.removeChannel(c); } catch {}
+    }
+    userRingChannelsRef.current = [];
+  };
+
+  const insertMissedCallMessage = async (kind: "missed" | "declined") => {
+    const id = callIdRef.current;
+    if (!id || !meId) return;
+    if (missedInsertedRef.current.has(id)) return;
+    missedInsertedRef.current.add(id);
+    const t = callTypeRef.current;
+    const content =
+      kind === "declined"
+        ? "Call declined"
+        : t === "video"
+          ? "📹 Missed video call"
+          : "📞 Missed voice call";
+    try {
+      await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: meId,
+        content,
+        type: "call",
+      });
+    } catch {}
+  };
+
   const cleanupMedia = () => {
     if (ringTimeoutRef.current) {
       clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = null;
     }
     clearConnectTimeout();
+    stopUserRingBroadcast();
+    stopAllCallSounds();
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
