@@ -480,9 +480,29 @@ function HeroTile({
       <div
         className={`absolute inset-x-0 bottom-2 z-10 flex flex-col items-center gap-1 transition-opacity duration-300 ${controlsVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
       >
+        {availableGenres.length > 1 && (
+          <div
+            onClick={(e) => { e.stopPropagation(); bumpHide(); }}
+            className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto px-3"
+          >
+            {availableGenres.map((g) => {
+              const active = g.key === genre;
+              return (
+                <button
+                  key={g.key}
+                  onClick={(e) => { e.stopPropagation(); pickGenre(g.key); }}
+                  className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-semibold border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
+                >
+                  {g.emoji} {g.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {currentName && (
           <span className="glass rounded-full px-2 py-0.5 text-[10px] text-foreground/90">{currentName}</span>
         )}
+
         <div className="glass flex items-center gap-1 rounded-full p-1">
           <button className={ctrlBtn} aria-label="Previous channel" onClick={(e) => { stop(e); gotoIdx(idx - 1); }}>
             <SkipBack className="h-4 w-4" />
