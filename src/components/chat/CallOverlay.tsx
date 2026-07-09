@@ -701,13 +701,15 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         ? `Incoming ${callType} call`
         : status === "connecting"
           ? "Connecting…"
-          : status === "connected"
-            ? `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`
-            : "Call ended";
+          : status === "reconnecting"
+            ? "Reconnecting… 🔄"
+            : status === "connected"
+              ? `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`
+              : "Call ended";
 
   const displayName = status === "incoming" ? incomingFromName : peerName;
   const monogram = (displayName || "?").charAt(0).toUpperCase();
-  const showRemoteVideo = callType === "video" && status === "connected";
+  const showRemoteVideo = callType === "video" && (status === "connected" || status === "reconnecting");
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
