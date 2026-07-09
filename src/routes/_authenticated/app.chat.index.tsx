@@ -529,6 +529,3 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
 export const _iconRef = Check;
 export const _trashRef = Trash2;
 
-// Force-suppress the unused Check icon warning while keeping the import
-// available for callers that reference it via ticks in the future.
-export const _iconRef = Check;
