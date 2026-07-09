@@ -2,8 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageCircle, Search, Edit3, X } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { MessageCircle, Search, Edit3, X, Check, CheckCheck } from "lucide-react";
+import { format, isToday, isYesterday, differenceInDays } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/app/chat/")({
   component: ChatList,
@@ -26,12 +26,36 @@ type EnrichedConv = {
   avatar_url: string | null;
   updated_at: string | null;
   last_message: string | null;
+  last_sender_id: string | null;
+  last_created_at: string | null;
+  peer_read_at: string | null;
   unread: number;
 };
+
+const AVATAR_COLORS = [
+  "#0B5A4E", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981",
+  "#3B82F6", "#EC4899", "#14B8A6", "#F97316", "#6366F1",
+];
+function colorFor(seed: string) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function convTime(iso: string | null): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isToday(d)) return format(d, "HH:mm");
+  if (isYesterday(d)) return "Yesterday";
+  if (differenceInDays(new Date(), d) < 7) return format(d, "EEEE");
+  return format(d, "dd/MM/yy");
+}
 
 function ChatList() {
   const qc = useQueryClient();
   const [showNew, setShowNew] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [query, setQuery] = useState("");
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -54,22 +78,26 @@ function ChatList() {
             const c = r.conversations!;
             let title = c.name ?? "Chat";
             let avatar = c.avatar_url;
+            let peerReadAt: string | null = null;
             if (c.type === "direct") {
               const { data: other } = await supabase
                 .from("conversation_members")
-                .select("user_id, profiles(display_name, username, avatar_url)")
+                .select("user_id, last_read_at, profiles(display_name, username, avatar_url)")
                 .eq("conversation_id", c.id)
                 .neq("user_id", me!.id)
                 .maybeSingle();
-              const p = (other as any)?.profiles;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const o = other as any;
+              const p = o?.profiles;
               if (p) {
                 title = p.display_name || p.username || "Chat";
                 avatar = p.avatar_url ?? avatar;
               }
+              peerReadAt = o?.last_read_at ?? null;
             }
             const { data: last } = await supabase
               .from("messages")
-              .select("content, created_at")
+              .select("content, created_at, sender_id, type")
               .eq("conversation_id", c.id)
               .eq("is_deleted", false)
               .order("created_at", { ascending: false })
@@ -84,6 +112,9 @@ function ChatList() {
               avatar_url: avatar,
               updated_at: last?.created_at ?? c.updated_at,
               last_message: last?.content ?? null,
+              last_sender_id: last?.sender_id ?? null,
+              last_created_at: last?.created_at ?? null,
+              peer_read_at: peerReadAt,
               unread: (unread as number) ?? 0,
             };
           }),
@@ -115,73 +146,140 @@ function ChatList() {
     };
   }, [qc]);
 
+  const filtered = useMemo(() => {
+    if (!convs) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return convs;
+    return convs.filter(
+      (c) =>
+        c.title.toLowerCase().includes(q) ||
+        (c.last_message ?? "").toLowerCase().includes(q),
+    );
+  }, [convs, query]);
+
   return (
-    <div className="px-5 pt-12 pb-28">
-      <div className="flex items-center justify-between">
+    <div className="px-4 pt-12 pb-6">
+      <div className="flex items-center justify-between px-1">
         <h1 className="font-display text-3xl font-bold">Chats</h1>
-        <button
-          onClick={() => setShowNew(true)}
-          className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground"
-          aria-label="New chat"
-        >
-          <Edit3 className="h-4 w-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              setShowSearch((s) => !s);
+              if (showSearch) setQuery("");
+            }}
+            className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
+            aria-label="Search"
+          >
+            <Search className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => setShowNew(true)}
+            className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
+            aria-label="New chat"
+          >
+            <Edit3 className="h-5 w-5" />
+          </button>
+        </div>
       </div>
 
-      <div className="relative mt-4">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <input
-          placeholder="Search chats"
-          className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-        />
-      </div>
+      {showSearch && (
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search chats"
+            className="w-full rounded-full border border-border bg-input/40 py-2.5 pl-11 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+          />
+        </div>
+      )}
 
-      <div className="mt-5 space-y-1">
+      <div className="mt-3">
         {isLoading ? (
-          <div className="text-sm text-muted-foreground">Loading…</div>
-        ) : convs && convs.length > 0 ? (
-          convs.map((c) => (
-            <Link
-              key={c.id}
-              to="/app/chat/$conversationId"
-              params={{ conversationId: c.id }}
-              className="flex items-center gap-3 rounded-2xl p-3 hover:bg-muted"
-            >
-              <div className="relative grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground font-bold overflow-hidden">
-                {c.avatar_url ? (
-                  <img src={c.avatar_url} alt="" className="h-full w-full object-cover" />
-                ) : (
-                  c.title.charAt(0).toUpperCase()
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="truncate font-medium">{c.title}</div>
-                  <div className="shrink-0 text-[10px] text-muted-foreground">
-                    {c.updated_at
-                      ? formatDistanceToNow(new Date(c.updated_at), { addSuffix: true })
-                      : ""}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <div className="truncate text-xs text-muted-foreground">
-                    {c.last_message ?? "No messages yet"}
-                  </div>
-                  {c.unread > 0 && (
-                    <span className="ml-2 grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
-                      {c.unread}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </Link>
-          ))
+          <div className="p-4 text-sm text-muted-foreground">Loading…</div>
+        ) : filtered.length > 0 ? (
+          <ul className="divide-y divide-border/50">
+            {filtered.map((c) => {
+              const mine = c.last_sender_id === me?.id;
+              const isRead =
+                mine && c.last_created_at && c.peer_read_at
+                  ? new Date(c.peer_read_at).getTime() >= new Date(c.last_created_at).getTime()
+                  : false;
+              return (
+                <li key={c.id}>
+                  <Link
+                    to="/app/chat/$conversationId"
+                    params={{ conversationId: c.id }}
+                    className="flex items-center gap-3 px-1 py-3 active:bg-muted/60"
+                  >
+                    <Avatar name={c.title} url={c.avatar_url} size={52} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <div className="truncate font-semibold">{c.title}</div>
+                        <div
+                          className={`shrink-0 text-[11px] ${
+                            c.unread > 0 ? "font-semibold text-[#25D366]" : "text-muted-foreground"
+                          }`}
+                        >
+                          {convTime(c.updated_at)}
+                        </div>
+                      </div>
+                      <div className="mt-0.5 flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
+                          {mine &&
+                            (isRead ? (
+                              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-[#53BDEB]" />
+                            ) : (
+                              <CheckCheck className="h-3.5 w-3.5 shrink-0" />
+                            ))}
+                          <span className="truncate">
+                            {mine && <span>You: </span>}
+                            {c.last_message ?? "No messages yet"}
+                          </span>
+                        </div>
+                        {c.unread > 0 && (
+                          <span className="ml-2 grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-[#25D366] px-1.5 text-[11px] font-bold text-black">
+                            {c.unread}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        ) : query ? (
+          <div className="p-10 text-center text-sm text-muted-foreground">No matches</div>
         ) : (
           <EmptyChats onNew={() => setShowNew(true)} />
         )}
       </div>
 
+      {/* FAB */}
+      <button
+        onClick={() => setShowNew(true)}
+        aria-label="New chat"
+        className="fixed bottom-24 right-5 z-30 grid h-14 w-14 place-items-center rounded-2xl bg-[#25D366] text-black shadow-lg active:scale-95"
+      >
+        <Edit3 className="h-5 w-5" />
+      </button>
+
       {showNew && me && <NewChatSheet meId={me.id} onClose={() => setShowNew(false)} />}
+    </div>
+  );
+}
+
+function Avatar({ name, url, size = 44 }: { name: string; url: string | null; size?: number }) {
+  const initial = (name || "?").charAt(0).toUpperCase();
+  const bg = colorFor(name || "?");
+  return (
+    <div
+      className="grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold text-white"
+      style={{ width: size, height: size, backgroundColor: bg, fontSize: size * 0.42 }}
+    >
+      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : initial}
     </div>
   );
 }
@@ -282,13 +380,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                 onClick={() => startChat(u.id)}
                 className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-muted disabled:opacity-50"
               >
-                <div className="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-accent font-bold text-primary-foreground">
-                  {u.avatar_url ? (
-                    <img src={u.avatar_url} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    (u.display_name || u.username || "?").charAt(0).toUpperCase()
-                  )}
-                </div>
+                <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={44} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">{u.display_name}</div>
                   <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
@@ -301,3 +393,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     </div>
   );
 }
+
+// Force-suppress the unused Check icon warning while keeping the import
+// available for callers that reference it via ticks in the future.
+export const _iconRef = Check;
