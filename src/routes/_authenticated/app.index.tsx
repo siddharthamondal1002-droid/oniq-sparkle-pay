@@ -124,7 +124,7 @@ function HomeScreen() {
             </h2>
             <CustomizeButton />
           </div>
-          <div className="mt-3 grid grid-cols-4 auto-rows-[5.25rem] gap-3">
+          <div className="mt-3">
             <HeroTile
               tileKey="watch"
               skin={skins.watch}
@@ -137,6 +137,8 @@ function HomeScreen() {
               delay={0}
               livePreview
             />
+          </div>
+          <div className="mt-3 grid grid-cols-4 auto-rows-[5.25rem] gap-3">
             <ClipsHeroTile
               skin={skins.clips}
               gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
