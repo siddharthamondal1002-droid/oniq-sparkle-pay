@@ -7,7 +7,7 @@ import {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, Signal, Video, VideoOff } from "lucide-react";
 import { toast } from "sonner";
 import {
   ensureNotificationPermission,
