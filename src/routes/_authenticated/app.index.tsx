@@ -239,7 +239,7 @@ function Tile({
   );
 }
 
-type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle";
+type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "mytv";
 type Video = {
   videoId: string;
   title: string;
@@ -287,12 +287,22 @@ function HeroTile({
   const navigate = useNavigate();
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
-  const { data: genres } = useLiveGenres(livePreview && !showSkin);
+  const { data: baseGenres } = useLiveGenres(livePreview && !showSkin);
+  const { videos: myTvVideos } = useMyTv();
+  const genres = livePreview && !showSkin
+    ? [
+        ...(baseGenres ?? []),
+        ...(myTvVideos.length > 0
+          ? [{ id: "mytv" as GenreId, name: "My TV", emoji: "📺", live: false, videos: myTvVideos }]
+          : []),
+      ]
+    : [];
   const [genreId, setGenreId] = useState<GenreId>("news");
   const activeGenre =
-    (genres ?? []).find((g) => g.id === genreId) ?? (genres ?? [])[0] ?? null;
+    genres.find((g) => g.id === genreId) ?? genres[0] ?? null;
   const videos = activeGenre?.videos ?? [];
   const isLiveGenre = !!activeGenre?.live;
+
 
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
