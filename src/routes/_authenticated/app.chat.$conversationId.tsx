@@ -2,10 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
+import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 
 type Message = {
   id: string;
@@ -16,6 +17,7 @@ type Message = {
   created_at: string | null;
   is_deleted: boolean | null;
   reply_to_id: string | null;
+  is_ai: boolean | null;
 };
 
 export const Route = createFileRoute("/_authenticated/app/chat/$conversationId")({
