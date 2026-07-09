@@ -281,3 +281,44 @@ function HeroTile({
     </Link>
   );
 }
+
+type BIPEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
+function useInstallPrompt() {
+  const [evt, setEvt] = useState<BIPEvent | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    const onBIP = (e: Event) => {
+      e.preventDefault();
+      setEvt(e as BIPEvent);
+    };
+    const onInstalled = () => {
+      setEvt(null);
+      setDismissed(true);
+    };
+    window.addEventListener("beforeinstallprompt", onBIP);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onBIP);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
+  return {
+    canInstall: !!evt && !dismissed,
+    prompt: async () => {
+      if (!evt) return;
+      await evt.prompt();
+      try {
+        await evt.userChoice;
+      } catch {
+        // ignore
+      }
+      setEvt(null);
+    },
+    dismiss: () => setDismissed(true),
+  };
+}
+
