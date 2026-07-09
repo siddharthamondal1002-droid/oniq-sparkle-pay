@@ -1,6 +1,6 @@
 User-agent: *
 Allow: /
-Disallow: /app/
-Disallow: /api/
+Disallow: /app
+Disallow: /auth
 
-Sitemap: https://oniq-sparkle-pay.lovable.app/sitemap.xml
+Sitemap: https://oniqhub.com/sitemap.xml
