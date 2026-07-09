@@ -41,11 +41,12 @@ const GENRES: GenreDef[] = [
     emoji: "🎬",
     live: false,
     candidates: [
-      { handle: "tseries", name: "T-Series" },
-      { handle: "NetflixIndiaOfficial", name: "Netflix India" },
-      { handle: "zeemusiccompany", name: "Zee Music" },
-      { handle: "PrimeVideoIN", name: "Prime Video IN" },
-      { handle: "SonyPicturesIndia", name: "Sony Pictures IN" },
+      { id: "UChz5aEi3dfrDVC8-YJsMUDA", name: "T-Series" },
+      { id: "UCim0ZIz8SAQGPvg4mJHG3JA", name: "Netflix India" },
+      { id: "UCFFbwnve3yF62-tVXkTyHqg", name: "Zee Music" },
+      { id: "UC4zWG9LccdWGUlF77LZ8toA", name: "Prime Video India" },
+      { id: "UC56gTxNs4f9xZ7Pa2i5xNzg", name: "Sony Music India" },
+      { id: "UCFqyJFbsV-uEcosvNhg0PaQ", name: "Sony Pictures India" },
     ],
   },
   {
@@ -54,12 +55,12 @@ const GENRES: GenreDef[] = [
     emoji: "💹",
     live: false,
     candidates: [
-      { handle: "CARachanaRanade", name: "CA Rachana Ranade" },
-      { handle: "pranjalkamra", name: "Pranjal Kamra" },
-      { handle: "warikoo", name: "warikoo" },
-      { handle: "FinancewithSharan", name: "Finance With Sharan" },
-      { handle: "AkshatZayn", name: "Akshat Shrivastava" },
-      { handle: "zerodhaonline", name: "Zerodha" },
+      { id: "UCD-qZSqFPqyx43L6gAR8qfQ", name: "CA Rachana Ranade" },
+      { id: "UCNXapAc8mXTwW82MTncdfzQ", name: "Pranjal Kamra" },
+      { id: "UCRzYN32xtBf3Yxsx5BvJWJw", name: "warikoo" },
+      { id: "UCBI57iTXtmJoaI6Ht7MgcfA", name: "Finance With Sharan" },
+      { id: "UCqW8jxh4tH1Z1sWPbkGWL4g", name: "Akshat Shrivastava" },
+      { id: "UCvPTFsvuCEwXav7JwJ-3JVA", name: "Zerodha" },
     ],
   },
   {
@@ -78,7 +79,7 @@ const GENRES: GenreDef[] = [
       { handle: "CarryMinati", name: "CarryMinati" },
       { handle: "TotalGaming093", name: "Total Gaming" },
       { handle: "TechnoGamerzOfficial", name: "Techno Gamerz" },
-      { handle: "souravjoshivlogs7028", name: "Sourav Joshi Vlogs" },
+      { id: "UCLyswjODCCi5UbDe-eh5cFQ", name: "Sourav Joshi Vlogs" },
       { handle: "HikakinTV", name: "HikakinTV" },
     ],
   },
@@ -88,11 +89,11 @@ const GENRES: GenreDef[] = [
     emoji: "⚽",
     live: false,
     candidates: [
-      { handle: "icc", name: "ICC" },
-      { handle: "BCCI", name: "BCCI" },
-      { handle: "FIFA", name: "FIFA" },
-      { handle: "NBA", name: "NBA" },
-      { handle: "PremierLeague", name: "Premier League" },
+      { id: "UCt2JXOLNxqry7B_4rRZME3Q", name: "ICC" },
+      { id: "UCXnFh8S94wQCPw-p6j6bX9A", name: "BCCI" },
+      { id: "UCpcTrCXblq78GZrTUTLWeBw", name: "FIFA" },
+      { id: "UCWJ2lWNubArHWmf3FIHbfcQ", name: "NBA" },
+      { id: "UCpryVRk_VDudG8SHXgWcG0w", name: "Premier League" },
     ],
   },
   {
@@ -101,13 +102,14 @@ const GENRES: GenreDef[] = [
     emoji: "🌿",
     live: false,
     candidates: [
-      { handle: "BeerBiceps", name: "BeerBiceps" },
-      { handle: "NasDaily", name: "Nas Daily" },
-      { handle: "VillageCookingChannel", name: "Village Cooking Channel" },
-      { handle: "FitTuber", name: "FitTuber" },
-      { handle: "NASA", name: "NASA" },
+      { id: "UCPxMZIFE856tbTfdkdjzTSQ", name: "BeerBiceps" },
+      { id: "UCBRvR4Q1ddonASMOSV4QGOg", name: "Nas Daily" },
+      { id: "UCk3JZr7eS3pg5AGEvBdEvFg", name: "Village Cooking Channel" },
+      { id: "UCDWVNwQce16D16tPc5NBYlQ", name: "FitTuber" },
+      { id: "UC9SM7V7J1pAhPabOUST01fw", name: "NASA" },
     ],
   },
+
 ];
 
 const UA =
