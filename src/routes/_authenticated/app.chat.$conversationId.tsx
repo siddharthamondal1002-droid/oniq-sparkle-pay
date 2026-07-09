@@ -472,7 +472,43 @@ function ChatThread() {
         >
           <Video className="h-5 w-5" />
         </button>
+        <div className="relative">
+          <button
+            data-testid="chat-menu"
+            onClick={() => setShowHeaderMenu((v) => !v)}
+            aria-label="More"
+            className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+          >
+            <MoreVertical className="h-5 w-5" />
+          </button>
+          {showHeaderMenu && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowHeaderMenu(false)} />
+              <div className="absolute right-0 top-11 z-40 w-52 overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+                {peerId && (
+                  <button
+                    type="button"
+                    onClick={() => { setShowHeaderMenu(false); setReportTarget({ type: "user", id: peerId, conversationId }); }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted"
+                  >
+                    <Flag className="h-4 w-4" /> Report user
+                  </button>
+                )}
+                {peerId && (
+                  <button
+                    type="button"
+                    onClick={toggleBlock}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-500 hover:bg-muted"
+                  >
+                    <Ban className="h-4 w-4" /> {isBlocked ? "Unblock user" : "Block user 🚫"}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </header>
+
 
       <CallOverlay
         ref={callRef}
