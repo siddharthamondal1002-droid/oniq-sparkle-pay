@@ -78,6 +78,9 @@ function AppShell() {
         <Outlet />
       </main>
 
+      <GlobalIncomingCall />
+
+
       {/* Fade so content dissolves into the nav instead of hard-cutting */}
       <div
         className={`pointer-events-none fixed bottom-0 left-1/2 z-30 h-28 w-full max-w-md -translate-x-1/2 bg-gradient-to-t from-background via-background/85 to-transparent ${chromeClass}`}
