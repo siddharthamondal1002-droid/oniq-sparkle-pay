@@ -107,6 +107,7 @@ function ClipsScreen() {
                 if (query.hasNextPage && !query.isFetchingNextPage) query.fetchNextPage();
               }}
               onOpenComments={() => setOpenComments(clip.id)}
+              onReport={() => setReportTarget({ type: "clip", id: clip.id })}
             />
           ))}
           {query.isFetchingNextPage && (
@@ -138,12 +139,13 @@ function ClipsScreen() {
       {openUpload && (
         <UploadSheet me={me} onClose={() => setOpenUpload(false)} onDone={() => query.refetch()} />
       )}
+      {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
     </div>
   );
 }
 
 function ClipCard({
-  clip, muted, me, isLast, onLoadMore, onOpenComments,
+  clip, muted, me, isLast, onLoadMore, onOpenComments, onReport,
 }: {
   clip: Clip;
   muted: boolean;
@@ -151,6 +153,7 @@ function ClipCard({
   isLast: boolean;
   onLoadMore: () => void;
   onOpenComments: () => void;
+  onReport: () => void;
 }) {
   const qc = useQueryClient();
   const sectionRef = useRef<HTMLDivElement | null>(null);
