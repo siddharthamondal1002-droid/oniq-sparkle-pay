@@ -306,7 +306,7 @@ function ChatList() {
   );
 }
 
-function Avatar({ name, url, size = 44 }: { name: string; url: string | null; size?: number }) {
+function Avatar({ name, url, size = 44, group = false }: { name: string; url: string | null; size?: number; group?: boolean }) {
   const initial = (name || "?").charAt(0).toUpperCase();
   const bg = colorFor(name || "?");
   return (
@@ -314,7 +314,7 @@ function Avatar({ name, url, size = 44 }: { name: string; url: string | null; si
       className="grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold text-white"
       style={{ width: size, height: size, backgroundColor: bg, fontSize: size * 0.42 }}
     >
-      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : initial}
+      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : group ? <Users style={{ width: size * 0.5, height: size * 0.5 }} /> : initial}
     </div>
   );
 }
