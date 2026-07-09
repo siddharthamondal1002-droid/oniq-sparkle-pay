@@ -236,6 +236,25 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ch?.videoId, allDead]);
 
+  // Auto-tour: rotate channels every 120s when enabled
+  useEffect(() => {
+    if (!autoTour || allDead || !channels || channels.length < 2) return;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) {
+        tourTimerRef.current = window.setTimeout(tick, 120_000);
+        return;
+      }
+      setIdx((i) => (i + 1) % (channels?.length || 1));
+    };
+    tourTimerRef.current = window.setTimeout(tick, 120_000);
+    return () => {
+      if (tourTimerRef.current) {
+        window.clearTimeout(tourTimerRef.current);
+        tourTimerRef.current = null;
+      }
+    };
+  }, [idx, channels, allDead, autoTour]);
+
   const loading = channels === null;
 
   return (
