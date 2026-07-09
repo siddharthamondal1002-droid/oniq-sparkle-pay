@@ -354,7 +354,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (params.encodings[0] as any).scaleResolutionDownBy = 1.0;
         } else if (kind === "audio") {
-          params.encodings[0].maxBitrate = 40_000;
+          params.encodings[0].maxBitrate = 64_000;
         }
         await sender.setParameters(params);
       } catch {
