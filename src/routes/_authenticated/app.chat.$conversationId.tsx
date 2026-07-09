@@ -795,6 +795,19 @@ function ChatThread() {
 
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
 
+      {showMembersSheet && isGroup && (
+        <GroupMembersSheet
+          conversationId={conversationId}
+          groupName={title}
+          meId={me?.id ?? null}
+          members={members}
+          myRole={myRole}
+          onClose={() => setShowMembersSheet(false)}
+          onChanged={() => refetchMembers()}
+          onLeft={() => navigate({ to: "/app/chat" })}
+        />
+      )}
+
 
       <form
         onSubmit={send}
