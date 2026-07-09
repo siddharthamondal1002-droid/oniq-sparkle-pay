@@ -9,6 +9,12 @@ import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ensureNotificationPermission,
+  playRingback,
+  playRingtone,
+  stopAllCallSounds,
+} from "@/lib/callSounds";
 
 export type CallType = "audio" | "video";
 export type CallHandle = { startCall: (type: CallType) => void };
@@ -62,6 +68,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
+  const peerIdsRef = useRef<string[]>([]);
+  const userRingChannelsRef = useRef<RealtimeChannel[]>([]);
+  const userRingIntervalRef = useRef<number | null>(null);
+  const missedInsertedRef = useRef<Set<string>>(new Set());
+  const autoAcceptTriedRef = useRef(false);
 
   const setCallTypeBoth = (t: CallType) => {
     callTypeRef.current = t;
@@ -93,12 +104,47 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }, 25000);
   };
 
+  const stopUserRingBroadcast = () => {
+    if (userRingIntervalRef.current) {
+      clearInterval(userRingIntervalRef.current);
+      userRingIntervalRef.current = null;
+    }
+    for (const c of userRingChannelsRef.current) {
+      try { supabase.removeChannel(c); } catch {}
+    }
+    userRingChannelsRef.current = [];
+  };
+
+  const insertMissedCallMessage = async (kind: "missed" | "declined") => {
+    const id = callIdRef.current;
+    if (!id || !meId) return;
+    if (missedInsertedRef.current.has(id)) return;
+    missedInsertedRef.current.add(id);
+    const t = callTypeRef.current;
+    const content =
+      kind === "declined"
+        ? "Call declined"
+        : t === "video"
+          ? "📹 Missed video call"
+          : "📞 Missed voice call";
+    try {
+      await supabase.from("messages").insert({
+        conversation_id: conversationId,
+        sender_id: meId,
+        content,
+        type: "call",
+      });
+    } catch {}
+  };
+
   const cleanupMedia = () => {
     if (ringTimeoutRef.current) {
       clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = null;
     }
     clearConnectTimeout();
+    stopUserRingBroadcast();
+    stopAllCallSounds();
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -199,6 +245,40 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     stream.getTracks().forEach((t) => pcRef.current?.addTrack(t, stream));
   };
 
+  // Fetch other conversation members once per conversation so we can ring
+  // them on their per-user channel from anywhere in the app.
+  useEffect(() => {
+    if (!meId) return;
+    let cancelled = false;
+    supabase
+      .from("conversation_members")
+      .select("user_id")
+      .eq("conversation_id", conversationId)
+      .neq("user_id", meId)
+      .then(({ data }) => {
+        if (cancelled) return;
+        peerIdsRef.current = (data ?? []).map((r: any) => r.user_id).filter(Boolean);
+      });
+    return () => { cancelled = true; };
+  }, [conversationId, meId]);
+
+  const sendUserRing = () => {
+    const id = callIdRef.current;
+    if (!id) return;
+    const payload = {
+      conversationId,
+      callId: id,
+      callType: callTypeRef.current,
+      fromName: meName,
+      fromId: meId,
+    };
+    for (const ch of userRingChannelsRef.current) {
+      try {
+        ch.send({ type: "broadcast", event: "ring", payload });
+      } catch {}
+    }
+  };
+
   const startCall = (type: CallType) => {
     if (!meId || activeRef.current) return;
     activeRef.current = true;
@@ -206,10 +286,40 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     callIdRef.current = genId();
     setCallTypeBoth(type);
     setStatus("outgoing");
+    ensureNotificationPermission();
+    playRingback();
     sendSig("ring", { callType: type, fromName: meName });
+
+    // Broadcast on every peer's user-scoped channel so the incoming UI shows
+    // no matter what screen they're on. Re-broadcast every 2s while outgoing
+    // via the outgoing-status effect below.
+    stopUserRingBroadcast();
+    for (const peerId of peerIdsRef.current) {
+      const uch = supabase.channel(`user-calls:${peerId}`, {
+        config: { broadcast: { self: false } },
+      });
+      uch.subscribe((s) => {
+        if (s === "SUBSCRIBED") {
+          uch.send({
+            type: "broadcast",
+            event: "ring",
+            payload: {
+              conversationId,
+              callId: callIdRef.current,
+              callType: callTypeRef.current,
+              fromName: meName,
+              fromId: meId,
+            },
+          });
+        }
+      });
+      userRingChannelsRef.current.push(uch);
+    }
+
     ringTimeoutRef.current = window.setTimeout(() => {
       if (isCallerRef.current && !pcRef.current) {
         toast("They're not around — try a message 💬");
+        insertMissedCallMessage("missed");
         finishCall(true);
       }
     }, 30000);
@@ -228,6 +338,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     const id = window.setInterval(() => {
       if (isCallerRef.current && activeRef.current && callIdRef.current) {
         sendSig("ring", { callType: callTypeRef.current, fromName: meName });
+        sendUserRing();
       }
     }, 2000);
     return () => window.clearInterval(id);
@@ -291,6 +402,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (!matches(p, true)) return;
       if (!isCallerRef.current) return;
       toast("Call declined");
+      insertMissedCallMessage("declined");
       finishCall(false);
     });
 
@@ -336,7 +448,47 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       finishCall(false);
     });
 
-    ch.subscribe();
+    ch.subscribe((sStatus) => {
+      if (sStatus !== "SUBSCRIBED") return;
+      if (autoAcceptTriedRef.current) return;
+      if (typeof window === "undefined") return;
+      const params = new URLSearchParams(window.location.search);
+      const acceptId = params.get("acceptCall");
+      const acceptType = params.get("acceptType") as CallType | null;
+      if (!acceptId) return;
+      autoAcceptTriedRef.current = true;
+      // Strip the params so a reload doesn't re-fire.
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("acceptCall");
+        url.searchParams.delete("acceptType");
+        window.history.replaceState({}, "", url.toString());
+      } catch {}
+      if (activeRef.current) return;
+      // Adopt the call as callee — mirror the "ring" handler state.
+      activeRef.current = true;
+      isCallerRef.current = false;
+      callIdRef.current = acceptId;
+      setCallTypeBoth(acceptType === "video" ? "video" : "audio");
+      setIncomingFromName(peerName);
+      setStatus("incoming");
+      // Trigger accept once React has painted (accept reads status via state).
+      window.setTimeout(() => {
+        // Manually run accept-equivalent since state may not have flushed yet.
+        setStatus("connecting");
+        armConnectTimeout();
+        getMedia(callTypeRef.current)
+          .then((stream) => {
+            pcRef.current = createPc();
+            attachLocal(stream, callTypeRef.current);
+            sendSig("accept");
+          })
+          .catch(() => {
+            sendSig("decline");
+            finishCall(false);
+          });
+      }, 60);
+    });
 
     return () => {
       cleanupMedia();
