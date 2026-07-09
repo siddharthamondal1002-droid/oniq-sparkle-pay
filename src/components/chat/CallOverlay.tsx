@@ -112,6 +112,15 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const [camOff, setCamOff] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [incomingFromName, setIncomingFromName] = useState("");
+  const [showHud, setShowHud] = useState(false);
+  const [hudLive, setHudLive] = useState<{
+    route: string;
+    rttMs: number;
+    lossPct: number;
+    jitterMs: number;
+    kbpsIn: number;
+    kbpsOut: number;
+  } | null>(null);
 
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
