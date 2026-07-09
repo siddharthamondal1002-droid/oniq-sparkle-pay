@@ -361,8 +361,10 @@ function ChatThread() {
   };
 
   const title = header?.title ?? "Conversation";
-  // Keep deleted messages in the list (WhatsApp behavior)
-  const visible = messages;
+  // Filter out messages from blocked peer while blocked (client-side hide)
+  const visible = isBlocked && peerId
+    ? messages.filter((m) => m.sender_id !== peerId)
+    : messages;
 
   // Build render list with day separators + grouping metadata.
   type Row =
