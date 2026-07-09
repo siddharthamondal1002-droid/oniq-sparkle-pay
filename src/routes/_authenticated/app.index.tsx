@@ -137,6 +137,11 @@ function HomeScreen() {
               delay={0}
               livePreview
             />
+            <ClipsHeroTile
+              skin={skins.clips}
+              gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
+              delay={60}
+            />
             <HeroTile
               tileKey="clips"
               skin={skins.clips}
