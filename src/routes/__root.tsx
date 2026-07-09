@@ -174,17 +174,21 @@ function RootComponent() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
-    // Skip in Lovable preview / dev / iframe to avoid stale caches.
+    // Domain-agnostic guard: register on any real HTTPS origin that isn't a
+    // known preview/dev host or embedded in an iframe. Works from custom
+    // domains (e.g. oniqhub.com) while still skipping Lovable previews.
     const host = window.location.hostname;
     const inIframe = window.self !== window.top;
-    const isPreview =
+    const isHttps = window.location.protocol === "https:";
+    const isPreviewHost =
       host.startsWith("id-preview--") ||
       host.startsWith("preview--") ||
       host.endsWith(".lovableproject.com") ||
       host.endsWith(".lovableproject-dev.com") ||
+      host.endsWith(".lovable.dev") ||
       host === "localhost" ||
       host === "127.0.0.1";
-    if (inIframe || isPreview || !import.meta.env.PROD) {
+    if (inIframe || !isHttps || isPreviewHost) {
       // Clean up any prior registration so preview never serves cached shell.
       navigator.serviceWorker.getRegistrations?.().then((regs) =>
         regs.forEach((r) => {
