@@ -129,7 +129,7 @@ function loadYouTubeApi(): Promise<any> {
 
 type LiveEntry = { id: string; name: string; videoId: string };
 
-export function WatchLive() {
+export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
   const [channels, setChannels] = useState<LiveEntry[] | null>(null);
   const [idx, setIdx] = useState(0);
   const [allDead, setAllDead] = useState(false);
@@ -137,6 +137,7 @@ export function WatchLive() {
   const playerRef = useRef<any>(null);
   const failStreakRef = useRef(0);
   const advanceTimerRef = useRef<number | null>(null);
+  const tourTimerRef = useRef<number | null>(null);
 
   // Load live channel list from edge function
   useEffect(() => {
@@ -235,6 +236,25 @@ export function WatchLive() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ch?.videoId, allDead]);
 
+  // Auto-tour: rotate channels every 120s when enabled
+  useEffect(() => {
+    if (!autoTour || allDead || !channels || channels.length < 2) return;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) {
+        tourTimerRef.current = window.setTimeout(tick, 120_000);
+        return;
+      }
+      setIdx((i) => (i + 1) % (channels?.length || 1));
+    };
+    tourTimerRef.current = window.setTimeout(tick, 120_000);
+    return () => {
+      if (tourTimerRef.current) {
+        window.clearTimeout(tourTimerRef.current);
+        tourTimerRef.current = null;
+      }
+    };
+  }, [idx, channels, allDead, autoTour]);
+
   const loading = channels === null;
 
   return (
@@ -257,17 +277,22 @@ export function WatchLive() {
           );
         })}
         {channels && channels.length > 0 && (
-          <button
-            onClick={() => {
-              const total = channels.length;
-              if (allDead) { setAllDead(false); setIdx(0); failStreakRef.current = 0; return; }
-              setIdx((i) => (i + 1) % total);
-            }}
-            className="press ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium hover:text-foreground"
-            aria-label="Next channel"
-          >
-            <SkipForward className="h-3 w-3" /> Next
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            {autoTour && !allDead && (
+              <span className="text-[10px] text-muted-foreground">auto-tour 🔁</span>
+            )}
+            <button
+              onClick={() => {
+                const total = channels.length;
+                if (allDead) { setAllDead(false); setIdx(0); failStreakRef.current = 0; return; }
+                setIdx((i) => (i + 1) % total);
+              }}
+              className="press inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium hover:text-foreground"
+              aria-label="Next channel"
+            >
+              <SkipForward className="h-3 w-3" /> Next
+            </button>
+          </div>
         )}
       </div>
       <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black">
@@ -381,7 +406,7 @@ export function LiveNewsSection() {
           <div className="mb-3 text-sm font-semibold text-foreground">
             Watch Live <span aria-hidden>📺</span>
           </div>
-          <WatchLive />
+          <WatchLive autoTour />
         </div>
 
         {tickerText && (
