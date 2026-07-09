@@ -296,7 +296,8 @@ function ChatList() {
       <button
         onClick={() => setShowNew(true)}
         aria-label="New chat"
-        className="fixed bottom-24 right-5 z-30 grid h-14 w-14 place-items-center rounded-2xl bg-[#25D366] text-black shadow-lg active:scale-95"
+        data-testid="new-chat-fab"
+        className="fixed bottom-24 right-4 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-black shadow-lg active:scale-95"
       >
         <Edit3 className="h-5 w-5" />
       </button>
