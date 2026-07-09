@@ -130,6 +130,7 @@ function HomeScreen() {
               tagline="live tv rn"
               gradient="from-primary/30 via-primary/10 to-accent/30"
               delay={0}
+              livePreview
             />
             <HeroTile
               tileKey="clips"
