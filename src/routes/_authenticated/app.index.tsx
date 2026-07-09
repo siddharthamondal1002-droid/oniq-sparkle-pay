@@ -21,7 +21,7 @@ import {
   SkipForward,
   Maximize2,
 } from "lucide-react";
-import { CompactLiveNews, loadYouTubeApi } from "@/components/landing/LiveNewsSection";
+import { CompactLiveNews, loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
 import {
   CustomizeButton,
   useUserTheme,
