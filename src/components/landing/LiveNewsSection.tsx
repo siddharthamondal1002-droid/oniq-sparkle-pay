@@ -300,9 +300,9 @@ export function WatchLive() {
 
   return (
     <div>
-      {genres && genres.length > 1 && (
+      {((genres && genres.length > 1) || userId) && (
         <div className="no-scrollbar mb-3 flex items-center gap-2 overflow-x-auto">
-          {genres.map((g) => {
+          {(genres ?? []).map((g) => {
             const active = g.id === currentGenreId;
             return (
               <button
@@ -318,8 +318,19 @@ export function WatchLive() {
               </button>
             );
           })}
+          {userId && (
+            <button
+              data-testid="mytv-manage"
+              onClick={() => setManageOpen(true)}
+              className="press whitespace-nowrap rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+              aria-label="Manage My TV"
+            >
+              <Settings className="h-3 w-3" /> My TV
+            </button>
+          )}
         </div>
       )}
+
 
       <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black">
         {loading ? (
