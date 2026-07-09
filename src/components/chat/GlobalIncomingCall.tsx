@@ -30,7 +30,9 @@ type Incoming = {
  */
 export function GlobalIncomingCall() {
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   const [me, setMe] = useState<string | null>(null);
+
   const [incoming, setIncoming] = useState<Incoming | null>(null);
   const incomingRef = useRef<Incoming | null>(null);
   const activeCallIdRef = useRef<string | null>(null);
