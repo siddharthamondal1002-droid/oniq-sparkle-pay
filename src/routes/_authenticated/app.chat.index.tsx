@@ -34,10 +34,6 @@ type EnrichedConv = {
   peer_read_at: string | null;
   unread: number;
 };
-  last_created_at: string | null;
-  peer_read_at: string | null;
-  unread: number;
-};
 
 const AVATAR_COLORS = [
   "#0B5A4E", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981",
