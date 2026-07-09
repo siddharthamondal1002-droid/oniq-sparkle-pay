@@ -1055,6 +1055,32 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         />
       )}
 
+      {showHud && hudLive && (
+        <div className="absolute left-3 top-3 z-20 rounded-xl border border-white/15 bg-black/55 px-3 py-2 text-[11px] font-mono leading-tight backdrop-blur-md">
+          <div className="mb-1 text-white/60">{hudLive.route}</div>
+          <div>
+            RTT{" "}
+            <span className={
+              hudLive.rttMs > 500 ? "text-red-400"
+              : hudLive.rttMs > 250 ? "text-amber-300"
+              : "text-emerald-400"
+            }>{hudLive.rttMs}ms</span>
+          </div>
+          <div>
+            Loss{" "}
+            <span className={
+              hudLive.lossPct > 5 ? "text-red-400"
+              : hudLive.lossPct > 2 ? "text-amber-300"
+              : "text-emerald-400"
+            }>{hudLive.lossPct}%</span>
+          </div>
+          <div>Jitter <span className="text-white/80">{hudLive.jitterMs}ms</span></div>
+          <div className="text-white/80">↑{hudLive.kbpsOut} ↓{hudLive.kbpsIn} kbps</div>
+        </div>
+      )}
+
+
+
       {!showRemoteVideo && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="relative">
