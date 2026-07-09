@@ -410,18 +410,21 @@ function HeroTile({
         className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
       >
         {showSkin ? (
-          <img
-            src={skin!}
-            alt=""
-            className="relative h-10 w-10 rounded-xl object-cover"
-            onError={() => setSkinError(true)}
-          />
+          <>
+            <img
+              src={skin!}
+              alt=""
+              onError={() => setSkinError(true)}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+          </>
         ) : (
           <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
         )}
         <div className="relative">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{tagline}</div>
-          <div className="font-display text-2xl font-bold">{label}</div>
+          <div className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}>{tagline}</div>
+          <div className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}>{label}</div>
         </div>
       </Link>
     );
