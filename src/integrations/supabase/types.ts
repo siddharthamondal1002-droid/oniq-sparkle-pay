@@ -1079,6 +1079,35 @@ export type Database = {
           },
         ]
       }
+      user_channels: {
+        Row: {
+          channel_id: string
+          created_at: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_channels_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_theme: {
         Row: {
           tile_skins: Json
