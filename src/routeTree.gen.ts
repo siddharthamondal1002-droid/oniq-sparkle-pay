@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as McpSigninRouteImport } from './routes/mcp-signin'
 import { Route as McpRouteImport } from './routes/mcp'
@@ -42,6 +43,11 @@ import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedAppFoodIdRouteImport } from './routes/_authenticated/app.food.$id'
 import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   id: '/sitemap.xml',
   path: '/sitemap.xml',
@@ -216,6 +222,7 @@ export interface FileRoutesByFullPath {
   '/mcp': typeof McpRoute
   '/mcp-signin': typeof McpSigninRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
@@ -249,6 +256,7 @@ export interface FileRoutesByTo {
   '/mcp': typeof McpRoute
   '/mcp-signin': typeof McpSigninRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
@@ -282,6 +290,7 @@ export interface FileRoutesById {
   '/mcp': typeof McpRoute
   '/mcp-signin': typeof McpSigninRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/terms': typeof TermsRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/mcp-signin'
     | '/sitemap.xml'
+    | '/terms'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/app'
@@ -350,6 +360,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/mcp-signin'
     | '/sitemap.xml'
+    | '/terms'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/blog/what-is-a-super-app'
@@ -382,6 +393,7 @@ export interface FileRouteTypes {
     | '/mcp'
     | '/mcp-signin'
     | '/sitemap.xml'
+    | '/terms'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/app'
@@ -417,6 +429,7 @@ export interface RootRouteChildren {
   McpRoute: typeof McpRoute
   McpSigninRoute: typeof McpSigninRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  TermsRoute: typeof TermsRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   BlogWhatIsASuperAppRoute: typeof BlogWhatIsASuperAppRoute
@@ -426,6 +439,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/sitemap.xml': {
       id: '/sitemap.xml'
       path: '/sitemap.xml'
@@ -730,6 +750,7 @@ const rootRouteChildren: RootRouteChildren = {
   McpRoute: McpRoute,
   McpSigninRoute: McpSigninRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  TermsRoute: TermsRoute,
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
