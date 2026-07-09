@@ -392,9 +392,136 @@ export function WatchLive() {
       <p className="mt-2 text-[11px] text-muted-foreground">
         {isLiveGenre ? "Live streams by broadcasters via YouTube" : "Latest uploads via YouTube"}
       </p>
+
+      {manageOpen && userId && (
+        <MyTvManageSheet onClose={() => setManageOpen(false)} />
+      )}
     </div>
   );
 }
+
+type UserChannelRow = { channel_id: string; name: string };
+
+function MyTvManageSheet({ onClose }: { onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const [input, setInput] = useState("");
+  const list = useQuery({
+    queryKey: ["my-tv-channels"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_channels")
+        .select("channel_id, name")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as UserChannelRow[];
+    },
+  });
+
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["my-tv-channels"] });
+    queryClient.invalidateQueries({ queryKey: ["my-tv-videos"] });
+  };
+
+  const addMutation = useMutation({
+    mutationFn: async (raw: string) => {
+      const existing = list.data ?? [];
+      if (existing.length >= 10) throw new Error("cap");
+      const { data, error } = await supabase.functions.invoke("my-tv", {
+        body: { action: "resolve", input: raw },
+      });
+      if (error) throw error;
+      if (!data?.channelId || !data?.name) throw new Error("notfound");
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("auth");
+      const { error: insErr } = await supabase
+        .from("user_channels")
+        .insert({ user_id: u.user.id, channel_id: data.channelId, name: data.name });
+      if (insErr) throw insErr;
+      return { name: data.name as string };
+    },
+    onSuccess: ({ name }) => {
+      toast.success(`${name} added to My TV 📺`);
+      setInput("");
+      invalidate();
+    },
+    onError: (e: any) => {
+      if (e?.message === "cap") toast.error("Cap is 10 channels — remove one first");
+      else if (e?.message === "notfound") toast.error("Couldn't find that channel — paste the full link");
+      else if (e?.code === "23505") toast.error("Already in your My TV");
+      else toast.error("Couldn't add that channel");
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (channelId: string) => {
+      const { error } = await supabase.from("user_channels").delete().eq("channel_id", channelId);
+      if (error) throw error;
+    },
+    onSuccess: () => { toast("Removed"); invalidate(); },
+    onError: () => toast.error("Couldn't remove"),
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="glass w-full max-w-lg rounded-t-3xl border border-border bg-card p-5 shadow-card"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <div className="font-display text-lg font-bold">My TV 📺</div>
+          <button onClick={onClose} className="press grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:text-foreground" aria-label="Close">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <input
+            data-testid="mytv-input"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="paste a YouTube channel link or @handle"
+            className="flex-1 rounded-full border border-border bg-surface px-4 py-2 text-sm outline-none focus:border-primary"
+          />
+          <button
+            data-testid="mytv-add"
+            onClick={() => input.trim() && addMutation.mutate(input.trim())}
+            disabled={addMutation.isPending || !input.trim()}
+            className="press rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {addMutation.isPending ? "…" : "Add"}
+          </button>
+        </div>
+        <div className="mt-4 max-h-72 overflow-y-auto">
+          {list.isLoading ? (
+            <div className="py-6 text-center text-xs text-muted-foreground">loading…</div>
+          ) : (list.data?.length ?? 0) === 0 ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              Build your own lineup — paste any channel link ✨
+            </div>
+          ) : (
+            <ul className="divide-y divide-border">
+              {list.data!.map((c) => (
+                <li key={c.channel_id} className="flex items-center justify-between py-2.5">
+                  <span className="truncate text-sm text-foreground">{c.name}</span>
+                  <button
+                    onClick={() => removeMutation.mutate(c.channel_id)}
+                    className="press grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:text-red-400"
+                    aria-label={`Remove ${c.name}`}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div className="mt-3 text-[11px] text-muted-foreground">
+          {(list.data?.length ?? 0)}/10 channels
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 
 export function LiveNewsSection() {
