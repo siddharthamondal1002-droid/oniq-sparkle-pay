@@ -239,7 +239,16 @@ function Tile({
   );
 }
 
-type LiveEntry = { id: string; name: string; videoId: string };
+type Genre = "news" | "sports" | "entertainment" | "finance" | "lifestyle";
+type LiveEntry = { id: string; name: string; videoId: string; genre: Genre };
+
+const GENRE_META: { key: Genre; label: string; emoji: string }[] = [
+  { key: "news", label: "News", emoji: "📰" },
+  { key: "sports", label: "Sports", emoji: "🏆" },
+  { key: "entertainment", label: "Fun", emoji: "🎬" },
+  { key: "finance", label: "Finance", emoji: "📈" },
+  { key: "lifestyle", label: "Life", emoji: "🌿" },
+];
 
 function useLiveChannels(enabled: boolean) {
   return useQuery({
@@ -279,7 +288,12 @@ function HeroTile({
   const navigate = useNavigate();
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
-  const { data: channels } = useLiveChannels(livePreview && !showSkin);
+  const { data: allChannels } = useLiveChannels(livePreview && !showSkin);
+  const [genre, setGenre] = useState<Genre>("news");
+  const availableGenres = GENRE_META.filter((g) =>
+    (allChannels ?? []).some((c) => c.genre === g.key),
+  );
+  const channels = (allChannels ?? []).filter((c) => c.genre === genre);
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   
@@ -290,12 +304,13 @@ function HeroTile({
   const playerHostId = `yt-tile-${useId().replace(/:/g, "")}`;
   const playerCoverClass = "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
 
-  const videoId = livePreview && !showSkin && channels && channels.length
+  const videoId = livePreview && !showSkin && channels.length
     ? channels[idx % channels.length].videoId
     : null;
-  const currentName = livePreview && channels && channels.length
+  const currentName = livePreview && channels.length
     ? channels[idx % channels.length].name
     : "";
+
 
   // 120s auto-tour, paused while user paused or controls visible
   useEffect(() => {
