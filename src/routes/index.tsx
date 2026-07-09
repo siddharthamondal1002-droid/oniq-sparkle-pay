@@ -132,7 +132,7 @@ function Landing() {
       <LiveNewsSection />
 
       {/* Features */}
-      <section id="features" className="mx-auto max-w-6xl px-5 py-24">
+      <section id="features" style="scroll-margin-top:5rem" className="mx-auto max-w-6xl px-5 py-24">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="font-display text-4xl font-bold md:text-5xl">
             Eight worlds. <span className="text-gradient-accent">One login.</span>
@@ -160,7 +160,7 @@ function Landing() {
       </section>
 
       {/* Worlds split */}
-      <section id="worlds" className="border-y border-border bg-surface/40">
+      <section id="worlds" style="scroll-margin-top:5rem" className="border-y border-border bg-surface/40">
         <div className="mx-auto grid max-w-6xl gap-12 px-5 py-24 md:grid-cols-2 md:items-center">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/50 px-3 py-1 text-xs">
@@ -194,7 +194,7 @@ function Landing() {
       </main>
 
       {/* Footer */}
-      <footer id="download" className="border-t border-border">
+      <footer id="download" style="scroll-margin-top:5rem" className="border-t border-border">
 
         <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-5 py-12 text-center">
           <div className="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-primary to-accent glow text-primary-foreground font-bold text-xl">
