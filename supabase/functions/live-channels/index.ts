@@ -243,14 +243,14 @@ async function resolveGenre(g: GenreDef): Promise<ResolvedGenre | null> {
     const videos = settled
       .map((s) => (s.status === "fulfilled" ? s.value : null))
       .filter((v): v is Video => !!v);
-    if (videos.length < 4) return null;
+    if (videos.length < 3) return null;
     return { id: g.id, name: g.name, emoji: g.emoji, live: true, videos: videos.slice(0, 12) };
   }
   const settled = await Promise.allSettled(g.candidates.map(resolveUploads));
   const merged: Video[] = [];
   for (const s of settled) if (s.status === "fulfilled") merged.push(...s.value);
   merged.sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || ""));
-  if (merged.length < 4) return null;
+  if (merged.length < 3) return null;
   return { id: g.id, name: g.name, emoji: g.emoji, live: false, videos: merged.slice(0, 12) };
 }
 
