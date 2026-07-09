@@ -612,18 +612,21 @@ function ClipsHeroTile({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
       )}
       {showSkin ? (
-        <img
-          src={skin!}
-          alt=""
-          className="relative h-10 w-10 rounded-xl object-cover"
-          onError={() => setSkinError(true)}
-        />
+        <>
+          <img
+            src={skin!}
+            alt=""
+            onError={() => setSkinError(true)}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+        </>
       ) : (
         <Clapperboard className="relative h-10 w-10 text-foreground/90" strokeWidth={1.6} />
       )}
       <div className="relative">
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">watch the feed</div>
-        <div className="font-display text-2xl font-bold">Clips</div>
+        <div className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}>watch the feed</div>
+        <div className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}>Clips</div>
       </div>
     </Link>
   );
