@@ -744,7 +744,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         </div>
       )}
 
-      {callType === "video" && (status === "connecting" || status === "connected") && (
+      {callType === "video" && (status === "connecting" || status === "connected" || status === "reconnecting") && (
         <video
           ref={localVideoRef}
           autoPlay
