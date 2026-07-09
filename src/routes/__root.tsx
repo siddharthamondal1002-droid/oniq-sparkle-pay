@@ -87,7 +87,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "author", content: "ONIQ" },
       { property: "og:site_name", content: "ONIQ" },
       { property: "og:type", content: "website" },
+      { property: "og:url", content: "https://oniqhub.com" },
+      { property: "og:image", content: "https://oniqhub.com/og-image.png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: "https://oniqhub.com/og-image.png" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
       { name: "apple-mobile-web-app-title", content: "ONIQ" },
@@ -101,6 +106,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/icon-192.png" },
+      { rel: "canonical", href: "https://oniqhub.com" },
     ],
     scripts: [
       {
@@ -168,17 +174,21 @@ function RootComponent() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!("serviceWorker" in navigator)) return;
-    // Skip in Lovable preview / dev / iframe to avoid stale caches.
+    // Domain-agnostic guard: register on any real HTTPS origin that isn't a
+    // known preview/dev host or embedded in an iframe. Works from custom
+    // domains (e.g. oniqhub.com) while still skipping Lovable previews.
     const host = window.location.hostname;
     const inIframe = window.self !== window.top;
-    const isPreview =
+    const isHttps = window.location.protocol === "https:";
+    const isPreviewHost =
       host.startsWith("id-preview--") ||
       host.startsWith("preview--") ||
       host.endsWith(".lovableproject.com") ||
       host.endsWith(".lovableproject-dev.com") ||
+      host.endsWith(".lovable.dev") ||
       host === "localhost" ||
       host === "127.0.0.1";
-    if (inIframe || isPreview || !import.meta.env.PROD) {
+    if (inIframe || !isHttps || isPreviewHost) {
       // Clean up any prior registration so preview never serves cached shell.
       navigator.serviceWorker.getRegistrations?.().then((regs) =>
         regs.forEach((r) => {

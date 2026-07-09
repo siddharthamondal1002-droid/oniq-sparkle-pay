@@ -27,7 +27,7 @@ export const Route = createFileRoute("/")({
         content:
           "Messaging, social, food, payments, crypto, AI and more — in a single super app.",
       },
-      { property: "og:url", content: "https://oniq-sparkle-pay.lovable.app/" },
+      { property: "og:url", content: "https://oniqhub.com/" },
       { property: "og:type", content: "website" },
       { name: "twitter:title", content: "ONIQ — One App. Every World." },
       {
@@ -36,7 +36,7 @@ export const Route = createFileRoute("/")({
           "Messaging, social, food, payments, crypto, AI and more — in a single super app.",
       },
     ],
-    links: [{ rel: "canonical", href: "https://oniq-sparkle-pay.lovable.app/" }],
+    // Canonical is set at __root for the whole site to point at https://oniqhub.com.
   }),
   component: Landing,
 });
