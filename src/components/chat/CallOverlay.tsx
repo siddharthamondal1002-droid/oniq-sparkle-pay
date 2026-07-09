@@ -289,6 +289,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     });
     localStreamRef.current = null;
     remoteStreamRef.current = null;
+    teardownRemoteAudioPipeline();
     try { pcRef.current?.close(); } catch {}
     pcRef.current = null;
     pendingIceRef.current = [];
