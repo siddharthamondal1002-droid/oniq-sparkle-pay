@@ -448,33 +448,17 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       finishCall(false);
     });
 
-    ch.subscribe((sStatus) => {
-      if (sStatus !== "SUBSCRIBED") return;
+    const adoptAndAccept = (acceptId: string, acceptType: CallType | null) => {
       if (autoAcceptTriedRef.current) return;
-      if (typeof window === "undefined") return;
-      const params = new URLSearchParams(window.location.search);
-      const acceptId = params.get("acceptCall");
-      const acceptType = params.get("acceptType") as CallType | null;
-      if (!acceptId) return;
       autoAcceptTriedRef.current = true;
-      // Strip the params so a reload doesn't re-fire.
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete("acceptCall");
-        url.searchParams.delete("acceptType");
-        window.history.replaceState({}, "", url.toString());
-      } catch {}
       if (activeRef.current) return;
-      // Adopt the call as callee — mirror the "ring" handler state.
       activeRef.current = true;
       isCallerRef.current = false;
       callIdRef.current = acceptId;
       setCallTypeBoth(acceptType === "video" ? "video" : "audio");
       setIncomingFromName(peerName);
       setStatus("incoming");
-      // Trigger accept once React has painted (accept reads status via state).
       window.setTimeout(() => {
-        // Manually run accept-equivalent since state may not have flushed yet.
         setStatus("connecting");
         armConnectTimeout();
         getMedia(callTypeRef.current)
@@ -488,13 +472,47 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             finishCall(false);
           });
       }, 60);
+    };
+
+    ch.subscribe((sStatus) => {
+      if (sStatus !== "SUBSCRIBED") return;
+      if (typeof window === "undefined") return;
+      const params = new URLSearchParams(window.location.search);
+      const acceptId = params.get("acceptCall");
+      const acceptType = params.get("acceptType") as CallType | null;
+      if (!acceptId) return;
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("acceptCall");
+        url.searchParams.delete("acceptType");
+        window.history.replaceState({}, "", url.toString());
+      } catch {}
+      adoptAndAccept(acceptId, acceptType);
     });
 
+    // Fallback: when the global overlay accepts from another screen, the
+    // navigation to this thread may be same-route (no remount) and the URL
+    // param path above won't re-fire. Listen for a window event that carries
+    // the callId and run the same adopt+accept flow.
+    const onAcceptEvent = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { callId?: string; callType?: CallType; conversationId?: string }
+        | undefined;
+      if (!detail?.callId) return;
+      if (detail.conversationId && detail.conversationId !== conversationId) return;
+      // Reset the guard so post-navigation events after a previous accept still work.
+      autoAcceptTriedRef.current = false;
+      adoptAndAccept(detail.callId, detail.callType ?? null);
+    };
+    window.addEventListener("oniq:accept-call", onAcceptEvent);
+
     return () => {
+      window.removeEventListener("oniq:accept-call", onAcceptEvent);
       cleanupMedia();
       supabase.removeChannel(ch);
       channelRef.current = null;
     };
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, meId]);
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useLocation } from "@tanstack/react-router";
+
 import { supabase } from "@/integrations/supabase/client";
 import { Phone, PhoneOff, Video } from "lucide-react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
