@@ -41,11 +41,12 @@ const GENRES: GenreDef[] = [
     emoji: "🎬",
     live: false,
     candidates: [
-      { handle: "tseries", name: "T-Series" },
-      { handle: "NetflixIndiaOfficial", name: "Netflix India" },
-      { handle: "zeemusiccompany", name: "Zee Music" },
-      { handle: "PrimeVideoIN", name: "Prime Video IN" },
-      { handle: "SonyPicturesIndia", name: "Sony Pictures IN" },
+      { id: "UChz5aEi3dfrDVC8-YJsMUDA", name: "T-Series" },
+      { id: "UCim0ZIz8SAQGPvg4mJHG3JA", name: "Netflix India" },
+      { id: "UCFFbwnve3yF62-tVXkTyHqg", name: "Zee Music" },
+      { id: "UC4zWG9LccdWGUlF77LZ8toA", name: "Prime Video India" },
+      { id: "UC56gTxNs4f9xZ7Pa2i5xNzg", name: "Sony Music India" },
+      { id: "UCFqyJFbsV-uEcosvNhg0PaQ", name: "Sony Pictures India" },
     ],
   },
   {
@@ -54,12 +55,12 @@ const GENRES: GenreDef[] = [
     emoji: "💹",
     live: false,
     candidates: [
-      { handle: "CARachanaRanade", name: "CA Rachana Ranade" },
-      { handle: "pranjalkamra", name: "Pranjal Kamra" },
-      { handle: "warikoo", name: "warikoo" },
-      { handle: "FinancewithSharan", name: "Finance With Sharan" },
-      { handle: "AkshatZayn", name: "Akshat Shrivastava" },
-      { handle: "zerodhaonline", name: "Zerodha" },
+      { id: "UCD-qZSqFPqyx43L6gAR8qfQ", name: "CA Rachana Ranade" },
+      { id: "UCNXapAc8mXTwW82MTncdfzQ", name: "Pranjal Kamra" },
+      { id: "UCRzYN32xtBf3Yxsx5BvJWJw", name: "warikoo" },
+      { id: "UCBI57iTXtmJoaI6Ht7MgcfA", name: "Finance With Sharan" },
+      { id: "UCqW8jxh4tH1Z1sWPbkGWL4g", name: "Akshat Shrivastava" },
+      { id: "UCvPTFsvuCEwXav7JwJ-3JVA", name: "Zerodha" },
     ],
   },
   {
@@ -78,7 +79,7 @@ const GENRES: GenreDef[] = [
       { handle: "CarryMinati", name: "CarryMinati" },
       { handle: "TotalGaming093", name: "Total Gaming" },
       { handle: "TechnoGamerzOfficial", name: "Techno Gamerz" },
-      { handle: "souravjoshivlogs7028", name: "Sourav Joshi Vlogs" },
+      { id: "UCLyswjODCCi5UbDe-eh5cFQ", name: "Sourav Joshi Vlogs" },
       { handle: "HikakinTV", name: "HikakinTV" },
     ],
   },
@@ -88,11 +89,11 @@ const GENRES: GenreDef[] = [
     emoji: "⚽",
     live: false,
     candidates: [
-      { handle: "icc", name: "ICC" },
-      { handle: "BCCI", name: "BCCI" },
-      { handle: "FIFA", name: "FIFA" },
-      { handle: "NBA", name: "NBA" },
-      { handle: "PremierLeague", name: "Premier League" },
+      { id: "UCt2JXOLNxqry7B_4rRZME3Q", name: "ICC" },
+      { id: "UCXnFh8S94wQCPw-p6j6bX9A", name: "BCCI" },
+      { id: "UCpcTrCXblq78GZrTUTLWeBw", name: "FIFA" },
+      { id: "UCWJ2lWNubArHWmf3FIHbfcQ", name: "NBA" },
+      { id: "UCpryVRk_VDudG8SHXgWcG0w", name: "Premier League" },
     ],
   },
   {
@@ -101,13 +102,14 @@ const GENRES: GenreDef[] = [
     emoji: "🌿",
     live: false,
     candidates: [
-      { handle: "BeerBiceps", name: "BeerBiceps" },
-      { handle: "NasDaily", name: "Nas Daily" },
-      { handle: "VillageCookingChannel", name: "Village Cooking Channel" },
-      { handle: "FitTuber", name: "FitTuber" },
-      { handle: "NASA", name: "NASA" },
+      { id: "UCPxMZIFE856tbTfdkdjzTSQ", name: "BeerBiceps" },
+      { id: "UCBRvR4Q1ddonASMOSV4QGOg", name: "Nas Daily" },
+      { id: "UCk3JZr7eS3pg5AGEvBdEvFg", name: "Village Cooking Channel" },
+      { id: "UCDWVNwQce16D16tPc5NBYlQ", name: "FitTuber" },
+      { id: "UC9SM7V7J1pAhPabOUST01fw", name: "NASA" },
     ],
   },
+
 ];
 
 const UA =
@@ -176,11 +178,11 @@ async function resolveLiveVideoId(channelId: string): Promise<string | null> {
 async function resolveHandleToChannelId(handle: string): Promise<string | null> {
   const cached = handleToChannelId.get(handle);
   if (cached) return cached;
-  const html = await fetchText(`https://www.youtube.com/@${handle}`);
+  const html = await fetchText(`https://www.youtube.com/@${handle}`, 8000);
   if (!html) return null;
-  const m = html.match(/"channelId":"(UC[A-Za-z0-9_-]{22})"/) ||
-    html.match(/<meta itemprop="channelId" content="(UC[A-Za-z0-9_-]{22})"/) ||
-    html.match(/channel\/(UC[A-Za-z0-9_-]{22})/);
+  const m = html.match(/"externalId":"(UC[A-Za-z0-9_-]{22})"/) ||
+    html.match(/"channelId":"(UC[A-Za-z0-9_-]{22})"/) ||
+    html.match(/<meta itemprop="channelId" content="(UC[A-Za-z0-9_-]{22})"/);
   if (!m) return null;
   handleToChannelId.set(handle, m[1]);
   return m[1];
@@ -214,10 +216,13 @@ async function resolveUploads(c: Candidate): Promise<Video[]> {
   let channelId = c.id ?? null;
   if (!channelId && c.handle) channelId = await resolveHandleToChannelId(c.handle);
   if (!channelId) return [];
-  const xml = await fetchText(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
+  const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+  let xml = await fetchText(rssUrl);
+  if (!xml) xml = await fetchText(rssUrl); // one retry
   if (!xml) return [];
   return parseRssUploads(xml, c.name, 2);
 }
+
 
 async function resolveNewsChannel(c: Candidate): Promise<Video | null> {
   if (!c.id) return null;
@@ -238,14 +243,14 @@ async function resolveGenre(g: GenreDef): Promise<ResolvedGenre | null> {
     const videos = settled
       .map((s) => (s.status === "fulfilled" ? s.value : null))
       .filter((v): v is Video => !!v);
-    if (videos.length < 4) return null;
+    if (videos.length < 3) return null;
     return { id: g.id, name: g.name, emoji: g.emoji, live: true, videos: videos.slice(0, 12) };
   }
   const settled = await Promise.allSettled(g.candidates.map(resolveUploads));
   const merged: Video[] = [];
   for (const s of settled) if (s.status === "fulfilled") merged.push(...s.value);
   merged.sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || ""));
-  if (merged.length < 4) return null;
+  if (merged.length < 3) return null;
   return { id: g.id, name: g.name, emoji: g.emoji, live: false, videos: merged.slice(0, 12) };
 }
 
