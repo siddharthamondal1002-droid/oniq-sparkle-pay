@@ -278,13 +278,28 @@ function HeroTile({
   delay?: number;
   livePreview?: boolean;
 }) {
+  const navigate = useNavigate();
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
   const { data: channels } = useLiveChannels(livePreview && !showSkin);
   const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [muted, setMuted] = useState(true);
+  const [controlsVisible, setControlsVisible] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const hideTimerRef = useRef<number | null>(null);
 
+  const videoId = livePreview && !showSkin && channels && channels.length
+    ? channels[idx % channels.length].videoId
+    : null;
+  const currentName = livePreview && channels && channels.length
+    ? channels[idx % channels.length].name
+    : "";
+
+  // 120s auto-tour, paused while user paused or controls visible
   useEffect(() => {
     if (!livePreview || showSkin || !channels || channels.length < 2) return;
+    if (paused || controlsVisible) return;
     let t: number | null = null;
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) {
@@ -295,59 +310,139 @@ function HeroTile({
     };
     t = window.setTimeout(tick, 120_000);
     return () => { if (t) window.clearTimeout(t); };
-  }, [idx, channels, livePreview, showSkin]);
+  }, [idx, channels, livePreview, showSkin, paused, controlsVisible]);
 
-  const videoId = livePreview && !showSkin && channels && channels.length
-    ? channels[idx % channels.length].videoId
-    : null;
+  const yt = (func: string, args: unknown[] = []) => {
+    const w = iframeRef.current?.contentWindow;
+    if (!w) return;
+    try {
+      w.postMessage(JSON.stringify({ event: "command", func, args }), "*");
+    } catch { /* noop */ }
+  };
+
+  const bumpHide = () => {
+    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(() => setControlsVisible(false), 15_000);
+  };
+  const showControls = () => { setControlsVisible(true); bumpHide(); };
+  useEffect(() => () => { if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current); }, []);
+
+  // Non-live path: unchanged Link
+  if (!videoId) {
+    return (
+      <Link
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        to={to as any}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        search={search as any}
+        style={{ animationDelay: `${delay}ms` }}
+        className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
+      >
+        {showSkin ? (
+          <img
+            src={skin!}
+            alt=""
+            className="relative h-10 w-10 rounded-xl object-cover"
+            onError={() => setSkinError(true)}
+          />
+        ) : (
+          <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
+        )}
+        <div className="relative">
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{tagline}</div>
+          <div className="font-display text-2xl font-bold">{label}</div>
+        </div>
+      </Link>
+    );
+  }
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${encodeURIComponent(origin)}`;
+
+  const onTileClick = () => {
+    if (controlsVisible) setControlsVisible(false);
+    else showControls();
+  };
+  const stop = (e: React.MouseEvent) => { e.stopPropagation(); bumpHide(); };
+  const gotoIdx = (next: number) => {
+    const total = channels!.length;
+    setIdx(((next % total) + total) % total);
+    setPaused(false);
+  };
+  const ctrlBtn = "glass press grid h-8 w-8 place-items-center rounded-full text-foreground";
 
   return (
-    <Link
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      to={to as any}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      search={search as any}
+    <div
+      onClick={onTileClick}
+      role="button"
+      tabIndex={0}
       style={{ animationDelay: `${delay}ms` }}
-      className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
+      className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between cursor-pointer`}
     >
-      {videoId && (
-        <>
-          <iframe
-            key={videoId}
-            src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&playsinline=1&rel=0&modestbranding=1`}
-            loading="lazy"
-            allow="autoplay; encrypted-media; picture-in-picture"
-            className="pointer-events-none absolute inset-0 h-full w-full scale-[1.35] object-cover"
-            title="Live preview"
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-        </>
-      )}
-      {showSkin ? (
-        <img
-          src={skin!}
-          alt=""
-          className="relative h-10 w-10 rounded-xl object-cover"
-          onError={() => setSkinError(true)}
-        />
-      ) : videoId ? (
-        <span className="relative inline-flex w-fit items-center gap-1.5 rounded-full border border-red-500/50 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
-          </span>
-          LIVE
+      <iframe
+        key={videoId}
+        ref={iframeRef}
+        src={src}
+        loading="lazy"
+        allow="autoplay; encrypted-media; picture-in-picture"
+        className="pointer-events-none absolute inset-0 h-full w-full scale-[1.35] object-cover"
+        title="Live preview"
+      />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+      <span className="relative inline-flex w-fit items-center gap-1.5 rounded-full border border-red-500/50 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
         </span>
-      ) : (
-        <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
-      )}
+        LIVE
+      </span>
+
       <div className="relative">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{tagline}</div>
         <div className="font-display text-2xl font-bold">{label}</div>
       </div>
-    </Link>
+
+      <div
+        className={`pointer-events-${controlsVisible ? "auto" : "none"} absolute inset-x-0 bottom-2 z-10 flex flex-col items-center gap-1 transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0"}`}
+      >
+        {currentName && (
+          <span className="glass rounded-full px-2 py-0.5 text-[10px] text-foreground/90">{currentName}</span>
+        )}
+        <div className="glass flex items-center gap-1 rounded-full p-1">
+          <button className={ctrlBtn} aria-label="Previous channel" onClick={(e) => { stop(e); gotoIdx(idx - 1); }}>
+            <SkipBack className="h-4 w-4" />
+          </button>
+          <button
+            className={ctrlBtn}
+            aria-label={paused ? "Play" : "Pause"}
+            onClick={(e) => { stop(e); if (paused) { yt("playVideo"); setPaused(false); } else { yt("pauseVideo"); setPaused(true); } }}
+          >
+            {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+          </button>
+          <button className={ctrlBtn} aria-label="Next channel" onClick={(e) => { stop(e); gotoIdx(idx + 1); }}>
+            <SkipForward className="h-4 w-4" />
+          </button>
+          <button
+            className={ctrlBtn}
+            aria-label={muted ? "Unmute" : "Mute"}
+            onClick={(e) => { stop(e); if (muted) { yt("unMute"); setMuted(false); } else { yt("mute"); setMuted(true); } }}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+          <button
+            className={ctrlBtn}
+            aria-label="Expand to full Watch"
+            onClick={(e) => { stop(e); navigate({ to: "/app/news", search: { tab: "watch" as const } }); }}
+          >
+            <Maximize2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
+
 
 
 type BIPEvent = Event & {
