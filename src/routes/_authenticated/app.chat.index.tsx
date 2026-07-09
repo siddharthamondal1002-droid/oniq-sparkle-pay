@@ -122,13 +122,29 @@ function ChatList() {
             const { data: unread } = await supabase.rpc("unread_count", {
               _conversation_id: c.id,
             });
+            let lastSenderName: string | null = null;
+            if (c.type === "group" && last?.sender_id) {
+              if (last.sender_id === me!.id) {
+                lastSenderName = "You";
+              } else {
+                const { data: sp } = await supabase
+                  .from("profiles")
+                  .select("display_name, username")
+                  .eq("id", last.sender_id)
+                  .maybeSingle();
+                const full = (sp?.display_name || sp?.username || "").trim();
+                lastSenderName = full ? full.split(/\s+/)[0] : null;
+              }
+            }
             return {
               id: c.id,
               title,
               avatar_url: avatar,
+              type: c.type,
               updated_at: last?.created_at ?? c.updated_at,
               last_message: last?.content ?? null,
               last_sender_id: last?.sender_id ?? null,
+              last_sender_name: lastSenderName,
               last_created_at: last?.created_at ?? null,
               peer_read_at: peerReadAt,
               unread: (unread as number) ?? 0,
