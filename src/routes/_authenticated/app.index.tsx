@@ -239,9 +239,15 @@ function Tile({
   );
 }
 
-type GenreId = "news" | "sports" | "entertainment" | "finance" | "lifestyle";
-type LiveChannel = { id: string; name: string; videoId: string };
-type LiveGenre = { id: GenreId; name: string; emoji: string; channels: LiveChannel[] };
+type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle";
+type Video = {
+  videoId: string;
+  title: string;
+  channelName: string;
+  publishedAt: string;
+  thumbnail: string;
+};
+type LiveGenre = { id: GenreId; name: string; emoji: string; live: boolean; videos: Video[] };
 
 function useLiveGenres(enabled: boolean) {
   return useQuery({
@@ -285,11 +291,11 @@ function HeroTile({
   const [genreId, setGenreId] = useState<GenreId>("news");
   const activeGenre =
     (genres ?? []).find((g) => g.id === genreId) ?? (genres ?? [])[0] ?? null;
-  const channels = activeGenre?.channels ?? [];
+  const videos = activeGenre?.videos ?? [];
+  const isLiveGenre = !!activeGenre?.live;
 
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
-  
   const [controlsVisible, setControlsVisible] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
@@ -297,18 +303,18 @@ function HeroTile({
   const playerHostId = `yt-tile-${useId().replace(/:/g, "")}`;
   const playerCoverClass = "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
 
-  const videoId = livePreview && !showSkin && channels.length
-    ? channels[idx % channels.length].videoId
+  const current = livePreview && !showSkin && videos.length
+    ? videos[idx % videos.length]
     : null;
-  const currentName = livePreview && channels.length
-    ? channels[idx % channels.length].name
+  const videoId = current?.videoId ?? null;
+  const currentLabel = current
+    ? (isLiveGenre ? current.channelName : current.title)
     : "";
 
-
-  // 120s auto-tour, paused while user paused or controls visible
-  const chLen = channels.length;
+  // 120s auto-tour cap (per video), also honored across uploads (natural ENDED advance handles it too)
+  const vLen = videos.length;
   useEffect(() => {
-    if (!livePreview || showSkin || chLen < 2) return;
+    if (!livePreview || showSkin || vLen < 2) return;
     if (paused || controlsVisible) return;
     let t: number | null = null;
     const tick = () => {
@@ -316,12 +322,11 @@ function HeroTile({
         t = window.setTimeout(tick, 120_000);
         return;
       }
-      setIdx((i) => (i + 1) % chLen);
+      setIdx((i) => (i + 1) % vLen);
     };
     t = window.setTimeout(tick, 120_000);
     return () => { if (t) window.clearTimeout(t); };
-  }, [idx, chLen, livePreview, showSkin, paused, controlsVisible]);
-
+  }, [idx, vLen, livePreview, showSkin, paused, controlsVisible]);
 
   const bumpHide = () => {
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
@@ -338,7 +343,6 @@ function HeroTile({
 
     if (playerRef.current?.loadVideoById) {
       try {
-        console.log("[WatchTile] loadVideoById", videoId);
         playerRef.current.loadVideoById(videoId);
         playerRef.current.getIframe?.()?.setAttribute("class", playerCoverClass);
       } catch { /* noop */ }
@@ -348,7 +352,6 @@ function HeroTile({
     loadYouTubeApi().then((YT) => {
       if (cancelled || !YT || playerRef.current) return;
       try {
-        console.log("[WatchTile] constructing player with videoId", videoId);
         playerRef.current = new YT.Player(playerHostId, {
           width: "100%",
           height: "100%",
@@ -364,7 +367,6 @@ function HeroTile({
             cc_load_policy: 1,
             cc_lang_pref: "en",
           },
-
           events: {
             onReady: (e: any) => {
               try {
@@ -376,7 +378,11 @@ function HeroTile({
               } catch { /* noop */ }
             },
             onStateChange: (e: any) => {
-              console.log("[WatchTile] state", e?.data);
+              if (e?.data === 0) {
+                // ENDED → next video
+                const total = vLen;
+                if (total > 0) setIdx((i) => (i + 1) % total);
+              }
             },
           },
         });
@@ -386,7 +392,7 @@ function HeroTile({
     });
 
     return () => { cancelled = true; };
-  }, [livePreview, showSkin, videoId, playerHostId]);
+  }, [livePreview, showSkin, videoId, playerHostId, vLen]);
 
   useEffect(() => {
     return () => {
@@ -430,7 +436,7 @@ function HeroTile({
   };
   const stop = (e: React.MouseEvent) => { e.stopPropagation(); bumpHide(); };
   const gotoIdx = (next: number) => {
-    const total = channels.length;
+    const total = videos.length;
     if (total === 0) return;
     setIdx(((next % total) + total) % total);
     setPaused(false);
@@ -442,12 +448,11 @@ function HeroTile({
     setPaused(false);
     bumpHide();
   };
-  const pickChannel = (i: number) => {
+  const pickVideo = (i: number) => {
     setIdx(i);
     setPaused(false);
     bumpHide();
   };
-
 
   const ctrlBtn = "glass press grid h-8 w-8 place-items-center rounded-full text-foreground";
 
@@ -468,12 +473,18 @@ function HeroTile({
       </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
-      <span className="relative inline-flex w-fit items-center gap-1.5 rounded-full border border-red-500/50 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
-        <span className="relative flex h-1.5 w-1.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
-        </span>
-        LIVE
+      <span className={`relative inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/15 text-red-300" : "border-primary/50 bg-primary/15 text-primary"}`}>
+        {isLiveGenre ? (
+          <>
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+            </span>
+            LIVE
+          </>
+        ) : (
+          "NEW"
+        )}
       </span>
 
       <div
@@ -499,32 +510,33 @@ function HeroTile({
             })}
           </div>
         )}
-        {channels.length > 1 && (
+        {videos.length > 1 && (
           <div
             onClick={(e) => { e.stopPropagation(); bumpHide(); }}
             className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto px-3"
           >
-            {channels.map((c, i) => {
-              const active = i === idx % channels.length;
+            {videos.map((v, i) => {
+              const active = i === idx % videos.length;
+              const chipLabel = isLiveGenre ? v.channelName : v.title;
               return (
                 <button
-                  key={c.id}
-                  onClick={(e) => { e.stopPropagation(); pickChannel(i); }}
-                  className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
+                  key={v.videoId}
+                  onClick={(e) => { e.stopPropagation(); pickVideo(i); }}
+                  className={`max-w-[10rem] truncate whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
+                  title={chipLabel}
                 >
-                  {c.name}
+                  {chipLabel}
                 </button>
               );
             })}
           </div>
         )}
-        {currentName && (
-          <span className="glass rounded-full px-2 py-0.5 text-[10px] text-foreground/90">{currentName}</span>
+        {currentLabel && (
+          <span className="glass max-w-[80%] truncate rounded-full px-2 py-0.5 text-[10px] text-foreground/90">{currentLabel}</span>
         )}
 
-
         <div className="glass flex items-center gap-1 rounded-full p-1">
-          <button className={ctrlBtn} aria-label="Previous channel" onClick={(e) => { stop(e); gotoIdx(idx - 1); }}>
+          <button className={ctrlBtn} aria-label="Previous video" onClick={(e) => { stop(e); gotoIdx(idx - 1); }}>
             <SkipBack className="h-4 w-4" />
           </button>
           <button
@@ -534,7 +546,7 @@ function HeroTile({
           >
             {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
           </button>
-          <button className={ctrlBtn} aria-label="Next channel" onClick={(e) => { stop(e); gotoIdx(idx + 1); }}>
+          <button className={ctrlBtn} aria-label="Next video" onClick={(e) => { stop(e); gotoIdx(idx + 1); }}>
             <SkipForward className="h-4 w-4" />
           </button>
           <button
@@ -549,6 +561,7 @@ function HeroTile({
     </div>
   );
 }
+
 
 
 
