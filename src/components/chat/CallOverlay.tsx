@@ -761,6 +761,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (status !== "incoming") return;
     setStatus("connecting");
     armConnectTimeout();
+    resumeRemoteAudio();
     try {
       const stream = await getMedia(callTypeRef.current);
       await ensureIceServers();
