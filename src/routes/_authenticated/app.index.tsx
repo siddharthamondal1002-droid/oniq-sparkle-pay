@@ -89,7 +89,29 @@ function HomeScreen() {
             </Link>
           </div>
 
+          {installPrompt.canInstall && (
+            <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-border bg-card/85 px-3 py-2 fade-up">
+              <span className="text-xs">📲 install ONIQ on your home screen</span>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={installPrompt.prompt}
+                  className="press rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground"
+                >
+                  Install
+                </button>
+                <button
+                  onClick={installPrompt.dismiss}
+                  className="press rounded-full px-2 py-1 text-[11px] text-muted-foreground"
+                  aria-label="Dismiss"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
           <CompactLiveNews />
+
 
           <div className="mt-7 px-1 flex items-center justify-between">
             <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
