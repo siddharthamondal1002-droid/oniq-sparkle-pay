@@ -480,38 +480,58 @@ function ChatThread() {
         <Link to="/app/chat" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div
-          className="grid h-10 w-10 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white"
-          style={{ backgroundColor: colorFor(title) }}
+        <button
+          type="button"
+          onClick={() => isGroup && setShowMembersSheet(true)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          {header?.avatar_url ? (
-            <img src={header.avatar_url} alt="" className="h-full w-full object-cover" />
-          ) : (
-            title.charAt(0).toUpperCase()
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-medium">{title}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {peerTyping ? <span className="text-[#25D366]">typing…</span> : "online"}
+          <div
+            className="grid h-10 w-10 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white"
+            style={{ backgroundColor: colorFor(title) }}
+          >
+            {header?.avatar_url ? (
+              <img src={header.avatar_url} alt="" className="h-full w-full object-cover" />
+            ) : isGroup ? (
+              <Users className="h-5 w-5" />
+            ) : (
+              title.charAt(0).toUpperCase()
+            )}
           </div>
-        </div>
-        <button
-          data-testid="call-audio"
-          onClick={() => callRef.current?.startCall("audio")}
-          aria-label="Voice call"
-          className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
-        >
-          <Phone className="h-5 w-5" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-medium">{title}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {peerTyping ? (
+                <span className="text-[#25D366]">
+                  {isGroup && peerTypingName ? `${peerTypingName} is typing…` : "typing…"}
+                </span>
+              ) : isGroup ? (
+                `${members.length} member${members.length === 1 ? "" : "s"}`
+              ) : (
+                "online"
+              )}
+            </div>
+          </div>
         </button>
-        <button
-          data-testid="call-video"
-          onClick={() => callRef.current?.startCall("video")}
-          aria-label="Video call"
-          className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
-        >
-          <Video className="h-5 w-5" />
-        </button>
+        {!isGroup && (
+          <>
+            <button
+              data-testid="call-audio"
+              onClick={() => callRef.current?.startCall("audio")}
+              aria-label="Voice call"
+              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+            >
+              <Phone className="h-5 w-5" />
+            </button>
+            <button
+              data-testid="call-video"
+              onClick={() => callRef.current?.startCall("video")}
+              aria-label="Video call"
+              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+            >
+              <Video className="h-5 w-5" />
+            </button>
+          </>
+        )}
         <div className="relative">
           <button
             data-testid="chat-menu"
