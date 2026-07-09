@@ -130,15 +130,46 @@ export function loadYouTubeApi(): Promise<any> {
   return w.__ytApiPromise;
 }
 
-type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle";
-type Video = {
+export type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "mytv";
+export type Video = {
   videoId: string;
   title: string;
   channelName: string;
   publishedAt: string;
   thumbnail: string;
 };
-type LiveGenre = { id: GenreId; name: string; emoji: string; live: boolean; videos: Video[] };
+export type LiveGenre = { id: GenreId; name: string; emoji: string; live: boolean; videos: Video[] };
+
+export function useSession() {
+  const [userId, setUserId] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (alive) setUserId(data.session?.user?.id ?? null);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+    return () => { alive = false; sub.subscription.unsubscribe(); };
+  }, []);
+  return userId;
+}
+
+export function useMyTv() {
+  const userId = useSession();
+  const q = useQuery({
+    queryKey: ["my-tv-videos", userId],
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("my-tv", { body: { action: "videos" } });
+      if (error) throw error;
+      return (Array.isArray(data?.videos) ? data.videos : []) as Video[];
+    },
+  });
+  return { videos: q.data ?? [], isLoggedIn: !!userId };
+}
+
 
 export function WatchLive() {
   const [genres, setGenres] = useState<LiveGenre[] | null>(null);
