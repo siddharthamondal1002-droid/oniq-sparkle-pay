@@ -479,20 +479,40 @@ function HeroTile({
       <div
         className={`absolute inset-x-0 bottom-2 z-10 flex flex-col items-center gap-1 transition-opacity duration-300 ${controlsVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
       >
-        {availableGenres.length > 1 && (
+        {genres && genres.length > 1 && (
           <div
             onClick={(e) => { e.stopPropagation(); bumpHide(); }}
             className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto px-3"
           >
-            {availableGenres.map((g) => {
-              const active = g.key === genre;
+            {genres.map((g) => {
+              const active = g.id === (activeGenre?.id ?? genreId);
               return (
                 <button
-                  key={g.key}
-                  onClick={(e) => { e.stopPropagation(); pickGenre(g.key); }}
-                  className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-semibold border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
+                  key={g.id}
+                  onClick={(e) => { e.stopPropagation(); pickGenre(g.id); }}
+                  className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
+                  aria-label={g.name}
                 >
-                  {g.emoji} {g.label}
+                  {g.emoji}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        {channels.length > 1 && (
+          <div
+            onClick={(e) => { e.stopPropagation(); bumpHide(); }}
+            className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto px-3"
+          >
+            {channels.map((c, i) => {
+              const active = i === idx % channels.length;
+              return (
+                <button
+                  key={c.id}
+                  onClick={(e) => { e.stopPropagation(); pickChannel(i); }}
+                  className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
+                >
+                  {c.name}
                 </button>
               );
             })}
@@ -501,6 +521,7 @@ function HeroTile({
         {currentName && (
           <span className="glass rounded-full px-2 py-0.5 text-[10px] text-foreground/90">{currentName}</span>
         )}
+
 
         <div className="glass flex items-center gap-1 rounded-full p-1">
           <button className={ctrlBtn} aria-label="Previous channel" onClick={(e) => { stop(e); gotoIdx(idx - 1); }}>
