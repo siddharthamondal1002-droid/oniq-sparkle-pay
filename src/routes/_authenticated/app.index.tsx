@@ -435,13 +435,19 @@ function HeroTile({
     setIdx(((next % total) + total) % total);
     setPaused(false);
   };
-  const pickGenre = (g: Genre) => {
-    if (g === genre) return;
-    setGenre(g);
+  const pickGenre = (g: GenreId) => {
+    if (g === genreId) return;
+    setGenreId(g);
     setIdx(0);
     setPaused(false);
     bumpHide();
   };
+  const pickChannel = (i: number) => {
+    setIdx(i);
+    setPaused(false);
+    bumpHide();
+  };
+
 
   const ctrlBtn = "glass press grid h-8 w-8 place-items-center rounded-full text-foreground";
 
