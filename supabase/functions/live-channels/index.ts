@@ -36,15 +36,16 @@ async function resolveLive(channelId: string): Promise<string | null> {
       signal: ctl.signal,
     });
     if (!res.ok) return null;
+    // When channel is live, YouTube redirects to /watch?v=<videoId>
+    const finalUrl = res.url || "";
+    const urlMatch = finalUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+    if (!urlMatch) return null;
+    const videoId = urlMatch[1];
     const html = await res.text();
-    // Only consider it live if the page reports isLive
-    const isLive = /"isLiveNow":true|"isLive":true/.test(html);
+    // Confirm the page reports live state for this video
+    const isLive = /"isLiveNow":true|"isLive":true|"hlsManifestUrl"/.test(html);
     if (!isLive) return null;
-    // Extract canonical live videoId
-    const m =
-      html.match(/"videoId":"([A-Za-z0-9_-]{11})"/) ||
-      html.match(/\/watch\?v=([A-Za-z0-9_-]{11})/);
-    return m ? m[1] : null;
+    return videoId;
   } catch {
     return null;
   } finally {
