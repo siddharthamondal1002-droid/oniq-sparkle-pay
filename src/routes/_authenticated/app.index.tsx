@@ -137,13 +137,8 @@ function HomeScreen() {
               delay={0}
               livePreview
             />
-            <HeroTile
-              tileKey="clips"
+            <ClipsHeroTile
               skin={skins.clips}
-              to="/app/clips"
-              icon={Clapperboard}
-              label="Clips"
-              tagline="watch the feed"
               gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
               delay={60}
             />
@@ -420,7 +415,7 @@ function HeroTile({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         search={search as any}
         style={{ animationDelay: `${delay}ms` }}
-        className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
+        className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
       >
         {showSkin ? (
           <img
@@ -472,7 +467,7 @@ function HeroTile({
       role="button"
       tabIndex={0}
       style={{ animationDelay: `${delay}ms` }}
-      className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between cursor-pointer`}
+      className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between cursor-pointer`}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
@@ -569,6 +564,73 @@ function HeroTile({
         </div>
       </div>
     </div>
+  );
+}
+
+function ClipsHeroTile({
+  skin,
+  gradient,
+  delay = 0,
+}: {
+  skin?: string;
+  gradient: string;
+  delay?: number;
+}) {
+  const [skinError, setSkinError] = useState(false);
+  const [videoError, setVideoError] = useState(false);
+  const showSkin = skin && !skinError;
+
+  const { data: latest } = useQuery({
+    queryKey: ["latest-clip"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("clips")
+        .select("id, video_url")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+  });
+
+  const videoUrl = !showSkin && !videoError ? latest?.video_url ?? null : null;
+
+  return (
+    <Link
+      to="/app/clips"
+      style={{ animationDelay: `${delay}ms` }}
+      className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
+    >
+      {videoUrl && (
+        <video
+          src={videoUrl}
+          autoPlay
+          muted
+          loop
+          playsInline
+          onError={() => setVideoError(true)}
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      {videoUrl && (
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+      )}
+      {showSkin ? (
+        <img
+          src={skin!}
+          alt=""
+          className="relative h-10 w-10 rounded-xl object-cover"
+          onError={() => setSkinError(true)}
+        />
+      ) : (
+        <Clapperboard className="relative h-10 w-10 text-foreground/90" strokeWidth={1.6} />
+      )}
+      <div className="relative">
+        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">watch the feed</div>
+        <div className="font-display text-2xl font-bold">Clips</div>
+      </div>
+    </Link>
   );
 }
 
