@@ -15,7 +15,7 @@ import {
   ArrowRight,
   Zap,
 } from "lucide-react";
-import { LiveNewsSection } from "@/components/landing/LiveNewsSection";
+
 
 const LANDING_DESCRIPTION =
   "Chat, pay, watch live TV, ride, travel, learn — ONIQ is one app for every world.";
@@ -128,8 +128,6 @@ function Landing() {
         </div>
       </section>
 
-      {/* Live news */}
-      <LiveNewsSection />
 
       {/* Features */}
       <section id="features" style={{ scrollMarginTop: "5rem" }} className="mx-auto max-w-6xl px-5 py-24">
