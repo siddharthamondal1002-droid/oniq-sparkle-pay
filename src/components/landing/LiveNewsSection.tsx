@@ -432,7 +432,7 @@ export function LiveNewsSection() {
           <div className="mb-3 text-sm font-semibold text-foreground">
             Watch Live <span aria-hidden>📺</span>
           </div>
-          <WatchLive autoTour />
+          <WatchLive />
         </div>
 
         {tickerText && (
