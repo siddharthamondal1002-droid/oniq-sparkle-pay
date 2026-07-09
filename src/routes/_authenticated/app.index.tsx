@@ -239,7 +239,16 @@ function Tile({
   );
 }
 
-type LiveEntry = { id: string; name: string; videoId: string };
+type Genre = "news" | "sports" | "entertainment" | "finance" | "lifestyle";
+type LiveEntry = { id: string; name: string; videoId: string; genre: Genre };
+
+const GENRE_META: { key: Genre; label: string; emoji: string }[] = [
+  { key: "news", label: "News", emoji: "📰" },
+  { key: "sports", label: "Sports", emoji: "🏆" },
+  { key: "entertainment", label: "Fun", emoji: "🎬" },
+  { key: "finance", label: "Finance", emoji: "📈" },
+  { key: "lifestyle", label: "Life", emoji: "🌿" },
+];
 
 function useLiveChannels(enabled: boolean) {
   return useQuery({
@@ -279,7 +288,12 @@ function HeroTile({
   const navigate = useNavigate();
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
-  const { data: channels } = useLiveChannels(livePreview && !showSkin);
+  const { data: allChannels } = useLiveChannels(livePreview && !showSkin);
+  const [genre, setGenre] = useState<Genre>("news");
+  const availableGenres = GENRE_META.filter((g) =>
+    (allChannels ?? []).some((c) => c.genre === g.key),
+  );
+  const channels = (allChannels ?? []).filter((c) => c.genre === genre);
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   
@@ -290,16 +304,18 @@ function HeroTile({
   const playerHostId = `yt-tile-${useId().replace(/:/g, "")}`;
   const playerCoverClass = "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
 
-  const videoId = livePreview && !showSkin && channels && channels.length
+  const videoId = livePreview && !showSkin && channels.length
     ? channels[idx % channels.length].videoId
     : null;
-  const currentName = livePreview && channels && channels.length
+  const currentName = livePreview && channels.length
     ? channels[idx % channels.length].name
     : "";
 
+
   // 120s auto-tour, paused while user paused or controls visible
+  const chLen = channels.length;
   useEffect(() => {
-    if (!livePreview || showSkin || !channels || channels.length < 2) return;
+    if (!livePreview || showSkin || chLen < 2) return;
     if (paused || controlsVisible) return;
     let t: number | null = null;
     const tick = () => {
@@ -307,11 +323,12 @@ function HeroTile({
         t = window.setTimeout(tick, 120_000);
         return;
       }
-      setIdx((i) => (i + 1) % channels.length);
+      setIdx((i) => (i + 1) % chLen);
     };
     t = window.setTimeout(tick, 120_000);
     return () => { if (t) window.clearTimeout(t); };
-  }, [idx, channels, livePreview, showSkin, paused, controlsVisible]);
+  }, [idx, chLen, livePreview, showSkin, paused, controlsVisible]);
+
 
   const bumpHide = () => {
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
@@ -351,7 +368,10 @@ function HeroTile({
             controls: 0,
             rel: 0,
             modestbranding: 1,
+            cc_load_policy: 1,
+            cc_lang_pref: "en",
           },
+
           events: {
             onReady: (e: any) => {
               try {
@@ -417,10 +437,19 @@ function HeroTile({
   };
   const stop = (e: React.MouseEvent) => { e.stopPropagation(); bumpHide(); };
   const gotoIdx = (next: number) => {
-    const total = channels!.length;
+    const total = channels.length;
+    if (total === 0) return;
     setIdx(((next % total) + total) % total);
     setPaused(false);
   };
+  const pickGenre = (g: Genre) => {
+    if (g === genre) return;
+    setGenre(g);
+    setIdx(0);
+    setPaused(false);
+    bumpHide();
+  };
+
   const ctrlBtn = "glass press grid h-8 w-8 place-items-center rounded-full text-foreground";
 
   return (
@@ -451,9 +480,29 @@ function HeroTile({
       <div
         className={`absolute inset-x-0 bottom-2 z-10 flex flex-col items-center gap-1 transition-opacity duration-300 ${controlsVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
       >
+        {availableGenres.length > 1 && (
+          <div
+            onClick={(e) => { e.stopPropagation(); bumpHide(); }}
+            className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto px-3"
+          >
+            {availableGenres.map((g) => {
+              const active = g.key === genre;
+              return (
+                <button
+                  key={g.key}
+                  onClick={(e) => { e.stopPropagation(); pickGenre(g.key); }}
+                  className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-[10px] font-semibold border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
+                >
+                  {g.emoji} {g.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {currentName && (
           <span className="glass rounded-full px-2 py-0.5 text-[10px] text-foreground/90">{currentName}</span>
         )}
+
         <div className="glass flex items-center gap-1 rounded-full p-1">
           <button className={ctrlBtn} aria-label="Previous channel" onClick={(e) => { stop(e); gotoIdx(idx - 1); }}>
             <SkipBack className="h-4 w-4" />

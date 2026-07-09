@@ -127,10 +127,20 @@ export function loadYouTubeApi(): Promise<any> {
   return w.__ytApiPromise;
 }
 
-type LiveEntry = { id: string; name: string; videoId: string };
+type Genre = "news" | "sports" | "entertainment" | "finance" | "lifestyle";
+type LiveEntry = { id: string; name: string; videoId: string; genre: Genre };
+
+const GENRE_META: { key: Genre; label: string; emoji: string }[] = [
+  { key: "news", label: "News", emoji: "📰" },
+  { key: "sports", label: "Sports", emoji: "🏆" },
+  { key: "entertainment", label: "Fun", emoji: "🎬" },
+  { key: "finance", label: "Finance", emoji: "📈" },
+  { key: "lifestyle", label: "Life", emoji: "🌿" },
+];
 
 export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
-  const [channels, setChannels] = useState<LiveEntry[] | null>(null);
+  const [allChannels, setAllChannels] = useState<LiveEntry[] | null>(null);
+  const [genre, setGenre] = useState<Genre>("news");
   const [idx, setIdx] = useState(0);
   const [allDead, setAllDead] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -138,6 +148,7 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
   const failStreakRef = useRef(0);
   const advanceTimerRef = useRef<number | null>(null);
   const tourTimerRef = useRef<number | null>(null);
+
 
   // Load live channel list from edge function
   useEffect(() => {
@@ -148,20 +159,24 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
         if (!alive) return;
         if (error) throw error;
         const list: LiveEntry[] = Array.isArray(data?.channels) ? data.channels : [];
-        setChannels(list);
+        setAllChannels(list);
         if (list.length === 0) setAllDead(true);
       } catch (e) {
         console.warn("[WatchLive] fetch channels failed", e);
-        if (alive) { setChannels([]); setAllDead(true); }
+        if (alive) { setAllChannels([]); setAllDead(true); }
       }
     })();
     return () => { alive = false; };
   }, []);
 
-  const ch = channels && channels.length ? channels[idx % channels.length] : null;
+  const availableGenres = GENRE_META.filter((g) =>
+    (allChannels ?? []).some((c) => c.genre === g.key),
+  );
+  const channels = (allChannels ?? []).filter((c) => c.genre === genre);
+  const ch = channels.length ? channels[idx % channels.length] : null;
 
   const advance = (reason: "error" | "ended") => {
-    const total = channels?.length ?? 0;
+    const total = channels.length;
     if (total === 0) { setAllDead(true); return; }
     failStreakRef.current += reason === "error" ? 1 : 0;
     if (failStreakRef.current >= total) {
@@ -178,6 +193,14 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
     failStreakRef.current = 0;
     setAllDead(false);
     setIdx(i);
+  };
+
+  const pickGenre = (g: Genre) => {
+    if (g === genre) return;
+    failStreakRef.current = 0;
+    setAllDead(false);
+    setGenre(g);
+    setIdx(0);
   };
 
   useEffect(() => {
@@ -206,11 +229,12 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
             rel: 0,
             modestbranding: 1,
             controls: 1,
+            cc_load_policy: 1,
+            cc_lang_pref: "en",
           },
           events: {
             onReady: (e: any) => { try { e.target.playVideo(); } catch { /* noop */ } },
             onError: (e: any) => {
-              // 2 invalid param, 5 html5 err, 100 not found, 101/150 embed disabled
               console.warn("[WatchLive] error", e?.data, "for", ch.name);
               advance("error");
             },
@@ -236,15 +260,16 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ch?.videoId, allDead]);
 
-  // Auto-tour: rotate channels every 120s when enabled
+  // Auto-tour: rotate channels every 120s within active genre
+  const chLen = channels.length;
   useEffect(() => {
-    if (!autoTour || allDead || !channels || channels.length < 2) return;
+    if (!autoTour || allDead || chLen < 2) return;
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) {
         tourTimerRef.current = window.setTimeout(tick, 120_000);
         return;
       }
-      setIdx((i) => (i + 1) % (channels?.length || 1));
+      setIdx((i) => (i + 1) % chLen);
     };
     tourTimerRef.current = window.setTimeout(tick, 120_000);
     return () => {
@@ -253,14 +278,34 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
         tourTimerRef.current = null;
       }
     };
-  }, [idx, channels, allDead, autoTour]);
+  }, [idx, chLen, allDead, autoTour]);
 
-  const loading = channels === null;
+  const loading = allChannels === null;
 
   return (
     <div>
+      {availableGenres.length > 1 && (
+        <div className="no-scrollbar mb-3 flex items-center gap-2 overflow-x-auto">
+          {availableGenres.map((g) => {
+            const active = g.key === genre;
+            return (
+              <button
+                key={g.key}
+                onClick={() => pickGenre(g.key)}
+                className={`press whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold border transition-colors ${
+                  active
+                    ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_var(--primary)]"
+                    : "bg-surface text-muted-foreground border-border hover:text-foreground"
+                }`}
+              >
+                {g.emoji} {g.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div className="mb-3 flex flex-wrap gap-2">
-        {(channels ?? []).map((c, i) => {
+        {channels.map((c, i) => {
           const active = ch?.id === c.id && !allDead;
           return (
             <button
@@ -276,7 +321,7 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
             </button>
           );
         })}
-        {channels && channels.length > 0 && (
+        {channels.length > 0 && (
           <div className="ml-auto flex items-center gap-2">
             {autoTour && !allDead && (
               <span className="text-[10px] text-muted-foreground">auto-tour 🔁</span>
@@ -295,6 +340,7 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
           </div>
         )}
       </div>
+
       <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black">
         {loading ? (
           <div className="absolute inset-0 animate-pulse bg-surface" />
