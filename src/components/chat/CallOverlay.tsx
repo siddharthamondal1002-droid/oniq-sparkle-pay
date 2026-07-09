@@ -217,6 +217,24 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   useImperativeHandle(ref, () => ({ startCall }));
 
+  // Re-broadcast ring every 2s while outgoing. Fixes the Supabase channel
+  // subscribe race: the initial ring inside startCall() can be sent before
+  // ch.subscribe() has reached SUBSCRIBED (or before the callee's channel has
+  // joined), in which case broadcast silently drops the message. Callee-side
+  // dedupe via activeRef.current in the "ring" handler makes retries a no-op
+  // once the first ring lands, so this is safe.
+  useEffect(() => {
+    if (status !== "outgoing") return;
+    const id = window.setInterval(() => {
+      if (isCallerRef.current && activeRef.current && callIdRef.current) {
+        sendSig("ring", { callType: callTypeRef.current, fromName: meName });
+      }
+    }, 2000);
+    return () => window.clearInterval(id);
+    // sendSig closes over refs (meId, callIdRef, channelRef); safe to omit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, meName]);
+
   // Signaling channel — lives for the entire time the thread is open.
   useEffect(() => {
     if (!meId) return;
