@@ -127,10 +127,20 @@ export function loadYouTubeApi(): Promise<any> {
   return w.__ytApiPromise;
 }
 
-type LiveEntry = { id: string; name: string; videoId: string };
+type Genre = "news" | "sports" | "entertainment" | "finance" | "lifestyle";
+type LiveEntry = { id: string; name: string; videoId: string; genre: Genre };
+
+const GENRE_META: { key: Genre; label: string; emoji: string }[] = [
+  { key: "news", label: "News", emoji: "📰" },
+  { key: "sports", label: "Sports", emoji: "🏆" },
+  { key: "entertainment", label: "Fun", emoji: "🎬" },
+  { key: "finance", label: "Finance", emoji: "📈" },
+  { key: "lifestyle", label: "Life", emoji: "🌿" },
+];
 
 export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
-  const [channels, setChannels] = useState<LiveEntry[] | null>(null);
+  const [allChannels, setAllChannels] = useState<LiveEntry[] | null>(null);
+  const [genre, setGenre] = useState<Genre>("news");
   const [idx, setIdx] = useState(0);
   const [allDead, setAllDead] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -138,6 +148,7 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
   const failStreakRef = useRef(0);
   const advanceTimerRef = useRef<number | null>(null);
   const tourTimerRef = useRef<number | null>(null);
+
 
   // Load live channel list from edge function
   useEffect(() => {
