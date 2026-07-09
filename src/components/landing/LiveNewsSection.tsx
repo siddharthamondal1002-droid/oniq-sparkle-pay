@@ -172,14 +172,17 @@ export function useMyTv() {
 
 
 export function WatchLive() {
-  const [genres, setGenres] = useState<LiveGenre[] | null>(null);
+  const [baseGenres, setBaseGenres] = useState<LiveGenre[] | null>(null);
   const [genreId, setGenreId] = useState<GenreId>("news");
   const [idx, setIdx] = useState(0);
   const [allDead, setAllDead] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const failStreakRef = useRef(0);
   const advanceTimerRef = useRef<number | null>(null);
+  const userId = useSession();
+  const { videos: myTvVideos } = useMyTv();
 
   useEffect(() => {
     let alive = true;
@@ -189,21 +192,31 @@ export function WatchLive() {
         if (!alive) return;
         if (error) throw error;
         const list: LiveGenre[] = Array.isArray(data?.genres) ? data.genres : [];
-        setGenres(list);
+        setBaseGenres(list);
         if (list.length === 0) setAllDead(true);
       } catch (e) {
         console.warn("[WatchLive] fetch genres failed", e);
-        if (alive) { setGenres([]); setAllDead(true); }
+        if (alive) { setBaseGenres([]); setAllDead(true); }
       }
     })();
     return () => { alive = false; };
   }, []);
+
+  const genres = useMemo<LiveGenre[] | null>(() => {
+    if (baseGenres === null) return null;
+    const merged = [...baseGenres];
+    if (myTvVideos.length > 0) {
+      merged.push({ id: "mytv", name: "My TV", emoji: "📺", live: false, videos: myTvVideos });
+    }
+    return merged;
+  }, [baseGenres, myTvVideos]);
 
   const activeGenre =
     (genres ?? []).find((g) => g.id === genreId) ?? (genres ?? [])[0] ?? null;
   const videos = activeGenre?.videos ?? [];
   const isLiveGenre = !!activeGenre?.live;
   const current = videos.length ? videos[idx % videos.length] : null;
+
 
   const advance = (reason: "error" | "ended") => {
     const total = videos.length;
