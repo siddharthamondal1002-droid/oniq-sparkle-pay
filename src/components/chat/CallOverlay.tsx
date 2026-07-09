@@ -520,7 +520,18 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (type === "video" && localVideoRef.current) {
       localVideoRef.current.srcObject = stream;
     }
-    stream.getTracks().forEach((t) => pcRef.current?.addTrack(t, stream));
+    stream.getTracks().forEach((t) => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tt = t as any;
+        if ("contentHint" in tt) {
+          tt.contentHint = t.kind === "audio" ? "speech" : "motion";
+        }
+      } catch {
+        // feature-detected; ignore
+      }
+      pcRef.current?.addTrack(t, stream);
+    });
     // Fire-and-forget: bitrate caps must run after tracks are added.
     void applyBitrateCaps();
   };
