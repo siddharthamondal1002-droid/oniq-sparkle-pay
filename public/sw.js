@@ -21,3 +21,22 @@ self.addEventListener("fetch", (event) => {
     fetch(req).catch(() => caches.match(req).then((r) => r || Response.error()))
   );
 });
+
+// Focus an existing app window (or open one) when the user taps an incoming
+// call notification. Best effort — only works while the app is alive in the
+// background. Closed-app push requires the native Capacitor build.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || "/app/chat";
+  event.waitUntil(
+    (async () => {
+      const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const c of clientsList) {
+        if ("focus" in c) {
+          try { await c.focus(); return; } catch {}
+        }
+      }
+      if (self.clients.openWindow) await self.clients.openWindow(targetUrl);
+    })()
+  );
+});
