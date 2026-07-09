@@ -68,6 +68,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
+  const peerIdsRef = useRef<string[]>([]);
+  const userRingChannelsRef = useRef<RealtimeChannel[]>([]);
+  const userRingIntervalRef = useRef<number | null>(null);
+  const missedInsertedRef = useRef<Set<string>>(new Set());
+  const autoAcceptTriedRef = useRef(false);
 
   const setCallTypeBoth = (t: CallType) => {
     callTypeRef.current = t;
