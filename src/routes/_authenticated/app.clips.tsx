@@ -118,11 +118,13 @@ function ClipsScreen() {
       <button
         data-testid="upload-clip"
         onClick={() => setOpenUpload(true)}
-        className="absolute bottom-24 right-5 z-30 grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-2xl"
+        className="fixed right-5 z-[60] grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-2xl"
+        style={{ bottom: "calc(6.5rem + env(safe-area-inset-bottom))" }}
         aria-label="Upload clip"
       >
         <Plus className="h-6 w-6" />
       </button>
+
 
       {openComments && (
         <CommentsSheet
@@ -236,11 +238,16 @@ function ClipCard({
   }
 
   async function togglePlay() {
+    // Reveal the shell nav on any tap of the video area (auto-hides on clips)
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("oniq:clips-tap"));
+    }
     const v = videoRef.current;
     if (!v) return;
     if (v.paused) await v.play().catch(() => {});
     else v.pause();
   }
+
 
   async function toggleLike() {
     const prevLiked = liked;
