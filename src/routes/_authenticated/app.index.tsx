@@ -437,10 +437,19 @@ function HeroTile({
   };
   const stop = (e: React.MouseEvent) => { e.stopPropagation(); bumpHide(); };
   const gotoIdx = (next: number) => {
-    const total = channels!.length;
+    const total = channels.length;
+    if (total === 0) return;
     setIdx(((next % total) + total) % total);
     setPaused(false);
   };
+  const pickGenre = (g: Genre) => {
+    if (g === genre) return;
+    setGenre(g);
+    setIdx(0);
+    setPaused(false);
+    bumpHide();
+  };
+
   const ctrlBtn = "glass press grid h-8 w-8 place-items-center rounded-full text-foreground";
 
   return (
