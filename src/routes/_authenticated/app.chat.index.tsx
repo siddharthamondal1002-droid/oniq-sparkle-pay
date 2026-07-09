@@ -191,9 +191,14 @@ function ChatList() {
   }, [convs, query]);
 
   return (
-    <div className="px-4 pt-12 pb-6">
+    <div className="px-4 pt-12 pb-4">
       <div className="flex items-center justify-between px-1">
-        <h1 className="font-display text-3xl font-bold">Chats</h1>
+        <div className="flex items-center gap-2">
+          <Link to="/app" aria-label="Back" className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="font-display text-3xl font-bold">Chats</h1>
+        </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => {
