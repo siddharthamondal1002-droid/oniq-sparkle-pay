@@ -635,7 +635,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         setStatus("connecting");
         armConnectTimeout();
         getMedia(callTypeRef.current)
-          .then((stream) => {
+          .then(async (stream) => {
+            await ensureIceServers();
             pcRef.current = createPc();
             attachLocal(stream, callTypeRef.current);
             sendSig("accept");
