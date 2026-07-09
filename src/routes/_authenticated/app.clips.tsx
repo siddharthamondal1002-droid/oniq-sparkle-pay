@@ -626,6 +626,11 @@ function UploadSheet({
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {busy ? "Posting…" : "Publish"}
         </button>
+        {busy && (
+          <p className="mt-2 text-center text-xs text-muted-foreground">
+            Uploading… this can take a minute on mobile data
+          </p>
+        )}
       </div>
     </div>
   );
