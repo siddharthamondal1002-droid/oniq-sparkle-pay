@@ -26,6 +26,28 @@ type Props = {
   peerName: string;
 };
 
+// SDP munge: enable Opus in-band FEC and lift maxaveragebitrate on the opus
+// fmtp line. Safe no-op when the SDP has no opus rtpmap/fmtp lines, and won't
+// double-append params that are already present.
+function mungeOpus(sdp: string): string {
+  const rtpmap = sdp.match(/^a=rtpmap:(\d+)\s+opus\/48000\/2/im);
+  if (!rtpmap) return sdp;
+  const pt = rtpmap[1];
+  const fmtpRe = new RegExp(`^a=fmtp:${pt} (.*)$`, "im");
+  const fmtp = sdp.match(fmtpRe);
+  if (!fmtp) return sdp;
+  let params = fmtp[1];
+  if (!/(^|;)\s*useinbandfec=/i.test(params)) params += ";useinbandfec=1";
+  if (!/(^|;)\s*maxaveragebitrate=/i.test(params)) params += ";maxaveragebitrate=64000";
+  if (params === fmtp[1]) return sdp;
+  return sdp.replace(fmtpRe, `a=fmtp:${pt} ${params}`);
+}
+
+function withMungedSdp(desc: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
+  if (!desc.sdp) return desc;
+  return { ...desc, sdp: mungeOpus(desc.sdp) };
+}
+
 const STUN_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
