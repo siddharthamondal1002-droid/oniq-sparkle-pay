@@ -402,6 +402,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (!matches(p, true)) return;
       if (!isCallerRef.current) return;
       toast("Call declined");
+      insertMissedCallMessage("declined");
       finishCall(false);
     });
 
