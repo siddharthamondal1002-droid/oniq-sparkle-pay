@@ -357,7 +357,7 @@ function HeroTile({
   }
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${encodeURIComponent(origin)}`;
+  const src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=${muted ? 1 : 0}&controls=0&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${encodeURIComponent(origin)}`;
 
   const onTileClick = () => {
     if (controlsVisible) setControlsVisible(false);
