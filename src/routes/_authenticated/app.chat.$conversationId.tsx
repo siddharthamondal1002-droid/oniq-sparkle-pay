@@ -279,12 +279,31 @@ function ChatThread() {
     inputRef.current?.focus();
   }, [conversationId]);
 
+  const toggleBlock = async () => {
+    if (!me || !peerId) return;
+    setShowHeaderMenu(false);
+    if (isBlocked) {
+      const { error } = await supabase.from("blocked_users").delete().eq("blocker_id", me.id).eq("blocked_id", peerId);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Unblocked");
+    } else {
+      const { error } = await supabase.from("blocked_users").insert({ blocker_id: me.id, blocked_id: peerId });
+      if (error) { toast.error(error.message); return; }
+      toast("Blocked — you won't see their messages here 🚫");
+    }
+    refetchBlocked();
+  };
+
   const send = async (e: FormEvent) => {
     e.preventDefault();
     const content = text.trim();
     if (!content) return;
     if (!me) {
       toast.error("You're signed out — please sign in again");
+      return;
+    }
+    if (isBlocked) {
+      toast("You've blocked this user — unblock to chat.");
       return;
     }
     setSending(true);
