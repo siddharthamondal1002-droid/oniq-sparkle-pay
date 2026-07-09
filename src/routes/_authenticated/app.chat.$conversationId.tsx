@@ -258,10 +258,13 @@ function ChatThread() {
       if (!p || p.user_id === me.id) return;
       if (p.state === "start") {
         setPeerTyping(true);
+        const nm = senderMap.get(p.user_id)?.name?.split(/\s+/)[0] ?? null;
+        setPeerTypingName(nm);
         if (peerTypingTimerRef.current) clearTimeout(peerTypingTimerRef.current);
-        peerTypingTimerRef.current = setTimeout(() => setPeerTyping(false), 4500);
+        peerTypingTimerRef.current = setTimeout(() => { setPeerTyping(false); setPeerTypingName(null); }, 4500);
       } else {
         setPeerTyping(false);
+        setPeerTypingName(null);
       }
     });
     ch.subscribe();
