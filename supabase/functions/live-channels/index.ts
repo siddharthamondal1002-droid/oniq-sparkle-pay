@@ -26,26 +26,34 @@ let cache: CacheEntry | null = null;
 const TTL_MS = 10 * 60 * 1000;
 
 async function resolveLive(channelId: string): Promise<string | null> {
-  const url = `https://www.youtube.com/channel/${channelId}/live`;
+  const url = `https://www.youtube.com/channel/${channelId}/live?hl=en&persist_hl=1`;
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 6000);
   try {
     const res = await fetch(url, {
-      headers: { "User-Agent": UA, "Accept-Language": "en-US,en;q=0.9" },
+      headers: {
+        "User-Agent": UA,
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cookie": "CONSENT=YES+1; SOCS=CAI",
+      },
       redirect: "follow",
       signal: ctl.signal,
     });
     if (!res.ok) return null;
-    // When channel is live, YouTube redirects to /watch?v=<videoId>
     const finalUrl = res.url || "";
-    const urlMatch = finalUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/);
-    if (!urlMatch) return null;
-    const videoId = urlMatch[1];
     const html = await res.text();
-    // Confirm the page reports live state for this video
-    const isLive = /"isLiveNow":true|"isLive":true|"hlsManifestUrl"/.test(html);
+    // Confirm live: page will have hlsManifestUrl or isLive true for live streams
+    const isLive = /"hlsManifestUrl"|"isLiveNow":true|"isLive":true/.test(html);
     if (!isLive) return null;
-    return videoId;
+    // Prefer final redirect URL
+    let m = finalUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+    if (m) return m[1];
+    // Fallback: canonical link on the watch page
+    m = html.match(/<link rel="canonical" href="https?:\/\/[^"]*[?&]v=([A-Za-z0-9_-]{11})/);
+    if (m) return m[1];
+    // Last resort: first videoId inside videoDetails block
+    m = html.match(/"videoDetails":\{[^}]*"videoId":"([A-Za-z0-9_-]{11})"/);
+    return m ? m[1] : null;
   } catch {
     return null;
   } finally {
