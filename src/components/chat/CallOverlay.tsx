@@ -148,14 +148,43 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     } catch {}
   };
 
+  const clearGraceTimer = () => {
+    if (graceTimerRef.current) {
+      clearTimeout(graceTimerRef.current);
+      graceTimerRef.current = null;
+    }
+  };
+
+  const releaseWakeLock = () => {
+    const wl = wakeLockRef.current;
+    wakeLockRef.current = null;
+    if (wl && typeof wl.release === "function") {
+      try { wl.release().catch(() => {}); } catch {}
+    }
+  };
+
+  const acquireWakeLock = async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const nav = navigator as any;
+      if (nav?.wakeLock?.request) {
+        wakeLockRef.current = await nav.wakeLock.request("screen");
+      }
+    } catch {
+      // best-effort; ignored on unsupported browsers
+    }
+  };
+
   const cleanupMedia = () => {
     if (ringTimeoutRef.current) {
       clearTimeout(ringTimeoutRef.current);
       ringTimeoutRef.current = null;
     }
     clearConnectTimeout();
+    clearGraceTimer();
     stopUserRingBroadcast();
     stopAllCallSounds();
+    releaseWakeLock();
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -164,7 +193,6 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       try { t.stop(); } catch {}
     });
     localStreamRef.current = null;
-    // Remote tracks are owned by the peer connection; just drop the ref.
     remoteStreamRef.current = null;
     try { pcRef.current?.close(); } catch {}
     pcRef.current = null;
@@ -172,6 +200,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     isCallerRef.current = false;
     activeRef.current = false;
     callIdRef.current = null;
+    iceRestartsRef.current = 0;
     if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
     if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
@@ -181,19 +210,85 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   };
 
   const finishCall = (notifyPeer: boolean) => {
+    // If a video call ends via the failure path, nudge the user to voice.
+    if (notifyPeer && activeRef.current && callTypeRef.current === "video") {
+      // No-op here; specific failure sites toast their own message.
+    }
     if (notifyPeer && activeRef.current) sendSig("end");
     cleanupMedia();
     setStatus("ended");
     window.setTimeout(() => setStatus((s) => (s === "ended" ? "idle" : s)), 700);
   };
 
+  const applyBitrateCaps = async () => {
+    const pc = pcRef.current;
+    if (!pc) return;
+    for (const sender of pc.getSenders()) {
+      const kind = sender.track?.kind;
+      if (!kind) continue;
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) {
+          params.encodings = [{}];
+        }
+        if (kind === "video") {
+          params.encodings[0].maxBitrate = 400_000;
+          // Scale down if supported — reduces encoder load on weak devices.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (params.encodings[0] as any).scaleResolutionDownBy = 1.0;
+        } else if (kind === "audio") {
+          params.encodings[0].maxBitrate = 40_000;
+        }
+        await sender.setParameters(params);
+      } catch {
+        // some browsers reject mid-negotiation; ignore
+      }
+    }
+  };
+
+  const attemptIceRestart = async () => {
+    const pc = pcRef.current;
+    if (!pc || !isCallerRef.current || !activeRef.current) return;
+    if (iceRestartsRef.current >= MAX_ICE_RESTARTS) return;
+    if (pc.signalingState !== "stable") return;
+    iceRestartsRef.current += 1;
+    try {
+      pc.restartIce();
+      const offer = await pc.createOffer({ iceRestart: true });
+      await pc.setLocalDescription(offer);
+      sendSig("offer", { sdp: offer });
+    } catch {
+      // If restart fails outright, let the grace timer decide.
+    }
+  };
+
+  const handleTransientDrop = () => {
+    if (!activeRef.current) return;
+    if (graceTimerRef.current) return; // already in grace
+    setStatus("reconnecting");
+    // Caller drives ICE restart; callee just waits for the new offer.
+    if (isCallerRef.current) {
+      void attemptIceRestart();
+    }
+    graceTimerRef.current = window.setTimeout(() => {
+      graceTimerRef.current = null;
+      const pc = pcRef.current;
+      if (!pc || !activeRef.current) return;
+      if (pc.connectionState === "connected") return;
+      if (callTypeRef.current === "video") {
+        toast("Video too heavy for this network — try a voice call 🎙");
+      }
+      toast.error("Call dropped — network too weak 📶");
+      finishCall(true);
+    }, RECONNECT_GRACE_MS);
+  };
+
   const createPc = () => {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSig("ice", { candidate: e.candidate.toJSON() });
     };
     pc.ontrack = (e) => {
-      // Remote-only stream. Never mixed with local.
       const incoming = e.streams[0];
       const stream = incoming ?? (() => {
         const s = remoteStreamRef.current ?? new MediaStream();
@@ -208,7 +303,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       const st = pc.connectionState;
       if (st === "connected") {
         clearConnectTimeout();
+        clearGraceTimer();
         setStatus("connected");
+        void acquireWakeLock();
         if (!timerRef.current) {
           const started = Date.now();
           timerRef.current = window.setInterval(
@@ -216,14 +313,32 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             500,
           );
         }
-      } else if (st === "failed" || st === "closed") {
+      } else if (st === "disconnected") {
+        handleTransientDrop();
+      } else if (st === "failed") {
+        if (activeRef.current) {
+          if (callTypeRef.current === "video") {
+            toast("Video too heavy for this network — try a voice call 🎙");
+          }
+          toast.error("Call dropped — network too weak 📶");
+          finishCall(true);
+        }
+      } else if (st === "closed") {
         if (activeRef.current) finishCall(false);
       }
     };
     pc.oniceconnectionstatechange = () => {
-      if (pc.iceConnectionState === "failed" && activeRef.current) {
-        toast.error("Couldn't connect — network too strict, try again on WiFi 📶");
+      const ist = pc.iceConnectionState;
+      if (ist === "disconnected") {
+        handleTransientDrop();
+      } else if (ist === "failed" && activeRef.current) {
+        if (callTypeRef.current === "video") {
+          toast("Video too heavy for this network — try a voice call 🎙");
+        }
+        toast.error("Call dropped — network too weak 📶");
         finishCall(true);
+      } else if (ist === "connected" || ist === "completed") {
+        clearGraceTimer();
       }
     };
     return pc;
@@ -231,10 +346,21 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const getMedia = async (type: CallType) => {
     try {
-      return await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: type === "video" ? { width: 1280, height: 720 } : false,
-      });
+      const audio: MediaTrackConstraints = {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      };
+      const video: MediaTrackConstraints | false =
+        type === "video"
+          ? {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              frameRate: { ideal: 20, max: 24 },
+              facingMode: "user",
+            }
+          : false;
+      return await navigator.mediaDevices.getUserMedia({ audio, video });
     } catch (err) {
       const name = (err as { name?: string })?.name;
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
@@ -254,7 +380,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       localVideoRef.current.srcObject = stream;
     }
     stream.getTracks().forEach((t) => pcRef.current?.addTrack(t, stream));
+    // Fire-and-forget: bitrate caps must run after tracks are added.
+    void applyBitrateCaps();
   };
+
 
   // Fetch other conversation members once per conversation so we can ring
   // them on their per-user channel from anywhere in the app.
