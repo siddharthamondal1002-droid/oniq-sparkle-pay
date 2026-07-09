@@ -313,8 +313,9 @@ function HeroTile({
 
 
   // 120s auto-tour, paused while user paused or controls visible
+  const chLen = channels.length;
   useEffect(() => {
-    if (!livePreview || showSkin || !channels || channels.length < 2) return;
+    if (!livePreview || showSkin || chLen < 2) return;
     if (paused || controlsVisible) return;
     let t: number | null = null;
     const tick = () => {
@@ -322,11 +323,12 @@ function HeroTile({
         t = window.setTimeout(tick, 120_000);
         return;
       }
-      setIdx((i) => (i + 1) % channels.length);
+      setIdx((i) => (i + 1) % chLen);
     };
     t = window.setTimeout(tick, 120_000);
     return () => { if (t) window.clearTimeout(t); };
-  }, [idx, channels, livePreview, showSkin, paused, controlsVisible]);
+  }, [idx, chLen, livePreview, showSkin, paused, controlsVisible]);
+
 
   const bumpHide = () => {
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
