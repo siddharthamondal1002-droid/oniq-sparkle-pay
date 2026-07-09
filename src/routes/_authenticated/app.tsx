@@ -16,7 +16,7 @@ const tabs: Tab[] = [
   { to: "/app/profile", label: "Profile", icon: User },
 ];
 
-const TOP_LEVEL = new Set(["/app", "/app/chat", "/app/discover", "/app/profile"]);
+const TOP_LEVEL = new Set(["/app", "/app/discover", "/app/profile"]);
 
 function AppShell() {
   const { pathname } = useLocation();

@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2 } from "lucide-react";
+import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday, differenceInDays } from "date-fns";
 
@@ -191,9 +191,14 @@ function ChatList() {
   }, [convs, query]);
 
   return (
-    <div className="px-4 pt-12 pb-6">
+    <div className="px-4 pt-12 pb-4">
       <div className="flex items-center justify-between px-1">
-        <h1 className="font-display text-3xl font-bold">Chats</h1>
+        <div className="flex items-center gap-2">
+          <Link to="/app" aria-label="Back" className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="font-display text-3xl font-bold">Chats</h1>
+        </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => {
@@ -297,7 +302,7 @@ function ChatList() {
         onClick={() => setShowNew(true)}
         aria-label="New chat"
         data-testid="new-chat-fab"
-        className="fixed bottom-24 right-4 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-black shadow-lg active:scale-95"
+        className="fixed bottom-6 right-4 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-black shadow-lg active:scale-95"
       >
         <Edit3 className="h-5 w-5" />
       </button>
