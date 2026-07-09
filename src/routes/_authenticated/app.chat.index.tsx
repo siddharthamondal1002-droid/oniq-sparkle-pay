@@ -62,8 +62,18 @@ function ChatList() {
     queryFn: async () => (await supabase.auth.getUser()).data.user,
   });
 
+  const { data: blockedIds = [] } = useQuery({
+    queryKey: ["blocked-ids", me?.id],
+    enabled: !!me,
+    queryFn: async (): Promise<string[]> => {
+      const { data } = await supabase.from("blocked_users").select("blocked_id").eq("blocker_id", me!.id);
+      return (data ?? []).map((r) => r.blocked_id);
+    },
+  });
+  const blockedSet = useMemo(() => new Set(blockedIds), [blockedIds]);
+
   const { data: convs, isLoading } = useQuery({
-    queryKey: ["conversations", me?.id],
+    queryKey: ["conversations", me?.id, blockedIds.join(",")],
     enabled: !!me,
     queryFn: async (): Promise<EnrichedConv[]> => {
       const { data } = await supabase
@@ -74,11 +84,12 @@ function ChatList() {
       const enriched = await Promise.all(
         rows
           .filter((r) => r.conversations)
-          .map(async (r): Promise<EnrichedConv> => {
+          .map(async (r): Promise<EnrichedConv | null> => {
             const c = r.conversations!;
             let title = c.name ?? "Chat";
             let avatar = c.avatar_url;
             let peerReadAt: string | null = null;
+            let peerId: string | null = null;
             if (c.type === "direct") {
               const { data: other } = await supabase
                 .from("conversation_members")
@@ -94,7 +105,9 @@ function ChatList() {
                 avatar = p.avatar_url ?? avatar;
               }
               peerReadAt = o?.last_read_at ?? null;
+              peerId = o?.user_id ?? null;
             }
+            if (peerId && blockedSet.has(peerId)) return null;
             const { data: last } = await supabase
               .from("messages")
               .select("content, created_at, sender_id, type")
@@ -119,12 +132,13 @@ function ChatList() {
             };
           }),
       );
-      enriched.sort((a, b) => {
+      const filtered = enriched.filter((x): x is EnrichedConv => x !== null);
+      filtered.sort((a, b) => {
         const ta = new Date(a.updated_at ?? 0).getTime();
         const tb = new Date(b.updated_at ?? 0).getTime();
         return tb - ta;
       });
-      return enriched;
+      return filtered;
     },
   });
 
