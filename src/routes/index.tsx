@@ -206,7 +206,14 @@ function Landing() {
           >
             Get started — it's free
           </Link>
-          <p className="mt-4 text-xs text-muted-foreground">
+          <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
+            <Link to="/terms" className="hover:text-primary">Terms</Link>
+            <span>·</span>
+            <Link to="/privacy" className="hover:text-primary">Privacy</Link>
+            <span>·</span>
+            <a href="mailto:grievance@oniqhub.com" className="hover:text-primary">Grievance officer</a>
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
             © {new Date().getFullYear()} ONIQ. All rights reserved.
           </p>
         </div>
