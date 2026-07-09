@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
 import { Home, MessageCircle, Compass, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -18,6 +19,42 @@ function AppShell() {
   const { pathname } = useLocation();
   const { data: theme } = useUserTheme();
   const wallpaper = theme?.wallpaper_url ?? null;
+
+  const isClips = pathname.startsWith("/app/clips");
+  const [navVisible, setNavVisible] = useState(true);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+
+    if (!isClips) {
+      setNavVisible(true);
+      return;
+    }
+
+    // On clips: show briefly, then fade out after 1.5s
+    setNavVisible(true);
+    hideTimerRef.current = setTimeout(() => setNavVisible(false), 1500);
+
+    const onTap = () => {
+      setNavVisible(true);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => setNavVisible(false), 4000);
+    };
+    window.addEventListener("oniq:clips-tap", onTap);
+
+    return () => {
+      window.removeEventListener("oniq:clips-tap", onTap);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
+  }, [isClips]);
+
+  const chromeClass = `transition-opacity duration-[400ms] ${
+    navVisible ? "opacity-100" : "pointer-events-none opacity-0"
+  }`;
 
   return (
     <div className="relative mx-auto flex min-h-screen max-w-md flex-col bg-background pb-28">
@@ -41,9 +78,13 @@ function AppShell() {
       </main>
 
       {/* Fade so content dissolves into the nav instead of hard-cutting */}
-      <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 h-28 w-full max-w-md -translate-x-1/2 bg-gradient-to-t from-background via-background/85 to-transparent" />
+      <div
+        className={`pointer-events-none fixed bottom-0 left-1/2 z-30 h-28 w-full max-w-md -translate-x-1/2 bg-gradient-to-t from-background via-background/85 to-transparent ${chromeClass}`}
+      />
 
-      <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <nav
+        className={`fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] ${chromeClass}`}
+      >
         <div className="grid grid-cols-4 rounded-3xl border border-border glass p-1.5 shadow-card">
           {tabs.map((t) => {
             const active = t.exact ? pathname === t.to : pathname.startsWith(t.to);
