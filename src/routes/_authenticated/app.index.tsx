@@ -142,16 +142,6 @@ function HomeScreen() {
               gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
               delay={60}
             />
-            <HeroTile
-              tileKey="clips"
-              skin={skins.clips}
-              to="/app/clips"
-              icon={Clapperboard}
-              label="Clips"
-              tagline="watch the feed"
-              gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
-              delay={60}
-            />
             {(
               [
                 { key: "wallet", to: "/app/wallet", icon: Coins, label: "Wallet", color: "#F59E0B" },
