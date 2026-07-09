@@ -139,16 +139,13 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
     if (stream.getAudioTracks().length === 0) return;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const Ctx: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
-      if (!Ctx) throw new Error("AudioContext unavailable");
-      const ctx = new Ctx();
+      const ctx = ensureAudioCtx();
+      if (!ctx) throw new Error("AudioContext unavailable");
       const src = ctx.createMediaStreamSource(stream);
       const gain = ctx.createGain();
       gain.gain.value = 1.8;
       src.connect(gain);
       gain.connect(ctx.destination);
-      audioCtxRef.current = ctx;
       audioSrcNodeRef.current = src;
       audioGainNodeRef.current = gain;
       audioPipelineStreamIdRef.current = stream.id;
@@ -169,8 +166,21 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
   };
 
+  const ensureAudioCtx = (): AudioContext | null => {
+    if (audioCtxRef.current) return audioCtxRef.current;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const Ctx: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!Ctx) return null;
+      audioCtxRef.current = new Ctx();
+      return audioCtxRef.current;
+    } catch {
+      return null;
+    }
+  };
+
   const resumeRemoteAudio = () => {
-    const ctx = audioCtxRef.current;
+    const ctx = ensureAudioCtx();
     if (!ctx) return;
     if (ctx.state === "suspended") {
       ctx.resume().catch(() => {});
