@@ -17,8 +17,6 @@ import {
   Tv,
   Play,
   Pause,
-  Volume2,
-  VolumeX,
   SkipBack,
   SkipForward,
   Maximize2,
@@ -284,7 +282,7 @@ function HeroTile({
   const { data: channels } = useLiveChannels(livePreview && !showSkin);
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [muted, setMuted] = useState(true);
+  
   const [controlsVisible, setControlsVisible] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
@@ -450,11 +448,6 @@ function HeroTile({
         LIVE
       </span>
 
-      <div className="relative">
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{tagline}</div>
-        <div className="font-display text-2xl font-bold">{label}</div>
-      </div>
-
       <div
         className={`absolute inset-x-0 bottom-2 z-10 flex flex-col items-center gap-1 transition-opacity duration-300 ${controlsVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
       >
@@ -474,13 +467,6 @@ function HeroTile({
           </button>
           <button className={ctrlBtn} aria-label="Next channel" onClick={(e) => { stop(e); gotoIdx(idx + 1); }}>
             <SkipForward className="h-4 w-4" />
-          </button>
-          <button
-            className={ctrlBtn}
-            aria-label={muted ? "Unmute" : "Mute"}
-            onClick={(e) => { stop(e); if (muted) { playerRef.current?.unMute?.(); playerRef.current?.setVolume?.(100); setMuted(false); } else { playerRef.current?.mute?.(); setMuted(true); } }}
-          >
-            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>
           <button
             className={ctrlBtn}
