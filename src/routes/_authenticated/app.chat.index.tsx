@@ -339,16 +339,23 @@ function EmptyChats({ onNew }: { onNew: () => void }) {
   );
 }
 
+type PickedUser = { id: string; display_name: string | null; username: string | null; avatar_url: string | null };
+
 function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) {
+  const [mode, setMode] = useState<"chat" | "group">("chat");
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const navigate = useNavigate();
   const [starting, setStarting] = useState(false);
+  const [picked, setPicked] = useState<PickedUser[]>([]);
+  const [groupName, setGroupName] = useState("");
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(q.trim()), 200);
     return () => clearTimeout(t);
   }, [q]);
+
+  const pickedIds = useMemo(() => new Set(picked.map((p) => p.id)), [picked]);
 
   const { data: results = [], isFetching } = useQuery({
     queryKey: ["user-search", debounced, meId],
@@ -360,7 +367,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
         .neq("id", meId)
         .or(`username.ilike.%${debounced}%,display_name.ilike.%${debounced}%`)
         .limit(20);
-      return data ?? [];
+      return (data ?? []) as PickedUser[];
     },
   });
 
@@ -372,29 +379,102 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     setStarting(false);
     if (error || !data) {
       console.error("start chat failed", error);
+      toast.error(error?.message || "Couldn't start chat");
       return;
     }
     onClose();
     navigate({ to: "/app/chat/$conversationId", params: { conversationId: data as string } });
   };
 
+  const togglePick = (u: PickedUser) => {
+    setPicked((prev) =>
+      prev.some((p) => p.id === u.id)
+        ? prev.filter((p) => p.id !== u.id)
+        : prev.length >= 50
+          ? (toast("Max 50 members"), prev)
+          : [...prev, u],
+    );
+  };
+
+  const createGroup = async () => {
+    const name = groupName.trim();
+    if (!name) return toast.error("Group name required");
+    if (picked.length < 1) return toast.error("Add at least one member");
+    setStarting(true);
+    const { data, error } = await supabase.rpc("create_group", {
+      _name: name,
+      _member_ids: picked.map((p) => p.id),
+    });
+    setStarting(false);
+    if (error || !data) {
+      console.error(error);
+      toast.error(error?.message || "Couldn't create group");
+      return;
+    }
+    toast.success("Group created 🎉");
+    onClose();
+    navigate({ to: "/app/chat/$conversationId", params: { conversationId: data as string } });
+  };
+
   const hint = useMemo(() => {
-    if (!debounced) return "Type a username or name to search";
+    if (!debounced) return mode === "group" ? "Search users to add" : "Type a username or name to search";
     if (isFetching) return "Searching…";
     if (results.length === 0) return "No users found";
     return null;
-  }, [debounced, isFetching, results.length]);
+  }, [debounced, isFetching, results.length, mode]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
       <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">New chat</h2>
+          <h2 className="font-display text-xl font-semibold">{mode === "group" ? "New group 👥" : "New chat"}</h2>
           <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="relative mt-4">
+
+        <div className="mt-3 flex gap-2 rounded-full bg-muted/40 p-1 text-sm">
+          <button
+            type="button"
+            onClick={() => setMode("chat")}
+            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "chat" ? "bg-background font-semibold shadow" : "text-muted-foreground"}`}
+          >
+            New chat
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("group")}
+            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "group" ? "bg-background font-semibold shadow" : "text-muted-foreground"}`}
+          >
+            New group 👥
+          </button>
+        </div>
+
+        {mode === "group" && (
+          <>
+            <input
+              data-testid="group-name"
+              value={groupName}
+              onChange={(e) => setGroupName(e.target.value.slice(0, 50))}
+              placeholder="Group name"
+              className="mt-3 w-full rounded-2xl border border-border bg-input/40 px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            />
+            {picked.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {picked.map((p) => (
+                  <span key={p.id} className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
+                    {p.display_name || p.username}
+                    <button type="button" onClick={() => togglePick(p)} aria-label="Remove">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="relative mt-3">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             autoFocus
@@ -404,30 +484,50 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
             className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
         </div>
-        <div className="mt-4 max-h-[50vh] space-y-1 overflow-y-auto">
+        <div className="mt-3 max-h-[42vh] space-y-1 overflow-y-auto">
           {hint ? (
             <div className="py-6 text-center text-sm text-muted-foreground">{hint}</div>
           ) : (
-            results.map((u) => (
-              <button
-                key={u.id}
-                disabled={starting}
-                onClick={() => startChat(u.id)}
-                className="flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-muted disabled:opacity-50"
-              >
-                <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={44} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-medium">{u.display_name}</div>
-                  <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
-                </div>
-              </button>
-            ))
+            results.map((u) => {
+              const isPicked = pickedIds.has(u.id);
+              return (
+                <button
+                  key={u.id}
+                  disabled={starting}
+                  onClick={() => (mode === "group" ? togglePick(u) : startChat(u.id))}
+                  className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-muted disabled:opacity-50 ${isPicked ? "bg-primary/10" : ""}`}
+                >
+                  <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={44} />
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate font-medium">{u.display_name}</div>
+                    <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
+                  </div>
+                  {mode === "group" && isPicked && <Check className="h-4 w-4 text-primary" />}
+                </button>
+              );
+            })
           )}
         </div>
+
+        {mode === "group" && (
+          <button
+            type="button"
+            data-testid="group-create"
+            onClick={createGroup}
+            disabled={starting || !groupName.trim() || picked.length < 1}
+            className="mt-4 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
+          >
+            Create group ({picked.length})
+          </button>
+        )}
       </div>
     </div>
   );
 }
+
+// Silence unused-warning for icons kept for future use.
+export const _iconRef = Check;
+export const _trashRef = Trash2;
 
 // Force-suppress the unused Check icon warning while keeping the import
 // available for callers that reference it via ticks in the future.
