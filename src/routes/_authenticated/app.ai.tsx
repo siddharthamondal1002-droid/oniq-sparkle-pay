@@ -60,7 +60,7 @@ function TingScreen() {
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background">
+    <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b border-border bg-card/40 px-5 pt-12 pb-4 backdrop-blur">
         <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
           <ArrowLeft className="h-4 w-4" />

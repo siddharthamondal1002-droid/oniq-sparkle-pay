@@ -49,25 +49,15 @@ function HomeScreen() {
 
   const { data: theme } = useUserTheme();
   const skins = theme?.tile_skins ?? {};
-  const wallpaper = theme?.wallpaper_url ?? null;
   const installPrompt = useInstallPrompt();
 
 
   const first = profile?.display_name?.split(" ")[0] ?? profile?.username ?? "there";
 
   return (
-    <div className="relative bg-hero pb-6 min-h-screen">
-      {wallpaper && (
-        <div className="pointer-events-none fixed inset-0 -z-0">
-          <img
-            src={wallpaper}
-            alt=""
-            className="h-full w-full object-cover"
-            onError={(e) => ((e.currentTarget.style.display = "none"))}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-background/35 via-background/20 to-background/60" />
-        </div>
-      )}
+    <div className="relative pb-6 min-h-screen">
+      {/* Wallpaper is now rendered by the app shell (_authenticated/app.tsx)
+          so it persists across every /app/* tab. */}
       <div className="relative z-10">
         <h1 className="sr-only">Your ONIQ dashboard</h1>
         <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">

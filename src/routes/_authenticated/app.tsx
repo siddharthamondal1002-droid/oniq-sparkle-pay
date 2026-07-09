@@ -1,5 +1,6 @@
 import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
 import { Home, MessageCircle, Compass, User } from "lucide-react";
+import { useUserTheme } from "@/components/customize/CustomizeSheet";
 
 export const Route = createFileRoute("/_authenticated/app")({
   component: AppShell,
@@ -15,9 +16,27 @@ const tabs: Tab[] = [
 
 function AppShell() {
   const { pathname } = useLocation();
+  const { data: theme } = useUserTheme();
+  const wallpaper = theme?.wallpaper_url ?? null;
+
   return (
     <div className="relative mx-auto flex min-h-screen max-w-md flex-col bg-background pb-28">
-      <main className="flex-1">
+      {/* Global wallpaper layer — shows behind every /app/* screen when set.
+          Sits at the shell level so the tabs remain black (clips route paints
+          its own opaque overlay on top). */}
+      {wallpaper && (
+        <div className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-md">
+          <img
+            src={wallpaper}
+            alt=""
+            className="h-full w-full object-cover"
+            onError={(e) => (e.currentTarget.style.display = "none")}
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-background/35 via-background/20 to-background/60" />
+        </div>
+      )}
+
+      <main className="relative z-10 flex-1">
         <Outlet />
       </main>
 

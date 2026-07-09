@@ -64,7 +64,7 @@ function NewsScreen() {
   const softError = data?.error;
 
   return (
-    <div className="min-h-screen bg-background pb-6">
+    <div className="min-h-screen pb-6">
       <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">
         <div className="flex items-center justify-between">
           <Link to="/app" aria-label="Back" className="grid h-10 w-10 place-items-center rounded-full bg-surface">
