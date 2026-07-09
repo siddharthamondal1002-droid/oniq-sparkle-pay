@@ -9,6 +9,12 @@ import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
 import { toast } from "sonner";
+import {
+  ensureNotificationPermission,
+  playRingback,
+  playRingtone,
+  stopAllCallSounds,
+} from "@/lib/callSounds";
 
 export type CallType = "audio" | "video";
 export type CallHandle = { startCall: (type: CallType) => void };
