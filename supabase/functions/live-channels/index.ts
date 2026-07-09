@@ -91,12 +91,16 @@ async function resolveLive(channelId: string): Promise<string | null> {
     // Prefer final redirect URL
     let m = finalUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/);
     if (m) return m[1];
-    // Fallback: canonical link on the watch page
     m = html.match(/<link rel="canonical" href="https?:\/\/[^"]*[?&]v=([A-Za-z0-9_-]{11})/);
     if (m) return m[1];
-    // Last resort: first videoId inside videoDetails block
-    m = html.match(/"videoDetails":\{[^}]*"videoId":"([A-Za-z0-9_-]{11})"/);
-    return m ? m[1] : null;
+    const vdIdx = html.indexOf('"videoDetails"');
+    if (vdIdx >= 0) {
+      const slice = html.slice(vdIdx, vdIdx + 4000);
+      const vm = slice.match(/"videoId":"([A-Za-z0-9_-]{11})"/);
+      if (vm) return vm[1];
+    }
+    const og = html.match(/<meta property="og:url" content="[^"]*[?&]v=([A-Za-z0-9_-]{11})/);
+    return og ? og[1] : null;
   } catch {
     return null;
   } finally {
