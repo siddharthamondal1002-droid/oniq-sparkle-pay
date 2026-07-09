@@ -245,6 +245,40 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     stream.getTracks().forEach((t) => pcRef.current?.addTrack(t, stream));
   };
 
+  // Fetch other conversation members once per conversation so we can ring
+  // them on their per-user channel from anywhere in the app.
+  useEffect(() => {
+    if (!meId) return;
+    let cancelled = false;
+    supabase
+      .from("conversation_members")
+      .select("user_id")
+      .eq("conversation_id", conversationId)
+      .neq("user_id", meId)
+      .then(({ data }) => {
+        if (cancelled) return;
+        peerIdsRef.current = (data ?? []).map((r: any) => r.user_id).filter(Boolean);
+      });
+    return () => { cancelled = true; };
+  }, [conversationId, meId]);
+
+  const sendUserRing = () => {
+    const id = callIdRef.current;
+    if (!id) return;
+    const payload = {
+      conversationId,
+      callId: id,
+      callType: callTypeRef.current,
+      fromName: meName,
+      fromId: meId,
+    };
+    for (const ch of userRingChannelsRef.current) {
+      try {
+        ch.send({ type: "broadcast", event: "ring", payload });
+      } catch {}
+    }
+  };
+
   const startCall = (type: CallType) => {
     if (!meId || activeRef.current) return;
     activeRef.current = true;
@@ -252,10 +286,40 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     callIdRef.current = genId();
     setCallTypeBoth(type);
     setStatus("outgoing");
+    ensureNotificationPermission();
+    playRingback();
     sendSig("ring", { callType: type, fromName: meName });
+
+    // Broadcast on every peer's user-scoped channel so the incoming UI shows
+    // no matter what screen they're on. Re-broadcast every 2s while outgoing
+    // via the outgoing-status effect below.
+    stopUserRingBroadcast();
+    for (const peerId of peerIdsRef.current) {
+      const uch = supabase.channel(`user-calls:${peerId}`, {
+        config: { broadcast: { self: false } },
+      });
+      uch.subscribe((s) => {
+        if (s === "SUBSCRIBED") {
+          uch.send({
+            type: "broadcast",
+            event: "ring",
+            payload: {
+              conversationId,
+              callId: callIdRef.current,
+              callType: callTypeRef.current,
+              fromName: meName,
+              fromId: meId,
+            },
+          });
+        }
+      });
+      userRingChannelsRef.current.push(uch);
+    }
+
     ringTimeoutRef.current = window.setTimeout(() => {
       if (isCallerRef.current && !pcRef.current) {
         toast("They're not around — try a message 💬");
+        insertMissedCallMessage("missed");
         finishCall(true);
       }
     }, 30000);
