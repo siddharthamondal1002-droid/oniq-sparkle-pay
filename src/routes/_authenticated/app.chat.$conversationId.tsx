@@ -2,11 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
-
 
 type Message = {
   id: string;
@@ -25,7 +24,21 @@ export const Route = createFileRoute("/_authenticated/app/chat/$conversationId")
 function dayLabel(d: Date) {
   if (isToday(d)) return "Today";
   if (isYesterday(d)) return "Yesterday";
-  return format(d, "EEE, MMM d");
+  return format(d, "d MMMM yyyy");
+}
+
+const AVATAR_COLORS = [
+  "#0B5A4E", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981",
+  "#3B82F6", "#EC4899", "#14B8A6", "#F97316", "#6366F1",
+];
+function colorFor(seed: string) {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function isSystemMessage(m: Message): boolean {
+  return m.type === "system" || m.type === "call" || (m.content?.startsWith("📞") ?? false);
 }
 
 function ChatThread() {
@@ -33,15 +46,20 @@ function ChatThread() {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  const [peerTyping, setPeerTyping] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const callRef = useRef<CallHandle>(null);
+  const typingChanRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const lastTypingSentRef = useRef(0);
+  const typingIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const peerTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: me } = useQuery({
     queryKey: ["me"],
     queryFn: async () => (await supabase.auth.getSession()).data.session?.user ?? null,
   });
-
 
   const { data: header } = useQuery({
     queryKey: ["conversation-header", conversationId, me?.id],
@@ -60,6 +78,7 @@ function ChatThread() {
           .eq("conversation_id", conversationId)
           .neq("user_id", me!.id)
           .maybeSingle();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const p = (other as any)?.profiles;
         if (p) return { title: p.display_name || p.username || "Chat", avatar_url: p.avatar_url ?? null };
       }
@@ -80,11 +99,26 @@ function ChatThread() {
     },
   });
 
+  // Peer's last_read_at → drives read ticks.
+  const { data: peerReadAt, refetch: refetchPeerRead } = useQuery({
+    queryKey: ["peer-read", conversationId, me?.id],
+    enabled: !!me,
+    queryFn: async (): Promise<string | null> => {
+      const { data } = await supabase
+        .from("conversation_members")
+        .select("last_read_at")
+        .eq("conversation_id", conversationId)
+        .neq("user_id", me!.id)
+        .maybeSingle();
+      return data?.last_read_at ?? null;
+    },
+  });
+
   const markRead = () => {
     supabase.rpc("mark_conversation_read", { _conversation_id: conversationId });
   };
 
-  // Realtime subscription scoped to this conversation.
+  // Realtime: messages + peer read receipts + typing broadcast.
   useEffect(() => {
     const channel = supabase
       .channel(`messages:${conversationId}`)
@@ -106,21 +140,89 @@ function ChatThread() {
           markRead();
         },
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "conversation_members",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        () => {
+          refetchPeerRead();
+        },
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversationId, qc]);
+  }, [conversationId, qc, refetchPeerRead]);
+
+  // Typing channel (broadcast).
+  useEffect(() => {
+    if (!me) return;
+    const ch = supabase.channel(`typing:${conversationId}`, {
+      config: { broadcast: { self: false } },
+    });
+    ch.on("broadcast", { event: "typing" }, (payload) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const p = payload.payload as any;
+      if (!p || p.user_id === me.id) return;
+      if (p.state === "start") {
+        setPeerTyping(true);
+        if (peerTypingTimerRef.current) clearTimeout(peerTypingTimerRef.current);
+        peerTypingTimerRef.current = setTimeout(() => setPeerTyping(false), 4500);
+      } else {
+        setPeerTyping(false);
+      }
+    });
+    ch.subscribe();
+    typingChanRef.current = ch;
+    return () => {
+      supabase.removeChannel(ch);
+      typingChanRef.current = null;
+      if (peerTypingTimerRef.current) clearTimeout(peerTypingTimerRef.current);
+      if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
+    };
+  }, [conversationId, me]);
+
+  const emitTyping = (state: "start" | "stop") => {
+    if (!me || !typingChanRef.current) return;
+    typingChanRef.current.send({
+      type: "broadcast",
+      event: "typing",
+      payload: { user_id: me.id, state },
+    });
+  };
+
+  const handleTextChange = (v: string) => {
+    setText(v);
+    if (!v.trim()) {
+      emitTyping("stop");
+      if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
+      return;
+    }
+    const now = Date.now();
+    if (now - lastTypingSentRef.current > 2500) {
+      lastTypingSentRef.current = now;
+      emitTyping("start");
+    }
+    if (typingIdleTimerRef.current) clearTimeout(typingIdleTimerRef.current);
+    typingIdleTimerRef.current = setTimeout(() => {
+      emitTyping("stop");
+      lastTypingSentRef.current = 0;
+    }, 3000);
+  };
 
   // Mark read on open + when message list changes.
   useEffect(() => {
     markRead();
   }, [conversationId, messages.length]);
 
-  // Autoscroll to bottom on new messages.
+  // Autoscroll on new messages.
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, peerTyping]);
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -136,6 +238,8 @@ function ChatThread() {
     }
     setSending(true);
     setText("");
+    emitTyping("stop");
+    lastTypingSentRef.current = 0;
     const { error } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       sender_id: me.id,
@@ -157,39 +261,68 @@ function ChatThread() {
     inputRef.current?.focus();
   };
 
-
   const title = header?.title ?? "Conversation";
-
-  // Build message list with day separators.
   const visible = messages.filter((m) => !m.is_deleted);
-  const rendered: Array<{ kind: "day"; key: string; label: string } | { kind: "msg"; key: string; m: Message }> = [];
+
+  // Build render list with day separators + grouping metadata.
+  type Row =
+    | { kind: "day"; key: string; label: string }
+    | { kind: "system"; key: string; text: string }
+    | { kind: "msg"; key: string; m: Message; firstOfGroup: boolean; lastOfGroup: boolean };
+  const rendered: Row[] = [];
   let lastDay = "";
-  for (const m of visible) {
+  for (let i = 0; i < visible.length; i++) {
+    const m = visible[i];
     const d = m.created_at ? new Date(m.created_at) : new Date();
-    const key = format(d, "yyyy-MM-dd");
-    if (key !== lastDay) {
-      rendered.push({ kind: "day", key: `d-${key}`, label: dayLabel(d) });
-      lastDay = key;
+    const dayKey = format(d, "yyyy-MM-dd");
+    if (dayKey !== lastDay) {
+      rendered.push({ kind: "day", key: `d-${dayKey}`, label: dayLabel(d) });
+      lastDay = dayKey;
     }
-    rendered.push({ kind: "msg", key: m.id, m });
+    if (isSystemMessage(m)) {
+      rendered.push({ kind: "system", key: m.id, text: m.content ?? "" });
+      continue;
+    }
+    const prev = visible[i - 1];
+    const next = visible[i + 1];
+    const sameSenderAsPrev =
+      prev && !isSystemMessage(prev) && prev.sender_id === m.sender_id &&
+      prev.created_at && m.created_at &&
+      format(new Date(prev.created_at), "yyyy-MM-dd") === dayKey;
+    const sameSenderAsNext =
+      next && !isSystemMessage(next) && next.sender_id === m.sender_id &&
+      next.created_at && m.created_at &&
+      format(new Date(next.created_at), "yyyy-MM-dd") === dayKey;
+    rendered.push({
+      kind: "msg",
+      key: m.id,
+      m,
+      firstOfGroup: !sameSenderAsPrev,
+      lastOfGroup: !sameSenderAsNext,
+    });
   }
 
   return (
     <div className="flex h-[100dvh] flex-col">
-      <header className="flex items-center gap-3 border-b border-border/60 bg-background/80 px-4 pb-3 pt-12 backdrop-blur">
+      <header className="flex items-center gap-2 border-b border-border/60 bg-background/80 px-2 pb-3 pt-12 backdrop-blur">
         <Link to="/app/chat" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
+        <div
+          className="grid h-10 w-10 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white"
+          style={{ backgroundColor: colorFor(title) }}
+        >
           {header?.avatar_url ? (
             <img src={header.avatar_url} alt="" className="h-full w-full object-cover" />
           ) : (
             title.charAt(0).toUpperCase()
           )}
         </div>
-        <div className="flex-1">
-          <div className="font-medium">{title}</div>
-          <div className="text-xs text-muted-foreground">Live · realtime</div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-medium">{title}</div>
+          <div className="text-[11px] text-muted-foreground">
+            {peerTyping ? <span className="text-[#25D366]">typing…</span> : "online"}
+          </div>
         </div>
         <button
           data-testid="call-audio"
@@ -197,7 +330,7 @@ function ChatThread() {
           aria-label="Voice call"
           className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
         >
-          <Phone className="h-4 w-4" />
+          <Phone className="h-5 w-5" />
         </button>
         <button
           data-testid="call-video"
@@ -205,7 +338,7 @@ function ChatThread() {
           aria-label="Video call"
           className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
         >
-          <Video className="h-4 w-4" />
+          <Video className="h-5 w-5" />
         </button>
       </header>
 
@@ -222,7 +355,7 @@ function ChatThread() {
         peerName={title}
       />
 
-      <div className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3">
         {isLoading ? (
           <div className="text-center text-sm text-muted-foreground">Loading…</div>
         ) : rendered.length === 0 ? (
@@ -230,39 +363,82 @@ function ChatThread() {
             No messages yet. Say hi 👋
           </div>
         ) : (
-          rendered.map((r) => {
+          rendered.map((r, idx) => {
             if (r.kind === "day") {
               return (
                 <div key={r.key} className="my-3 flex items-center justify-center">
-                  <span className="rounded-full bg-muted px-3 py-1 text-[10px] uppercase tracking-wider text-muted-foreground">
+                  <span className="rounded-full bg-card/80 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
                     {r.label}
                   </span>
                 </div>
               );
             }
-            const m = r.m;
+            if (r.kind === "system") {
+              return (
+                <div key={r.key} className="my-2 flex items-center justify-center">
+                  <span className="rounded-full bg-card/80 px-3 py-1 text-[11px] text-muted-foreground shadow-sm">
+                    {r.text}
+                  </span>
+                </div>
+              );
+            }
+            const { m, firstOfGroup, lastOfGroup } = r;
             const mine = m.sender_id === me?.id;
+            const groupGap = firstOfGroup ? "mt-2.5" : "mt-[2px]";
+            // Prev row for tail decision — safe lookup
+            const prev = rendered[idx - 1];
+            const isFirstAfterBreak = firstOfGroup || (prev && prev.kind !== "msg");
+            const bubbleRadius = mine
+              ? isFirstAfterBreak
+                ? "rounded-2xl rounded-tr-sm"
+                : "rounded-2xl"
+              : isFirstAfterBreak
+                ? "rounded-2xl rounded-tl-sm"
+                : "rounded-2xl";
+            const isRead =
+              mine && peerReadAt && m.created_at
+                ? new Date(peerReadAt).getTime() >= new Date(m.created_at).getTime()
+                : false;
             return (
-              <div key={r.key} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+              <div key={r.key} className={`flex ${mine ? "justify-end" : "justify-start"} ${groupGap}`}>
                 <div
-                  className={`max-w-[78%] rounded-2xl px-4 py-2 text-sm ${
+                  className={`max-w-[78%] px-3 py-1.5 text-sm shadow-sm ${bubbleRadius} ${
                     mine
-                      ? "rounded-br-sm bg-primary text-primary-foreground"
-                      : "rounded-bl-sm border border-border bg-card text-foreground"
+                      ? "bg-[#0B5A4E] text-white"
+                      : "border border-border bg-card text-foreground"
                   }`}
                 >
-                  <div className="whitespace-pre-wrap break-words">{m.content}</div>
+                  <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
                   <div
-                    className={`mt-0.5 text-right text-[10px] ${
-                      mine ? "text-primary-foreground/70" : "text-muted-foreground"
+                    className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
+                      mine ? "text-white/70" : "text-muted-foreground"
                     }`}
                   >
-                    {m.created_at ? format(new Date(m.created_at), "HH:mm") : ""}
+                    <span>{m.created_at ? format(new Date(m.created_at), "HH:mm") : ""}</span>
+                    {mine &&
+                      (isRead ? (
+                        <CheckCheck className="h-3.5 w-3.5 text-[#53BDEB]" />
+                      ) : (
+                        <CheckCheck className="h-3.5 w-3.5 text-white/70" />
+                      ))}
+                    {/* keep single-tick icon available for future "sent-only" state */}
+                    {mine && lastOfGroup && false && <Check className="h-3 w-3" />}
                   </div>
                 </div>
               </div>
             );
           })
+        )}
+        {peerTyping && (
+          <div className="mt-2 flex justify-start">
+            <div className="rounded-2xl rounded-tl-sm border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-sm">
+              <span className="inline-flex gap-1">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms]" />
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:300ms]" />
+              </span>
+            </div>
+          </div>
         )}
         <div ref={bottomRef} />
       </div>
@@ -271,20 +447,38 @@ function ChatThread() {
         onSubmit={send}
         className="flex items-center gap-2 border-t border-border/60 bg-background/95 px-3 pb-6 pt-3 backdrop-blur"
       >
-        <input
-          ref={inputRef}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Message"
-          className="flex-1 rounded-full border border-border bg-input/40 px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-        />
-        <button
-          type="submit"
-          disabled={sending || !text.trim()}
-          className="grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground transition disabled:opacity-40"
-        >
-          <Send className="h-4 w-4" />
-        </button>
+        <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
+          <Smile className="h-5 w-5 shrink-0 text-muted-foreground" />
+          <input
+            data-testid="chat-input"
+            ref={inputRef}
+            value={text}
+            onChange={(e) => handleTextChange(e.target.value)}
+            onBlur={() => emitTyping("stop")}
+            placeholder="Message"
+            className="flex-1 bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none"
+          />
+        </div>
+        {text.trim() ? (
+          <button
+            data-testid="chat-send"
+            type="submit"
+            disabled={sending}
+            className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95 disabled:opacity-40"
+            aria-label="Send"
+          >
+            <Send className="h-5 w-5" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => toast("voice notes coming soon 🎙")}
+            className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95"
+            aria-label="Voice note"
+          >
+            <Mic className="h-5 w-5" />
+          </button>
+        )}
       </form>
     </div>
   );
