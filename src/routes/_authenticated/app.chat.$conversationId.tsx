@@ -68,6 +68,8 @@ function ChatThread() {
   const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const swipedRef = useRef(false);
+  const navigate = useNavigate();
+  const [showMembersSheet, setShowMembersSheet] = useState(false);
 
   const { data: me } = useQuery({
     queryKey: ["me"],
