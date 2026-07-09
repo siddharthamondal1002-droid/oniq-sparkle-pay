@@ -495,13 +495,29 @@ function UploadSheet({
   async function publish() {
     if (!file || !me) return;
     setBusy(true);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       const ext = (file.name.split(".").pop() || "mp4").toLowerCase();
       const path = `${me}/${crypto.randomUUID()}.${ext}`;
-      const { error: upErr } = await supabase.storage
+
+      const uploadPromise = supabase.storage
         .from("clips")
         .upload(path, file, { contentType: file.type, upsert: false });
+
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error("timeout")),
+          120_000,
+        );
+      });
+
+      const { error: upErr } = (await Promise.race([
+        uploadPromise,
+        timeoutPromise,
+      ])) as Awaited<typeof uploadPromise>;
+      clearTimeout(timeoutId);
       if (upErr) throw upErr;
+
       const { data: signed, error: sErr } = await supabase.storage
         .from("clips")
         .createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
@@ -525,11 +541,29 @@ function UploadSheet({
       onDone();
       onClose();
     } catch (err: any) {
-      toast.error(err.message ?? "Upload failed");
+      clearTimeout(timeoutId);
+      const msg = String(err?.message ?? err ?? "").toLowerCase();
+      const status = Number(err?.statusCode ?? err?.status ?? 0);
+      if (msg === "timeout") {
+        toast.error("Upload timed out — try again on stronger wifi 📶");
+      } else if (
+        status === 413 ||
+        msg.includes("payload") ||
+        msg.includes("too large") ||
+        msg.includes("exceeded") ||
+        msg.includes("maximum allowed size")
+      ) {
+        toast.error("That video is too big — keep it under 100MB 📦");
+      } else if (msg.includes("mime")) {
+        toast.error("Unsupported format — use mp4, webm, or mov 🎞️");
+      } else {
+        toast.error(err?.message ? `Upload failed — ${err.message}` : "Upload failed — try again 📶");
+      }
     } finally {
       setBusy(false);
     }
   }
+
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/70" onClick={onClose}>
