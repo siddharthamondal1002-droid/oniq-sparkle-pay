@@ -415,7 +415,7 @@ function HeroTile({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         search={search as any}
         style={{ animationDelay: `${delay}ms` }}
-        className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
+        className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
       >
         {showSkin ? (
           <img
@@ -467,7 +467,7 @@ function HeroTile({
       role="button"
       tabIndex={0}
       style={{ animationDelay: `${delay}ms` }}
-      className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between cursor-pointer`}
+      className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between cursor-pointer`}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         <div
