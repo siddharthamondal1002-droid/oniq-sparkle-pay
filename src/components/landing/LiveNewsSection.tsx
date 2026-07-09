@@ -127,11 +127,17 @@ export function loadYouTubeApi(): Promise<any> {
   return w.__ytApiPromise;
 }
 
-type GenreId = "news" | "sports" | "entertainment" | "finance" | "lifestyle";
-type LiveChannel = { id: string; name: string; videoId: string };
-type LiveGenre = { id: GenreId; name: string; emoji: string; channels: LiveChannel[] };
+type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle";
+type Video = {
+  videoId: string;
+  title: string;
+  channelName: string;
+  publishedAt: string;
+  thumbnail: string;
+};
+type LiveGenre = { id: GenreId; name: string; emoji: string; live: boolean; videos: Video[] };
 
-export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
+export function WatchLive() {
   const [genres, setGenres] = useState<LiveGenre[] | null>(null);
   const [genreId, setGenreId] = useState<GenreId>("news");
   const [idx, setIdx] = useState(0);
@@ -140,10 +146,7 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
   const playerRef = useRef<any>(null);
   const failStreakRef = useRef(0);
   const advanceTimerRef = useRef<number | null>(null);
-  const tourTimerRef = useRef<number | null>(null);
 
-
-  // Load live genre list from edge function
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -164,24 +167,22 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
 
   const activeGenre =
     (genres ?? []).find((g) => g.id === genreId) ?? (genres ?? [])[0] ?? null;
-  const channels = activeGenre?.channels ?? [];
-  const ch = channels.length ? channels[idx % channels.length] : null;
+  const videos = activeGenre?.videos ?? [];
+  const isLiveGenre = !!activeGenre?.live;
+  const current = videos.length ? videos[idx % videos.length] : null;
 
   const advance = (reason: "error" | "ended") => {
-    const total = channels.length;
+    const total = videos.length;
     if (total === 0) { setAllDead(true); return; }
     failStreakRef.current += reason === "error" ? 1 : 0;
-    if (failStreakRef.current >= total) {
-      setAllDead(true);
-      return;
-    }
+    if (failStreakRef.current >= total) { setAllDead(true); return; }
     if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
     advanceTimerRef.current = window.setTimeout(() => {
       setIdx((i) => (i + 1) % total);
-    }, 800);
+    }, 500);
   };
 
-  const pickChannel = (i: number) => {
+  const pickVideo = (i: number) => {
     failStreakRef.current = 0;
     setAllDead(false);
     setIdx(i);
@@ -195,9 +196,8 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
     setIdx(0);
   };
 
-
   useEffect(() => {
-    if (allDead || !ch) return;
+    if (allDead || !current) return;
     let cancelled = false;
     const host = mountRef.current;
     if (!host) return;
@@ -209,12 +209,11 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
     loadYouTubeApi().then((YT) => {
       if (cancelled || !YT) return;
       try {
-        console.log("[WatchLive] constructing player with videoId", ch.videoId, "for", ch.name);
         playerRef.current = new YT.Player(div.id, {
           width: "100%",
           height: "100%",
           host: "https://www.youtube-nocookie.com",
-          videoId: ch.videoId,
+          videoId: current.videoId,
           playerVars: {
             autoplay: 1,
             mute: 1,
@@ -227,18 +226,14 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
           },
           events: {
             onReady: (e: any) => { try { e.target.playVideo(); } catch { /* noop */ } },
-            onError: (e: any) => {
-              console.warn("[WatchLive] error", e?.data, "for", ch.name);
-              advance("error");
-            },
+            onError: () => advance("error"),
             onStateChange: (e: any) => {
-              if (e?.data === 0) advance("ended"); // ENDED
-              if (e?.data === 1) failStreakRef.current = 0; // PLAYING
+              if (e?.data === 0) advance("ended");
+              if (e?.data === 1) failStreakRef.current = 0;
             },
           },
         });
-      } catch (err) {
-        console.warn("[WatchLive] player init failed", err);
+      } catch {
         advance("error");
       }
     });
@@ -251,27 +246,7 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
       if (host) host.innerHTML = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ch?.videoId, allDead]);
-
-  // Auto-tour: rotate channels every 120s within active genre
-  const chLen = channels.length;
-  useEffect(() => {
-    if (!autoTour || allDead || chLen < 2) return;
-    const tick = () => {
-      if (typeof document !== "undefined" && document.hidden) {
-        tourTimerRef.current = window.setTimeout(tick, 120_000);
-        return;
-      }
-      setIdx((i) => (i + 1) % chLen);
-    };
-    tourTimerRef.current = window.setTimeout(tick, 120_000);
-    return () => {
-      if (tourTimerRef.current) {
-        window.clearTimeout(tourTimerRef.current);
-        tourTimerRef.current = null;
-      }
-    };
-  }, [idx, chLen, allDead, autoTour]);
+  }, [current?.videoId, allDead]);
 
   const loading = genres === null;
   const currentGenreId = activeGenre?.id ?? genreId;
@@ -299,60 +274,70 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
         </div>
       )}
 
-      <div className="mb-3 flex flex-wrap gap-2">
-        {channels.map((c, i) => {
-          const active = ch?.id === c.id && !allDead;
-          return (
-            <button
-              key={c.id}
-              onClick={() => pickChannel(i)}
-              className={`press whitespace-nowrap rounded-full px-3 py-1 text-xs font-medium border transition-colors ${
-                active
-                  ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_var(--primary)]"
-                  : "bg-surface text-muted-foreground border-border hover:text-foreground"
-              }`}
-            >
-              {c.name}
-            </button>
-          );
-        })}
-        {channels.length > 0 && (
-          <div className="ml-auto flex items-center gap-2">
-            {autoTour && !allDead && (
-              <span className="text-[10px] text-muted-foreground">auto-tour 🔁</span>
-            )}
-            <button
-              onClick={() => {
-                const total = channels.length;
-                if (allDead) { setAllDead(false); setIdx(0); failStreakRef.current = 0; return; }
-                setIdx((i) => (i + 1) % total);
-              }}
-              className="press inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium hover:text-foreground"
-              aria-label="Next channel"
-            >
-              <SkipForward className="h-3 w-3" /> Next
-            </button>
-          </div>
-        )}
-      </div>
-
       <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black">
         {loading ? (
           <div className="absolute inset-0 animate-pulse bg-surface" />
-        ) : allDead || !ch ? (
+        ) : allDead || !current ? (
           <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted-foreground">
             streams are napping — try later 📺
           </div>
         ) : (
           <div ref={mountRef} className="h-full w-full" />
         )}
+        {current && (
+          <span className={`absolute top-2 left-2 z-10 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/20 text-red-300" : "border-primary/50 bg-primary/20 text-primary"}`}>
+            {isLiveGenre ? (
+              <>
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+                </span>
+                LIVE
+              </>
+            ) : (
+              "NEW"
+            )}
+          </span>
+        )}
       </div>
+
+      {videos.length > 0 && (
+        <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-1">
+          {videos.map((v, i) => {
+            const active = current?.videoId === v.videoId && !allDead;
+            return (
+              <button
+                key={v.videoId}
+                data-testid="video-card"
+                onClick={() => pickVideo(i)}
+                className={`press w-40 shrink-0 text-left ${active ? "opacity-100" : "opacity-90 hover:opacity-100"}`}
+              >
+                <div className={`relative aspect-video overflow-hidden rounded-lg border ${active ? "border-primary" : "border-border"}`}>
+                  <img
+                    src={v.thumbnail}
+                    alt=""
+                    loading="lazy"
+                    className="h-full w-full object-cover"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
+                </div>
+                <div className="mt-1.5 line-clamp-2 text-[11px] font-medium text-foreground leading-snug">
+                  {v.title}
+                </div>
+                <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{v.channelName}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <p className="mt-2 text-[11px] text-muted-foreground">
-        Live streams by broadcasters via YouTube
+        {isLiveGenre ? "Live streams by broadcasters via YouTube" : "Latest uploads via YouTube"}
       </p>
     </div>
   );
 }
+
 
 export function LiveNewsSection() {
   const { items, failed, idx } = useLiveNews();
@@ -447,7 +432,7 @@ export function LiveNewsSection() {
           <div className="mb-3 text-sm font-semibold text-foreground">
             Watch Live <span aria-hidden>📺</span>
           </div>
-          <WatchLive autoTour />
+          <WatchLive />
         </div>
 
         {tickerText && (
