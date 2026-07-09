@@ -246,7 +246,7 @@ function ChatList() {
                     params={{ conversationId: c.id }}
                     className="flex items-center gap-3 px-1 py-3 active:bg-muted/60"
                   >
-                    <Avatar name={c.title} url={c.avatar_url} size={52} />
+                    <Avatar name={c.title} url={c.avatar_url} size={52} group={c.type === "group"} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
                         <div className="truncate font-semibold">{c.title}</div>
@@ -260,14 +260,16 @@ function ChatList() {
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
-                          {mine &&
+                          {mine && c.type !== "group" &&
                             (isRead ? (
                               <CheckCheck className="h-3.5 w-3.5 shrink-0 text-[#53BDEB]" />
                             ) : (
                               <CheckCheck className="h-3.5 w-3.5 shrink-0" />
                             ))}
                           <span className="truncate">
-                            {mine && <span>You: </span>}
+                            {c.type === "group" && c.last_sender_name
+                              ? `${c.last_sender_name}: `
+                              : mine && <span>You: </span>}
                             {c.last_message ?? "No messages yet"}
                           </span>
                         </div>
