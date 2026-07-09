@@ -148,6 +148,29 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const audioSrcNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioGainNodeRef = useRef<GainNode | null>(null);
   const audioPipelineStreamIdRef = useRef<string | null>(null);
+  const statsIntervalRef = useRef<number | null>(null);
+  const statsPrevRef = useRef<{
+    ts: number;
+    bytesIn: number;
+    bytesOut: number;
+    packetsLost: number;
+    packetsReceived: number;
+  } | null>(null);
+  const statsAggRef = useRef<{
+    samples: number;
+    rttSum: number;
+    rttMax: number;
+    jitterSum: number;
+    kbpsInSum: number;
+    kbpsOutSum: number;
+    lossPct: number;
+    packetsLost: number;
+    packetsReceived: number;
+    route: string;
+    codec: string;
+    fec: boolean;
+    connectedAt: number;
+  } | null>(null);
 
   const teardownRemoteAudioPipeline = () => {
     try { audioSrcNodeRef.current?.disconnect(); } catch {}
