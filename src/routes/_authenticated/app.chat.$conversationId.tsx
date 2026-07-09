@@ -74,6 +74,9 @@ function ChatThread() {
     queryFn: async () => (await supabase.auth.getSession()).data.session?.user ?? null,
   });
 
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+
   const { data: header } = useQuery({
     queryKey: ["conversation-header", conversationId, me?.id],
     enabled: !!me,
@@ -83,7 +86,7 @@ function ChatThread() {
         .select("id, name, type, avatar_url")
         .eq("id", conversationId)
         .maybeSingle();
-      if (!c) return { title: "Conversation", avatar_url: null as string | null };
+      if (!c) return { title: "Conversation", avatar_url: null as string | null, peerId: null as string | null, isGroup: false };
       if (c.type === "direct") {
         const { data: other } = await supabase
           .from("conversation_members")
@@ -93,9 +96,28 @@ function ChatThread() {
           .maybeSingle();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const p = (other as any)?.profiles;
-        if (p) return { title: p.display_name || p.username || "Chat", avatar_url: p.avatar_url ?? null };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const peerId = (other as any)?.user_id ?? null;
+        if (p) return { title: p.display_name || p.username || "Chat", avatar_url: p.avatar_url ?? null, peerId, isGroup: false };
+        return { title: "Chat", avatar_url: null, peerId, isGroup: false };
       }
-      return { title: c.name ?? "Group", avatar_url: c.avatar_url };
+      return { title: c.name ?? "Group", avatar_url: c.avatar_url, peerId: null, isGroup: true };
+    },
+  });
+
+  const peerId = header?.peerId ?? null;
+
+  const { data: isBlocked = false, refetch: refetchBlocked } = useQuery({
+    queryKey: ["blocked", me?.id, peerId],
+    enabled: !!me && !!peerId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("blocked_users")
+        .select("blocked_id")
+        .eq("blocker_id", me!.id)
+        .eq("blocked_id", peerId!)
+        .maybeSingle();
+      return !!data;
     },
   });
 
@@ -104,11 +126,11 @@ function ChatThread() {
     queryFn: async (): Promise<Message[]> => {
       const { data } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, type, created_at, is_deleted, reply_to_id")
+        .select("id, conversation_id, sender_id, content, type, created_at, is_deleted, reply_to_id, is_ai")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true })
         .limit(200);
-      return data ?? [];
+      return (data ?? []) as Message[];
     },
   });
 
