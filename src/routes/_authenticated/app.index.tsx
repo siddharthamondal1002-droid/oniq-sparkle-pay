@@ -428,7 +428,7 @@ function HeroTile({
           <button
             className={ctrlBtn}
             aria-label={muted ? "Unmute" : "Mute"}
-            onClick={(e) => { stop(e); if (muted) { yt("unMute"); setMuted(false); } else { yt("mute"); setMuted(true); } }}
+            onClick={(e) => { stop(e); if (muted) { yt("unMute"); yt("setVolume", [100]); setMuted(false); } else { yt("mute"); setMuted(true); } }}
           >
             {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>
