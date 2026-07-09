@@ -1,0 +1,2 @@
+ALTER TABLE public.conversation_members DROP CONSTRAINT conversation_members_role_check;
+ALTER TABLE public.conversation_members ADD CONSTRAINT conversation_members_role_check CHECK (role = ANY (ARRAY['owner'::text, 'admin'::text, 'member'::text]));
