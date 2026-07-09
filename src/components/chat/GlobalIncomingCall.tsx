@@ -46,10 +46,17 @@ export function GlobalIncomingCall() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // If the thread for the incoming call is already open, the thread's own
+  // CallOverlay owns the incoming UI. Suppress the global overlay entirely
+  // (render + sounds) so it doesn't paint over accept/decline and doesn't
+  // create a duplicate ringtone.
+  const isThreadOpen = (convId: string) =>
+    pathname === `/app/chat/${convId}` || pathname.startsWith(`/app/chat/${convId}/`);
+
   // Keep ref in sync so the interval + broadcasts see latest.
   useEffect(() => {
     incomingRef.current = incoming;
-    if (incoming) {
+    if (incoming && !isThreadOpen(incoming.conversationId)) {
       playRingtone();
       if (typeof document !== "undefined" && document.hidden) {
         showIncomingNotification(incoming.callId, incoming.fromName);
@@ -57,7 +64,9 @@ export function GlobalIncomingCall() {
     } else {
       stopAllCallSounds();
     }
-  }, [incoming]);
+    // pathname included so switching into the thread stops the sound.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incoming, pathname]);
 
   // Auto-dismiss when caller stops re-broadcasting (>6s of silence).
   useEffect(() => {
@@ -102,11 +111,10 @@ export function GlobalIncomingCall() {
       if (activeCallIdRef.current && activeCallIdRef.current !== p.callId) return;
       const cur = incomingRef.current;
       if (cur && cur.callId === p.callId) {
-        // Refresh lastRing, don't re-toast.
         setIncoming({ ...cur, lastRing: Date.now() });
         return;
       }
-      if (cur) return; // don't overwrite a different active ring
+      if (cur) return;
       ensureNotificationPermission();
       setIncoming({
         conversationId: p.conversationId,
@@ -117,13 +125,12 @@ export function GlobalIncomingCall() {
         lastRing: Date.now(),
       });
     });
-    // If the caller cancels via the convo end broadcast we can't hear it here,
-    // but the 6s silence guard covers that.
     ch.subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
   }, [me]);
+
 
   const accept = () => {
     const cur = incomingRef.current;
