@@ -127,7 +127,10 @@ function loadYouTubeApi(): Promise<any> {
   return w.__ytApiPromise;
 }
 
+type LiveEntry = { id: string; name: string; videoId: string };
+
 export function WatchLive() {
+  const [channels, setChannels] = useState<LiveEntry[] | null>(null);
   const [idx, setIdx] = useState(0);
   const [allDead, setAllDead] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -135,17 +138,38 @@ export function WatchLive() {
   const failStreakRef = useRef(0);
   const advanceTimerRef = useRef<number | null>(null);
 
-  const ch = LIVE_CHANNELS[idx];
+  // Load live channel list from edge function
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("live-channels", { body: {} });
+        if (!alive) return;
+        if (error) throw error;
+        const list: LiveEntry[] = Array.isArray(data?.channels) ? data.channels : [];
+        setChannels(list);
+        if (list.length === 0) setAllDead(true);
+      } catch (e) {
+        console.warn("[WatchLive] fetch channels failed", e);
+        if (alive) { setChannels([]); setAllDead(true); }
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const ch = channels && channels.length ? channels[idx % channels.length] : null;
 
   const advance = (reason: "error" | "ended") => {
+    const total = channels?.length ?? 0;
+    if (total === 0) { setAllDead(true); return; }
     failStreakRef.current += reason === "error" ? 1 : 0;
-    if (failStreakRef.current >= LIVE_CHANNELS.length) {
+    if (failStreakRef.current >= total) {
       setAllDead(true);
       return;
     }
     if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
     advanceTimerRef.current = window.setTimeout(() => {
-      setIdx((i) => (i + 1) % LIVE_CHANNELS.length);
+      setIdx((i) => (i + 1) % total);
     }, 800);
   };
 
@@ -156,7 +180,7 @@ export function WatchLive() {
   };
 
   useEffect(() => {
-    if (allDead) return;
+    if (allDead || !ch) return;
     let cancelled = false;
     const host = mountRef.current;
     if (!host) return;
@@ -168,18 +192,19 @@ export function WatchLive() {
     loadYouTubeApi().then((YT) => {
       if (cancelled || !YT) return;
       try {
+        console.log("[WatchLive] constructing player with videoId", ch.videoId, "for", ch.name);
         playerRef.current = new YT.Player(div.id, {
           width: "100%",
           height: "100%",
           host: "https://www.youtube-nocookie.com",
+          videoId: ch.videoId,
           playerVars: {
-            channel: ch.id,
-            live: 1,
             autoplay: 1,
             mute: 1,
             playsinline: 1,
             rel: 0,
             modestbranding: 1,
+            controls: 1,
           },
           events: {
             onReady: (e: any) => { try { e.target.playVideo(); } catch { /* noop */ } },
@@ -208,13 +233,15 @@ export function WatchLive() {
       if (host) host.innerHTML = "";
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ch.id, allDead]);
+  }, [ch?.videoId, allDead]);
+
+  const loading = channels === null;
 
   return (
     <div>
       <div className="mb-3 flex flex-wrap gap-2">
-        {LIVE_CHANNELS.map((c, i) => {
-          const active = c.id === ch.id && !allDead;
+        {(channels ?? []).map((c, i) => {
+          const active = ch?.id === c.id && !allDead;
           return (
             <button
               key={c.id}
@@ -229,19 +256,24 @@ export function WatchLive() {
             </button>
           );
         })}
-        <button
-          onClick={() => {
-            if (allDead) { setAllDead(false); setIdx(0); failStreakRef.current = 0; return; }
-            setIdx((i) => (i + 1) % LIVE_CHANNELS.length);
-          }}
-          className="press ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium hover:text-foreground"
-          aria-label="Next channel"
-        >
-          <SkipForward className="h-3 w-3" /> Next
-        </button>
+        {channels && channels.length > 0 && (
+          <button
+            onClick={() => {
+              const total = channels.length;
+              if (allDead) { setAllDead(false); setIdx(0); failStreakRef.current = 0; return; }
+              setIdx((i) => (i + 1) % total);
+            }}
+            className="press ml-auto inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-border bg-surface-2 px-3 py-1 text-xs font-medium hover:text-foreground"
+            aria-label="Next channel"
+          >
+            <SkipForward className="h-3 w-3" /> Next
+          </button>
+        )}
       </div>
       <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black">
-        {allDead ? (
+        {loading ? (
+          <div className="absolute inset-0 animate-pulse bg-surface" />
+        ) : allDead || !ch ? (
           <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted-foreground">
             streams are napping — try later 📺
           </div>
