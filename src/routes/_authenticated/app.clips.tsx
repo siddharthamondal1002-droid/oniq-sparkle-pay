@@ -316,6 +316,9 @@ function ClipCard({
           <Eye className="h-6 w-6" />
           <span className="text-xs">{viewCount}</span>
         </div>
+        <button onClick={onReport} className="flex flex-col items-center gap-1 text-white/70" aria-label="Report clip">
+          <Flag className="h-5 w-5" />
+        </button>
       </div>
 
       <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">
