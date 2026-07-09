@@ -178,11 +178,11 @@ async function resolveLiveVideoId(channelId: string): Promise<string | null> {
 async function resolveHandleToChannelId(handle: string): Promise<string | null> {
   const cached = handleToChannelId.get(handle);
   if (cached) return cached;
-  const html = await fetchText(`https://www.youtube.com/@${handle}`);
+  const html = await fetchText(`https://www.youtube.com/@${handle}`, 8000);
   if (!html) return null;
-  const m = html.match(/"channelId":"(UC[A-Za-z0-9_-]{22})"/) ||
-    html.match(/<meta itemprop="channelId" content="(UC[A-Za-z0-9_-]{22})"/) ||
-    html.match(/channel\/(UC[A-Za-z0-9_-]{22})/);
+  const m = html.match(/"externalId":"(UC[A-Za-z0-9_-]{22})"/) ||
+    html.match(/"channelId":"(UC[A-Za-z0-9_-]{22})"/) ||
+    html.match(/<meta itemprop="channelId" content="(UC[A-Za-z0-9_-]{22})"/);
   if (!m) return null;
   handleToChannelId.set(handle, m[1]);
   return m[1];
@@ -216,10 +216,13 @@ async function resolveUploads(c: Candidate): Promise<Video[]> {
   let channelId = c.id ?? null;
   if (!channelId && c.handle) channelId = await resolveHandleToChannelId(c.handle);
   if (!channelId) return [];
-  const xml = await fetchText(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`);
+  const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
+  let xml = await fetchText(rssUrl);
+  if (!xml) xml = await fetchText(rssUrl); // one retry
   if (!xml) return [];
   return parseRssUploads(xml, c.name, 2);
 }
+
 
 async function resolveNewsChannel(c: Candidate): Promise<Video | null> {
   if (!c.id) return null;
