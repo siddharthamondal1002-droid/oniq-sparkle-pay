@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +45,8 @@ function HomeScreen() {
   const { data: theme } = useUserTheme();
   const skins = theme?.tile_skins ?? {};
   const wallpaper = theme?.wallpaper_url ?? null;
+  const installPrompt = useInstallPrompt();
+
 
   const first = profile?.display_name?.split(" ")[0] ?? profile?.username ?? "there";
 
