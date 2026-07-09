@@ -35,6 +35,7 @@ function ClipsScreen() {
   const [me, setMe] = useState<string | null>(null);
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [openUpload, setOpenUpload] = useState(false);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
