@@ -520,6 +520,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const startCall = (type: CallType) => {
     if (!meId || activeRef.current) return;
     activeRef.current = true;
+    resumeRemoteAudio();
     isCallerRef.current = true;
     callIdRef.current = genId();
     setCallTypeBoth(type);
