@@ -683,7 +683,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         await ensureIceServers();
         pcRef.current = createPc();
         attachLocal(stream, callTypeRef.current);
-        const offer = await pcRef.current.createOffer();
+        const offer = withMungedSdp(await pcRef.current.createOffer());
         await pcRef.current.setLocalDescription(offer);
         sendSig("offer", { sdp: offer });
       } catch {
