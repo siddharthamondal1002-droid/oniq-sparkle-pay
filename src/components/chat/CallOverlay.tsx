@@ -113,6 +113,69 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const autoAcceptTriedRef = useRef(false);
   const iceRestartsRef = useRef(0);
   const graceTimerRef = useRef<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioSrcNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioGainNodeRef = useRef<GainNode | null>(null);
+  const audioPipelineStreamIdRef = useRef<string | null>(null);
+
+  const teardownRemoteAudioPipeline = () => {
+    try { audioSrcNodeRef.current?.disconnect(); } catch {}
+    try { audioGainNodeRef.current?.disconnect(); } catch {}
+    const ctx = audioCtxRef.current;
+    if (ctx) {
+      try { void ctx.close(); } catch {}
+    }
+    audioSrcNodeRef.current = null;
+    audioGainNodeRef.current = null;
+    audioCtxRef.current = null;
+    audioPipelineStreamIdRef.current = null;
+  };
+
+  const buildRemoteAudioPipeline = (stream: MediaStream) => {
+    if (audioPipelineStreamIdRef.current === stream.id && audioCtxRef.current) return;
+    // Rebuild if stream changed (reconnect path).
+    if (audioPipelineStreamIdRef.current && audioPipelineStreamIdRef.current !== stream.id) {
+      teardownRemoteAudioPipeline();
+    }
+    if (stream.getAudioTracks().length === 0) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const Ctx: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!Ctx) throw new Error("AudioContext unavailable");
+      const ctx = new Ctx();
+      const src = ctx.createMediaStreamSource(stream);
+      const gain = ctx.createGain();
+      gain.gain.value = 1.8;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      audioCtxRef.current = ctx;
+      audioSrcNodeRef.current = src;
+      audioGainNodeRef.current = gain;
+      audioPipelineStreamIdRef.current = stream.id;
+      // Mute element playback to avoid double audio.
+      if (remoteAudioRef.current) remoteAudioRef.current.muted = true;
+      if (remoteVideoRef.current) remoteVideoRef.current.muted = true;
+    } catch (err) {
+      console.warn("[call] WebAudio pipeline unavailable, falling back to element audio", err);
+      teardownRemoteAudioPipeline();
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.muted = false;
+        remoteAudioRef.current.volume = 1.0;
+      }
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.muted = false;
+        remoteVideoRef.current.volume = 1.0;
+      }
+    }
+  };
+
+  const resumeRemoteAudio = () => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+  };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const wakeLockRef = useRef<any>(null);
 
