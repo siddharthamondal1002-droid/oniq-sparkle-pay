@@ -331,10 +331,7 @@ function HeroTile({
       try {
         console.log("[WatchTile] loadVideoById", videoId);
         playerRef.current.loadVideoById(videoId);
-        playerRef.current.mute?.();
-        playerRef.current.playVideo?.();
       } catch { /* noop */ }
-      setMuted(true);
       return;
     }
 
