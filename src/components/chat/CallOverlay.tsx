@@ -394,6 +394,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       remoteStreamRef.current = stream;
       if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
+      buildRemoteAudioPipeline(stream);
+      resumeRemoteAudio();
     };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
