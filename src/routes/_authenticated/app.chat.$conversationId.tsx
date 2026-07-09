@@ -618,6 +618,11 @@ function ChatThread() {
                       </div>
                     </button>
                   )}
+                  {m.is_ai && (
+                    <div className={`mb-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${mine ? "bg-white/15 text-white/90" : "bg-primary/15 text-primary"}`}>
+                      <Sparkles className="h-2.5 w-2.5" /> AI-generated
+                    </div>
+                  )}
                   <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
                   <div
                     className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
