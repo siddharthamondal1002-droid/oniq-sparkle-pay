@@ -129,7 +129,7 @@ export function GlobalIncomingCall() {
     setIncoming(null);
     navigate({
       to: "/app/chat/$conversationId" as any,
-      params: { conversationId: cur.conversationId },
+      params: { conversationId: cur.conversationId } as any,
       search: {
         acceptCall: cur.callId,
         acceptType: cur.callType,
