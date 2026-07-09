@@ -5,8 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Heart, MessageCircle, Share2, Eye, Volume2, VolumeX,
-  ChevronLeft, Plus, X, Send, Loader2, UserPlus, UserCheck,
+  ChevronLeft, Plus, X, Send, Loader2, UserPlus, UserCheck, Flag,
 } from "lucide-react";
+import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 
 export const Route = createFileRoute("/_authenticated/app/clips")({
   component: ClipsScreen,
@@ -34,6 +35,7 @@ function ClipsScreen() {
   const [me, setMe] = useState<string | null>(null);
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [openUpload, setOpenUpload] = useState(false);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
@@ -105,6 +107,7 @@ function ClipsScreen() {
                 if (query.hasNextPage && !query.isFetchingNextPage) query.fetchNextPage();
               }}
               onOpenComments={() => setOpenComments(clip.id)}
+              onReport={() => setReportTarget({ type: "clip", id: clip.id })}
             />
           ))}
           {query.isFetchingNextPage && (
@@ -136,12 +139,13 @@ function ClipsScreen() {
       {openUpload && (
         <UploadSheet me={me} onClose={() => setOpenUpload(false)} onDone={() => query.refetch()} />
       )}
+      {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
     </div>
   );
 }
 
 function ClipCard({
-  clip, muted, me, isLast, onLoadMore, onOpenComments,
+  clip, muted, me, isLast, onLoadMore, onOpenComments, onReport,
 }: {
   clip: Clip;
   muted: boolean;
@@ -149,6 +153,7 @@ function ClipCard({
   isLast: boolean;
   onLoadMore: () => void;
   onOpenComments: () => void;
+  onReport: () => void;
 }) {
   const qc = useQueryClient();
   const sectionRef = useRef<HTMLDivElement | null>(null);
@@ -311,6 +316,9 @@ function ClipCard({
           <Eye className="h-6 w-6" />
           <span className="text-xs">{viewCount}</span>
         </div>
+        <button onClick={onReport} className="flex flex-col items-center gap-1 text-white/70" aria-label="Report clip">
+          <Flag className="h-5 w-5" />
+        </button>
       </div>
 
       <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">

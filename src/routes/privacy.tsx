@@ -1,0 +1,76 @@
+import { createFileRoute, Link } from "@tanstack/react-router";
+
+export const Route = createFileRoute("/privacy")({
+  head: () => ({
+    meta: [
+      { title: "Privacy Policy — ONIQ" },
+      { name: "description", content: "How ONIQ collects, uses, and protects your data. DPDP-aligned plain-language policy." },
+      { property: "og:title", content: "Privacy Policy — ONIQ" },
+      { property: "og:description", content: "What we collect, why we collect it, and the controls you have." },
+    ],
+  }),
+  component: PrivacyPage,
+});
+
+function PrivacyPage() {
+  return (
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="mx-auto max-w-3xl px-5 py-14">
+        <Link to="/" className="text-sm text-primary hover:underline">← Back to ONIQ</Link>
+        <h1 className="mt-4 font-display text-4xl font-bold">Privacy Policy</h1>
+        <p className="mt-2 text-sm text-muted-foreground">Last updated: {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}</p>
+
+        <section className="prose prose-invert mt-8 max-w-none space-y-6 text-[15px] leading-relaxed">
+          <p>ONIQ is a lifestyle super app. This policy explains what we collect, why, and the controls you have. It is aligned with India's Digital Personal Data Protection Act, 2023 (DPDP).</p>
+
+          <h2 className="mt-8 font-display text-2xl font-semibold">1. What we collect</h2>
+          <ul className="list-disc space-y-1 pl-6">
+            <li><strong>Account info</strong> — email, username, display name, avatar (if provided).</li>
+            <li><strong>Messages and calls</strong> — chat content and media stored to deliver them. Data is encrypted at rest by our infrastructure provider and in transit via TLS. Voice and video call audio/video streams are peer-to-peer where possible and are not recorded by us.</li>
+            <li><strong>Uploads</strong> — clips, moments, avatars, wallpapers you upload.</li>
+            <li><strong>Basic telemetry</strong> — error and performance logs to keep the service running. No third-party ad trackers.</li>
+          </ul>
+
+          <h2 className="font-display text-2xl font-semibold">2. Why we use it</h2>
+          <ul className="list-disc space-y-1 pl-6">
+            <li>Provide messaging, calls, wallet, clips, and other in-app features you request.</li>
+            <li>Keep the service safe: detect abuse, respond to reports, honour lawful takedown orders.</li>
+            <li>Comply with applicable law.</li>
+          </ul>
+          <p>We do <strong>not</strong> sell your personal data. We do <strong>not</strong> show third-party ads.</p>
+
+          <h2 className="font-display text-2xl font-semibold">3. Your rights</h2>
+          <ul className="list-disc space-y-1 pl-6">
+            <li><strong>Access & correction</strong> — view and edit your profile fields from Profile.</li>
+            <li><strong>Erasure</strong> — delete your account from Profile → Delete account. This removes your profile, wallet, messages you sent, and uploads.</li>
+            <li><strong>Grievance redressal</strong> — contact our Grievance Officer (below) for privacy complaints.</li>
+          </ul>
+
+          <h2 className="font-display text-2xl font-semibold">4. Children</h2>
+          <p>ONIQ is intended for users 18 years and above. We do not knowingly collect personal data from children.</p>
+
+          <h2 className="font-display text-2xl font-semibold">5. Breach notification</h2>
+          <p>If we become aware of a personal-data breach that is likely to result in risk to your rights, we will notify affected users and the Data Protection Board of India within the timelines required by DPDP.</p>
+
+          <h2 className="font-display text-2xl font-semibold">6. Retention</h2>
+          <p>We keep your data while your account is active. When you delete your account, personal content is removed; minimal transaction and safety-log records may be retained where required by law.</p>
+
+          <h2 className="font-display text-2xl font-semibold">7. Contact</h2>
+          <div className="rounded-2xl border border-border bg-card p-5">
+            <div className="font-semibold">Grievance Officer</div>
+            <div>Siddhartha Mondal</div>
+            <div>Email: <a className="text-primary hover:underline" href="mailto:grievance@oniqhub.com">grievance@oniqhub.com</a></div>
+          </div>
+
+          <p className="mt-10 border-t border-border pt-6 text-xs text-muted-foreground">
+            This document is a template maintained by a small intermediary and is not legal advice.
+          </p>
+
+          <p className="text-sm">
+            See also our <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>.
+          </p>
+        </section>
+      </div>
+    </div>
+  );
+}

@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_actions: {
+        Row: {
+          action: string
+          admin_id: string | null
+          created_at: string
+          id: string
+          note: string | null
+          target_id: string | null
+          target_type: string | null
+        }
+        Insert: {
+          action: string
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Update: {
+          action?: string
+          admin_id?: string | null
+          created_at?: string
+          id?: string
+          note?: string | null
+          target_id?: string | null
+          target_type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_actions_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       ai_chats: {
         Row: {
           created_at: string | null
@@ -116,6 +154,39 @@ export type Database = {
           {
             foreignKeyName: "bank_accounts_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      blocked_users: {
+        Row: {
+          blocked_id: string
+          blocker_id: string
+          created_at: string
+        }
+        Insert: {
+          blocked_id: string
+          blocker_id: string
+          created_at?: string
+        }
+        Update: {
+          blocked_id?: string
+          blocker_id?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "blocked_users_blocked_id_fkey"
+            columns: ["blocked_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "blocked_users_blocker_id_fkey"
+            columns: ["blocker_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -605,6 +676,7 @@ export type Database = {
           conversation_id: string
           created_at: string | null
           id: string
+          is_ai: boolean
           is_deleted: boolean | null
           media_url: string | null
           metadata: Json | null
@@ -617,6 +689,7 @@ export type Database = {
           conversation_id: string
           created_at?: string | null
           id?: string
+          is_ai?: boolean
           is_deleted?: boolean | null
           media_url?: string | null
           metadata?: Json | null
@@ -629,6 +702,7 @@ export type Database = {
           conversation_id?: string
           created_at?: string | null
           id?: string
+          is_ai?: boolean
           is_deleted?: boolean | null
           media_url?: string | null
           metadata?: Json | null
@@ -895,7 +969,9 @@ export type Database = {
           created_at: string | null
           display_name: string
           id: string
+          is_admin: boolean
           language: string | null
+          last_policy_notice_at: string | null
           omiq_wallet_address: string | null
           oniq_pay_enabled: boolean | null
           updated_at: string | null
@@ -909,7 +985,9 @@ export type Database = {
           created_at?: string | null
           display_name: string
           id: string
+          is_admin?: boolean
           language?: string | null
+          last_policy_notice_at?: string | null
           omiq_wallet_address?: string | null
           oniq_pay_enabled?: boolean | null
           updated_at?: string | null
@@ -923,7 +1001,9 @@ export type Database = {
           created_at?: string | null
           display_name?: string
           id?: string
+          is_admin?: boolean
           language?: string | null
+          last_policy_notice_at?: string | null
           omiq_wallet_address?: string | null
           oniq_pay_enabled?: boolean | null
           updated_at?: string | null
@@ -974,6 +1054,56 @@ export type Database = {
           {
             foreignKeyName: "red_packets_sender_id_fkey"
             columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      reports: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          details: string | null
+          id: string
+          reason: string
+          reporter_id: string | null
+          resolution: string | null
+          resolved_at: string | null
+          status: string
+          target_id: string
+          target_type: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason: string
+          reporter_id?: string | null
+          resolution?: string | null
+          resolved_at?: string | null
+          status?: string
+          target_id: string
+          target_type: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          reason?: string
+          reporter_id?: string | null
+          resolution?: string | null
+          resolved_at?: string | null
+          status?: string
+          target_id?: string
+          target_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reports_reporter_id_fkey"
+            columns: ["reporter_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -1190,6 +1320,10 @@ export type Database = {
         }
         Returns: string
       }
+      admin_remove_content: {
+        Args: { _note?: string; _target_id: string; _target_type: string }
+        Returns: undefined
+      }
       clips_feed: {
         Args: { _limit?: number; _offset?: number }
         Returns: {
@@ -1232,6 +1366,7 @@ export type Database = {
           upi_vpa: string
         }[]
       }
+      is_admin: { Args: { _uid: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }
         Returns: boolean
@@ -1240,6 +1375,7 @@ export type Database = {
         Args: { _conversation_id: string }
         Returns: undefined
       }
+      mark_policy_notice_seen: { Args: never; Returns: undefined }
       open_red_packet: { Args: { _packet_id: string }; Returns: number }
       place_order: {
         Args: {

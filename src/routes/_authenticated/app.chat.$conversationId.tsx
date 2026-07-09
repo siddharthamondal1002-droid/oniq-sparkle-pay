@@ -2,10 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
+import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 
 type Message = {
   id: string;
@@ -16,6 +17,7 @@ type Message = {
   created_at: string | null;
   is_deleted: boolean | null;
   reply_to_id: string | null;
+  is_ai: boolean | null;
 };
 
 export const Route = createFileRoute("/_authenticated/app/chat/$conversationId")({
@@ -72,6 +74,9 @@ function ChatThread() {
     queryFn: async () => (await supabase.auth.getSession()).data.session?.user ?? null,
   });
 
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+
   const { data: header } = useQuery({
     queryKey: ["conversation-header", conversationId, me?.id],
     enabled: !!me,
@@ -81,7 +86,7 @@ function ChatThread() {
         .select("id, name, type, avatar_url")
         .eq("id", conversationId)
         .maybeSingle();
-      if (!c) return { title: "Conversation", avatar_url: null as string | null };
+      if (!c) return { title: "Conversation", avatar_url: null as string | null, peerId: null as string | null, isGroup: false };
       if (c.type === "direct") {
         const { data: other } = await supabase
           .from("conversation_members")
@@ -91,9 +96,28 @@ function ChatThread() {
           .maybeSingle();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const p = (other as any)?.profiles;
-        if (p) return { title: p.display_name || p.username || "Chat", avatar_url: p.avatar_url ?? null };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const peerId = (other as any)?.user_id ?? null;
+        if (p) return { title: p.display_name || p.username || "Chat", avatar_url: p.avatar_url ?? null, peerId, isGroup: false };
+        return { title: "Chat", avatar_url: null, peerId, isGroup: false };
       }
-      return { title: c.name ?? "Group", avatar_url: c.avatar_url };
+      return { title: c.name ?? "Group", avatar_url: c.avatar_url, peerId: null, isGroup: true };
+    },
+  });
+
+  const peerId = header?.peerId ?? null;
+
+  const { data: isBlocked = false, refetch: refetchBlocked } = useQuery({
+    queryKey: ["blocked", me?.id, peerId],
+    enabled: !!me && !!peerId,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("blocked_users")
+        .select("blocked_id")
+        .eq("blocker_id", me!.id)
+        .eq("blocked_id", peerId!)
+        .maybeSingle();
+      return !!data;
     },
   });
 
@@ -102,11 +126,11 @@ function ChatThread() {
     queryFn: async (): Promise<Message[]> => {
       const { data } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, type, created_at, is_deleted, reply_to_id")
+        .select("id, conversation_id, sender_id, content, type, created_at, is_deleted, reply_to_id, is_ai")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true })
         .limit(200);
-      return data ?? [];
+      return (data ?? []) as Message[];
     },
   });
 
@@ -255,12 +279,31 @@ function ChatThread() {
     inputRef.current?.focus();
   }, [conversationId]);
 
+  const toggleBlock = async () => {
+    if (!me || !peerId) return;
+    setShowHeaderMenu(false);
+    if (isBlocked) {
+      const { error } = await supabase.from("blocked_users").delete().eq("blocker_id", me.id).eq("blocked_id", peerId);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Unblocked");
+    } else {
+      const { error } = await supabase.from("blocked_users").insert({ blocker_id: me.id, blocked_id: peerId });
+      if (error) { toast.error(error.message); return; }
+      toast("Blocked — you won't see their messages here 🚫");
+    }
+    refetchBlocked();
+  };
+
   const send = async (e: FormEvent) => {
     e.preventDefault();
     const content = text.trim();
     if (!content) return;
     if (!me) {
       toast.error("You're signed out — please sign in again");
+      return;
+    }
+    if (isBlocked) {
+      toast("You've blocked this user — unblock to chat.");
       return;
     }
     setSending(true);
@@ -318,8 +361,10 @@ function ChatThread() {
   };
 
   const title = header?.title ?? "Conversation";
-  // Keep deleted messages in the list (WhatsApp behavior)
-  const visible = messages;
+  // Filter out messages from blocked peer while blocked (client-side hide)
+  const visible = isBlocked && peerId
+    ? messages.filter((m) => m.sender_id !== peerId)
+    : messages;
 
   // Build render list with day separators + grouping metadata.
   type Row =
@@ -427,7 +472,43 @@ function ChatThread() {
         >
           <Video className="h-5 w-5" />
         </button>
+        <div className="relative">
+          <button
+            data-testid="chat-menu"
+            onClick={() => setShowHeaderMenu((v) => !v)}
+            aria-label="More"
+            className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+          >
+            <MoreVertical className="h-5 w-5" />
+          </button>
+          {showHeaderMenu && (
+            <>
+              <div className="fixed inset-0 z-30" onClick={() => setShowHeaderMenu(false)} />
+              <div className="absolute right-0 top-11 z-40 w-52 overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+                {peerId && (
+                  <button
+                    type="button"
+                    onClick={() => { setShowHeaderMenu(false); setReportTarget({ type: "user", id: peerId, conversationId }); }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted"
+                  >
+                    <Flag className="h-4 w-4" /> Report user
+                  </button>
+                )}
+                {peerId && (
+                  <button
+                    type="button"
+                    onClick={toggleBlock}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-500 hover:bg-muted"
+                  >
+                    <Ban className="h-4 w-4" /> {isBlocked ? "Unblock user" : "Block user 🚫"}
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </header>
+
 
       <CallOverlay
         ref={callRef}
@@ -537,6 +618,11 @@ function ChatThread() {
                       </div>
                     </button>
                   )}
+                  {m.is_ai && (
+                    <div className={`mb-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${mine ? "bg-white/15 text-white/90" : "bg-primary/15 text-primary"}`}>
+                      <Sparkles className="h-2.5 w-2.5" /> AI-generated
+                    </div>
+                  )}
                   <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
                   <div
                     className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
@@ -611,6 +697,19 @@ function ChatThread() {
                 <Trash2 className="h-4 w-4" /> Delete for everyone
               </button>
             )}
+            {menuFor.sender_id !== me?.id && (
+              <button
+                type="button"
+                onClick={() => {
+                  const t: ReportTarget = { type: "message", id: menuFor.id, conversationId };
+                  setMenuFor(null);
+                  setReportTarget(t);
+                }}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-red-500 hover:bg-muted"
+              >
+                <Flag className="h-4 w-4" /> Report message 🚩
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setMenuFor(null)}
@@ -621,6 +720,9 @@ function ChatThread() {
           </div>
         </div>
       )}
+
+      {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
+
 
       <form
         onSubmit={send}
@@ -655,8 +757,9 @@ function ChatThread() {
               value={text}
               onChange={(e) => handleTextChange(e.target.value)}
               onBlur={() => emitTyping("stop")}
-              placeholder="Message"
-              className="flex-1 bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none"
+              placeholder={isBlocked ? "You've blocked this user — unblock to chat" : "Message"}
+              disabled={isBlocked}
+              className="flex-1 bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none disabled:opacity-60"
             />
           </div>
           {text.trim() ? (
