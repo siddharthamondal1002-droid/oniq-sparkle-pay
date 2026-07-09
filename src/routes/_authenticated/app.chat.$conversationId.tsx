@@ -664,6 +664,15 @@ function ChatThread() {
                       : "border border-border bg-card text-foreground"
                   }`}
                 >
+                  {isGroup && !mine && firstOfGroup && (() => {
+                    const sm = senderMap.get(m.sender_id);
+                    if (!sm) return null;
+                    return (
+                      <div className="mb-0.5 text-[11px] font-semibold" style={{ color: sm.color }}>
+                        {sm.name}
+                      </div>
+                    );
+                  })()}
                   {quoted && (
                     <button
                       type="button"
@@ -671,7 +680,7 @@ function ChatThread() {
                       className={`mb-1 block w-full rounded-md border-l-2 border-[#00D4B8] px-2 py-1 text-left text-[11px] ${mine ? "bg-black/20" : "bg-muted/60"}`}
                     >
                       <div className="font-semibold text-[#00D4B8]">
-                        {quoted.sender_id === me?.id ? "You" : (title || "Message")}
+                        {quoted.sender_id === me?.id ? "You" : (senderMap.get(quoted.sender_id)?.name || title || "Message")}
                       </div>
                       <div className={`truncate ${mine ? "text-white/80" : "text-muted-foreground"}`}>
                         {quoted.is_deleted ? "This message was deleted" : truncate(quoted.content ?? "", 80)}
@@ -690,12 +699,15 @@ function ChatThread() {
                     }`}
                   >
                     <span>{m.created_at ? format(new Date(m.created_at), "HH:mm") : ""}</span>
-                    {mine &&
-                      (isRead ? (
+                    {mine && isGroup ? (
+                      <Check className="h-3.5 w-3.5 text-white/70" />
+                    ) : mine ? (
+                      isRead ? (
                         <CheckCheck className="h-3.5 w-3.5 text-[#53BDEB]" />
                       ) : (
                         <CheckCheck className="h-3.5 w-3.5 text-white/70" />
-                      ))}
+                      )
+                    ) : null}
                     {mine && lastOfGroup && false && <Check className="h-3 w-3" />}
                   </div>
                   {/* Desktop hover Reply */}
