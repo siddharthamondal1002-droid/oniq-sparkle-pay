@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -23,7 +23,7 @@ import {
   SkipForward,
   Maximize2,
 } from "lucide-react";
-import { CompactLiveNews } from "@/components/landing/LiveNewsSection";
+import { CompactLiveNews, loadYouTubeApi } from "@/components/landing/LiveNewsSection";
 import {
   CustomizeButton,
   useUserTheme,
@@ -286,8 +286,11 @@ function HeroTile({
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(true);
   const [controlsVisible, setControlsVisible] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const mountRef = useRef<HTMLDivElement | null>(null);
+  const playerRef = useRef<any>(null);
   const hideTimerRef = useRef<number | null>(null);
+  const playerHostId = `yt-tile-${useId().replace(/:/g, "")}`;
+  const playerCoverClass = "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
 
   const videoId = livePreview && !showSkin && channels && channels.length
     ? channels[idx % channels.length].videoId
@@ -312,20 +315,74 @@ function HeroTile({
     return () => { if (t) window.clearTimeout(t); };
   }, [idx, channels, livePreview, showSkin, paused, controlsVisible]);
 
-  const yt = (func: string, args: unknown[] = []) => {
-    const w = iframeRef.current?.contentWindow;
-    if (!w) return;
-    try {
-      w.postMessage(JSON.stringify({ event: "command", func, args }), "*");
-    } catch { /* noop */ }
-  };
-
   const bumpHide = () => {
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
     hideTimerRef.current = window.setTimeout(() => setControlsVisible(false), 15_000);
   };
   const showControls = () => { setControlsVisible(true); bumpHide(); };
   useEffect(() => () => { if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current); }, []);
+
+  useEffect(() => {
+    if (!livePreview || showSkin || !videoId) return;
+    let cancelled = false;
+    const host = mountRef.current;
+    if (!host) return;
+
+    if (playerRef.current?.loadVideoById) {
+      try {
+        console.log("[WatchTile] loadVideoById", videoId);
+        playerRef.current.loadVideoById(videoId);
+        playerRef.current.getIframe?.()?.setAttribute("class", playerCoverClass);
+      } catch { /* noop */ }
+      return;
+    }
+
+    loadYouTubeApi().then((YT) => {
+      if (cancelled || !YT || playerRef.current) return;
+      try {
+        console.log("[WatchTile] constructing player with videoId", videoId);
+        playerRef.current = new YT.Player(playerHostId, {
+          width: "100%",
+          height: "100%",
+          host: "https://www.youtube-nocookie.com",
+          videoId,
+          playerVars: {
+            autoplay: 1,
+            mute: 1,
+            playsinline: 1,
+            controls: 0,
+            rel: 0,
+            modestbranding: 1,
+          },
+          events: {
+            onReady: (e: any) => {
+              try {
+                e.target.getIframe?.()?.setAttribute("class", playerCoverClass);
+                e.target.getIframe?.()?.setAttribute("allow", "autoplay; encrypted-media; picture-in-picture");
+                e.target.getIframe?.()?.setAttribute("title", "Live preview");
+                e.target.mute();
+                e.target.playVideo();
+              } catch { /* noop */ }
+            },
+            onStateChange: (e: any) => {
+              console.log("[WatchTile] state", e?.data);
+            },
+          },
+        });
+      } catch (err) {
+        console.warn("[WatchTile] player init failed", err);
+      }
+    });
+
+    return () => { cancelled = true; };
+  }, [livePreview, showSkin, videoId, playerHostId]);
+
+  useEffect(() => {
+    return () => {
+      try { playerRef.current?.destroy?.(); } catch { /* noop */ }
+      playerRef.current = null;
+    };
+  }, []);
 
   // Non-live path: unchanged Link
   if (!videoId) {
@@ -356,9 +413,6 @@ function HeroTile({
     );
   }
 
-  const origin = typeof window !== "undefined" ? window.location.origin : "";
-  const src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=${muted ? 1 : 0}&controls=0&playsinline=1&rel=0&modestbranding=1&enablejsapi=1&origin=${encodeURIComponent(origin)}`;
-
   const onTileClick = () => {
     if (controlsVisible) setControlsVisible(false);
     else showControls();
@@ -380,14 +434,10 @@ function HeroTile({
       className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between cursor-pointer`}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <iframe
-          key={`${videoId}-${muted ? "m" : "s"}`}
-          ref={iframeRef}
-          src={src}
-          loading="lazy"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          className="absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full"
-          title="Live preview"
+        <div
+          id={playerHostId}
+          ref={mountRef}
+          className={playerCoverClass}
         />
       </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
@@ -418,7 +468,7 @@ function HeroTile({
           <button
             className={ctrlBtn}
             aria-label={paused ? "Play" : "Pause"}
-            onClick={(e) => { stop(e); if (paused) { yt("playVideo"); setPaused(false); } else { yt("pauseVideo"); setPaused(true); } }}
+            onClick={(e) => { stop(e); if (paused) { playerRef.current?.playVideo?.(); setPaused(false); } else { playerRef.current?.pauseVideo?.(); setPaused(true); } }}
           >
             {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
           </button>
@@ -428,7 +478,7 @@ function HeroTile({
           <button
             className={ctrlBtn}
             aria-label={muted ? "Unmute" : "Mute"}
-            onClick={(e) => { stop(e); if (muted) { yt("unMute"); yt("setVolume", [100]); setMuted(false); } else { yt("mute"); setMuted(true); } }}
+            onClick={(e) => { stop(e); if (muted) { playerRef.current?.unMute?.(); playerRef.current?.setVolume?.(100); setMuted(false); } else { playerRef.current?.mute?.(); setMuted(true); } }}
           >
             {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>

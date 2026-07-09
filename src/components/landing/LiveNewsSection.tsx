@@ -107,7 +107,7 @@ const LIVE_CHANNELS: Channel[] = [
 
 const YT_API_SRC = "https://www.youtube.com/iframe_api";
 
-function loadYouTubeApi(): Promise<any> {
+export function loadYouTubeApi(): Promise<any> {
   const w = window as any;
   if (w.YT && w.YT.Player) return Promise.resolve(w.YT);
   if (w.__ytApiPromise) return w.__ytApiPromise;
