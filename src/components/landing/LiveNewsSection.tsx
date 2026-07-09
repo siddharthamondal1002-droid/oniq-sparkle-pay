@@ -273,30 +273,32 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
     };
   }, [idx, chLen, allDead, autoTour]);
 
-  const loading = allChannels === null;
+  const loading = genres === null;
+  const currentGenreId = activeGenre?.id ?? genreId;
 
   return (
     <div>
-      {availableGenres.length > 1 && (
+      {genres && genres.length > 1 && (
         <div className="no-scrollbar mb-3 flex items-center gap-2 overflow-x-auto">
-          {availableGenres.map((g) => {
-            const active = g.key === genre;
+          {genres.map((g) => {
+            const active = g.id === currentGenreId;
             return (
               <button
-                key={g.key}
-                onClick={() => pickGenre(g.key)}
+                key={g.id}
+                onClick={() => pickGenre(g.id)}
                 className={`press whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold border transition-colors ${
                   active
                     ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_var(--primary)]"
                     : "bg-surface text-muted-foreground border-border hover:text-foreground"
                 }`}
               >
-                {g.emoji} {g.label}
+                {g.emoji} {g.name}
               </button>
             );
           })}
         </div>
       )}
+
       <div className="mb-3 flex flex-wrap gap-2">
         {channels.map((c, i) => {
           const active = ch?.id === c.id && !allDead;
