@@ -448,7 +448,47 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       finishCall(false);
     });
 
-    ch.subscribe();
+    ch.subscribe((sStatus) => {
+      if (sStatus !== "SUBSCRIBED") return;
+      if (autoAcceptTriedRef.current) return;
+      if (typeof window === "undefined") return;
+      const params = new URLSearchParams(window.location.search);
+      const acceptId = params.get("acceptCall");
+      const acceptType = params.get("acceptType") as CallType | null;
+      if (!acceptId) return;
+      autoAcceptTriedRef.current = true;
+      // Strip the params so a reload doesn't re-fire.
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete("acceptCall");
+        url.searchParams.delete("acceptType");
+        window.history.replaceState({}, "", url.toString());
+      } catch {}
+      if (activeRef.current) return;
+      // Adopt the call as callee — mirror the "ring" handler state.
+      activeRef.current = true;
+      isCallerRef.current = false;
+      callIdRef.current = acceptId;
+      setCallTypeBoth(acceptType === "video" ? "video" : "audio");
+      setIncomingFromName(peerName);
+      setStatus("incoming");
+      // Trigger accept once React has painted (accept reads status via state).
+      window.setTimeout(() => {
+        // Manually run accept-equivalent since state may not have flushed yet.
+        setStatus("connecting");
+        armConnectTimeout();
+        getMedia(callTypeRef.current)
+          .then((stream) => {
+            pcRef.current = createPc();
+            attachLocal(stream, callTypeRef.current);
+            sendSig("accept");
+          })
+          .catch(() => {
+            sendSig("decline");
+            finishCall(false);
+          });
+      }, 60);
+    });
 
     return () => {
       cleanupMedia();
