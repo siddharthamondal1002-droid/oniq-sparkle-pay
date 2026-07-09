@@ -282,7 +282,7 @@ function HeroTile({
   const { data: channels } = useLiveChannels(livePreview && !showSkin);
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
-  const [muted, setMuted] = useState(true);
+  
   const [controlsVisible, setControlsVisible] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
