@@ -239,26 +239,19 @@ function Tile({
   );
 }
 
-type Genre = "news" | "sports" | "entertainment" | "finance" | "lifestyle";
-type LiveEntry = { id: string; name: string; videoId: string; genre: Genre };
+type GenreId = "news" | "sports" | "entertainment" | "finance" | "lifestyle";
+type LiveChannel = { id: string; name: string; videoId: string };
+type LiveGenre = { id: GenreId; name: string; emoji: string; channels: LiveChannel[] };
 
-const GENRE_META: { key: Genre; label: string; emoji: string }[] = [
-  { key: "news", label: "News", emoji: "📰" },
-  { key: "sports", label: "Sports", emoji: "🏆" },
-  { key: "entertainment", label: "Fun", emoji: "🎬" },
-  { key: "finance", label: "Finance", emoji: "📈" },
-  { key: "lifestyle", label: "Life", emoji: "🌿" },
-];
-
-function useLiveChannels(enabled: boolean) {
+function useLiveGenres(enabled: boolean) {
   return useQuery({
-    queryKey: ["live-channels"],
+    queryKey: ["live-genres"],
     enabled,
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("live-channels", { body: {} });
       if (error) throw error;
-      return (Array.isArray(data?.channels) ? data.channels : []) as LiveEntry[];
+      return (Array.isArray(data?.genres) ? data.genres : []) as LiveGenre[];
     },
   });
 }
@@ -288,12 +281,12 @@ function HeroTile({
   const navigate = useNavigate();
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
-  const { data: allChannels } = useLiveChannels(livePreview && !showSkin);
-  const [genre, setGenre] = useState<Genre>("news");
-  const availableGenres = GENRE_META.filter((g) =>
-    (allChannels ?? []).some((c) => c.genre === g.key),
-  );
-  const channels = (allChannels ?? []).filter((c) => c.genre === genre);
+  const { data: genres } = useLiveGenres(livePreview && !showSkin);
+  const [genreId, setGenreId] = useState<GenreId>("news");
+  const activeGenre =
+    (genres ?? []).find((g) => g.id === genreId) ?? (genres ?? [])[0] ?? null;
+  const channels = activeGenre?.channels ?? [];
+
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   
