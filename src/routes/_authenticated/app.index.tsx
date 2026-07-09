@@ -379,15 +379,17 @@ function HeroTile({
       style={{ animationDelay: `${delay}ms` }}
       className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between cursor-pointer`}
     >
-      <iframe
-        key={videoId}
-        ref={iframeRef}
-        src={src}
-        loading="lazy"
-        allow="autoplay; encrypted-media; picture-in-picture"
-        className="pointer-events-none absolute inset-0 h-full w-full scale-[1.35] object-cover"
-        title="Live preview"
-      />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <iframe
+          key={`${videoId}-${muted ? "m" : "s"}`}
+          ref={iframeRef}
+          src={src}
+          loading="lazy"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          className="absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full"
+          title="Live preview"
+        />
+      </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
       <span className="relative inline-flex w-fit items-center gap-1.5 rounded-full border border-red-500/50 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
