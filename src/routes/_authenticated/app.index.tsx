@@ -404,7 +404,7 @@ function HeroTile({
       </div>
 
       <div
-        className={`pointer-events-${controlsVisible ? "auto" : "none"} absolute inset-x-0 bottom-2 z-10 flex flex-col items-center gap-1 transition-opacity duration-300 ${controlsVisible ? "opacity-100" : "opacity-0"}`}
+        className={`absolute inset-x-0 bottom-2 z-10 flex flex-col items-center gap-1 transition-opacity duration-300 ${controlsVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
       >
         {currentName && (
           <span className="glass rounded-full px-2 py-0.5 text-[10px] text-foreground/90">{currentName}</span>
