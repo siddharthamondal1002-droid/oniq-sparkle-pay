@@ -1124,6 +1124,14 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               </button>
             )}
             <button
+              onClick={() => setShowHud((v) => !v)}
+              className="grid h-14 w-14 place-items-center rounded-full bg-white/10 hover:bg-white/20"
+              aria-label={showHud ? "Hide stats" : "Show stats"}
+              aria-pressed={showHud}
+            >
+              <Signal className="h-5 w-5" />
+            </button>
+            <button
               data-testid="call-end"
               onClick={() => finishCall(true)}
               className="grid h-16 w-16 place-items-center rounded-full bg-red-600 hover:bg-red-500"
