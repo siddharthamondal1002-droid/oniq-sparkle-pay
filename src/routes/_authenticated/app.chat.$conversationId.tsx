@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
@@ -15,6 +15,7 @@ type Message = {
   type: string;
   created_at: string | null;
   is_deleted: boolean | null;
+  reply_to_id: string | null;
 };
 
 export const Route = createFileRoute("/_authenticated/app/chat/$conversationId")({
@@ -41,12 +42,19 @@ function isSystemMessage(m: Message): boolean {
   return m.type === "system" || m.type === "call" || (m.content?.startsWith("📞") ?? false);
 }
 
+function truncate(s: string, n = 80) {
+  if (!s) return "";
+  return s.length > n ? s.slice(0, n) + "…" : s;
+}
+
 function ChatThread() {
   const { conversationId } = Route.useParams();
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [peerTyping, setPeerTyping] = useState(false);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [menuFor, setMenuFor] = useState<Message | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -55,6 +63,9 @@ function ChatThread() {
   const lastTypingSentRef = useRef(0);
   const typingIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const peerTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const swipedRef = useRef(false);
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -91,7 +102,7 @@ function ChatThread() {
     queryFn: async (): Promise<Message[]> => {
       const { data } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, type, created_at, is_deleted")
+        .select("id, conversation_id, sender_id, content, type, created_at, is_deleted, reply_to_id")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true })
         .limit(200);
@@ -118,7 +129,7 @@ function ChatThread() {
     supabase.rpc("mark_conversation_read", { _conversation_id: conversationId });
   };
 
-  // Realtime: messages + peer read receipts + typing broadcast.
+  // Realtime: messages INSERT + UPDATE + peer read receipts.
   useEffect(() => {
     const channel = supabase
       .channel(`messages:${conversationId}`)
@@ -138,6 +149,22 @@ function ChatThread() {
             return [...list, m];
           });
           markRead();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "messages",
+          filter: `conversation_id=eq.${conversationId}`,
+        },
+        (payload) => {
+          const m = payload.new as Message;
+          qc.setQueryData<Message[]>(["messages", conversationId], (prev) => {
+            const list = prev ?? [];
+            return list.map((x) => (x.id === m.id ? { ...x, ...m } : x));
+          });
         },
       )
       .on(
@@ -238,6 +265,8 @@ function ChatThread() {
     }
     setSending(true);
     setText("");
+    const replySnapshot = replyTo;
+    setReplyTo(null);
     emitTyping("stop");
     lastTypingSentRef.current = 0;
     const { error } = await supabase.from("messages").insert({
@@ -245,11 +274,13 @@ function ChatThread() {
       sender_id: me.id,
       content,
       type: "text",
+      reply_to_id: replySnapshot?.id ?? null,
     });
     if (error) {
       console.error("send failed", error);
       toast.error(error.message || "Couldn't send — try again");
       setText(content);
+      setReplyTo(replySnapshot);
     } else {
       await supabase
         .from("conversations")
@@ -261,8 +292,34 @@ function ChatThread() {
     inputRef.current?.focus();
   };
 
+  const deleteForEveryone = async (m: Message) => {
+    setMenuFor(null);
+    // Optimistic
+    qc.setQueryData<Message[]>(["messages", conversationId], (prev) =>
+      (prev ?? []).map((x) => (x.id === m.id ? { ...x, is_deleted: true, content: null } : x)),
+    );
+    const { error } = await supabase
+      .from("messages")
+      .update({ is_deleted: true, content: null })
+      .eq("id", m.id);
+    if (error) {
+      toast.error("Couldn't delete — try again");
+      console.error(error);
+    }
+  };
+
+  const scrollToMessage = (id: string) => {
+    const el = document.getElementById(`msg-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-[#00D4B8]");
+      setTimeout(() => el.classList.remove("ring-2", "ring-[#00D4B8]"), 1200);
+    }
+  };
+
   const title = header?.title ?? "Conversation";
-  const visible = messages.filter((m) => !m.is_deleted);
+  // Keep deleted messages in the list (WhatsApp behavior)
+  const visible = messages;
 
   // Build render list with day separators + grouping metadata.
   type Row =
@@ -301,6 +358,36 @@ function ChatThread() {
       lastOfGroup: !sameSenderAsNext,
     });
   }
+
+  const startPress = (m: Message, e: React.TouchEvent) => {
+    if (m.is_deleted) return;
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+    swipedRef.current = false;
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    pressTimerRef.current = setTimeout(() => {
+      setMenuFor(m);
+    }, 450);
+  };
+  const moveTouch = (m: Message, e: React.TouchEvent) => {
+    if (m.is_deleted) return;
+    const start = touchStartRef.current;
+    if (!start) return;
+    const t = e.touches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+      if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    }
+    if (dx > 60 && Math.abs(dy) < 30 && !swipedRef.current) {
+      swipedRef.current = true;
+      setReplyTo(m);
+    }
+  };
+  const endPress = () => {
+    if (pressTimerRef.current) clearTimeout(pressTimerRef.current);
+    touchStartRef.current = null;
+  };
 
   return (
     <div className="flex h-[100dvh] flex-col">
@@ -385,7 +472,6 @@ function ChatThread() {
             const { m, firstOfGroup, lastOfGroup } = r;
             const mine = m.sender_id === me?.id;
             const groupGap = firstOfGroup ? "mt-2.5" : "mt-[2px]";
-            // Prev row for tail decision — safe lookup
             const prev = rendered[idx - 1];
             const isFirstAfterBreak = firstOfGroup || (prev && prev.kind !== "msg");
             const bubbleRadius = mine
@@ -399,15 +485,58 @@ function ChatThread() {
               mine && peerReadAt && m.created_at
                 ? new Date(peerReadAt).getTime() >= new Date(m.created_at).getTime()
                 : false;
+
+            if (m.is_deleted) {
+              return (
+                <div key={r.key} id={`msg-${m.id}`} className={`flex ${mine ? "justify-end" : "justify-start"} ${groupGap}`}>
+                  <div className={`max-w-[78%] px-3 py-1.5 text-sm italic text-muted-foreground shadow-sm ${bubbleRadius} ${mine ? "bg-[#0B5A4E]/40" : "border border-border bg-card"}`}>
+                    <div className="flex items-center gap-1.5">
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>This message was deleted</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+
+            const quoted = m.reply_to_id ? messages.find((x) => x.id === m.reply_to_id) : null;
+            const quotedSenderName = quoted
+              ? quoted.sender_id === me?.id
+                ? "You"
+                : title
+              : null;
+
             return (
-              <div key={r.key} className={`flex ${mine ? "justify-end" : "justify-start"} ${groupGap}`}>
+              <div key={r.key} id={`msg-${m.id}`} className={`flex ${mine ? "justify-end" : "justify-start"} ${groupGap} transition-shadow`}>
                 <div
-                  className={`max-w-[78%] px-3 py-1.5 text-sm shadow-sm ${bubbleRadius} ${
+                  onTouchStart={(e) => startPress(m, e)}
+                  onTouchMove={(e) => moveTouch(m, e)}
+                  onTouchEnd={endPress}
+                  onTouchCancel={endPress}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenuFor(m);
+                  }}
+                  className={`group relative max-w-[78%] px-3 py-1.5 text-sm shadow-sm ${bubbleRadius} ${
                     mine
                       ? "bg-[#0B5A4E] text-white"
                       : "border border-border bg-card text-foreground"
                   }`}
                 >
+                  {quoted && (
+                    <button
+                      type="button"
+                      onClick={() => scrollToMessage(quoted.id)}
+                      className={`mb-1 block w-full rounded-md border-l-2 border-[#00D4B8] px-2 py-1 text-left text-[11px] ${mine ? "bg-black/20" : "bg-muted/60"}`}
+                    >
+                      <div className="font-semibold text-[#00D4B8]">
+                        {quoted.sender_id === me?.id ? "You" : (title || "Message")}
+                      </div>
+                      <div className={`truncate ${mine ? "text-white/80" : "text-muted-foreground"}`}>
+                        {quoted.is_deleted ? "This message was deleted" : truncate(quoted.content ?? "", 80)}
+                      </div>
+                    </button>
+                  )}
                   <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
                   <div
                     className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
@@ -421,9 +550,17 @@ function ChatThread() {
                       ) : (
                         <CheckCheck className="h-3.5 w-3.5 text-white/70" />
                       ))}
-                    {/* keep single-tick icon available for future "sent-only" state */}
                     {mine && lastOfGroup && false && <Check className="h-3 w-3" />}
                   </div>
+                  {/* Desktop hover Reply */}
+                  <button
+                    type="button"
+                    onClick={() => setReplyTo(m)}
+                    aria-label="Reply"
+                    className="absolute -top-2 right-1 hidden h-6 w-6 place-items-center rounded-full bg-background/90 text-foreground shadow group-hover:grid"
+                  >
+                    <Reply className="h-3.5 w-3.5" />
+                  </button>
                 </div>
               </div>
             );
@@ -443,42 +580,106 @@ function ChatThread() {
         <div ref={bottomRef} />
       </div>
 
+      {/* Long-press action sheet */}
+      {menuFor && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50"
+          onClick={() => setMenuFor(null)}
+        >
+          <div
+            className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-border bg-card p-2 pb-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-muted-foreground/30" />
+            <button
+              type="button"
+              onClick={() => {
+                setReplyTo(menuFor);
+                setMenuFor(null);
+                inputRef.current?.focus();
+              }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+            >
+              <Reply className="h-4 w-4" /> Reply
+            </button>
+            {menuFor.sender_id === me?.id && (
+              <button
+                type="button"
+                onClick={() => deleteForEveryone(menuFor)}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-red-500 hover:bg-muted"
+              >
+                <Trash2 className="h-4 w-4" /> Delete for everyone
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setMenuFor(null)}
+              className="mt-1 w-full rounded-xl px-4 py-3 text-center text-sm text-muted-foreground hover:bg-muted"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       <form
         onSubmit={send}
-        className="flex items-center gap-2 border-t border-border/60 bg-background/95 px-3 pb-6 pt-3 backdrop-blur"
+        className="flex flex-col gap-2 border-t border-border/60 bg-background/95 px-3 pb-6 pt-3 backdrop-blur"
       >
-        <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
-          <Smile className="h-5 w-5 shrink-0 text-muted-foreground" />
-          <input
-            data-testid="chat-input"
-            ref={inputRef}
-            value={text}
-            onChange={(e) => handleTextChange(e.target.value)}
-            onBlur={() => emitTyping("stop")}
-            placeholder="Message"
-            className="flex-1 bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none"
-          />
-        </div>
-        {text.trim() ? (
-          <button
-            data-testid="chat-send"
-            type="submit"
-            disabled={sending}
-            className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95 disabled:opacity-40"
-            aria-label="Send"
-          >
-            <Send className="h-5 w-5" />
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => toast("voice notes coming soon 🎙")}
-            className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95"
-            aria-label="Voice note"
-          >
-            <Mic className="h-5 w-5" />
-          </button>
+        {replyTo && (
+          <div className="flex items-center gap-2 rounded-xl border-l-2 border-[#00D4B8] bg-muted/60 px-3 py-2">
+            <div className="min-w-0 flex-1">
+              <div className="text-[11px] font-semibold text-[#00D4B8]">
+                Replying to {replyTo.sender_id === me?.id ? "yourself" : title}
+              </div>
+              <div className="truncate text-xs text-muted-foreground">
+                {truncate(replyTo.content ?? "", 90)}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setReplyTo(null)}
+              aria-label="Cancel reply"
+              className="grid h-7 w-7 place-items-center rounded-full hover:bg-muted"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         )}
+        <div className="flex items-center gap-2">
+          <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
+            <Smile className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <input
+              data-testid="chat-input"
+              ref={inputRef}
+              value={text}
+              onChange={(e) => handleTextChange(e.target.value)}
+              onBlur={() => emitTyping("stop")}
+              placeholder="Message"
+              className="flex-1 bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none"
+            />
+          </div>
+          {text.trim() ? (
+            <button
+              data-testid="chat-send"
+              type="submit"
+              disabled={sending}
+              className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95 disabled:opacity-40"
+              aria-label="Send"
+            >
+              <Send className="h-5 w-5" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => toast("voice notes coming soon 🎙")}
+              className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95"
+              aria-label="Voice note"
+            >
+              <Mic className="h-5 w-5" />
+            </button>
+          )}
+        </div>
       </form>
     </div>
   );
