@@ -25,6 +25,40 @@ type CacheEntry = { at: number; data: { channels: { id: string; name: string; vi
 let cache: CacheEntry | null = null;
 const TTL_MS = 10 * 60 * 1000;
 
+async function resolveLiveDebug(channelId: string): Promise<{ videoId: string | null; status?: number; finalUrl?: string; htmlLen?: number; hasLive?: boolean; hasCanonical?: boolean; err?: string }> {
+  const url = `https://www.youtube.com/channel/${channelId}/live?hl=en&persist_hl=1`;
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 6000);
+  try {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": UA,
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cookie": "CONSENT=YES+1; SOCS=CAI",
+      },
+      redirect: "follow",
+      signal: ctl.signal,
+    });
+    const finalUrl = res.url || "";
+    const status = res.status;
+    if (!res.ok) return { videoId: null, status, finalUrl };
+    const html = await res.text();
+    const hasLive = /"hlsManifestUrl"|"isLiveNow":true|"isLive":true/.test(html);
+    const canonical = html.match(/<link rel="canonical" href="https?:\/\/[^"]*[?&]v=([A-Za-z0-9_-]{11})/);
+    const hasCanonical = !!canonical;
+    if (!hasLive) return { videoId: null, status, finalUrl, htmlLen: html.length, hasLive, hasCanonical };
+    let m = finalUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/);
+    if (m) return { videoId: m[1], status, finalUrl, htmlLen: html.length, hasLive, hasCanonical };
+    if (canonical) return { videoId: canonical[1], status, finalUrl, htmlLen: html.length, hasLive, hasCanonical };
+    m = html.match(/"videoDetails":\{[^}]*"videoId":"([A-Za-z0-9_-]{11})"/);
+    return { videoId: m ? m[1] : null, status, finalUrl, htmlLen: html.length, hasLive, hasCanonical };
+  } catch (e) {
+    return { videoId: null, err: String(e) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function resolveLive(channelId: string): Promise<string | null> {
   const url = `https://www.youtube.com/channel/${channelId}/live?hl=en&persist_hl=1`;
   const ctl = new AbortController();
