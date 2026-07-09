@@ -108,6 +108,41 @@ function ChatThread() {
   });
 
   const peerId = header?.peerId ?? null;
+  const isGroup = header?.isGroup ?? false;
+
+  type GroupMember = { user_id: string; role: string; joined_at: string | null; display_name: string | null; username: string | null; avatar_url: string | null };
+  const { data: members = [], refetch: refetchMembers } = useQuery({
+    queryKey: ["group-members", conversationId],
+    enabled: !!me && isGroup,
+    queryFn: async (): Promise<GroupMember[]> => {
+      const { data } = await supabase
+        .from("conversation_members")
+        .select("user_id, role, joined_at, profiles(display_name, username, avatar_url)")
+        .eq("conversation_id", conversationId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).map((r) => ({
+        user_id: r.user_id,
+        role: r.role,
+        joined_at: r.joined_at,
+        display_name: r.profiles?.display_name ?? null,
+        username: r.profiles?.username ?? null,
+        avatar_url: r.profiles?.avatar_url ?? null,
+      }));
+    },
+  });
+
+  const myRole = useMemo(() => members.find((m) => m.user_id === me?.id)?.role ?? null, [members, me?.id]);
+  const senderMap = useMemo(() => {
+    const map = new Map<string, { name: string; color: string }>();
+    for (const m of members) {
+      const name = m.display_name || m.username || "Someone";
+      map.set(m.user_id, { name, color: colorFor(m.user_id) });
+    }
+    return map;
+  }, [members]);
+
+  const [peerTypingName, setPeerTypingName] = useState<string | null>(null);
+
 
   const { data: isBlocked = false, refetch: refetchBlocked } = useQuery({
     queryKey: ["blocked", me?.id, peerId],
