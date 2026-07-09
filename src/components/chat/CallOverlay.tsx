@@ -316,7 +316,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   };
 
   const createPc = () => {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
+    const pc = new RTCPeerConnection({ iceServers: cachedIceServers ?? FALLBACK_ICE_SERVERS, iceCandidatePoolSize: 4 });
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSig("ice", { candidate: e.candidate.toJSON() });
     };
