@@ -345,6 +345,142 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
   };
 
+  const startStatsLoop = () => {
+    if (statsIntervalRef.current) return;
+    statsPrevRef.current = null;
+    statsAggRef.current = {
+      samples: 0, rttSum: 0, rttMax: 0, jitterSum: 0,
+      kbpsInSum: 0, kbpsOutSum: 0, lossPct: 0,
+      packetsLost: 0, packetsReceived: 0,
+      route: "unknown", codec: "unknown", fec: false,
+      connectedAt: Date.now(),
+    };
+    const tick = async () => {
+      const pc = pcRef.current;
+      const agg = statsAggRef.current;
+      if (!pc || !agg) return;
+      try {
+        const report = await pc.getStats();
+        let inbAudio: any = null, outAudio: any = null, remoteInb: any = null;
+        let selectedPair: any = null, codecStat: any = null;
+        const candidatesById = new Map<string, any>();
+        const codecsById = new Map<string, any>();
+        report.forEach((s: any) => {
+          if (s.type === "inbound-rtp" && s.kind === "audio" && !s.isRemote) inbAudio = s;
+          else if (s.type === "outbound-rtp" && s.kind === "audio" && !s.isRemote) outAudio = s;
+          else if (s.type === "remote-inbound-rtp" && s.kind === "audio") remoteInb = s;
+          else if (s.type === "candidate-pair" && (s.selected || s.nominated) && s.state === "succeeded") selectedPair = s;
+          else if (s.type === "local-candidate" || s.type === "remote-candidate") candidatesById.set(s.id, s);
+          else if (s.type === "codec") codecsById.set(s.id, s);
+        });
+        if (!selectedPair) {
+          report.forEach((s: any) => {
+            if (s.type === "transport" && s.selectedCandidatePairId) {
+              const p = report.get(s.selectedCandidatePairId);
+              if (p) selectedPair = p;
+            }
+          });
+        }
+        if (inbAudio?.codecId) codecStat = codecsById.get(inbAudio.codecId);
+        else if (outAudio?.codecId) codecStat = codecsById.get(outAudio.codecId);
+
+        const now = Date.now();
+        const bytesIn = inbAudio?.bytesReceived ?? 0;
+        const bytesOut = outAudio?.bytesSent ?? 0;
+        const packetsLost = inbAudio?.packetsLost ?? 0;
+        const packetsReceived = inbAudio?.packetsReceived ?? 0;
+        let kbpsIn = 0, kbpsOut = 0;
+        const prev = statsPrevRef.current;
+        if (prev) {
+          const dt = (now - prev.ts) / 1000;
+          if (dt > 0) {
+            kbpsIn = ((bytesIn - prev.bytesIn) * 8) / 1000 / dt;
+            kbpsOut = ((bytesOut - prev.bytesOut) * 8) / 1000 / dt;
+          }
+        }
+        statsPrevRef.current = { ts: now, bytesIn, bytesOut, packetsLost, packetsReceived };
+
+        const rttSec = selectedPair?.currentRoundTripTime ?? remoteInb?.roundTripTime ?? 0;
+        const rttMs = Math.round(rttSec * 1000);
+        const jitterMs = Math.round(((inbAudio?.jitter ?? 0) as number) * 1000);
+        const totalPkts = packetsReceived + packetsLost;
+        const lossPct = totalPkts > 0 ? (packetsLost / totalPkts) * 100 : 0;
+
+        let route = "unknown";
+        const local = selectedPair?.localCandidateId ? candidatesById.get(selectedPair.localCandidateId) : null;
+        const remote = selectedPair?.remoteCandidateId ? candidatesById.get(selectedPair.remoteCandidateId) : null;
+        const lct = local?.candidateType, rct = remote?.candidateType;
+        if (lct === "relay" || rct === "relay") route = "Relay";
+        else if (lct || rct) route = "P2P";
+        agg.route = route;
+
+        if (codecStat?.mimeType) agg.codec = String(codecStat.mimeType).replace("audio/", "");
+        if (codecStat?.sdpFmtpLine) agg.fec = /useinbandfec=1/i.test(String(codecStat.sdpFmtpLine));
+
+        agg.samples += 1;
+        agg.rttSum += rttMs;
+        if (rttMs > agg.rttMax) agg.rttMax = rttMs;
+        agg.jitterSum += jitterMs;
+        agg.kbpsInSum += kbpsIn;
+        agg.kbpsOutSum += kbpsOut;
+        agg.packetsLost = packetsLost;
+        agg.packetsReceived = packetsReceived;
+        agg.lossPct = lossPct;
+
+        setHudLive({
+          route,
+          rttMs,
+          lossPct: Math.round(lossPct * 10) / 10,
+          jitterMs,
+          kbpsIn: Math.round(kbpsIn),
+          kbpsOut: Math.round(kbpsOut),
+        });
+      } catch {
+        // getStats can throw during teardown; ignore
+      }
+    };
+    void tick();
+    statsIntervalRef.current = window.setInterval(tick, 3000);
+  };
+
+  const stopStatsLoop = () => {
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current);
+      statsIntervalRef.current = null;
+    }
+  };
+
+  const emitEndOfCallReport = () => {
+    const agg = statsAggRef.current;
+    statsAggRef.current = null;
+    statsPrevRef.current = null;
+    if (!agg) return;
+    const durationMs = Date.now() - agg.connectedAt;
+    if (durationMs < 10000 || agg.samples === 0) return;
+    const avgRTT = Math.round(agg.rttSum / agg.samples);
+    const avgJitter = Math.round(agg.jitterSum / agg.samples);
+    const avgKbpsIn = Math.round(agg.kbpsInSum / agg.samples);
+    const avgKbpsOut = Math.round(agg.kbpsOutSum / agg.samples);
+    const lossPct = Math.round(agg.lossPct * 10) / 10;
+    const summary = {
+      route: agg.route,
+      avgRTT,
+      maxRTT: agg.rttMax,
+      lossPct,
+      avgJitterMs: avgJitter,
+      avgKbpsIn,
+      avgKbpsOut,
+      codec: agg.codec,
+      opusFec: agg.fec,
+      durationSec: Math.round(durationMs / 1000),
+      packetsLost: agg.packetsLost,
+      packetsReceived: agg.packetsReceived,
+    };
+    // eslint-disable-next-line no-console
+    console.log("[call-stats]", summary);
+    toast(`Call: ${agg.route} · ${avgRTT}ms · ${lossPct}% loss · ${agg.codec}`);
+  };
+
   const cleanupMedia = () => {
     if (ringTimeoutRef.current) {
       clearTimeout(ringTimeoutRef.current);
