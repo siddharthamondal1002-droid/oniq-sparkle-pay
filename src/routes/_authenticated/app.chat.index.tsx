@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
@@ -59,6 +60,11 @@ function ChatList() {
   const [showNew, setShowNew] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [query, setQuery] = useState("");
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -297,15 +303,18 @@ function ChatList() {
         )}
       </div>
 
-      {/* FAB */}
-      <button
-        onClick={() => setShowNew(true)}
-        aria-label="New chat"
-        data-testid="new-chat-fab"
-        className="fixed bottom-6 right-4 z-50 grid h-14 w-14 place-items-center rounded-full bg-[#25D366] text-black shadow-lg active:scale-95"
-      >
-        <Edit3 className="h-5 w-5" />
-      </button>
+      {mounted &&
+        createPortal(
+          <button
+            onClick={() => setShowNew(true)}
+            aria-label="New chat"
+            data-testid="new-chat-fab"
+            className="fixed right-4 bottom-6 z-[70] h-14 w-14 rounded-full bg-[#25D366] text-black shadow-xl grid place-items-center active:scale-95"
+          >
+            <Edit3 className="h-5 w-5" />
+          </button>,
+          document.body,
+        )}
 
       {showNew && me && <NewChatSheet meId={me.id} onClose={() => setShowNew(false)} />}
     </div>
