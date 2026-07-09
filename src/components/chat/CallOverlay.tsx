@@ -393,7 +393,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     iceRestartsRef.current += 1;
     try {
       pc.restartIce();
-      const offer = await pc.createOffer({ iceRestart: true });
+      const offer = withMungedSdp(await pc.createOffer({ iceRestart: true }));
       await pc.setLocalDescription(offer);
       sendSig("offer", { sdp: offer });
     } catch {
