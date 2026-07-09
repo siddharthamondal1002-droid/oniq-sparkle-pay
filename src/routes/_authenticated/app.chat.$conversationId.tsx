@@ -1,8 +1,8 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
@@ -68,6 +68,8 @@ function ChatThread() {
   const pressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const swipedRef = useRef(false);
+  const navigate = useNavigate();
+  const [showMembersSheet, setShowMembersSheet] = useState(false);
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -106,6 +108,41 @@ function ChatThread() {
   });
 
   const peerId = header?.peerId ?? null;
+  const isGroup = header?.isGroup ?? false;
+
+  type GroupMember = { user_id: string; role: string; joined_at: string | null; display_name: string | null; username: string | null; avatar_url: string | null };
+  const { data: members = [], refetch: refetchMembers } = useQuery({
+    queryKey: ["group-members", conversationId],
+    enabled: !!me && isGroup,
+    queryFn: async (): Promise<GroupMember[]> => {
+      const { data } = await supabase
+        .from("conversation_members")
+        .select("user_id, role, joined_at, profiles(display_name, username, avatar_url)")
+        .eq("conversation_id", conversationId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return ((data ?? []) as any[]).map((r) => ({
+        user_id: r.user_id,
+        role: r.role,
+        joined_at: r.joined_at,
+        display_name: r.profiles?.display_name ?? null,
+        username: r.profiles?.username ?? null,
+        avatar_url: r.profiles?.avatar_url ?? null,
+      }));
+    },
+  });
+
+  const myRole = useMemo(() => members.find((m) => m.user_id === me?.id)?.role ?? null, [members, me?.id]);
+  const senderMap = useMemo(() => {
+    const map = new Map<string, { name: string; color: string }>();
+    for (const m of members) {
+      const name = m.display_name || m.username || "Someone";
+      map.set(m.user_id, { name, color: colorFor(m.user_id) });
+    }
+    return map;
+  }, [members]);
+
+  const [peerTypingName, setPeerTypingName] = useState<string | null>(null);
+
 
   const { data: isBlocked = false, refetch: refetchBlocked } = useQuery({
     queryKey: ["blocked", me?.id, peerId],
@@ -221,10 +258,13 @@ function ChatThread() {
       if (!p || p.user_id === me.id) return;
       if (p.state === "start") {
         setPeerTyping(true);
+        const nm = senderMap.get(p.user_id)?.name?.split(/\s+/)[0] ?? null;
+        setPeerTypingName(nm);
         if (peerTypingTimerRef.current) clearTimeout(peerTypingTimerRef.current);
-        peerTypingTimerRef.current = setTimeout(() => setPeerTyping(false), 4500);
+        peerTypingTimerRef.current = setTimeout(() => { setPeerTyping(false); setPeerTypingName(null); }, 4500);
       } else {
         setPeerTyping(false);
+        setPeerTypingName(null);
       }
     });
     ch.subscribe();
@@ -440,38 +480,58 @@ function ChatThread() {
         <Link to="/app/chat" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
           <ArrowLeft className="h-5 w-5" />
         </Link>
-        <div
-          className="grid h-10 w-10 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white"
-          style={{ backgroundColor: colorFor(title) }}
+        <button
+          type="button"
+          onClick={() => isGroup && setShowMembersSheet(true)}
+          className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
-          {header?.avatar_url ? (
-            <img src={header.avatar_url} alt="" className="h-full w-full object-cover" />
-          ) : (
-            title.charAt(0).toUpperCase()
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-medium">{title}</div>
-          <div className="text-[11px] text-muted-foreground">
-            {peerTyping ? <span className="text-[#25D366]">typing…</span> : "online"}
+          <div
+            className="grid h-10 w-10 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white"
+            style={{ backgroundColor: colorFor(title) }}
+          >
+            {header?.avatar_url ? (
+              <img src={header.avatar_url} alt="" className="h-full w-full object-cover" />
+            ) : isGroup ? (
+              <Users className="h-5 w-5" />
+            ) : (
+              title.charAt(0).toUpperCase()
+            )}
           </div>
-        </div>
-        <button
-          data-testid="call-audio"
-          onClick={() => callRef.current?.startCall("audio")}
-          aria-label="Voice call"
-          className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
-        >
-          <Phone className="h-5 w-5" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate font-medium">{title}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {peerTyping ? (
+                <span className="text-[#25D366]">
+                  {isGroup && peerTypingName ? `${peerTypingName} is typing…` : "typing…"}
+                </span>
+              ) : isGroup ? (
+                `${members.length} member${members.length === 1 ? "" : "s"}`
+              ) : (
+                "online"
+              )}
+            </div>
+          </div>
         </button>
-        <button
-          data-testid="call-video"
-          onClick={() => callRef.current?.startCall("video")}
-          aria-label="Video call"
-          className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
-        >
-          <Video className="h-5 w-5" />
-        </button>
+        {!isGroup && (
+          <>
+            <button
+              data-testid="call-audio"
+              onClick={() => callRef.current?.startCall("audio")}
+              aria-label="Voice call"
+              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+            >
+              <Phone className="h-5 w-5" />
+            </button>
+            <button
+              data-testid="call-video"
+              onClick={() => callRef.current?.startCall("video")}
+              aria-label="Video call"
+              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+            >
+              <Video className="h-5 w-5" />
+            </button>
+          </>
+        )}
         <div className="relative">
           <button
             data-testid="chat-menu"
@@ -604,6 +664,15 @@ function ChatThread() {
                       : "border border-border bg-card text-foreground"
                   }`}
                 >
+                  {isGroup && !mine && firstOfGroup && (() => {
+                    const sm = senderMap.get(m.sender_id);
+                    if (!sm) return null;
+                    return (
+                      <div className="mb-0.5 text-[11px] font-semibold" style={{ color: sm.color }}>
+                        {sm.name}
+                      </div>
+                    );
+                  })()}
                   {quoted && (
                     <button
                       type="button"
@@ -611,7 +680,7 @@ function ChatThread() {
                       className={`mb-1 block w-full rounded-md border-l-2 border-[#00D4B8] px-2 py-1 text-left text-[11px] ${mine ? "bg-black/20" : "bg-muted/60"}`}
                     >
                       <div className="font-semibold text-[#00D4B8]">
-                        {quoted.sender_id === me?.id ? "You" : (title || "Message")}
+                        {quoted.sender_id === me?.id ? "You" : (senderMap.get(quoted.sender_id)?.name || title || "Message")}
                       </div>
                       <div className={`truncate ${mine ? "text-white/80" : "text-muted-foreground"}`}>
                         {quoted.is_deleted ? "This message was deleted" : truncate(quoted.content ?? "", 80)}
@@ -630,12 +699,15 @@ function ChatThread() {
                     }`}
                   >
                     <span>{m.created_at ? format(new Date(m.created_at), "HH:mm") : ""}</span>
-                    {mine &&
-                      (isRead ? (
+                    {mine && isGroup ? (
+                      <Check className="h-3.5 w-3.5 text-white/70" />
+                    ) : mine ? (
+                      isRead ? (
                         <CheckCheck className="h-3.5 w-3.5 text-[#53BDEB]" />
                       ) : (
                         <CheckCheck className="h-3.5 w-3.5 text-white/70" />
-                      ))}
+                      )
+                    ) : null}
                     {mine && lastOfGroup && false && <Check className="h-3 w-3" />}
                   </div>
                   {/* Desktop hover Reply */}
@@ -723,6 +795,19 @@ function ChatThread() {
 
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
 
+      {showMembersSheet && isGroup && (
+        <GroupMembersSheet
+          conversationId={conversationId}
+          groupName={title}
+          meId={me?.id ?? null}
+          members={members}
+          myRole={myRole}
+          onClose={() => setShowMembersSheet(false)}
+          onChanged={() => refetchMembers()}
+          onLeft={() => navigate({ to: "/app/chat" })}
+        />
+      )}
+
 
       <form
         onSubmit={send}
@@ -784,6 +869,189 @@ function ChatThread() {
           )}
         </div>
       </form>
+    </div>
+  );
+}
+
+type Member = {
+  user_id: string;
+  role: string;
+  joined_at: string | null;
+  display_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+};
+
+function GroupMembersSheet({
+  conversationId,
+  groupName,
+  meId,
+  members,
+  myRole,
+  onClose,
+  onChanged,
+  onLeft,
+}: {
+  conversationId: string;
+  groupName: string;
+  meId: string | null;
+  members: Member[];
+  myRole: string | null;
+  onClose: () => void;
+  onChanged: () => void;
+  onLeft: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [showAdd, setShowAdd] = useState(false);
+  const [q, setQ] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const isOwner = myRole === "owner";
+  const existingIds = useMemo(() => new Set(members.map((m) => m.user_id)), [members]);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(q.trim()), 200);
+    return () => clearTimeout(t);
+  }, [q]);
+
+  const { data: results = [] } = useQuery({
+    queryKey: ["add-members-search", debounced, conversationId],
+    enabled: showAdd && debounced.length >= 1,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .or(`username.ilike.%${debounced}%,display_name.ilike.%${debounced}%`)
+        .limit(15);
+      return (data ?? []).filter((u) => !existingIds.has(u.id));
+    },
+  });
+
+  const removeMember = async (uid: string) => {
+    if (!confirm("Remove this member?")) return;
+    setBusy(true);
+    const { error } = await supabase.rpc("remove_group_member", {
+      _conversation_id: conversationId,
+      _user_id: uid,
+    });
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else { toast.success("Member removed"); onChanged(); }
+  };
+
+  const addMember = async (uid: string) => {
+    setBusy(true);
+    const { error } = await supabase.rpc("add_group_members", {
+      _conversation_id: conversationId,
+      _member_ids: [uid],
+    });
+    setBusy(false);
+    if (error) toast.error(error.message);
+    else { toast.success("Member added"); setShowAdd(false); setQ(""); onChanged(); }
+  };
+
+  const leave = async () => {
+    if (!confirm("Leave this group?")) return;
+    setBusy(true);
+    const { error } = await supabase.rpc("leave_group", { _conversation_id: conversationId });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast("You left the group");
+    onLeft();
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
+      <div
+        className="max-h-[80vh] w-full overflow-y-auto rounded-t-3xl border-t border-border bg-background p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-display text-lg font-semibold">{groupName}</h2>
+            <div className="text-xs text-muted-foreground">{members.length} members</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {isOwner && (
+          <button
+            type="button"
+            onClick={() => setShowAdd((v) => !v)}
+            className="mt-3 flex w-full items-center gap-2 rounded-2xl border border-border px-3 py-2.5 text-sm hover:bg-muted"
+          >
+            <UserPlus className="h-4 w-4" /> Add members
+          </button>
+        )}
+
+        {showAdd && (
+          <div className="mt-2">
+            <input
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Search @username"
+              className="w-full rounded-2xl border border-border bg-input/40 px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            />
+            <div className="mt-1 max-h-40 overflow-y-auto">
+              {results.map((u) => (
+                <button
+                  key={u.id}
+                  disabled={busy}
+                  onClick={() => addMember(u.id)}
+                  className="flex w-full items-center gap-3 rounded-xl p-2 text-left hover:bg-muted disabled:opacity-50"
+                >
+                  <div className="grid h-8 w-8 place-items-center overflow-hidden rounded-full text-xs font-semibold text-white" style={{ backgroundColor: colorFor(u.id) }}>
+                    {u.avatar_url ? <img src={u.avatar_url} alt="" className="h-full w-full object-cover" /> : (u.display_name || u.username || "?").charAt(0).toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{u.display_name}</div>
+                    <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <ul className="mt-3 divide-y divide-border/50">
+          {members.map((m) => (
+            <li key={m.user_id} className="flex items-center gap-3 py-2.5">
+              <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white" style={{ backgroundColor: colorFor(m.user_id) }}>
+                {m.avatar_url ? <img src={m.avatar_url} alt="" className="h-full w-full object-cover" /> : (m.display_name || m.username || "?").charAt(0).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2 truncate">
+                  <span className="truncate text-sm font-medium">{m.display_name || m.username}{m.user_id === meId ? " (you)" : ""}</span>
+                  {m.role === "owner" && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">owner</span>}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">@{m.username}</div>
+              </div>
+              {isOwner && m.user_id !== meId && (
+                <button
+                  type="button"
+                  onClick={() => removeMember(m.user_id)}
+                  disabled={busy}
+                  aria-label="Remove member"
+                  className="grid h-9 w-9 place-items-center rounded-full text-red-500 hover:bg-muted"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        <button
+          type="button"
+          onClick={leave}
+          disabled={busy}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-500/40 py-3 text-sm font-semibold text-red-500 hover:bg-red-500/10 disabled:opacity-50"
+        >
+          <LogOut className="h-4 w-4" /> Leave group
+        </button>
+      </div>
     </div>
   );
 }

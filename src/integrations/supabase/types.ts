@@ -1320,6 +1320,10 @@ export type Database = {
         }
         Returns: string
       }
+      add_group_members: {
+        Args: { _conversation_id: string; _member_ids: string[] }
+        Returns: undefined
+      }
       admin_remove_content: {
         Args: { _note?: string; _target_id: string; _target_type: string }
         Returns: undefined
@@ -1349,6 +1353,10 @@ export type Database = {
         Args: { _lesson_id: string; _score: number }
         Returns: Json
       }
+      create_group: {
+        Args: { _member_ids: string[]; _name: string }
+        Returns: string
+      }
       create_payment_request: {
         Args: { _amount: number; _from_username: string; _note?: string }
         Returns: string
@@ -1371,6 +1379,7 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
+      leave_group: { Args: { _conversation_id: string }; Returns: undefined }
       mark_conversation_read: {
         Args: { _conversation_id: string }
         Returns: undefined
@@ -1387,6 +1396,10 @@ export type Database = {
       }
       reclaim_red_packet: { Args: { _packet_id: string }; Returns: number }
       record_clip_view: { Args: { _clip_id: string }; Returns: undefined }
+      remove_group_member: {
+        Args: { _conversation_id: string; _user_id: string }
+        Returns: undefined
+      }
       respond_payment_request: {
         Args: { _accept: boolean; _request_id: string }
         Returns: string
