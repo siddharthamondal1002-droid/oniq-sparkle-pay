@@ -25,9 +25,15 @@ type EnrichedConv = {
   id: string;
   title: string;
   avatar_url: string | null;
+  type: string;
   updated_at: string | null;
   last_message: string | null;
   last_sender_id: string | null;
+  last_sender_name: string | null;
+  last_created_at: string | null;
+  peer_read_at: string | null;
+  unread: number;
+};
   last_created_at: string | null;
   peer_read_at: string | null;
   unread: number;
