@@ -2,7 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageCircle, Search, Edit3, X, Check, CheckCheck } from "lucide-react";
+import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { format, isToday, isYesterday, differenceInDays } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/app/chat/")({
