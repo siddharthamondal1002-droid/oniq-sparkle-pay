@@ -143,9 +143,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (!ctx) throw new Error("AudioContext unavailable");
       const src = ctx.createMediaStreamSource(stream);
       const gain = ctx.createGain();
-      gain.gain.value = 1.8;
+      gain.gain.value = 1.35;
+      const comp = ctx.createDynamicsCompressor();
+      try {
+        comp.threshold.value = -24;
+        comp.knee.value = 30;
+        comp.ratio.value = 12;
+        comp.attack.value = 0.003;
+        comp.release.value = 0.25;
+      } catch {
+        // older browsers may not accept .value on all AudioParams — safe to ignore
+      }
       src.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(comp);
+      comp.connect(ctx.destination);
       audioSrcNodeRef.current = src;
       audioGainNodeRef.current = gain;
       audioPipelineStreamIdRef.current = stream.id;
