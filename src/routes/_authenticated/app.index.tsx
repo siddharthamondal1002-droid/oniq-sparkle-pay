@@ -234,6 +234,21 @@ function Tile({
   );
 }
 
+type LiveEntry = { id: string; name: string; videoId: string };
+
+function useLiveChannels(enabled: boolean) {
+  return useQuery({
+    queryKey: ["live-channels"],
+    enabled,
+    staleTime: 10 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("live-channels", { body: {} });
+      if (error) throw error;
+      return (Array.isArray(data?.channels) ? data.channels : []) as LiveEntry[];
+    },
+  });
+}
+
 function HeroTile({
   to,
   search,
@@ -243,6 +258,7 @@ function HeroTile({
   gradient,
   skin,
   delay = 0,
+  livePreview = false,
 }: {
   tileKey: TileKey;
   to: string;
@@ -253,9 +269,31 @@ function HeroTile({
   gradient: string;
   skin?: string;
   delay?: number;
+  livePreview?: boolean;
 }) {
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
+  const { data: channels } = useLiveChannels(livePreview && !showSkin);
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    if (!livePreview || showSkin || !channels || channels.length < 2) return;
+    let t: number | null = null;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) {
+        t = window.setTimeout(tick, 120_000);
+        return;
+      }
+      setIdx((i) => (i + 1) % channels.length);
+    };
+    t = window.setTimeout(tick, 120_000);
+    return () => { if (t) window.clearTimeout(t); };
+  }, [idx, channels, livePreview, showSkin]);
+
+  const videoId = livePreview && !showSkin && channels && channels.length
+    ? channels[idx % channels.length].videoId
+    : null;
+
   return (
     <Link
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -265,23 +303,45 @@ function HeroTile({
       style={{ animationDelay: `${delay}ms` }}
       className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
     >
+      {videoId && (
+        <>
+          <iframe
+            key={videoId}
+            src={`https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&playsinline=1&rel=0&modestbranding=1`}
+            loading="lazy"
+            allow="autoplay; encrypted-media; picture-in-picture"
+            className="pointer-events-none absolute inset-0 h-full w-full scale-[1.35] object-cover"
+            title="Live preview"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+        </>
+      )}
       {showSkin ? (
         <img
           src={skin!}
           alt=""
-          className="h-10 w-10 rounded-xl object-cover"
+          className="relative h-10 w-10 rounded-xl object-cover"
           onError={() => setSkinError(true)}
         />
+      ) : videoId ? (
+        <span className="relative inline-flex w-fit items-center gap-1.5 rounded-full border border-red-500/50 bg-red-500/15 px-2 py-0.5 text-[10px] font-bold text-red-300">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+          </span>
+          LIVE
+        </span>
       ) : (
         <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
       )}
-      <div>
+      <div className="relative">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{tagline}</div>
         <div className="font-display text-2xl font-bold">{label}</div>
       </div>
     </Link>
   );
 }
+
 
 type BIPEvent = Event & {
   prompt: () => Promise<void>;
