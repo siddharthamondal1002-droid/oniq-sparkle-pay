@@ -82,8 +82,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "ONIQ is the global lifestyle super app — messaging, social, food, payments, crypto, AI and more. One login. Every world.",
+          "Chat, pay, watch live TV, ride, travel, learn — ONIQ is one app for every world.",
       },
+
       { name: "author", content: "ONIQ" },
       { property: "og:site_name", content: "ONIQ" },
       { property: "og:type", content: "website" },
@@ -117,7 +118,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           name: "ONIQ",
           url: "https://oniq-sparkle-pay.lovable.app",
           description:
-            "The global lifestyle super app — messaging, social, food, payments, crypto, AI and more.",
+            "Chat, pay, watch live TV, ride, travel, learn — ONIQ is one app for every world.",
+
           sameAs: [] as string[],
         }),
       },

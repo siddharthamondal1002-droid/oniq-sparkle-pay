@@ -1,10 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   MessageCircle,
-  UtensilsCrossed,
   Sparkles,
-  CloudSun,
-  Coins,
+  Wallet,
+  QrCode,
+  Car,
+  Plane,
+  Languages,
+  Tv,
+  Film,
+  Grid3x3,
   ShieldCheck,
   Globe2,
   ArrowRight,
@@ -12,44 +17,39 @@ import {
 } from "lucide-react";
 import { LiveNewsSection } from "@/components/landing/LiveNewsSection";
 
+const LANDING_DESCRIPTION =
+  "Chat, pay, watch live TV, ride, travel, learn — ONIQ is one app for every world.";
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "ONIQ — One App. Every World." },
-      {
-        name: "description",
-        content:
-          "The global lifestyle super app. Chat, pay, eat, invest, and create — all from one login. Built for the connected world.",
-      },
+      { name: "description", content: LANDING_DESCRIPTION },
       { property: "og:title", content: "ONIQ — One App. Every World." },
-      {
-        property: "og:description",
-        content:
-          "Messaging, social, food, payments, crypto, AI and more — in a single super app.",
-      },
+      { property: "og:description", content: LANDING_DESCRIPTION },
       { property: "og:url", content: "https://oniqhub.com/" },
       { property: "og:type", content: "website" },
       { name: "twitter:title", content: "ONIQ — One App. Every World." },
-      {
-        name: "twitter:description",
-        content:
-          "Messaging, social, food, payments, crypto, AI and more — in a single super app.",
-      },
+      { name: "twitter:description", content: LANDING_DESCRIPTION },
     ],
-    // Canonical is set at __root for the whole site to point at https://oniqhub.com.
   }),
   component: Landing,
 });
 
 
 const features = [
-  { icon: MessageCircle, title: "Messaging", desc: "Real-time chat, voice & video. End-to-end and lightning fast." },
-  { icon: Sparkles, title: "Moments & Channels", desc: "Share moments with friends, follow creators, go live." },
-  { icon: UtensilsCrossed, title: "Food Delivery", desc: "Order from local restaurants — alcohol-free, family-safe." },
-  { icon: Coins, title: "OMIQ Wallet", desc: "Built-in crypto wallet on Polygon. Your keys, your coins." },
-  { icon: Sparkles, title: "AI Assistant", desc: "On-demand AI for chat, search, planning and creativity." },
-  { icon: CloudSun, title: "Weather & Travel", desc: "Hyperlocal forecasts and trip tools in one tap." },
-  { icon: ShieldCheck, title: "Fraud Protection", desc: "AI-powered fraud detection on every transaction." },
+  { icon: MessageCircle, title: "Chat", desc: "Real-time messaging with voice & video calls." },
+  { icon: Sparkles, title: "Moments", desc: "A private social feed for you and your circle." },
+  { icon: Film, title: "Clips", desc: "Endless short videos in a swipeable feed." },
+  { icon: Wallet, title: "Wallet & Red Packets", desc: "Instant send/request plus 🧧 red packets with escrow." },
+  { icon: QrCode, title: "Scan & Pay (UPI)", desc: "Scan any UPI QR, show your own, pay in a tap." },
+  { icon: Car, title: "Ride Genie", desc: "Compare ride prices across providers before you book." },
+  { icon: Plane, title: "Wander", desc: "Compare buses, trains, flights and hotels in one hub." },
+  { icon: Sparkles, title: "Ting AI", desc: "Live-web AI assistant that actually answers what's happening now." },
+  { icon: Languages, title: "Lingo", desc: "25-language translator plus Bengali lessons in ONIQ Learn." },
+  { icon: Tv, title: "Pulse & Watch", desc: "Live news TV, 6 genre channels, plus My TV for your YouTube picks." },
+  { icon: Grid3x3, title: "25+ Mini Apps", desc: "A growing hub of partner apps that open right inside ONIQ." },
+  { icon: ShieldCheck, title: "Yours to skin", desc: "Install as a PWA, add wallpapers and tile skins." },
 ];
 
 function Landing() {
@@ -98,9 +98,9 @@ function Landing() {
                 <span className="bg-gradient-to-r from-[#00D4B8] via-[#8B5CF6] to-[#F59E0B] bg-clip-text text-transparent">Every world.</span>
               </h1>
               <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-                ONIQ is the global lifestyle super app. Chat with friends, pay anyone,
-                order food, hold crypto, and ask an AI — all from a single, beautifully
-                fast experience.
+                Chat with voice &amp; video, send money, scan any UPI QR, compare rides
+                and travel, watch live TV, learn a language and ask an AI — all in one
+                beautifully fast app.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
@@ -117,9 +117,9 @@ function Landing() {
                 </a>
               </div>
               <div className="mt-10 grid grid-cols-3 gap-6 text-sm">
-                <Stat value="9" label="Worlds in one app" />
-                <Stat value="0$" label="Free for users" />
-                <Stat value="180+" label="Countries planned" />
+                <Stat value="12" label="Worlds in one app" />
+                <Stat value="25" label="Languages in Lingo" />
+                <Stat value="6" label="TV genres live" />
               </div>
             </div>
 
@@ -135,7 +135,7 @@ function Landing() {
       <section id="features" style={{ scrollMarginTop: "5rem" }} className="mx-auto max-w-6xl px-5 py-24">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="font-display text-4xl font-bold md:text-5xl">
-            Eight worlds. <span className="text-gradient-accent">One login.</span>
+            Twelve worlds. <span className="text-gradient-accent">One login.</span>
           </h2>
           <p className="mt-4 text-muted-foreground">
             Stop juggling apps. ONIQ brings everyday life into a single, unified surface.
@@ -171,23 +171,24 @@ function Landing() {
               <br /> <span className="text-gradient-primary">connected world.</span>
             </h2>
             <p className="mt-5 text-muted-foreground">
-              Multi-currency. Multi-language. Multi-everything. Whether you're sending a
-              voice note across timezones or splitting dinner across currencies — ONIQ
+              Multi-language, multi-provider, multi-everything. Whether you're sending a
+              voice note across timezones or splitting a red packet with friends — ONIQ
               just works.
             </p>
             <ul className="mt-6 space-y-3 text-sm">
-              <Check>End-to-end encrypted messaging</Check>
-              <Check>Biometric authentication on every payment</Check>
-              <Check>RLS-enforced data, zero shared inboxes</Check>
-              <Check>Alcohol-free food marketplace, family-safe</Check>
+              <Check>Real-time voice &amp; video calls in chat</Check>
+              <Check>RLS-enforced data — every wallet write server-signed</Check>
+              <Check>Installable as a PWA with custom wallpapers &amp; skins</Check>
+              <Check>25+ mini apps, one login, no re-auth</Check>
             </ul>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <WorldCard icon={MessageCircle} label="Chat" tint="from-primary to-blue-500" />
-            <WorldCard icon={UtensilsCrossed} label="Food" tint="from-neon to-primary" />
-            <WorldCard icon={Coins} label="Crypto" tint="from-amber to-magenta" />
-            <WorldCard icon={Sparkles} label="AI" tint="from-magenta to-primary" />
-            <WorldCard icon={CloudSun} label="Weather" tint="from-primary to-neon" />
+            <WorldCard icon={Wallet} label="Pay" tint="from-neon to-primary" />
+            <WorldCard icon={Tv} label="Watch" tint="from-magenta to-primary" />
+            <WorldCard icon={Sparkles} label="Ting AI" tint="from-primary to-magenta" />
+            <WorldCard icon={Plane} label="Wander" tint="from-amber to-magenta" />
+            <WorldCard icon={Car} label="Ride" tint="from-primary to-neon" />
           </div>
         </div>
       </section>
@@ -262,10 +263,10 @@ function PhoneMockup() {
           <div className="mt-4 rounded-2xl border border-border bg-card/70 p-4 backdrop-blur">
             <div className="text-xs text-muted-foreground">Wallet balance</div>
             <div className="mt-1 font-display text-2xl font-semibold">$1,284.50</div>
-            <div className="mt-2 text-xs text-neon">+ 124 OMIQ</div>
+            <div className="mt-2 text-xs text-neon">Send · Request · 🧧 Red Packet</div>
           </div>
           <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-            {["Chat", "Eat", "AI", "Ride"].map((t) => (
+            {["Chat", "Pay", "Watch", "Ride"].map((t) => (
               <div
                 key={t}
                 className="rounded-xl border border-border bg-card/50 py-3 text-xs text-muted-foreground"
@@ -277,13 +278,12 @@ function PhoneMockup() {
           <div className="mt-4 rounded-2xl border border-border bg-card/70 p-4">
             <div className="flex items-center gap-2 text-xs">
               <Sparkles className="h-3.5 w-3.5 text-accent" />
-              <span className="font-medium">ONIQ AI</span>
+              <span className="font-medium">Ting AI</span>
             </div>
-            <div className="mt-2 text-sm">Want me to book your usual ramen for 7pm?</div>
+            <div className="mt-2 text-sm">"Ting, what's the cheapest ride to Park Street rn?"</div>
           </div>
         </div>
       </div>
     </div>
   );
 }
-
