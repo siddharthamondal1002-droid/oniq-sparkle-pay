@@ -113,6 +113,79 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const autoAcceptTriedRef = useRef(false);
   const iceRestartsRef = useRef(0);
   const graceTimerRef = useRef<number | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const audioSrcNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
+  const audioGainNodeRef = useRef<GainNode | null>(null);
+  const audioPipelineStreamIdRef = useRef<string | null>(null);
+
+  const teardownRemoteAudioPipeline = () => {
+    try { audioSrcNodeRef.current?.disconnect(); } catch {}
+    try { audioGainNodeRef.current?.disconnect(); } catch {}
+    const ctx = audioCtxRef.current;
+    if (ctx) {
+      try { void ctx.close(); } catch {}
+    }
+    audioSrcNodeRef.current = null;
+    audioGainNodeRef.current = null;
+    audioCtxRef.current = null;
+    audioPipelineStreamIdRef.current = null;
+  };
+
+  const buildRemoteAudioPipeline = (stream: MediaStream) => {
+    if (audioPipelineStreamIdRef.current === stream.id && audioCtxRef.current) return;
+    // Rebuild if stream changed (reconnect path).
+    if (audioPipelineStreamIdRef.current && audioPipelineStreamIdRef.current !== stream.id) {
+      teardownRemoteAudioPipeline();
+    }
+    if (stream.getAudioTracks().length === 0) return;
+    try {
+      const ctx = ensureAudioCtx();
+      if (!ctx) throw new Error("AudioContext unavailable");
+      const src = ctx.createMediaStreamSource(stream);
+      const gain = ctx.createGain();
+      gain.gain.value = 1.8;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      audioSrcNodeRef.current = src;
+      audioGainNodeRef.current = gain;
+      audioPipelineStreamIdRef.current = stream.id;
+      // Mute element playback to avoid double audio.
+      if (remoteAudioRef.current) remoteAudioRef.current.muted = true;
+      if (remoteVideoRef.current) remoteVideoRef.current.muted = true;
+    } catch (err) {
+      console.warn("[call] WebAudio pipeline unavailable, falling back to element audio", err);
+      teardownRemoteAudioPipeline();
+      if (remoteAudioRef.current) {
+        remoteAudioRef.current.muted = false;
+        remoteAudioRef.current.volume = 1.0;
+      }
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.muted = false;
+        remoteVideoRef.current.volume = 1.0;
+      }
+    }
+  };
+
+  const ensureAudioCtx = (): AudioContext | null => {
+    if (audioCtxRef.current) return audioCtxRef.current;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const Ctx: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!Ctx) return null;
+      audioCtxRef.current = new Ctx();
+      return audioCtxRef.current;
+    } catch {
+      return null;
+    }
+  };
+
+  const resumeRemoteAudio = () => {
+    const ctx = ensureAudioCtx();
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      ctx.resume().catch(() => {});
+    }
+  };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const wakeLockRef = useRef<any>(null);
 
@@ -226,6 +299,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     });
     localStreamRef.current = null;
     remoteStreamRef.current = null;
+    teardownRemoteAudioPipeline();
     try { pcRef.current?.close(); } catch {}
     pcRef.current = null;
     pendingIceRef.current = [];
@@ -330,6 +404,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       remoteStreamRef.current = stream;
       if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
+      buildRemoteAudioPipeline(stream);
+      resumeRemoteAudio();
     };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
@@ -454,6 +530,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const startCall = (type: CallType) => {
     if (!meId || activeRef.current) return;
     activeRef.current = true;
+    resumeRemoteAudio();
     isCallerRef.current = true;
     callIdRef.current = genId();
     setCallTypeBoth(type);
@@ -626,6 +703,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       autoAcceptTriedRef.current = true;
       if (activeRef.current) return;
       activeRef.current = true;
+      resumeRemoteAudio();
       isCallerRef.current = false;
       callIdRef.current = acceptId;
       setCallTypeBoth(acceptType === "video" ? "video" : "audio");
@@ -694,6 +772,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (status !== "incoming") return;
     setStatus("connecting");
     armConnectTimeout();
+    resumeRemoteAudio();
     try {
       const stream = await getMedia(callTypeRef.current);
       await ensureIceServers();
