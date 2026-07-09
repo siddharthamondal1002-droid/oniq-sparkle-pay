@@ -439,21 +439,29 @@ function CommentsSheet({
   );
 }
 
-function probeDuration(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
+function probeDuration(file: File): Promise<number | null> {
+  // Best-effort probe. Some devices/formats never fire loadedmetadata
+  // (iOS quicktime, camera recordings without moov atom moved). We must NOT
+  // block uploads on a failed probe — return null and let the server accept.
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (d: number | null) => {
+      if (done) return;
+      done = true;
+      try { URL.revokeObjectURL(url); } catch {}
+      resolve(d);
+    };
     const url = URL.createObjectURL(file);
     const v = document.createElement("video");
     v.preload = "metadata";
+    v.muted = true;
     v.onloadedmetadata = () => {
-      const d = v.duration;
-      URL.revokeObjectURL(url);
-      resolve(d);
+      const d = Number.isFinite(v.duration) ? v.duration : null;
+      finish(d);
     };
-    v.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read video"));
-    };
+    v.onerror = () => finish(null);
     v.src = url;
+    setTimeout(() => finish(null), 3000);
   });
 }
 
@@ -476,14 +484,9 @@ function UploadSheet({
       toast.error("Max 50MB");
       return;
     }
-    try {
-      const dur = await probeDuration(f);
-      if (dur > 90) {
-        toast.error("Max 90 seconds — this isn't YouTube 😌");
-        return;
-      }
-    } catch {
-      toast.error("Could not read video");
+    const dur = await probeDuration(f);
+    if (dur !== null && dur > 90) {
+      toast.error("Max 90 seconds — this isn't YouTube 😌");
       return;
     }
     setFile(f);
