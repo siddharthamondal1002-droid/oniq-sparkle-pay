@@ -15,6 +15,13 @@ import {
   Plane,
   Newspaper,
   Tv,
+  Play,
+  Pause,
+  Volume2,
+  VolumeX,
+  SkipBack,
+  SkipForward,
+  Maximize2,
 } from "lucide-react";
 import { CompactLiveNews } from "@/components/landing/LiveNewsSection";
 import {
