@@ -692,6 +692,19 @@ function ChatThread() {
                 <Trash2 className="h-4 w-4" /> Delete for everyone
               </button>
             )}
+            {menuFor.sender_id !== me?.id && (
+              <button
+                type="button"
+                onClick={() => {
+                  const t: ReportTarget = { type: "message", id: menuFor.id, conversationId };
+                  setMenuFor(null);
+                  setReportTarget(t);
+                }}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-red-500 hover:bg-muted"
+              >
+                <Flag className="h-4 w-4" /> Report message 🚩
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setMenuFor(null)}
@@ -702,6 +715,9 @@ function ChatThread() {
           </div>
         </div>
       )}
+
+      {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
+
 
       <form
         onSubmit={send}
