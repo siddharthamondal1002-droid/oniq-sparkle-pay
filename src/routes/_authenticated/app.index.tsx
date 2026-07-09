@@ -290,6 +290,7 @@ function HeroTile({
   const playerRef = useRef<any>(null);
   const hideTimerRef = useRef<number | null>(null);
   const playerHostId = `yt-tile-${useId().replace(/:/g, "")}`;
+  const playerCoverClass = "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
 
   const videoId = livePreview && !showSkin && channels && channels.length
     ? channels[idx % channels.length].videoId
@@ -331,6 +332,7 @@ function HeroTile({
       try {
         console.log("[WatchTile] loadVideoById", videoId);
         playerRef.current.loadVideoById(videoId);
+        playerRef.current.getIframe?.()?.setAttribute("class", playerCoverClass);
       } catch { /* noop */ }
       return;
     }
@@ -355,6 +357,9 @@ function HeroTile({
           events: {
             onReady: (e: any) => {
               try {
+                e.target.getIframe?.()?.setAttribute("class", playerCoverClass);
+                e.target.getIframe?.()?.setAttribute("allow", "autoplay; encrypted-media; picture-in-picture");
+                e.target.getIframe?.()?.setAttribute("title", "Live preview");
                 e.target.mute();
                 e.target.playVideo();
               } catch { /* noop */ }
@@ -432,7 +437,7 @@ function HeroTile({
         <div
           id={playerHostId}
           ref={mountRef}
-          className="absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full"
+          className={playerCoverClass}
         />
       </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
