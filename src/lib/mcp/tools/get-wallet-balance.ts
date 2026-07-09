@@ -21,15 +21,15 @@ export default defineTool({
     const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase
       .from("wallets")
-      .select("balance, currency, updated_at")
+      .select("fiat_balance, updated_at")
       .eq("user_id", ctx.getUserId())
       .maybeSingle();
     if (error) {
       return { content: [{ type: "text", text: error.message }], isError: true };
     }
     return {
-      content: [{ type: "text", text: JSON.stringify(data ?? { balance: 0 }) }],
-      structuredContent: { wallet: data },
+      content: [{ type: "text", text: JSON.stringify(data ?? { fiat_balance: 0 }) }],
+      structuredContent: { wallet: data ?? { fiat_balance: 0 } },
     };
   },
 });

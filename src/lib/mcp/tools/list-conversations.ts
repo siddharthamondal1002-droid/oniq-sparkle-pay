@@ -21,7 +21,7 @@ export default defineTool({
     const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase
       .from("conversations")
-      .select("id, kind, title, last_message_at, created_at")
+      .select("id, type, title, last_message_at, created_at")
       .order("last_message_at", { ascending: false, nullsFirst: false })
       .limit(50);
     if (error) {
