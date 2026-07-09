@@ -488,6 +488,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
     clearConnectTimeout();
     clearGraceTimer();
+    stopStatsLoop();
+    emitEndOfCallReport();
+    setHudLive(null);
     stopUserRingBroadcast();
     stopAllCallSounds();
     releaseWakeLock();
