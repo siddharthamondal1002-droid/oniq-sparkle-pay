@@ -137,6 +137,7 @@ export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
   const playerRef = useRef<any>(null);
   const failStreakRef = useRef(0);
   const advanceTimerRef = useRef<number | null>(null);
+  const tourTimerRef = useRef<number | null>(null);
 
   // Load live channel list from edge function
   useEffect(() => {
