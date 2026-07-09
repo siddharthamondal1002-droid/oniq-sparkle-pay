@@ -26,14 +26,46 @@ type Props = {
   peerName: string;
 };
 
-const ICE_SERVERS: RTCIceServer[] = [
+const STUN_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
   { urls: "stun:stun.cloudflare.com:3478" },
+];
+const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
+  ...STUN_SERVERS,
   { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
   { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
   { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
 ];
+
+let cachedIceServers: RTCIceServer[] | null = null;
+let iceServersPromise: Promise<RTCIceServer[]> | null = null;
+
+async function ensureIceServers(): Promise<RTCIceServer[]> {
+  if (cachedIceServers) return cachedIceServers;
+  if (iceServersPromise) return iceServersPromise;
+  iceServersPromise = (async () => {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token ?? "";
+      const { data: fnData, error } = await supabase.functions.invoke("turn-creds", {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      clearTimeout(timer);
+      if (error || !fnData?.iceServers?.length) throw error ?? new Error("no ice");
+      const merged = [...(fnData.iceServers as RTCIceServer[]), ...STUN_SERVERS];
+      cachedIceServers = merged;
+      return merged;
+    } catch (e) {
+      console.warn("TURN fallback", e);
+      cachedIceServers = FALLBACK_ICE_SERVERS;
+      return FALLBACK_ICE_SERVERS;
+    }
+  })();
+  return iceServersPromise;
+}
 const MAX_ICE_RESTARTS = 2;
 const RECONNECT_GRACE_MS = 10000;
 
@@ -284,7 +316,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   };
 
   const createPc = () => {
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS, iceCandidatePoolSize: 4 });
+    const pc = new RTCPeerConnection({ iceServers: cachedIceServers ?? FALLBACK_ICE_SERVERS, iceCandidatePoolSize: 4 });
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSig("ice", { candidate: e.candidate.toJSON() });
     };
@@ -527,6 +559,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       armConnectTimeout();
       try {
         const stream = await getMedia(callTypeRef.current);
+        await ensureIceServers();
         pcRef.current = createPc();
         attachLocal(stream, callTypeRef.current);
         const offer = await pcRef.current.createOffer();
@@ -602,7 +635,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         setStatus("connecting");
         armConnectTimeout();
         getMedia(callTypeRef.current)
-          .then((stream) => {
+          .then(async (stream) => {
+            await ensureIceServers();
             pcRef.current = createPc();
             attachLocal(stream, callTypeRef.current);
             sendSig("accept");
@@ -662,6 +696,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     armConnectTimeout();
     try {
       const stream = await getMedia(callTypeRef.current);
+      await ensureIceServers();
       pcRef.current = createPc();
       attachLocal(stream, callTypeRef.current);
       sendSig("accept");
