@@ -625,6 +625,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             500,
           );
         }
+        startStatsLoop();
       } else if (st === "disconnected") {
         handleTransientDrop();
       } else if (st === "failed") {
