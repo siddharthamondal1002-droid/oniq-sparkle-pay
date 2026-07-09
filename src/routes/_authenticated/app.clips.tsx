@@ -592,7 +592,7 @@ function UploadSheet({
             className="grid w-full place-items-center rounded-2xl border-2 border-dashed border-border py-14 text-sm text-muted-foreground"
           >
             <span>Tap to pick a video</span>
-            <span className="mt-1 text-xs">mp4 · webm · mov · max 90s · 50MB</span>
+            <span className="mt-1 text-xs">mp4 · webm · mov · max 90s · 100MB</span>
           </button>
         ) : (
           <div className="rounded-2xl bg-muted p-3 text-sm">
