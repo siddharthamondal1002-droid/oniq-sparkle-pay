@@ -480,8 +480,8 @@ function UploadSheet({
       toast.error("Only mp4, webm, or mov");
       return;
     }
-    if (f.size > 50 * 1024 * 1024) {
-      toast.error("Max 50MB");
+    if (f.size > 100 * 1024 * 1024) {
+      toast.error("That video is too big — keep it under 100MB 📦");
       return;
     }
     const dur = await probeDuration(f);
