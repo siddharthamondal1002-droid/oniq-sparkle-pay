@@ -338,6 +338,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     const id = window.setInterval(() => {
       if (isCallerRef.current && activeRef.current && callIdRef.current) {
         sendSig("ring", { callType: callTypeRef.current, fromName: meName });
+        sendUserRing();
       }
     }, 2000);
     return () => window.clearInterval(id);
