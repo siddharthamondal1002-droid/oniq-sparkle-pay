@@ -50,8 +50,17 @@ async function resolveLiveDebug(channelId: string): Promise<{ videoId: string | 
     let m = finalUrl.match(/[?&]v=([A-Za-z0-9_-]{11})/);
     if (m) return { videoId: m[1], status, finalUrl, htmlLen: html.length, hasLive, hasCanonical };
     if (canonical) return { videoId: canonical[1], status, finalUrl, htmlLen: html.length, hasLive, hasCanonical };
-    m = html.match(/"videoDetails":\{[^}]*"videoId":"([A-Za-z0-9_-]{11})"/);
-    return { videoId: m ? m[1] : null, status, finalUrl, htmlLen: html.length, hasLive, hasCanonical };
+    // videoDetails-scoped lookup: substring search then videoId regex
+    const vdIdx = html.indexOf('"videoDetails"');
+    if (vdIdx >= 0) {
+      const slice = html.slice(vdIdx, vdIdx + 4000);
+      const vm = slice.match(/"videoId":"([A-Za-z0-9_-]{11})"/);
+      if (vm) return { videoId: vm[1], status, finalUrl, htmlLen: html.length, hasLive, hasCanonical };
+    }
+    // Fallback: og:url meta
+    const og = html.match(/<meta property="og:url" content="[^"]*[?&]v=([A-Za-z0-9_-]{11})/);
+    if (og) return { videoId: og[1], status, finalUrl, htmlLen: html.length, hasLive, hasCanonical };
+    return { videoId: null, status, finalUrl, htmlLen: html.length, hasLive, hasCanonical };
   } catch (e) {
     return { videoId: null, err: String(e) };
   } finally {
