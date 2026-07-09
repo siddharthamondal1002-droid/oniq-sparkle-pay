@@ -88,6 +88,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:site_name", content: "ONIQ" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "ONIQ" },
+      { name: "mobile-web-app-capable", content: "yes" },
       {
         name: "google-site-verification",
         content: "W0N2GaYsxMbxxgesm4pQa4AGvl5xf0ZAn8bSMvoEKtk",
@@ -160,6 +164,36 @@ function RootComponent() {
     });
     return () => sub.subscription.unsubscribe();
   }, [router, queryClient]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) return;
+    // Skip in Lovable preview / dev / iframe to avoid stale caches.
+    const host = window.location.hostname;
+    const inIframe = window.self !== window.top;
+    const isPreview =
+      host.startsWith("id-preview--") ||
+      host.startsWith("preview--") ||
+      host.endsWith(".lovableproject.com") ||
+      host.endsWith(".lovableproject-dev.com") ||
+      host === "localhost" ||
+      host === "127.0.0.1";
+    if (inIframe || isPreview || !import.meta.env.PROD) {
+      // Clean up any prior registration so preview never serves cached shell.
+      navigator.serviceWorker.getRegistrations?.().then((regs) =>
+        regs.forEach((r) => {
+          if (r.active?.scriptURL.endsWith("/sw.js")) r.unregister();
+        }),
+      );
+      return;
+    }
+    const onLoad = () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    };
+    window.addEventListener("load", onLoad);
+    return () => window.removeEventListener("load", onLoad);
+  }, []);
+
 
   return (
     <QueryClientProvider client={queryClient}>
