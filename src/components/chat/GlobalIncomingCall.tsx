@@ -137,6 +137,19 @@ export function GlobalIncomingCall() {
     if (!cur) return;
     activeCallIdRef.current = cur.callId;
     setIncoming(null);
+    const dispatchAccept = () => {
+      try {
+        window.dispatchEvent(
+          new CustomEvent("oniq:accept-call", {
+            detail: {
+              callId: cur.callId,
+              callType: cur.callType,
+              conversationId: cur.conversationId,
+            },
+          }),
+        );
+      } catch {}
+    };
     navigate({
       to: "/app/chat/$conversationId" as any,
       params: { conversationId: cur.conversationId } as any,
@@ -144,11 +157,16 @@ export function GlobalIncomingCall() {
         acceptCall: cur.callId,
         acceptType: cur.callType,
       } as any,
-    }).catch(() => {
-      // Fallback to full navigation if the router rejects unknown search.
-      window.location.href = `/app/chat/${cur.conversationId}?acceptCall=${cur.callId}&acceptType=${cur.callType}`;
-    });
-    // Clear active guard after a few seconds — thread overlay owns state now.
+    })
+      .then(() => {
+        // Same-route navigation won't remount CallOverlay → the URL-param
+        // adoption inside its subscribe callback won't re-fire. Dispatch the
+        // fallback event after navigation settles.
+        setTimeout(dispatchAccept, 300);
+      })
+      .catch(() => {
+        window.location.href = `/app/chat/${cur.conversationId}?acceptCall=${cur.callId}&acceptType=${cur.callType}`;
+      });
     setTimeout(() => {
       activeCallIdRef.current = null;
     }, 8000);
@@ -157,25 +175,38 @@ export function GlobalIncomingCall() {
   const decline = () => {
     const cur = incomingRef.current;
     if (!cur) return;
-    // Fire a decline on the convo channel so caller UI can update immediately.
-    const ch = supabase.channel(`call:${cur.conversationId}`, {
-      config: { broadcast: { self: false } },
-    });
-    ch.subscribe((status) => {
-      if (status === "SUBSCRIBED") {
-        ch.send({
-          type: "broadcast",
-          event: "decline",
-          payload: { fromId: me, callId: cur.callId },
-        }).finally(() => {
-          setTimeout(() => supabase.removeChannel(ch), 500);
-        });
-      }
-    });
+    // Reuse an existing `call:{conversationId}` channel if one exists in this
+    // client (paranoid guard — duplicate topics from one client can poison
+    // the original subscription). Since this component is suppressed when the
+    // thread is open, the thread's channel is normally NOT present here.
+    const topic = `call:${cur.conversationId}`;
+    const existing = supabase.getChannels().find((c: any) => c.topic === `realtime:${topic}` || c.topic === topic);
+    const ch = existing ?? supabase.channel(topic, { config: { broadcast: { self: false } } });
+    const send = () =>
+      ch.send({
+        type: "broadcast",
+        event: "decline",
+        payload: { fromId: me, callId: cur.callId },
+      });
+    if (existing) {
+      send();
+    } else {
+      ch.subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          send().finally(() => {
+            setTimeout(() => supabase.removeChannel(ch), 500);
+          });
+        }
+      });
+    }
     setIncoming(null);
   };
 
+  // Suppress render if the thread for this call is already open — its own
+  // CallOverlay incoming UI handles accept/decline.
   if (!incoming) return null;
+  if (isThreadOpen(incoming.conversationId)) return null;
+
 
   const Icon = incoming.callType === "video" ? Video : Phone;
   const monogram = (incoming.fromName || "?").charAt(0).toUpperCase();
