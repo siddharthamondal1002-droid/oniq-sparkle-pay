@@ -129,7 +129,7 @@ function loadYouTubeApi(): Promise<any> {
 
 type LiveEntry = { id: string; name: string; videoId: string };
 
-export function WatchLive() {
+export function WatchLive({ autoTour = false }: { autoTour?: boolean } = {}) {
   const [channels, setChannels] = useState<LiveEntry[] | null>(null);
   const [idx, setIdx] = useState(0);
   const [allDead, setAllDead] = useState(false);
