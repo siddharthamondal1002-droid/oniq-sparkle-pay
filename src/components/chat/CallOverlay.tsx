@@ -709,7 +709,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         try { await pcRef.current.addIceCandidate(c); } catch {}
       }
       pendingIceRef.current = [];
-      const answer = await pcRef.current.createAnswer();
+      const answer = withMungedSdp(await pcRef.current.createAnswer());
       await pcRef.current.setLocalDescription(answer);
       sendSig("answer", { sdp: answer });
     });
