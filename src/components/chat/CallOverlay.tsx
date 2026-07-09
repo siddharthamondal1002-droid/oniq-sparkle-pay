@@ -28,11 +28,17 @@ type Props = {
 
 const ICE_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun.cloudflare.com:3478" },
   { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
   { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+  { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
 ];
+const MAX_ICE_RESTARTS = 2;
+const RECONNECT_GRACE_MS = 10000;
 
-type Status = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "ended";
+type Status = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "reconnecting" | "ended";
+
 
 const genId = () => {
   try {
@@ -73,6 +79,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const userRingIntervalRef = useRef<number | null>(null);
   const missedInsertedRef = useRef<Set<string>>(new Set());
   const autoAcceptTriedRef = useRef(false);
+  const iceRestartsRef = useRef(0);
+  const graceTimerRef = useRef<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wakeLockRef = useRef<any>(null);
+
 
   const setCallTypeBoth = (t: CallType) => {
     callTypeRef.current = t;
