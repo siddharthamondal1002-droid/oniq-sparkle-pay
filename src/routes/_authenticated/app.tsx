@@ -2,6 +2,7 @@ import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-rout
 import { Home, MessageCircle, Compass, User } from "lucide-react";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { GlobalIncomingCall } from "@/components/chat/GlobalIncomingCall";
+import { PolicyNoticeBanner } from "@/components/safety/PolicyNoticeBanner";
 
 export const Route = createFileRoute("/_authenticated/app")({
   component: AppShell,
@@ -46,6 +47,7 @@ function AppShell() {
       </main>
 
       <GlobalIncomingCall />
+      <PolicyNoticeBanner />
 
       {showNav && (
         <>

@@ -5,8 +5,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Heart, MessageCircle, Share2, Eye, Volume2, VolumeX,
-  ChevronLeft, Plus, X, Send, Loader2, UserPlus, UserCheck,
+  ChevronLeft, Plus, X, Send, Loader2, UserPlus, UserCheck, Flag,
 } from "lucide-react";
+import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 
 export const Route = createFileRoute("/_authenticated/app/clips")({
   component: ClipsScreen,
