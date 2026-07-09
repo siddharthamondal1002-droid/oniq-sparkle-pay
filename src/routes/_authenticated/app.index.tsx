@@ -185,35 +185,35 @@ function Tile({
   const tint = color ?? "#00D4B8";
   const inner = (
     <>
-      <div
-        className="relative grid h-11 w-11 place-items-center rounded-2xl overflow-hidden"
-        style={
-          showSkin
-            ? undefined
-            : { color: tint, background: `${tint}1A` }
-        }
-      >
-        {showSkin ? (
+      {showSkin && (
+        <>
           <img
             src={skin!}
             alt=""
-            className="h-11 w-11 rounded-2xl object-cover"
             onError={() => setSkinError(true)}
+            className="absolute inset-0 h-full w-full object-cover"
           />
-        ) : (
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+        </>
+      )}
+      {!showSkin && (
+        <div
+          className="relative grid h-11 w-11 place-items-center rounded-2xl overflow-hidden"
+          style={{ color: tint, background: `${tint}1A` }}
+        >
           <Icon className="h-5 w-5" />
-        )}
-        {locked && (
-          <div className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-surface-2 border border-border">
-            <Lock className="h-2.5 w-2.5 text-muted-foreground" />
-          </div>
-        )}
-      </div>
-      <span className={`text-[11px] font-medium ${locked ? "text-muted-foreground" : ""}`}>{label}</span>
+        </div>
+      )}
+      {locked && (
+        <div className="absolute right-1 top-1 grid h-4 w-4 place-items-center rounded-full bg-surface-2 border border-border z-10">
+          <Lock className="h-2.5 w-2.5 text-muted-foreground" />
+        </div>
+      )}
+      <span className={`relative z-10 text-[11px] font-medium ${showSkin ? "text-white drop-shadow" : ""} ${locked ? "text-muted-foreground" : ""}`}>{label}</span>
     </>
   );
   const base =
-    "press fade-up flex flex-col items-center justify-center gap-2 rounded-2xl bg-card/85 p-2 border border-border";
+    "press fade-up relative overflow-hidden flex flex-col items-center justify-center gap-2 rounded-2xl bg-card/85 p-2 border border-border";
   const style = { animationDelay: `${delay}ms` };
   if (locked) {
     return <div className={`${base} opacity-60`} style={style}>{inner}</div>;
@@ -410,18 +410,21 @@ function HeroTile({
         className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
       >
         {showSkin ? (
-          <img
-            src={skin!}
-            alt=""
-            className="relative h-10 w-10 rounded-xl object-cover"
-            onError={() => setSkinError(true)}
-          />
+          <>
+            <img
+              src={skin!}
+              alt=""
+              onError={() => setSkinError(true)}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+          </>
         ) : (
           <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
         )}
         <div className="relative">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{tagline}</div>
-          <div className="font-display text-2xl font-bold">{label}</div>
+          <div className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}>{tagline}</div>
+          <div className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}>{label}</div>
         </div>
       </Link>
     );
@@ -609,18 +612,21 @@ function ClipsHeroTile({
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
       )}
       {showSkin ? (
-        <img
-          src={skin!}
-          alt=""
-          className="relative h-10 w-10 rounded-xl object-cover"
-          onError={() => setSkinError(true)}
-        />
+        <>
+          <img
+            src={skin!}
+            alt=""
+            onError={() => setSkinError(true)}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+        </>
       ) : (
         <Clapperboard className="relative h-10 w-10 text-foreground/90" strokeWidth={1.6} />
       )}
       <div className="relative">
-        <div className="text-[10px] uppercase tracking-wider text-muted-foreground">watch the feed</div>
-        <div className="font-display text-2xl font-bold">Clips</div>
+        <div className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}>watch the feed</div>
+        <div className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}>Clips</div>
       </div>
     </Link>
   );
