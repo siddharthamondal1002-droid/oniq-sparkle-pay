@@ -757,8 +757,9 @@ function ChatThread() {
               value={text}
               onChange={(e) => handleTextChange(e.target.value)}
               onBlur={() => emitTyping("stop")}
-              placeholder="Message"
-              className="flex-1 bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none"
+              placeholder={isBlocked ? "You've blocked this user — unblock to chat" : "Message"}
+              disabled={isBlocked}
+              className="flex-1 bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none disabled:opacity-60"
             />
           </div>
           {text.trim() ? (
