@@ -703,6 +703,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       autoAcceptTriedRef.current = true;
       if (activeRef.current) return;
       activeRef.current = true;
+      resumeRemoteAudio();
       isCallerRef.current = false;
       callIdRef.current = acceptId;
       setCallTypeBoth(acceptType === "video" ? "video" : "audio");
