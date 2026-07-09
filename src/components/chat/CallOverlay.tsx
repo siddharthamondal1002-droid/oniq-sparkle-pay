@@ -26,6 +26,28 @@ type Props = {
   peerName: string;
 };
 
+// SDP munge: enable Opus in-band FEC and lift maxaveragebitrate on the opus
+// fmtp line. Safe no-op when the SDP has no opus rtpmap/fmtp lines, and won't
+// double-append params that are already present.
+function mungeOpus(sdp: string): string {
+  const rtpmap = sdp.match(/^a=rtpmap:(\d+)\s+opus\/48000\/2/im);
+  if (!rtpmap) return sdp;
+  const pt = rtpmap[1];
+  const fmtpRe = new RegExp(`^a=fmtp:${pt} (.*)$`, "im");
+  const fmtp = sdp.match(fmtpRe);
+  if (!fmtp) return sdp;
+  let params = fmtp[1];
+  if (!/(^|;)\s*useinbandfec=/i.test(params)) params += ";useinbandfec=1";
+  if (!/(^|;)\s*maxaveragebitrate=/i.test(params)) params += ";maxaveragebitrate=64000";
+  if (params === fmtp[1]) return sdp;
+  return sdp.replace(fmtpRe, `a=fmtp:${pt} ${params}`);
+}
+
+function withMungedSdp(desc: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
+  if (!desc.sdp) return desc;
+  return { ...desc, sdp: mungeOpus(desc.sdp) };
+}
+
 const STUN_SERVERS: RTCIceServer[] = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
@@ -143,9 +165,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (!ctx) throw new Error("AudioContext unavailable");
       const src = ctx.createMediaStreamSource(stream);
       const gain = ctx.createGain();
-      gain.gain.value = 1.8;
+      gain.gain.value = 1.35;
+      const comp = ctx.createDynamicsCompressor();
+      try {
+        comp.threshold.value = -24;
+        comp.knee.value = 30;
+        comp.ratio.value = 12;
+        comp.attack.value = 0.003;
+        comp.release.value = 0.25;
+      } catch {
+        // older browsers may not accept .value on all AudioParams — safe to ignore
+      }
       src.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(comp);
+      comp.connect(ctx.destination);
       audioSrcNodeRef.current = src;
       audioGainNodeRef.current = gain;
       audioPipelineStreamIdRef.current = stream.id;
@@ -343,7 +376,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (params.encodings[0] as any).scaleResolutionDownBy = 1.0;
         } else if (kind === "audio") {
-          params.encodings[0].maxBitrate = 40_000;
+          params.encodings[0].maxBitrate = 64_000;
         }
         await sender.setParameters(params);
       } catch {
@@ -360,7 +393,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     iceRestartsRef.current += 1;
     try {
       pc.restartIce();
-      const offer = await pc.createOffer({ iceRestart: true });
+      const offer = withMungedSdp(await pc.createOffer({ iceRestart: true }));
       await pc.setLocalDescription(offer);
       sendSig("offer", { sdp: offer });
     } catch {
@@ -487,7 +520,18 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (type === "video" && localVideoRef.current) {
       localVideoRef.current.srcObject = stream;
     }
-    stream.getTracks().forEach((t) => pcRef.current?.addTrack(t, stream));
+    stream.getTracks().forEach((t) => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const tt = t as any;
+        if ("contentHint" in tt) {
+          tt.contentHint = t.kind === "audio" ? "speech" : "motion";
+        }
+      } catch {
+        // feature-detected; ignore
+      }
+      pcRef.current?.addTrack(t, stream);
+    });
     // Fire-and-forget: bitrate caps must run after tracks are added.
     void applyBitrateCaps();
   };
@@ -639,7 +683,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         await ensureIceServers();
         pcRef.current = createPc();
         attachLocal(stream, callTypeRef.current);
-        const offer = await pcRef.current.createOffer();
+        const offer = withMungedSdp(await pcRef.current.createOffer());
         await pcRef.current.setLocalDescription(offer);
         sendSig("offer", { sdp: offer });
       } catch {
@@ -665,7 +709,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         try { await pcRef.current.addIceCandidate(c); } catch {}
       }
       pendingIceRef.current = [];
-      const answer = await pcRef.current.createAnswer();
+      const answer = withMungedSdp(await pcRef.current.createAnswer());
       await pcRef.current.setLocalDescription(answer);
       sendSig("answer", { sdp: answer });
     });
