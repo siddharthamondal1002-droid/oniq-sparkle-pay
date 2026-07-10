@@ -176,6 +176,8 @@ function ChatThread() {
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["messages", conversationId],
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
     queryFn: async (): Promise<Message[]> => {
       const { data } = await supabase
         .from("messages")
@@ -186,6 +188,7 @@ function ChatThread() {
       return (data ?? []) as Message[];
     },
   });
+
 
   // Peer's last_read_at → drives read ticks.
   const { data: peerReadAt, refetch: refetchPeerRead } = useQuery({
@@ -223,10 +226,22 @@ function ChatThread() {
           qc.setQueryData<Message[]>(["messages", conversationId], (prev) => {
             const list = prev ?? [];
             if (list.some((x) => x.id === m.id)) return list;
-            return [...list, m];
+            // Dedupe: strip any optimistic temp from same sender with same content/type
+            const stripped = list.filter(
+              (x) =>
+                !(
+                  x.id.startsWith("temp-") &&
+                  x.sender_id === m.sender_id &&
+                  x.type === m.type &&
+                  (x.content ?? "") === (m.content ?? "") &&
+                  (x.media_url ?? "") === (m.media_url ?? "")
+                ),
+            );
+            return [...stripped, m];
           });
           markRead();
         },
+
       )
       .on(
         "postgres_changes",
@@ -362,34 +377,60 @@ function ChatThread() {
       toast("You've blocked this user — unblock to chat.");
       return;
     }
-    setSending(true);
-    setText("");
     const replySnapshot = replyTo;
-    setReplyTo(null);
-    emitTyping("stop");
-    lastTypingSentRef.current = 0;
-    const { error } = await supabase.from("messages").insert({
+    // Optimistic append — instant paint
+    const tempId = `temp-${crypto.randomUUID()}`;
+    const optimistic: Message = {
+      id: tempId,
       conversation_id: conversationId,
       sender_id: me.id,
       content,
       type: "text",
+      media_url: null,
+      duration_s: null,
+      created_at: new Date().toISOString(),
+      is_deleted: false,
       reply_to_id: replySnapshot?.id ?? null,
-    });
-    if (error) {
+      is_ai: false,
+    };
+    qc.setQueryData<Message[]>(["messages", conversationId], (prev) => [...(prev ?? []), optimistic]);
+    setText("");
+    setReplyTo(null);
+    emitTyping("stop");
+    lastTypingSentRef.current = 0;
+    const { data: inserted, error } = await supabase
+      .from("messages")
+      .insert({
+        conversation_id: conversationId,
+        sender_id: me.id,
+        content,
+        type: "text",
+        reply_to_id: replySnapshot?.id ?? null,
+      })
+      .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai")
+      .single();
+    if (error || !inserted) {
       console.error("send failed", error);
-      toast.error(error.message || "Couldn't send — try again");
+      toast.error(error?.message || "Couldn't send — try again");
+      qc.setQueryData<Message[]>(["messages", conversationId], (prev) =>
+        (prev ?? []).filter((m) => m.id !== tempId),
+      );
       setText(content);
       setReplyTo(replySnapshot);
     } else {
-      await supabase
-        .from("conversations")
-        .update({ updated_at: new Date().toISOString() })
-        .eq("id", conversationId);
+      // Reconcile temp → real (dedupe if realtime beat us)
+      qc.setQueryData<Message[]>(["messages", conversationId], (prev) => {
+        const list = prev ?? [];
+        const withoutTemp = list.filter((m) => m.id !== tempId);
+        if (withoutTemp.some((m) => m.id === (inserted as Message).id)) return withoutTemp;
+        return [...withoutTemp, inserted as Message];
+      });
+      supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
       markRead();
     }
-    setSending(false);
     inputRef.current?.focus();
   };
+
 
   const uploadToChatMedia = async (blob: Blob, ext: string): Promise<string> => {
     if (!me) throw new Error("sign in first");
