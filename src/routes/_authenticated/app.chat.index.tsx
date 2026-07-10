@@ -693,7 +693,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                             disabled={addingId === u.id}
                             className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
                           >
-                            {addingId === u.id ? "…" : "Add 👋"}
+                            {addingId === u.id ? "…" : "Add ➕"}
                           </button>
                         )
                       )}
