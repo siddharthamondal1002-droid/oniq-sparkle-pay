@@ -1113,6 +1113,8 @@ function ChatThread() {
         </div>
         )}
       </form>
+      )}
+
 
       {viewerUrl && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black" onClick={() => setViewerUrl(null)}>
