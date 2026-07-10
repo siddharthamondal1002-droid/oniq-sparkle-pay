@@ -830,7 +830,24 @@ function ChatThread() {
                       <Sparkles className="h-2.5 w-2.5" /> AI-generated
                     </div>
                   )}
-                  <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
+                  {m.type === "image" && m.media_url ? (
+                    <button type="button" onClick={() => setViewerUrl(m.media_url!)} className="block overflow-hidden rounded-xl">
+                      <img
+                        src={m.media_url}
+                        alt=""
+                        loading="lazy"
+                        className="max-h-64 w-full object-cover"
+                        onError={(e) => {
+                          const el = e.currentTarget;
+                          el.replaceWith(Object.assign(document.createElement("div"), { textContent: "📷", className: "grid h-32 w-40 place-items-center text-3xl bg-black/20 rounded-xl" }));
+                        }}
+                      />
+                    </button>
+                  ) : m.type === "voice" && m.media_url ? (
+                    <VoiceBubble url={m.media_url} durationS={m.duration_s ?? 0} mine={mine} />
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
+                  )}
                   <div
                     className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
                       mine ? "text-white/70" : "text-muted-foreground"
