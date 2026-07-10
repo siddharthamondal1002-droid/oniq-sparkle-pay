@@ -20,16 +20,17 @@ export type TileKey =
 
 export const TILE_LABELS: Record<TileKey, string> = {
   watch: "Watch",
-  pulse: "Pulse",
-  clips: "Clips",
-  wallet: "Wallet",
-  ting: "Ting",
-  rides: "Rides",
-  miniapps: "Mini Apps",
-  upi: "UPI Pay",
-  learn: "Learn",
-  wander: "Wander",
+  pulse: "the tea ☕",
+  clips: "brainrot 🎬",
+  wallet: "the bag 💰",
+  ting: "Ting ✨",
+  rides: "pull up 🚗",
+  miniapps: "the plug 🔌",
+  upi: "tap in 💳",
+  learn: "locked in 📚",
+  wander: "touch grass ✈️",
 };
+
 
 export type UserTheme = {
   user_id: string;
