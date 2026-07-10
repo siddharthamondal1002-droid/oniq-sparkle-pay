@@ -53,7 +53,7 @@ function TermsPage() {
           </div>
           <p><strong>Timelines we commit to:</strong></p>
           <ul className="list-disc space-y-1 pl-6">
-            <li>Complaints acknowledged within <strong>7 days</strong> and resolved within <strong>15 days</strong>.</li>
+            <li>Complaints acknowledged within <strong>24 hours</strong> and resolved within <strong>15 days</strong>.</li>
             <li>Serious complaints (impersonation, identity theft, non-consensual intimate imagery) resolved within <strong>36 hours</strong> of a valid complaint.</li>
             <li>Content removal within <strong>3 hours</strong> of receipt of a lawful government or court order, and within <strong>2 hours</strong> for reported non-consensual intimate imagery.</li>
           </ul>
