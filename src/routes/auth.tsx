@@ -318,17 +318,24 @@ function AuthPage() {
             </>
           )}
 
-          <div className="my-5 flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
-            <div className="h-px flex-1 bg-border" />
-            or continue with
-            <div className="h-px flex-1 bg-border" />
-          </div>
+          {/* Social sign-in buttons hidden until providers are configured
+              server-side. Store reviewers reject non-functional auth UI.
+              Kept as dead code below for quick re-enable when providers ship. */}
+          {false && (
+            <>
+              <div className="my-5 flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+                <div className="h-px flex-1 bg-border" />
+                or continue with
+                <div className="h-px flex-1 bg-border" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <SocialButton label="Google" onClick={() => handleSocial("google")} disabled={loading} />
+                <SocialButton label="Facebook" onClick={() => handleSocial("facebook")} disabled={loading} />
+                <SocialButton label="Apple" onClick={() => handleSocial("apple")} disabled={loading} />
+              </div>
+            </>
+          )}
 
-          <div className="grid grid-cols-3 gap-2">
-            <SocialButton label="Google" onClick={() => handleSocial("google")} disabled={loading} />
-            <SocialButton label="Facebook" onClick={() => handleSocial("facebook")} disabled={loading} />
-            <SocialButton label="Apple" onClick={() => handleSocial("apple")} disabled={loading} />
-          </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">

@@ -1,9 +1,10 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Save, Shield, Flag, ScrollText } from "lucide-react";
+import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
+
 import { z } from "zod";
 
 export const Route = createFileRoute("/_authenticated/app/profile")({
@@ -162,9 +163,101 @@ function ProfileScreen() {
       >
         <LogOut className="h-4 w-4" /> Sign out
       </button>
+
+      <DangerZone />
     </div>
   );
 }
+
+function DangerZone() {
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const doDelete = async () => {
+    if (typed.trim().toUpperCase() !== "DELETE") return;
+    setBusy(true);
+    try {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      if (!token) throw new Error("You're signed out");
+      const { error } = await supabase.functions.invoke("delete-account", {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (error) throw error;
+      await qc.cancelQueries();
+      qc.clear();
+      await supabase.auth.signOut();
+      toast.success("Account deleted. Take care 💙");
+      navigate({ to: "/", replace: true });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't delete account");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-10 space-y-3">
+      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-destructive">
+        <AlertTriangle className="h-3.5 w-3.5" /> Danger zone
+      </div>
+      <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
+        <div className="text-sm font-semibold">Delete my account</div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Permanently removes your ONIQ account and profile. This can't be undone.
+        </p>
+        <button
+          data-testid="delete-account"
+          onClick={() => setOpen(true)}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-destructive/60 bg-destructive/10 py-2.5 text-sm font-semibold text-destructive hover:bg-destructive/20"
+        >
+          <Trash2 className="h-4 w-4" /> Delete my account
+        </button>
+      </div>
+      {open && (
+        <div className="fixed inset-0 z-[80] flex items-end bg-black/70 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-6 sm:rounded-3xl sm:border">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              <div className="font-display text-lg font-semibold">This is permanent</div>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Your account, profile, and personal data will be removed. Type{" "}
+              <span className="font-semibold text-foreground">DELETE</span> to confirm.
+            </p>
+            <input
+              autoFocus
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder="DELETE"
+              className="mt-4 w-full rounded-2xl border border-border bg-input/40 px-4 py-3 text-sm focus:border-destructive focus:outline-none"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => { setOpen(false); setTyped(""); }}
+                disabled={busy}
+                className="flex-1 rounded-2xl border border-border bg-card py-2.5 text-sm font-semibold hover:bg-muted"
+              >
+                Cancel
+              </button>
+              <button
+                data-testid="delete-account-confirm"
+                onClick={doDelete}
+                disabled={busy || typed.trim().toUpperCase() !== "DELETE"}
+                className="flex-1 rounded-2xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
+              >
+                {busy ? "Deleting…" : "Delete forever"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 function SafetySection() {
   const [isAdmin, setIsAdmin] = useState(false);

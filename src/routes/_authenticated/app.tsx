@@ -4,6 +4,8 @@ import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { GlobalIncomingCall } from "@/components/chat/GlobalIncomingCall";
 import { PolicyNoticeBanner } from "@/components/safety/PolicyNoticeBanner";
 import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher";
+import { MessageNotifier } from "@/components/chat/MessageNotifier";
+
 
 export const Route = createFileRoute("/_authenticated/app")({
   component: AppShell,
@@ -50,6 +52,8 @@ function AppShell() {
       <GlobalIncomingCall />
       <PolicyNoticeBanner />
       <MiniAppReturnWatcher />
+      <MessageNotifier />
+
 
       {showNav && (
         <>
