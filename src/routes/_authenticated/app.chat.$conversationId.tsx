@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
@@ -14,11 +14,15 @@ type Message = {
   sender_id: string;
   content: string | null;
   type: string;
+  media_url: string | null;
+  duration_s: number | null;
   created_at: string | null;
   is_deleted: boolean | null;
   reply_to_id: string | null;
   is_ai: boolean | null;
 };
+
+const SIGNED_TTL = 60 * 60 * 24 * 365 * 5;
 
 export const Route = createFileRoute("/_authenticated/app/chat/$conversationId")({
   component: ChatThread,
@@ -78,6 +82,18 @@ function ChatThread() {
 
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recChunksRef = useRef<Blob[]>([]);
+  const recStreamRef = useRef<MediaStream | null>(null);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recStartRef = useRef<number>(0);
+  const recCancelRef = useRef(false);
 
   const { data: header } = useQuery({
     queryKey: ["conversation-header", conversationId, me?.id],
@@ -163,7 +179,7 @@ function ChatThread() {
     queryFn: async (): Promise<Message[]> => {
       const { data } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, type, created_at, is_deleted, reply_to_id, is_ai")
+        .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true })
         .limit(200);
@@ -374,6 +390,128 @@ function ChatThread() {
     setSending(false);
     inputRef.current?.focus();
   };
+
+  const uploadToChatMedia = async (blob: Blob, ext: string): Promise<string> => {
+    if (!me) throw new Error("sign in first");
+    const path = `${me.id}/${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from("chat-media")
+      .upload(path, blob, { contentType: blob.type || undefined, upsert: false });
+    if (upErr) throw upErr;
+    const { data: signed, error: sErr } = await supabase.storage
+      .from("chat-media")
+      .createSignedUrl(path, SIGNED_TTL);
+    if (sErr || !signed) throw sErr ?? new Error("could not sign url");
+    return signed.signedUrl;
+  };
+
+  const insertMediaMessage = async (payload: { type: "image" | "voice"; media_url: string; duration_s?: number }) => {
+    if (!me) return;
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      sender_id: me.id,
+      content: "",
+      type: payload.type,
+      media_url: payload.media_url,
+      duration_s: payload.duration_s ?? null,
+    });
+    if (error) { toast.error(error.message || "Couldn't send"); return; }
+    await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+    markRead();
+  };
+
+  const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!/^image\//.test(f.type)) return toast.error("images only");
+    if (f.size > 10 * 1024 * 1024) return toast.error("keep it under 10MB");
+    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
+    setUploading(true);
+    try {
+      const ext = (f.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const url = await uploadToChatMedia(f, ext);
+      await insertMediaMessage({ type: "image", media_url: url });
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const startRecording = async () => {
+    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
+    if (recording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recStreamRef.current = stream;
+      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "";
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      recorderRef.current = rec;
+      recChunksRef.current = [];
+      recCancelRef.current = false;
+      rec.ondataavailable = (ev) => { if (ev.data.size) recChunksRef.current.push(ev.data); };
+      rec.onstop = async () => {
+        const cancel = recCancelRef.current;
+        const dur = Math.max(1, Math.round((Date.now() - recStartRef.current) / 1000));
+        recStreamRef.current?.getTracks().forEach((t) => t.stop());
+        recStreamRef.current = null;
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+        setRecording(false);
+        setRecSeconds(0);
+        if (cancel || recChunksRef.current.length === 0) return;
+        const type = rec.mimeType || "audio/webm";
+        const blob = new Blob(recChunksRef.current, { type });
+        const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        setUploading(true);
+        try {
+          const url = await uploadToChatMedia(blob, ext);
+          await insertMediaMessage({ type: "voice", media_url: url, duration_s: dur });
+        } catch (err) {
+          console.error(err);
+          toast.error(err instanceof Error ? err.message : "upload failed");
+        } finally {
+          setUploading(false);
+        }
+      };
+      recStartRef.current = Date.now();
+      setRecSeconds(0);
+      rec.start();
+      setRecording(true);
+      recTimerRef.current = setInterval(() => {
+        const s = Math.floor((Date.now() - recStartRef.current) / 1000);
+        setRecSeconds(s);
+        if (s >= 120) stopRecording(false);
+      }, 250);
+    } catch (err) {
+      console.error(err);
+      toast.error("mic permission denied");
+    }
+  };
+
+  const stopRecording = (cancel: boolean) => {
+    if (!recorderRef.current) return;
+    recCancelRef.current = cancel;
+    try { recorderRef.current.stop(); } catch { /* noop */ }
+    if (cancel) {
+      recStreamRef.current?.getTracks().forEach((t) => t.stop());
+      recStreamRef.current = null;
+      if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+      setRecording(false);
+      setRecSeconds(0);
+    }
+  };
+
+  useEffect(() => () => {
+    recStreamRef.current?.getTracks().forEach((t) => t.stop());
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+  }, []);
+
 
   const deleteForEveryone = async (m: Message) => {
     setMenuFor(null);
@@ -692,7 +830,24 @@ function ChatThread() {
                       <Sparkles className="h-2.5 w-2.5" /> AI-generated
                     </div>
                   )}
-                  <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
+                  {m.type === "image" && m.media_url ? (
+                    <button type="button" onClick={() => setViewerUrl(m.media_url!)} className="block overflow-hidden rounded-xl">
+                      <img
+                        src={m.media_url}
+                        alt=""
+                        loading="lazy"
+                        className="max-h-64 w-full object-cover"
+                        onError={(e) => {
+                          const el = e.currentTarget;
+                          el.replaceWith(Object.assign(document.createElement("div"), { textContent: "📷", className: "grid h-32 w-40 place-items-center text-3xl bg-black/20 rounded-xl" }));
+                        }}
+                      />
+                    </button>
+                  ) : m.type === "voice" && m.media_url ? (
+                    <VoiceBubble url={m.media_url} durationS={m.duration_s ?? 0} mine={mine} />
+                  ) : (
+                    <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
+                  )}
                   <div
                     className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
                       mine ? "text-white/70" : "text-muted-foreground"
@@ -784,6 +939,13 @@ function ChatThread() {
             )}
             <button
               type="button"
+              onClick={() => { const f = menuFor; setMenuFor(null); setForwardMsg(f); }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+            >
+              <Share2 className="h-4 w-4" /> Forward ↪️
+            </button>
+            <button
+              type="button"
               onClick={() => setMenuFor(null)}
               className="mt-1 w-full rounded-xl px-4 py-3 text-center text-sm text-muted-foreground hover:bg-muted"
             >
@@ -833,7 +995,32 @@ function ChatThread() {
             </button>
           </div>
         )}
+        {recording ? (
+          <div className="flex items-center gap-2 rounded-full border border-border bg-input/40 px-3 py-2">
+            <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
+            <span className="flex-1 text-sm tabular-nums text-muted-foreground">
+              {String(Math.floor(recSeconds / 60)).padStart(2, "0")}:{String(recSeconds % 60).padStart(2, "0")} • recording…
+            </span>
+            <button type="button" onClick={() => stopRecording(true)} aria-label="Cancel recording" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
+              <X className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={() => stopRecording(false)} aria-label="Send voice" className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95">
+              <Send className="h-5 w-5" />
+            </button>
+          </div>
+        ) : (
         <div className="flex items-center gap-2">
+          <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handlePickImage} data-testid="chat-file-input" />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isBlocked || uploading}
+            aria-label="Attach photo"
+            data-testid="chat-attach"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-muted text-foreground transition active:scale-95 disabled:opacity-40"
+          >
+            <Paperclip className="h-5 w-5" />
+          </button>
           <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
             <Smile className="h-5 w-5 shrink-0 text-muted-foreground" />
             <input
@@ -842,7 +1029,7 @@ function ChatThread() {
               value={text}
               onChange={(e) => handleTextChange(e.target.value)}
               onBlur={() => emitTyping("stop")}
-              placeholder={isBlocked ? "You've blocked this user — unblock to chat" : "Message"}
+              placeholder={isBlocked ? "You've blocked this user — unblock to chat" : uploading ? "uploading…" : "Message"}
               disabled={isBlocked}
               className="flex-1 bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none disabled:opacity-60"
             />
@@ -860,15 +1047,164 @@ function ChatThread() {
           ) : (
             <button
               type="button"
-              onClick={() => toast("voice notes coming soon 🎙")}
-              className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95"
+              onClick={startRecording}
+              disabled={isBlocked}
+              data-testid="chat-mic"
+              className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95 disabled:opacity-40"
               aria-label="Voice note"
             >
               <Mic className="h-5 w-5" />
             </button>
           )}
         </div>
+        )}
       </form>
+
+      {viewerUrl && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black" onClick={() => setViewerUrl(null)}>
+          <button type="button" aria-label="Close" onClick={() => setViewerUrl(null)} className="absolute right-4 top-10 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white">
+            <X className="h-5 w-5" />
+          </button>
+          <img src={viewerUrl} alt="" className="max-h-full max-w-full object-contain" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+
+      {forwardMsg && me && (
+        <ForwardSheet
+          message={forwardMsg}
+          meId={me.id}
+          onClose={() => setForwardMsg(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function VoiceBubble({ url, durationS, mine }: { url: string; durationS: number; mine: boolean }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    const onTime = () => setProgress(a.duration ? a.currentTime / a.duration : 0);
+    const onEnd = () => { setPlaying(false); setProgress(0); };
+    const onPause = () => setPlaying(false);
+    const onPlay = () => {
+      // pause any other playing audio
+      document.querySelectorAll("audio").forEach((el) => { if (el !== a && !el.paused) el.pause(); });
+      setPlaying(true);
+    };
+    a.addEventListener("timeupdate", onTime);
+    a.addEventListener("ended", onEnd);
+    a.addEventListener("pause", onPause);
+    a.addEventListener("play", onPlay);
+    return () => {
+      a.removeEventListener("timeupdate", onTime);
+      a.removeEventListener("ended", onEnd);
+      a.removeEventListener("pause", onPause);
+      a.removeEventListener("play", onPlay);
+    };
+  }, []);
+  const toggle = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (a.paused) a.play().catch(() => toast.error("couldn't play"));
+    else a.pause();
+  };
+  const mm = String(Math.floor(durationS / 60)).padStart(2, "0");
+  const ss = String(durationS % 60).padStart(2, "0");
+  return (
+    <div className="flex items-center gap-2 py-0.5">
+      <button type="button" onClick={toggle} aria-label={playing ? "Pause" : "Play"} className={`grid h-8 w-8 place-items-center rounded-full ${mine ? "bg-white/20" : "bg-primary/20"}`}>
+        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      </button>
+      <div className={`h-1.5 w-32 overflow-hidden rounded-full ${mine ? "bg-white/20" : "bg-muted"}`}>
+        <div className={`h-full ${mine ? "bg-white" : "bg-primary"}`} style={{ width: `${Math.round(progress * 100)}%` }} />
+      </div>
+      <span className={`text-[11px] tabular-nums ${mine ? "text-white/80" : "text-muted-foreground"}`}>{mm}:{ss}</span>
+      <audio ref={audioRef} src={url} preload="metadata" />
+    </div>
+  );
+}
+
+function ForwardSheet({ message, meId, onClose }: { message: Message; meId: string; onClose: () => void }) {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const { data: convs = [] } = useQuery({
+    queryKey: ["forward-convs", meId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("conversation_members")
+        .select("conversation_id, conversations(id, name, type, avatar_url)")
+        .eq("user_id", meId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = ((data ?? []) as any[]).filter((r) => r.conversations && r.conversation_id !== message.conversation_id);
+      const enriched = await Promise.all(rows.map(async (r) => {
+        const c = r.conversations;
+        let title = c.name ?? "Chat";
+        let avatar: string | null = c.avatar_url ?? null;
+        if (c.type === "direct") {
+          const { data: other } = await supabase
+            .from("conversation_members")
+            .select("profiles(display_name, username, avatar_url)")
+            .eq("conversation_id", c.id).neq("user_id", meId).maybeSingle();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const p = (other as any)?.profiles;
+          if (p) { title = p.display_name || p.username || "Chat"; avatar = p.avatar_url ?? avatar; }
+        }
+        return { id: c.id as string, title, avatar, type: c.type as string };
+      }));
+      return enriched;
+    },
+  });
+
+  const forward = async (targetId: string) => {
+    if (busy) return;
+    setBusy(true);
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: targetId,
+      sender_id: meId,
+      content: message.content ?? "",
+      type: message.type,
+      media_url: message.media_url ?? null,
+      duration_s: message.duration_s ?? null,
+    });
+    setBusy(false);
+    if (error) { toast.error(error.message || "couldn't forward"); return; }
+    await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", targetId);
+    toast.success("Forwarded ➤");
+    onClose();
+    navigate({ to: "/app/chat/$conversationId", params: { conversationId: targetId } });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end bg-black/60" onClick={onClose}>
+      <div className="max-h-[70vh] w-full overflow-y-auto rounded-t-3xl border-t border-border bg-card p-4 pb-8" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/30" />
+        <div className="mb-3 font-display text-lg font-semibold">Forward to…</div>
+        {convs.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted-foreground">No other chats</div>
+        ) : (
+          <ul className="space-y-1">
+            {convs.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => forward(c.id)}
+                  disabled={busy}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted disabled:opacity-60"
+                >
+                  <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white" style={{ backgroundColor: colorFor(c.title) }}>
+                    {c.avatar ? <img src={c.avatar} alt="" className="h-full w-full object-cover" /> : c.type === "group" ? <Users className="h-5 w-5" /> : c.title.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="flex-1 truncate">{c.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

@@ -675,6 +675,7 @@ export type Database = {
           content: string | null
           conversation_id: string
           created_at: string | null
+          duration_s: number | null
           id: string
           is_ai: boolean
           is_deleted: boolean | null
@@ -688,6 +689,7 @@ export type Database = {
           content?: string | null
           conversation_id: string
           created_at?: string | null
+          duration_s?: number | null
           id?: string
           is_ai?: boolean
           is_deleted?: boolean | null
@@ -701,6 +703,7 @@ export type Database = {
           content?: string | null
           conversation_id?: string
           created_at?: string | null
+          duration_s?: number | null
           id?: string
           is_ai?: boolean
           is_deleted?: boolean | null
