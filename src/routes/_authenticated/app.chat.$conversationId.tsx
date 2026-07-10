@@ -101,10 +101,10 @@ function ChatThread() {
     queryFn: async () => {
       const { data: c } = await supabase
         .from("conversations")
-        .select("id, name, type, avatar_url")
+        .select("id, name, type, avatar_url, description")
         .eq("id", conversationId)
         .maybeSingle();
-      if (!c) return { title: "Conversation", avatar_url: null as string | null, peerId: null as string | null, isGroup: false };
+      if (!c) return { title: "Conversation", avatar_url: null as string | null, peerId: null as string | null, isGroup: false, isChannel: false, description: null as string | null };
       if (c.type === "direct") {
         const { data: other } = await supabase
           .from("conversation_members")
@@ -116,20 +116,22 @@ function ChatThread() {
         const p = (other as any)?.profiles;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const peerId = (other as any)?.user_id ?? null;
-        if (p) return { title: p.display_name || p.username || "Chat", avatar_url: p.avatar_url ?? null, peerId, isGroup: false };
-        return { title: "Chat", avatar_url: null, peerId, isGroup: false };
+        if (p) return { title: p.display_name || p.username || "Chat", avatar_url: p.avatar_url ?? null, peerId, isGroup: false, isChannel: false, description: null };
+        return { title: "Chat", avatar_url: null, peerId, isGroup: false, isChannel: false, description: null };
       }
-      return { title: c.name ?? "Group", avatar_url: c.avatar_url, peerId: null, isGroup: true };
+      return { title: c.name ?? (c.type === "channel" ? "Channel" : "Group"), avatar_url: c.avatar_url, peerId: null, isGroup: c.type === "group", isChannel: c.type === "channel", description: c.description ?? null };
     },
   });
 
   const peerId = header?.peerId ?? null;
   const isGroup = header?.isGroup ?? false;
+  const isChannel = header?.isChannel ?? false;
+
 
   type GroupMember = { user_id: string; role: string; joined_at: string | null; display_name: string | null; username: string | null; avatar_url: string | null };
   const { data: members = [], refetch: refetchMembers } = useQuery({
     queryKey: ["group-members", conversationId],
-    enabled: !!me && isGroup,
+    enabled: !!me && (isGroup || isChannel),
     queryFn: async (): Promise<GroupMember[]> => {
       const { data } = await supabase
         .from("conversation_members")
@@ -661,7 +663,7 @@ function ChatThread() {
         </Link>
         <button
           type="button"
-          onClick={() => isGroup && setShowMembersSheet(true)}
+          onClick={() => (isGroup || isChannel) && setShowMembersSheet(true)}
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
           <div
@@ -670,6 +672,8 @@ function ChatThread() {
           >
             {header?.avatar_url ? (
               <img src={header.avatar_url} alt="" className="h-full w-full object-cover" />
+            ) : isChannel ? (
+              <span aria-hidden>📢</span>
             ) : isGroup ? (
               <Users className="h-5 w-5" />
             ) : (
@@ -677,12 +681,14 @@ function ChatThread() {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate font-medium">{title}</div>
+            <div className="truncate font-medium">{isChannel ? `📢 ${title}` : title}</div>
             <div className="text-[11px] text-muted-foreground">
-              {peerTyping ? (
+              {peerTyping && !isChannel ? (
                 <span className="text-[#25D366]">
                   {isGroup && peerTypingName ? `${peerTypingName} is typing…` : "typing…"}
                 </span>
+              ) : isChannel ? (
+                `${members.length} subscriber${members.length === 1 ? "" : "s"}`
               ) : isGroup ? (
                 `${members.length} member${members.length === 1 ? "" : "s"}`
               ) : (
@@ -691,7 +697,8 @@ function ChatThread() {
             </div>
           </div>
         </button>
-        {!isGroup && (
+        {!isGroup && !isChannel && (
+
           <>
             <button
               data-testid="call-audio"
@@ -895,7 +902,7 @@ function ChatThread() {
                     }`}
                   >
                     <span>{m.created_at ? format(new Date(m.created_at), "HH:mm") : ""}</span>
-                    {mine && isGroup ? (
+                    {mine && (isGroup || isChannel) ? (
                       <Check className="h-3.5 w-3.5 text-white/70" />
                     ) : mine ? (
                       isRead ? (
@@ -998,7 +1005,7 @@ function ChatThread() {
 
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
 
-      {showMembersSheet && isGroup && (
+      {showMembersSheet && (isGroup || isChannel) && (
         <GroupMembersSheet
           conversationId={conversationId}
           groupName={title}
@@ -1012,10 +1019,16 @@ function ChatThread() {
       )}
 
 
+      {isChannel && myRole !== "owner" && myRole !== "admin" ? (
+        <div className="border-t border-border/60 bg-background/95 px-4 pb-6 pt-3 text-center text-xs text-muted-foreground backdrop-blur">
+          You're subscribed 🔔 · only the channel owner can post
+        </div>
+      ) : (
       <form
         onSubmit={send}
         className="flex flex-col gap-2 border-t border-border/60 bg-background/95 px-3 pb-6 pt-3 backdrop-blur"
       >
+
         {replyTo && (
           <div className="flex items-center gap-2 rounded-xl border-l-2 border-[#00D4B8] bg-muted/60 px-3 py-2">
             <div className="min-w-0 flex-1">
@@ -1100,6 +1113,8 @@ function ChatThread() {
         </div>
         )}
       </form>
+      )}
+
 
       {viewerUrl && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black" onClick={() => setViewerUrl(null)}>

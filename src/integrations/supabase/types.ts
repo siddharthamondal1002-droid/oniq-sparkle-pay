@@ -392,7 +392,9 @@ export type Database = {
           avatar_url: string | null
           created_at: string | null
           created_by: string
+          description: string | null
           id: string
+          is_public: boolean
           name: string | null
           type: string
           updated_at: string | null
@@ -401,7 +403,9 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           created_by: string
+          description?: string | null
           id?: string
+          is_public?: boolean
           name?: string | null
           type?: string
           updated_at?: string | null
@@ -410,7 +414,9 @@ export type Database = {
           avatar_url?: string | null
           created_at?: string | null
           created_by?: string
+          description?: string | null
           id?: string
+          is_public?: boolean
           name?: string | null
           type?: string
           updated_at?: string | null
@@ -1356,6 +1362,10 @@ export type Database = {
         Args: { _lesson_id: string; _score: number }
         Returns: Json
       }
+      create_channel: {
+        Args: { _description: string; _is_public: boolean; _name: string }
+        Returns: string
+      }
       create_group: {
         Args: { _member_ids: string[]; _name: string }
         Returns: string
@@ -1382,7 +1392,18 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
+      join_channel: { Args: { _conversation_id: string }; Returns: undefined }
       leave_group: { Args: { _conversation_id: string }; Returns: undefined }
+      list_public_channels: {
+        Args: { _limit?: number; _search?: string }
+        Returns: {
+          created_at: string
+          description: string
+          id: string
+          name: string
+          subscriber_count: number
+        }[]
+      }
       mark_conversation_read: {
         Args: { _conversation_id: string }
         Returns: undefined
