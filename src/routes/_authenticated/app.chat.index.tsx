@@ -535,12 +535,34 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     navigate({ to: "/app/chat/$conversationId", params: { conversationId: data as string } });
   };
 
+  const createChannel = async () => {
+    const name = channelName.trim();
+    if (!name) return toast.error("Channel name required");
+    setStarting(true);
+    const { data, error } = await supabase.rpc("create_channel", {
+      _name: name,
+      _description: channelDesc.trim() || undefined,
+      _is_public: channelPublic,
+    });
+    setStarting(false);
+    if (error || !data) {
+      console.error(error);
+      toast.error(error?.message || "Couldn't create channel");
+      return;
+    }
+    toast.success("Channel is live 📢");
+    onClose();
+    navigate({ to: "/app/chat/$conversationId", params: { conversationId: data as string } });
+  };
+
   const hint = useMemo(() => {
+    if (mode === "channel") return null;
     if (!debounced) return mode === "group" ? "Search users to add" : "Type a username or name to search";
     if (isFetching) return "Searching…";
     if (results.length === 0) return "No users found";
     return null;
   }, [debounced, isFetching, results.length, mode]);
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
