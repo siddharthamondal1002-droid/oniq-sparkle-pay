@@ -474,7 +474,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     const { error } = await supabase.rpc("send_friend_request", { _to: otherId });
     setAddingId(null);
     if (error) { toast.error(error.message); return; }
-    toast.success("Request sent 👋");
+    toast.success("request sent — vibe check pending ⏳");
     qc.invalidateQueries({ queryKey: ["friend-map", meId] });
   };
 
