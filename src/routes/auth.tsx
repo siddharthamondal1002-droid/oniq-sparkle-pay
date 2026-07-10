@@ -373,8 +373,9 @@ function GoogleG() {
   );
 }
 
-
+function SocialButton({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
   return (
+
     <button
       type="button"
       onClick={onClick}
