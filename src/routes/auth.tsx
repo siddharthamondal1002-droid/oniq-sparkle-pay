@@ -201,6 +201,22 @@ function AuthPage() {
         </div>
 
         <div className="mt-8 rounded-3xl border border-border glass p-6">
+          {/* Real managed Google OAuth */}
+          <button
+            type="button"
+            onClick={() => handleSocial("google")}
+            disabled={loading}
+            className="flex w-full items-center justify-center gap-3 rounded-2xl bg-white py-3 text-sm font-semibold text-neutral-900 shadow-sm transition hover:bg-neutral-100 disabled:opacity-60"
+          >
+            <GoogleG />
+            {loading ? "Connecting…" : "Continue with Google"}
+          </button>
+          <div className="my-5 flex items-center gap-3 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="h-px flex-1 bg-border" />
+            or
+            <div className="h-px flex-1 bg-border" />
+          </div>
+
           {/* Phone sign-in pill hidden until SMS provider is configured. */}
 
           {method === "email" ? (
