@@ -1059,6 +1059,152 @@ function ChatThread() {
         </div>
         )}
       </form>
+
+      {viewerUrl && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black" onClick={() => setViewerUrl(null)}>
+          <button type="button" aria-label="Close" onClick={() => setViewerUrl(null)} className="absolute right-4 top-10 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white">
+            <X className="h-5 w-5" />
+          </button>
+          <img src={viewerUrl} alt="" className="max-h-full max-w-full object-contain" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+
+      {forwardMsg && me && (
+        <ForwardSheet
+          message={forwardMsg}
+          meId={me.id}
+          onClose={() => setForwardMsg(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function VoiceBubble({ url, durationS, mine }: { url: string; durationS: number; mine: boolean }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    const a = audioRef.current;
+    if (!a) return;
+    const onTime = () => setProgress(a.duration ? a.currentTime / a.duration : 0);
+    const onEnd = () => { setPlaying(false); setProgress(0); };
+    const onPause = () => setPlaying(false);
+    const onPlay = () => {
+      // pause any other playing audio
+      document.querySelectorAll("audio").forEach((el) => { if (el !== a && !el.paused) el.pause(); });
+      setPlaying(true);
+    };
+    a.addEventListener("timeupdate", onTime);
+    a.addEventListener("ended", onEnd);
+    a.addEventListener("pause", onPause);
+    a.addEventListener("play", onPlay);
+    return () => {
+      a.removeEventListener("timeupdate", onTime);
+      a.removeEventListener("ended", onEnd);
+      a.removeEventListener("pause", onPause);
+      a.removeEventListener("play", onPlay);
+    };
+  }, []);
+  const toggle = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (a.paused) a.play().catch(() => toast.error("couldn't play"));
+    else a.pause();
+  };
+  const mm = String(Math.floor(durationS / 60)).padStart(2, "0");
+  const ss = String(durationS % 60).padStart(2, "0");
+  return (
+    <div className="flex items-center gap-2 py-0.5">
+      <button type="button" onClick={toggle} aria-label={playing ? "Pause" : "Play"} className={`grid h-8 w-8 place-items-center rounded-full ${mine ? "bg-white/20" : "bg-primary/20"}`}>
+        {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+      </button>
+      <div className={`h-1.5 w-32 overflow-hidden rounded-full ${mine ? "bg-white/20" : "bg-muted"}`}>
+        <div className={`h-full ${mine ? "bg-white" : "bg-primary"}`} style={{ width: `${Math.round(progress * 100)}%` }} />
+      </div>
+      <span className={`text-[11px] tabular-nums ${mine ? "text-white/80" : "text-muted-foreground"}`}>{mm}:{ss}</span>
+      <audio ref={audioRef} src={url} preload="metadata" />
+    </div>
+  );
+}
+
+function ForwardSheet({ message, meId, onClose }: { message: Message; meId: string; onClose: () => void }) {
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState(false);
+  const { data: convs = [] } = useQuery({
+    queryKey: ["forward-convs", meId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("conversation_members")
+        .select("conversation_id, conversations(id, name, type, avatar_url)")
+        .eq("user_id", meId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = ((data ?? []) as any[]).filter((r) => r.conversations && r.conversation_id !== message.conversation_id);
+      const enriched = await Promise.all(rows.map(async (r) => {
+        const c = r.conversations;
+        let title = c.name ?? "Chat";
+        let avatar: string | null = c.avatar_url ?? null;
+        if (c.type === "direct") {
+          const { data: other } = await supabase
+            .from("conversation_members")
+            .select("profiles(display_name, username, avatar_url)")
+            .eq("conversation_id", c.id).neq("user_id", meId).maybeSingle();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const p = (other as any)?.profiles;
+          if (p) { title = p.display_name || p.username || "Chat"; avatar = p.avatar_url ?? avatar; }
+        }
+        return { id: c.id as string, title, avatar, type: c.type as string };
+      }));
+      return enriched;
+    },
+  });
+
+  const forward = async (targetId: string) => {
+    if (busy) return;
+    setBusy(true);
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: targetId,
+      sender_id: meId,
+      content: message.content ?? "",
+      type: message.type,
+      media_url: message.media_url ?? null,
+      duration_s: message.duration_s ?? null,
+    });
+    setBusy(false);
+    if (error) { toast.error(error.message || "couldn't forward"); return; }
+    await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", targetId);
+    toast.success("Forwarded ➤");
+    onClose();
+    navigate({ to: "/app/chat/$conversationId", params: { conversationId: targetId } });
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-end bg-black/60" onClick={onClose}>
+      <div className="max-h-[70vh] w-full overflow-y-auto rounded-t-3xl border-t border-border bg-card p-4 pb-8" onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/30" />
+        <div className="mb-3 font-display text-lg font-semibold">Forward to…</div>
+        {convs.length === 0 ? (
+          <div className="p-6 text-center text-sm text-muted-foreground">No other chats</div>
+        ) : (
+          <ul className="space-y-1">
+            {convs.map((c) => (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => forward(c.id)}
+                  disabled={busy}
+                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted disabled:opacity-60"
+                >
+                  <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-full text-sm font-semibold text-white" style={{ backgroundColor: colorFor(c.title) }}>
+                    {c.avatar ? <img src={c.avatar} alt="" className="h-full w-full object-cover" /> : c.type === "group" ? <Users className="h-5 w-5" /> : c.title.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="flex-1 truncate">{c.title}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
