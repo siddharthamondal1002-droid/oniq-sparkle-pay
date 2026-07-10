@@ -793,7 +793,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             {isLoading ? (
               <div className="py-3 text-sm text-muted-foreground">Loading…</div>
             ) : (data?.incoming ?? []).length === 0 ? (
-              <div className="py-3 text-sm text-muted-foreground">no pending vibes rn ✨</div>
+              <div className="py-3 text-sm text-muted-foreground">no requests rn — go add some moots ✨</div>
             ) : (
               <ul className="space-y-1">
                 {data!.incoming.map((r) => (
