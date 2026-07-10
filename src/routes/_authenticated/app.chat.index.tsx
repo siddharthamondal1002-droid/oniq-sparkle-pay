@@ -681,9 +681,9 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                       </button>
                       {mode === "chat" && (
                         fs === "accepted" ? (
-                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">Friends ✓</span>
+                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">moots 🤝</span>
                         ) : fs === "pending-out" ? (
-                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">Pending ⏳</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">vibe check ⏳</span>
                         ) : fs === "pending-in" ? (
                           <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">Respond</span>
                         ) : (
