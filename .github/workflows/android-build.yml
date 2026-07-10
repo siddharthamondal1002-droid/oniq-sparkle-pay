@@ -1,0 +1,133 @@
+# Build a signed Android App Bundle (.aab) for ONIQ.
+#
+# Strategy: thin Capacitor wrapper — the AAB just points at https://oniqhub.com,
+# so shipped builds always run the current production site. No local web assets
+# ship with the APK; the dist/ folder is a stub (.gitkeep) purely to satisfy
+# `npx cap sync`.
+#
+# First run (no keystore secrets set yet):
+#   1. Trigger the workflow.
+#   2. Signing step FAILS on purpose and uploads an artifact called
+#      "keystore-SAVE-THIS-ONCE" containing keystore.jks + credentials.txt.
+#   3. Download the artifact, add these 4 repo secrets under
+#      Settings → Secrets and variables → Actions:
+#        - ANDROID_KEYSTORE_BASE64  (base64 of keystore.jks — one line)
+#        - KEYSTORE_PASSWORD
+#        - KEY_ALIAS                 (use: oniq)
+#        - KEY_PASSWORD
+#   4. Re-run the workflow. The AAB uploads as artifact "oniq-release-aab".
+
+name: Android Build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      # webDir must exist for `cap sync`; the stub dist/.gitkeep is enough
+      # because server.url points at live production.
+      - name: Ensure webDir stub exists
+        run: mkdir -p dist && touch dist/.gitkeep
+
+      - name: Capacitor sync android
+        run: npx cap sync android
+
+      # -----------------------------------------------------------------
+      # Keystore: generate-on-first-run OR reuse from repo secrets
+      # -----------------------------------------------------------------
+      - name: Check for keystore secret
+        id: keystore_check
+        run: |
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "has_keystore=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_keystore=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate keystore (first run only)
+        if: steps.keystore_check.outputs.has_keystore == 'false'
+        run: |
+          mkdir -p keystore-out
+          GEN_PASS="$(openssl rand -base64 24 | tr -d '=+/' | cut -c1-24)"
+          keytool -genkeypair -v \
+            -keystore keystore-out/keystore.jks \
+            -alias oniq \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -storepass "$GEN_PASS" -keypass "$GEN_PASS" \
+            -dname "CN=ONIQ, OU=Mobile, O=OniqHub, L=Kolkata, ST=WB, C=IN"
+          {
+            echo "SAVE THIS FILE — you cannot recover it later."
+            echo ""
+            echo "KEY_ALIAS=oniq"
+            echo "KEYSTORE_PASSWORD=$GEN_PASS"
+            echo "KEY_PASSWORD=$GEN_PASS"
+            echo ""
+            echo "Also add ANDROID_KEYSTORE_BASE64 = the base64 of keystore.jks (single line)."
+            echo "You can produce it locally with:  base64 -w0 keystore.jks"
+          } > keystore-out/credentials.txt
+          base64 -w0 keystore-out/keystore.jks > keystore-out/keystore.jks.base64
+
+      - name: Upload keystore artifact (first run only)
+        if: steps.keystore_check.outputs.has_keystore == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: keystore-SAVE-THIS-ONCE
+          path: keystore-out/
+          retention-days: 30
+
+      - name: Stop with instructions (first run only)
+        if: steps.keystore_check.outputs.has_keystore == 'false'
+        run: |
+          echo "::error::Keystore was generated. Download the 'keystore-SAVE-THIS-ONCE' artifact, then add ANDROID_KEYSTORE_BASE64, KEYSTORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD as repo secrets and re-run this workflow."
+          exit 1
+
+      # -----------------------------------------------------------------
+      # Signed release build (only when secrets are present)
+      # -----------------------------------------------------------------
+      - name: Decode keystore
+        if: steps.keystore_check.outputs.has_keystore == 'true'
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/oniq.keystore
+
+      - name: Build signed AAB
+        if: steps.keystore_check.outputs.has_keystore == 'true'
+        working-directory: android
+        env:
+          ORG_GRADLE_PROJECT_ONIQ_KEYSTORE: ${{ github.workspace }}/android/app/oniq.keystore
+          ORG_GRADLE_PROJECT_ONIQ_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          ./gradlew bundleRelease
+
+      - name: Upload release AAB
+        if: steps.keystore_check.outputs.has_keystore == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: oniq-release-aab
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          retention-days: 30
