@@ -167,7 +167,7 @@ function ChatList() {
           <button
             onClick={() => setShowRequests(true)}
             className="relative grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
-            aria-label="Friend requests"
+            aria-label="Moot requests"
             data-testid="friend-requests-btn"
           >
             <UserPlus className="h-5 w-5" />
@@ -474,7 +474,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     const { error } = await supabase.rpc("send_friend_request", { _to: otherId });
     setAddingId(null);
     if (error) { toast.error(error.message); return; }
-    toast.success("Request sent 👋");
+    toast.success("request sent — vibe check pending ⏳");
     qc.invalidateQueries({ queryKey: ["friend-map", meId] });
   };
 
@@ -681,9 +681,9 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                       </button>
                       {mode === "chat" && (
                         fs === "accepted" ? (
-                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">Friends ✓</span>
+                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">moots 🤝</span>
                         ) : fs === "pending-out" ? (
-                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">Pending ⏳</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">vibe check ⏳</span>
                         ) : fs === "pending-in" ? (
                           <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">Respond</span>
                         ) : (
@@ -693,7 +693,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                             disabled={addingId === u.id}
                             className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
                           >
-                            {addingId === u.id ? "…" : "Add 👋"}
+                            {addingId === u.id ? "…" : "Add ➕"}
                           </button>
                         )
                       )}
@@ -765,7 +765,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     const { error } = await supabase.rpc("respond_friend_request", { _other: otherId, _accept: accept });
     setBusy(null);
     if (error) { toast.error(error.message); return; }
-    toast.success(accept ? "You're now friends 🤝" : "Declined");
+    toast.success(accept ? "6 7!! y'all are moots now 🤝✨" : "request dodged 🫡");
     qc.invalidateQueries({ queryKey: ["friends-full", meId] });
     qc.invalidateQueries({ queryKey: ["friend-requests-incoming", meId] });
     qc.invalidateQueries({ queryKey: ["friend-map", meId] });
@@ -782,7 +782,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
       <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">Friends 🤝</h2>
+          <h2 className="font-display text-xl font-semibold">Moot requests 👋</h2>
           <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
@@ -793,7 +793,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             {isLoading ? (
               <div className="py-3 text-sm text-muted-foreground">Loading…</div>
             ) : (data?.incoming ?? []).length === 0 ? (
-              <div className="py-3 text-sm text-muted-foreground">No pending requests.</div>
+              <div className="py-3 text-sm text-muted-foreground">no pending vibes rn ✨</div>
             ) : (
               <ul className="space-y-1">
                 {data!.incoming.map((r) => (
@@ -811,9 +811,9 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             )}
           </section>
           <section>
-            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">My friends</div>
+            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">the moots 🫶</div>
             {(data?.friends ?? []).length === 0 ? (
-              <div className="py-3 text-sm text-muted-foreground">No friends yet — search someone to add 👋</div>
+              <div className="py-3 text-sm text-muted-foreground">zero moots?? go rizz up the search bar 💀</div>
             ) : (
               <ul className="space-y-1">
                 {data!.friends.map((r) => (
