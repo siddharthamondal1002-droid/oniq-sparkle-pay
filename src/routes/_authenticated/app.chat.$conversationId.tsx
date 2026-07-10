@@ -663,7 +663,7 @@ function ChatThread() {
         </Link>
         <button
           type="button"
-          onClick={() => isGroup && setShowMembersSheet(true)}
+          onClick={() => (isGroup || isChannel) && setShowMembersSheet(true)}
           className="flex min-w-0 flex-1 items-center gap-2 text-left"
         >
           <div
@@ -672,6 +672,8 @@ function ChatThread() {
           >
             {header?.avatar_url ? (
               <img src={header.avatar_url} alt="" className="h-full w-full object-cover" />
+            ) : isChannel ? (
+              <span aria-hidden>📢</span>
             ) : isGroup ? (
               <Users className="h-5 w-5" />
             ) : (
@@ -679,12 +681,14 @@ function ChatThread() {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate font-medium">{title}</div>
+            <div className="truncate font-medium">{isChannel ? `📢 ${title}` : title}</div>
             <div className="text-[11px] text-muted-foreground">
-              {peerTyping ? (
+              {peerTyping && !isChannel ? (
                 <span className="text-[#25D366]">
                   {isGroup && peerTypingName ? `${peerTypingName} is typing…` : "typing…"}
                 </span>
+              ) : isChannel ? (
+                `${members.length} subscriber${members.length === 1 ? "" : "s"}`
               ) : isGroup ? (
                 `${members.length} member${members.length === 1 ? "" : "s"}`
               ) : (
@@ -693,7 +697,8 @@ function ChatThread() {
             </div>
           </div>
         </button>
-        {!isGroup && (
+        {!isGroup && !isChannel && (
+
           <>
             <button
               data-testid="call-audio"
