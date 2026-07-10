@@ -541,7 +541,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     setStarting(true);
     const { data, error } = await supabase.rpc("create_channel", {
       _name: name,
-      _description: channelDesc.trim() || undefined,
+      _description: channelDesc.trim(),
       _is_public: channelPublic,
     });
     setStarting(false);
