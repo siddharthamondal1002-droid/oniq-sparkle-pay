@@ -681,11 +681,11 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                       </button>
                       {mode === "chat" && (
                         fs === "accepted" ? (
-                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">moots 🤝</span>
+                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">moots ✓</span>
                         ) : fs === "pending-out" ? (
-                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">vibe check ⏳</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">pending fr ⏳</span>
                         ) : fs === "pending-in" ? (
-                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">Respond</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">they added u 👀</span>
                         ) : (
                           <button
                             type="button"
@@ -693,7 +693,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                             disabled={addingId === u.id}
                             className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
                           >
-                            {addingId === u.id ? "…" : "Add ➕"}
+                            {addingId === u.id ? "…" : "add moot ➕"}
                           </button>
                         )
                       )}
