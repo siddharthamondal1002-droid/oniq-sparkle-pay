@@ -647,8 +647,8 @@ function ClipsHeroTile({
         <Clapperboard className="relative h-10 w-10 text-foreground/90" strokeWidth={1.6} />
       )}
       <div className="relative">
-        <div className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}>watch the feed</div>
-        <div className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}>Clips</div>
+        <div className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}>doomscroll era</div>
+        <div className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}>brainrot 🎬</div>
       </div>
     </Link>
   );
