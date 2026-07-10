@@ -165,6 +165,19 @@ function ChatList() {
             <Search className="h-5 w-5" />
           </button>
           <button
+            onClick={() => setShowRequests(true)}
+            className="relative grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
+            aria-label="Friend requests"
+            data-testid="friend-requests-btn"
+          >
+            <UserPlus className="h-5 w-5" />
+            {incomingRequests.length > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] font-bold text-black">
+                {incomingRequests.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setShowNew(true)}
             className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
             aria-label="New chat"
@@ -172,6 +185,7 @@ function ChatList() {
             <Edit3 className="h-5 w-5" />
           </button>
         </div>
+
       </div>
 
       {showSearch && (
