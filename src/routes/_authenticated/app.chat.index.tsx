@@ -378,7 +378,7 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
   const { data: channels = [], isFetching, refetch } = useQuery({
     queryKey: ["discover-channels", debounced],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("list_public_channels", { _search: debounced || null, _limit: 30 });
+      const { data, error } = await supabase.rpc("list_public_channels", { _search: debounced || undefined, _limit: 30 });
       if (error) throw error;
       return (data ?? []) as Array<{ id: string; name: string; description: string | null; subscriber_count: number }>;
     },
