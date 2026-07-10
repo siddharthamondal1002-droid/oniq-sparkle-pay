@@ -1,0 +1,10 @@
+{
+  "appId": "com.oniqhub.app",
+  "appName": "ONIQ",
+  "webDir": "dist",
+  "server": {
+    "url": "https://oniqhub.com",
+    "androidScheme": "https",
+    "cleartext": false
+  }
+}

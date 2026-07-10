@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">ONIQ</string>
+    <string name="title_activity_main">ONIQ</string>
+    <string name="package_name">com.oniqhub.app</string>
+    <string name="custom_url_scheme">com.oniqhub.app</string>
+</resources>
