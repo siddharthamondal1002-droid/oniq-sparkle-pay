@@ -902,7 +902,7 @@ function ChatThread() {
                     }`}
                   >
                     <span>{m.created_at ? format(new Date(m.created_at), "HH:mm") : ""}</span>
-                    {mine && isGroup ? (
+                    {mine && (isGroup || isChannel) ? (
                       <Check className="h-3.5 w-3.5 text-white/70" />
                     ) : mine ? (
                       isRead ? (
