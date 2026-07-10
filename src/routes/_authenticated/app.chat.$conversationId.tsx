@@ -1005,7 +1005,7 @@ function ChatThread() {
 
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
 
-      {showMembersSheet && isGroup && (
+      {showMembersSheet && (isGroup || isChannel) && (
         <GroupMembersSheet
           conversationId={conversationId}
           groupName={title}
