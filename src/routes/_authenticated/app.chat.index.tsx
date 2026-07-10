@@ -789,7 +789,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
         </div>
         <div className="mt-3 max-h-[65vh] space-y-4 overflow-y-auto">
           <section>
-            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">Requests</div>
+            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">moot requests 👀</div>
             {isLoading ? (
               <div className="py-3 text-sm text-muted-foreground">Loading…</div>
             ) : (data?.incoming ?? []).length === 0 ? (
