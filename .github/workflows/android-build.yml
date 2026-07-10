@@ -44,7 +44,7 @@ jobs:
         uses: android-actions/setup-android@v3
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
 
       # webDir must exist for `cap sync`; the stub dist/.gitkeep is enough
       # because server.url points at live production.
