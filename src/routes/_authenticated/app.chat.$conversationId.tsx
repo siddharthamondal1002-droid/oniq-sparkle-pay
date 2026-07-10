@@ -131,7 +131,7 @@ function ChatThread() {
   type GroupMember = { user_id: string; role: string; joined_at: string | null; display_name: string | null; username: string | null; avatar_url: string | null };
   const { data: members = [], refetch: refetchMembers } = useQuery({
     queryKey: ["group-members", conversationId],
-    enabled: !!me && isGroup,
+    enabled: !!me && (isGroup || isChannel),
     queryFn: async (): Promise<GroupMember[]> => {
       const { data } = await supabase
         .from("conversation_members")
