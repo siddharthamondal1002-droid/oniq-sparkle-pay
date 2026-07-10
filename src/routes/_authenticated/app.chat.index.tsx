@@ -454,6 +454,31 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     },
   });
 
+  // My friendships → Map<otherId, 'pending-out'|'pending-in'|'accepted'>
+  const { data: friendMap = new Map<string, "pending-out" | "pending-in" | "accepted">() } = useQuery({
+    queryKey: ["friend-map", meId],
+    queryFn: async () => {
+      const { data } = await supabase.from("friendships").select("user_a, user_b, status, requested_by");
+      const m = new Map<string, "pending-out" | "pending-in" | "accepted">();
+      for (const r of data ?? []) {
+        const other = r.user_a === meId ? r.user_b : r.user_a;
+        m.set(other, r.status === "accepted" ? "accepted" : r.requested_by === meId ? "pending-out" : "pending-in");
+      }
+      return m;
+    },
+  });
+  const qc = useQueryClient();
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const addFriend = async (otherId: string) => {
+    setAddingId(otherId);
+    const { error } = await supabase.rpc("send_friend_request", { _to: otherId });
+    setAddingId(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Request sent 👋");
+    qc.invalidateQueries({ queryKey: ["friend-map", meId] });
+  };
+
+
   const startChat = async (otherId: string) => {
     setStarting(true);
     const { data, error } = await supabase.rpc("find_or_create_direct_conversation", {
