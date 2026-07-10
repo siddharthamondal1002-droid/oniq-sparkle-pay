@@ -803,8 +803,8 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                       <div className="truncate text-sm font-medium">{r.prof.display_name}</div>
                       <div className="truncate text-xs text-muted-foreground">@{r.prof.username}</div>
                     </div>
-                    <button disabled={busy === r.id} onClick={() => respond(r.id, true)} className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black disabled:opacity-50">Accept ✅</button>
-                    <button disabled={busy === r.id} onClick={() => respond(r.id, false)} className="rounded-full border border-border px-3 py-1 text-xs disabled:opacity-50">Decline ✕</button>
+                    <button disabled={busy === r.id} onClick={() => respond(r.id, true)} className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black disabled:opacity-50">bet ✅</button>
+                    <button disabled={busy === r.id} onClick={() => respond(r.id, false)} className="rounded-full border border-border px-3 py-1 text-xs disabled:opacity-50">nah ✕</button>
                   </li>
                 ))}
               </ul>
