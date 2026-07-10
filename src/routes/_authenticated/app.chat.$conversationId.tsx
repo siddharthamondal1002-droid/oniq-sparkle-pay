@@ -176,6 +176,8 @@ function ChatThread() {
 
   const { data: messages = [], isLoading } = useQuery({
     queryKey: ["messages", conversationId],
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
     queryFn: async (): Promise<Message[]> => {
       const { data } = await supabase
         .from("messages")
@@ -186,6 +188,7 @@ function ChatThread() {
       return (data ?? []) as Message[];
     },
   });
+
 
   // Peer's last_read_at → drives read ticks.
   const { data: peerReadAt, refetch: refetchPeerRead } = useQuery({
