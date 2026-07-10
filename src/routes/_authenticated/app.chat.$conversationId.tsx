@@ -82,6 +82,18 @@ function ChatThread() {
 
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const [viewerUrl, setViewerUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recSeconds, setRecSeconds] = useState(0);
+  const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const recChunksRef = useRef<Blob[]>([]);
+  const recStreamRef = useRef<MediaStream | null>(null);
+  const recTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recStartRef = useRef<number>(0);
+  const recCancelRef = useRef(false);
 
   const { data: header } = useQuery({
     queryKey: ["conversation-header", conversationId, me?.id],
