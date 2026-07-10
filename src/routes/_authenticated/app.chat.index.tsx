@@ -148,7 +148,7 @@ function ChatList() {
               avatar_url: avatar,
               type: c.type,
               updated_at: last?.created_at ?? c.updated_at,
-              last_message: last?.content ?? null,
+              last_message: last?.type === "image" ? "📷 Photo" : last?.type === "voice" ? "🎙 Voice note" : (last?.content ?? null),
               last_sender_id: last?.sender_id ?? null,
               last_sender_name: lastSenderName,
               last_created_at: last?.created_at ?? null,
