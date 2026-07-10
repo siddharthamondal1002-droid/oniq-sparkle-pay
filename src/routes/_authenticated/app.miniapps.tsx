@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink, Car, IndianRupee } from "lucide-react";
-import { MINI_APPS, CATEGORY_LABELS, openInApp, type MiniApp } from "@/lib/miniapps";
+import { MINI_APPS, CATEGORY_LABELS, launchMiniApp, type MiniApp } from "@/lib/miniapps";
 
 export const Route = createFileRoute("/_authenticated/app/miniapps")({
   component: MiniAppsScreen,
 });
 
-const CATEGORY_ORDER: MiniApp["category"][] = ["food", "rides", "payments", "social", "shopping"];
+const CATEGORY_ORDER: MiniApp["category"][] = ["rides", "quickcommerce", "food", "payments", "social", "shopping"];
 
 function MiniAppsScreen() {
   return (
