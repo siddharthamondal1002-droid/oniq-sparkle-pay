@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2, ArrowLeft, Megaphone, Plus } from "lucide-react";
+import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2, ArrowLeft, Megaphone, Plus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday, differenceInDays } from "date-fns";
 
@@ -11,16 +11,6 @@ export const Route = createFileRoute("/_authenticated/app/chat/")({
   component: ChatList,
 });
 
-type ConvRow = {
-  conversation_id: string;
-  conversations: {
-    id: string;
-    name: string | null;
-    type: string;
-    avatar_url: string | null;
-    updated_at: string | null;
-  } | null;
-};
 
 type EnrichedConv = {
   id: string;
@@ -59,6 +49,7 @@ function ChatList() {
   const qc = useQueryClient();
   const [showNew, setShowNew] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showRequests, setShowRequests] = useState(false);
   const [query, setQuery] = useState("");
   const [mounted, setMounted] = useState(false);
 
@@ -84,88 +75,45 @@ function ChatList() {
   const { data: convs, isLoading } = useQuery({
     queryKey: ["conversations", me?.id, blockedIds.join(",")],
     enabled: !!me,
+    staleTime: 30_000,
     queryFn: async (): Promise<EnrichedConv[]> => {
-      const { data } = await supabase
-        .from("conversation_members")
-        .select("conversation_id, conversations(id, name, type, avatar_url, updated_at)")
-        .eq("user_id", me!.id);
-      const rows = (data ?? []) as ConvRow[];
-      const enriched = await Promise.all(
-        rows
-          .filter((r) => r.conversations)
-          .map(async (r): Promise<EnrichedConv | null> => {
-            const c = r.conversations!;
-            let title = c.name ?? "Chat";
-            let avatar = c.avatar_url;
-            let peerReadAt: string | null = null;
-            let peerId: string | null = null;
-            if (c.type === "direct") {
-              const { data: other } = await supabase
-                .from("conversation_members")
-                .select("user_id, last_read_at, profiles(display_name, username, avatar_url)")
-                .eq("conversation_id", c.id)
-                .neq("user_id", me!.id)
-                .maybeSingle();
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const o = other as any;
-              const p = o?.profiles;
-              if (p) {
-                title = p.display_name || p.username || "Chat";
-                avatar = p.avatar_url ?? avatar;
-              }
-              peerReadAt = o?.last_read_at ?? null;
-              peerId = o?.user_id ?? null;
-            }
-            if (peerId && blockedSet.has(peerId)) return null;
-            const { data: last } = await supabase
-              .from("messages")
-              .select("content, created_at, sender_id, type")
-              .eq("conversation_id", c.id)
-              .eq("is_deleted", false)
-              .order("created_at", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            const { data: unread } = await supabase.rpc("unread_count", {
-              _conversation_id: c.id,
-            });
-            let lastSenderName: string | null = null;
-            if (c.type === "group" && last?.sender_id) {
-              if (last.sender_id === me!.id) {
-                lastSenderName = "You";
-              } else {
-                const { data: sp } = await supabase
-                  .from("profiles")
-                  .select("display_name, username")
-                  .eq("id", last.sender_id)
-                  .maybeSingle();
-                const full = (sp?.display_name || sp?.username || "").trim();
-                lastSenderName = full ? full.split(/\s+/)[0] : null;
-              }
-            }
-            return {
-              id: c.id,
-              title,
-              avatar_url: avatar,
-              type: c.type,
-              updated_at: last?.created_at ?? c.updated_at,
-              last_message: last?.type === "image" ? "📷 Photo" : last?.type === "voice" ? "🎙 Voice note" : (last?.content ?? null),
-              last_sender_id: last?.sender_id ?? null,
-              last_sender_name: lastSenderName,
-              last_created_at: last?.created_at ?? null,
-              peer_read_at: peerReadAt,
-              unread: (unread as number) ?? 0,
-            };
-          }),
-      );
-      const filtered = enriched.filter((x): x is EnrichedConv => x !== null);
-      filtered.sort((a, b) => {
-        const ta = new Date(a.updated_at ?? 0).getTime();
-        const tb = new Date(b.updated_at ?? 0).getTime();
-        return tb - ta;
-      });
-      return filtered;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("get_chat_list");
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = (data ?? []) as any[];
+      return rows
+        .filter((r) => !(r.peer_id && blockedSet.has(r.peer_id)))
+        .map((r): EnrichedConv => ({
+          id: r.conversation_id,
+          title: r.title ?? "Chat",
+          avatar_url: r.avatar_url ?? null,
+          type: r.type,
+          updated_at: r.updated_at,
+          last_message: r.last_type === "image" ? "📷 Photo" : r.last_type === "voice" ? "🎙 Voice note" : (r.last_message ?? null),
+          last_sender_id: r.last_sender_id ?? null,
+          last_sender_name: r.last_sender_name ?? null,
+          last_created_at: r.last_created_at ?? null,
+          peer_read_at: r.peer_read_at ?? null,
+          unread: r.unread ?? 0,
+        }));
     },
   });
+
+  // Incoming friend requests count (for header badge)
+  const { data: incomingRequests = [] } = useQuery({
+    queryKey: ["friend-requests-incoming", me?.id],
+    enabled: !!me,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("friendships")
+        .select("user_a, user_b, requested_by, created_at")
+        .eq("status", "pending");
+      return (data ?? []).filter((r) => r.requested_by !== me!.id);
+    },
+  });
+
 
   useEffect(() => {
     const channel = supabase
@@ -217,6 +165,19 @@ function ChatList() {
             <Search className="h-5 w-5" />
           </button>
           <button
+            onClick={() => setShowRequests(true)}
+            className="relative grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
+            aria-label="Friend requests"
+            data-testid="friend-requests-btn"
+          >
+            <UserPlus className="h-5 w-5" />
+            {incomingRequests.length > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] font-bold text-black">
+                {incomingRequests.length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setShowNew(true)}
             className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
             aria-label="New chat"
@@ -224,6 +185,7 @@ function ChatList() {
             <Edit3 className="h-5 w-5" />
           </button>
         </div>
+
       </div>
 
       {showSearch && (
@@ -321,6 +283,8 @@ function ChatList() {
         )}
 
       {showNew && me && <NewChatSheet meId={me.id} onClose={() => setShowNew(false)} />}
+      {showRequests && me && <FriendRequestsSheet meId={me.id} onClose={() => setShowRequests(false)} />}
+
     </div>
   );
 }
@@ -489,6 +453,31 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
       return (data ?? []) as PickedUser[];
     },
   });
+
+  // My friendships → Map<otherId, 'pending-out'|'pending-in'|'accepted'>
+  const { data: friendMap = new Map<string, "pending-out" | "pending-in" | "accepted">() } = useQuery({
+    queryKey: ["friend-map", meId],
+    queryFn: async () => {
+      const { data } = await supabase.from("friendships").select("user_a, user_b, status, requested_by");
+      const m = new Map<string, "pending-out" | "pending-in" | "accepted">();
+      for (const r of data ?? []) {
+        const other = r.user_a === meId ? r.user_b : r.user_a;
+        m.set(other, r.status === "accepted" ? "accepted" : r.requested_by === meId ? "pending-out" : "pending-in");
+      }
+      return m;
+    },
+  });
+  const qc = useQueryClient();
+  const [addingId, setAddingId] = useState<string | null>(null);
+  const addFriend = async (otherId: string) => {
+    setAddingId(otherId);
+    const { error } = await supabase.rpc("send_friend_request", { _to: otherId });
+    setAddingId(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Request sent 👋");
+    qc.invalidateQueries({ queryKey: ["friend-map", meId] });
+  };
+
 
   const startChat = async (otherId: string) => {
     setStarting(true);
@@ -671,23 +660,48 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
               ) : (
                 results.map((u) => {
                   const isPicked = pickedIds.has(u.id);
+                  const fs = friendMap.get(u.id);
                   return (
-                    <button
+                    <div
                       key={u.id}
-                      disabled={starting}
-                      onClick={() => (mode === "group" ? togglePick(u) : startChat(u.id))}
-                      className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-muted disabled:opacity-50 ${isPicked ? "bg-primary/10" : ""}`}
+                      className={`flex w-full items-center gap-3 rounded-2xl p-3 hover:bg-muted ${isPicked ? "bg-primary/10" : ""}`}
                     >
-                      <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={44} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{u.display_name}</div>
-                        <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
-                      </div>
-                      {mode === "group" && isPicked && <Check className="h-4 w-4 text-primary" />}
-                    </button>
+                      <button
+                        type="button"
+                        disabled={starting}
+                        onClick={() => (mode === "group" ? togglePick(u) : startChat(u.id))}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:opacity-50"
+                      >
+                        <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={44} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{u.display_name}</div>
+                          <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
+                        </div>
+                        {mode === "group" && isPicked && <Check className="h-4 w-4 text-primary" />}
+                      </button>
+                      {mode === "chat" && (
+                        fs === "accepted" ? (
+                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">Friends ✓</span>
+                        ) : fs === "pending-out" ? (
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">Pending ⏳</span>
+                        ) : fs === "pending-in" ? (
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">Respond</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); addFriend(u.id); }}
+                            disabled={addingId === u.id}
+                            className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
+                          >
+                            {addingId === u.id ? "…" : "Add 👋"}
+                          </button>
+                        )
+                      )}
+                    </div>
                   );
                 })
               )}
+
             </div>
 
             {mode === "group" && (
@@ -712,5 +726,114 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
 export const _iconRef = Check;
 export const _trashRef = Trash2;
 export const _plusRef = Plus;
+
+function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["friends-full", meId],
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("friendships")
+        .select("user_a, user_b, status, requested_by, created_at");
+      const otherIds = Array.from(new Set((rows ?? []).map((r) => (r.user_a === meId ? r.user_b : r.user_a))));
+      const profByIdMap = new Map<string, { id: string; display_name: string | null; username: string | null; avatar_url: string | null }>();
+      if (otherIds.length) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, display_name, username, avatar_url")
+          .in("id", otherIds);
+        for (const p of profs ?? []) profByIdMap.set(p.id, p);
+      }
+      const incoming: Array<{ id: string; prof: typeof profByIdMap extends Map<string, infer V> ? V : never }> = [];
+      const friends: Array<{ id: string; prof: typeof profByIdMap extends Map<string, infer V> ? V : never }> = [];
+      for (const r of rows ?? []) {
+        const other = r.user_a === meId ? r.user_b : r.user_a;
+        const prof = profByIdMap.get(other);
+        if (!prof) continue;
+        if (r.status === "accepted") friends.push({ id: other, prof });
+        else if (r.requested_by !== meId) incoming.push({ id: other, prof });
+      }
+      return { incoming, friends };
+    },
+  });
+
+  const respond = async (otherId: string, accept: boolean) => {
+    setBusy(otherId);
+    const { error } = await supabase.rpc("respond_friend_request", { _other: otherId, _accept: accept });
+    setBusy(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success(accept ? "You're now friends 🤝" : "Declined");
+    qc.invalidateQueries({ queryKey: ["friends-full", meId] });
+    qc.invalidateQueries({ queryKey: ["friend-requests-incoming", meId] });
+    qc.invalidateQueries({ queryKey: ["friend-map", meId] });
+  };
+
+  const openChat = async (otherId: string) => {
+    const { data: id, error } = await supabase.rpc("find_or_create_direct_conversation", { other_user_id: otherId });
+    if (error || !id) { toast.error(error?.message || "Couldn't open chat"); return; }
+    onClose();
+    navigate({ to: "/app/chat/$conversationId", params: { conversationId: id as string } });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
+      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-semibold">Friends 🤝</h2>
+          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-3 max-h-[65vh] space-y-4 overflow-y-auto">
+          <section>
+            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">Requests</div>
+            {isLoading ? (
+              <div className="py-3 text-sm text-muted-foreground">Loading…</div>
+            ) : (data?.incoming ?? []).length === 0 ? (
+              <div className="py-3 text-sm text-muted-foreground">No pending requests.</div>
+            ) : (
+              <ul className="space-y-1">
+                {data!.incoming.map((r) => (
+                  <li key={r.id} className="flex items-center gap-3 rounded-2xl p-2">
+                    <Avatar name={r.prof.display_name || r.prof.username || "?"} url={r.prof.avatar_url} size={40} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{r.prof.display_name}</div>
+                      <div className="truncate text-xs text-muted-foreground">@{r.prof.username}</div>
+                    </div>
+                    <button disabled={busy === r.id} onClick={() => respond(r.id, true)} className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black disabled:opacity-50">Accept ✅</button>
+                    <button disabled={busy === r.id} onClick={() => respond(r.id, false)} className="rounded-full border border-border px-3 py-1 text-xs disabled:opacity-50">Decline ✕</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section>
+            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">My friends</div>
+            {(data?.friends ?? []).length === 0 ? (
+              <div className="py-3 text-sm text-muted-foreground">No friends yet — search someone to add 👋</div>
+            ) : (
+              <ul className="space-y-1">
+                {data!.friends.map((r) => (
+                  <button key={r.id} onClick={() => openChat(r.id)} className="flex w-full items-center gap-3 rounded-2xl p-2 text-left hover:bg-muted">
+                    <Avatar name={r.prof.display_name || r.prof.username || "?"} url={r.prof.avatar_url} size={40} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{r.prof.display_name}</div>
+                      <div className="truncate text-xs text-muted-foreground">@{r.prof.username}</div>
+                    </div>
+                    <MessageCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 

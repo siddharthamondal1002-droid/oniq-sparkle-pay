@@ -464,6 +464,33 @@ export type Database = {
           },
         ]
       }
+      friendships: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          requested_by: string
+          status: string
+          user_a: string
+          user_b: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          requested_by: string
+          status?: string
+          user_a: string
+          user_b: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          requested_by?: string
+          status?: string
+          user_a?: string
+          user_b?: string
+        }
+        Relationships: []
+      }
       learn_courses: {
         Row: {
           created_at: string
@@ -1379,6 +1406,24 @@ export type Database = {
         Args: { other_user_id: string }
         Returns: string
       }
+      get_chat_list: {
+        Args: never
+        Returns: {
+          avatar_url: string
+          conversation_id: string
+          last_created_at: string
+          last_message: string
+          last_sender_id: string
+          last_sender_name: string
+          last_type: string
+          peer_id: string
+          peer_read_at: string
+          title: string
+          type: string
+          unread: number
+          updated_at: string
+        }[]
+      }
       get_my_profile_private: {
         Args: never
         Returns: {
@@ -1424,10 +1469,15 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: undefined
       }
+      respond_friend_request: {
+        Args: { _accept: boolean; _other: string }
+        Returns: string
+      }
       respond_payment_request: {
         Args: { _accept: boolean; _request_id: string }
         Returns: string
       }
+      send_friend_request: { Args: { _to: string }; Returns: undefined }
       send_payment: {
         Args: { _amount: number; _note?: string; _recipient_username: string }
         Returns: string
