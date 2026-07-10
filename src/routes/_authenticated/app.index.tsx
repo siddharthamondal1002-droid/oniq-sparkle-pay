@@ -122,7 +122,7 @@ function HomeScreen() {
               search={{ tab: "watch" as const }}
               icon={Tv}
               label="Watch"
-              tagline="live tv rn"
+              tagline="brainrot on tap 📺"
               gradient="from-primary/30 via-primary/10 to-accent/30"
               delay={0}
               livePreview
@@ -136,14 +136,14 @@ function HomeScreen() {
             />
             {(
               [
-                { key: "wallet", to: "/app/wallet", icon: Coins, label: "Wallet", color: "#F59E0B" },
-                { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting", color: "#8B5CF6" },
-                { key: "rides", to: "/app/rides", icon: Car, label: "Rides", color: "#38BDF8" },
-                { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "Mini Apps", color: "#A3E635" },
-                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "UPI Pay", color: "#22C55E" },
-                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "Learn", color: "#FB923C" },
-                { key: "wander", to: "/app/travel", icon: Plane, label: "Wander", color: "#22D3EE" },
-                { key: "pulse", to: "/app/news", icon: Newspaper, label: "Pulse", color: "#F472B6" },
+                { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6" },
+                { key: "wallet", to: "/app/wallet", icon: Coins, label: "the bag 💰", color: "#F59E0B" },
+                { key: "rides", to: "/app/rides", icon: Car, label: "pull up 🚗", color: "#38BDF8" },
+                { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "the plug 🔌", color: "#A3E635" },
+                { key: "wander", to: "/app/travel", icon: Plane, label: "touch grass ✈️", color: "#22D3EE" },
+                { key: "pulse", to: "/app/news", icon: Newspaper, label: "the tea ☕", color: "#F472B6" },
+                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "locked in 📚", color: "#FB923C" },
+                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "tap in 💳", color: "#22C55E" },
               ] as const
             ).map((t, i) => (
               <Tile
