@@ -765,7 +765,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     const { error } = await supabase.rpc("respond_friend_request", { _other: otherId, _accept: accept });
     setBusy(null);
     if (error) { toast.error(error.message); return; }
-    toast.success(accept ? "You're now friends 🤝" : "Declined");
+    toast.success(accept ? "6 7!! y'all are moots now 🤝✨" : "request dodged 🫡");
     qc.invalidateQueries({ queryKey: ["friends-full", meId] });
     qc.invalidateQueries({ queryKey: ["friend-requests-incoming", meId] });
     qc.invalidateQueries({ queryKey: ["friend-map", meId] });
