@@ -226,10 +226,22 @@ function ChatThread() {
           qc.setQueryData<Message[]>(["messages", conversationId], (prev) => {
             const list = prev ?? [];
             if (list.some((x) => x.id === m.id)) return list;
-            return [...list, m];
+            // Dedupe: strip any optimistic temp from same sender with same content/type
+            const stripped = list.filter(
+              (x) =>
+                !(
+                  x.id.startsWith("temp-") &&
+                  x.sender_id === m.sender_id &&
+                  x.type === m.type &&
+                  (x.content ?? "") === (m.content ?? "") &&
+                  (x.media_url ?? "") === (m.media_url ?? "")
+                ),
+            );
+            return [...stripped, m];
           });
           markRead();
         },
+
       )
       .on(
         "postgres_changes",
