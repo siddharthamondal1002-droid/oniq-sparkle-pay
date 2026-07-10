@@ -12,17 +12,6 @@ export const Route = createFileRoute("/_authenticated/app/chat/")({
 });
 
 
-type ConvRow = {
-  conversation_id: string;
-  conversations: {
-    id: string;
-    name: string | null;
-    type: string;
-    avatar_url: string | null;
-    updated_at: string | null;
-  } | null;
-};
-
 type EnrichedConv = {
   id: string;
   title: string;
@@ -60,6 +49,7 @@ function ChatList() {
   const qc = useQueryClient();
   const [showNew, setShowNew] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [showRequests, setShowRequests] = useState(false);
   const [query, setQuery] = useState("");
   const [mounted, setMounted] = useState(false);
 
@@ -85,88 +75,45 @@ function ChatList() {
   const { data: convs, isLoading } = useQuery({
     queryKey: ["conversations", me?.id, blockedIds.join(",")],
     enabled: !!me,
+    staleTime: 30_000,
     queryFn: async (): Promise<EnrichedConv[]> => {
-      const { data } = await supabase
-        .from("conversation_members")
-        .select("conversation_id, conversations(id, name, type, avatar_url, updated_at)")
-        .eq("user_id", me!.id);
-      const rows = (data ?? []) as ConvRow[];
-      const enriched = await Promise.all(
-        rows
-          .filter((r) => r.conversations)
-          .map(async (r): Promise<EnrichedConv | null> => {
-            const c = r.conversations!;
-            let title = c.name ?? "Chat";
-            let avatar = c.avatar_url;
-            let peerReadAt: string | null = null;
-            let peerId: string | null = null;
-            if (c.type === "direct") {
-              const { data: other } = await supabase
-                .from("conversation_members")
-                .select("user_id, last_read_at, profiles(display_name, username, avatar_url)")
-                .eq("conversation_id", c.id)
-                .neq("user_id", me!.id)
-                .maybeSingle();
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const o = other as any;
-              const p = o?.profiles;
-              if (p) {
-                title = p.display_name || p.username || "Chat";
-                avatar = p.avatar_url ?? avatar;
-              }
-              peerReadAt = o?.last_read_at ?? null;
-              peerId = o?.user_id ?? null;
-            }
-            if (peerId && blockedSet.has(peerId)) return null;
-            const { data: last } = await supabase
-              .from("messages")
-              .select("content, created_at, sender_id, type")
-              .eq("conversation_id", c.id)
-              .eq("is_deleted", false)
-              .order("created_at", { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            const { data: unread } = await supabase.rpc("unread_count", {
-              _conversation_id: c.id,
-            });
-            let lastSenderName: string | null = null;
-            if (c.type === "group" && last?.sender_id) {
-              if (last.sender_id === me!.id) {
-                lastSenderName = "You";
-              } else {
-                const { data: sp } = await supabase
-                  .from("profiles")
-                  .select("display_name, username")
-                  .eq("id", last.sender_id)
-                  .maybeSingle();
-                const full = (sp?.display_name || sp?.username || "").trim();
-                lastSenderName = full ? full.split(/\s+/)[0] : null;
-              }
-            }
-            return {
-              id: c.id,
-              title,
-              avatar_url: avatar,
-              type: c.type,
-              updated_at: last?.created_at ?? c.updated_at,
-              last_message: last?.type === "image" ? "📷 Photo" : last?.type === "voice" ? "🎙 Voice note" : (last?.content ?? null),
-              last_sender_id: last?.sender_id ?? null,
-              last_sender_name: lastSenderName,
-              last_created_at: last?.created_at ?? null,
-              peer_read_at: peerReadAt,
-              unread: (unread as number) ?? 0,
-            };
-          }),
-      );
-      const filtered = enriched.filter((x): x is EnrichedConv => x !== null);
-      filtered.sort((a, b) => {
-        const ta = new Date(a.updated_at ?? 0).getTime();
-        const tb = new Date(b.updated_at ?? 0).getTime();
-        return tb - ta;
-      });
-      return filtered;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("get_chat_list");
+      if (error) throw error;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = (data ?? []) as any[];
+      return rows
+        .filter((r) => !(r.peer_id && blockedSet.has(r.peer_id)))
+        .map((r): EnrichedConv => ({
+          id: r.conversation_id,
+          title: r.title ?? "Chat",
+          avatar_url: r.avatar_url ?? null,
+          type: r.type,
+          updated_at: r.updated_at,
+          last_message: r.last_type === "image" ? "📷 Photo" : r.last_type === "voice" ? "🎙 Voice note" : (r.last_message ?? null),
+          last_sender_id: r.last_sender_id ?? null,
+          last_sender_name: r.last_sender_name ?? null,
+          last_created_at: r.last_created_at ?? null,
+          peer_read_at: r.peer_read_at ?? null,
+          unread: r.unread ?? 0,
+        }));
     },
   });
+
+  // Incoming friend requests count (for header badge)
+  const { data: incomingRequests = [] } = useQuery({
+    queryKey: ["friend-requests-incoming", me?.id],
+    enabled: !!me,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("friendships")
+        .select("user_a, user_b, requested_by, created_at")
+        .eq("status", "pending");
+      return (data ?? []).filter((r) => r.requested_by !== me!.id);
+    },
+  });
+
 
   useEffect(() => {
     const channel = supabase
