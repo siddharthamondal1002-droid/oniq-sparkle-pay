@@ -283,6 +283,8 @@ function ChatList() {
         )}
 
       {showNew && me && <NewChatSheet meId={me.id} onClose={() => setShowNew(false)} />}
+      {showRequests && me && <FriendRequestsSheet meId={me.id} onClose={() => setShowRequests(false)} />}
+
     </div>
   );
 }
