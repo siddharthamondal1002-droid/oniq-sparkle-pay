@@ -391,6 +391,128 @@ function ChatThread() {
     inputRef.current?.focus();
   };
 
+  const uploadToChatMedia = async (blob: Blob, ext: string): Promise<string> => {
+    if (!me) throw new Error("sign in first");
+    const path = `${me.id}/${crypto.randomUUID()}.${ext}`;
+    const { error: upErr } = await supabase.storage
+      .from("chat-media")
+      .upload(path, blob, { contentType: blob.type || undefined, upsert: false });
+    if (upErr) throw upErr;
+    const { data: signed, error: sErr } = await supabase.storage
+      .from("chat-media")
+      .createSignedUrl(path, SIGNED_TTL);
+    if (sErr || !signed) throw sErr ?? new Error("could not sign url");
+    return signed.signedUrl;
+  };
+
+  const insertMediaMessage = async (payload: { type: "image" | "voice"; media_url: string; duration_s?: number }) => {
+    if (!me) return;
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      sender_id: me.id,
+      content: "",
+      type: payload.type,
+      media_url: payload.media_url,
+      duration_s: payload.duration_s ?? null,
+    });
+    if (error) { toast.error(error.message || "Couldn't send"); return; }
+    await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+    markRead();
+  };
+
+  const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!/^image\//.test(f.type)) return toast.error("images only");
+    if (f.size > 10 * 1024 * 1024) return toast.error("keep it under 10MB");
+    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
+    setUploading(true);
+    try {
+      const ext = (f.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+      const url = await uploadToChatMedia(f, ext);
+      await insertMediaMessage({ type: "image", media_url: url });
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const startRecording = async () => {
+    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
+    if (recording) return;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recStreamRef.current = stream;
+      const mime = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+        ? "audio/webm;codecs=opus"
+        : MediaRecorder.isTypeSupported("audio/mp4")
+          ? "audio/mp4"
+          : "";
+      const rec = mime ? new MediaRecorder(stream, { mimeType: mime }) : new MediaRecorder(stream);
+      recorderRef.current = rec;
+      recChunksRef.current = [];
+      recCancelRef.current = false;
+      rec.ondataavailable = (ev) => { if (ev.data.size) recChunksRef.current.push(ev.data); };
+      rec.onstop = async () => {
+        const cancel = recCancelRef.current;
+        const dur = Math.max(1, Math.round((Date.now() - recStartRef.current) / 1000));
+        recStreamRef.current?.getTracks().forEach((t) => t.stop());
+        recStreamRef.current = null;
+        if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+        setRecording(false);
+        setRecSeconds(0);
+        if (cancel || recChunksRef.current.length === 0) return;
+        const type = rec.mimeType || "audio/webm";
+        const blob = new Blob(recChunksRef.current, { type });
+        const ext = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        setUploading(true);
+        try {
+          const url = await uploadToChatMedia(blob, ext);
+          await insertMediaMessage({ type: "voice", media_url: url, duration_s: dur });
+        } catch (err) {
+          console.error(err);
+          toast.error(err instanceof Error ? err.message : "upload failed");
+        } finally {
+          setUploading(false);
+        }
+      };
+      recStartRef.current = Date.now();
+      setRecSeconds(0);
+      rec.start();
+      setRecording(true);
+      recTimerRef.current = setInterval(() => {
+        const s = Math.floor((Date.now() - recStartRef.current) / 1000);
+        setRecSeconds(s);
+        if (s >= 120) stopRecording(false);
+      }, 250);
+    } catch (err) {
+      console.error(err);
+      toast.error("mic permission denied");
+    }
+  };
+
+  const stopRecording = (cancel: boolean) => {
+    if (!recorderRef.current) return;
+    recCancelRef.current = cancel;
+    try { recorderRef.current.stop(); } catch { /* noop */ }
+    if (cancel) {
+      recStreamRef.current?.getTracks().forEach((t) => t.stop());
+      recStreamRef.current = null;
+      if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null; }
+      setRecording(false);
+      setRecSeconds(0);
+    }
+  };
+
+  useEffect(() => () => {
+    recStreamRef.current?.getTracks().forEach((t) => t.stop());
+    if (recTimerRef.current) clearInterval(recTimerRef.current);
+  }, []);
+
+
   const deleteForEveryone = async (m: Message) => {
     setMenuFor(null);
     // Optimistic
