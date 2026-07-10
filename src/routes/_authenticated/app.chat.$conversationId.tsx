@@ -1019,10 +1019,16 @@ function ChatThread() {
       )}
 
 
+      {isChannel && myRole !== "owner" && myRole !== "admin" ? (
+        <div className="border-t border-border/60 bg-background/95 px-4 pb-6 pt-3 text-center text-xs text-muted-foreground backdrop-blur">
+          You're subscribed 🔔 · only the channel owner can post
+        </div>
+      ) : (
       <form
         onSubmit={send}
         className="flex flex-col gap-2 border-t border-border/60 bg-background/95 px-3 pb-6 pt-3 backdrop-blur"
       >
+
         {replyTo && (
           <div className="flex items-center gap-2 rounded-xl border-l-2 border-[#00D4B8] bg-muted/60 px-3 py-2">
             <div className="min-w-0 flex-1">
