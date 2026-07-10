@@ -811,9 +811,9 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             )}
           </section>
           <section>
-            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">My friends</div>
+            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">the moots 🫶</div>
             {(data?.friends ?? []).length === 0 ? (
-              <div className="py-3 text-sm text-muted-foreground">No friends yet — search someone to add 👋</div>
+              <div className="py-3 text-sm text-muted-foreground">zero moots?? go rizz up the search bar 💀</div>
             ) : (
               <ul className="space-y-1">
                 {data!.friends.map((r) => (
