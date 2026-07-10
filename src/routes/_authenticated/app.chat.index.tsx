@@ -457,7 +457,11 @@ function EmptyChats({ onNew }: { onNew: () => void }) {
 type PickedUser = { id: string; display_name: string | null; username: string | null; avatar_url: string | null };
 
 function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) {
-  const [mode, setMode] = useState<"chat" | "group">("chat");
+  const [mode, setMode] = useState<"chat" | "group" | "channel">("chat");
+  const [channelName, setChannelName] = useState("");
+  const [channelDesc, setChannelDesc] = useState("");
+  const [channelPublic, setChannelPublic] = useState(true);
+
   const [q, setQ] = useState("");
   const [debounced, setDebounced] = useState("");
   const navigate = useNavigate();
