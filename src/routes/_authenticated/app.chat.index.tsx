@@ -568,26 +568,34 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
       <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{mode === "group" ? "New group 👥" : "New chat"}</h2>
+          <h2 className="font-display text-xl font-semibold">{mode === "channel" ? "New channel 📢" : mode === "group" ? "New group 👥" : "New chat"}</h2>
           <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        <div className="mt-3 flex gap-2 rounded-full bg-muted/40 p-1 text-sm">
+        <div className="mt-3 flex gap-1 rounded-full bg-muted/40 p-1 text-xs">
           <button
             type="button"
             onClick={() => setMode("chat")}
             className={`flex-1 rounded-full px-3 py-1.5 ${mode === "chat" ? "bg-background font-semibold shadow" : "text-muted-foreground"}`}
           >
-            New chat
+            Chat
           </button>
           <button
             type="button"
             onClick={() => setMode("group")}
             className={`flex-1 rounded-full px-3 py-1.5 ${mode === "group" ? "bg-background font-semibold shadow" : "text-muted-foreground"}`}
           >
-            New group 👥
+            Group 👥
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("channel")}
+            data-testid="mode-channel"
+            className={`flex-1 rounded-full px-3 py-1.5 ${mode === "channel" ? "bg-background font-semibold shadow" : "text-muted-foreground"}`}
+          >
+            Channel 📢
           </button>
         </div>
 
@@ -615,51 +623,85 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
           </>
         )}
 
-        <div className="relative mt-3">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            autoFocus
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search @username"
-            className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
-          />
-        </div>
-        <div className="mt-3 max-h-[42vh] space-y-1 overflow-y-auto">
-          {hint ? (
-            <div className="py-6 text-center text-sm text-muted-foreground">{hint}</div>
-          ) : (
-            results.map((u) => {
-              const isPicked = pickedIds.has(u.id);
-              return (
-                <button
-                  key={u.id}
-                  disabled={starting}
-                  onClick={() => (mode === "group" ? togglePick(u) : startChat(u.id))}
-                  className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-muted disabled:opacity-50 ${isPicked ? "bg-primary/10" : ""}`}
-                >
-                  <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={44} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate font-medium">{u.display_name}</div>
-                    <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
-                  </div>
-                  {mode === "group" && isPicked && <Check className="h-4 w-4 text-primary" />}
-                </button>
-              );
-            })
-          )}
-        </div>
+        {mode === "channel" ? (
+          <div className="mt-3 space-y-2">
+            <input
+              data-testid="channel-name"
+              value={channelName}
+              onChange={(e) => setChannelName(e.target.value.slice(0, 50))}
+              placeholder="Channel name"
+              className="w-full rounded-2xl border border-border bg-input/40 px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            />
+            <textarea
+              value={channelDesc}
+              onChange={(e) => setChannelDesc(e.target.value.slice(0, 200))}
+              placeholder="Description (optional)"
+              rows={3}
+              className="w-full rounded-2xl border border-border bg-input/40 px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            />
+            <label className="flex items-center justify-between rounded-2xl border border-border bg-input/20 px-4 py-3 text-sm">
+              <span>Public channel <span className="text-xs text-muted-foreground">(anyone can discover & join)</span></span>
+              <input type="checkbox" checked={channelPublic} onChange={(e) => setChannelPublic(e.target.checked)} className="h-4 w-4 accent-[#25D366]" />
+            </label>
+            <button
+              type="button"
+              data-testid="channel-create"
+              onClick={createChannel}
+              disabled={starting || !channelName.trim()}
+              className="w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
+            >
+              Create channel 📢
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="relative mt-3">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                autoFocus
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search @username"
+                className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+              />
+            </div>
+            <div className="mt-3 max-h-[42vh] space-y-1 overflow-y-auto">
+              {hint ? (
+                <div className="py-6 text-center text-sm text-muted-foreground">{hint}</div>
+              ) : (
+                results.map((u) => {
+                  const isPicked = pickedIds.has(u.id);
+                  return (
+                    <button
+                      key={u.id}
+                      disabled={starting}
+                      onClick={() => (mode === "group" ? togglePick(u) : startChat(u.id))}
+                      className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-muted disabled:opacity-50 ${isPicked ? "bg-primary/10" : ""}`}
+                    >
+                      <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={44} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium">{u.display_name}</div>
+                        <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
+                      </div>
+                      {mode === "group" && isPicked && <Check className="h-4 w-4 text-primary" />}
+                    </button>
+                  );
+                })
+              )}
+            </div>
 
-        {mode === "group" && (
-          <button
-            type="button"
-            data-testid="group-create"
-            onClick={createGroup}
-            disabled={starting || !groupName.trim() || picked.length < 1}
-            className="mt-4 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
-          >
-            Create group ({picked.length})
-          </button>
+            {mode === "group" && (
+              <button
+                type="button"
+                data-testid="group-create"
+                onClick={createGroup}
+                disabled={starting || !groupName.trim() || picked.length < 1}
+                className="mt-4 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
+              >
+                Create group ({picked.length})
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -669,4 +711,6 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
 // Silence unused-warning for icons kept for future use.
 export const _iconRef = Check;
 export const _trashRef = Trash2;
+export const _plusRef = Plus;
+
 
