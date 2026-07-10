@@ -14,11 +14,15 @@ type Message = {
   sender_id: string;
   content: string | null;
   type: string;
+  media_url: string | null;
+  duration_s: number | null;
   created_at: string | null;
   is_deleted: boolean | null;
   reply_to_id: string | null;
   is_ai: boolean | null;
 };
+
+const SIGNED_TTL = 60 * 60 * 24 * 365 * 5;
 
 export const Route = createFileRoute("/_authenticated/app/chat/$conversationId")({
   component: ChatThread,
