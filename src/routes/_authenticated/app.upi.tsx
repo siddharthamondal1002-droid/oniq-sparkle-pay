@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, IndianRupee, Copy, AtSign } from "lucide-react";
+import { ArrowLeft, IndianRupee, Copy, AtSign, ScanLine } from "lucide-react";
 import { toast } from "sonner";
 import { UPI_APPS, upiLink, isValidVpa } from "@/lib/miniapps";
+import { UpiScannerOverlay } from "@/components/upi/UpiScannerOverlay";
 
 type UpiSearch = { pa?: string; pn?: string; am?: string; tn?: string };
 
@@ -22,6 +23,7 @@ function UpiScreen() {
   const [name, setName] = useState(prefill.pn ?? "");
   const [amount, setAmount] = useState(prefill.am ?? "");
   const [note, setNote] = useState(prefill.tn ?? "");
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   const amt = parseFloat(amount);
   const params = {
@@ -70,6 +72,29 @@ function UpiScreen() {
       <p className="mt-2 text-sm text-muted-foreground">
         Real money moves through your own UPI apps. ONIQ never touches the bag — your bank handles everything, no cap.
       </p>
+
+      <button
+        type="button"
+        data-testid="upi-scan"
+        onClick={() => setScannerOpen(true)}
+        className="press mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-card"
+      >
+        <ScanLine className="h-5 w-5" /> Scan any QR 📷
+      </button>
+
+      {scannerOpen && (
+        <UpiScannerOverlay
+          onDecode={(p) => {
+            setVpa(p.pa);
+            if (p.pn) setName(p.pn);
+            if (p.am) setAmount(p.am);
+            if (p.tn) setNote(p.tn);
+          }}
+          onClose={() => setScannerOpen(false)}
+        />
+      )}
+
+
 
       <div className="mt-5 rounded-3xl border border-border bg-card p-5">
         <label className="text-xs text-muted-foreground">Recipient UPI ID</label>
