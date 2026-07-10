@@ -7,10 +7,12 @@ export type MiniApp = {
   id: string;
   name: string;
   tagline: string;
-  category: "food" | "rides" | "payments" | "social" | "shopping";
-  url: string; // web URL opened in the in-app browser
+  category: "food" | "rides" | "quickcommerce" | "payments" | "social" | "shopping";
+  url: string; // web URL opened in the in-app browser / same-tab fallback
   color: string; // brand tile color
   letter: string; // fallback monogram
+  androidPackage?: string; // Android package id for intent:// deep launch
+  emoji?: string; // optional tile emoji instead of letter
 };
 
 export const MINI_APPS: MiniApp[] = [
