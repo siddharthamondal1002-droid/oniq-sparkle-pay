@@ -939,6 +939,13 @@ function ChatThread() {
             )}
             <button
               type="button"
+              onClick={() => { const f = menuFor; setMenuFor(null); setForwardMsg(f); }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+            >
+              <Share2 className="h-4 w-4" /> Forward ↪️
+            </button>
+            <button
+              type="button"
               onClick={() => setMenuFor(null)}
               className="mt-1 w-full rounded-xl px-4 py-3 text-center text-sm text-muted-foreground hover:bg-muted"
             >
