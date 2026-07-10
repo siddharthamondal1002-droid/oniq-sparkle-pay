@@ -316,12 +316,12 @@ function HeroTile({
     let t: number | null = null;
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) {
-        t = window.setTimeout(tick, 120_000);
+        t = window.setTimeout(tick, 20_000);
         return;
       }
       setIdx((i) => (i + 1) % vLen);
     };
-    t = window.setTimeout(tick, 120_000);
+    t = window.setTimeout(tick, 20_000);
     return () => { if (t) window.clearTimeout(t); };
   }, [idx, vLen, livePreview, showSkin, paused, controlsVisible]);
 
@@ -572,24 +572,42 @@ function ClipsHeroTile({
   delay?: number;
 }) {
   const [skinError, setSkinError] = useState(false);
-  const [videoError, setVideoError] = useState(false);
+  const [errored, setErrored] = useState<Record<string, boolean>>({});
+  const [idx, setIdx] = useState(0);
   const showSkin = skin && !skinError;
 
-  const { data: latest } = useQuery({
-    queryKey: ["latest-clip"],
+  const { data: clips } = useQuery({
+    queryKey: ["latest-clips", 10],
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const { data } = await supabase
         .from("clips")
         .select("id, video_url")
         .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      return data;
+        .limit(10);
+      return data ?? [];
     },
   });
 
-  const videoUrl = !showSkin && !videoError ? latest?.video_url ?? null : null;
+  const validClips = (clips ?? []).filter((c) => !errored[c.id]);
+  const total = validClips.length;
+  const current = !showSkin && total > 0 ? validClips[idx % total] : null;
+
+  useEffect(() => {
+    if (showSkin || total < 2) return;
+    let t: number | null = null;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) {
+        t = window.setTimeout(tick, 20_000);
+        return;
+      }
+      setIdx((i) => (i + 1) % total);
+    };
+    t = window.setTimeout(tick, 20_000);
+    return () => { if (t) window.clearTimeout(t); };
+  }, [idx, total, showSkin]);
+
+  const videoUrl = current?.video_url ?? null;
 
   return (
     <Link
@@ -597,14 +615,18 @@ function ClipsHeroTile({
       style={{ animationDelay: `${delay}ms` }}
       className={`press fade-up col-span-2 row-span-2 relative overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
     >
-      {videoUrl && (
+      {videoUrl && current && (
         <video
+          key={current.id}
           src={videoUrl}
           autoPlay
           muted
           loop
           playsInline
-          onError={() => setVideoError(true)}
+          onError={() => {
+            setErrored((e) => ({ ...e, [current.id]: true }));
+            setIdx((i) => (total > 1 ? (i + 1) % total : i));
+          }}
           className="pointer-events-none absolute inset-0 h-full w-full object-cover"
         />
       )}
