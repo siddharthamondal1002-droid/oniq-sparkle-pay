@@ -1,12 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, ExternalLink, Car, IndianRupee } from "lucide-react";
-import { MINI_APPS, CATEGORY_LABELS, openInApp, type MiniApp } from "@/lib/miniapps";
+import { MINI_APPS, CATEGORY_LABELS, launchMiniApp, type MiniApp } from "@/lib/miniapps";
 
 export const Route = createFileRoute("/_authenticated/app/miniapps")({
   component: MiniAppsScreen,
 });
 
-const CATEGORY_ORDER: MiniApp["category"][] = ["food", "rides", "payments", "social", "shopping"];
+const CATEGORY_ORDER: MiniApp["category"][] = ["rides", "quickcommerce", "food", "payments", "social", "shopping"];
 
 function MiniAppsScreen() {
   return (
@@ -18,7 +18,10 @@ function MiniAppsScreen() {
         <h1 className="font-display text-2xl font-bold">Mini Apps</h1>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
-        Every app you're lowkey addicted to, one tap away. They open in a sheet — swipe down to slide back. It's giving super app.
+        Every app you're lowkey addicted to, one tap away. Exit the other app and you land right back home. It's giving super app.
+      </p>
+      <p className="mt-1 text-[11px] text-muted-foreground/80">
+        Apps open with your own accounts — ONIQ never sees their logins.
       </p>
 
       {/* Native ONIQ shortcuts */}
@@ -61,14 +64,15 @@ function MiniAppsScreen() {
               {apps.map((app) => (
                 <button
                   key={app.id}
-                  onClick={() => openInApp(app.url)}
+                  onClick={() => launchMiniApp({ name: app.name, url: app.url, androidPackage: app.androidPackage })}
+                  data-testid={`miniapp-${app.id}`}
                   className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40"
                 >
                   <div
                     className="grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-bold text-white"
                     style={{ backgroundColor: app.color }}
                   >
-                    {app.letter}
+                    {app.emoji ?? app.letter}
                   </div>
                   <div className="flex-1">
                     <div className="text-sm font-semibold">{app.name}</div>

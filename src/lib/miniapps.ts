@@ -7,10 +7,12 @@ export type MiniApp = {
   id: string;
   name: string;
   tagline: string;
-  category: "food" | "rides" | "payments" | "social" | "shopping";
-  url: string; // web URL opened in the in-app browser
+  category: "food" | "rides" | "quickcommerce" | "payments" | "social" | "shopping";
+  url: string; // web URL opened in the in-app browser / same-tab fallback
   color: string; // brand tile color
   letter: string; // fallback monogram
+  androidPackage?: string; // Android package id for intent:// deep launch
+  emoji?: string; // optional tile emoji instead of letter
 };
 
 export const MINI_APPS: MiniApp[] = [
@@ -18,10 +20,18 @@ export const MINI_APPS: MiniApp[] = [
   { id: "swiggy", name: "Swiggy", tagline: "Food & grocery delivery", category: "food", url: "https://www.swiggy.com", color: "#FC8019", letter: "S" },
   { id: "zomato", name: "Zomato", tagline: "Restaurants & delivery", category: "food", url: "https://www.zomato.com", color: "#E23744", letter: "Z" },
   { id: "dominos", name: "Domino's", tagline: "Pizza delivery", category: "food", url: "https://www.dominos.co.in", color: "#0A6EBD", letter: "D" },
-  // Rides
-  { id: "uber", name: "Uber", tagline: "Book a cab", category: "rides", url: "https://m.uber.com", color: "#000000", letter: "U" },
-  { id: "ola", name: "Ola", tagline: "Cabs & autos", category: "rides", url: "https://book.olacabs.com", color: "#a4c639", letter: "O" },
-  { id: "rapido", name: "Rapido", tagline: "Bike taxis", category: "rides", url: "https://rapido.bike", color: "#A67C00", letter: "R" },
+  // Rides 🚗
+  { id: "uber", name: "Uber", tagline: "Book a cab", category: "rides", url: "https://m.uber.com", color: "#000000", letter: "U", androidPackage: "com.ubercab", emoji: "🚕" },
+  { id: "ola", name: "Ola", tagline: "Cabs & autos", category: "rides", url: "https://book.olacabs.com", color: "#a4c639", letter: "O", androidPackage: "com.olacabs.customer", emoji: "🚖" },
+  { id: "rapido", name: "Rapido", tagline: "Bike taxis & autos", category: "rides", url: "https://rapido.bike", color: "#FFCB05", letter: "R", androidPackage: "com.rapido.passenger", emoji: "🏍️" },
+  { id: "indrive", name: "inDrive", tagline: "Name your fare", category: "rides", url: "https://indrive.com", color: "#C1F11D", letter: "I", androidPackage: "sinet.startup.inDriver", emoji: "💸" },
+  { id: "nammayatri", name: "Namma Yatri", tagline: "Zero-commission autos", category: "rides", url: "https://nammayatri.in", color: "#FFCE00", letter: "N", androidPackage: "in.juspay.nammayatri", emoji: "🛺" },
+  { id: "blusmart", name: "BluSmart", tagline: "All-electric cabs", category: "rides", url: "https://blu-smart.com", color: "#003DA5", letter: "B", androidPackage: "com.blusmart.rider", emoji: "⚡" },
+  // Quick commerce 🛒
+  { id: "zepto", name: "Zepto", tagline: "Groceries in 10 min", category: "quickcommerce", url: "https://www.zeptonow.com", color: "#7C3AED", letter: "Z", androidPackage: "com.zeptoconsumerapp", emoji: "⚡" },
+  { id: "blinkit", name: "Blinkit", tagline: "Groceries in minutes", category: "quickcommerce", url: "https://blinkit.com", color: "#F8CB46", letter: "B", androidPackage: "com.grofers.customerapp", emoji: "🛍️" },
+  { id: "instamart", name: "Swiggy Instamart", tagline: "Instant groceries", category: "quickcommerce", url: "https://www.swiggy.com/instamart", color: "#FC8019", letter: "I", androidPackage: "in.swiggy.android", emoji: "🥬" },
+  { id: "bigbasket", name: "BigBasket", tagline: "Groceries & essentials", category: "quickcommerce", url: "https://www.bigbasket.com", color: "#84C225", letter: "B", androidPackage: "com.bigbasket.mobileapp", emoji: "🧺" },
   // Payments
   { id: "gpay", name: "Google Pay", tagline: "UPI payments", category: "payments", url: "https://pay.google.com", color: "#4285F4", letter: "G" },
   { id: "phonepe", name: "PhonePe", tagline: "UPI & recharges", category: "payments", url: "https://www.phonepe.com", color: "#5F259F", letter: "P" },
@@ -48,11 +58,77 @@ export const MINI_APPS: MiniApp[] = [
 
 export const CATEGORY_LABELS: Record<MiniApp["category"], string> = {
   food: "Food delivery",
-  rides: "Rides",
+  rides: "🚗 Rides",
+  quickcommerce: "🛒 Quick commerce",
   payments: "Payments",
   social: "Social",
   shopping: "Shopping",
 };
+
+// ---------------- Seamless switch-and-return launcher ----------------
+
+type PendingReturn = { app: string; at: number };
+let pendingReturnMem: PendingReturn | null = null;
+const PENDING_KEY = "oniq:pendingMiniAppReturn";
+const RETURN_WINDOW_MS = 30 * 60 * 1000;
+
+function writePending(p: PendingReturn) {
+  pendingReturnMem = p;
+  try {
+    sessionStorage.setItem(PENDING_KEY, JSON.stringify(p));
+  } catch {
+    /* storage blocked — module var is enough */
+  }
+}
+
+export function consumePendingReturn(): PendingReturn | null {
+  let p: PendingReturn | null = pendingReturnMem;
+  if (!p) {
+    try {
+      const raw = sessionStorage.getItem(PENDING_KEY);
+      if (raw) p = JSON.parse(raw) as PendingReturn;
+    } catch {
+      /* ignore */
+    }
+  }
+  pendingReturnMem = null;
+  try {
+    sessionStorage.removeItem(PENDING_KEY);
+  } catch {
+    /* ignore */
+  }
+  if (!p) return null;
+  if (Date.now() - p.at > RETURN_WINDOW_MS) return null;
+  return p;
+}
+
+function isAndroid() {
+  if (typeof navigator === "undefined") return false;
+  return /Android/i.test(navigator.userAgent);
+}
+
+/**
+ * Launch a mini app in a way that preserves back-navigation to ONIQ.
+ * On Android with a known package we fire an intent:// URI in the SAME tab
+ * so the OS back stack returns to ONIQ when the user exits the target app.
+ * Otherwise we navigate same-tab to the web fallback.
+ */
+export function launchMiniApp(app: {
+  name: string;
+  url: string;
+  androidPackage?: string;
+}) {
+  writePending({ app: app.name, at: Date.now() });
+  if (typeof window === "undefined") return;
+  if (isAndroid() && app.androidPackage) {
+    const fallback = encodeURIComponent(app.url);
+    const intent = `intent://#Intent;package=${app.androidPackage};S.browser_fallback_url=${fallback};end`;
+    window.location.href = intent;
+    return;
+  }
+  window.location.href = app.url;
+}
+
 
 /**
  * Open a URL inside ONIQ. On device (Capacitor) this uses the in-app browser
