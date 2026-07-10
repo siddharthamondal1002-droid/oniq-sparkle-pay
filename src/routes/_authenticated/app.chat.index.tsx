@@ -474,7 +474,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     const { error } = await supabase.rpc("send_friend_request", { _to: otherId });
     setAddingId(null);
     if (error) { toast.error(error.message); return; }
-    toast.success("request sent — vibe check pending ⏳");
+    toast.success("moot request sent 🫡");
     qc.invalidateQueries({ queryKey: ["friend-map", meId] });
   };
 
@@ -681,11 +681,11 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                       </button>
                       {mode === "chat" && (
                         fs === "accepted" ? (
-                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">moots 🤝</span>
+                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">moots ✓</span>
                         ) : fs === "pending-out" ? (
-                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">vibe check ⏳</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">pending fr ⏳</span>
                         ) : fs === "pending-in" ? (
-                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">Respond</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">they added u 👀</span>
                         ) : (
                           <button
                             type="button"
@@ -693,7 +693,7 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                             disabled={addingId === u.id}
                             className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
                           >
-                            {addingId === u.id ? "…" : "Add ➕"}
+                            {addingId === u.id ? "…" : "add moot ➕"}
                           </button>
                         )
                       )}
@@ -765,7 +765,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     const { error } = await supabase.rpc("respond_friend_request", { _other: otherId, _accept: accept });
     setBusy(null);
     if (error) { toast.error(error.message); return; }
-    toast.success(accept ? "6 7!! y'all are moots now 🤝✨" : "request dodged 🫡");
+    toast.success(accept ? "6 7!! you're moots now 🤝✨" : "nah'd it ✕");
     qc.invalidateQueries({ queryKey: ["friends-full", meId] });
     qc.invalidateQueries({ queryKey: ["friend-requests-incoming", meId] });
     qc.invalidateQueries({ queryKey: ["friend-map", meId] });
@@ -782,18 +782,18 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
       <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">Moot requests 👋</h2>
+          <h2 className="font-display text-xl font-semibold">the moots 🤝</h2>
           <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="mt-3 max-h-[65vh] space-y-4 overflow-y-auto">
           <section>
-            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">Requests</div>
+            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">moot requests 👀</div>
             {isLoading ? (
               <div className="py-3 text-sm text-muted-foreground">Loading…</div>
             ) : (data?.incoming ?? []).length === 0 ? (
-              <div className="py-3 text-sm text-muted-foreground">no pending vibes rn ✨</div>
+              <div className="py-3 text-sm text-muted-foreground">no requests rn — go add some moots ✨</div>
             ) : (
               <ul className="space-y-1">
                 {data!.incoming.map((r) => (
@@ -803,17 +803,17 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                       <div className="truncate text-sm font-medium">{r.prof.display_name}</div>
                       <div className="truncate text-xs text-muted-foreground">@{r.prof.username}</div>
                     </div>
-                    <button disabled={busy === r.id} onClick={() => respond(r.id, true)} className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black disabled:opacity-50">Accept ✅</button>
-                    <button disabled={busy === r.id} onClick={() => respond(r.id, false)} className="rounded-full border border-border px-3 py-1 text-xs disabled:opacity-50">Decline ✕</button>
+                    <button disabled={busy === r.id} onClick={() => respond(r.id, true)} className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black disabled:opacity-50">bet ✅</button>
+                    <button disabled={busy === r.id} onClick={() => respond(r.id, false)} className="rounded-full border border-border px-3 py-1 text-xs disabled:opacity-50">nah ✕</button>
                   </li>
                 ))}
               </ul>
             )}
           </section>
           <section>
-            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">the moots 🫶</div>
+            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">your moots</div>
             {(data?.friends ?? []).length === 0 ? (
-              <div className="py-3 text-sm text-muted-foreground">zero moots?? go rizz up the search bar 💀</div>
+              <div className="py-3 text-sm text-muted-foreground">zero moots?? not for long — search someone 🔍</div>
             ) : (
               <ul className="space-y-1">
                 {data!.friends.map((r) => (
