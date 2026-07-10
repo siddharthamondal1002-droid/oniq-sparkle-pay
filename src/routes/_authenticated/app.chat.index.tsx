@@ -239,6 +239,8 @@ function ChatList() {
         </div>
       )}
 
+      <ChannelsStrip convs={convs ?? []} />
+
       <div className="mt-3">
         {isLoading ? (
           <div className="p-4 text-sm text-muted-foreground">Loading…</div>
@@ -250,6 +252,7 @@ function ChatList() {
                 mine && c.last_created_at && c.peer_read_at
                   ? new Date(c.peer_read_at).getTime() >= new Date(c.last_created_at).getTime()
                   : false;
+              const isChannel = c.type === "channel";
               return (
                 <li key={c.id}>
                   <Link
@@ -257,10 +260,10 @@ function ChatList() {
                     params={{ conversationId: c.id }}
                     className="flex items-center gap-3 px-1 py-3 active:bg-muted/60"
                   >
-                    <Avatar name={c.title} url={c.avatar_url} size={52} group={c.type === "group"} />
+                    <Avatar name={c.title} url={c.avatar_url} size={52} group={c.type === "group"} channel={isChannel} />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
-                        <div className="truncate font-semibold">{c.title}</div>
+                        <div className="truncate font-semibold">{isChannel ? `📢 ${c.title}` : c.title}</div>
                         <div
                           className={`shrink-0 text-[11px] ${
                             c.unread > 0 ? "font-semibold text-[#25D366]" : "text-muted-foreground"
@@ -271,7 +274,7 @@ function ChatList() {
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
-                          {mine && c.type !== "group" &&
+                          {mine && c.type === "direct" &&
                             (isRead ? (
                               <CheckCheck className="h-3.5 w-3.5 shrink-0 text-[#53BDEB]" />
                             ) : (
@@ -280,7 +283,7 @@ function ChatList() {
                           <span className="truncate">
                             {c.type === "group" && c.last_sender_name
                               ? `${c.last_sender_name}: `
-                              : mine && <span>You: </span>}
+                              : mine && !isChannel && <span>You: </span>}
                             {c.last_message ?? "No messages yet"}
                           </span>
                         </div>
@@ -302,6 +305,7 @@ function ChatList() {
           <EmptyChats onNew={() => setShowNew(true)} />
         )}
       </div>
+
 
       {mounted &&
         createPortal(
