@@ -325,7 +325,7 @@ function ChatList() {
   );
 }
 
-function Avatar({ name, url, size = 44, group = false }: { name: string; url: string | null; size?: number; group?: boolean }) {
+function Avatar({ name, url, size = 44, group = false, channel = false }: { name: string; url: string | null; size?: number; group?: boolean; channel?: boolean }) {
   const initial = (name || "?").charAt(0).toUpperCase();
   const bg = colorFor(name || "?");
   return (
@@ -333,10 +333,106 @@ function Avatar({ name, url, size = 44, group = false }: { name: string; url: st
       className="grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold text-white"
       style={{ width: size, height: size, backgroundColor: bg, fontSize: size * 0.42 }}
     >
-      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : group ? <Users style={{ width: size * 0.5, height: size * 0.5 }} /> : initial}
+      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : channel ? <span aria-hidden style={{ fontSize: size * 0.5 }}>📢</span> : group ? <Users style={{ width: size * 0.5, height: size * 0.5 }} /> : initial}
     </div>
   );
 }
+
+function ChannelsStrip({ convs }: { convs: EnrichedConv[] }) {
+  const [showDiscover, setShowDiscover] = useState(false);
+  const channels = useMemo(() => convs.filter((c) => c.type === "channel"), [convs]);
+  return (
+    <>
+      <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        <button
+          onClick={() => setShowDiscover(true)}
+          className="flex shrink-0 items-center gap-1.5 rounded-full border border-dashed border-border bg-card/40 px-3 py-1.5 text-xs font-medium text-foreground"
+          data-testid="discover-channels"
+        >
+          <Megaphone className="h-3.5 w-3.5 text-[#00D4B8]" /> Discover 📢
+        </button>
+        {channels.map((c) => (
+          <Link
+            key={c.id}
+            to="/app/chat/$conversationId"
+            params={{ conversationId: c.id }}
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
+          >
+            📢 <span className="max-w-[9rem] truncate">{c.title}</span>
+            {c.unread > 0 && <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] text-black">{c.unread}</span>}
+          </Link>
+        ))}
+      </div>
+      {showDiscover && <DiscoverChannelsSheet onClose={() => setShowDiscover(false)} />}
+    </>
+  );
+}
+
+function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [joining, setJoining] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const qc = useQueryClient();
+  useEffect(() => { const t = setTimeout(() => setDebounced(q.trim()), 200); return () => clearTimeout(t); }, [q]);
+  const { data: channels = [], isFetching, refetch } = useQuery({
+    queryKey: ["discover-channels", debounced],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("list_public_channels", { _search: debounced || null, _limit: 30 });
+      if (error) throw error;
+      return (data ?? []) as Array<{ id: string; name: string; description: string | null; subscriber_count: number }>;
+    },
+  });
+  const join = async (id: string) => {
+    setJoining(id);
+    const { error } = await supabase.rpc("join_channel", { _conversation_id: id });
+    setJoining(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Joined 📢");
+    qc.invalidateQueries({ queryKey: ["conversations"] });
+    refetch();
+    onClose();
+    navigate({ to: "/app/chat/$conversationId", params: { conversationId: id } });
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
+      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-semibold">Discover channels 📢</h2>
+          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search channels" className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-3 text-sm focus:border-primary focus:outline-none" />
+        </div>
+        <div className="mt-3 max-h-[55vh] space-y-2 overflow-y-auto">
+          {isFetching ? (
+            <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
+          ) : channels.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">No public channels yet — create the first 📢</div>
+          ) : channels.map((ch) => (
+            <div key={ch.id} className="flex items-start gap-3 rounded-2xl border border-border/60 bg-card/40 p-3">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-lg" style={{ backgroundColor: colorFor(ch.name) }}>📢</div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-semibold">{ch.name}</div>
+                {ch.description && <div className="line-clamp-2 text-xs text-muted-foreground">{ch.description}</div>}
+                <div className="mt-0.5 text-[11px] text-muted-foreground">{ch.subscriber_count} subscriber{ch.subscriber_count === 1 ? "" : "s"}</div>
+              </div>
+              <button
+                onClick={() => join(ch.id)}
+                disabled={joining === ch.id}
+                className="shrink-0 rounded-full bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50"
+              >
+                {joining === ch.id ? "Joining…" : "Join"}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 function EmptyChats({ onNew }: { onNew: () => void }) {
   return (
