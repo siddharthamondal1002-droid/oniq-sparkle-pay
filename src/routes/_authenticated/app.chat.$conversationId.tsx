@@ -988,7 +988,32 @@ function ChatThread() {
             </button>
           </div>
         )}
+        {recording ? (
+          <div className="flex items-center gap-2 rounded-full border border-border bg-input/40 px-3 py-2">
+            <span className="inline-block h-2.5 w-2.5 animate-pulse rounded-full bg-red-500" />
+            <span className="flex-1 text-sm tabular-nums text-muted-foreground">
+              {String(Math.floor(recSeconds / 60)).padStart(2, "0")}:{String(recSeconds % 60).padStart(2, "0")} • recording…
+            </span>
+            <button type="button" onClick={() => stopRecording(true)} aria-label="Cancel recording" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
+              <X className="h-4 w-4" />
+            </button>
+            <button type="button" onClick={() => stopRecording(false)} aria-label="Send voice" className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95">
+              <Send className="h-5 w-5" />
+            </button>
+          </div>
+        ) : (
         <div className="flex items-center gap-2">
+          <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handlePickImage} data-testid="chat-file-input" />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isBlocked || uploading}
+            aria-label="Attach photo"
+            data-testid="chat-attach"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-muted text-foreground transition active:scale-95 disabled:opacity-40"
+          >
+            <Paperclip className="h-5 w-5" />
+          </button>
           <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
             <Smile className="h-5 w-5 shrink-0 text-muted-foreground" />
             <input
@@ -997,7 +1022,7 @@ function ChatThread() {
               value={text}
               onChange={(e) => handleTextChange(e.target.value)}
               onBlur={() => emitTyping("stop")}
-              placeholder={isBlocked ? "You've blocked this user — unblock to chat" : "Message"}
+              placeholder={isBlocked ? "You've blocked this user — unblock to chat" : uploading ? "uploading…" : "Message"}
               disabled={isBlocked}
               className="flex-1 bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none disabled:opacity-60"
             />
@@ -1015,14 +1040,17 @@ function ChatThread() {
           ) : (
             <button
               type="button"
-              onClick={() => toast("voice notes coming soon 🎙")}
-              className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95"
+              onClick={startRecording}
+              disabled={isBlocked}
+              data-testid="chat-mic"
+              className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95 disabled:opacity-40"
               aria-label="Voice note"
             >
               <Mic className="h-5 w-5" />
             </button>
           )}
         </div>
+        )}
       </form>
     </div>
   );
