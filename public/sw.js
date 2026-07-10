@@ -67,11 +67,15 @@ self.addEventListener("notificationclick", (event) => {
     (async () => {
       const clientsList = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       for (const c of clientsList) {
-        if ("focus" in c) {
-          try { await c.focus(); return; } catch {}
-        }
+        try {
+          if ("navigate" in c && c.url && new URL(c.url).pathname !== targetUrl) {
+            await c.navigate(targetUrl);
+          }
+          if ("focus" in c) { await c.focus(); return; }
+        } catch { /* try next */ }
       }
       if (self.clients.openWindow) await self.clients.openWindow(targetUrl);
     })()
   );
 });
+
