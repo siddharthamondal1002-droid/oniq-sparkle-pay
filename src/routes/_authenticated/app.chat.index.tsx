@@ -167,7 +167,7 @@ function ChatList() {
           <button
             onClick={() => setShowRequests(true)}
             className="relative grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
-            aria-label="Friend requests"
+            aria-label="Moot requests"
             data-testid="friend-requests-btn"
           >
             <UserPlus className="h-5 w-5" />
