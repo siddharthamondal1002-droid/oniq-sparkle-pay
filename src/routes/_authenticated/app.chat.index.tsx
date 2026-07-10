@@ -660,23 +660,48 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
               ) : (
                 results.map((u) => {
                   const isPicked = pickedIds.has(u.id);
+                  const fs = friendMap.get(u.id);
                   return (
-                    <button
+                    <div
                       key={u.id}
-                      disabled={starting}
-                      onClick={() => (mode === "group" ? togglePick(u) : startChat(u.id))}
-                      className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left hover:bg-muted disabled:opacity-50 ${isPicked ? "bg-primary/10" : ""}`}
+                      className={`flex w-full items-center gap-3 rounded-2xl p-3 hover:bg-muted ${isPicked ? "bg-primary/10" : ""}`}
                     >
-                      <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={44} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium">{u.display_name}</div>
-                        <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
-                      </div>
-                      {mode === "group" && isPicked && <Check className="h-4 w-4 text-primary" />}
-                    </button>
+                      <button
+                        type="button"
+                        disabled={starting}
+                        onClick={() => (mode === "group" ? togglePick(u) : startChat(u.id))}
+                        className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:opacity-50"
+                      >
+                        <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={44} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate font-medium">{u.display_name}</div>
+                          <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
+                        </div>
+                        {mode === "group" && isPicked && <Check className="h-4 w-4 text-primary" />}
+                      </button>
+                      {mode === "chat" && (
+                        fs === "accepted" ? (
+                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">Friends ✓</span>
+                        ) : fs === "pending-out" ? (
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">Pending ⏳</span>
+                        ) : fs === "pending-in" ? (
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">Respond</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); addFriend(u.id); }}
+                            disabled={addingId === u.id}
+                            className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
+                          >
+                            {addingId === u.id ? "…" : "Add 👋"}
+                          </button>
+                        )
+                      )}
+                    </div>
                   );
                 })
               )}
+
             </div>
 
             {mode === "group" && (
