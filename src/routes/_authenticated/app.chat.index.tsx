@@ -727,4 +727,113 @@ export const _iconRef = Check;
 export const _trashRef = Trash2;
 export const _plusRef = Plus;
 
+function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => void }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["friends-full", meId],
+    queryFn: async () => {
+      const { data: rows } = await supabase
+        .from("friendships")
+        .select("user_a, user_b, status, requested_by, created_at");
+      const otherIds = Array.from(new Set((rows ?? []).map((r) => (r.user_a === meId ? r.user_b : r.user_a))));
+      const profByIdMap = new Map<string, { id: string; display_name: string | null; username: string | null; avatar_url: string | null }>();
+      if (otherIds.length) {
+        const { data: profs } = await supabase
+          .from("profiles")
+          .select("id, display_name, username, avatar_url")
+          .in("id", otherIds);
+        for (const p of profs ?? []) profByIdMap.set(p.id, p);
+      }
+      const incoming: Array<{ id: string; prof: typeof profByIdMap extends Map<string, infer V> ? V : never }> = [];
+      const friends: Array<{ id: string; prof: typeof profByIdMap extends Map<string, infer V> ? V : never }> = [];
+      for (const r of rows ?? []) {
+        const other = r.user_a === meId ? r.user_b : r.user_a;
+        const prof = profByIdMap.get(other);
+        if (!prof) continue;
+        if (r.status === "accepted") friends.push({ id: other, prof });
+        else if (r.requested_by !== meId) incoming.push({ id: other, prof });
+      }
+      return { incoming, friends };
+    },
+  });
+
+  const respond = async (otherId: string, accept: boolean) => {
+    setBusy(otherId);
+    const { error } = await supabase.rpc("respond_friend_request", { _other: otherId, _accept: accept });
+    setBusy(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success(accept ? "You're now friends 🤝" : "Declined");
+    qc.invalidateQueries({ queryKey: ["friends-full", meId] });
+    qc.invalidateQueries({ queryKey: ["friend-requests-incoming", meId] });
+    qc.invalidateQueries({ queryKey: ["friend-map", meId] });
+  };
+
+  const openChat = async (otherId: string) => {
+    const { data: id, error } = await supabase.rpc("find_or_create_direct_conversation", { other_user_id: otherId });
+    if (error || !id) { toast.error(error?.message || "Couldn't open chat"); return; }
+    onClose();
+    navigate({ to: "/app/chat/$conversationId", params: { conversationId: id as string } });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
+      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-semibold">Friends 🤝</h2>
+          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-3 max-h-[65vh] space-y-4 overflow-y-auto">
+          <section>
+            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">Requests</div>
+            {isLoading ? (
+              <div className="py-3 text-sm text-muted-foreground">Loading…</div>
+            ) : (data?.incoming ?? []).length === 0 ? (
+              <div className="py-3 text-sm text-muted-foreground">No pending requests.</div>
+            ) : (
+              <ul className="space-y-1">
+                {data!.incoming.map((r) => (
+                  <li key={r.id} className="flex items-center gap-3 rounded-2xl p-2">
+                    <Avatar name={r.prof.display_name || r.prof.username || "?"} url={r.prof.avatar_url} size={40} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{r.prof.display_name}</div>
+                      <div className="truncate text-xs text-muted-foreground">@{r.prof.username}</div>
+                    </div>
+                    <button disabled={busy === r.id} onClick={() => respond(r.id, true)} className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black disabled:opacity-50">Accept ✅</button>
+                    <button disabled={busy === r.id} onClick={() => respond(r.id, false)} className="rounded-full border border-border px-3 py-1 text-xs disabled:opacity-50">Decline ✕</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+          <section>
+            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">My friends</div>
+            {(data?.friends ?? []).length === 0 ? (
+              <div className="py-3 text-sm text-muted-foreground">No friends yet — search someone to add 👋</div>
+            ) : (
+              <ul className="space-y-1">
+                {data!.friends.map((r) => (
+                  <button key={r.id} onClick={() => openChat(r.id)} className="flex w-full items-center gap-3 rounded-2xl p-2 text-left hover:bg-muted">
+                    <Avatar name={r.prof.display_name || r.prof.username || "?"} url={r.prof.avatar_url} size={40} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{r.prof.display_name}</div>
+                      <div className="truncate text-xs text-muted-foreground">@{r.prof.username}</div>
+                    </div>
+                    <MessageCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 
