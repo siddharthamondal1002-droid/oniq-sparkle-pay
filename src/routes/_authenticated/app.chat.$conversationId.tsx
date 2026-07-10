@@ -101,10 +101,10 @@ function ChatThread() {
     queryFn: async () => {
       const { data: c } = await supabase
         .from("conversations")
-        .select("id, name, type, avatar_url")
+        .select("id, name, type, avatar_url, description")
         .eq("id", conversationId)
         .maybeSingle();
-      if (!c) return { title: "Conversation", avatar_url: null as string | null, peerId: null as string | null, isGroup: false };
+      if (!c) return { title: "Conversation", avatar_url: null as string | null, peerId: null as string | null, isGroup: false, isChannel: false, description: null as string | null };
       if (c.type === "direct") {
         const { data: other } = await supabase
           .from("conversation_members")
@@ -116,15 +116,17 @@ function ChatThread() {
         const p = (other as any)?.profiles;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const peerId = (other as any)?.user_id ?? null;
-        if (p) return { title: p.display_name || p.username || "Chat", avatar_url: p.avatar_url ?? null, peerId, isGroup: false };
-        return { title: "Chat", avatar_url: null, peerId, isGroup: false };
+        if (p) return { title: p.display_name || p.username || "Chat", avatar_url: p.avatar_url ?? null, peerId, isGroup: false, isChannel: false, description: null };
+        return { title: "Chat", avatar_url: null, peerId, isGroup: false, isChannel: false, description: null };
       }
-      return { title: c.name ?? "Group", avatar_url: c.avatar_url, peerId: null, isGroup: true };
+      return { title: c.name ?? (c.type === "channel" ? "Channel" : "Group"), avatar_url: c.avatar_url, peerId: null, isGroup: c.type === "group", isChannel: c.type === "channel", description: c.description ?? null };
     },
   });
 
   const peerId = header?.peerId ?? null;
   const isGroup = header?.isGroup ?? false;
+  const isChannel = header?.isChannel ?? false;
+
 
   type GroupMember = { user_id: string; role: string; joined_at: string | null; display_name: string | null; username: string | null; avatar_url: string | null };
   const { data: members = [], refetch: refetchMembers } = useQuery({
