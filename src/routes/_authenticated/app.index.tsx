@@ -198,8 +198,8 @@ function Tile({
       )}
       {!showSkin && (
         <div
-          className="relative grid h-11 w-11 place-items-center rounded-2xl overflow-hidden"
-          style={{ color: tint, background: `${tint}1A` }}
+          className="relative grid h-11 w-11 place-items-center rounded-2xl overflow-hidden transition-transform duration-200"
+          style={{ color: tint, background: `${tint}26`, boxShadow: `0 0 18px ${tint}40, inset 0 0 0 1px ${tint}33` }}
         >
           <Icon className="h-5 w-5" />
         </div>
@@ -213,14 +213,17 @@ function Tile({
     </>
   );
   const base =
-    "press fade-up relative overflow-hidden flex flex-col items-center justify-center gap-2 rounded-2xl bg-card/85 p-2 border border-border";
-  const style = { animationDelay: `${delay}ms` };
+    "press fade-up relative overflow-hidden flex flex-col items-center justify-center gap-2 rounded-2xl bg-card p-2 border border-border transition-colors";
+  const washStyle = !showSkin
+    ? { background: `radial-gradient(120% 90% at 0% 0%, ${tint}47 0%, ${tint}14 35%, transparent 65%), hsl(var(--card))` }
+    : undefined;
+  const style = { animationDelay: `${delay}ms`, ...(washStyle ?? {}) };
   if (locked) {
     return <div className={`${base} opacity-60`} style={style}>{inner}</div>;
   }
   return (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    <Link to={to as any} className={`${base} hover:bg-surface-2 transition-colors`} style={style}>
+    <Link to={to as any} className={`${base} hover:brightness-110`} style={style}>
       {inner}
     </Link>
   );
@@ -417,7 +420,8 @@ function HeroTile({
               onError={() => setSkinError(true)}
               className="absolute inset-0 h-full w-full object-cover"
             />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+
           </>
         ) : (
           <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
@@ -471,7 +475,7 @@ function HeroTile({
           className={playerCoverClass}
         />
       </div>
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
 
       <span className={`relative inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/15 text-red-300" : "border-primary/50 bg-primary/15 text-primary"}`}>
         {isLiveGenre ? (
@@ -631,7 +635,7 @@ function ClipsHeroTile({
         />
       )}
       {videoUrl && (
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
       )}
       {showSkin ? (
         <>
@@ -641,7 +645,7 @@ function ClipsHeroTile({
             onError={() => setSkinError(true)}
             className="absolute inset-0 h-full w-full object-cover"
           />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/78 via-black/22 to-transparent" />
         </>
       ) : (
         <Clapperboard className="relative h-10 w-10 text-foreground/90" strokeWidth={1.6} />
