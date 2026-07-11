@@ -173,6 +173,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     connectedAt: number;
   } | null>(null);
 
+  const remotePlayAttemptsRef = useRef(0);
+  const remoteFallbackArmedRef = useRef(false);
+
   const teardownRemoteAudioPipeline = () => {
     try { audioSrcNodeRef.current?.disconnect(); } catch {}
     try { audioGainNodeRef.current?.disconnect(); } catch {}
@@ -184,52 +187,6 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     audioGainNodeRef.current = null;
     audioCtxRef.current = null;
     audioPipelineStreamIdRef.current = null;
-  };
-
-  const buildRemoteAudioPipeline = (stream: MediaStream) => {
-    if (audioPipelineStreamIdRef.current === stream.id && audioCtxRef.current) return;
-    // Rebuild if stream changed (reconnect path).
-    if (audioPipelineStreamIdRef.current && audioPipelineStreamIdRef.current !== stream.id) {
-      teardownRemoteAudioPipeline();
-    }
-    if (stream.getAudioTracks().length === 0) return;
-    try {
-      const ctx = ensureAudioCtx();
-      if (!ctx) throw new Error("AudioContext unavailable");
-      const src = ctx.createMediaStreamSource(stream);
-      const gain = ctx.createGain();
-      gain.gain.value = 1.35;
-      const comp = ctx.createDynamicsCompressor();
-      try {
-        comp.threshold.value = -24;
-        comp.knee.value = 30;
-        comp.ratio.value = 12;
-        comp.attack.value = 0.003;
-        comp.release.value = 0.25;
-      } catch {
-        // older browsers may not accept .value on all AudioParams — safe to ignore
-      }
-      src.connect(gain);
-      gain.connect(comp);
-      comp.connect(ctx.destination);
-      audioSrcNodeRef.current = src;
-      audioGainNodeRef.current = gain;
-      audioPipelineStreamIdRef.current = stream.id;
-      // Mute element playback to avoid double audio.
-      if (remoteAudioRef.current) remoteAudioRef.current.muted = true;
-      if (remoteVideoRef.current) remoteVideoRef.current.muted = true;
-    } catch (err) {
-      console.warn("[call] WebAudio pipeline unavailable, falling back to element audio", err);
-      teardownRemoteAudioPipeline();
-      if (remoteAudioRef.current) {
-        remoteAudioRef.current.muted = false;
-        remoteAudioRef.current.volume = 1.0;
-      }
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.muted = false;
-        remoteVideoRef.current.volume = 1.0;
-      }
-    }
   };
 
   const ensureAudioCtx = (): AudioContext | null => {
@@ -246,11 +203,78 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   };
 
   const resumeRemoteAudio = () => {
-    const ctx = ensureAudioCtx();
+    const ctx = audioCtxRef.current;
     if (!ctx) return;
     if (ctx.state === "suspended") {
       ctx.resume().catch(() => {});
     }
+  };
+
+  // WebAudio pipeline as FALLBACK only — used when element playback fails
+  // twice (mutes element to avoid double audio).
+  const buildRemoteAudioPipeline = (stream: MediaStream) => {
+    if (audioPipelineStreamIdRef.current === stream.id && audioCtxRef.current) return;
+    if (audioPipelineStreamIdRef.current && audioPipelineStreamIdRef.current !== stream.id) {
+      teardownRemoteAudioPipeline();
+    }
+    if (stream.getAudioTracks().length === 0) return;
+    try {
+      const ctx = ensureAudioCtx();
+      if (!ctx) throw new Error("AudioContext unavailable");
+      const src = ctx.createMediaStreamSource(stream);
+      const gain = ctx.createGain();
+      gain.gain.value = 1.35;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      audioSrcNodeRef.current = src;
+      audioGainNodeRef.current = gain;
+      audioPipelineStreamIdRef.current = stream.id;
+      ctx.resume?.().catch(() => {});
+      if (remoteAudioRef.current) remoteAudioRef.current.muted = true;
+      if (remoteVideoRef.current) remoteVideoRef.current.muted = true;
+      console.warn("[call] using WebAudio fallback for remote audio");
+    } catch (err) {
+      console.warn("[call] WebAudio fallback unavailable", err);
+    }
+  };
+
+  // Try to play the remote element. On NotAllowedError, arm a one-shot
+  // listener that retries playback on the next user gesture. After two
+  // consecutive failures, fall back to the WebAudio pipeline.
+  const tryPlayRemote = (stream: MediaStream) => {
+    const el = remoteAudioRef.current;
+    if (!el) return;
+    el.muted = false;
+    el.volume = 1.0;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (el as any).playsInline = true;
+    const p = el.play();
+    if (!p || typeof p.then !== "function") return;
+    p.then(() => {
+      remotePlayAttemptsRef.current = 0;
+    }).catch((err: unknown) => {
+      const name = (err as { name?: string })?.name ?? "PlayError";
+      remotePlayAttemptsRef.current += 1;
+      console.warn("[call] remote audio play() failed", name, remotePlayAttemptsRef.current);
+      if (remotePlayAttemptsRef.current >= 2) {
+        toast(`Audio blocked — tap the screen to hear (${name})`);
+        buildRemoteAudioPipeline(stream);
+      }
+      if (!remoteFallbackArmedRef.current) {
+        remoteFallbackArmedRef.current = true;
+        const retry = () => {
+          remoteFallbackArmedRef.current = false;
+          window.removeEventListener("pointerdown", retry, true);
+          window.removeEventListener("touchstart", retry, true);
+          window.removeEventListener("keydown", retry, true);
+          tryPlayRemote(stream);
+          resumeRemoteAudio();
+        };
+        window.addEventListener("pointerdown", retry, true);
+        window.addEventListener("touchstart", retry, true);
+        window.addEventListener("keydown", retry, true);
+      }
+    });
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const wakeLockRef = useRef<any>(null);
@@ -607,10 +631,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         return s;
       })();
       remoteStreamRef.current = stream;
+      // Element-first playback with retry-on-gesture fallback. WebAudio
+      // pipeline is used only after two consecutive play() failures.
+      remotePlayAttemptsRef.current = 0;
       if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
-      buildRemoteAudioPipeline(stream);
-      resumeRemoteAudio();
+      tryPlayRemote(stream);
+      // Also re-attach when new tracks arrive on the same stream (reconnect).
+      try {
+        stream.onaddtrack = () => {
+          if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
+          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
+          tryPlayRemote(stream);
+        };
+      } catch {}
     };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
@@ -676,13 +710,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           : false;
       return await navigator.mediaDevices.getUserMedia({ audio, video });
     } catch (err) {
-      const name = (err as { name?: string })?.name;
+      const name = (err as { name?: string })?.name ?? "Error";
+      const message = (err as { message?: string })?.message ?? "";
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-        toast.error("Mic/camera blocked — enable in your browser settings");
+        toast.error(`Mic/camera blocked (${name}) — enable in your app settings`);
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {
-        toast.error("No mic/camera found on this device");
+        toast.error(`No mic/camera found (${name})`);
+      } else if (name === "NotReadableError") {
+        toast.error(`Mic in use by another app (${name})`);
       } else {
-        toast.error("Couldn't start call — check mic/camera");
+        toast.error(`Couldn't start call: ${name}${message ? ` — ${message}` : ""}`);
       }
       throw err;
     }
