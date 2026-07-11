@@ -196,6 +196,11 @@
   box-shadow: var(--shadow-magenta);
 }
 
+@utility glow-primary {
+  box-shadow: 0 0 24px color-mix(in oklab, var(--primary) 35%, transparent),
+              0 0 2px color-mix(in oklab, var(--primary) 60%, transparent);
+}
+
 @keyframes float-slow {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-12px); }
