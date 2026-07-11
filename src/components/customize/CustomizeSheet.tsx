@@ -302,6 +302,9 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
           </div>
         </section>
 
+        <HeroVisibilitySection />
+
+
         <section>
           <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
             Tile skins
