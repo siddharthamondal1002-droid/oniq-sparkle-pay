@@ -7,6 +7,7 @@ import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
+import { useIsOnline } from "@/hooks/usePresence";
 
 type Message = {
   id: string;
