@@ -150,8 +150,9 @@ function HomeScreen() {
                 { key: "pulse", to: "/app/news", icon: Newspaper, label: "the tea ☕", color: "#F472B6" },
                 { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C" },
                 { key: "upi", to: "/app/upi", icon: IndianRupee, label: "tap in 💳", color: "#22C55E" },
+                { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
               ] as const
-            ).map((t, i) => (
+            ).filter((t) => !hidden.has(t.key as TileKey)).map((t, i) => (
               <Tile
                 key={t.label}
                 to={t.to}
