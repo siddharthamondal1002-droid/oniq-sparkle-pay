@@ -108,6 +108,8 @@ function ChatThread() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const anyFileInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraVideoRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recChunksRef = useRef<Blob[]>([]);
   const recStreamRef = useRef<MediaStream | null>(null);
@@ -1223,6 +1225,8 @@ function ChatThread() {
           <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handlePickImage} data-testid="chat-file-input" />
           <input ref={videoInputRef} type="file" accept="video/*" hidden onChange={handlePickVideo} data-testid="chat-video-input" />
           <input ref={anyFileInputRef} type="file" hidden onChange={handlePickAnyFile} data-testid="chat-anyfile-input" />
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handlePickImage} data-testid="chat-camera-input" />
+          <input ref={cameraVideoRef} type="file" accept="video/*" capture="environment" hidden onChange={handlePickVideo} data-testid="chat-camera-video-input" />
           <div className="relative">
             <button
               type="button"
@@ -1238,6 +1242,22 @@ function ChatThread() {
               <>
                 <div className="fixed inset-0 z-30" onClick={() => setShowAttachSheet(false)} />
                 <div className="absolute bottom-14 left-0 z-40 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+                  <button
+                    type="button"
+                    data-testid="chat-attach-camera"
+                    onClick={() => { setShowAttachSheet(false); cameraInputRef.current?.click(); }}
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="text-lg">📸</span> Camera
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="chat-attach-camera-video"
+                    onClick={() => { setShowAttachSheet(false); cameraVideoRef.current?.click(); }}
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="text-lg">🎬</span> quick vid
+                  </button>
                   <button
                     type="button"
                     onClick={() => { setShowAttachSheet(false); fileInputRef.current?.click(); }}

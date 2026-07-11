@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Send, Globe, ExternalLink, Paperclip, X } from "lucide-react";
+import { ArrowLeft, Send, Globe, ExternalLink, Paperclip, X, Camera, Mic } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -53,6 +53,64 @@ function TingScreen() {
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const cameraRef = useRef<HTMLInputElement | null>(null);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<{ stop: () => void; abort?: () => void } | null>(null);
+
+  useEffect(() => () => { recognitionRef.current?.stop?.(); }, []);
+
+  function toggleDictation() {
+    if (listening) {
+      recognitionRef.current?.stop?.();
+      return;
+    }
+    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
+    const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => {
+      lang: string;
+      continuous: boolean;
+      interimResults: boolean;
+      onresult: (e: { resultIndex: number; results: { isFinal: boolean; 0: { transcript: string } }[] }) => void;
+      onerror: (e: { error?: string }) => void;
+      onend: () => void;
+      start: () => void;
+      stop: () => void;
+    }) | undefined;
+    if (!Ctor) {
+      toast("ur browser can't do voice yet 😔 — try Chrome");
+      return;
+    }
+    try {
+      const rec = new Ctor();
+      const navLang = typeof navigator !== "undefined" ? (navigator.language || "en-IN") : "en-IN";
+      rec.lang = navLang;
+      rec.continuous = true;
+      rec.interimResults = true;
+      const baseline = input;
+      rec.onresult = (e) => {
+        let finalTxt = "";
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) finalTxt += r[0].transcript;
+          else interim += r[0].transcript;
+        }
+        const combined = [baseline, finalTxt, interim].filter(Boolean).join(" ").replace(/\s+/g, " ").trimStart();
+        setInput(combined);
+      };
+      rec.onerror = (e) => {
+        if (e.error && e.error !== "aborted" && e.error !== "no-speech") toast.error(`mic error: ${e.error}`);
+      };
+      rec.onend = () => {
+        setListening(false);
+        recognitionRef.current = null;
+      };
+      recognitionRef.current = rec;
+      rec.start();
+      setListening(true);
+    } catch {
+      toast.error("couldn't start the mic");
+    }
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -302,7 +360,7 @@ function TingScreen() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border bg-input/40 pl-2 pr-1">
+          <div className="flex items-center gap-1 rounded-full border border-border bg-input/40 pl-2 pr-1">
             <input
               ref={fileRef}
               type="file"
@@ -310,6 +368,15 @@ function TingScreen() {
               hidden
               onChange={handlePickAttachment}
               data-testid="ting-file-input"
+            />
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={handlePickAttachment}
+              data-testid="ting-camera-input"
             />
             <button
               type="button"
@@ -321,14 +388,35 @@ function TingScreen() {
             >
               <Paperclip className="h-4 w-4" />
             </button>
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              disabled={loading}
+              data-testid="ting-camera"
+              aria-label="Camera"
+              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
+            >
+              <Camera className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={toggleDictation}
+              disabled={loading}
+              data-testid="ting-mic"
+              aria-label={listening ? "Stop dictation" : "Dictate"}
+              className={`grid h-9 w-9 place-items-center rounded-full disabled:opacity-40 ${listening ? "bg-red-500/20 text-red-500 animate-pulse" : "hover:bg-muted"}`}
+            >
+              <Mic className="h-4 w-4" />
+            </button>
             <input
               data-testid="ting-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Message Ting…"
+              placeholder={listening ? "listening… tap 🎤 to stop" : "Message Ting…"}
               disabled={loading}
               className="flex-1 bg-transparent py-3 text-sm placeholder:text-muted-foreground focus:outline-none"
             />
+
             <button
               data-testid="ting-send"
               type="submit"

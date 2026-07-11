@@ -20,6 +20,11 @@ function DiscoverScreen() {
   const [me, setMe] = useState<string | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [openComments, setOpenComments] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<"public" | "moots">(() => {
+    if (typeof sessionStorage === "undefined") return "public";
+    return (sessionStorage.getItem("oniq_post_visibility") as "public" | "moots") ?? "public";
+  });
+
 
   async function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -65,7 +70,7 @@ function DiscoverScreen() {
     queryFn: async () => {
       const { data } = await supabase
         .from("moments_posts")
-        .select("id, content, media_urls, like_count, comment_count, created_at, user_id, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)")
+        .select("id, content, media_urls, like_count, comment_count, created_at, user_id, visibility, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)")
         .order("created_at", { ascending: false })
         .limit(50);
       return data ?? [];
@@ -94,7 +99,8 @@ function DiscoverScreen() {
     const media = imageUrl.trim() ? [imageUrl.trim()] : [];
     const { error } = await supabase
       .from("moments_posts")
-      .insert({ user_id: u.user.id, content: content.trim(), media_urls: media, visibility: "public" });
+      .insert({ user_id: u.user.id, content: content.trim(), media_urls: media, visibility });
+
     if (error) toast.error(error.message);
     else {
       toast.success("Posted to Moments");
@@ -155,6 +161,31 @@ function DiscoverScreen() {
             className="hidden"
             onChange={handlePickFile}
           />
+          <div className="mt-3 border-t border-border pt-3">
+            <div className="mb-2 text-[11px] text-muted-foreground">who can peep this? 👀</div>
+            <div className="flex gap-2">
+              {(["public", "moots"] as const).map((v) => {
+                const active = visibility === v;
+                const label = v === "public" ? "errbody 🌍" : "moots only 🤝";
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    data-testid={`moment-visibility-${v}`}
+                    onClick={() => {
+                      setVisibility(v);
+                      if (typeof sessionStorage !== "undefined") sessionStorage.setItem("oniq_post_visibility", v);
+                    }}
+                    className={`flex-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                      active ? "border-primary bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted"
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
             <div className="flex gap-2 text-muted-foreground">
               <button
@@ -178,6 +209,7 @@ function DiscoverScreen() {
               {posting ? "Posting…" : "Post"}
             </button>
           </div>
+
         </div>
 
         <div className="mt-5 space-y-3">
@@ -202,7 +234,11 @@ function DiscoverScreen() {
                         {formatDistanceToNow(new Date(p.created_at ?? Date.now()), { addSuffix: true })}
                       </div>
                     </div>
+                    {p.user_id === me && p.visibility === "moots" && (
+                      <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>
+                    )}
                   </div>
+
                   {p.content && <p className="mt-3 text-sm">{p.content}</p>}
                   {p.media_urls?.[0] && (
                     <img src={p.media_urls[0]} alt="" className="mt-3 max-h-96 w-full rounded-2xl object-cover" />
