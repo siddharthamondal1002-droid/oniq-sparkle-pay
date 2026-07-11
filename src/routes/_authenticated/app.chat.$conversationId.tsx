@@ -1225,6 +1225,8 @@ function ChatThread() {
           <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handlePickImage} data-testid="chat-file-input" />
           <input ref={videoInputRef} type="file" accept="video/*" hidden onChange={handlePickVideo} data-testid="chat-video-input" />
           <input ref={anyFileInputRef} type="file" hidden onChange={handlePickAnyFile} data-testid="chat-anyfile-input" />
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handlePickImage} data-testid="chat-camera-input" />
+          <input ref={cameraVideoRef} type="file" accept="video/*" capture="environment" hidden onChange={handlePickVideo} data-testid="chat-camera-video-input" />
           <div className="relative">
             <button
               type="button"
