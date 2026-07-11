@@ -919,46 +919,46 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
               disabled={picking}
               className="mt-2 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
             >
-              {picking ? "checking your contacts…" : "Find moots from contacts 📇"}
+              {picking ? "checking your contacts…" : "find ur ppl 📇"}
             </button>
             {!contactsSupported && (
-              <div className="mt-1 text-[11px] text-muted-foreground">tip: contact picker needs Chrome on Android — otherwise search by @username 🔍</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">tip: ur browser can't do contacts 😔 — search by @username instead</div>
             )}
             {noEmailCount > 0 && (
               <div className="mt-1 text-[11px] text-muted-foreground">{noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by email for now</div>
             )}
           </section>
 
-          {found !== null && (
+          {onOniq !== null && (
             <>
               <section>
-                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">on ONIQ ✨</div>
-                {found.length === 0 ? (
-                  <div className="py-3 text-sm text-muted-foreground">none of your contacts are on ONIQ yet — invite below 📩</div>
+                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">already here 😎</div>
+                {onOniq.length === 0 ? (
+                  <div className="py-3 text-sm text-muted-foreground">none of ur ppl are on ONIQ yet — drag them in below 📤</div>
                 ) : (
                   <ul className="space-y-1">
-                    {found.map((f) => {
-                      const fs = data?.statusMap.get(f.profile.id);
+                    {onOniq.map((f) => {
+                      const fs = data?.statusMap.get(f.user_id);
                       return (
-                        <li key={f.profile.id} className="flex items-center gap-3 rounded-2xl p-2">
-                          <Avatar name={f.profile.display_name || f.profile.username || "?"} url={f.profile.avatar_url} size={40} />
+                        <li key={f.user_id} className="flex items-center gap-3 rounded-2xl p-2">
+                          <Avatar name={f.display_name || f.username || "?"} url={f.avatar_url} size={40} />
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium">{f.profile.display_name}</div>
-                            <div className="truncate text-xs text-muted-foreground">@{f.profile.username}</div>
+                            <div className="truncate text-sm font-medium">{f.display_name}</div>
+                            <div className="truncate text-xs text-muted-foreground">@{f.username}</div>
                           </div>
                           {fs === "accepted" ? (
-                            <button onClick={() => openChat(f.profile.id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">chat 💬</button>
+                            <button onClick={() => openChat(f.user_id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">moots ✓</button>
                           ) : fs === "pending-out" ? (
-                            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">pending ⏳</span>
+                            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">pending fr ⏳</span>
                           ) : fs === "pending-in" ? (
-                            <button disabled={busy === f.profile.id} onClick={() => respond(f.profile.id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50">accept ✅</button>
+                            <button disabled={busy === f.user_id} onClick={() => respond(f.user_id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50">accept ✅</button>
                           ) : (
                             <button
-                              onClick={() => addMoot(f.profile.id)}
-                              disabled={addingId === f.profile.id}
+                              onClick={() => addMoot(f.user_id)}
+                              disabled={addingId === f.user_id}
                               className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
                             >
-                              {addingId === f.profile.id ? "…" : "add moot ➕"}
+                              {addingId === f.user_id ? "…" : "add moot ➕"}
                             </button>
                           )}
                         </li>
@@ -969,9 +969,9 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
               </section>
 
               <section>
-                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">not on ONIQ yet</div>
+                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">drag them in 📤</div>
                 {notOnOniq.length === 0 ? (
-                  <div className="py-3 text-sm text-muted-foreground">everyone you picked is already here 🎉</div>
+                  <div className="py-3 text-sm text-muted-foreground">everyone u picked is already here 🎉</div>
                 ) : (
                   <ul className="space-y-1">
                     {notOnOniq.map((c) => (
@@ -982,10 +982,10 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                           <div className="truncate text-xs text-muted-foreground">{c.email}</div>
                         </div>
                         <button
-                          onClick={() => invite(c.name)}
+                          onClick={() => invite()}
                           className="shrink-0 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold"
                         >
-                          invite 📩
+                          invite 📤
                         </button>
                       </li>
                     ))}
@@ -993,6 +993,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                 )}
               </section>
             </>
+
           )}
 
           <section>
