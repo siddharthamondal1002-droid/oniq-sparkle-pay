@@ -1,8 +1,49 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Palette, Upload, RotateCcw, X } from "lucide-react";
+import { Palette, Upload, RotateCcw, X, Eye, EyeOff } from "lucide-react";
+
+const HIDDEN_TILES_KEY = "oniq.tiles.hidden.v1";
+
+export function useHiddenTiles(): [Set<TileKey>, (key: TileKey, hidden: boolean) => void] {
+  const [hidden, setHidden] = useState<Set<TileKey>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(HIDDEN_TILES_KEY);
+      if (raw) setHidden(new Set(JSON.parse(raw) as TileKey[]));
+    } catch { /* noop */ }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === HIDDEN_TILES_KEY) {
+        try { setHidden(new Set(JSON.parse(e.newValue || "[]") as TileKey[])); } catch { /* noop */ }
+      }
+    };
+    const onCustom = () => {
+      try {
+        const raw = localStorage.getItem(HIDDEN_TILES_KEY);
+        setHidden(new Set(raw ? (JSON.parse(raw) as TileKey[]) : []));
+      } catch { /* noop */ }
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("oniq:hidden-tiles-changed", onCustom);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("oniq:hidden-tiles-changed", onCustom);
+    };
+  }, []);
+  const set = (key: TileKey, isHidden: boolean) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (isHidden) next.add(key); else next.delete(key);
+      try {
+        localStorage.setItem(HIDDEN_TILES_KEY, JSON.stringify(Array.from(next)));
+        window.dispatchEvent(new CustomEvent("oniq:hidden-tiles-changed"));
+      } catch { /* noop */ }
+      return next;
+    });
+  };
+  return [hidden, set];
+}
 
 const SIGNED_TTL_SECONDS = 60 * 60 * 24 * 365 * 100; // ~100 years
 
@@ -261,6 +302,9 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
           </div>
         </section>
 
+        <HeroVisibilitySection />
+
+
         <section>
           <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
             Tile skins
@@ -313,5 +357,45 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
         </section>
       </div>
     </div>
+  );
+}
+
+const HERO_TOGGLES: { key: TileKey; label: string }[] = [
+  { key: "watch", label: "Watch hero 📺" },
+  { key: "clips", label: "brainrot hero 🎬" },
+];
+
+function HeroVisibilitySection() {
+  const [hidden, setHidden] = useHiddenTiles();
+  return (
+    <section className="mt-6">
+      <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+        Show / hide hero tiles
+      </div>
+      <ul className="space-y-2">
+        {HERO_TOGGLES.map(({ key, label }) => {
+          const isHidden = hidden.has(key);
+          return (
+            <li
+              key={key}
+              className="flex items-center gap-3 rounded-xl bg-surface-2/60 p-2 border border-border"
+            >
+              <div className="grid h-10 w-10 place-items-center rounded-lg bg-surface">
+                {isHidden ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-primary" />}
+              </div>
+              <span className="flex-1 text-sm font-medium">{label}</span>
+              <button
+                type="button"
+                onClick={() => setHidden(key, !isHidden)}
+                aria-pressed={!isHidden}
+                className={`press rounded-full px-3 py-1.5 text-xs font-semibold ${isHidden ? "bg-surface text-muted-foreground border border-border" : "bg-primary text-primary-foreground"}`}
+              >
+                {isHidden ? "hidden — show" : "shown — hide"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

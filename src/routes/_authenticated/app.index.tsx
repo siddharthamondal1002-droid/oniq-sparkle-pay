@@ -24,6 +24,7 @@ import {
 import { CompactLiveNews, loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
 import {
   CustomizeButton,
+  useHiddenTiles,
   useUserTheme,
   type TileKey,
 } from "@/components/customize/CustomizeSheet";
@@ -49,6 +50,7 @@ function HomeScreen() {
 
   const { data: theme } = useUserTheme();
   const skins = theme?.tile_skins ?? {};
+  const [hidden] = useHiddenTiles();
   const installPrompt = useInstallPrompt();
 
 
@@ -114,26 +116,30 @@ function HomeScreen() {
             </h2>
             <CustomizeButton />
           </div>
-          <div className="mt-3">
-            <HeroTile
-              tileKey="watch"
-              skin={skins.watch}
-              to="/app/news"
-              search={{ tab: "watch" as const }}
-              icon={Tv}
-              label="Watch"
-              tagline="brainrot on tap 📺"
-              gradient="from-primary/30 via-primary/10 to-accent/30"
-              delay={0}
-              livePreview
-            />
-          </div>
+          {!hidden.has("watch") && (
+            <div className="mt-3">
+              <HeroTile
+                tileKey="watch"
+                skin={skins.watch}
+                to="/app/news"
+                search={{ tab: "watch" as const }}
+                icon={Tv}
+                label="Watch"
+                tagline="brainrot on tap 📺"
+                gradient="from-primary/30 via-primary/10 to-accent/30"
+                delay={0}
+                livePreview
+              />
+            </div>
+          )}
           <div className="mt-3 grid grid-cols-4 auto-rows-[5.25rem] gap-3">
-            <ClipsHeroTile
-              skin={skins.clips}
-              gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
-              delay={60}
-            />
+            {!hidden.has("clips") && (
+              <ClipsHeroTile
+                skin={skins.clips}
+                gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
+                delay={60}
+              />
+            )}
             {(
               [
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6" },
@@ -287,7 +293,10 @@ function HeroTile({
           : []),
       ]
     : [];
-  const [genreId, setGenreId] = useState<GenreId>("news");
+  const [genreId, setGenreId] = useState<GenreId>(() => {
+    if (typeof window === "undefined") return "news";
+    try { return (localStorage.getItem("oniq.watch.lastGenre") as GenreId) || "news"; } catch { return "news"; }
+  });
   const activeGenre =
     genres.find((g) => g.id === genreId) ?? genres[0] ?? null;
   const videos = activeGenre?.videos ?? [];
@@ -295,6 +304,21 @@ function HeroTile({
 
 
   const [idx, setIdx] = useState(0);
+  const resumedRef = useRef(false);
+  // On first non-empty load, resume last watched video (if we can find it in current genre)
+  useEffect(() => {
+    if (resumedRef.current) return;
+    if (!livePreview || showSkin) return;
+    if (videos.length === 0) return;
+    try {
+      const last = localStorage.getItem("oniq.watch.last");
+      if (last) {
+        const foundIdx = videos.findIndex((v) => v.videoId === last);
+        if (foundIdx >= 0) setIdx(foundIdx);
+      }
+    } catch { /* noop */ }
+    resumedRef.current = true;
+  }, [videos, livePreview, showSkin]);
   const [paused, setPaused] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
@@ -310,6 +334,15 @@ function HeroTile({
   const currentLabel = current
     ? (isLiveGenre ? current.channelName : current.title)
     : "";
+
+  // Persist last watched channel + genre for next home load
+  useEffect(() => {
+    if (!livePreview || showSkin) return;
+    try {
+      if (videoId) localStorage.setItem("oniq.watch.last", videoId);
+      if (activeGenre?.id) localStorage.setItem("oniq.watch.lastGenre", activeGenre.id);
+    } catch { /* noop */ }
+  }, [videoId, activeGenre?.id, livePreview, showSkin]);
 
   // 120s auto-tour cap (per video), also honored across uploads (natural ENDED advance handles it too)
   const vLen = videos.length;

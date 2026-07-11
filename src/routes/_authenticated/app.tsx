@@ -10,6 +10,7 @@ import { MessageNotifier } from "@/components/chat/MessageNotifier";
 import { usePresenceTracker } from "@/hooks/usePresence";
 import { useEffect } from "react";
 import { initPush } from "@/lib/push";
+import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -64,6 +65,7 @@ function AppShell() {
       <PolicyNoticeBanner />
       <MiniAppReturnWatcher />
       <MessageNotifier />
+      <PermissionsOnboarding />
 
 
       {showNav && (
