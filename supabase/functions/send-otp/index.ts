@@ -1,18 +1,12 @@
-// Send SMS OTP via Fast2SMS (India). In-memory store; ~10 min TTL.
-// Dev-mode (no FAST2SMS_API_KEY): returns the OTP in the response for local testing.
+// Send SMS OTP via Fast2SMS (India). Persists the OTP in public.otp_attempts
+// (service-role only). Dev-mode (no FAST2SMS_API_KEY) returns the OTP.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-type Entry = { otp: string; expiresAt: number };
-// Exported so verify-otp in the same isolate can read it. Cross-function
-// isolates are separate; the store is intentionally per-function.
-export const OTP_STORE: Map<string, Entry> = (globalThis as unknown as {
-  __oniqOtpStore?: Map<string, Entry>;
-}).__oniqOtpStore ?? new Map();
-(globalThis as unknown as { __oniqOtpStore?: Map<string, Entry> }).__oniqOtpStore = OTP_STORE;
 
 const RL: Map<string, number[]> = new Map();
 function rateLimited(ip: string): boolean {
@@ -27,11 +21,6 @@ function normalizeIndian(raw: string): string | null {
   const digits = String(raw || "").replace(/\D/g, "");
   const trimmed = digits.replace(/^0+/, "").replace(/^91/, "");
   return /^[6-9]\d{9}$/.test(trimmed) ? trimmed : null;
-}
-
-function pruneExpired() {
-  const now = Date.now();
-  for (const [k, v] of OTP_STORE) if (v.expiresAt < now) OTP_STORE.delete(k);
 }
 
 Deno.serve(async (req) => {
@@ -58,8 +47,25 @@ Deno.serve(async (req) => {
   }
 
   const otp = String(Math.floor(100000 + Math.random() * 900000));
-  pruneExpired();
-  OTP_STORE.set(phone, { otp, expiresAt: Date.now() + 10 * 60_000 });
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { persistSession: false } },
+  );
+  // Sweep expired rows, then upsert current OTP.
+  await admin.from("otp_attempts").delete().lt("expires_at", new Date().toISOString());
+  const { error: upErr } = await admin.from("otp_attempts").upsert({
+    phone,
+    otp,
+    expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
+    created_at: new Date().toISOString(),
+  });
+  if (upErr) {
+    console.error("otp store failed", upErr);
+    return new Response(JSON.stringify({ error: "storage failed" }), {
+      status: 500, headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
 
   const key = Deno.env.get("FAST2SMS_API_KEY");
   if (!key) {

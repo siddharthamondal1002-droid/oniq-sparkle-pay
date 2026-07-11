@@ -1,5 +1,5 @@
-// Verify OTP → provision Supabase auth user via a synthetic email and hand
-// the client a magiclink token_hash it can pass to supabase.auth.verifyOtp.
+// Verify OTP against public.otp_attempts → provision (or fetch) an auth user
+// via a synthetic email and return a magiclink token_hash for the client.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const CORS = {
@@ -7,12 +7,6 @@ const CORS = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
-type Entry = { otp: string; expiresAt: number };
-const OTP_STORE: Map<string, Entry> = (globalThis as unknown as {
-  __oniqOtpStore?: Map<string, Entry>;
-}).__oniqOtpStore ?? new Map();
-(globalThis as unknown as { __oniqOtpStore?: Map<string, Entry> }).__oniqOtpStore = OTP_STORE;
 
 function normalizeIndian(raw: string): string | null {
   const digits = String(raw || "").replace(/\D/g, "");
@@ -40,21 +34,31 @@ Deno.serve(async (req) => {
     });
   }
 
-  const entry = OTP_STORE.get(phone);
-  if (!entry || entry.expiresAt < Date.now() || entry.otp !== code) {
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { auth: { persistSession: false } },
+  );
+
+  const { data: row, error: qErr } = await admin
+    .from("otp_attempts")
+    .select("otp, expires_at")
+    .eq("phone", phone)
+    .maybeSingle();
+  if (qErr) {
+    console.error("otp query failed", qErr);
+    return new Response(JSON.stringify({ error: "lookup failed" }), {
+      status: 500, headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+  if (!row || row.otp !== code || new Date(row.expires_at).getTime() < Date.now()) {
     return new Response(JSON.stringify({ error: "invalid or expired code" }), {
       status: 401, headers: { ...CORS, "Content-Type": "application/json" },
     });
   }
-  OTP_STORE.delete(phone);
-
-  const url = Deno.env.get("SUPABASE_URL")!;
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-  const admin = createClient(url, serviceKey, { auth: { persistSession: false } });
+  await admin.from("otp_attempts").delete().eq("phone", phone);
 
   const email = syntheticEmail(phone);
-
-  // Provision user if needed. If already exists this returns an error; ignore.
   const created = await admin.auth.admin.createUser({
     email,
     email_confirm: true,
@@ -67,7 +71,6 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Mint a magiclink; client verifies token_hash to establish the session.
   const link = await admin.auth.admin.generateLink({ type: "magiclink", email });
   const token_hash = link.data?.properties?.hashed_token;
   if (link.error || !token_hash) {
