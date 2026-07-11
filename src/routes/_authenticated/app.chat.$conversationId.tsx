@@ -1016,7 +1016,7 @@ function ChatThread() {
                       <Check className="h-3.5 w-3.5 text-white/70" />
                     ) : mine ? (
                       isRead ? (
-                        <CheckCheck className="h-3.5 w-3.5 text-[#53BDEB]" />
+                        <CheckCheck className="h-3.5 w-3.5 text-[#25D366]" />
                       ) : (
                         <CheckCheck className="h-3.5 w-3.5 text-white/70" />
                       )
