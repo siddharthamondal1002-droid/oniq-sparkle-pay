@@ -7,7 +7,7 @@ import {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { Mic, MicOff, Phone, PhoneOff, Signal, Video, VideoOff } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, Signal, Video, VideoOff, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import {
   ensureNotificationPermission,
@@ -112,6 +112,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const [callType, setCallType] = useState<CallType>("audio");
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
+  const [speakerOn, setSpeakerOn] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [incomingFromName, setIncomingFromName] = useState("");
   const [showHud, setShowHud] = useState(false);
@@ -150,6 +151,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const audioSrcNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const audioGainNodeRef = useRef<GainNode | null>(null);
   const audioPipelineStreamIdRef = useRef<string | null>(null);
+  const boostCtxRef = useRef<AudioContext | null>(null);
+  const boostNodesRef = useRef<{
+    src: MediaStreamAudioSourceNode;
+    gain: GainNode;
+    comp: DynamicsCompressorNode;
+  } | null>(null);
   const statsIntervalRef = useRef<number | null>(null);
   const statsPrevRef = useRef<{
     ts: number;
@@ -530,6 +537,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     localStreamRef.current = null;
     remoteStreamRef.current = null;
     teardownRemoteAudioPipeline();
+    teardownSpeakerBoost();
+    setSpeakerOn(false);
     try { pcRef.current?.close(); } catch {}
     pcRef.current = null;
     pendingIceRef.current = [];
@@ -1057,6 +1066,58 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     const next = !(s.getAudioTracks()[0]?.enabled ?? true);
     s.getAudioTracks().forEach((t) => (t.enabled = !next));
     setMuted(next);
+  };
+
+  const teardownSpeakerBoost = () => {
+    const n = boostNodesRef.current;
+    if (n) {
+      try { n.src.disconnect(); } catch { /* noop */ }
+      try { n.comp.disconnect(); } catch { /* noop */ }
+      try { n.gain.disconnect(); } catch { /* noop */ }
+    }
+    boostNodesRef.current = null;
+    const ctx = boostCtxRef.current;
+    boostCtxRef.current = null;
+    if (ctx) { try { void ctx.close(); } catch { /* noop */ } }
+  };
+
+  const toggleSpeaker = () => {
+    const stream = remoteStreamRef.current;
+    const el = remoteAudioRef.current;
+    if (!stream || !el) return;
+    if (speakerOn) {
+      teardownSpeakerBoost();
+      el.muted = false;
+      el.volume = 1.0;
+      el.play?.().catch(() => {});
+      setSpeakerOn(false);
+      return;
+    }
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const Ctx: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
+      if (!Ctx) { toast.error("speaker boost not supported"); return; }
+      const ctx = new Ctx();
+      const src = ctx.createMediaStreamSource(stream);
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -24;
+      comp.knee.value = 30;
+      comp.ratio.value = 4;
+      comp.attack.value = 0.003;
+      comp.release.value = 0.25;
+      const gain = ctx.createGain();
+      gain.gain.value = 1.9;
+      src.connect(comp);
+      comp.connect(gain);
+      gain.connect(ctx.destination);
+      ctx.resume?.().catch(() => {});
+      boostCtxRef.current = ctx;
+      boostNodesRef.current = { src, gain, comp };
+      el.muted = true;
+      setSpeakerOn(true);
+    } catch {
+      toast.error("speaker boost failed");
+    }
   };
 
   const toggleCam = () => {
