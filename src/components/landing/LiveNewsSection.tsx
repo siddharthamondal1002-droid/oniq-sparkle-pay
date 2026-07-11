@@ -138,7 +138,42 @@ export type Video = {
   publishedAt: string;
   thumbnail: string;
 };
-export type LiveGenre = { id: GenreId; name: string; emoji: string; live: boolean; videos: Video[] };
+export type LiveGenre = { id: GenreId | string; name: string; emoji: string; live: boolean; videos: Video[] };
+
+// Parse a YouTube URL / id into an embeddable ref.
+// Returns { kind: 'video', id } or { kind: 'list', id }, or null if unusable.
+export function parseYouTube(raw: string): { kind: "video" | "list"; id: string } | null {
+  const s = (raw ?? "").trim();
+  if (!s) return null;
+  const bare = /^[\w-]{11}$/.exec(s);
+  if (bare) return { kind: "video", id: s };
+  try {
+    const u = new URL(s.startsWith("http") ? s : `https://${s}`);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtu.be") {
+      const id = u.pathname.split("/").filter(Boolean)[0];
+      if (id && /^[\w-]{11}$/.test(id)) return { kind: "video", id };
+    }
+    if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+      const parts = u.pathname.split("/").filter(Boolean);
+      if (parts[0] === "watch") {
+        const v = u.searchParams.get("v");
+        if (v && /^[\w-]{11}$/.test(v)) return { kind: "video", id: v };
+      }
+      if ((parts[0] === "live" || parts[0] === "embed" || parts[0] === "shorts") && parts[1]) {
+        const id = parts[1];
+        if (/^[\w-]{11}$/.test(id)) return { kind: "video", id };
+      }
+      if (parts[0] === "playlist") {
+        const list = u.searchParams.get("list");
+        if (list) return { kind: "list", id: list };
+      }
+      const list = u.searchParams.get("list");
+      if (list && !u.searchParams.get("v")) return { kind: "list", id: list };
+    }
+  } catch { /* noop */ }
+  return null;
+}
 
 export function useSession() {
   const [userId, setUserId] = useState<string | null>(null);
