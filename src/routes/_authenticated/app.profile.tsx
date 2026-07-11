@@ -353,6 +353,76 @@ function SafetySection() {
   );
 }
 
+function SoundsSection() {
+  const [ring, setRing] = useState<RingtoneId>("classic");
+  const [ping, setPing] = useState<PingId>("chime");
+  useEffect(() => {
+    setRing(getSelectedRingtone());
+    setPing(getSelectedPing());
+    return () => stopAllCallSounds();
+  }, []);
+  const pickRing = (id: RingtoneId) => {
+    setRing(id);
+    setSelectedRingtone(id);
+    stopAllCallSounds();
+    playRingtone(id);
+    window.setTimeout(() => stopAllCallSounds(), 2400);
+  };
+  const pickPing = (id: PingId) => {
+    setPing(id);
+    setSelectedPing(id);
+    playPing(id);
+  };
+  return (
+    <div className="mt-8 space-y-3">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+        <Music2 className="h-3.5 w-3.5" /> Sounds 🎵
+      </div>
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="mb-2 text-sm font-semibold">Call ringtone</div>
+        <div className="grid grid-cols-2 gap-2">
+          {RINGTONES.map((r) => (
+            <button
+              key={r.id}
+              type="button"
+              onClick={() => pickRing(r.id)}
+              className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm ${
+                ring === r.id
+                  ? "border-primary bg-primary/15 text-foreground"
+                  : "border-border bg-muted/30 text-foreground hover:bg-muted/50"
+              }`}
+            >
+              <span>{r.emoji} {r.label}</span>
+              {ring === r.id && <span className="text-[10px] font-bold uppercase text-primary">on</span>}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">tap to preview · saves right away</p>
+      </div>
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="mb-2 text-sm font-semibold">Chat ping</div>
+        <div className="grid grid-cols-2 gap-2">
+          {PINGS.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => pickPing(p.id)}
+              className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-sm ${
+                ping === p.id
+                  ? "border-primary bg-primary/15 text-foreground"
+                  : "border-border bg-muted/30 text-foreground hover:bg-muted/50"
+              }`}
+            >
+              <span>{p.emoji} {p.label}</span>
+              {ping === p.id && <span className="text-[10px] font-bold uppercase text-primary">on</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block rounded-2xl border border-border bg-card p-3.5">
