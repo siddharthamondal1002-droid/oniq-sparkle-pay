@@ -45,6 +45,23 @@ async function getAccessToken(): Promise<string> {
   return j.access_token;
 }
 
+
+// --- rate limit (per-isolate; resets on cold start) ---
+const rlBuckets = new Map<string, number[]>();
+function _subFromAuth(req: Request): string {
+  const h = req.headers.get("Authorization") ?? "";
+  const t = h.startsWith("Bearer ") ? h.slice(7) : "";
+  const p = t.split(".");
+  if (p.length !== 3) return "anon";
+  try { return JSON.parse(atob(p[1].replace(/-/g,"+").replace(/_/g,"/"))).sub || "anon"; } catch { return "anon"; }
+}
+function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
+  const now = Date.now();
+  const arr = (rlBuckets.get(id) ?? []).filter((t) => now - t < windowMs);
+  if (arr.length >= limit) { rlBuckets.set(id, arr); return false; }
+  arr.push(now); rlBuckets.set(id, arr); return true;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -71,6 +88,7 @@ Deno.serve(async (req) => {
     });
   }
   const senderId = userRes.user.id;
+  if (!_rateLimit(senderId, 60)) return new Response(JSON.stringify({ error: "slow down bestie 😅" }), { status: 429, headers: { ...corsHeaders, "content-type": "application/json" } });
 
   let body: {
     conversation_id?: string;

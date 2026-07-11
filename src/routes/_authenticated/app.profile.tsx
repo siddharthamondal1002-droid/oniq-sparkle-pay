@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle, Music2 } from "lucide-react";
+import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle, Music2, Database } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import {
@@ -169,6 +169,8 @@ function ProfileScreen() {
       )}
 
       <SoundsSection />
+
+      <MyDataSection />
 
       <SafetySection />
 
@@ -431,3 +433,89 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </label>
   );
 }
+
+type WipeKind = "clips" | "moments" | "chat_media";
+const WIPE_META: Record<WipeKind, { emoji: string; label: string; desc: string; rpc: "wipe_my_clips" | "wipe_my_moments" | "wipe_my_chat_media" }> = {
+  clips: { emoji: "🎬", label: "wipe my clips", desc: "deletes every clip you've posted — likes, comments, views, gone.", rpc: "wipe_my_clips" },
+  moments: { emoji: "📸", label: "wipe my moments", desc: "removes all your moments posts and their comments/likes.", rpc: "wipe_my_moments" },
+  chat_media: { emoji: "🎙", label: "wipe voice notes & media in chats", desc: "marks all your images, videos, voice notes and files as deleted in every chat.", rpc: "wipe_my_chat_media" },
+};
+
+function MyDataSection() {
+  const [pending, setPending] = useState<WipeKind | null>(null);
+  const [typed, setTyped] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const doWipe = async () => {
+    if (!pending || typed.trim().toUpperCase() !== "YES") return;
+    setBusy(true);
+    try {
+      const meta = WIPE_META[pending];
+      const { data, error } = await supabase.rpc(meta.rpc);
+      if (error) throw error;
+      const n = typeof data === "number" ? data : 0;
+      toast.success(n > 0 ? `wiped ${n} · this is forever fr 🫡` : "nothing to wipe — squeaky clean already ✨");
+      setPending(null); setTyped("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "couldn't wipe rn — try again");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mt-8 space-y-3">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+        <Database className="h-3.5 w-3.5" /> my data 🔐
+      </div>
+      <div className="rounded-2xl border border-border bg-card p-4 space-y-2">
+        <p className="text-[11px] text-muted-foreground">bulk-delete your own content. each action is permanent — no undo.</p>
+        {(Object.keys(WIPE_META) as WipeKind[]).map((k) => (
+          <button
+            key={k}
+            onClick={() => { setPending(k); setTyped(""); }}
+            className="flex w-full items-center justify-between rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm hover:bg-muted/50"
+          >
+            <span>{WIPE_META[k].emoji} {WIPE_META[k].label}</span>
+            <Trash2 className="h-4 w-4 text-destructive" />
+          </button>
+        ))}
+      </div>
+      {pending && (
+        <div className="fixed inset-0 z-[80] flex items-end bg-black/70 backdrop-blur-sm sm:items-center sm:justify-center">
+          <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-6 sm:rounded-3xl sm:border">
+            <div className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              <div className="font-display text-lg font-semibold">this is forever fr</div>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">{WIPE_META[pending].desc} type <span className="font-semibold text-foreground">YES</span> to confirm.</p>
+            <input
+              autoFocus
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              placeholder="YES"
+              className="mt-4 w-full rounded-2xl border border-border bg-input/40 px-4 py-3 text-sm focus:border-destructive focus:outline-none"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                onClick={() => { setPending(null); setTyped(""); }}
+                disabled={busy}
+                className="flex-1 rounded-2xl border border-border bg-card py-2.5 text-sm font-semibold hover:bg-muted"
+              >
+                nvm, keep it
+              </button>
+              <button
+                onClick={doWipe}
+                disabled={busy || typed.trim().toUpperCase() !== "YES"}
+                className="flex-1 rounded-2xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
+              >
+                {busy ? "wiping…" : "wipe forever"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
