@@ -20,7 +20,23 @@ type Message = {
   is_deleted: boolean | null;
   reply_to_id: string | null;
   is_ai: boolean | null;
+  file_name: string | null;
+  file_size: number | null;
 };
+
+function humanSize(n: number | null | undefined): string {
+  if (!n || n <= 0) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function truncateMiddle(s: string, max = 32) {
+  if (!s || s.length <= max) return s;
+  const half = Math.floor((max - 1) / 2);
+  return `${s.slice(0, half)}…${s.slice(-half)}`;
+}
 
 const SIGNED_TTL = 60 * 60 * 24 * 365 * 5;
 
@@ -87,7 +103,10 @@ function ChatThread() {
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
+  const [showAttachSheet, setShowAttachSheet] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const anyFileInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recChunksRef = useRef<Blob[]>([]);
   const recStreamRef = useRef<MediaStream | null>(null);
@@ -183,7 +202,7 @@ function ChatThread() {
     queryFn: async (): Promise<Message[]> => {
       const { data } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai")
+        .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai, file_name, file_size")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true })
         .limit(200);
@@ -394,6 +413,8 @@ function ChatThread() {
       is_deleted: false,
       reply_to_id: replySnapshot?.id ?? null,
       is_ai: false,
+      file_name: null,
+      file_size: null,
     };
     qc.setQueryData<Message[]>(["messages", conversationId], (prev) => [...(prev ?? []), optimistic]);
     setText("");
@@ -409,7 +430,7 @@ function ChatThread() {
         type: "text",
         reply_to_id: replySnapshot?.id ?? null,
       })
-      .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai")
+      .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai, file_name, file_size")
       .single();
     if (error || !inserted) {
       console.error("send failed", error);
