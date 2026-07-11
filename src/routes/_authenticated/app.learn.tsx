@@ -99,7 +99,7 @@ function LearnScreen() {
           <button
             key={k}
             onClick={() => setTab(k)}
-            className={`rounded-xl py-2 font-semibold truncate ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+            className={`min-h-11 rounded-xl py-2 font-semibold truncate ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
           >
             {label}
           </button>
