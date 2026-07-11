@@ -170,6 +170,8 @@ function RootComponent() {
       router.invalidate();
       if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
     });
+    // Native deep-link listener for Google OAuth callback (Chrome Custom Tab → app).
+    import("@/lib/nativeAuth").then((m) => m.initNativeAuth()).catch(() => {});
     return () => sub.subscription.unsubscribe();
   }, [router, queryClient]);
 
