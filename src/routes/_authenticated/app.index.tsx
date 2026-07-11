@@ -142,7 +142,7 @@ function HomeScreen() {
                 { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "the plug 🔌", color: "#A3E635" },
                 { key: "wander", to: "/app/travel", icon: Plane, label: "touch grass ✈️", color: "#22D3EE" },
                 { key: "pulse", to: "/app/news", icon: Newspaper, label: "the tea ☕", color: "#F472B6" },
-                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "locked in 📚", color: "#FB923C" },
+                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C" },
                 { key: "upi", to: "/app/upi", icon: IndianRupee, label: "tap in 💳", color: "#22C55E" },
               ] as const
             ).map((t, i) => (
