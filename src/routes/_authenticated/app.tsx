@@ -65,6 +65,7 @@ function AppShell() {
       <PolicyNoticeBanner />
       <MiniAppReturnWatcher />
       <MessageNotifier />
+      <PermissionsOnboarding />
 
 
       {showNav && (
