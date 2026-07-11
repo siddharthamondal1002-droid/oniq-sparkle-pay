@@ -94,7 +94,7 @@ jobs:
 
       - name: Upload keystore artifact (first run only)
         if: steps.keystore_check.outputs.has_keystore == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: keystore-SAVE-THIS-ONCE
           path: keystore-out/
@@ -128,7 +128,7 @@ jobs:
 
       - name: Upload release AAB
         if: steps.keystore_check.outputs.has_keystore == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: oniq-release-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
