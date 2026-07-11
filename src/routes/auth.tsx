@@ -375,53 +375,90 @@ function AuthPage() {
             <>
               {!otpSent ? (
                 <form onSubmit={handleSendOtp} className="space-y-3">
-                  <Field
-                    icon={Phone}
-                    type="tel"
-                    placeholder="+91 98765 43210"
-                    value={phone}
-                    onChange={setPhone}
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <select
+                      aria-label="Country code"
+                      value={dialCode}
+                      onChange={(e) => setDialCode(e.target.value)}
+                      className="rounded-2xl border border-border bg-input/40 px-3 py-3 text-sm focus:border-primary focus:outline-none"
+                    >
+                      {COUNTRIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="relative flex-1">
+                      <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        autoFocus
+                        placeholder="98765 43210"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
+                        required
+                        className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-10 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                      />
+                    </div>
+                  </div>
                   <button
                     type="submit"
                     disabled={loading}
                     className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
                   >
-                    {loading ? "Please wait…" : "Send OTP"}
+                    {loading ? "sending…" : "get otp 📲"}
                   </button>
+                  <p className="px-1 text-center text-[11px] text-muted-foreground">
+                    we'll text you a 6-digit code — standard rates apply
+                  </p>
                 </form>
               ) : (
-                <form onSubmit={handleVerifyOtp} className="space-y-3">
-                  <p className="px-1 text-xs text-muted-foreground">
-                    Code sent to {phone}
+                <div className="space-y-3">
+                  <p className="px-1 text-center text-xs text-muted-foreground">
+                    code sent to <span className="text-foreground">{dialCode} {phone}</span>
                   </p>
-                  <Field
-                    icon={Lock}
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="6-digit code"
+                  <OtpBoxes
                     value={otp}
-                    onChange={setOtp}
-                    maxLength={6}
-                    required
+                    onChange={(v) => {
+                      setOtp(v);
+                      if (v.length === 6 && !loading) {
+                        void handleVerifyOtp(undefined, v);
+                      }
+                    }}
                   />
                   <button
-                    type="submit"
-                    disabled={loading}
+                    type="button"
+                    onClick={() => handleVerifyOtp()}
+                    disabled={loading || otp.length !== 6}
                     className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
                   >
-                    {loading ? "Please wait…" : "Verify & sign in"}
+                    {loading ? "verifying…" : "verify ✅"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => { setOtpSent(false); setOtp(""); }}
-                    className="block w-full text-center text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    ← use a different number
-                  </button>
-                </form>
+                  <div className="flex items-center justify-between px-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => { setOtpSent(false); setOtp(""); }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      ← different number
+                    </button>
+                    {resendIn > 0 ? (
+                      <span className="text-muted-foreground">resend in {resendIn}s</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSendOtp()}
+                        disabled={loading}
+                        className="font-semibold text-primary hover:opacity-80"
+                      >
+                        resend otp 🔁
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
+
             </>
           )}
 
