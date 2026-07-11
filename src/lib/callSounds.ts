@@ -112,29 +112,29 @@ const PATTERNS: Record<RingtoneId, RingPattern> = {
   classic: {
     intervalMs: 2000,
     play: (ctx, tone) => {
-      playBeep(ctx, [880], 400, 0.2, "sine");
-      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [660], 400, 0.2, "sine"); }, 500);
+      playBeep(ctx, [880], 400, 0.3, "sine");
+      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [660], 400, 0.3, "sine"); }, 500);
     },
   },
   synth: {
     intervalMs: 2200,
     play: (ctx, tone) => {
-      playBeep(ctx, [523.25, 659.25], 500, 0.14, "sawtooth");
-      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [783.99], 700, 0.14, "sawtooth"); }, 550);
+      playBeep(ctx, [523.25, 659.25], 500, 0.28, "sawtooth");
+      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [783.99], 700, 0.28, "sawtooth"); }, 550);
     },
   },
   arcade: {
     intervalMs: 1600,
     play: (ctx, tone) => {
-      playBeep(ctx, [1046.5], 120, 0.18, "square");
-      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [1318.5], 120, 0.18, "square"); }, 150);
-      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [1568], 200, 0.18, "square"); }, 300);
+      playBeep(ctx, [1046.5], 120, 0.3, "square");
+      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [1318.5], 120, 0.3, "square"); }, 150);
+      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [1568], 200, 0.3, "square"); }, 300);
     },
   },
   minimal: {
     intervalMs: 2600,
     play: (ctx) => {
-      playBeep(ctx, [1200], 90, 0.16, "triangle");
+      playBeep(ctx, [1200], 90, 0.3, "triangle");
     },
   },
 };
@@ -188,7 +188,7 @@ export function playRingtone(id?: RingtoneId) {
   } catch {}
 }
 
-// Softer ringback (caller side) — single 440Hz pulse every 3s.
+// Phonelike ringback (caller side) — classic dual-tone ring, loud enough.
 export function playRingback() {
   stopAllCallSounds();
   const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
@@ -203,12 +203,15 @@ export function playRingback() {
   const tone: Tone = { ctx, timer: null, vibTimer: null, stopped: false };
   currentTone = tone;
 
-  const beep = () => {
+  const ring = () => {
     if (tone.stopped) return;
-    try { playBeep(ctx, [440], 800, 0.08); } catch {}
+    try {
+      playBeep(ctx, [440], 400, 0.22, "sine");
+      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [480], 400, 0.22, "sine"); }, 500);
+    } catch {}
   };
-  beep();
-  tone.timer = window.setInterval(beep, 3000);
+  ring();
+  tone.timer = window.setInterval(ring, 2500);
 }
 
 // One-shot chat/notification ping using the selected ping sound.
