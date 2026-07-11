@@ -146,6 +146,7 @@ function ChatThread() {
   const peerId = header?.peerId ?? null;
   const isGroup = header?.isGroup ?? false;
   const isChannel = header?.isChannel ?? false;
+  const peerOnline = useIsOnline(peerId);
 
 
   type GroupMember = { user_id: string; role: string; joined_at: string | null; display_name: string | null; username: string | null; avatar_url: string | null };
