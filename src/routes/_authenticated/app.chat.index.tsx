@@ -288,7 +288,7 @@ function ChatList() {
             onClick={() => setShowNew(true)}
             aria-label="New chat"
             data-testid="new-chat-fab"
-            className="fixed right-4 bottom-6 z-[70] h-14 w-14 rounded-full bg-[#25D366] text-black shadow-xl grid place-items-center active:scale-95"
+            className="press fixed right-4 bottom-6 z-[70] h-14 w-14 rounded-full bg-[#25D366] text-black shadow-xl shadow-[#25D366]/40 grid place-items-center hover:brightness-110"
           >
             <Edit3 className="h-5 w-5" />
           </button>,
