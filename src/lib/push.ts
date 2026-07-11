@@ -23,7 +23,7 @@ export async function initPush() {
 
     await PushNotifications.register();
 
-    PushNotifications.addListener("registration", async (t) => {
+    PushNotifications.addListener("registration", async (t: { value: string }) => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
@@ -42,7 +42,7 @@ export async function initPush() {
       // ignore
     });
 
-    PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+    PushNotifications.addListener("pushNotificationActionPerformed", (action: { notification?: { data?: Record<string, unknown> } }) => {
       const url = (action.notification?.data as { url?: string } | undefined)?.url;
       if (url) {
         window.location.assign(url);
