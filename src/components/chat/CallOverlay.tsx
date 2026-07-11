@@ -864,6 +864,26 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, meName]);
 
+  // Callee-side: re-broadcast "accept" every 1.5s while connecting until the
+  // caller's offer arrives (remoteDescription set). Fixes the Supabase
+  // subscribe race where the very first accept can be sent before the
+  // signaling channel reaches SUBSCRIBED and drop silently — leaving the
+  // caller stuck on "ringing" and the callee stuck on "connecting".
+  useEffect(() => {
+    if (status !== "connecting") return;
+    if (isCallerRef.current) return;
+    let tries = 0;
+    const id = window.setInterval(() => {
+      tries += 1;
+      if (tries > 10) { window.clearInterval(id); return; }
+      if (!activeRef.current) { window.clearInterval(id); return; }
+      if (pcRef.current?.remoteDescription) { window.clearInterval(id); return; }
+      sendSig("accept");
+    }, 1500);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
+
   // Signaling channel — lives for the entire time the thread is open.
   useEffect(() => {
     if (!meId) return;
