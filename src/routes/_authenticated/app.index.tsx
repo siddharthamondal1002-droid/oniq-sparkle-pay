@@ -116,26 +116,30 @@ function HomeScreen() {
             </h2>
             <CustomizeButton />
           </div>
-          <div className="mt-3">
-            <HeroTile
-              tileKey="watch"
-              skin={skins.watch}
-              to="/app/news"
-              search={{ tab: "watch" as const }}
-              icon={Tv}
-              label="Watch"
-              tagline="brainrot on tap 📺"
-              gradient="from-primary/30 via-primary/10 to-accent/30"
-              delay={0}
-              livePreview
-            />
-          </div>
+          {!hidden.has("watch") && (
+            <div className="mt-3">
+              <HeroTile
+                tileKey="watch"
+                skin={skins.watch}
+                to="/app/news"
+                search={{ tab: "watch" as const }}
+                icon={Tv}
+                label="Watch"
+                tagline="brainrot on tap 📺"
+                gradient="from-primary/30 via-primary/10 to-accent/30"
+                delay={0}
+                livePreview
+              />
+            </div>
+          )}
           <div className="mt-3 grid grid-cols-4 auto-rows-[5.25rem] gap-3">
-            <ClipsHeroTile
-              skin={skins.clips}
-              gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
-              delay={60}
-            />
+            {!hidden.has("clips") && (
+              <ClipsHeroTile
+                skin={skins.clips}
+                gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
+                delay={60}
+              />
+            )}
             {(
               [
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6" },
