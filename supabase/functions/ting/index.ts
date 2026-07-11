@@ -23,6 +23,9 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const messages = Array.isArray(body?.messages) ? body.messages : null;
     const search = body?.search !== false; // default on
+    const attachment = body?.attachment as
+      | { kind: "image" | "pdf" | "text"; mime?: string; data?: string; text?: string }
+      | undefined;
 
     if (!messages || messages.length < 1 || messages.length > 30) {
       return json({ error: "messages must be 1–30 items" }, 400);
@@ -31,8 +34,42 @@ Deno.serve(async (req) => {
       if (!m || (m.role !== "user" && m.role !== "assistant")) {
         return json({ error: "invalid role" }, 400);
       }
-      if (typeof m.content !== "string" || m.content.length === 0 || m.content.length > 4000) {
+      if (typeof m.content !== "string" || m.content.length > 4000) {
         return json({ error: "invalid content" }, 400);
+      }
+    }
+
+    // Attach file to the last user message if present.
+    const outMessages: Array<{ role: string; content: unknown }> = messages.map(
+      (m: any) => ({ role: m.role, content: m.content }),
+    );
+    if (attachment && outMessages.length > 0) {
+      const last = outMessages[outMessages.length - 1];
+      if (last.role === "user") {
+        if (attachment.kind === "text" && typeof attachment.text === "string") {
+          const txt = attachment.text.slice(0, 20000);
+          last.content = `Attached text file:\n\n${txt}\n\n---\n\n${last.content || ""}`.trim();
+        } else if (
+          (attachment.kind === "image" || attachment.kind === "pdf") &&
+          typeof attachment.data === "string" &&
+          typeof attachment.mime === "string"
+        ) {
+          const parts: Array<Record<string, unknown>> = [];
+          if (attachment.kind === "image") {
+            parts.push({
+              type: "image",
+              source: { type: "base64", media_type: attachment.mime, data: attachment.data },
+            });
+          } else {
+            parts.push({
+              type: "document",
+              source: { type: "base64", media_type: "application/pdf", data: attachment.data },
+            });
+          }
+          const txt = typeof last.content === "string" ? last.content : "";
+          parts.push({ type: "text", text: txt || "Please analyze this attachment." });
+          last.content = parts;
+        }
       }
     }
 
@@ -40,7 +77,7 @@ Deno.serve(async (req) => {
       model: "claude-sonnet-4-6",
       max_tokens: 1024,
       system: SYSTEM,
-      messages: messages.map((m: any) => ({ role: m.role, content: m.content })),
+      messages: outMessages,
     };
     if (search) {
       payload.tools = [{ type: "web_search_20250305", name: "web_search" }];
