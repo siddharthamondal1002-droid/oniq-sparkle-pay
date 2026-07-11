@@ -1240,10 +1240,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             <button
               onClick={toggleMute}
               disabled={!localStreamRef.current}
-              className="grid h-14 w-14 place-items-center rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40"
+              className={`grid h-14 w-14 place-items-center rounded-full disabled:opacity-40 ${muted ? "bg-red-600 hover:bg-red-500" : "bg-white/10 hover:bg-white/20"}`}
               aria-label={muted ? "Unmute mic" : "Mute mic"}
+              aria-pressed={muted}
             >
               {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+            </button>
+            <button
+              onClick={toggleSpeaker}
+              disabled={!remoteStreamRef.current}
+              className={`grid h-14 w-14 place-items-center rounded-full disabled:opacity-40 ${speakerOn ? "bg-primary text-primary-foreground" : "bg-white/10 hover:bg-white/20"}`}
+              aria-label={speakerOn ? "Speaker boost off" : "Speaker boost on"}
+              aria-pressed={speakerOn}
+            >
+              {speakerOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
             </button>
             {callType === "video" && (
               <button
