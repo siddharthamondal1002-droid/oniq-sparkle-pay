@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2, ArrowLeft, Megaphone, Plus, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday, differenceInDays } from "date-fns";
+import { useOnlineUsers } from "@/hooks/usePresence";
 
 export const Route = createFileRoute("/_authenticated/app/chat/")({
   component: ChatList,
@@ -23,6 +24,7 @@ type EnrichedConv = {
   last_sender_name: string | null;
   last_created_at: string | null;
   peer_read_at: string | null;
+  peer_id: string | null;
   unread: number;
 };
 
@@ -47,6 +49,7 @@ function convTime(iso: string | null): string {
 
 function ChatList() {
   const qc = useQueryClient();
+  const onlineSet = useOnlineUsers();
   const [showNew, setShowNew] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
@@ -95,6 +98,7 @@ function ChatList() {
           last_sender_name: r.last_sender_name ?? null,
           last_created_at: r.last_created_at ?? null,
           peer_read_at: r.peer_read_at ?? null,
+          peer_id: r.peer_id ?? null,
           unread: r.unread ?? 0,
         }));
     },
@@ -215,6 +219,7 @@ function ChatList() {
                   ? new Date(c.peer_read_at).getTime() >= new Date(c.last_created_at).getTime()
                   : false;
               const isChannel = c.type === "channel";
+              const online = c.type === "direct" && !!c.peer_id && onlineSet.has(c.peer_id);
               return (
                 <li key={c.id}>
                   <Link
@@ -222,7 +227,15 @@ function ChatList() {
                     params={{ conversationId: c.id }}
                     className="flex items-center gap-3 px-1 py-3 active:bg-muted/60"
                   >
-                    <Avatar name={c.title} url={c.avatar_url} size={52} group={c.type === "group"} channel={isChannel} />
+                    <div className="relative">
+                      <Avatar name={c.title} url={c.avatar_url} size={52} group={c.type === "group"} channel={isChannel} />
+                      {online && (
+                        <span
+                          data-testid="online-dot"
+                          className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-[#25D366]"
+                        />
+                      )}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
                         <div className="truncate font-semibold">{isChannel ? `📢 ${c.title}` : c.title}</div>
@@ -238,7 +251,7 @@ function ChatList() {
                         <div className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
                           {mine && c.type === "direct" &&
                             (isRead ? (
-                              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-[#53BDEB]" />
+                              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-[#25D366]" />
                             ) : (
                               <CheckCheck className="h-3.5 w-3.5 shrink-0" />
                             ))}

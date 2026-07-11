@@ -7,6 +7,7 @@ import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
+import { useIsOnline } from "@/hooks/usePresence";
 
 type Message = {
   id: string;
@@ -145,6 +146,7 @@ function ChatThread() {
   const peerId = header?.peerId ?? null;
   const isGroup = header?.isGroup ?? false;
   const isChannel = header?.isChannel ?? false;
+  const peerOnline = useIsOnline(peerId);
 
 
   type GroupMember = { user_id: string; role: string; joined_at: string | null; display_name: string | null; username: string | null; avatar_url: string | null };
@@ -230,6 +232,35 @@ function ChatThread() {
     supabase.rpc("mark_conversation_read", { _conversation_id: conversationId });
   };
 
+  // Zero this conversation's unread across all cached chat-list queries,
+  // then recompute the app icon badge from the summed unreads. Keeps the
+  // badge death instantaneous when I open a thread or receive a message
+  // while already reading it.
+  const zeroUnreadInCache = () => {
+    qc.setQueriesData<Array<{ id: string; unread?: number }> | undefined>(
+      { queryKey: ["conversations"] },
+      (prev) => {
+        if (!prev) return prev;
+        return prev.map((c) => (c.id === conversationId ? { ...c, unread: 0 } : c));
+      },
+    );
+    if (typeof navigator === "undefined") return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nav = navigator as any;
+    let total = 0;
+    for (const [, data] of qc.getQueriesData<Array<{ unread?: number }>>({
+      queryKey: ["conversations"],
+    })) {
+      if (Array.isArray(data)) for (const c of data) total += c?.unread ?? 0;
+    }
+    try {
+      if (total > 0 && typeof nav.setAppBadge === "function") nav.setAppBadge(total);
+      else if (typeof nav.clearAppBadge === "function") nav.clearAppBadge();
+    } catch {
+      /* unsupported */
+    }
+  };
+
   // Realtime: messages INSERT + UPDATE + peer read receipts.
   useEffect(() => {
     const channel = supabase
@@ -261,6 +292,7 @@ function ChatThread() {
             return [...stripped, m];
           });
           markRead();
+          zeroUnreadInCache();
         },
 
       )
@@ -357,10 +389,21 @@ function ChatThread() {
     }, 3000);
   };
 
-  // Mark read on open + when message list changes.
+  // Mark read on open + when message list changes; also zero the unread
+  // count in the chat-list cache so the badge dies the moment I open.
   useEffect(() => {
     markRead();
+    zeroUnreadInCache();
   }, [conversationId, messages.length]);
+
+  // On leaving the thread, invalidate the chat list so it re-fetches with
+  // the persisted last_read_at → any post-mount changes reconcile.
+  useEffect(() => {
+    return () => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    };
+  }, [qc]);
+
 
   // Autoscroll on new messages.
   useEffect(() => {
@@ -774,9 +817,12 @@ function ChatThread() {
                 `${members.length} subscriber${members.length === 1 ? "" : "s"}`
               ) : isGroup ? (
                 `${members.length} member${members.length === 1 ? "" : "s"}`
-              ) : (
-                "online"
-              )}
+              ) : peerOnline ? (
+                <span className="inline-flex items-center gap-1" data-testid="peer-online">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#25D366]" />
+                  <span className="text-[#25D366]">online</span>
+                </span>
+              ) : null}
             </div>
           </div>
         </button>
@@ -1016,7 +1062,7 @@ function ChatThread() {
                       <Check className="h-3.5 w-3.5 text-white/70" />
                     ) : mine ? (
                       isRead ? (
-                        <CheckCheck className="h-3.5 w-3.5 text-[#53BDEB]" />
+                        <CheckCheck className="h-3.5 w-3.5 text-[#25D366]" />
                       ) : (
                         <CheckCheck className="h-3.5 w-3.5 text-white/70" />
                       )
