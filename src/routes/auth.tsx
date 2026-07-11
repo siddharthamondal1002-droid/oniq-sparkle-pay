@@ -63,19 +63,34 @@ function normalizePhone(raw: string): string | null {
   return null;
 }
 
+const COUNTRIES: { flag: string; code: string; label: string }[] = [
+  { flag: "🇮🇳", code: "+91", label: "India" },
+  { flag: "🇺🇸", code: "+1", label: "USA" },
+  { flag: "🇬🇧", code: "+44", label: "UK" },
+  { flag: "🇦🇪", code: "+971", label: "UAE" },
+  { flag: "🇸🇬", code: "+65", label: "Singapore" },
+];
+
 function AuthPage() {
   const navigate = useNavigate();
-  // Phone sign-in hidden until SMS provider is configured; keep dormant handlers below.
-  const [method, _setMethod] = useState<"email" | "phone">("email");
-  void _setMethod;
+  const [method, setMethod] = useState<"email" | "phone">("email");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [dialCode, setDialCode] = useState("+91");
   const [phone, setPhone] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
+
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -113,21 +128,27 @@ function AuthPage() {
     }
   }
 
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
+  function fullPhone(): string | null {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 8 || digits.length > 15) return null;
+    return dialCode + digits;
+  }
+
+  async function handleSendOtp(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     if (loading) return;
-    const normalized = normalizePhone(phone);
+    const normalized = fullPhone();
     if (!normalized) {
-      toast.error("Enter a valid phone — try +91 98765 43210");
+      toast.error("that number looks off — check the digits 📱");
       return;
     }
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOtp({ phone: normalized });
       if (error) throw error;
-      setPhone(normalized);
       setOtpSent(true);
-      toast.success("Code sent — check your SMS 📩");
+      setResendIn(30);
+      toast.success("otp sent ✉️ check your messages");
     } catch (err) {
       toast.error(friendlyAuthError(err));
     } finally {
@@ -135,21 +156,34 @@ function AuthPage() {
     }
   }
 
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleVerifyOtp(e?: React.FormEvent, codeOverride?: string) {
+    if (e) e.preventDefault();
     if (loading) return;
-    if (!/^[0-9]{6}$/.test(otp.trim())) {
-      toast.error("That code should be 6 digits");
+    const code = (codeOverride ?? otp).trim();
+    if (!/^[0-9]{6}$/.test(code)) {
+      toast.error("that code should be 6 digits 🔢");
       return;
     }
+    const normalized = fullPhone();
+    if (!normalized) return;
     setLoading(true);
     try {
       const { error } = await supabase.auth.verifyOtp({
-        phone,
-        token: otp.trim(),
+        phone: normalized,
+        token: code,
         type: "sms",
       });
-      if (error) throw error;
+      if (error) {
+        const m = (error.message || "").toLowerCase();
+        if (m.includes("rate") || m.includes("too many")) {
+          toast.error("too many attempts 🚫 wait a bit");
+        } else if (m.includes("invalid") || m.includes("expired")) {
+          toast.error("invalid code — try again 🔄");
+        } else {
+          throw error;
+        }
+        return;
+      }
       navigate({ to: "/app" });
     } catch (err) {
       toast.error(friendlyAuthError(err));
@@ -157,6 +191,7 @@ function AuthPage() {
       setLoading(false);
     }
   }
+
 
   async function handleSocial(provider: "google" | "facebook" | "apple") {
     if (loading) return;
@@ -256,7 +291,24 @@ function AuthPage() {
             <div className="h-px flex-1 bg-border" />
           </div>
 
-          {/* Phone sign-in pill hidden until SMS provider is configured. */}
+          {/* Method pill selector: email | phone */}
+          <div className="mb-4 grid grid-cols-2 gap-1 rounded-full border border-border bg-card/40 p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => { setMethod("email"); setOtpSent(false); setOtp(""); }}
+              className={`rounded-full py-2 font-semibold transition ${method === "email" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              ✉️ Email
+            </button>
+            <button
+              type="button"
+              onClick={() => setMethod("phone")}
+              className={`rounded-full py-2 font-semibold transition ${method === "phone" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              📱 Phone
+            </button>
+          </div>
+
 
           {method === "email" ? (
             confirmationSentTo ? (
@@ -323,53 +375,90 @@ function AuthPage() {
             <>
               {!otpSent ? (
                 <form onSubmit={handleSendOtp} className="space-y-3">
-                  <Field
-                    icon={Phone}
-                    type="tel"
-                    placeholder="+91 98765 43210"
-                    value={phone}
-                    onChange={setPhone}
-                    required
-                  />
+                  <div className="flex gap-2">
+                    <select
+                      aria-label="Country code"
+                      value={dialCode}
+                      onChange={(e) => setDialCode(e.target.value)}
+                      className="rounded-2xl border border-border bg-input/40 px-3 py-3 text-sm focus:border-primary focus:outline-none"
+                    >
+                      {COUNTRIES.map((c) => (
+                        <option key={c.code} value={c.code}>
+                          {c.flag} {c.code}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="relative flex-1">
+                      <Phone className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <input
+                        type="tel"
+                        inputMode="numeric"
+                        autoFocus
+                        placeholder="98765 43210"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value.replace(/[^\d\s]/g, ""))}
+                        required
+                        className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-10 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                      />
+                    </div>
+                  </div>
                   <button
                     type="submit"
                     disabled={loading}
                     className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
                   >
-                    {loading ? "Please wait…" : "Send OTP"}
+                    {loading ? "sending…" : "get otp 📲"}
                   </button>
+                  <p className="px-1 text-center text-[11px] text-muted-foreground">
+                    we'll text you a 6-digit code — standard rates apply
+                  </p>
                 </form>
               ) : (
-                <form onSubmit={handleVerifyOtp} className="space-y-3">
-                  <p className="px-1 text-xs text-muted-foreground">
-                    Code sent to {phone}
+                <div className="space-y-3">
+                  <p className="px-1 text-center text-xs text-muted-foreground">
+                    code sent to <span className="text-foreground">{dialCode} {phone}</span>
                   </p>
-                  <Field
-                    icon={Lock}
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="6-digit code"
+                  <OtpBoxes
                     value={otp}
-                    onChange={setOtp}
-                    maxLength={6}
-                    required
+                    onChange={(v) => {
+                      setOtp(v);
+                      if (v.length === 6 && !loading) {
+                        void handleVerifyOtp(undefined, v);
+                      }
+                    }}
                   />
                   <button
-                    type="submit"
-                    disabled={loading}
+                    type="button"
+                    onClick={() => handleVerifyOtp()}
+                    disabled={loading || otp.length !== 6}
                     className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
                   >
-                    {loading ? "Please wait…" : "Verify & sign in"}
+                    {loading ? "verifying…" : "verify ✅"}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => { setOtpSent(false); setOtp(""); }}
-                    className="block w-full text-center text-xs text-muted-foreground hover:text-foreground"
-                  >
-                    ← use a different number
-                  </button>
-                </form>
+                  <div className="flex items-center justify-between px-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => { setOtpSent(false); setOtp(""); }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      ← different number
+                    </button>
+                    {resendIn > 0 ? (
+                      <span className="text-muted-foreground">resend in {resendIn}s</span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSendOtp()}
+                        disabled={loading}
+                        className="font-semibold text-primary hover:opacity-80"
+                      >
+                        resend otp 🔁
+                      </button>
+                    )}
+                  </div>
+                </div>
               )}
+
             </>
           )}
 
@@ -423,6 +512,54 @@ function SocialButton({ label, onClick, disabled }: { label: string; onClick: ()
     >
       {label}
     </button>
+  );
+}
+
+function OtpBoxes({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const inputs = Array.from({ length: 6 });
+  function handleChange(i: number, raw: string) {
+    const digit = raw.replace(/\D/g, "").slice(-1);
+    const chars = value.padEnd(6, " ").split("");
+    chars[i] = digit || " ";
+    const next = chars.join("").replace(/\s+$/, "").trimEnd();
+    onChange(next.replace(/\s/g, ""));
+    if (digit) {
+      const nextEl = document.getElementById(`otp-${i + 1}`) as HTMLInputElement | null;
+      nextEl?.focus();
+    }
+  }
+  function handleKey(i: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Backspace" && !value[i] && i > 0) {
+      const prev = document.getElementById(`otp-${i - 1}`) as HTMLInputElement | null;
+      prev?.focus();
+    }
+  }
+  function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (pasted) {
+      e.preventDefault();
+      onChange(pasted);
+      const target = document.getElementById(`otp-${Math.min(pasted.length, 5)}`) as HTMLInputElement | null;
+      target?.focus();
+    }
+  }
+  return (
+    <div className="flex justify-between gap-2" onPaste={handlePaste}>
+      {inputs.map((_, i) => (
+        <input
+          key={i}
+          id={`otp-${i}`}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          autoComplete={i === 0 ? "one-time-code" : "off"}
+          value={value[i] ?? ""}
+          onChange={(e) => handleChange(i, e.target.value)}
+          onKeyDown={(e) => handleKey(i, e)}
+          className="h-12 w-full rounded-xl border border-border bg-input/40 text-center text-lg font-semibold focus:border-primary focus:outline-none"
+        />
+      ))}
+    </div>
   );
 }
 
