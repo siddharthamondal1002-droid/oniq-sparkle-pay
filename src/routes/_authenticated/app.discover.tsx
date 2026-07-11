@@ -70,7 +70,7 @@ function DiscoverScreen() {
     queryFn: async () => {
       const { data } = await supabase
         .from("moments_posts")
-        .select("id, content, media_urls, like_count, comment_count, created_at, user_id, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)")
+        .select("id, content, media_urls, like_count, comment_count, created_at, user_id, visibility, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)")
         .order("created_at", { ascending: false })
         .limit(50);
       return data ?? [];
