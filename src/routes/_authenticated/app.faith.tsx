@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronLeft, ChevronRight, ExternalLink, BookOpen, Headphones, Calendar as CalIcon, ShoppingBag, ArrowLeft } from "lucide-react";
-import { launchMiniApp } from "@/lib/miniapps";
+
 
 export const Route = createFileRoute("/_authenticated/app/faith")({
   component: FaithPage,
