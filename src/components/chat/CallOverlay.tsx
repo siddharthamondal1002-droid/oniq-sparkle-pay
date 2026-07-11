@@ -631,10 +631,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         return s;
       })();
       remoteStreamRef.current = stream;
+      // Element-first playback with retry-on-gesture fallback. WebAudio
+      // pipeline is used only after two consecutive play() failures.
+      remotePlayAttemptsRef.current = 0;
       if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
       if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
-      buildRemoteAudioPipeline(stream);
-      resumeRemoteAudio();
+      tryPlayRemote(stream);
+      // Also re-attach when new tracks arrive on the same stream (reconnect).
+      try {
+        stream.onaddtrack = () => {
+          if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
+          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
+          tryPlayRemote(stream);
+        };
+      } catch {}
     };
     pc.onconnectionstatechange = () => {
       const st = pc.connectionState;
