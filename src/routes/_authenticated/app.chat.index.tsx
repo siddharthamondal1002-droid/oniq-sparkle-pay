@@ -371,7 +371,7 @@ function ChannelsStrip({ convs }: { convs: EnrichedConv[] }) {
       <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
         <button
           onClick={() => setShowDiscover(true)}
-          className="flex shrink-0 items-center gap-1.5 rounded-full border border-dashed border-border bg-card/40 px-3 py-1.5 text-xs font-medium text-foreground"
+          className="flex shrink-0 min-h-11 items-center gap-1.5 rounded-full border border-dashed border-border bg-card/40 px-4 py-2 text-xs font-medium text-foreground"
           data-testid="discover-channels"
         >
           <Megaphone className="h-3.5 w-3.5 text-[#00D4B8]" /> Discover 📢
@@ -381,7 +381,7 @@ function ChannelsStrip({ convs }: { convs: EnrichedConv[] }) {
             key={c.id}
             to="/app/chat/$conversationId"
             params={{ conversationId: c.id }}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
+            className="flex shrink-0 min-h-11 items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-medium text-primary"
           >
             📢 <span className="max-w-[9rem] truncate">{c.title}</span>
             {c.unread > 0 && <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] text-black">{c.unread}</span>}
