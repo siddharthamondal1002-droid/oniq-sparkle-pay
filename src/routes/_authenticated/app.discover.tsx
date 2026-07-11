@@ -20,6 +20,11 @@ function DiscoverScreen() {
   const [me, setMe] = useState<string | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [openComments, setOpenComments] = useState<string | null>(null);
+  const [visibility, setVisibility] = useState<"public" | "moots">(() => {
+    if (typeof sessionStorage === "undefined") return "public";
+    return (sessionStorage.getItem("oniq_post_visibility") as "public" | "moots") ?? "public";
+  });
+
 
   async function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
