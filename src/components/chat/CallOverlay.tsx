@@ -897,6 +897,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       const p = payload as { fromId: string; callId: string };
       if (!matches(p, true)) return;
       if (!isCallerRef.current) return;
+      // Idempotency: callee retries accept until offer lands, so duplicates
+      // are expected — only run the offer path once.
+      if (pcRef.current) return;
       if (ringTimeoutRef.current) {
         clearTimeout(ringTimeoutRef.current);
         ringTimeoutRef.current = null;
