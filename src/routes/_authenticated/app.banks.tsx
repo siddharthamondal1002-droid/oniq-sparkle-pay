@@ -49,7 +49,7 @@ function BanksScreen() {
 
   async function remove(bank: Bank) {
     if (!window.confirm(`Remove ${bank.bank_name} ••${bank.account_last4}?`)) return;
-    const { error } = await supabase.from("bank_accounts").delete().eq("id", bank.id);
+    const { error } = await supabase.rpc("delete_bank_account", { _bank_id: bank.id });
     if (error) return toast.error(error.message);
     toast.success("Account removed");
     qc.invalidateQueries({ queryKey: ["banks"] });
