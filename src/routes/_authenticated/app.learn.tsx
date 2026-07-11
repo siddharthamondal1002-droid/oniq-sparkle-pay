@@ -77,37 +77,40 @@ function localeFor(code: string): string {
 }
 
 function LearnScreen() {
-  const [tab, setTab] = useState<Tab>("translate");
+  const [tab, setTab] = useState<Tab>("scout");
   return (
-    <div className="px-5 pt-12 pb-10">
+    <div className="min-h-screen overflow-x-hidden px-5 pt-12 pb-10">
       <div className="flex items-center gap-3">
-        <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
+        <Link to="/app" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-card">
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <h1 className="font-display text-2xl font-bold flex items-center gap-2">
-          <span>🦉</span> Learn
+        <h1 className="font-display text-2xl font-bold flex items-center gap-2 min-w-0 truncate">
+          <span>🧠</span> smart
         </h1>
       </div>
+      <div className="mt-1 text-xs text-muted-foreground">shop & speak any language</div>
 
-      <div className="mt-4 grid grid-cols-2 rounded-2xl border border-border bg-card p-1 text-sm">
-        <button
-          onClick={() => setTab("translate")}
-          className={`rounded-xl py-2 font-semibold ${tab === "translate" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-        >
-          Lingo 🗣️
-        </button>
-        <button
-          onClick={() => setTab("lessons")}
-          className={`rounded-xl py-2 font-semibold ${tab === "lessons" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-        >
-          Lessons
-        </button>
+      <div className="mt-4 grid grid-cols-3 rounded-2xl border border-border bg-card p-1 text-xs">
+        {([
+          ["scout", "price scout 🛒"],
+          ["translate", "translate 🌐"],
+          ["lessons", "learn 📚"],
+        ] as const).map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setTab(k)}
+            className={`rounded-xl py-2 font-semibold truncate ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
-      {tab === "translate" ? <TranslatePanel /> : <LessonsPanel />}
+      {tab === "scout" ? <ScoutPanel /> : tab === "translate" ? <TranslatePanel /> : <LessonsPanel />}
     </div>
   );
 }
+
 
 /* ================= TRANSLATE ================= */
 
