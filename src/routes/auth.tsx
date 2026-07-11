@@ -63,19 +63,34 @@ function normalizePhone(raw: string): string | null {
   return null;
 }
 
+const COUNTRIES: { flag: string; code: string; label: string }[] = [
+  { flag: "🇮🇳", code: "+91", label: "India" },
+  { flag: "🇺🇸", code: "+1", label: "USA" },
+  { flag: "🇬🇧", code: "+44", label: "UK" },
+  { flag: "🇦🇪", code: "+971", label: "UAE" },
+  { flag: "🇸🇬", code: "+65", label: "Singapore" },
+];
+
 function AuthPage() {
   const navigate = useNavigate();
-  // Phone sign-in hidden until SMS provider is configured; keep dormant handlers below.
-  const [method, _setMethod] = useState<"email" | "phone">("email");
-  void _setMethod;
+  const [method, setMethod] = useState<"email" | "phone">("email");
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [dialCode, setDialCode] = useState("+91");
   const [phone, setPhone] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
+
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
