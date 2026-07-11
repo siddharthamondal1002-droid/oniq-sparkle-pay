@@ -205,6 +205,7 @@ export type Database = {
           user_id: string
           video_url: string
           view_count: number
+          visibility: string
         }
         Insert: {
           caption?: string | null
@@ -217,6 +218,7 @@ export type Database = {
           user_id: string
           video_url: string
           view_count?: number
+          visibility?: string
         }
         Update: {
           caption?: string | null
@@ -229,6 +231,7 @@ export type Database = {
           user_id?: string
           video_url?: string
           view_count?: number
+          visibility?: string
         }
         Relationships: [
           {
@@ -1383,6 +1386,7 @@ export type Database = {
           user_id: string
           video_url: string
           view_count: number
+          visibility: string
         }[]
         SetofOptions: {
           from: "*"
