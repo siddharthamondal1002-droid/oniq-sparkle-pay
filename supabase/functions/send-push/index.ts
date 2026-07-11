@@ -168,20 +168,46 @@ Deno.serve(async (req) => {
   await Promise.all(
     tokenList.map(async (token) => {
       try {
+        // For call pushes, send DATA-ONLY (no notification block) so the
+        // OniqMessagingService always runs — even when the app is backgrounded
+        // or killed — and can ring the phone via a full-screen intent.
+        const isCall = kind === "call";
+        const dataPayload: Record<string, string> = isCall
+          ? {
+              kind: "call",
+              title,
+              body: bodyText,
+              url: `/app/chat/${conversation_id}`,
+              call_type: call_type ?? "voice",
+              conversation_id,
+            }
+          : {
+              kind: "message",
+              title,
+              body: bodyText,
+              url: `/app/chat/${conversation_id}`,
+              conversation_id,
+            };
+
+        const messagePayload: Record<string, unknown> = {
+          token,
+          data: dataPayload,
+          android: {
+            priority: "HIGH",
+            ttl: isCall ? "60s" : "3600s",
+          },
+        };
+        if (!isCall) {
+          messagePayload.notification = { title, body: bodyText };
+        }
+
         const r = await fetch(url, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${accessToken}`,
             "content-type": "application/json",
           },
-          body: JSON.stringify({
-            message: {
-              token,
-              notification: { title, body: bodyText },
-              data: { url: `/app/chat/${conversation_id}` },
-              android: { priority: "HIGH" },
-            },
-          }),
+          body: JSON.stringify({ message: messagePayload }),
         });
         if (r.ok) {
           sent++;
