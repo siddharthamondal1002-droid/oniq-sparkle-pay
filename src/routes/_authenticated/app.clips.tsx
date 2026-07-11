@@ -632,6 +632,33 @@ function UploadSheet({
           className="mt-3 w-full resize-none rounded-2xl border border-border bg-background p-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
 
+        <div className="mt-3">
+          <div className="mb-1.5 text-xs text-muted-foreground">who can peep this? 👀</div>
+          <div className="flex gap-2">
+            {(["public", "moots"] as const).map((v) => {
+              const active = visibility === v;
+              const label = v === "public" ? "errbody 🌍" : "moots only 🤝";
+              return (
+                <button
+                  key={v}
+                  type="button"
+                  data-testid={`clip-visibility-${v}`}
+                  onClick={() => {
+                    setVisibility(v);
+                    if (typeof sessionStorage !== "undefined") sessionStorage.setItem("oniq_post_visibility", v);
+                  }}
+                  className={`flex-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    active ? "border-primary bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+
         <button
           data-testid="publish-clip"
           onClick={publish}
