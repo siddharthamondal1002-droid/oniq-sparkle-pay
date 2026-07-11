@@ -1,9 +1,22 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle } from "lucide-react";
+import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle, Music2 } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
+import {
+  RINGTONES,
+  PINGS,
+  getSelectedRingtone,
+  setSelectedRingtone,
+  getSelectedPing,
+  setSelectedPing,
+  playRingtone,
+  playPing,
+  stopAllCallSounds,
+  type RingtoneId,
+  type PingId,
+} from "@/lib/callSounds";
 
 import { z } from "zod";
 
