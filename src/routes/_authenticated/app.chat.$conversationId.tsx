@@ -1244,6 +1244,22 @@ function ChatThread() {
                 <div className="absolute bottom-14 left-0 z-40 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
                   <button
                     type="button"
+                    data-testid="chat-attach-camera"
+                    onClick={() => { setShowAttachSheet(false); cameraInputRef.current?.click(); }}
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="text-lg">📸</span> Camera
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="chat-attach-camera-video"
+                    onClick={() => { setShowAttachSheet(false); cameraVideoRef.current?.click(); }}
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="text-lg">🎬</span> quick vid
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => { setShowAttachSheet(false); fileInputRef.current?.click(); }}
                     className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
                   >
