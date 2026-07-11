@@ -762,14 +762,16 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
       }
       const incoming: Array<{ id: string; prof: typeof profByIdMap extends Map<string, infer V> ? V : never }> = [];
       const friends: Array<{ id: string; prof: typeof profByIdMap extends Map<string, infer V> ? V : never }> = [];
+      const statusMap = new Map<string, "pending-out" | "pending-in" | "accepted">();
       for (const r of rows ?? []) {
         const other = r.user_a === meId ? r.user_b : r.user_a;
+        statusMap.set(other, r.status === "accepted" ? "accepted" : r.requested_by === meId ? "pending-out" : "pending-in");
         const prof = profByIdMap.get(other);
         if (!prof) continue;
         if (r.status === "accepted") friends.push({ id: other, prof });
         else if (r.requested_by !== meId) incoming.push({ id: other, prof });
       }
-      return { incoming, friends };
+      return { incoming, friends, statusMap };
     },
   });
 
@@ -790,6 +792,94 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     onClose();
     navigate({ to: "/app/chat/$conversationId", params: { conversationId: id as string } });
   };
+
+  // ── Contacts discovery ──
+  type FoundRow = { email: string; profile: { id: string; username: string | null; display_name: string | null; avatar_url: string | null } };
+  type PickedContact = { name: string; email: string };
+  const [picking, setPicking] = useState(false);
+  const [found, setFound] = useState<FoundRow[] | null>(null);
+  const [notOnOniq, setNotOnOniq] = useState<PickedContact[]>([]);
+  const [noEmailCount, setNoEmailCount] = useState(0);
+  const [addingId, setAddingId] = useState<string | null>(null);
+
+  const inviteMessage = "join me on ONIQ — one app, every world 🌍";
+  const inviteUrl = "https://oniqhub.com";
+
+  const invite = async (name: string) => {
+    try {
+      if (typeof navigator !== "undefined" && "share" in navigator) {
+        await (navigator as Navigator).share({ title: "ONIQ", text: inviteMessage, url: inviteUrl });
+        return;
+      }
+    } catch {
+      // user cancelled — fall through
+      return;
+    }
+    try {
+      await (navigator as Navigator).clipboard.writeText(`${inviteMessage} ${inviteUrl}`);
+      toast.success(`invite link copied for ${name} ✨`);
+    } catch {
+      toast.error("couldn't copy invite");
+    }
+  };
+
+  const addMoot = async (otherId: string) => {
+    setAddingId(otherId);
+    const { error } = await supabase.rpc("send_friend_request", { _to: otherId });
+    setAddingId(null);
+    if (error) { toast.error(error.message); return; }
+    toast.success("moot request sent 🫡");
+    qc.invalidateQueries({ queryKey: ["friends-full", meId] });
+    qc.invalidateQueries({ queryKey: ["friend-map", meId] });
+  };
+
+  const pickContacts = async () => {
+    const nav = typeof navigator !== "undefined" ? (navigator as unknown as { contacts?: { select: (props: string[], opts: { multiple: boolean }) => Promise<Array<{ name?: string[]; email?: string[] }>> } }) : null;
+    if (!nav?.contacts || typeof nav.contacts.select !== "function") {
+      toast("contact picker needs Chrome on Android — search by @username instead 🔍");
+      return;
+    }
+    setPicking(true);
+    try {
+      const contacts = await nav.contacts.select(["name", "email"], { multiple: true });
+      const picked: PickedContact[] = [];
+      let skipped = 0;
+      for (const c of contacts) {
+        const name = (c.name?.[0] ?? "").trim() || "friend";
+        const emails = (c.email ?? []).map((e) => e.trim().toLowerCase()).filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+        if (emails.length === 0) { skipped++; continue; }
+        for (const e of emails) picked.push({ name, email: e });
+      }
+      setNoEmailCount(skipped);
+      const capped = picked.slice(0, 50);
+      const uniqueEmails = Array.from(new Set(capped.map((p) => p.email)));
+      const { data: sess } = await supabase.auth.getSession();
+      const jwt = sess.session?.access_token;
+      if (!jwt) { toast.error("sign in expired — reload"); setPicking(false); return; }
+      const resp = await supabase.functions.invoke<{ found: FoundRow[]; not_found: string[] }>("find-friends", {
+        body: { emails: uniqueEmails },
+      });
+      if (resp.error || !resp.data) { toast.error(resp.error?.message || "couldn't reach ONIQ"); setPicking(false); return; }
+      const foundEmails = new Set(resp.data.found.map((f) => f.email));
+      setFound(resp.data.found.filter((f) => f.profile.id !== meId));
+      const notOn = capped.filter((c) => !foundEmails.has(c.email));
+      // dedupe by email preserving contact name
+      const seen = new Set<string>();
+      const notOnDedup: PickedContact[] = [];
+      for (const c of notOn) { if (!seen.has(c.email)) { seen.add(c.email); notOnDedup.push(c); } }
+      setNotOnOniq(notOnDedup);
+      if (resp.data.found.length === 0 && notOnDedup.length === 0) toast("no contacts to match — try again");
+    } catch (e) {
+      // user cancelled or permission denied
+      if ((e as { name?: string })?.name !== "AbortError") {
+        toast("contact picker cancelled");
+      }
+    } finally {
+      setPicking(false);
+    }
+  };
+
+  const contactsSupported = typeof navigator !== "undefined" && "contacts" in navigator && typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select === "function";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -822,7 +912,89 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                 ))}
               </ul>
             )}
+
+            <button
+              type="button"
+              onClick={pickContacts}
+              disabled={picking}
+              className="mt-2 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
+            >
+              {picking ? "checking your contacts…" : "Find moots from contacts 📇"}
+            </button>
+            {!contactsSupported && (
+              <div className="mt-1 text-[11px] text-muted-foreground">tip: contact picker needs Chrome on Android — otherwise search by @username 🔍</div>
+            )}
+            {noEmailCount > 0 && (
+              <div className="mt-1 text-[11px] text-muted-foreground">{noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by email for now</div>
+            )}
           </section>
+
+          {found !== null && (
+            <>
+              <section>
+                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">on ONIQ ✨</div>
+                {found.length === 0 ? (
+                  <div className="py-3 text-sm text-muted-foreground">none of your contacts are on ONIQ yet — invite below 📩</div>
+                ) : (
+                  <ul className="space-y-1">
+                    {found.map((f) => {
+                      const fs = data?.statusMap.get(f.profile.id);
+                      return (
+                        <li key={f.profile.id} className="flex items-center gap-3 rounded-2xl p-2">
+                          <Avatar name={f.profile.display_name || f.profile.username || "?"} url={f.profile.avatar_url} size={40} />
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-medium">{f.profile.display_name}</div>
+                            <div className="truncate text-xs text-muted-foreground">@{f.profile.username}</div>
+                          </div>
+                          {fs === "accepted" ? (
+                            <button onClick={() => openChat(f.profile.id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">chat 💬</button>
+                          ) : fs === "pending-out" ? (
+                            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">pending ⏳</span>
+                          ) : fs === "pending-in" ? (
+                            <button disabled={busy === f.profile.id} onClick={() => respond(f.profile.id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50">accept ✅</button>
+                          ) : (
+                            <button
+                              onClick={() => addMoot(f.profile.id)}
+                              disabled={addingId === f.profile.id}
+                              className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
+                            >
+                              {addingId === f.profile.id ? "…" : "add moot ➕"}
+                            </button>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+
+              <section>
+                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">not on ONIQ yet</div>
+                {notOnOniq.length === 0 ? (
+                  <div className="py-3 text-sm text-muted-foreground">everyone you picked is already here 🎉</div>
+                ) : (
+                  <ul className="space-y-1">
+                    {notOnOniq.map((c) => (
+                      <li key={c.email} className="flex items-center gap-3 rounded-2xl p-2">
+                        <Avatar name={c.name} url={null} size={40} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium">{c.name}</div>
+                          <div className="truncate text-xs text-muted-foreground">{c.email}</div>
+                        </div>
+                        <button
+                          onClick={() => invite(c.name)}
+                          className="shrink-0 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold"
+                        >
+                          invite 📩
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </>
+          )}
+
           <section>
             <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">your moots</div>
             {(data?.friends ?? []).length === 0 ? (
@@ -843,10 +1015,14 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             )}
           </section>
         </div>
+        <div className="mt-3 border-t border-border/50 pt-2 text-center text-[10px] text-muted-foreground">
+          Contacts you pick are matched once and never stored 🔒
+        </div>
       </div>
     </div>
   );
 }
+
 
 
 
