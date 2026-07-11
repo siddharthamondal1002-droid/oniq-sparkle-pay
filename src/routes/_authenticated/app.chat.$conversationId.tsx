@@ -469,15 +469,23 @@ function ChatThread() {
     return signed.signedUrl;
   };
 
-  const insertMediaMessage = async (payload: { type: "image" | "voice"; media_url: string; duration_s?: number }) => {
+  const insertMediaMessage = async (payload: {
+    type: "image" | "voice" | "video" | "file";
+    media_url: string;
+    duration_s?: number;
+    file_name?: string;
+    file_size?: number;
+  }) => {
     if (!me) return;
     const { error } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       sender_id: me.id,
-      content: "",
+      content: payload.file_name && payload.type === "file" ? payload.file_name : "",
       type: payload.type,
       media_url: payload.media_url,
       duration_s: payload.duration_s ?? null,
+      file_name: payload.file_name ?? null,
+      file_size: payload.file_size ?? null,
     });
     if (error) { toast.error(error.message || "Couldn't send"); return; }
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
@@ -503,6 +511,60 @@ function ChatThread() {
       setUploading(false);
     }
   };
+
+  const handlePickVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!/^video\//.test(f.type)) return toast.error("videos only");
+    if (f.size > 100 * 1024 * 1024) return toast.error("keep it under 100MB");
+    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
+    const rawExt = (f.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const allowed = ["mp4", "mov", "webm", "mkv"];
+    const ext = allowed.includes(rawExt) ? rawExt : "mp4";
+    setUploading(true);
+    try {
+      const url = await uploadToChatMedia(f, ext);
+      await insertMediaMessage({ type: "video", media_url: url, file_name: f.name, file_size: f.size });
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlePickAnyFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (f.size > 50 * 1024 * 1024) return toast.error("keep it under 50MB");
+    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
+    const rawExt = (f.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const banned = ["exe", "apk", "bat", "sh", "cmd", "msi", "dll", "com", "scr", "ps1"];
+    if (!rawExt || banned.includes(rawExt)) {
+      return toast.error("that file type isn't allowed 🚫");
+    }
+    const allowed = [
+      "jpg","jpeg","png","webp","gif",
+      "webm","m4a","mp3","ogg","wav",
+      "mp4","mov","mkv",
+      "pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","json",
+      "zip","rar",
+    ];
+    if (!allowed.includes(rawExt)) return toast.error(`.${rawExt} isn't supported yet`);
+    setUploading(true);
+    try {
+      const url = await uploadToChatMedia(f, rawExt);
+      await insertMediaMessage({ type: "file", media_url: url, file_name: f.name, file_size: f.size });
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
 
   const startRecording = async () => {
     if (isBlocked) return toast("You've blocked this user — unblock to chat.");
