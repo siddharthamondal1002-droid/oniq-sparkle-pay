@@ -817,9 +817,12 @@ function ChatThread() {
                 `${members.length} subscriber${members.length === 1 ? "" : "s"}`
               ) : isGroup ? (
                 `${members.length} member${members.length === 1 ? "" : "s"}`
-              ) : (
-                "online"
-              )}
+              ) : peerOnline ? (
+                <span className="inline-flex items-center gap-1" data-testid="peer-online">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#25D366]" />
+                  <span className="text-[#25D366]">online</span>
+                </span>
+              ) : null}
             </div>
           </div>
         </button>
