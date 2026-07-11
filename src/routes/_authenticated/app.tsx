@@ -8,6 +8,8 @@ import { PolicyNoticeBanner } from "@/components/safety/PolicyNoticeBanner";
 import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher";
 import { MessageNotifier } from "@/components/chat/MessageNotifier";
 import { usePresenceTracker } from "@/hooks/usePresence";
+import { useEffect } from "react";
+import { initPush } from "@/lib/push";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -32,6 +34,7 @@ function AppShell() {
     queryFn: async () => (await supabase.auth.getUser()).data.user,
   });
   usePresenceTracker(me?.id ?? null);
+  useEffect(() => { if (me?.id) void initPush(); }, [me?.id]);
   const wallpaper = theme?.wallpaper_url ?? null;
 
   const normalized = pathname.length > 1 && pathname.endsWith("/")

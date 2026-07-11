@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { useIsOnline } from "@/hooks/usePresence";
+import { sendPush } from "@/lib/push";
 
 type Message = {
   id: string;
@@ -495,6 +496,7 @@ function ChatThread() {
       });
       supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
       markRead();
+      sendPush({ conversation_id: conversationId, kind: "message", preview: content.slice(0, 60) });
     }
     inputRef.current?.focus();
   };
@@ -535,6 +537,8 @@ function ChatThread() {
     if (error) { toast.error(error.message || "Couldn't send"); return; }
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
     markRead();
+    const previewMap = { image: "📷 Photo", voice: "🎙 Voice note", video: "🎥 Video", file: "📎 File" } as const;
+    sendPush({ conversation_id: conversationId, kind: "message", preview: previewMap[payload.type] });
   };
 
   const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
