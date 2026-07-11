@@ -130,6 +130,10 @@ export function MessageNotifier() {
           const body = bodyFor(m);
           if (!body) return;
           showNativeNotif(name, body, m.conversation_id);
+          try {
+            const { playPing } = await import("@/lib/callSounds");
+            playPing();
+          } catch {}
         },
       )
       .subscribe();
