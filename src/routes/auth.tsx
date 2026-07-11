@@ -144,11 +144,19 @@ function AuthPage() {
     }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOtp({ phone: normalized });
+      const { data, error } = await supabase.functions.invoke("send-otp", {
+        body: { phone: normalized },
+      });
       if (error) throw error;
+      const resp = (data ?? {}) as { success?: boolean; dev_mode?: boolean; otp?: string; error?: string };
+      if (resp.error) throw new Error(resp.error);
       setOtpSent(true);
       setResendIn(30);
-      toast.success("otp sent ✉️ check your messages");
+      if (resp.dev_mode && resp.otp) {
+        toast.success(`dev mode: ur otp is ${resp.otp} 🔧`, { duration: 15000 });
+      } else {
+        toast.success("otp sent ✉️ check your messages");
+      }
     } catch (err) {
       toast.error(friendlyAuthError(err));
     } finally {
@@ -168,22 +176,20 @@ function AuthPage() {
     if (!normalized) return;
     setLoading(true);
     try {
-      const { error } = await supabase.auth.verifyOtp({
-        phone: normalized,
-        token: code,
-        type: "sms",
+      const { data, error } = await supabase.functions.invoke("verify-otp", {
+        body: { phone: normalized, otp: code },
       });
-      if (error) {
-        const m = (error.message || "").toLowerCase();
-        if (m.includes("rate") || m.includes("too many")) {
-          toast.error("too many attempts 🚫 wait a bit");
-        } else if (m.includes("invalid") || m.includes("expired")) {
-          toast.error("invalid code — try again 🔄");
-        } else {
-          throw error;
-        }
+      if (error) throw error;
+      const resp = (data ?? {}) as { verified?: boolean; email?: string; token_hash?: string; error?: string };
+      if (!resp.verified || !resp.token_hash) {
+        toast.error(resp.error === "invalid or expired code" ? "invalid code — try again 🔄" : (resp.error || "verification failed"));
         return;
       }
+      const { error: vErr } = await supabase.auth.verifyOtp({
+        token_hash: resp.token_hash,
+        type: "magiclink",
+      });
+      if (vErr) throw vErr;
       navigate({ to: "/app" });
     } catch (err) {
       toast.error(friendlyAuthError(err));
