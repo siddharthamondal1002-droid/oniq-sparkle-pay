@@ -119,23 +119,71 @@ function ChatList() {
   });
 
 
+  // Realtime: patch the affected row in place instead of invalidating the
+  // whole list — invalidating caused the list to reshuffle/animate on every
+  // incoming message anywhere in the app (visible up/down jitter).
   useEffect(() => {
+    if (!me) return;
     const channel = supabase
       .channel("chat-list-live")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, () => {
-        qc.invalidateQueries({ queryKey: ["conversations"] });
-      })
-      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, () => {
-        qc.invalidateQueries({ queryKey: ["conversations"] });
-      })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "conversation_members" }, () => {
-        qc.invalidateQueries({ queryKey: ["conversations"] });
-      })
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "messages" },
+        (payload) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const m = payload.new as any;
+          if (!m?.conversation_id) return;
+          const isMine = m.sender_id === me.id;
+          const preview =
+            m.type === "image" ? "📷 Photo" :
+            m.type === "voice" ? "🎙 Voice note" :
+            m.type === "video" ? "🎥 Video" :
+            m.type === "file" ? `📎 ${m.content || "File"}` :
+            (m.content ?? null);
+          qc.setQueriesData<EnrichedConv[] | undefined>(
+            { queryKey: ["conversations"] },
+            (prev) => {
+              if (!prev) return prev;
+              const idx = prev.findIndex((c) => c.id === m.conversation_id);
+              if (idx === -1) return prev;
+              const row = prev[idx];
+              const openHere = typeof window !== "undefined" &&
+                window.location.pathname === `/app/chat/${m.conversation_id}`;
+              const patched: EnrichedConv = {
+                ...row,
+                last_message: preview,
+                last_sender_id: m.sender_id,
+                last_created_at: m.created_at,
+                updated_at: m.created_at,
+                unread: isMine || openHere ? row.unread : (row.unread ?? 0) + 1,
+              };
+              const rest = prev.filter((_, i) => i !== idx);
+              return [patched, ...rest];
+            },
+          );
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "conversation_members", filter: `user_id=eq.${me.id}` },
+        () => {
+          // Own last_read_at moved (e.g. read on another tab) — reconcile.
+          qc.invalidateQueries({ queryKey: ["conversations"] });
+        },
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
+  }, [qc, me]);
+
+  // Safety-net reconcile on window focus (covers any patch we missed).
+  useEffect(() => {
+    const onFocus = () => qc.invalidateQueries({ queryKey: ["conversations"] });
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
   }, [qc]);
+
 
   const filtered = useMemo(() => {
     if (!convs) return [];
