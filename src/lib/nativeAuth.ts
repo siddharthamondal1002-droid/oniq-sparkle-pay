@@ -6,12 +6,9 @@ import { supabase } from "@/integrations/supabase/client";
 const CALLBACK_SCHEME = "com.oniqhub.app://auth-callback";
 let listenerBound = false;
 
-function isNative(): boolean {
+async function isNative(): Promise<boolean> {
   try {
-    // dynamic guard — @capacitor/core is safe to import top-level in web too,
-    // but keep this defensive for SSR
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { Capacitor } = require("@capacitor/core");
+    const { Capacitor } = await import("@capacitor/core");
     return typeof Capacitor?.isNativePlatform === "function" && Capacitor.isNativePlatform();
   } catch {
     return false;
