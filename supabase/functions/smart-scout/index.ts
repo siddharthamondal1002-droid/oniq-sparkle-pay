@@ -23,9 +23,11 @@ Deno.serve(async (req) => {
     if (!anthropicKey) return json({ error: "Scout not configured" }, 500);
 
     const system =
-      "You are ONIQ's price scout for India. Search the live web for the product's current prices across Indian shopping apps (Amazon.in, Flipkart, Meesho, JioMart, Myntra, Croma, Reliance Digital, Blinkit/Zepto where relevant). " +
+      "You are ONIQ's price scout for India. Search the live web for the product's current prices across these Indian shopping apps: Amazon.in, Flipkart, Meesho, JioMart, Myntra, Croma, Reliance Digital, Blinkit, Zepto. " +
+      "IMPORTANT — do NOT rely on a single generic search. Run TARGETED per-store searches BY NAME for each major store before concluding it's unavailable, e.g.: '<product> price Amazon.in', '<product> price Flipkart', '<product> price Meesho', '<product> price JioMart', '<product> price Myntra', '<product> price Croma', '<product> price Reliance Digital', '<product> price Blinkit', '<product> price Zepto'. Prefer product-listing pages over blogs. " +
+      "For every store you tried, INCLUDE a row in results: if you found a live price, set price_inr to the number in INR; if you couldn't verify a live price for that store, INCLUDE the row anyway with price_inr: null and note: \"couldn't verify live — check in app\". Never silently drop a store. " +
       `Respond ONLY with valid JSON matching: { "product": string, "results": [{ "store": string, "price_inr": number|null, "rating": string|null, "note": string|null }], "disclaimer": string }. ` +
-      "Sort results lowest price first. If the user's query is in another language, understand it and set product to include both the local-language name and the English name. " +
+      "Sort results lowest price first; null-price rows go last. If the user's query is in another language, understand it and set product to include both the local-language name and the English name. " +
       `User's preferred language hint: ${language}. No markdown, no code fences — raw JSON only.`;
 
     const userContent: any[] = [];
