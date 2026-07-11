@@ -794,30 +794,29 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   };
 
   // ── Contacts discovery ──
-  type FoundRow = { email: string; profile: { id: string; username: string | null; display_name: string | null; avatar_url: string | null } };
+  type OnOniqRow = { user_id: string; username: string | null; display_name: string | null; avatar_url: string | null; email: string };
   type PickedContact = { name: string; email: string };
   const [picking, setPicking] = useState(false);
-  const [found, setFound] = useState<FoundRow[] | null>(null);
+  const [onOniq, setOnOniq] = useState<OnOniqRow[] | null>(null);
   const [notOnOniq, setNotOnOniq] = useState<PickedContact[]>([]);
   const [noEmailCount, setNoEmailCount] = useState(0);
   const [addingId, setAddingId] = useState<string | null>(null);
 
-  const inviteMessage = "join me on ONIQ — one app, every world 🌍";
+  const inviteMessage = "pull up to ONIQ — one app, every world 🌍";
   const inviteUrl = "https://oniqhub.com";
 
-  const invite = async (name: string) => {
+  const invite = async () => {
     try {
       if (typeof navigator !== "undefined" && "share" in navigator) {
         await (navigator as Navigator).share({ title: "ONIQ", text: inviteMessage, url: inviteUrl });
         return;
       }
     } catch {
-      // user cancelled — fall through
       return;
     }
     try {
       await (navigator as Navigator).clipboard.writeText(`${inviteMessage} ${inviteUrl}`);
-      toast.success(`invite link copied for ${name} ✨`);
+      toast.success("link copied — go spam them 📋");
     } catch {
       toast.error("couldn't copy invite");
     }
@@ -836,7 +835,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   const pickContacts = async () => {
     const nav = typeof navigator !== "undefined" ? (navigator as unknown as { contacts?: { select: (props: string[], opts: { multiple: boolean }) => Promise<Array<{ name?: string[]; email?: string[] }>> } }) : null;
     if (!nav?.contacts || typeof nav.contacts.select !== "function") {
-      toast("contact picker needs Chrome on Android — search by @username instead 🔍");
+      toast("ur browser can't do contacts 😔 — search by @username instead");
       return;
     }
     setPicking(true);
@@ -851,26 +850,26 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
         for (const e of emails) picked.push({ name, email: e });
       }
       setNoEmailCount(skipped);
-      const capped = picked.slice(0, 50);
+      const capped = picked.slice(0, 100);
       const uniqueEmails = Array.from(new Set(capped.map((p) => p.email)));
-      const { data: sess } = await supabase.auth.getSession();
-      const jwt = sess.session?.access_token;
-      if (!jwt) { toast.error("sign in expired — reload"); setPicking(false); return; }
-      const resp = await supabase.functions.invoke<{ found: FoundRow[]; not_found: string[] }>("find-friends", {
+      const resp = await supabase.functions.invoke<{ on_oniq: OnOniqRow[]; not_on_oniq: string[] }>("match-contacts", {
         body: { emails: uniqueEmails },
       });
       if (resp.error || !resp.data) { toast.error(resp.error?.message || "couldn't reach ONIQ"); setPicking(false); return; }
-      const foundEmails = new Set(resp.data.found.map((f) => f.email));
-      setFound(resp.data.found.filter((f) => f.profile.id !== meId));
-      const notOn = capped.filter((c) => !foundEmails.has(c.email));
-      // dedupe by email preserving contact name
+      const onEmails = new Set(resp.data.on_oniq.map((f) => f.email));
+      setOnOniq(resp.data.on_oniq);
+      // dedupe not-on-oniq by email, keep the contact name for display
       const seen = new Set<string>();
       const notOnDedup: PickedContact[] = [];
-      for (const c of notOn) { if (!seen.has(c.email)) { seen.add(c.email); notOnDedup.push(c); } }
+      for (const c of capped) {
+        if (onEmails.has(c.email)) continue;
+        if (seen.has(c.email)) continue;
+        seen.add(c.email);
+        notOnDedup.push(c);
+      }
       setNotOnOniq(notOnDedup);
-      if (resp.data.found.length === 0 && notOnDedup.length === 0) toast("no contacts to match — try again");
+      if (resp.data.on_oniq.length === 0 && notOnDedup.length === 0) toast("nothing to match — try picking again");
     } catch (e) {
-      // user cancelled or permission denied
       if ((e as { name?: string })?.name !== "AbortError") {
         toast("contact picker cancelled");
       }
@@ -880,6 +879,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   };
 
   const contactsSupported = typeof navigator !== "undefined" && "contacts" in navigator && typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select === "function";
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
@@ -919,46 +919,46 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
               disabled={picking}
               className="mt-2 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
             >
-              {picking ? "checking your contacts…" : "Find moots from contacts 📇"}
+              {picking ? "checking your contacts…" : "find ur ppl 📇"}
             </button>
             {!contactsSupported && (
-              <div className="mt-1 text-[11px] text-muted-foreground">tip: contact picker needs Chrome on Android — otherwise search by @username 🔍</div>
+              <div className="mt-1 text-[11px] text-muted-foreground">tip: ur browser can't do contacts 😔 — search by @username instead</div>
             )}
             {noEmailCount > 0 && (
               <div className="mt-1 text-[11px] text-muted-foreground">{noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by email for now</div>
             )}
           </section>
 
-          {found !== null && (
+          {onOniq !== null && (
             <>
               <section>
-                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">on ONIQ ✨</div>
-                {found.length === 0 ? (
-                  <div className="py-3 text-sm text-muted-foreground">none of your contacts are on ONIQ yet — invite below 📩</div>
+                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">already here 😎</div>
+                {onOniq.length === 0 ? (
+                  <div className="py-3 text-sm text-muted-foreground">none of ur ppl are on ONIQ yet — drag them in below 📤</div>
                 ) : (
                   <ul className="space-y-1">
-                    {found.map((f) => {
-                      const fs = data?.statusMap.get(f.profile.id);
+                    {onOniq.map((f) => {
+                      const fs = data?.statusMap.get(f.user_id);
                       return (
-                        <li key={f.profile.id} className="flex items-center gap-3 rounded-2xl p-2">
-                          <Avatar name={f.profile.display_name || f.profile.username || "?"} url={f.profile.avatar_url} size={40} />
+                        <li key={f.user_id} className="flex items-center gap-3 rounded-2xl p-2">
+                          <Avatar name={f.display_name || f.username || "?"} url={f.avatar_url} size={40} />
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-medium">{f.profile.display_name}</div>
-                            <div className="truncate text-xs text-muted-foreground">@{f.profile.username}</div>
+                            <div className="truncate text-sm font-medium">{f.display_name}</div>
+                            <div className="truncate text-xs text-muted-foreground">@{f.username}</div>
                           </div>
                           {fs === "accepted" ? (
-                            <button onClick={() => openChat(f.profile.id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">chat 💬</button>
+                            <button onClick={() => openChat(f.user_id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">moots ✓</button>
                           ) : fs === "pending-out" ? (
-                            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">pending ⏳</span>
+                            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">pending fr ⏳</span>
                           ) : fs === "pending-in" ? (
-                            <button disabled={busy === f.profile.id} onClick={() => respond(f.profile.id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50">accept ✅</button>
+                            <button disabled={busy === f.user_id} onClick={() => respond(f.user_id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50">accept ✅</button>
                           ) : (
                             <button
-                              onClick={() => addMoot(f.profile.id)}
-                              disabled={addingId === f.profile.id}
+                              onClick={() => addMoot(f.user_id)}
+                              disabled={addingId === f.user_id}
                               className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
                             >
-                              {addingId === f.profile.id ? "…" : "add moot ➕"}
+                              {addingId === f.user_id ? "…" : "add moot ➕"}
                             </button>
                           )}
                         </li>
@@ -969,9 +969,9 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
               </section>
 
               <section>
-                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">not on ONIQ yet</div>
+                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">drag them in 📤</div>
                 {notOnOniq.length === 0 ? (
-                  <div className="py-3 text-sm text-muted-foreground">everyone you picked is already here 🎉</div>
+                  <div className="py-3 text-sm text-muted-foreground">everyone u picked is already here 🎉</div>
                 ) : (
                   <ul className="space-y-1">
                     {notOnOniq.map((c) => (
@@ -982,10 +982,10 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                           <div className="truncate text-xs text-muted-foreground">{c.email}</div>
                         </div>
                         <button
-                          onClick={() => invite(c.name)}
+                          onClick={() => invite()}
                           className="shrink-0 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold"
                         >
-                          invite 📩
+                          invite 📤
                         </button>
                       </li>
                     ))}
@@ -993,6 +993,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                 )}
               </section>
             </>
+
           )}
 
           <section>
