@@ -50,6 +50,7 @@ function HomeScreen() {
 
   const { data: theme } = useUserTheme();
   const skins = theme?.tile_skins ?? {};
+  const [hidden] = useHiddenTiles();
   const installPrompt = useInstallPrompt();
 
 
