@@ -42,6 +42,7 @@ import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[
 import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedAppFoodIndexRouteImport } from './routes/_authenticated/app.food.index'
 import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
+import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as AuthenticatedAppFoodIdRouteImport } from './routes/_authenticated/app.food.$id'
 import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
 
@@ -216,6 +217,12 @@ const AuthenticatedAppChatIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedAppChatRoute,
   } as any)
+const LovableEmailQueueProcessRoute =
+  LovableEmailQueueProcessRouteImport.update({
+    id: '/lovable/email/queue/process',
+    path: '/lovable/email/queue/process',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AuthenticatedAppFoodIdRoute = AuthenticatedAppFoodIdRouteImport.update({
   id: '/food/$id',
   path: '/food/$id',
@@ -261,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat/': typeof AuthenticatedAppChatIndexRoute
   '/app/food/': typeof AuthenticatedAppFoodIndexRoute
 }
@@ -295,6 +303,7 @@ export interface FileRoutesByTo {
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat': typeof AuthenticatedAppChatIndexRoute
   '/app/food': typeof AuthenticatedAppFoodIndexRoute
 }
@@ -333,6 +342,7 @@ export interface FileRoutesById {
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/_authenticated/app/food/$id': typeof AuthenticatedAppFoodIdRoute
+  '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/_authenticated/app/chat/': typeof AuthenticatedAppChatIndexRoute
   '/_authenticated/app/food/': typeof AuthenticatedAppFoodIndexRoute
 }
@@ -371,6 +381,7 @@ export interface FileRouteTypes {
     | '/app/'
     | '/app/chat/$conversationId'
     | '/app/food/$id'
+    | '/lovable/email/queue/process'
     | '/app/chat/'
     | '/app/food/'
   fileRoutesByTo: FileRoutesByTo
@@ -405,6 +416,7 @@ export interface FileRouteTypes {
     | '/app'
     | '/app/chat/$conversationId'
     | '/app/food/$id'
+    | '/lovable/email/queue/process'
     | '/app/chat'
     | '/app/food'
   id:
@@ -442,6 +454,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/'
     | '/_authenticated/app/chat/$conversationId'
     | '/_authenticated/app/food/$id'
+    | '/lovable/email/queue/process'
     | '/_authenticated/app/chat/'
     | '/_authenticated/app/food/'
   fileRoutesById: FileRoutesById
@@ -460,6 +473,7 @@ export interface RootRouteChildren {
   BlogWhatIsASuperAppRoute: typeof BlogWhatIsASuperAppRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
+  LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -695,6 +709,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppChatIndexRouteImport
       parentRoute: typeof AuthenticatedAppChatRoute
     }
+    '/lovable/email/queue/process': {
+      id: '/lovable/email/queue/process'
+      path: '/lovable/email/queue/process'
+      fullPath: '/lovable/email/queue/process'
+      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/food/$id': {
       id: '/_authenticated/app/food/$id'
       path: '/food/$id'
@@ -799,6 +820,7 @@ const rootRouteChildren: RootRouteChildren = {
   BlogWhatIsASuperAppRoute: BlogWhatIsASuperAppRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
+  LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
