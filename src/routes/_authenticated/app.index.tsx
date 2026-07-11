@@ -335,6 +335,15 @@ function HeroTile({
     ? (isLiveGenre ? current.channelName : current.title)
     : "";
 
+  // Persist last watched channel + genre for next home load
+  useEffect(() => {
+    if (!livePreview || showSkin) return;
+    try {
+      if (videoId) localStorage.setItem("oniq.watch.last", videoId);
+      if (activeGenre?.id) localStorage.setItem("oniq.watch.lastGenre", activeGenre.id);
+    } catch { /* noop */ }
+  }, [videoId, activeGenre?.id, livePreview, showSkin]);
+
   // 120s auto-tour cap (per video), also honored across uploads (natural ENDED advance handles it too)
   const vLen = videos.length;
   useEffect(() => {
