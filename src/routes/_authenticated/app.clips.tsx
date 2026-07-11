@@ -547,7 +547,9 @@ function UploadSheet({
         video_url: signed.signedUrl,
         caption: cleaned.length ? cleaned : null,
         hashtags: tags,
+        visibility,
       });
+
       if (insErr) throw insErr;
 
       toast.success("Clip posted 🎬 it's giving content creator");
