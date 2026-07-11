@@ -2,6 +2,23 @@
 // Web builds are unaffected: dynamic import + isNativePlatform guard.
 import { supabase } from "@/integrations/supabase/client";
 
+export type PushKind = "message" | "call";
+
+export function sendPush(payload: {
+  conversation_id: string;
+  kind: PushKind;
+  preview?: string;
+  call_type?: string;
+}) {
+  // Fire-and-forget — never block UI, never throw.
+  try {
+    void supabase.functions.invoke("send-push", { body: payload }).catch(() => {});
+  } catch {
+    // ignore
+  }
+}
+
+
 let initialized = false;
 
 export async function initPush() {

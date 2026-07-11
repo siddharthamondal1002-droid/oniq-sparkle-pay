@@ -8,6 +8,8 @@ import { PolicyNoticeBanner } from "@/components/safety/PolicyNoticeBanner";
 import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher";
 import { MessageNotifier } from "@/components/chat/MessageNotifier";
 import { usePresenceTracker } from "@/hooks/usePresence";
+import { useEffect } from "react";
+import { initPush } from "@/lib/push";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
