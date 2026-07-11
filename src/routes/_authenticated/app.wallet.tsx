@@ -1,7 +1,47 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Coins, Send, QrCode } from "lucide-react";
+import { ArrowLeft, ArrowDownLeft, ArrowUpRight, Coins, Send, QrCode, ExternalLink } from "lucide-react";
+import { launchMiniApp } from "@/lib/miniapps";
+
+type Partner = { id: string; name: string; url: string; color: string; letter: string; androidPackage?: string };
+
+const CRYPTO_PARTNERS: Partner[] = [
+  { id: "coindcx", name: "CoinDCX", url: "https://coindcx.com", color: "#3067F0", letter: "C", androidPackage: "com.coindcx.btc" },
+  { id: "coinswitch", name: "CoinSwitch", url: "https://coinswitch.co", color: "#0B57D0", letter: "C", androidPackage: "com.coinswitch.kuber" },
+  { id: "binance", name: "Binance", url: "https://www.binance.com", color: "#F0B90B", letter: "B", androidPackage: "com.binance.dev" },
+  { id: "mudrex", name: "Mudrex", url: "https://mudrex.com", color: "#7C3AED", letter: "M", androidPackage: "com.mudrex.wallet" },
+];
+
+const STONKS_PARTNERS: Partner[] = [
+  { id: "groww", name: "Groww", url: "https://groww.in", color: "#00B386", letter: "G", androidPackage: "com.nextbillion.groww" },
+  { id: "kite", name: "Zerodha Kite", url: "https://kite.zerodha.com", color: "#387ED1", letter: "K", androidPackage: "com.zerodha.kite3" },
+  { id: "upstox", name: "Upstox", url: "https://upstox.com", color: "#672AC8", letter: "U", androidPackage: "in.upstox.app" },
+  { id: "angelone", name: "Angel One", url: "https://www.angelone.in", color: "#E7222F", letter: "A", androidPackage: "com.msf.angelmobile" },
+  { id: "indmoney", name: "INDmoney", url: "https://www.indmoney.com", color: "#1E2A6E", letter: "I", androidPackage: "in.indwealth" },
+  { id: "paytmmoney", name: "Paytm Money", url: "https://www.paytmmoney.com", color: "#00BAF2", letter: "P", androidPackage: "com.paytmmoney" },
+];
+
+function PartnerRow({ p }: { p: Partner }) {
+  return (
+    <button
+      onClick={() => launchMiniApp({ name: p.name, url: p.url, androidPackage: p.androidPackage })}
+      className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40"
+    >
+      <div
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-bold text-white"
+        style={{ backgroundColor: p.color }}
+      >
+        {p.letter}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold">{p.name}</div>
+        <div className="text-[11px] text-muted-foreground">opens with ur own account</div>
+      </div>
+      <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
+    </button>
+  );
+}
 
 export const Route = createFileRoute("/_authenticated/app/wallet")({
   component: WalletScreen,
@@ -81,6 +121,23 @@ function WalletScreen() {
           Withdraw to any Polygon address. Your keys, your coins.
         </li>
       </ul>
+
+      <section className="mt-8">
+        <h2 className="px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">crypto corner 🪙</h2>
+        <p className="mt-1 px-1 text-[11px] text-muted-foreground/80">opens with ur own account · ONIQ never sees their logins</p>
+        <div className="mt-3 space-y-2">
+          {CRYPTO_PARTNERS.map((p) => <PartnerRow key={p.id} p={p} />)}
+        </div>
+        <p className="mt-2 px-1 text-[11px] text-muted-foreground/70">invest at ur own risk — crypto is volatile fr</p>
+      </section>
+
+      <section className="mt-6">
+        <h2 className="px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">stonks 📈</h2>
+        <p className="mt-1 px-1 text-[11px] text-muted-foreground/80">opens with ur own account · ONIQ never sees their logins</p>
+        <div className="mt-3 space-y-2">
+          {STONKS_PARTNERS.map((p) => <PartnerRow key={p.id} p={p} />)}
+        </div>
+      </section>
     </div>
   );
 }

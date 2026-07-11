@@ -6,7 +6,7 @@ export const Route = createFileRoute("/_authenticated/app/miniapps")({
   component: MiniAppsScreen,
 });
 
-const CATEGORY_ORDER: MiniApp["category"][] = ["rides", "quickcommerce", "food", "payments", "social", "shopping"];
+const CATEGORY_ORDER: MiniApp["category"][] = ["rides", "quickcommerce", "services", "food", "payments", "social", "shopping"];
 
 function MiniAppsScreen() {
   return (
