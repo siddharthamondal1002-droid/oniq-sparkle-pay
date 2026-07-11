@@ -709,6 +709,8 @@ export type Database = {
           conversation_id: string
           created_at: string | null
           duration_s: number | null
+          file_name: string | null
+          file_size: number | null
           id: string
           is_ai: boolean
           is_deleted: boolean | null
@@ -723,6 +725,8 @@ export type Database = {
           conversation_id: string
           created_at?: string | null
           duration_s?: number | null
+          file_name?: string | null
+          file_size?: number | null
           id?: string
           is_ai?: boolean
           is_deleted?: boolean | null
@@ -737,6 +741,8 @@ export type Database = {
           conversation_id?: string
           created_at?: string | null
           duration_s?: number | null
+          file_name?: string | null
+          file_size?: number | null
           id?: string
           is_ai?: boolean
           is_deleted?: boolean | null
