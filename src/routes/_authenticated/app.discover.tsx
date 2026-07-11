@@ -99,7 +99,8 @@ function DiscoverScreen() {
     const media = imageUrl.trim() ? [imageUrl.trim()] : [];
     const { error } = await supabase
       .from("moments_posts")
-      .insert({ user_id: u.user.id, content: content.trim(), media_urls: media, visibility: "public" });
+      .insert({ user_id: u.user.id, content: content.trim(), media_urls: media, visibility });
+
     if (error) toast.error(error.message);
     else {
       toast.success("Posted to Moments");
