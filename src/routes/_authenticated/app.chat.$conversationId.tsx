@@ -387,10 +387,21 @@ function ChatThread() {
     }, 3000);
   };
 
-  // Mark read on open + when message list changes.
+  // Mark read on open + when message list changes; also zero the unread
+  // count in the chat-list cache so the badge dies the moment I open.
   useEffect(() => {
     markRead();
+    zeroUnreadInCache();
   }, [conversationId, messages.length]);
+
+  // On leaving the thread, invalidate the chat list so it re-fetches with
+  // the persisted last_read_at → any post-mount changes reconcile.
+  useEffect(() => {
+    return () => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    };
+  }, [qc]);
+
 
   // Autoscroll on new messages.
   useEffect(() => {
