@@ -360,7 +360,7 @@ function TingScreen() {
               </div>
             )}
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border bg-input/40 pl-2 pr-1">
+          <div className="flex items-center gap-1 rounded-full border border-border bg-input/40 pl-2 pr-1">
             <input
               ref={fileRef}
               type="file"
@@ -368,6 +368,15 @@ function TingScreen() {
               hidden
               onChange={handlePickAttachment}
               data-testid="ting-file-input"
+            />
+            <input
+              ref={cameraRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              hidden
+              onChange={handlePickAttachment}
+              data-testid="ting-camera-input"
             />
             <button
               type="button"
@@ -379,14 +388,35 @@ function TingScreen() {
             >
               <Paperclip className="h-4 w-4" />
             </button>
+            <button
+              type="button"
+              onClick={() => cameraRef.current?.click()}
+              disabled={loading}
+              data-testid="ting-camera"
+              aria-label="Camera"
+              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
+            >
+              <Camera className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={toggleDictation}
+              disabled={loading}
+              data-testid="ting-mic"
+              aria-label={listening ? "Stop dictation" : "Dictate"}
+              className={`grid h-9 w-9 place-items-center rounded-full disabled:opacity-40 ${listening ? "bg-red-500/20 text-red-500 animate-pulse" : "hover:bg-muted"}`}
+            >
+              <Mic className="h-4 w-4" />
+            </button>
             <input
               data-testid="ting-input"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Message Ting…"
+              placeholder={listening ? "listening… tap 🎤 to stop" : "Message Ting…"}
               disabled={loading}
               className="flex-1 bg-transparent py-3 text-sm placeholder:text-muted-foreground focus:outline-none"
             />
+
             <button
               data-testid="ting-send"
               type="submit"
