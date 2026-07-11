@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Send, Globe, ExternalLink, Paperclip, X } from "lucide-react";
+import { ArrowLeft, Send, Globe, ExternalLink, Paperclip, X, Camera, Mic } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
