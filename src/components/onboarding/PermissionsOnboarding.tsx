@@ -53,14 +53,28 @@ export function PermissionsOnboarding() {
     setBusy("notif");
     try {
       if (Capacitor.isNativePlatform()) {
-        await initPush();
-        setNotif("granted");
-        toast.success("notifications on 🔔");
+        try {
+          await initPush();
+          setNotif("granted");
+          toast.success("notifications on 🔔");
+        } catch (e: unknown) {
+          const name = (e as { name?: string; message?: string })?.name || "Error";
+          const msg = (e as { message?: string })?.message || "couldn't turn on";
+          toast.error(`${name}: ${msg}`);
+        }
       } else if (typeof window !== "undefined" && "Notification" in window) {
-        const p = await Notification.requestPermission();
-        setNotif(p as PermState);
-        if (p === "granted") toast.success("notifications on 🔔");
-        else toast("no worries — you can turn it on later");
+        if (Notification.permission === "denied") {
+          setNotif("denied");
+          toast("blocked by ur browser — allow in site settings 🔧");
+        } else {
+          const p = await Notification.requestPermission();
+          setNotif(p as PermState);
+          if (p === "granted") toast.success("notifications on 🔔");
+          else if (p === "denied") toast("blocked by ur browser — allow in site settings 🔧");
+          else toast("no worries — you can turn it on later");
+        }
+      } else {
+        toast("notifications not supported on this device");
       }
     } catch {
       toast.error("couldn't turn on notifications");
