@@ -11,7 +11,7 @@ export async function initPush() {
     if (!Capacitor.isNativePlatform()) return;
     initialized = true;
 
-    const { PushNotifications } = await import("@capacitor/push-notifications");
+    const { PushNotifications } = await import("@capacitor/push-notifications" as string);
 
     const perm = await PushNotifications.checkPermissions();
     let granted = perm.receive === "granted";
