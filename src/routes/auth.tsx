@@ -178,19 +178,30 @@ function AuthPage() {
       }
 
       if (isNative && provider === "google") {
+        // Route native OAuth through the SAME Lovable broker the web flow uses
+        // (@lovable.dev/cloud-auth-js v1.1.2). Supabase's native `google`
+        // provider is empty (no OAuth client configured) — it returns
+        // "Unsupported provider: missing OAuth secret". The broker
+        // (/~oauth/initiate) holds Lovable's managed Google client and
+        // redirects back to redirect_uri with access_token + refresh_token in
+        // the URL hash. We open the broker URL in a Chrome Custom Tab and
+        // catch the return via App Links → appUrlOpen.
         const { initNativeAuth } = await import("@/lib/nativeAuth");
         await initNativeAuth();
-        const { data, error } = await supabase.auth.signInWithOAuth({
+        const state = crypto.getRandomValues(new Uint8Array(16))
+          .reduce((s, b) => s + b.toString(16).padStart(2, "0"), "");
+        try { sessionStorage.setItem("oniq_oauth_state", state); } catch { /* ignore */ }
+        const brokerOrigin = "https://oniqhub.com";
+        const redirectUri = "https://oniqhub.com/auth-native-callback";
+        const params = new URLSearchParams({
           provider: "google",
-          options: {
-            redirectTo: "https://oniqhub.com/auth-native-callback",
-            skipBrowserRedirect: true,
-          },
+          redirect_uri: redirectUri,
+          state,
         });
-        if (error) throw error;
-        if (!data?.url) throw new Error("No auth URL returned");
+        const brokerUrl = `${brokerOrigin}/~oauth/initiate?${params.toString()}`;
+        console.info("[native-oauth] broker url", brokerUrl.replace(state, "<state>"));
         const { Browser } = await import("@capacitor/browser");
-        await Browser.open({ url: data.url, presentationStyle: "popover" });
+        await Browser.open({ url: brokerUrl, presentationStyle: "popover" });
         return;
       }
 
