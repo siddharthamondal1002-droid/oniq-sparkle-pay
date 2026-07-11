@@ -816,7 +816,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
       return;
     }
     try {
-      await navigator.clipboard.writeText(`${inviteMessage} ${inviteUrl}`);
+      await (navigator as Navigator).clipboard.writeText(`${inviteMessage} ${inviteUrl}`);
       toast.success(`invite link copied for ${name} ✨`);
     } catch {
       toast.error("couldn't copy invite");
