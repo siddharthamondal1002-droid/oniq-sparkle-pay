@@ -479,7 +479,12 @@ function UploadSheet({
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
+  const [visibility, setVisibility] = useState<"public" | "moots">(() => {
+    if (typeof sessionStorage === "undefined") return "public";
+    return (sessionStorage.getItem("oniq_post_visibility") as "public" | "moots") ?? "public";
+  });
   const inputRef = useRef<HTMLInputElement | null>(null);
+
 
   const pick = useCallback(async (f: File | null) => {
     if (!f) return;
