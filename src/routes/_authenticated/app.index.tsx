@@ -24,6 +24,7 @@ import {
 import { CompactLiveNews, loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
 import {
   CustomizeButton,
+  useHiddenTiles,
   useUserTheme,
   type TileKey,
 } from "@/components/customize/CustomizeSheet";
