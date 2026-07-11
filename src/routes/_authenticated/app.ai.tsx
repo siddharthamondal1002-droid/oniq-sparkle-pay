@@ -53,6 +53,64 @@ function TingScreen() {
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+  const cameraRef = useRef<HTMLInputElement | null>(null);
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<{ stop: () => void; abort?: () => void } | null>(null);
+
+  useEffect(() => () => { recognitionRef.current?.stop?.(); }, []);
+
+  function toggleDictation() {
+    if (listening) {
+      recognitionRef.current?.stop?.();
+      return;
+    }
+    const w = window as unknown as { SpeechRecognition?: unknown; webkitSpeechRecognition?: unknown };
+    const Ctor = (w.SpeechRecognition ?? w.webkitSpeechRecognition) as (new () => {
+      lang: string;
+      continuous: boolean;
+      interimResults: boolean;
+      onresult: (e: { resultIndex: number; results: { isFinal: boolean; 0: { transcript: string } }[] }) => void;
+      onerror: (e: { error?: string }) => void;
+      onend: () => void;
+      start: () => void;
+      stop: () => void;
+    }) | undefined;
+    if (!Ctor) {
+      toast("ur browser can't do voice yet 😔 — try Chrome");
+      return;
+    }
+    try {
+      const rec = new Ctor();
+      const navLang = typeof navigator !== "undefined" ? (navigator.language || "en-IN") : "en-IN";
+      rec.lang = navLang;
+      rec.continuous = true;
+      rec.interimResults = true;
+      const baseline = input;
+      rec.onresult = (e) => {
+        let finalTxt = "";
+        let interim = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) finalTxt += r[0].transcript;
+          else interim += r[0].transcript;
+        }
+        const combined = [baseline, finalTxt, interim].filter(Boolean).join(" ").replace(/\s+/g, " ").trimStart();
+        setInput(combined);
+      };
+      rec.onerror = (e) => {
+        if (e.error && e.error !== "aborted" && e.error !== "no-speech") toast.error(`mic error: ${e.error}`);
+      };
+      rec.onend = () => {
+        setListening(false);
+        recognitionRef.current = null;
+      };
+      recognitionRef.current = rec;
+      rec.start();
+      setListening(true);
+    } catch {
+      toast.error("couldn't start the mic");
+    }
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
