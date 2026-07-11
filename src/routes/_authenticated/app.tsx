@@ -27,6 +27,11 @@ const TOP_LEVEL = new Set(["/app", "/app/discover", "/app/profile"]);
 function AppShell() {
   const { pathname } = useLocation();
   const { data: theme } = useUserTheme();
+  const { data: me } = useQuery({
+    queryKey: ["me"],
+    queryFn: async () => (await supabase.auth.getUser()).data.user,
+  });
+  usePresenceTracker(me?.id ?? null);
   const wallpaper = theme?.wallpaper_url ?? null;
 
   const normalized = pathname.length > 1 && pathname.endsWith("/")
