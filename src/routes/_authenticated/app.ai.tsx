@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
-import { ArrowLeft, Send, Sparkles, Globe, ExternalLink } from "lucide-react";
+import { ArrowLeft, Send, Globe, ExternalLink, Paperclip, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -8,7 +8,22 @@ export const Route = createFileRoute("/_authenticated/app/ai")({
   component: TingScreen,
 });
 
-type Msg = { role: "user" | "assistant"; content: string; sources?: string[] };
+type Attachment = {
+  kind: "image" | "pdf" | "text";
+  mime: string;
+  name: string;
+  size: number;
+  data?: string; // base64 (image / pdf)
+  text?: string; // text content
+  previewUrl?: string; // for image thumb
+};
+
+type Msg = {
+  role: "user" | "assistant";
+  content: string;
+  sources?: string[];
+  attachment?: { kind: Attachment["kind"]; name: string; previewUrl?: string };
+};
 
 const SUGGESTIONS = [
   "What's happening in Kolkata today?",
@@ -16,35 +31,108 @@ const SUGGESTIONS = [
   "Draft a message to my landlord",
 ];
 
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error);
+    reader.onload = () => {
+      const s = String(reader.result || "");
+      const idx = s.indexOf(",");
+      resolve(idx >= 0 ? s.slice(idx + 1) : s);
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function TingScreen() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [webSearch, setWebSearch] = useState(true);
   const [notConfigured, setNotConfigured] = useState(false);
+  const [attachment, setAttachment] = useState<Attachment | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
 
+  async function handlePickAttachment(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    const mime = f.type || "";
+    if (mime.startsWith("video/")) {
+      toast.error("Ting can read images, PDFs and text — videos aren't readable yet 🎥🚫");
+      return;
+    }
+    try {
+      if (mime.startsWith("image/")) {
+        if (!/^image\/(jpeg|png|webp|gif)$/.test(mime)) {
+          toast.error("images: jpg, png, webp or gif");
+          return;
+        }
+        if (f.size > 5 * 1024 * 1024) return toast.error("images must be under 5MB");
+        const data = await fileToBase64(f);
+        setAttachment({
+          kind: "image",
+          mime,
+          name: f.name,
+          size: f.size,
+          data,
+          previewUrl: URL.createObjectURL(f),
+        });
+      } else if (mime === "application/pdf" || /\.pdf$/i.test(f.name)) {
+        if (f.size > 10 * 1024 * 1024) return toast.error("PDFs must be under 10MB");
+        const data = await fileToBase64(f);
+        setAttachment({ kind: "pdf", mime: "application/pdf", name: f.name, size: f.size, data });
+      } else if (mime.startsWith("text/") || /\.(txt|md|csv|json)$/i.test(f.name)) {
+        if (f.size > 1 * 1024 * 1024) return toast.error("text files must be under 1MB");
+        const text = await f.text();
+        setAttachment({ kind: "text", mime: mime || "text/plain", name: f.name, size: f.size, text });
+      } else {
+        toast.error("Ting can read images, PDFs and text — that file type isn't supported");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("couldn't read that file");
+    }
+  }
+
+  function removeAttachment() {
+    if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    setAttachment(null);
+  }
+
   async function ask(text: string) {
     if (notConfigured) return;
-    const userMsg: Msg = { role: "user", content: text };
+    const att = attachment;
+    const userMsg: Msg = {
+      role: "user",
+      content: text,
+      attachment: att ? { kind: att.kind, name: att.name, previewUrl: att.previewUrl } : undefined,
+    };
     const next = [...messages, userMsg];
     setMessages(next);
     setInput("");
+    setAttachment(null);
     setLoading(true);
     try {
-      const payload = next.slice(-30).map((m) => ({ role: m.role, content: m.content }));
-      const { data, error } = await supabase.functions.invoke("ting", {
-        body: { messages: payload, search: webSearch },
-      });
+      const payload = next.slice(-30).map((m) => ({ role: m.role, content: m.content || " " }));
+      const body: Record<string, unknown> = { messages: payload, search: webSearch };
+      if (att) {
+        body.attachment =
+          att.kind === "text"
+            ? { kind: "text", text: att.text }
+            : { kind: att.kind, mime: att.mime, data: att.data };
+      }
+      const { data, error } = await supabase.functions.invoke("ting", { body });
       if (error) throw error;
       const d = data as { configured?: boolean; reply?: string; sources?: string[]; error?: string };
       if (d?.configured === false) {
         setNotConfigured(true);
-        setMessages(messages); // roll back user msg
+        setMessages(messages);
         return;
       }
       if (d?.error) throw new Error(d.error);
@@ -58,6 +146,8 @@ function TingScreen() {
       setLoading(false);
     }
   }
+
+  const canSend = !loading && (input.trim().length > 0 || !!attachment);
 
   return (
     <div className="flex h-screen flex-col">
@@ -92,7 +182,7 @@ function TingScreen() {
             </div>
             <h2 className="mt-4 font-display text-2xl font-bold">Ting</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Ask me anything — I can even search the web 🔮
+              Ask me anything — I can even read images, PDFs and text 🔮
             </p>
             <div className="mt-6 grid w-full max-w-sm gap-2">
               {SUGGESTIONS.map((s) => (
@@ -111,16 +201,30 @@ function TingScreen() {
             {messages.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div className="max-w-[85%]">
-                  <div
-                    data-testid="ting-message"
-                    className={`whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm ${
-                      m.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "border border-border bg-card"
-                    }`}
-                  >
-                    {m.content}
-                  </div>
+                  {m.attachment && (
+                    <div className="mb-1 flex justify-end">
+                      {m.attachment.kind === "image" && m.attachment.previewUrl ? (
+                        <img src={m.attachment.previewUrl} alt="" className="max-h-40 rounded-xl border border-border object-cover" />
+                      ) : (
+                        <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-[11px]">
+                          <span>{m.attachment.kind === "pdf" ? "📄" : "📝"}</span>
+                          <span className="max-w-[180px] truncate">{m.attachment.name}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {(m.content || m.role === "assistant") && (
+                    <div
+                      data-testid="ting-message"
+                      className={`whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm ${
+                        m.role === "user"
+                          ? "bg-primary text-primary-foreground"
+                          : "border border-border bg-card"
+                      }`}
+                    >
+                      {m.content}
+                    </div>
+                  )}
                   {m.role === "assistant" && m.sources && m.sources.length > 0 && (
                     <div data-testid="ting-sources" className="mt-1.5 space-y-1">
                       <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
@@ -162,7 +266,7 @@ function TingScreen() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (input.trim() && !loading) ask(input.trim());
+            if (canSend) ask(input.trim());
           }}
           className="border-t border-border bg-card/60 p-3 backdrop-blur"
         >
@@ -179,8 +283,44 @@ function TingScreen() {
               <Globe className="h-3 w-3" />
               Web search {webSearch ? "on" : "off"}
             </button>
+            {attachment && (
+              <div className="ml-auto flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-[11px]">
+                {attachment.kind === "image" && attachment.previewUrl ? (
+                  <img src={attachment.previewUrl} alt="" className="h-6 w-6 rounded object-cover" />
+                ) : (
+                  <span>{attachment.kind === "pdf" ? "📄" : "📝"}</span>
+                )}
+                <span className="max-w-[140px] truncate">{attachment.name}</span>
+                <button
+                  type="button"
+                  onClick={removeAttachment}
+                  aria-label="Remove attachment"
+                  className="grid h-5 w-5 place-items-center rounded-full hover:bg-muted"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
           </div>
-          <div className="flex items-center gap-2 rounded-full border border-border bg-input/40 pl-4 pr-1">
+          <div className="flex items-center gap-2 rounded-full border border-border bg-input/40 pl-2 pr-1">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,application/pdf,text/plain,text/markdown,text/csv,application/json,.txt,.md,.csv,.json"
+              hidden
+              onChange={handlePickAttachment}
+              data-testid="ting-file-input"
+            />
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={loading}
+              data-testid="ting-attach"
+              aria-label="Attach"
+              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
+            >
+              <Paperclip className="h-4 w-4" />
+            </button>
             <input
               data-testid="ting-input"
               value={input}
@@ -192,7 +332,7 @@ function TingScreen() {
             <button
               data-testid="ting-send"
               type="submit"
-              disabled={loading || !input.trim()}
+              disabled={!canSend}
               className="grid h-9 w-9 place-items-center rounded-full bg-accent text-accent-foreground disabled:opacity-50"
             >
               <Send className="h-4 w-4" />

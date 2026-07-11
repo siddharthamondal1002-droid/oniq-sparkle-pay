@@ -90,7 +90,7 @@ function ChatList() {
           avatar_url: r.avatar_url ?? null,
           type: r.type,
           updated_at: r.updated_at,
-          last_message: r.last_type === "image" ? "📷 Photo" : r.last_type === "voice" ? "🎙 Voice note" : (r.last_message ?? null),
+          last_message: r.last_type === "image" ? "📷 Photo" : r.last_type === "voice" ? "🎙 Voice note" : r.last_type === "video" ? "🎥 Video" : r.last_type === "file" ? `📎 ${r.last_message || "File"}` : (r.last_message ?? null),
           last_sender_id: r.last_sender_id ?? null,
           last_sender_name: r.last_sender_name ?? null,
           last_created_at: r.last_created_at ?? null,

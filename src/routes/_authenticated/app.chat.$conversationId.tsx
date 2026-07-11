@@ -20,7 +20,23 @@ type Message = {
   is_deleted: boolean | null;
   reply_to_id: string | null;
   is_ai: boolean | null;
+  file_name: string | null;
+  file_size: number | null;
 };
+
+function humanSize(n: number | null | undefined): string {
+  if (!n || n <= 0) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+function truncateMiddle(s: string, max = 32) {
+  if (!s || s.length <= max) return s;
+  const half = Math.floor((max - 1) / 2);
+  return `${s.slice(0, half)}…${s.slice(-half)}`;
+}
 
 const SIGNED_TTL = 60 * 60 * 24 * 365 * 5;
 
@@ -87,7 +103,10 @@ function ChatThread() {
   const [recording, setRecording] = useState(false);
   const [recSeconds, setRecSeconds] = useState(0);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
+  const [showAttachSheet, setShowAttachSheet] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const anyFileInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recChunksRef = useRef<Blob[]>([]);
   const recStreamRef = useRef<MediaStream | null>(null);
@@ -183,7 +202,7 @@ function ChatThread() {
     queryFn: async (): Promise<Message[]> => {
       const { data } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai")
+        .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai, file_name, file_size")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true })
         .limit(200);
@@ -394,6 +413,8 @@ function ChatThread() {
       is_deleted: false,
       reply_to_id: replySnapshot?.id ?? null,
       is_ai: false,
+      file_name: null,
+      file_size: null,
     };
     qc.setQueryData<Message[]>(["messages", conversationId], (prev) => [...(prev ?? []), optimistic]);
     setText("");
@@ -409,7 +430,7 @@ function ChatThread() {
         type: "text",
         reply_to_id: replySnapshot?.id ?? null,
       })
-      .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai")
+      .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai, file_name, file_size")
       .single();
     if (error || !inserted) {
       console.error("send failed", error);
@@ -448,15 +469,23 @@ function ChatThread() {
     return signed.signedUrl;
   };
 
-  const insertMediaMessage = async (payload: { type: "image" | "voice"; media_url: string; duration_s?: number }) => {
+  const insertMediaMessage = async (payload: {
+    type: "image" | "voice" | "video" | "file";
+    media_url: string;
+    duration_s?: number;
+    file_name?: string;
+    file_size?: number;
+  }) => {
     if (!me) return;
     const { error } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       sender_id: me.id,
-      content: "",
+      content: payload.file_name && payload.type === "file" ? payload.file_name : "",
       type: payload.type,
       media_url: payload.media_url,
       duration_s: payload.duration_s ?? null,
+      file_name: payload.file_name ?? null,
+      file_size: payload.file_size ?? null,
     });
     if (error) { toast.error(error.message || "Couldn't send"); return; }
     await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
@@ -482,6 +511,60 @@ function ChatThread() {
       setUploading(false);
     }
   };
+
+  const handlePickVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (!/^video\//.test(f.type)) return toast.error("videos only");
+    if (f.size > 100 * 1024 * 1024) return toast.error("keep it under 100MB");
+    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
+    const rawExt = (f.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const allowed = ["mp4", "mov", "webm", "mkv"];
+    const ext = allowed.includes(rawExt) ? rawExt : "mp4";
+    setUploading(true);
+    try {
+      const url = await uploadToChatMedia(f, ext);
+      await insertMediaMessage({ type: "video", media_url: url, file_name: f.name, file_size: f.size });
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handlePickAnyFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    e.target.value = "";
+    if (!f) return;
+    if (f.size > 50 * 1024 * 1024) return toast.error("keep it under 50MB");
+    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
+    const rawExt = (f.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const banned = ["exe", "apk", "bat", "sh", "cmd", "msi", "dll", "com", "scr", "ps1"];
+    if (!rawExt || banned.includes(rawExt)) {
+      return toast.error("that file type isn't allowed 🚫");
+    }
+    const allowed = [
+      "jpg","jpeg","png","webp","gif",
+      "webm","m4a","mp3","ogg","wav",
+      "mp4","mov","mkv",
+      "pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","json",
+      "zip","rar",
+    ];
+    if (!allowed.includes(rawExt)) return toast.error(`.${rawExt} isn't supported yet`);
+    setUploading(true);
+    try {
+      const url = await uploadToChatMedia(f, rawExt);
+      await insertMediaMessage({ type: "file", media_url: url, file_name: f.name, file_size: f.size });
+    } catch (err) {
+      console.error(err);
+      toast.error(err instanceof Error ? err.message : "upload failed");
+    } finally {
+      setUploading(false);
+    }
+  };
+
 
   const startRecording = async () => {
     if (isBlocked) return toast("You've blocked this user — unblock to chat.");
@@ -893,6 +976,33 @@ function ChatThread() {
                     </button>
                   ) : m.type === "voice" && m.media_url ? (
                     <VoiceBubble url={m.media_url} durationS={m.duration_s ?? 0} mine={mine} />
+                  ) : m.type === "video" && m.media_url ? (
+                    <video
+                      src={m.media_url}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="max-h-64 w-full rounded-xl bg-black"
+                    />
+                  ) : m.type === "file" && m.media_url ? (
+                    <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${mine ? "bg-white/10 backdrop-blur" : "border border-border bg-muted/60"}`}>
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-black/25 text-lg">📄</div>
+                      <div className="min-w-0 flex-1">
+                        <div className={`truncate text-sm font-medium ${mine ? "text-white" : "text-foreground"}`}>
+                          {truncateMiddle(m.file_name || "File", 30)}
+                        </div>
+                        {m.file_size ? (
+                          <div className={`text-[11px] ${mine ? "text-white/70" : "text-muted-foreground"}`}>{humanSize(m.file_size)}</div>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => window.open(m.media_url!, "_blank", "noopener,noreferrer")}
+                        className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ${mine ? "bg-white/20 text-white" : "bg-primary/15 text-primary"}`}
+                      >
+                        Open
+                      </button>
+                    </div>
                   ) : (
                     <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
                   )}
@@ -1065,16 +1175,50 @@ function ChatThread() {
         ) : (
         <div className="flex items-center gap-2">
           <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handlePickImage} data-testid="chat-file-input" />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isBlocked || uploading}
-            aria-label="Attach photo"
-            data-testid="chat-attach"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-muted text-foreground transition active:scale-95 disabled:opacity-40"
-          >
-            <Paperclip className="h-5 w-5" />
-          </button>
+          <input ref={videoInputRef} type="file" accept="video/*" hidden onChange={handlePickVideo} data-testid="chat-video-input" />
+          <input ref={anyFileInputRef} type="file" hidden onChange={handlePickAnyFile} data-testid="chat-anyfile-input" />
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowAttachSheet((v) => !v)}
+              disabled={isBlocked || uploading}
+              aria-label="Attach"
+              data-testid="chat-attach"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-muted text-foreground transition active:scale-95 disabled:opacity-40"
+            >
+              <Paperclip className="h-5 w-5" />
+            </button>
+            {showAttachSheet && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowAttachSheet(false)} />
+                <div className="absolute bottom-14 left-0 z-40 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+                  <button
+                    type="button"
+                    onClick={() => { setShowAttachSheet(false); fileInputRef.current?.click(); }}
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="text-lg">📷</span> Photo
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="chat-attach-video"
+                    onClick={() => { setShowAttachSheet(false); videoInputRef.current?.click(); }}
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="text-lg">🎥</span> Video
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="chat-attach-file"
+                    onClick={() => { setShowAttachSheet(false); anyFileInputRef.current?.click(); }}
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="text-lg">📎</span> File
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
             <Smile className="h-5 w-5 shrink-0 text-muted-foreground" />
             <input
@@ -1225,6 +1369,8 @@ function ForwardSheet({ message, meId, onClose }: { message: Message; meId: stri
       type: message.type,
       media_url: message.media_url ?? null,
       duration_s: message.duration_s ?? null,
+      file_name: message.file_name ?? null,
+      file_size: message.file_size ?? null,
     });
     setBusy(false);
     if (error) { toast.error(error.message || "couldn't forward"); return; }
