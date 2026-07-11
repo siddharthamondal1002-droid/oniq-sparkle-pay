@@ -47,7 +47,7 @@ Deno.serve(async (req) => {
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25000);
+    const timer = setTimeout(() => controller.abort(), 55000);
 
     let res: Response;
     try {
