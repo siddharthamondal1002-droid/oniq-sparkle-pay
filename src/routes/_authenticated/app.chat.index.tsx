@@ -241,7 +241,7 @@ function ChatList() {
                         <div className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
                           {mine && c.type === "direct" &&
                             (isRead ? (
-                              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-[#53BDEB]" />
+                              <CheckCheck className="h-3.5 w-3.5 shrink-0 text-[#25D366]" />
                             ) : (
                               <CheckCheck className="h-3.5 w-3.5 shrink-0" />
                             ))}
