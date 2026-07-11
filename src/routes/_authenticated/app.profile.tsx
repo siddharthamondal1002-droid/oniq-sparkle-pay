@@ -200,7 +200,7 @@ function DangerZone() {
 
   return (
     <div className="mt-10 space-y-3">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-destructive">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-destructive">
         <AlertTriangle className="h-3.5 w-3.5" /> Danger zone
       </div>
       <div className="rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
@@ -286,14 +286,14 @@ function SafetySection() {
 
   return (
     <div className="mt-8 space-y-3">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
         <Shield className="h-3.5 w-3.5" /> Safety & Grievances
       </div>
       <div className="rounded-2xl border border-border bg-card p-4">
         <div className="text-sm font-semibold">Grievance Officer</div>
         <div className="text-xs text-muted-foreground">Siddhartha Mondal</div>
         <a href="mailto:grievance@oniqhub.com" className="text-xs text-primary hover:underline">grievance@oniqhub.com</a>
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground">
           Complaints acknowledged in 7 days · Serious complaints resolved in 36 hours.
         </p>
       </div>
@@ -341,7 +341,7 @@ function SafetySection() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block rounded-2xl border border-border bg-card p-3.5">
-      <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
+      <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1">{label}</div>
       {children}
     </label>
   );

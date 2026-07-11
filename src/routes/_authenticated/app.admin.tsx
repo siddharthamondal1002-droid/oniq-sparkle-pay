@@ -152,7 +152,7 @@ function AdminInbox() {
                 </div>
                 <div className="mt-1 text-xs text-muted-foreground break-all">target: {r.target_id}</div>
                 {r.details && <div className="mt-2 rounded-lg bg-muted/40 p-2 text-xs">{r.details}</div>}
-                <div className="mt-2 text-[11px] text-muted-foreground">
+                <div className="mt-2 text-xs text-muted-foreground">
                   reporter: {reporter ? `${reporter.display_name ?? reporter.username} (@${reporter.username})` : (r.reporter_id ?? "unknown")}
                 </div>
                 {r.status === "open" && (
@@ -179,7 +179,7 @@ function AdminInbox() {
                     </button>
                   </div>
                 )}
-                {r.resolution && <div className="mt-2 text-[11px] text-muted-foreground">resolution: {r.resolution}</div>}
+                {r.resolution && <div className="mt-2 text-xs text-muted-foreground">resolution: {r.resolution}</div>}
               </div>
             );
           })

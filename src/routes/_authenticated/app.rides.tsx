@@ -212,7 +212,7 @@ function RidesScreen() {
 
       {/* Genie bar */}
       <div className="mt-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-3">
-        <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wider text-primary">
+        <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-primary">
           <Sparkles className="h-3 w-3" /> Ride Genie
         </div>
         <div className="flex gap-2">
@@ -249,7 +249,7 @@ function RidesScreen() {
             <Navigation className="h-4 w-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[11px] text-muted-foreground">Pickup</div>
+            <div className="text-xs text-muted-foreground">Pickup</div>
             <div className="text-sm font-medium truncate">
               {geoState === "locating" && !pickup
                 ? "Locating you…"
@@ -280,7 +280,7 @@ function RidesScreen() {
             >
               {locating ? "Locating…" : "📍 Use my location"}
             </button>
-            <p className="mt-2 text-[11px] text-muted-foreground">
+            <p className="mt-2 text-xs text-muted-foreground">
               or type a pickup in the Genie: "from X to Y"
             </p>
           </div>
@@ -289,7 +289,7 @@ function RidesScreen() {
 
       {/* Destination search */}
       <div className="mt-3 rounded-2xl border border-border bg-card p-4">
-        <div className="text-[11px] text-muted-foreground">Destination</div>
+        <div className="text-xs text-muted-foreground">Destination</div>
         <div className="mt-2 flex gap-2">
           <div className="relative flex-1">
             <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -385,7 +385,7 @@ function RidesScreen() {
               />
             ))}
           </div>
-          <p className="mt-2 px-1 text-[11px] text-muted-foreground">
+          <p className="mt-2 px-1 text-xs text-muted-foreground">
             Estimates — final fare & driver assignment happen in the provider's app.
           </p>
         </div>
@@ -426,7 +426,7 @@ function RidesScreen() {
         />
       </div>
 
-      <p className="mt-6 text-center text-[11px] text-muted-foreground">
+      <p className="mt-6 text-center text-xs text-muted-foreground">
         Rides are booked and paid in the provider's app. Pickup uses your live location.
       </p>
     </div>
@@ -462,7 +462,7 @@ function FareCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <div className="text-sm font-semibold">{opt.providerName}</div>
-          <div className="text-[11px] text-muted-foreground">{opt.vehicle}</div>
+          <div className="text-xs text-muted-foreground">{opt.vehicle}</div>
           {best && (
             <span className="ml-auto rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-semibold text-primary">
               Best price 💸
@@ -472,7 +472,7 @@ function FareCard({
         <div className="mt-1 text-base font-bold">
           ₹{opt.fareLow}–{opt.fareHigh}
         </div>
-        <div className="text-[11px] text-muted-foreground">~{opt.etaMins} min trip</div>
+        <div className="text-xs text-muted-foreground">~{opt.etaMins} min trip</div>
       </div>
     </>
   );

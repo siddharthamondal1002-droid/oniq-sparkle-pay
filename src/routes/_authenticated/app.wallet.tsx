@@ -36,7 +36,7 @@ function PartnerRow({ p }: { p: Partner }) {
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-semibold">{p.name}</div>
-        <div className="text-[11px] text-muted-foreground">opens with ur own account</div>
+        <div className="text-xs text-muted-foreground">opens with ur own account</div>
       </div>
       <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground" />
     </button>
@@ -124,16 +124,16 @@ function WalletScreen() {
 
       <section className="mt-8">
         <h2 className="px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">crypto corner 🪙</h2>
-        <p className="mt-1 px-1 text-[11px] text-muted-foreground/80">opens with ur own account · ONIQ never sees their logins</p>
+        <p className="mt-1 px-1 text-xs text-muted-foreground/80">opens with ur own account · ONIQ never sees their logins</p>
         <div className="mt-3 space-y-2">
           {CRYPTO_PARTNERS.map((p) => <PartnerRow key={p.id} p={p} />)}
         </div>
-        <p className="mt-2 px-1 text-[11px] text-muted-foreground/70">invest at ur own risk — crypto is volatile fr</p>
+        <p className="mt-2 px-1 text-xs text-muted-foreground/70">invest at ur own risk — crypto is volatile fr</p>
       </section>
 
       <section className="mt-6">
         <h2 className="px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">stonks 📈</h2>
-        <p className="mt-1 px-1 text-[11px] text-muted-foreground/80">opens with ur own account · ONIQ never sees their logins</p>
+        <p className="mt-1 px-1 text-xs text-muted-foreground/80">opens with ur own account · ONIQ never sees their logins</p>
         <div className="mt-3 space-y-2">
           {STONKS_PARTNERS.map((p) => <PartnerRow key={p.id} p={p} />)}
         </div>

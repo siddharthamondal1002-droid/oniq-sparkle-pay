@@ -264,7 +264,7 @@ function TingScreen() {
                       {m.attachment.kind === "image" && m.attachment.previewUrl ? (
                         <img src={m.attachment.previewUrl} alt="" className="max-h-40 rounded-xl border border-border object-cover" />
                       ) : (
-                        <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-[11px]">
+                        <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-xs">
                           <span>{m.attachment.kind === "pdf" ? "📄" : "📝"}</span>
                           <span className="max-w-[180px] truncate">{m.attachment.name}</span>
                         </div>
@@ -294,7 +294,7 @@ function TingScreen() {
                           href={url}
                           target="_blank"
                           rel="noreferrer noopener"
-                          className="flex items-center gap-1 truncate text-[11px] text-primary underline"
+                          className="flex items-center gap-1 truncate text-xs text-primary underline"
                         >
                           <ExternalLink className="h-3 w-3 shrink-0" />
                           <span className="truncate">{url}</span>
@@ -332,7 +332,7 @@ function TingScreen() {
             <button
               type="button"
               onClick={() => setWebSearch((s) => !s)}
-              className={`flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-medium transition ${
+              className={`flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium transition ${
                 webSearch
                   ? "border-primary/40 bg-primary/15 text-primary"
                   : "border-border bg-card text-muted-foreground"
@@ -342,7 +342,7 @@ function TingScreen() {
               Web search {webSearch ? "on" : "off"}
             </button>
             {attachment && (
-              <div className="ml-auto flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-[11px]">
+              <div className="ml-auto flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-xs">
                 {attachment.kind === "image" && attachment.previewUrl ? (
                   <img src={attachment.previewUrl} alt="" className="h-6 w-6 rounded object-cover" />
                 ) : (

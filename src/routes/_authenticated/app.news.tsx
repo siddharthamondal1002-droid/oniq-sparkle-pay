@@ -153,7 +153,7 @@ function NewsScreen() {
                     />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-[11px]">
+                    <div className="flex items-center gap-2 text-xs">
                       <span className="font-medium text-primary truncate max-w-[60%]">{it.source}</span>
                       <span className="text-muted-foreground">·</span>
                       <span className="text-muted-foreground">{relTime(it.publishedAt)}</span>

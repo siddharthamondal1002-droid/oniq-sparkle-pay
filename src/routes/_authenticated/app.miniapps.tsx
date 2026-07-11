@@ -20,7 +20,7 @@ function MiniAppsScreen() {
       <p className="mt-2 text-sm text-muted-foreground">
         Every app you're lowkey addicted to, one tap away. Exit the other app and you land right back home. It's giving super app.
       </p>
-      <p className="mt-1 text-[11px] text-muted-foreground/80">
+      <p className="mt-1 text-xs text-muted-foreground/80">
         Apps open with your own accounts — ONIQ never sees their logins.
       </p>
 
@@ -35,7 +35,7 @@ function MiniAppsScreen() {
           </div>
           <div>
             <div className="text-sm font-semibold">Book a ride</div>
-            <div className="text-[11px] text-muted-foreground">Uber · Ola · Rapido</div>
+            <div className="text-xs text-muted-foreground">Uber · Ola · Rapido</div>
           </div>
         </Link>
         <Link
@@ -47,7 +47,7 @@ function MiniAppsScreen() {
           </div>
           <div>
             <div className="text-sm font-semibold">Pay via UPI</div>
-            <div className="text-[11px] text-muted-foreground">GPay · PhonePe · Paytm</div>
+            <div className="text-xs text-muted-foreground">GPay · PhonePe · Paytm</div>
           </div>
         </Link>
       </div>
@@ -86,7 +86,7 @@ function MiniAppsScreen() {
         );
       })}
 
-      <p className="mt-6 text-center text-[11px] text-muted-foreground">
+      <p className="mt-6 text-center text-xs text-muted-foreground">
         Third-party apps are independent services. ONIQ opens them for your convenience.
       </p>
     </div>

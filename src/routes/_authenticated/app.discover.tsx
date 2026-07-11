@@ -162,7 +162,7 @@ function DiscoverScreen() {
             onChange={handlePickFile}
           />
           <div className="mt-3 border-t border-border pt-3">
-            <div className="mb-2 text-[11px] text-muted-foreground">who can peep this? 👀</div>
+            <div className="mb-2 text-xs text-muted-foreground">who can peep this? 👀</div>
             <div className="flex gap-2">
               {(["public", "moots"] as const).map((v) => {
                 const active = visibility === v;

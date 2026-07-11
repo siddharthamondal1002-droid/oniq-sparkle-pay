@@ -251,7 +251,7 @@ function TranslatePanel() {
   return (
     <div className="mt-4 space-y-3">
       <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-primary/80">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-primary/80">
           say it in any lingo — 25 languages, powered by Claude
         </div>
         <div className="mb-2 flex items-center gap-2">
@@ -294,7 +294,7 @@ function TranslatePanel() {
             </button>
           )}
         </div>
-        <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+        <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
           <span>{LANG_LABEL[from] ?? from} → {LANG_LABEL[to] ?? to}</span>
           <span>{text.length}/1000</span>
         </div>
@@ -312,7 +312,7 @@ function TranslatePanel() {
       {result && (
         <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4">
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-primary">
+            <div className="text-xs font-medium uppercase tracking-wider text-primary">
               {LANG_LABEL[to] ?? to}
             </div>
             <button
@@ -590,7 +590,7 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
         <div className="h-full bg-primary transition-all" style={{ width: `${((idx) / total) * 100}%` }} />
       </div>
       <div className="rounded-2xl border border-border bg-card p-6 text-center">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground">Translate</div>
+        <div className="text-xs uppercase tracking-wider text-muted-foreground">Translate</div>
         <div className="mt-2 font-display text-2xl font-bold">{q!.prompt}</div>
       </div>
       <div className="space-y-2">
@@ -744,7 +744,7 @@ function ScoutPanel() {
   return (
     <div className="mt-4 space-y-3">
       <div className="rounded-2xl border border-border bg-card p-4">
-        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-primary/80">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-primary/80">
           scout live prices across india — any language 🌐
         </div>
         <div className="relative">
@@ -794,7 +794,7 @@ function ScoutPanel() {
       {scoutError && !loading && (
         <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-center">
           <div className="text-sm font-medium text-red-300">scout hit a wall 😵‍💫 — try again in a sec</div>
-          <div className="mt-1 text-[11px] text-red-400/80 break-words">{scoutError}</div>
+          <div className="mt-1 text-xs text-red-400/80 break-words">{scoutError}</div>
           <button
             onClick={scout}
             className="mt-3 rounded-xl border border-red-400/40 bg-background px-4 py-2 text-xs font-semibold text-red-300"
@@ -807,7 +807,7 @@ function ScoutPanel() {
       {data && (
         <div className="space-y-2">
           <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4">
-            <div className="text-[11px] uppercase tracking-wider text-primary/80">product</div>
+            <div className="text-xs uppercase tracking-wider text-primary/80">product</div>
             <div className="mt-1 font-display text-lg font-bold break-words">{data.product}</div>
           </div>
           {(data.results ?? []).length === 0 && (
@@ -836,7 +836,7 @@ function ScoutPanel() {
               </button>
             </div>
           ))}
-          <div className="pt-2 text-center text-[11px] text-muted-foreground">
+          <div className="pt-2 text-center text-xs text-muted-foreground">
             prices scouted live from the web — tap through to verify, they move fast 📈
           </div>
         </div>

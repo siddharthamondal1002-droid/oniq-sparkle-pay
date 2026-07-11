@@ -295,7 +295,7 @@ function AuthPage() {
                   minLength={8}
                 />
                 {mode === "signup" && (
-                  <p className="px-1 text-[11px] text-muted-foreground">
+                  <p className="px-1 text-xs text-muted-foreground">
                     Common passwords get rejected for your safety — mix words, numbers & symbols.
                   </p>
                 )}
@@ -341,7 +341,7 @@ function AuthPage() {
                 </form>
               ) : (
                 <form onSubmit={handleVerifyOtp} className="space-y-3">
-                  <p className="px-1 text-[11px] text-muted-foreground">
+                  <p className="px-1 text-xs text-muted-foreground">
                     Code sent to {phone}
                   </p>
                   <Field
