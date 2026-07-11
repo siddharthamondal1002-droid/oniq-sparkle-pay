@@ -709,19 +709,31 @@ function ScoutPanel() {
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  const [scoutError, setScoutError] = useState<string | null>(null);
+
   async function scout() {
     if (!query.trim() && !image) { toast.error("type or snap something first 👀"); return; }
     setLoading(true);
     setData(null);
+    setScoutError(null);
     try {
       const { data: r, error } = await supabase.functions.invoke("smart-scout", {
         body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto" },
       });
       if (error) throw error;
       if ((r as any)?.error) throw new Error((r as any).error);
-      setData(r as ScoutResponse);
+      // Defensive: guarantee results is an array so .map / .length never crash.
+      const safe: ScoutResponse = {
+        product: (r as any)?.product ?? "",
+        results: Array.isArray((r as any)?.results) ? (r as any).results : [],
+        disclaimer: (r as any)?.disclaimer,
+        sources: Array.isArray((r as any)?.sources) ? (r as any).sources : [],
+      };
+      setData(safe);
     } catch (e: any) {
-      toast.error(e?.message ?? "scout glitched — try again");
+      const msg = e?.message ?? "scout hit a wall 😵‍💫 — try again in a sec";
+      setScoutError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -779,18 +791,31 @@ function ScoutPanel() {
         </button>
       </div>
 
+      {scoutError && !loading && (
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-center">
+          <div className="text-sm font-medium text-red-300">scout hit a wall 😵‍💫 — try again in a sec</div>
+          <div className="mt-1 text-[11px] text-red-400/80 break-words">{scoutError}</div>
+          <button
+            onClick={scout}
+            className="mt-3 rounded-xl border border-red-400/40 bg-background px-4 py-2 text-xs font-semibold text-red-300"
+          >
+            retry
+          </button>
+        </div>
+      )}
+
       {data && (
         <div className="space-y-2">
           <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4">
             <div className="text-[11px] uppercase tracking-wider text-primary/80">product</div>
             <div className="mt-1 font-display text-lg font-bold break-words">{data.product}</div>
           </div>
-          {data.results.length === 0 && (
+          {(data.results ?? []).length === 0 && (
             <div className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
               no prices found rn — try a more specific name
             </div>
           )}
-          {data.results.map((r, i) => (
+          {(data.results ?? []).map((r, i) => (
             <div key={i} className="rounded-2xl border border-border bg-card p-4">
               <div className="flex items-start gap-3">
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">{rankBadge(i)}</div>
