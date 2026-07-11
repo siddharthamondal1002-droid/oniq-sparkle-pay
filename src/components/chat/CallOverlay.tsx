@@ -755,6 +755,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     ensureNotificationPermission();
     playRingback();
     sendSig("ring", { callType: type, fromName: meName });
+    sendPush({ conversation_id: conversationId, kind: "call", call_type: type });
 
     // Broadcast on every peer's user-scoped channel so the incoming UI shows
     // no matter what screen they're on. Re-broadcast every 2s while outgoing
