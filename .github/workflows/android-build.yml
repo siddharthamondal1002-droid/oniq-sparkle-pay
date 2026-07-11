@@ -133,3 +133,21 @@ jobs:
           name: oniq-release-aab
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
+
+      - name: Build signed APK
+        if: steps.keystore_check.outputs.has_keystore == 'true'
+        working-directory: android
+        env:
+          ORG_GRADLE_PROJECT_ONIQ_KEYSTORE: ${{ github.workspace }}/android/app/oniq.keystore
+          ORG_GRADLE_PROJECT_ONIQ_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      - name: Upload release APK
+        if: steps.keystore_check.outputs.has_keystore == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: oniq-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
