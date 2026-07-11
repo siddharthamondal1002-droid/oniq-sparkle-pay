@@ -142,6 +142,7 @@ function HomeScreen() {
                 delay={60}
               />
             )}
+            {(() => { const vc = null; return null; })()}
             {(
               [
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6" },
@@ -153,6 +154,7 @@ function HomeScreen() {
                 { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C" },
                 { key: "upi", to: "/app/upi", icon: IndianRupee, label: "tap in 💳", color: "#22C55E" },
                 { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
+                { key: "vitals", to: "/app/vitals", icon: Heart, label: "vitals 🫀", color: vitalsColor },
               ] as const
             ).filter((t) => !hidden.has(t.key as TileKey)).map((t, i) => (
               <Tile
