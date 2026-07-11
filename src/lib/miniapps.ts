@@ -54,12 +54,18 @@ export const MINI_APPS: MiniApp[] = [
   // Shopping
   { id: "amazon", name: "Amazon", tagline: "Everything store", category: "shopping", url: "https://www.amazon.in", color: "#FF9900", letter: "A" },
   { id: "flipkart", name: "Flipkart", tagline: "Fashion & electronics", category: "shopping", url: "https://www.flipkart.com", color: "#2874F0", letter: "F" },
+  // Services 🛠
+  { id: "urbancompany", name: "Urban Company", tagline: "Home services on demand", category: "services", url: "https://www.urbancompany.com", color: "#E91E63", letter: "U", androidPackage: "com.urbanclap.urbanclap", emoji: "🧹" },
+  { id: "snabbit", name: "Snabbit", tagline: "10-min home help", category: "services", url: "https://snabbit.com", color: "#FF6B35", letter: "S", androidPackage: "com.snabbit.customer", emoji: "⚡" },
+  { id: "nobroker", name: "NoBroker", tagline: "Rent & buy, no brokerage", category: "services", url: "https://www.nobroker.in", color: "#DC2626", letter: "N", androidPackage: "com.nobroker.app", emoji: "🏠" },
+  { id: "porter", name: "Porter", tagline: "Trucks, movers, couriers", category: "services", url: "https://porter.in", color: "#FBBF24", letter: "P", androidPackage: "com.theporter.android.customerapp", emoji: "🚚" },
 ];
 
 export const CATEGORY_LABELS: Record<MiniApp["category"], string> = {
   food: "Food delivery",
   rides: "🚗 Rides",
   quickcommerce: "🛒 Quick commerce",
+  services: "🛠 get it done",
   payments: "Payments",
   social: "Social",
   shopping: "Shopping",
