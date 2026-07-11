@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle, Music2 } from "lucide-react";
+import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle, Music2, Database } from "lucide-react";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import {
@@ -169,6 +169,8 @@ function ProfileScreen() {
       )}
 
       <SoundsSection />
+
+      <MyDataSection />
 
       <SafetySection />
 
