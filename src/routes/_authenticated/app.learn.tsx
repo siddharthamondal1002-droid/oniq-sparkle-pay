@@ -810,35 +810,68 @@ function ScoutPanel() {
             <div className="text-xs uppercase tracking-wider text-primary/80">product</div>
             <div className="mt-1 font-display text-lg font-bold break-words">{data.product}</div>
           </div>
-          {(data.results ?? []).length === 0 && (
-            <div className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
-              no prices found rn — try a more specific name
-            </div>
-          )}
-          {(data.results ?? []).map((r, i) => (
-            <div key={i} className="rounded-2xl border border-border bg-card p-4">
-              <div className="flex items-start gap-3">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">{rankBadge(i)}</div>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-semibold">{r.store}</div>
-                  {r.rating && <div className="text-xs text-muted-foreground truncate">★ {r.rating}</div>}
+          {(() => {
+            const all = data.results ?? [];
+            const ranked = all.filter((r) => typeof r.price_inr === "number");
+            const unverified = all.filter((r) => typeof r.price_inr !== "number");
+            return (
+              <>
+                {all.length === 0 && (
+                  <div className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
+                    no prices found rn — try a more specific name
+                  </div>
+                )}
+                {ranked.map((r, i) => (
+                  <div key={`r-${i}`} className="rounded-2xl border border-border bg-card p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">{rankBadge(i)}</div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-semibold">{r.store}</div>
+                        {r.rating && <div className="text-xs text-muted-foreground truncate">★ {r.rating}</div>}
+                      </div>
+                      <div className="shrink-0 font-display text-lg font-bold">
+                        ₹{(r.price_inr as number).toLocaleString("en-IN")}
+                      </div>
+                    </div>
+                    {r.note && <div className="mt-2 text-xs text-muted-foreground break-words">{r.note}</div>}
+                    <button
+                      onClick={() => launchStore(r.store, data.product)}
+                      className="mt-3 flex w-full items-center justify-center gap-1 rounded-xl border border-border bg-background py-2 text-xs font-semibold"
+                    >
+                      open in {r.store} <ExternalLink className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                {unverified.length > 0 && (
+                  <div className="rounded-2xl border border-border bg-card p-3">
+                    <div className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                      check these urself 👀
+                    </div>
+                    <div className="space-y-1.5">
+                      {unverified.map((r, i) => (
+                        <button
+                          key={`u-${i}`}
+                          onClick={() => launchStore(r.store, data.product)}
+                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-left"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-semibold">{r.store}</div>
+                            <div className="truncate text-xs text-muted-foreground">{r.note ?? "couldn't verify live — check in app"}</div>
+                          </div>
+                          <div className="shrink-0 text-xs font-semibold text-primary flex items-center gap-1">
+                            open {r.store} <ExternalLink className="h-3 w-3" />
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div className="pt-2 text-center text-xs text-muted-foreground">
+                  prices scouted live from the web — tap through to verify, they move fast 📈
                 </div>
-                <div className="shrink-0 font-display text-lg font-bold">
-                  {typeof r.price_inr === "number" ? `₹${r.price_inr.toLocaleString("en-IN")}` : "—"}
-                </div>
-              </div>
-              {r.note && <div className="mt-2 text-xs text-muted-foreground break-words">{r.note}</div>}
-              <button
-                onClick={() => launchStore(r.store, data.product)}
-                className="mt-3 flex w-full items-center justify-center gap-1 rounded-xl border border-border bg-background py-2 text-xs font-semibold"
-              >
-                open in {r.store} <ExternalLink className="h-3 w-3" />
-              </button>
-            </div>
-          ))}
-          <div className="pt-2 text-center text-xs text-muted-foreground">
-            prices scouted live from the web — tap through to verify, they move fast 📈
-          </div>
+              </>
+            );
+          })()}
         </div>
       )}
     </div>
