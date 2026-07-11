@@ -166,6 +166,34 @@ function AuthPage() {
     }
     setLoading(true);
     try {
+      // Native (Capacitor) path: Google blocks OAuth inside embedded WebViews
+      // (disallowed_useragent). Open the auth URL in a Chrome Custom Tab and
+      // return via the com.oniqhub.app://auth-callback deep link.
+      let isNative = false;
+      try {
+        const { Capacitor } = await import("@capacitor/core");
+        isNative = typeof Capacitor?.isNativePlatform === "function" && Capacitor.isNativePlatform();
+      } catch {
+        isNative = false;
+      }
+
+      if (isNative && provider === "google") {
+        const { initNativeAuth } = await import("@/lib/nativeAuth");
+        await initNativeAuth();
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider: "google",
+          options: {
+            redirectTo: "com.oniqhub.app://auth-callback",
+            skipBrowserRedirect: true,
+          },
+        });
+        if (error) throw error;
+        if (!data?.url) throw new Error("No auth URL returned");
+        const { Browser } = await import("@capacitor/browser");
+        await Browser.open({ url: data.url, presentationStyle: "popover" });
+        return;
+      }
+
       const result = await lovable.auth.signInWithOAuth(provider, {
         redirect_uri: window.location.origin + "/app",
       });
