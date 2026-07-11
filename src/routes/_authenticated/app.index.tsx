@@ -54,6 +54,8 @@ function HomeScreen() {
   const skins = theme?.tile_skins ?? {};
   const [hidden] = useHiddenTiles();
   const installPrompt = useInstallPrompt();
+  const vitalsColor = useVitalsTileColor();
+
 
 
   const first = profile?.display_name?.split(" ")[0] ?? profile?.username ?? "there";
