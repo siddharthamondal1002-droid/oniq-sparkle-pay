@@ -342,7 +342,7 @@ function LangSelect({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+      className="min-w-0 flex-1 rounded-xl border border-border bg-background px-2 py-2 text-sm focus:border-primary focus:outline-none"
     >
       {includeAuto && <option value="auto">Auto detect</option>}
       <optgroup label="Indian languages">
