@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowRight, Radio, Settings, SkipForward, Trash2, X } from "lucide-react";
+import { ArrowRight, Pencil, Plus, Radio, Settings, SkipForward, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 
@@ -138,7 +138,42 @@ export type Video = {
   publishedAt: string;
   thumbnail: string;
 };
-export type LiveGenre = { id: GenreId; name: string; emoji: string; live: boolean; videos: Video[] };
+export type LiveGenre = { id: GenreId | string; name: string; emoji: string; live: boolean; videos: Video[] };
+
+// Parse a YouTube URL / id into an embeddable ref.
+// Returns { kind: 'video', id } or { kind: 'list', id }, or null if unusable.
+export function parseYouTube(raw: string): { kind: "video" | "list"; id: string } | null {
+  const s = (raw ?? "").trim();
+  if (!s) return null;
+  const bare = /^[\w-]{11}$/.exec(s);
+  if (bare) return { kind: "video", id: s };
+  try {
+    const u = new URL(s.startsWith("http") ? s : `https://${s}`);
+    const host = u.hostname.replace(/^www\./, "");
+    if (host === "youtu.be") {
+      const id = u.pathname.split("/").filter(Boolean)[0];
+      if (id && /^[\w-]{11}$/.test(id)) return { kind: "video", id };
+    }
+    if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
+      const parts = u.pathname.split("/").filter(Boolean);
+      if (parts[0] === "watch") {
+        const v = u.searchParams.get("v");
+        if (v && /^[\w-]{11}$/.test(v)) return { kind: "video", id: v };
+      }
+      if ((parts[0] === "live" || parts[0] === "embed" || parts[0] === "shorts") && parts[1]) {
+        const id = parts[1];
+        if (/^[\w-]{11}$/.test(id)) return { kind: "video", id };
+      }
+      if (parts[0] === "playlist") {
+        const list = u.searchParams.get("list");
+        if (list) return { kind: "list", id: list };
+      }
+      const list = u.searchParams.get("list");
+      if (list && !u.searchParams.get("v")) return { kind: "list", id: list };
+    }
+  } catch { /* noop */ }
+  return null;
+}
 
 export function useSession() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -171,18 +206,80 @@ export function useMyTv() {
 }
 
 
+type UserGenreRow = { id: string; name: string; position: number };
+type UserChannelRowFull = { id: string; genre_id: string; name: string; youtube_url: string; position: number };
+
+function useUserGenres(userId: string | null) {
+  return useQuery({
+    queryKey: ["user-watch-genres", userId],
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_watch_genres")
+        .select("id, name, position")
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as UserGenreRow[];
+    },
+  });
+}
+
+function useUserChannels(userId: string | null, genreDbId: string | null) {
+  return useQuery({
+    queryKey: ["user-watch-channels", userId, genreDbId],
+    enabled: !!userId && !!genreDbId,
+    staleTime: 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_watch_channels")
+        .select("id, genre_id, name, youtube_url, position")
+        .eq("genre_id", genreDbId as string)
+        .order("position", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return (data ?? []) as UserChannelRowFull[];
+    },
+  });
+}
+
+function channelsToVideos(rows: UserChannelRowFull[]): Video[] {
+  const out: Video[] = [];
+  for (const r of rows) {
+    const parsed = parseYouTube(r.youtube_url);
+    if (!parsed) continue;
+    const videoId = parsed.kind === "list" ? `list:${parsed.id}` : parsed.id;
+    const thumb = parsed.kind === "video"
+      ? `https://i.ytimg.com/vi/${parsed.id}/hqdefault.jpg`
+      : `https://i.ytimg.com/vi/${parsed.id}/hqdefault.jpg`;
+    out.push({
+      videoId,
+      title: r.name,
+      channelName: r.name,
+      publishedAt: "",
+      thumbnail: thumb,
+    });
+  }
+  return out;
+}
+
 export function WatchLive() {
   const [baseGenres, setBaseGenres] = useState<LiveGenre[] | null>(null);
-  const [genreId, setGenreId] = useState<GenreId>("news");
+  const [genreId, setGenreId] = useState<string>("news");
   const [idx, setIdx] = useState(0);
   const [allDead, setAllDead] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  const [addGenreOpen, setAddGenreOpen] = useState(false);
+  const [addChannelForGenre, setAddChannelForGenre] = useState<{ id: string; name: string } | null>(null);
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const failStreakRef = useRef(0);
   const advanceTimerRef = useRef<number | null>(null);
   const userId = useSession();
   const { videos: myTvVideos } = useMyTv();
+  const userGenresQ = useUserGenres(userId);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     let alive = true;
@@ -202,21 +299,36 @@ export function WatchLive() {
     return () => { alive = false; };
   }, []);
 
+  // active user genre db id (if genreId starts with "ug:")
+  const activeUserGenreId = genreId.startsWith("ug:") ? genreId.slice(3) : null;
+  const activeUserChannelsQ = useUserChannels(userId, activeUserGenreId);
+
   const genres = useMemo<LiveGenre[] | null>(() => {
     if (baseGenres === null) return null;
-    const merged = [...baseGenres];
+    const merged: LiveGenre[] = [...baseGenres];
     if (myTvVideos.length > 0) {
       merged.push({ id: "mytv", name: "My TV", emoji: "📺", live: false, videos: myTvVideos });
     }
+    for (const g of userGenresQ.data ?? []) {
+      const rows = activeUserGenreId === g.id ? (activeUserChannelsQ.data ?? []) : [];
+      merged.push({
+        id: `ug:${g.id}`,
+        name: g.name,
+        emoji: "🎯",
+        live: false,
+        videos: channelsToVideos(rows),
+      });
+    }
     return merged;
-  }, [baseGenres, myTvVideos]);
+  }, [baseGenres, myTvVideos, userGenresQ.data, activeUserGenreId, activeUserChannelsQ.data]);
 
   const activeGenre =
     (genres ?? []).find((g) => g.id === genreId) ?? (genres ?? [])[0] ?? null;
   const videos = activeGenre?.videos ?? [];
   const isLiveGenre = !!activeGenre?.live;
+  const isUserGenre = typeof activeGenre?.id === "string" && activeGenre.id.startsWith("ug:");
+  const activeUserGenreDbId = isUserGenre ? (activeGenre!.id as string).slice(3) : null;
   const current = videos.length ? videos[idx % videos.length] : null;
-
 
   const advance = (reason: "error" | "ended") => {
     const total = videos.length;
@@ -235,12 +347,52 @@ export function WatchLive() {
     setIdx(i);
   };
 
-  const pickGenre = (g: GenreId) => {
+  const pickGenre = (g: string) => {
     if (g === (activeGenre?.id ?? genreId)) return;
     failStreakRef.current = 0;
     setAllDead(false);
     setGenreId(g);
     setIdx(0);
+  };
+
+  const invalidateUserWatch = () => {
+    queryClient.invalidateQueries({ queryKey: ["user-watch-genres"] });
+    queryClient.invalidateQueries({ queryKey: ["user-watch-channels"] });
+  };
+
+  const renameUserGenre = async (g: UserGenreRow) => {
+    const next = window.prompt("rename genre", g.name)?.trim();
+    if (!next || next === g.name) return;
+    const { error } = await supabase.from("user_watch_genres").update({ name: next.slice(0, 40) }).eq("id", g.id);
+    if (error) { toast.error("couldn't rename"); return; }
+    toast.success("renamed ✨");
+    invalidateUserWatch();
+  };
+
+  const deleteUserGenre = async (g: UserGenreRow) => {
+    if (!window.confirm(`delete "${g.name}" and its channels? this is forever fr`)) return;
+    const { error } = await supabase.from("user_watch_genres").delete().eq("id", g.id);
+    if (error) { toast.error("couldn't delete"); return; }
+    toast("genre deleted 🧹");
+    if (genreId === `ug:${g.id}`) setGenreId("news");
+    invalidateUserWatch();
+  };
+
+  const renameUserChannel = async (row: UserChannelRowFull) => {
+    const next = window.prompt("rename channel", row.name)?.trim();
+    if (!next || next === row.name) return;
+    const { error } = await supabase.from("user_watch_channels").update({ name: next.slice(0, 80) }).eq("id", row.id);
+    if (error) { toast.error("couldn't rename"); return; }
+    toast.success("renamed ✨");
+    invalidateUserWatch();
+  };
+
+  const deleteUserChannel = async (row: UserChannelRowFull) => {
+    if (!window.confirm(`remove "${row.name}"?`)) return;
+    const { error } = await supabase.from("user_watch_channels").delete().eq("id", row.id);
+    if (error) { toast.error("couldn't remove"); return; }
+    toast("removed 🧹");
+    invalidateUserWatch();
   };
 
   useEffect(() => {
@@ -253,6 +405,9 @@ export function WatchLive() {
     div.id = `yt-live-${Date.now()}`;
     host.appendChild(div);
 
+    const isList = current.videoId.startsWith("list:");
+    const listId = isList ? current.videoId.slice(5) : null;
+
     loadYouTubeApi().then((YT) => {
       if (cancelled || !YT) return;
       try {
@@ -260,7 +415,7 @@ export function WatchLive() {
           width: "100%",
           height: "100%",
           host: "https://www.youtube-nocookie.com",
-          videoId: current.videoId,
+          ...(isList ? {} : { videoId: current.videoId }),
           playerVars: {
             autoplay: 1,
             mute: 1,
@@ -270,6 +425,7 @@ export function WatchLive() {
             controls: 1,
             cc_load_policy: 1,
             cc_lang_pref: "en",
+            ...(isList ? { list: listId as string, listType: "playlist" } : {}),
           },
           events: {
             onReady: (e: any) => { try { e.target.playVideo(); } catch { /* noop */ } },
@@ -297,6 +453,10 @@ export function WatchLive() {
 
   const loading = genres === null;
   const currentGenreId = activeGenre?.id ?? genreId;
+  const activeUserGenreRow = activeUserGenreDbId
+    ? (userGenresQ.data ?? []).find((g) => g.id === activeUserGenreDbId) ?? null
+    : null;
+  const activeUserChannelRows = isUserGenre ? (activeUserChannelsQ.data ?? []) : [];
 
   return (
     <div>
@@ -304,20 +464,51 @@ export function WatchLive() {
         <div className="no-scrollbar mb-3 flex items-center gap-2 overflow-x-auto">
           {(genres ?? []).map((g) => {
             const active = g.id === currentGenreId;
+            const isUser = typeof g.id === "string" && g.id.startsWith("ug:");
+            const userRow = isUser ? (userGenresQ.data ?? []).find((u) => `ug:${u.id}` === g.id) ?? null : null;
             return (
-              <button
-                key={g.id}
-                onClick={() => pickGenre(g.id)}
-                className={`press whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold border transition-colors ${
-                  active
-                    ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_var(--primary)]"
-                    : "bg-surface text-muted-foreground border-border hover:text-foreground"
-                }`}
-              >
-                {g.emoji} {g.name}
-              </button>
+              <div key={g.id} className="relative inline-flex">
+                <button
+                  onClick={() => pickGenre(g.id as string)}
+                  className={`press whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold border transition-colors ${
+                    active
+                      ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_var(--primary)]"
+                      : "bg-surface text-muted-foreground border-border hover:text-foreground"
+                  }`}
+                >
+                  {g.emoji} {g.name}
+                </button>
+                {isUser && userRow && active && (
+                  <div className="ml-1 inline-flex items-center gap-0.5">
+                    <button
+                      onClick={() => renameUserGenre(userRow)}
+                      className="press grid h-6 w-6 place-items-center rounded-full bg-surface text-muted-foreground hover:text-foreground border border-border"
+                      aria-label={`Rename ${userRow.name}`}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => deleteUserGenre(userRow)}
+                      className="press grid h-6 w-6 place-items-center rounded-full bg-surface text-muted-foreground hover:text-red-400 border border-border"
+                      aria-label={`Delete ${userRow.name}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
+          {userId && (
+            <button
+              data-testid="user-genre-add"
+              onClick={() => setAddGenreOpen(true)}
+              className="press whitespace-nowrap rounded-full border border-dashed border-border bg-surface px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+              aria-label="Add genre"
+            >
+              <Plus className="h-3 w-3" /> genre
+            </button>
+          )}
           {userId && (
             <button
               data-testid="mytv-manage"
@@ -337,7 +528,9 @@ export function WatchLive() {
           <div className="absolute inset-0 animate-pulse bg-surface" />
         ) : allDead || !current ? (
           <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted-foreground">
-            streams are napping — try later 📺
+            {isUserGenre && activeUserChannelRows.length === 0
+              ? "no channels yet — add ur first 📺"
+              : "streams are napping — try later 📺"}
           </div>
         ) : (
           <div ref={mountRef} className="h-full w-full" />
@@ -359,46 +552,240 @@ export function WatchLive() {
         )}
       </div>
 
-      {videos.length > 0 && (
+      {(videos.length > 0 || (isUserGenre && activeUserGenreRow)) && (
         <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-1">
+          {isUserGenre && activeUserGenreRow && (
+            <button
+              data-testid="user-channel-add"
+              onClick={() => setAddChannelForGenre({ id: activeUserGenreRow.id, name: activeUserGenreRow.name })}
+              className="press w-40 shrink-0 text-left"
+              aria-label="Add channel"
+            >
+              <div className="relative aspect-video overflow-hidden rounded-lg border border-dashed border-border grid place-items-center bg-surface">
+                <Plus className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div className="mt-1.5 line-clamp-2 text-xs font-medium text-foreground leading-snug">add channel</div>
+              <div className="mt-0.5 truncate text-[10px] text-muted-foreground">youtube link</div>
+            </button>
+          )}
           {videos.map((v, i) => {
             const active = current?.videoId === v.videoId && !allDead;
+            const row = isUserGenre ? activeUserChannelRows[i] : null;
             return (
-              <button
-                key={v.videoId}
-                data-testid="video-card"
-                onClick={() => pickVideo(i)}
-                className={`press w-40 shrink-0 text-left ${active ? "opacity-100" : "opacity-90 hover:opacity-100"}`}
-              >
-                <div className={`relative aspect-video overflow-hidden rounded-lg border ${active ? "border-primary" : "border-border"}`}>
-                  <img
-                    src={v.thumbnail}
-                    alt=""
-                    loading="lazy"
-                    className="h-full w-full object-cover"
-                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                  />
-                </div>
-                <div className="mt-1.5 line-clamp-2 text-xs font-medium text-foreground leading-snug">
-                  {v.title}
-                </div>
-                <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{v.channelName}</div>
-              </button>
+              <div key={v.videoId} className="relative w-40 shrink-0">
+                <button
+                  data-testid="video-card"
+                  onClick={() => pickVideo(i)}
+                  className={`press w-full text-left ${active ? "opacity-100" : "opacity-90 hover:opacity-100"}`}
+                >
+                  <div className={`relative aspect-video overflow-hidden rounded-lg border ${active ? "border-primary" : "border-border"}`}>
+                    <img
+                      src={v.thumbnail}
+                      alt=""
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                  </div>
+                  <div className="mt-1.5 line-clamp-2 text-xs font-medium text-foreground leading-snug">
+                    {v.title}
+                  </div>
+                  <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{v.channelName}</div>
+                </button>
+                {row && (
+                  <div className="absolute top-1 right-1 flex gap-1">
+                    <button
+                      onClick={() => renameUserChannel(row)}
+                      className="press grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white hover:text-primary"
+                      aria-label={`Rename ${row.name}`}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                    <button
+                      onClick={() => deleteUserChannel(row)}
+                      className="press grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white hover:text-red-400"
+                      aria-label={`Delete ${row.name}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
       )}
 
       <p className="mt-2 text-xs text-muted-foreground">
-        {isLiveGenre ? "Live streams by broadcasters via YouTube" : "Latest uploads via YouTube"}
+        {isUserGenre
+          ? "Your channels — pick anything you love"
+          : isLiveGenre ? "Live streams by broadcasters via YouTube" : "Latest uploads via YouTube"}
       </p>
 
       {manageOpen && userId && (
         <MyTvManageSheet onClose={() => setManageOpen(false)} />
       )}
+      {addGenreOpen && userId && (
+        <AddGenreSheet
+          userId={userId}
+          existingCount={(userGenresQ.data ?? []).length}
+          onClose={() => setAddGenreOpen(false)}
+          onCreated={(row) => {
+            invalidateUserWatch();
+            setGenreId(`ug:${row.id}`);
+            setIdx(0);
+          }}
+        />
+      )}
+      {addChannelForGenre && userId && (
+        <AddChannelSheet
+          userId={userId}
+          genre={addChannelForGenre}
+          existingCount={activeUserChannelRows.length}
+          onClose={() => setAddChannelForGenre(null)}
+          onAdded={() => { invalidateUserWatch(); }}
+        />
+      )}
     </div>
   );
 }
+
+function AddGenreSheet({
+  userId, existingCount, onClose, onCreated,
+}: {
+  userId: string;
+  existingCount: number;
+  onClose: () => void;
+  onCreated: (row: { id: string; name: string }) => void;
+}) {
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    const nm = name.trim();
+    if (!nm) return;
+    if (existingCount >= 20) { toast.error("that's enough genres bestie 😭"); return; }
+    setBusy(true);
+    const { data, error } = await supabase
+      .from("user_watch_genres")
+      .insert({ user_id: userId, name: nm.slice(0, 40), position: existingCount })
+      .select("id, name")
+      .single();
+    setBusy(false);
+    if (error || !data) { toast.error("couldn't add"); return; }
+    toast.success(`${data.name} added 🎯`);
+    onCreated(data);
+    onClose();
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass w-full max-w-lg rounded-t-3xl border border-border bg-card p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="font-display text-lg font-bold">new genre 🎯</div>
+          <button onClick={onClose} className="press grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:text-foreground" aria-label="Close">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <input
+          data-testid="user-genre-input"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="e.g. F1, cooking, chess…"
+          maxLength={40}
+          className="w-full rounded-full border border-border bg-surface px-4 py-2 text-sm outline-none focus:border-primary"
+        />
+        <div className="mt-3 flex justify-end gap-2">
+          <button onClick={onClose} className="press rounded-full border border-border bg-surface px-4 py-2 text-sm">cancel</button>
+          <button
+            data-testid="user-genre-save"
+            onClick={submit}
+            disabled={busy || !name.trim()}
+            className="press rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {busy ? "…" : "add"}
+          </button>
+        </div>
+        <div className="mt-2 text-xs text-muted-foreground">{existingCount}/20 genres</div>
+      </div>
+    </div>
+  );
+}
+
+function AddChannelSheet({
+  userId, genre, existingCount, onClose, onAdded,
+}: {
+  userId: string;
+  genre: { id: string; name: string };
+  existingCount: number;
+  onClose: () => void;
+  onAdded: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    const nm = name.trim();
+    const u = url.trim();
+    if (!nm || !u) return;
+    if (existingCount >= 50) { toast.error("50 channels max per genre — trim it 🧹"); return; }
+    const parsed = parseYouTube(u);
+    if (!parsed) { toast.error("drop a video or live link, channel pages can't autoplay 📺"); return; }
+    setBusy(true);
+    const { error } = await supabase.from("user_watch_channels").insert({
+      user_id: userId,
+      genre_id: genre.id,
+      name: nm.slice(0, 80),
+      youtube_url: u,
+      position: existingCount,
+    });
+    setBusy(false);
+    if (error) { toast.error("couldn't add channel"); return; }
+    toast.success(`${nm} added 📺`);
+    onAdded();
+    onClose();
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div className="glass w-full max-w-lg rounded-t-3xl border border-border bg-card p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <div className="font-display text-lg font-bold">add to {genre.name} 📺</div>
+          <button onClick={onClose} className="press grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:text-foreground" aria-label="Close">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="space-y-2">
+          <input
+            data-testid="user-channel-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="name (e.g. F1 highlights)"
+            maxLength={80}
+            className="w-full rounded-full border border-border bg-surface px-4 py-2 text-sm outline-none focus:border-primary"
+          />
+          <input
+            data-testid="user-channel-url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="paste youtu.be / youtube.com watch or live link"
+            className="w-full rounded-full border border-border bg-surface px-4 py-2 text-sm outline-none focus:border-primary"
+          />
+        </div>
+        <div className="mt-3 flex justify-end gap-2">
+          <button onClick={onClose} className="press rounded-full border border-border bg-surface px-4 py-2 text-sm">cancel</button>
+          <button
+            data-testid="user-channel-save"
+            onClick={submit}
+            disabled={busy || !name.trim() || !url.trim()}
+            className="press rounded-full bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {busy ? "…" : "add"}
+          </button>
+        </div>
+        <div className="mt-2 text-xs text-muted-foreground">{existingCount}/50 in this genre</div>
+      </div>
+    </div>
+  );
+}
+
 
 type UserChannelRow = { channel_id: string; name: string };
 
