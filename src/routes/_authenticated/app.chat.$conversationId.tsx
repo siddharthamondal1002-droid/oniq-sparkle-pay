@@ -976,6 +976,33 @@ function ChatThread() {
                     </button>
                   ) : m.type === "voice" && m.media_url ? (
                     <VoiceBubble url={m.media_url} durationS={m.duration_s ?? 0} mine={mine} />
+                  ) : m.type === "video" && m.media_url ? (
+                    <video
+                      src={m.media_url}
+                      controls
+                      playsInline
+                      preload="metadata"
+                      className="max-h-64 w-full rounded-xl bg-black"
+                    />
+                  ) : m.type === "file" && m.media_url ? (
+                    <div className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${mine ? "bg-white/10 backdrop-blur" : "border border-border bg-muted/60"}`}>
+                      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-black/25 text-lg">📄</div>
+                      <div className="min-w-0 flex-1">
+                        <div className={`truncate text-sm font-medium ${mine ? "text-white" : "text-foreground"}`}>
+                          {truncateMiddle(m.file_name || "File", 30)}
+                        </div>
+                        {m.file_size ? (
+                          <div className={`text-[11px] ${mine ? "text-white/70" : "text-muted-foreground"}`}>{humanSize(m.file_size)}</div>
+                        ) : null}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => window.open(m.media_url!, "_blank", "noopener,noreferrer")}
+                        className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ${mine ? "bg-white/20 text-white" : "bg-primary/15 text-primary"}`}
+                      >
+                        Open
+                      </button>
+                    </div>
                   ) : (
                     <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
                   )}
@@ -1148,16 +1175,50 @@ function ChatThread() {
         ) : (
         <div className="flex items-center gap-2">
           <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handlePickImage} data-testid="chat-file-input" />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isBlocked || uploading}
-            aria-label="Attach photo"
-            data-testid="chat-attach"
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-muted text-foreground transition active:scale-95 disabled:opacity-40"
-          >
-            <Paperclip className="h-5 w-5" />
-          </button>
+          <input ref={videoInputRef} type="file" accept="video/*" hidden onChange={handlePickVideo} data-testid="chat-video-input" />
+          <input ref={anyFileInputRef} type="file" hidden onChange={handlePickAnyFile} data-testid="chat-anyfile-input" />
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowAttachSheet((v) => !v)}
+              disabled={isBlocked || uploading}
+              aria-label="Attach"
+              data-testid="chat-attach"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-muted text-foreground transition active:scale-95 disabled:opacity-40"
+            >
+              <Paperclip className="h-5 w-5" />
+            </button>
+            {showAttachSheet && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowAttachSheet(false)} />
+                <div className="absolute bottom-14 left-0 z-40 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+                  <button
+                    type="button"
+                    onClick={() => { setShowAttachSheet(false); fileInputRef.current?.click(); }}
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="text-lg">📷</span> Photo
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="chat-attach-video"
+                    onClick={() => { setShowAttachSheet(false); videoInputRef.current?.click(); }}
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="text-lg">🎥</span> Video
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="chat-attach-file"
+                    onClick={() => { setShowAttachSheet(false); anyFileInputRef.current?.click(); }}
+                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <span className="text-lg">📎</span> File
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
             <Smile className="h-5 w-5 shrink-0 text-muted-foreground" />
             <input
