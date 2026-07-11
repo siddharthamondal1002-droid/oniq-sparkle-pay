@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
 const CALLBACK_SCHEME = "com.oniqhub.app://auth-callback";
+const CALLBACK_HTTPS = "https://oniqhub.com/auth-native-callback";
 let listenerBound = false;
 
 async function isNative(): Promise<boolean> {
@@ -25,7 +26,8 @@ export async function initNativeAuth(): Promise<void> {
     const { App } = await import("@capacitor/app");
     App.addListener("appUrlOpen", async (event: { url: string }) => {
       const url = event?.url ?? "";
-      if (!url.startsWith(CALLBACK_SCHEME)) return;
+      if (!url.startsWith(CALLBACK_SCHEME) && !url.startsWith(CALLBACK_HTTPS)) return;
+
 
       try {
         const parsed = new URL(url);

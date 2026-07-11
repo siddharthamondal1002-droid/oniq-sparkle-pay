@@ -14,6 +14,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as McpSigninRouteImport } from './routes/mcp-signin'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as AuthNativeCallbackRouteImport } from './routes/auth-native-callback'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -69,6 +70,11 @@ const McpSigninRoute = McpSigninRouteImport.update({
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthNativeCallbackRoute = AuthNativeCallbackRouteImport.update({
+  id: '/auth-native-callback',
+  path: '/auth-native-callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthRoute = AuthRouteImport.update({
@@ -238,6 +244,7 @@ const AuthenticatedAppChatConversationIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/auth-native-callback': typeof AuthNativeCallbackRoute
   '/mcp': typeof McpRoute
   '/mcp-signin': typeof McpSigninRoute
   '/privacy': typeof PrivacyRoute
@@ -275,6 +282,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/auth-native-callback': typeof AuthNativeCallbackRoute
   '/mcp': typeof McpRoute
   '/mcp-signin': typeof McpSigninRoute
   '/privacy': typeof PrivacyRoute
@@ -312,6 +320,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/auth-native-callback': typeof AuthNativeCallbackRoute
   '/mcp': typeof McpRoute
   '/mcp-signin': typeof McpSigninRoute
   '/privacy': typeof PrivacyRoute
@@ -351,6 +360,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/auth-native-callback'
     | '/mcp'
     | '/mcp-signin'
     | '/privacy'
@@ -388,6 +398,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/auth-native-callback'
     | '/mcp'
     | '/mcp-signin'
     | '/privacy'
@@ -424,6 +435,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/auth-native-callback'
     | '/mcp'
     | '/mcp-signin'
     | '/privacy'
@@ -463,6 +475,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  AuthNativeCallbackRoute: typeof AuthNativeCallbackRoute
   McpRoute: typeof McpRoute
   McpSigninRoute: typeof McpSigninRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -511,6 +524,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth-native-callback': {
+      id: '/auth-native-callback'
+      path: '/auth-native-callback'
+      fullPath: '/auth-native-callback'
+      preLoaderRoute: typeof AuthNativeCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth': {
@@ -809,6 +829,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  AuthNativeCallbackRoute: AuthNativeCallbackRoute,
   McpRoute: McpRoute,
   McpSigninRoute: McpSigninRoute,
   PrivacyRoute: PrivacyRoute,

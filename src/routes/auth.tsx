@@ -183,7 +183,7 @@ function AuthPage() {
         const { data, error } = await supabase.auth.signInWithOAuth({
           provider: "google",
           options: {
-            redirectTo: "com.oniqhub.app://auth-callback",
+            redirectTo: "https://oniqhub.com/auth-native-callback",
             skipBrowserRedirect: true,
           },
         });
