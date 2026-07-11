@@ -1185,6 +1185,27 @@ export type Database = {
           },
         ]
       }
+      otp_attempts: {
+        Row: {
+          created_at: string
+          expires_at: string
+          otp: string
+          phone: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          otp: string
+          phone: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          otp?: string
+          phone?: string
+        }
+        Relationships: []
+      }
       payment_requests: {
         Row: {
           amount: number
