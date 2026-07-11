@@ -18,7 +18,7 @@ async function isNative(): Promise<boolean> {
 export async function initNativeAuth(): Promise<void> {
   if (typeof window === "undefined") return;
   if (listenerBound) return;
-  if (!isNative()) return;
+  if (!(await isNative())) return;
   listenerBound = true;
 
   try {
