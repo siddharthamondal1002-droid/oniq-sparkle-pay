@@ -710,13 +710,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           : false;
       return await navigator.mediaDevices.getUserMedia({ audio, video });
     } catch (err) {
-      const name = (err as { name?: string })?.name;
+      const name = (err as { name?: string })?.name ?? "Error";
+      const message = (err as { message?: string })?.message ?? "";
       if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-        toast.error("Mic/camera blocked — enable in your browser settings");
+        toast.error(`Mic/camera blocked (${name}) — enable in your app settings`);
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {
-        toast.error("No mic/camera found on this device");
+        toast.error(`No mic/camera found (${name})`);
+      } else if (name === "NotReadableError") {
+        toast.error(`Mic in use by another app (${name})`);
       } else {
-        toast.error("Couldn't start call — check mic/camera");
+        toast.error(`Couldn't start call: ${name}${message ? ` — ${message}` : ""}`);
       }
       throw err;
     }
