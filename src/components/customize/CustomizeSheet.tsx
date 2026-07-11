@@ -359,3 +359,43 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
     </div>
   );
 }
+
+const HERO_TOGGLES: { key: TileKey; label: string }[] = [
+  { key: "watch", label: "Watch hero 📺" },
+  { key: "clips", label: "brainrot hero 🎬" },
+];
+
+function HeroVisibilitySection() {
+  const [hidden, setHidden] = useHiddenTiles();
+  return (
+    <section className="mt-6">
+      <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
+        Show / hide hero tiles
+      </div>
+      <ul className="space-y-2">
+        {HERO_TOGGLES.map(({ key, label }) => {
+          const isHidden = hidden.has(key);
+          return (
+            <li
+              key={key}
+              className="flex items-center gap-3 rounded-xl bg-surface-2/60 p-2 border border-border"
+            >
+              <div className="grid h-10 w-10 place-items-center rounded-lg bg-surface">
+                {isHidden ? <EyeOff className="h-4 w-4 text-muted-foreground" /> : <Eye className="h-4 w-4 text-primary" />}
+              </div>
+              <span className="flex-1 text-sm font-medium">{label}</span>
+              <button
+                type="button"
+                onClick={() => setHidden(key, !isHidden)}
+                aria-pressed={!isHidden}
+                className={`press rounded-full px-3 py-1.5 text-xs font-semibold ${isHidden ? "bg-surface text-muted-foreground border border-border" : "bg-primary text-primary-foreground"}`}
+              >
+                {isHidden ? "hidden — show" : "shown — hide"}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
