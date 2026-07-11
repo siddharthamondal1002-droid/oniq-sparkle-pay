@@ -20,7 +20,9 @@ import {
   SkipBack,
   SkipForward,
   Maximize2,
+  Heart,
 } from "lucide-react";
+import { useVitalsTileColor } from "@/components/vitals/useVitalsTileColor";
 import { CompactLiveNews, loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
 import {
   CustomizeButton,
