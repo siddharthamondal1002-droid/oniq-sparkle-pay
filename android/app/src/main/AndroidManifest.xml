@@ -29,6 +29,14 @@
                 <data android:scheme="com.oniqhub.app" android:host="auth-callback" />
             </intent-filter>
 
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="oniqhub.com" android:pathPrefix="/auth-native-callback" />
+            </intent-filter>
+
+
         </activity>
 
         <provider
