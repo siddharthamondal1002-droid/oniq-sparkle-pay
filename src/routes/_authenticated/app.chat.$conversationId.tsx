@@ -392,20 +392,17 @@ function ChatThread() {
     }, 3000);
   };
 
-  // Mark read on open + when message list changes; also zero the unread
-  // count in the chat-list cache so the badge dies the moment I open.
+  // Mark read on open + when message list changes; zero the unread count
+  // in the chat-list cache so the badge dies the moment I open.
+  // NOTE: intentionally NO invalidateQueries on unmount — that used to race
+  // ahead of the RPC commit and overwrite the optimistic zero with stale 21.
+  // Realtime UPDATE on conversation_members reconciles for peers instead.
   useEffect(() => {
-    markRead();
     zeroUnreadInCache();
+    void markRead();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, messages.length]);
 
-  // On leaving the thread, invalidate the chat list so it re-fetches with
-  // the persisted last_read_at → any post-mount changes reconcile.
-  useEffect(() => {
-    return () => {
-      qc.invalidateQueries({ queryKey: ["conversations"] });
-    };
-  }, [qc]);
 
 
   // Autoscroll on new messages.
