@@ -632,6 +632,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         return s;
       })();
       remoteStreamRef.current = stream;
+      // Remote media is flowing — kill any ringback/ringtone.
+      stopAllCallSounds();
       // Element-first playback with retry-on-gesture fallback. WebAudio
       // pipeline is used only after two consecutive play() failures.
       remotePlayAttemptsRef.current = 0;
@@ -652,6 +654,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (st === "connected") {
         clearConnectTimeout();
         clearGraceTimer();
+        stopAllCallSounds();
         setStatus("connected");
         void acquireWakeLock();
         if (!timerRef.current) {
@@ -699,6 +702,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         echoCancellation: true,
         noiseSuppression: true,
         autoGainControl: true,
+        channelCount: 1,
       };
       const video: MediaTrackConstraints | false =
         type === "video"
@@ -1028,6 +1032,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (status !== "incoming") return;
     setStatus("connecting");
     armConnectTimeout();
+    stopAllCallSounds();
     resumeRemoteAudio();
     try {
       const stream = await getMedia(callTypeRef.current);
