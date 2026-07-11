@@ -39,7 +39,8 @@ function mungeOpus(sdp: string): string {
   if (!fmtp) return sdp;
   let params = fmtp[1];
   if (!/(^|;)\s*useinbandfec=/i.test(params)) params += ";useinbandfec=1";
-  if (!/(^|;)\s*maxaveragebitrate=/i.test(params)) params += ";maxaveragebitrate=64000";
+  if (!/(^|;)\s*maxaveragebitrate=/i.test(params)) params += ";maxaveragebitrate=96000";
+  if (!/(^|;)\s*stereo=/i.test(params)) params += ";stereo=0";
   if (params === fmtp[1]) return sdp;
   return sdp.replace(fmtpRe, `a=fmtp:${pt} ${params}`);
 }
