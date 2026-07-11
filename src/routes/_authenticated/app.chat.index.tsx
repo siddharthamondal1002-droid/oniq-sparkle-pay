@@ -794,30 +794,29 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   };
 
   // ── Contacts discovery ──
-  type FoundRow = { email: string; profile: { id: string; username: string | null; display_name: string | null; avatar_url: string | null } };
+  type OnOniqRow = { user_id: string; username: string | null; display_name: string | null; avatar_url: string | null; email: string };
   type PickedContact = { name: string; email: string };
   const [picking, setPicking] = useState(false);
-  const [found, setFound] = useState<FoundRow[] | null>(null);
+  const [onOniq, setOnOniq] = useState<OnOniqRow[] | null>(null);
   const [notOnOniq, setNotOnOniq] = useState<PickedContact[]>([]);
   const [noEmailCount, setNoEmailCount] = useState(0);
   const [addingId, setAddingId] = useState<string | null>(null);
 
-  const inviteMessage = "join me on ONIQ — one app, every world 🌍";
+  const inviteMessage = "pull up to ONIQ — one app, every world 🌍";
   const inviteUrl = "https://oniqhub.com";
 
-  const invite = async (name: string) => {
+  const invite = async () => {
     try {
       if (typeof navigator !== "undefined" && "share" in navigator) {
         await (navigator as Navigator).share({ title: "ONIQ", text: inviteMessage, url: inviteUrl });
         return;
       }
     } catch {
-      // user cancelled — fall through
       return;
     }
     try {
       await (navigator as Navigator).clipboard.writeText(`${inviteMessage} ${inviteUrl}`);
-      toast.success(`invite link copied for ${name} ✨`);
+      toast.success("link copied — go spam them 📋");
     } catch {
       toast.error("couldn't copy invite");
     }
@@ -836,7 +835,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   const pickContacts = async () => {
     const nav = typeof navigator !== "undefined" ? (navigator as unknown as { contacts?: { select: (props: string[], opts: { multiple: boolean }) => Promise<Array<{ name?: string[]; email?: string[] }>> } }) : null;
     if (!nav?.contacts || typeof nav.contacts.select !== "function") {
-      toast("contact picker needs Chrome on Android — search by @username instead 🔍");
+      toast("ur browser can't do contacts 😔 — search by @username instead");
       return;
     }
     setPicking(true);
@@ -851,26 +850,26 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
         for (const e of emails) picked.push({ name, email: e });
       }
       setNoEmailCount(skipped);
-      const capped = picked.slice(0, 50);
+      const capped = picked.slice(0, 100);
       const uniqueEmails = Array.from(new Set(capped.map((p) => p.email)));
-      const { data: sess } = await supabase.auth.getSession();
-      const jwt = sess.session?.access_token;
-      if (!jwt) { toast.error("sign in expired — reload"); setPicking(false); return; }
-      const resp = await supabase.functions.invoke<{ found: FoundRow[]; not_found: string[] }>("find-friends", {
+      const resp = await supabase.functions.invoke<{ on_oniq: OnOniqRow[]; not_on_oniq: string[] }>("match-contacts", {
         body: { emails: uniqueEmails },
       });
       if (resp.error || !resp.data) { toast.error(resp.error?.message || "couldn't reach ONIQ"); setPicking(false); return; }
-      const foundEmails = new Set(resp.data.found.map((f) => f.email));
-      setFound(resp.data.found.filter((f) => f.profile.id !== meId));
-      const notOn = capped.filter((c) => !foundEmails.has(c.email));
-      // dedupe by email preserving contact name
+      const onEmails = new Set(resp.data.on_oniq.map((f) => f.email));
+      setOnOniq(resp.data.on_oniq);
+      // dedupe not-on-oniq by email, keep the contact name for display
       const seen = new Set<string>();
       const notOnDedup: PickedContact[] = [];
-      for (const c of notOn) { if (!seen.has(c.email)) { seen.add(c.email); notOnDedup.push(c); } }
+      for (const c of capped) {
+        if (onEmails.has(c.email)) continue;
+        if (seen.has(c.email)) continue;
+        seen.add(c.email);
+        notOnDedup.push(c);
+      }
       setNotOnOniq(notOnDedup);
-      if (resp.data.found.length === 0 && notOnDedup.length === 0) toast("no contacts to match — try again");
+      if (resp.data.on_oniq.length === 0 && notOnDedup.length === 0) toast("nothing to match — try picking again");
     } catch (e) {
-      // user cancelled or permission denied
       if ((e as { name?: string })?.name !== "AbortError") {
         toast("contact picker cancelled");
       }
@@ -880,6 +879,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   };
 
   const contactsSupported = typeof navigator !== "undefined" && "contacts" in navigator && typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select === "function";
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
