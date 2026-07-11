@@ -811,7 +811,7 @@ function ChatThread() {
           </div>
           <div className="min-w-0 flex-1">
             <div className="truncate font-medium">{isChannel ? `📢 ${title}` : title}</div>
-            <div className="text-[11px] text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               {peerTyping && !isChannel ? (
                 <span className="text-[#25D366]">
                   {isGroup && peerTypingName ? `${peerTypingName} is typing…` : "typing…"}
@@ -913,7 +913,7 @@ function ChatThread() {
             if (r.kind === "day") {
               return (
                 <div key={r.key} className="my-3 flex items-center justify-center">
-                  <span className="rounded-full bg-card/80 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-sm">
+                  <span className="rounded-full bg-card/80 px-3 py-1 text-xs font-medium text-muted-foreground shadow-sm">
                     {r.label}
                   </span>
                 </div>
@@ -922,7 +922,7 @@ function ChatThread() {
             if (r.kind === "system") {
               return (
                 <div key={r.key} className="my-2 flex items-center justify-center">
-                  <span className="rounded-full bg-card/80 px-3 py-1 text-[11px] text-muted-foreground shadow-sm">
+                  <span className="rounded-full bg-card/80 px-3 py-1 text-xs text-muted-foreground shadow-sm">
                     {r.text}
                   </span>
                 </div>
@@ -986,7 +986,7 @@ function ChatThread() {
                     const sm = senderMap.get(m.sender_id);
                     if (!sm) return null;
                     return (
-                      <div className="mb-0.5 text-[11px] font-semibold" style={{ color: sm.color }}>
+                      <div className="mb-0.5 text-xs font-semibold" style={{ color: sm.color }}>
                         {sm.name}
                       </div>
                     );
@@ -995,7 +995,7 @@ function ChatThread() {
                     <button
                       type="button"
                       onClick={() => scrollToMessage(quoted.id)}
-                      className={`mb-1 block w-full rounded-md border-l-2 border-[#00D4B8] px-2 py-1 text-left text-[11px] ${mine ? "bg-black/20" : "bg-muted/60"}`}
+                      className={`mb-1 block w-full rounded-md border-l-2 border-[#00D4B8] px-2 py-1 text-left text-xs ${mine ? "bg-black/20" : "bg-muted/60"}`}
                     >
                       <div className="font-semibold text-[#00D4B8]">
                         {quoted.sender_id === me?.id ? "You" : (senderMap.get(quoted.sender_id)?.name || title || "Message")}
@@ -1041,13 +1041,13 @@ function ChatThread() {
                           {truncateMiddle(m.file_name || "File", 30)}
                         </div>
                         {m.file_size ? (
-                          <div className={`text-[11px] ${mine ? "text-white/70" : "text-muted-foreground"}`}>{humanSize(m.file_size)}</div>
+                          <div className={`text-xs ${mine ? "text-white/70" : "text-muted-foreground"}`}>{humanSize(m.file_size)}</div>
                         ) : null}
                       </div>
                       <button
                         type="button"
                         onClick={() => window.open(m.media_url!, "_blank", "noopener,noreferrer")}
-                        className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ${mine ? "bg-white/20 text-white" : "bg-primary/15 text-primary"}`}
+                        className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${mine ? "bg-white/20 text-white" : "bg-primary/15 text-primary"}`}
                       >
                         Open
                       </button>
@@ -1191,7 +1191,7 @@ function ChatThread() {
         {replyTo && (
           <div className="flex items-center gap-2 rounded-xl border-l-2 border-[#00D4B8] bg-muted/60 px-3 py-2">
             <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-semibold text-[#00D4B8]">
+              <div className="text-xs font-semibold text-[#00D4B8]">
                 Replying to {replyTo.sender_id === me?.id ? "yourself" : title}
               </div>
               <div className="truncate text-xs text-muted-foreground">
@@ -1389,7 +1389,7 @@ function VoiceBubble({ url, durationS, mine }: { url: string; durationS: number;
       <div className={`h-1.5 w-32 overflow-hidden rounded-full ${mine ? "bg-white/20" : "bg-muted"}`}>
         <div className={`h-full ${mine ? "bg-white" : "bg-primary"}`} style={{ width: `${Math.round(progress * 100)}%` }} />
       </div>
-      <span className={`text-[11px] tabular-nums ${mine ? "text-white/80" : "text-muted-foreground"}`}>{mm}:{ss}</span>
+      <span className={`text-xs tabular-nums ${mine ? "text-white/80" : "text-muted-foreground"}`}>{mm}:{ss}</span>
       <audio ref={audioRef} src={url} preload="metadata" />
     </div>
   );

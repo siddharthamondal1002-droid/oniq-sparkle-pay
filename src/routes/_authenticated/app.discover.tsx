@@ -162,7 +162,7 @@ function DiscoverScreen() {
             onChange={handlePickFile}
           />
           <div className="mt-3 border-t border-border pt-3">
-            <div className="mb-2 text-[11px] text-muted-foreground">who can peep this? 👀</div>
+            <div className="mb-2 text-xs text-muted-foreground">who can peep this? 👀</div>
             <div className="flex gap-2">
               {(["public", "moots"] as const).map((v) => {
                 const active = visibility === v;
@@ -176,7 +176,7 @@ function DiscoverScreen() {
                       setVisibility(v);
                       if (typeof sessionStorage !== "undefined") sessionStorage.setItem("oniq_post_visibility", v);
                     }}
-                    className={`flex-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                    className={`flex-1 min-h-11 rounded-full border px-3 py-2 text-xs font-semibold transition ${
                       active ? "border-primary bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted"
                     }`}
                   >

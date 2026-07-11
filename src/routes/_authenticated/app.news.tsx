@@ -95,7 +95,7 @@ function NewsScreen() {
                 <button
                   key={c.id}
                   onClick={() => setCategory(c.id)}
-                  className={`press whitespace-nowrap rounded-full px-4 py-1.5 text-sm font-medium border transition-colors ${
+                  className={`press whitespace-nowrap min-h-11 rounded-full px-4 py-2 text-sm font-medium border transition-colors ${
                     active
                       ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_var(--primary)]"
                       : "bg-surface text-muted-foreground border-border hover:text-foreground"
@@ -153,7 +153,7 @@ function NewsScreen() {
                     />
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 text-[11px]">
+                    <div className="flex items-center gap-2 text-xs">
                       <span className="font-medium text-primary truncate max-w-[60%]">{it.source}</span>
                       <span className="text-muted-foreground">·</span>
                       <span className="text-muted-foreground">{relTime(it.publishedAt)}</span>

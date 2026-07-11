@@ -288,7 +288,7 @@ function ChatList() {
                       <div className="flex items-baseline justify-between gap-2">
                         <div className="truncate font-semibold">{isChannel ? `📢 ${c.title}` : c.title}</div>
                         <div
-                          className={`shrink-0 text-[11px] ${
+                          className={`shrink-0 text-xs ${
                             c.unread > 0 ? "font-semibold text-[#25D366]" : "text-muted-foreground"
                           }`}
                         >
@@ -311,7 +311,7 @@ function ChatList() {
                           </span>
                         </div>
                         {c.unread > 0 && (
-                          <span className="ml-2 grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-[#25D366] px-1.5 text-[11px] font-bold text-black">
+                          <span className="ml-2 grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-[#25D366] px-1.5 text-xs font-bold text-black">
                             {c.unread}
                           </span>
                         )}
@@ -371,7 +371,7 @@ function ChannelsStrip({ convs }: { convs: EnrichedConv[] }) {
       <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
         <button
           onClick={() => setShowDiscover(true)}
-          className="flex shrink-0 items-center gap-1.5 rounded-full border border-dashed border-border bg-card/40 px-3 py-1.5 text-xs font-medium text-foreground"
+          className="flex shrink-0 min-h-11 items-center gap-1.5 rounded-full border border-dashed border-border bg-card/40 px-4 py-2 text-xs font-medium text-foreground"
           data-testid="discover-channels"
         >
           <Megaphone className="h-3.5 w-3.5 text-[#00D4B8]" /> Discover 📢
@@ -381,7 +381,7 @@ function ChannelsStrip({ convs }: { convs: EnrichedConv[] }) {
             key={c.id}
             to="/app/chat/$conversationId"
             params={{ conversationId: c.id }}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary"
+            className="flex shrink-0 min-h-11 items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-medium text-primary"
           >
             📢 <span className="max-w-[9rem] truncate">{c.title}</span>
             {c.unread > 0 && <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] text-black">{c.unread}</span>}
@@ -441,7 +441,7 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-semibold">{ch.name}</div>
                 {ch.description && <div className="line-clamp-2 text-xs text-muted-foreground">{ch.description}</div>}
-                <div className="mt-0.5 text-[11px] text-muted-foreground">{ch.subscriber_count} subscriber{ch.subscriber_count === 1 ? "" : "s"}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground">{ch.subscriber_count} subscriber{ch.subscriber_count === 1 ? "" : "s"}</div>
               </div>
               <button
                 onClick={() => join(ch.id)}
@@ -742,17 +742,17 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                       </button>
                       {mode === "chat" && (
                         fs === "accepted" ? (
-                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">moots ✓</span>
+                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">moots ✓</span>
                         ) : fs === "pending-out" ? (
-                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">pending fr ⏳</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">pending fr ⏳</span>
                         ) : fs === "pending-in" ? (
-                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">they added u 👀</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">they added u 👀</span>
                         ) : (
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); addFriend(u.id); }}
                             disabled={addingId === u.id}
-                            className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
+                            className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
                           >
                             {addingId === u.id ? "…" : "add moot ➕"}
                           </button>
@@ -940,7 +940,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
         </div>
         <div className="mt-3 max-h-[65vh] space-y-4 overflow-y-auto">
           <section>
-            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">moot requests 👀</div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">moot requests 👀</div>
             {isLoading ? (
               <div className="py-3 text-sm text-muted-foreground">Loading…</div>
             ) : (data?.incoming ?? []).length === 0 ? (
@@ -970,17 +970,17 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
               {picking ? "checking your contacts…" : "find ur ppl 📇"}
             </button>
             {!contactsSupported && (
-              <div className="mt-1 text-[11px] text-muted-foreground">tip: ur browser can't do contacts 😔 — search by @username instead</div>
+              <div className="mt-1 text-xs text-muted-foreground">tip: ur browser can't do contacts 😔 — search by @username instead</div>
             )}
             {noEmailCount > 0 && (
-              <div className="mt-1 text-[11px] text-muted-foreground">{noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by email for now</div>
+              <div className="mt-1 text-xs text-muted-foreground">{noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by email for now</div>
             )}
           </section>
 
           {onOniq !== null && (
             <>
               <section>
-                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">already here 😎</div>
+                <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">already here 😎</div>
                 {onOniq.length === 0 ? (
                   <div className="py-3 text-sm text-muted-foreground">none of ur ppl are on ONIQ yet — drag them in below 📤</div>
                 ) : (
@@ -995,16 +995,16 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                             <div className="truncate text-xs text-muted-foreground">@{f.username}</div>
                           </div>
                           {fs === "accepted" ? (
-                            <button onClick={() => openChat(f.user_id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary">moots ✓</button>
+                            <button onClick={() => openChat(f.user_id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">moots ✓</button>
                           ) : fs === "pending-out" ? (
-                            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">pending fr ⏳</span>
+                            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">pending fr ⏳</span>
                           ) : fs === "pending-in" ? (
-                            <button disabled={busy === f.user_id} onClick={() => respond(f.user_id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50">accept ✅</button>
+                            <button disabled={busy === f.user_id} onClick={() => respond(f.user_id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50">accept ✅</button>
                           ) : (
                             <button
                               onClick={() => addMoot(f.user_id)}
                               disabled={addingId === f.user_id}
-                              className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-[11px] font-semibold text-black disabled:opacity-50"
+                              className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
                             >
                               {addingId === f.user_id ? "…" : "add moot ➕"}
                             </button>
@@ -1017,7 +1017,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
               </section>
 
               <section>
-                <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">drag them in 📤</div>
+                <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">drag them in 📤</div>
                 {notOnOniq.length === 0 ? (
                   <div className="py-3 text-sm text-muted-foreground">everyone u picked is already here 🎉</div>
                 ) : (
@@ -1031,7 +1031,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                         </div>
                         <button
                           onClick={() => invite()}
-                          className="shrink-0 rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold"
+                          className="shrink-0 rounded-full border border-border px-2.5 py-1 text-xs font-semibold"
                         >
                           invite 📤
                         </button>
@@ -1045,7 +1045,7 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
           )}
 
           <section>
-            <div className="mb-1 text-[11px] uppercase tracking-wider text-muted-foreground">your moots</div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">your moots</div>
             {(data?.friends ?? []).length === 0 ? (
               <div className="py-3 text-sm text-muted-foreground">zero moots?? not for long — search someone 🔍</div>
             ) : (

@@ -167,7 +167,7 @@ export function MessageNotifier() {
       </div>
       <div className="min-w-0 flex-1">
         <div className="text-[13px] font-semibold">Turn on message alerts</div>
-        <div className="text-[11px] text-muted-foreground">Get pinged when someone replies 🔔</div>
+        <div className="text-xs text-muted-foreground">Get pinged when someone replies 🔔</div>
       </div>
       <button
         onClick={requestPermission}

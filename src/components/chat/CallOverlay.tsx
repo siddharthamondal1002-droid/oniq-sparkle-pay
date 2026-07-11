@@ -1058,7 +1058,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       )}
 
       {showHud && hudLive && (
-        <div className="absolute left-3 top-3 z-20 rounded-xl border border-white/15 bg-black/55 px-3 py-2 text-[11px] font-mono leading-tight backdrop-blur-md">
+        <div className="absolute left-3 top-3 z-20 rounded-xl border border-white/15 bg-black/55 px-3 py-2 text-xs font-mono leading-tight backdrop-blur-md">
           <div className="mb-1 text-white/60">{hudLive.route}</div>
           <div>
             RTT{" "}

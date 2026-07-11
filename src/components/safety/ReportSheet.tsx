@@ -107,7 +107,7 @@ export function ReportSheet({
         >
           {submitting ? "Submitting…" : "Submit report"}
         </button>
-        <p className="mt-3 text-center text-[11px] text-muted-foreground">
+        <p className="mt-3 text-center text-xs text-muted-foreground">
           Reports are reviewed by our Grievance Officer. Acknowledged within 7 days; serious complaints (identity theft, non-consensual imagery) resolved within 36 hours.
         </p>
       </div>

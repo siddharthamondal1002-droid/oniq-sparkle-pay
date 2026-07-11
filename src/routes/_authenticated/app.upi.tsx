@@ -165,7 +165,7 @@ function UpiScreen() {
         <Copy className="h-4 w-4" /> Copy UPI payment link
       </button>
 
-      <p className="mt-6 text-center text-[11px] text-muted-foreground">
+      <p className="mt-6 text-center text-xs text-muted-foreground">
         Works on Android with a UPI app installed. On desktop, copy the link to your phone.
       </p>
     </div>

@@ -88,7 +88,7 @@ function BanksScreen() {
                 <div className="text-xs text-muted-foreground">
                   {b.bank_name} ••{b.account_last4} · {b.ifsc}
                 </div>
-                <div className="text-[11px] text-muted-foreground">{b.holder_name}</div>
+                <div className="text-xs text-muted-foreground">{b.holder_name}</div>
               </div>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
@@ -226,7 +226,7 @@ function AddBankSheet({ onClose, onDone }: { onClose: () => void; onDone: () => 
         <FieldLabel>Nickname (optional)</FieldLabel>
         <SheetInput value={nickname} onChange={setNickname} placeholder="Salary account" />
 
-        <p className="mt-3 text-[11px] text-muted-foreground">
+        <p className="mt-3 text-xs text-muted-foreground">
           🔒 Your full account number is validated and immediately discarded — only the last 4 digits are saved.
         </p>
 
@@ -280,7 +280,7 @@ function WithdrawSheet({ bank, onClose, onDone }: { bank: Bank; onClose: () => v
         </div>
         <FieldLabel>Amount (USD)</FieldLabel>
         <SheetInput value={amount} onChange={setAmount} placeholder="0.00" type="number" inputMode="decimal" />
-        <p className="mt-2 text-[11px] text-muted-foreground">
+        <p className="mt-2 text-xs text-muted-foreground">
           Demo mode: deducts from your ONIQ balance and records a withdrawal — no real bank transfer happens yet.
         </p>
         <button

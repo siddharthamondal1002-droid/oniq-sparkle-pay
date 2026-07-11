@@ -90,13 +90,13 @@ function HomeScreen() {
               <div className="flex items-center gap-1">
                 <button
                   onClick={installPrompt.prompt}
-                  className="press rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground"
+                  className="press rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
                 >
                   Install
                 </button>
                 <button
                   onClick={installPrompt.dismiss}
-                  className="press rounded-full px-2 py-1 text-[11px] text-muted-foreground"
+                  className="press rounded-full px-2 py-1 text-xs text-muted-foreground"
                   aria-label="Dismiss"
                 >
                   ✕
@@ -209,7 +209,7 @@ function Tile({
           <Lock className="h-2.5 w-2.5 text-muted-foreground" />
         </div>
       )}
-      <span className={`relative z-10 text-[11px] font-medium ${showSkin ? "text-white drop-shadow" : ""} ${locked ? "text-muted-foreground" : ""}`}>{label}</span>
+      <span className={`relative z-10 text-xs font-medium ${showSkin ? "text-white drop-shadow" : ""} ${locked ? "text-muted-foreground" : ""}`}>{label}</span>
     </>
   );
   const base =
@@ -505,7 +505,7 @@ function HeroTile({
                 <button
                   key={g.id}
                   onClick={(e) => { e.stopPropagation(); pickGenre(g.id); }}
-                  className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
+                  className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
                   aria-label={g.name}
                 >
                   {g.emoji}

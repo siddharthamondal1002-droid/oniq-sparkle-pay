@@ -84,7 +84,7 @@ export function CompactLiveNews() {
         ) : (
           <>
             <div className="truncate text-sm font-medium text-foreground">{current.title}</div>
-            <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+            <div className="mt-0.5 truncate text-xs text-muted-foreground">
               {current.source} · {relTime(current.publishedAt)}
             </div>
           </>
@@ -379,7 +379,7 @@ export function WatchLive() {
                     onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                   />
                 </div>
-                <div className="mt-1.5 line-clamp-2 text-[11px] font-medium text-foreground leading-snug">
+                <div className="mt-1.5 line-clamp-2 text-xs font-medium text-foreground leading-snug">
                   {v.title}
                 </div>
                 <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{v.channelName}</div>
@@ -389,7 +389,7 @@ export function WatchLive() {
         </div>
       )}
 
-      <p className="mt-2 text-[11px] text-muted-foreground">
+      <p className="mt-2 text-xs text-muted-foreground">
         {isLiveGenre ? "Live streams by broadcasters via YouTube" : "Latest uploads via YouTube"}
       </p>
 
@@ -514,7 +514,7 @@ function MyTvManageSheet({ onClose }: { onClose: () => void }) {
             </ul>
           )}
         </div>
-        <div className="mt-3 text-[11px] text-muted-foreground">
+        <div className="mt-3 text-xs text-muted-foreground">
           {(list.data?.length ?? 0)}/10 channels
         </div>
       </div>
