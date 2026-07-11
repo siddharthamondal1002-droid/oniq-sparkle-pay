@@ -197,27 +197,29 @@ function ReadSection({ religion }: { religion: Religion }) {
 
 const LISTEN: Record<Religion, { label: string; url: string }[]> = {
   hindu: [
-    { label: "Bhagavad Gita — audiobook (LibriVox)", url: "https://librivox.org/the-bhagavad-gita-by-vyasa/" },
-    { label: "Vedic chants (archive.org)", url: "https://archive.org/details/VedicChants" },
+    { label: "Bhagavad Gita — LibriVox audiobook (archive.org)", url: "https://archive.org/details/bhagavad-gita_1502_librivox_201711" },
   ],
   islam: [
-    { label: "Quran recitation — Mishary Rashid (archive.org)", url: "https://archive.org/details/mishary-rashid-alafasy-quran" },
-    { label: "Full Quran audio (archive.org)", url: "https://archive.org/details/quran-audio" },
+    { label: "Holy Quran — ʿAbd al-Raḥmān Al-Awsī (archive.org)", url: "https://archive.org/details/coranpro-abdurrahman-alausi" },
+    { label: "Quran — Warsh narration, Al-Daghoshi (archive.org)", url: "https://archive.org/details/warsh_abdalkreem_daghoshi" },
   ],
   christian: [
-    { label: "KJV Bible — audiobook (LibriVox)", url: "https://librivox.org/the-holy-bible-king-james-version-kjv/" },
-    { label: "New Testament (LibriVox)", url: "https://librivox.org/the-new-testament-of-the-king-james-bible/" },
+    { label: "Psalms (KJV) — LibriVox audiobook (archive.org)", url: "https://archive.org/details/psalms_kjv_1202_librivox" },
+    { label: "Deuteronomy (KJV) — LibriVox (archive.org)", url: "https://archive.org/details/deuteronomy_kjv_1110_librivox" },
   ],
   sikh: [
-    { label: "Kirtan — Harmandir Sahib (archive.org)", url: "https://archive.org/details/kirtan" },
+    { label: "Gurbani Kirtan (archive.org)", url: "https://archive.org/details/gurbani-kirtan" },
+    { label: "Japji Sahib (archive.org)", url: "https://archive.org/details/JapjiSahib" },
+    { label: "Asa Di Vaar (archive.org)", url: "https://archive.org/details/AsaDiVaar" },
+    { label: "SikhNet Gurbani player", url: "https://www.sikhnet.com/gurbani" },
   ],
   buddhist: [
-    { label: "Dhammapada — audiobook (LibriVox)", url: "https://librivox.org/the-dhammapada-by-anonymous/" },
-    { label: "Buddhist chants (archive.org)", url: "https://archive.org/details/buddhistchants" },
+    { label: "Dhammapada — LibriVox audiobook (archive.org)", url: "https://archive.org/details/dhammapada_0707_librivox" },
+    { label: "Dhammapada — alt reading (archive.org)", url: "https://archive.org/details/dhammapada_2105_librivox" },
   ],
   jewish: [
-    { label: "Torah readings (archive.org)", url: "https://archive.org/details/torah" },
-    { label: "Psalms — audiobook (LibriVox)", url: "https://librivox.org/the-book-of-psalms/" },
+    { label: "Sefaria — audio texts library", url: "https://www.sefaria.org/texts/audio" },
+    { label: "Psalms (KJV) — LibriVox audiobook (archive.org)", url: "https://archive.org/details/psalms_kjv_1202_librivox" },
   ],
 };
 
