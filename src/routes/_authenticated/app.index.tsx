@@ -293,7 +293,10 @@ function HeroTile({
           : []),
       ]
     : [];
-  const [genreId, setGenreId] = useState<GenreId>("news");
+  const [genreId, setGenreId] = useState<GenreId>(() => {
+    if (typeof window === "undefined") return "news";
+    try { return (localStorage.getItem("oniq.watch.lastGenre") as GenreId) || "news"; } catch { return "news"; }
+  });
   const activeGenre =
     genres.find((g) => g.id === genreId) ?? genres[0] ?? null;
   const videos = activeGenre?.videos ?? [];
@@ -301,6 +304,21 @@ function HeroTile({
 
 
   const [idx, setIdx] = useState(0);
+  const resumedRef = useRef(false);
+  // On first non-empty load, resume last watched video (if we can find it in current genre)
+  useEffect(() => {
+    if (resumedRef.current) return;
+    if (!livePreview || showSkin) return;
+    if (videos.length === 0) return;
+    try {
+      const last = localStorage.getItem("oniq.watch.last");
+      if (last) {
+        const foundIdx = videos.findIndex((v) => v.videoId === last);
+        if (foundIdx >= 0) setIdx(foundIdx);
+      }
+    } catch { /* noop */ }
+    resumedRef.current = true;
+  }, [videos, livePreview, showSkin]);
   const [paused, setPaused] = useState(false);
   const [controlsVisible, setControlsVisible] = useState(false);
   const mountRef = useRef<HTMLDivElement | null>(null);
