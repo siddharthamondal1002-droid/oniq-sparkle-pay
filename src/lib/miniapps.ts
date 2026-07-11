@@ -7,7 +7,7 @@ export type MiniApp = {
   id: string;
   name: string;
   tagline: string;
-  category: "food" | "rides" | "quickcommerce" | "payments" | "social" | "shopping";
+  category: "food" | "rides" | "quickcommerce" | "services" | "payments" | "social" | "shopping";
   url: string; // web URL opened in the in-app browser / same-tab fallback
   color: string; // brand tile color
   letter: string; // fallback monogram
