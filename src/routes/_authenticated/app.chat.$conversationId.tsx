@@ -290,6 +290,7 @@ function ChatThread() {
             return [...stripped, m];
           });
           markRead();
+          zeroUnreadInCache();
         },
 
       )
