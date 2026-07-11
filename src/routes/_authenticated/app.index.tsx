@@ -475,7 +475,7 @@ function HeroTile({
           className={playerCoverClass}
         />
       </div>
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
 
       <span className={`relative inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/15 text-red-300" : "border-primary/50 bg-primary/15 text-primary"}`}>
         {isLiveGenre ? (
@@ -635,7 +635,7 @@ function ClipsHeroTile({
         />
       )}
       {videoUrl && (
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
       )}
       {showSkin ? (
         <>
@@ -645,7 +645,7 @@ function ClipsHeroTile({
             onError={() => setSkinError(true)}
             className="absolute inset-0 h-full w-full object-cover"
           />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/78 via-black/22 to-transparent" />
         </>
       ) : (
         <Clapperboard className="relative h-10 w-10 text-foreground/90" strokeWidth={1.6} />
