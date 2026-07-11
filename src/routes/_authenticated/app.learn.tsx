@@ -709,19 +709,31 @@ function ScoutPanel() {
     if (fileRef.current) fileRef.current.value = "";
   }
 
+  const [scoutError, setScoutError] = useState<string | null>(null);
+
   async function scout() {
     if (!query.trim() && !image) { toast.error("type or snap something first 👀"); return; }
     setLoading(true);
     setData(null);
+    setScoutError(null);
     try {
       const { data: r, error } = await supabase.functions.invoke("smart-scout", {
         body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto" },
       });
       if (error) throw error;
       if ((r as any)?.error) throw new Error((r as any).error);
-      setData(r as ScoutResponse);
+      // Defensive: guarantee results is an array so .map / .length never crash.
+      const safe: ScoutResponse = {
+        product: (r as any)?.product ?? "",
+        results: Array.isArray((r as any)?.results) ? (r as any).results : [],
+        disclaimer: (r as any)?.disclaimer,
+        sources: Array.isArray((r as any)?.sources) ? (r as any).sources : [],
+      };
+      setData(safe);
     } catch (e: any) {
-      toast.error(e?.message ?? "scout glitched — try again");
+      const msg = e?.message ?? "scout hit a wall 😵‍💫 — try again in a sec";
+      setScoutError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
