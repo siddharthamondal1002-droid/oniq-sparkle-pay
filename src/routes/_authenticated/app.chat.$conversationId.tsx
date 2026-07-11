@@ -1369,6 +1369,8 @@ function ForwardSheet({ message, meId, onClose }: { message: Message; meId: stri
       type: message.type,
       media_url: message.media_url ?? null,
       duration_s: message.duration_s ?? null,
+      file_name: message.file_name ?? null,
+      file_size: message.file_size ?? null,
     });
     setBusy(false);
     if (error) { toast.error(error.message || "couldn't forward"); return; }
