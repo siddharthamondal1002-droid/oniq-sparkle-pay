@@ -33,6 +33,7 @@ import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authentic
 import { Route as AuthenticatedAppNewsRouteImport } from './routes/_authenticated/app.news'
 import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenticated/app.miniapps'
 import { Route as AuthenticatedAppLearnRouteImport } from './routes/_authenticated/app.learn'
+import { Route as AuthenticatedAppFaithRouteImport } from './routes/_authenticated/app.faith'
 import { Route as AuthenticatedAppDiscoverRouteImport } from './routes/_authenticated/app.discover'
 import { Route as AuthenticatedAppClipsRouteImport } from './routes/_authenticated/app.clips'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
@@ -169,6 +170,11 @@ const AuthenticatedAppLearnRoute = AuthenticatedAppLearnRouteImport.update({
   path: '/learn',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppFaithRoute = AuthenticatedAppFaithRouteImport.update({
+  id: '/faith',
+  path: '/faith',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppDiscoverRoute =
   AuthenticatedAppDiscoverRouteImport.update({
     id: '/discover',
@@ -262,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/clips': typeof AuthenticatedAppClipsRoute
   '/app/discover': typeof AuthenticatedAppDiscoverRoute
+  '/app/faith': typeof AuthenticatedAppFaithRoute
   '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/news': typeof AuthenticatedAppNewsRoute
@@ -298,6 +305,7 @@ export interface FileRoutesByTo {
   '/app/banks': typeof AuthenticatedAppBanksRoute
   '/app/clips': typeof AuthenticatedAppClipsRoute
   '/app/discover': typeof AuthenticatedAppDiscoverRoute
+  '/app/faith': typeof AuthenticatedAppFaithRoute
   '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/news': typeof AuthenticatedAppNewsRoute
@@ -338,6 +346,7 @@ export interface FileRoutesById {
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/_authenticated/app/clips': typeof AuthenticatedAppClipsRoute
   '/_authenticated/app/discover': typeof AuthenticatedAppDiscoverRoute
+  '/_authenticated/app/faith': typeof AuthenticatedAppFaithRoute
   '/_authenticated/app/learn': typeof AuthenticatedAppLearnRoute
   '/_authenticated/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/_authenticated/app/news': typeof AuthenticatedAppNewsRoute
@@ -378,6 +387,7 @@ export interface FileRouteTypes {
     | '/app/chat'
     | '/app/clips'
     | '/app/discover'
+    | '/app/faith'
     | '/app/learn'
     | '/app/miniapps'
     | '/app/news'
@@ -414,6 +424,7 @@ export interface FileRouteTypes {
     | '/app/banks'
     | '/app/clips'
     | '/app/discover'
+    | '/app/faith'
     | '/app/learn'
     | '/app/miniapps'
     | '/app/news'
@@ -453,6 +464,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/chat'
     | '/_authenticated/app/clips'
     | '/_authenticated/app/discover'
+    | '/_authenticated/app/faith'
     | '/_authenticated/app/learn'
     | '/_authenticated/app/miniapps'
     | '/_authenticated/app/news'
@@ -659,6 +671,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppLearnRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/faith': {
+      id: '/_authenticated/app/faith'
+      path: '/faith'
+      fullPath: '/app/faith'
+      preLoaderRoute: typeof AuthenticatedAppFaithRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/discover': {
       id: '/_authenticated/app/discover'
       path: '/discover'
@@ -774,6 +793,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
   AuthenticatedAppClipsRoute: typeof AuthenticatedAppClipsRoute
   AuthenticatedAppDiscoverRoute: typeof AuthenticatedAppDiscoverRoute
+  AuthenticatedAppFaithRoute: typeof AuthenticatedAppFaithRoute
   AuthenticatedAppLearnRoute: typeof AuthenticatedAppLearnRoute
   AuthenticatedAppMiniappsRoute: typeof AuthenticatedAppMiniappsRoute
   AuthenticatedAppNewsRoute: typeof AuthenticatedAppNewsRoute
@@ -796,6 +816,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
   AuthenticatedAppClipsRoute: AuthenticatedAppClipsRoute,
   AuthenticatedAppDiscoverRoute: AuthenticatedAppDiscoverRoute,
+  AuthenticatedAppFaithRoute: AuthenticatedAppFaithRoute,
   AuthenticatedAppLearnRoute: AuthenticatedAppLearnRoute,
   AuthenticatedAppMiniappsRoute: AuthenticatedAppMiniappsRoute,
   AuthenticatedAppNewsRoute: AuthenticatedAppNewsRoute,
