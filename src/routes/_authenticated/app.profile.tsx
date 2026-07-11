@@ -168,6 +168,8 @@ function ProfileScreen() {
         </form>
       )}
 
+      <SoundsSection />
+
       <SafetySection />
 
       <button
