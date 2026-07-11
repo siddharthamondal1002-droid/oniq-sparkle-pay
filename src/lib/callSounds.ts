@@ -188,7 +188,7 @@ export function playRingtone(id?: RingtoneId) {
   } catch {}
 }
 
-// Softer ringback (caller side) — single 440Hz pulse every 3s.
+// Phonelike ringback (caller side) — classic dual-tone ring, loud enough.
 export function playRingback() {
   stopAllCallSounds();
   const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
@@ -203,12 +203,15 @@ export function playRingback() {
   const tone: Tone = { ctx, timer: null, vibTimer: null, stopped: false };
   currentTone = tone;
 
-  const beep = () => {
+  const ring = () => {
     if (tone.stopped) return;
-    try { playBeep(ctx, [440], 800, 0.08); } catch {}
+    try {
+      playBeep(ctx, [440], 400, 0.22, "sine");
+      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [480], 400, 0.22, "sine"); }, 500);
+    } catch {}
   };
-  beep();
-  tone.timer = window.setInterval(beep, 3000);
+  ring();
+  tone.timer = window.setInterval(ring, 2500);
 }
 
 // One-shot chat/notification ping using the selected ping sound.
