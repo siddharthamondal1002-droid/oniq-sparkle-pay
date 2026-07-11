@@ -53,14 +53,28 @@ export function PermissionsOnboarding() {
     setBusy("notif");
     try {
       if (Capacitor.isNativePlatform()) {
-        await initPush();
-        setNotif("granted");
-        toast.success("notifications on 🔔");
+        try {
+          await initPush();
+          setNotif("granted");
+          toast.success("notifications on 🔔");
+        } catch (e: unknown) {
+          const name = (e as { name?: string; message?: string })?.name || "Error";
+          const msg = (e as { message?: string })?.message || "couldn't turn on";
+          toast.error(`${name}: ${msg}`);
+        }
       } else if (typeof window !== "undefined" && "Notification" in window) {
-        const p = await Notification.requestPermission();
-        setNotif(p as PermState);
-        if (p === "granted") toast.success("notifications on 🔔");
-        else toast("no worries — you can turn it on later");
+        if (Notification.permission === "denied") {
+          setNotif("denied");
+          toast("blocked by ur browser — allow in site settings 🔧");
+        } else {
+          const p = await Notification.requestPermission();
+          setNotif(p as PermState);
+          if (p === "granted") toast.success("notifications on 🔔");
+          else if (p === "denied") toast("blocked by ur browser — allow in site settings 🔧");
+          else toast("no worries — you can turn it on later");
+        }
+      } else {
+        toast("notifications not supported on this device");
       }
     } catch {
       toast.error("couldn't turn on notifications");
@@ -187,26 +201,35 @@ function PermCard({
   const isDenied = state === "denied";
   const isOnDemand = state === "ondemand";
   return (
-    <li className="flex items-center gap-3 rounded-2xl bg-surface-2/60 p-3 border border-border">
-      <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface">{icon}</div>
-      <div className="min-w-0 flex-1">
-        <div className="text-sm font-semibold truncate">{title}</div>
-        <div className="text-xs text-muted-foreground truncate">{desc}</div>
+    <li className="rounded-2xl bg-surface-2/60 p-3 border border-border">
+      <div className="flex items-center gap-3">
+        <div className="grid h-10 w-10 place-items-center rounded-xl bg-surface">{icon}</div>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold truncate">{title}</div>
+          <div className="text-xs text-muted-foreground truncate">{desc}</div>
+        </div>
+        {isGranted ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 text-primary px-2 py-1 text-xs font-semibold">
+            <Check className="h-3.5 w-3.5" /> on
+          </span>
+        ) : isOnDemand ? (
+          <span className="rounded-full bg-surface px-2 py-1 text-xs text-muted-foreground">on-demand ✓</span>
+        ) : (
+          <button
+            type="button"
+            onClick={onAsk}
+            disabled={busy}
+            aria-busy={busy}
+            className="press rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs font-semibold disabled:opacity-60 min-w-[64px]"
+          >
+            {busy ? "…" : isDenied ? "retry" : "turn on"}
+          </button>
+        )}
       </div>
-      {isGranted ? (
-        <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 text-primary px-2 py-1 text-xs font-semibold">
-          <Check className="h-3.5 w-3.5" /> on
-        </span>
-      ) : isOnDemand ? (
-        <span className="rounded-full bg-surface px-2 py-1 text-xs text-muted-foreground">on-demand ✓</span>
-      ) : (
-        <button
-          onClick={onAsk}
-          disabled={busy}
-          className="press rounded-full bg-primary text-primary-foreground px-3 py-1.5 text-xs font-semibold disabled:opacity-60"
-        >
-          {busy ? "…" : isDenied ? "retry" : "turn on"}
-        </button>
+      {isDenied && !isGranted && (
+        <div className="mt-2 text-[11px] text-amber-400/90">
+          blocked by ur browser — allow in site settings 🔧
+        </div>
       )}
     </li>
   );

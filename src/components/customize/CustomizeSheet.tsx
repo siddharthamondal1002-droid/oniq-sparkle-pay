@@ -57,7 +57,8 @@ export type TileKey =
   | "miniapps"
   | "upi"
   | "learn"
-  | "wander";
+  | "wander"
+  | "faith";
 
 export const TILE_LABELS: Record<TileKey, string> = {
   watch: "Watch",
@@ -70,6 +71,7 @@ export const TILE_LABELS: Record<TileKey, string> = {
   upi: "tap in 💳",
   learn: "smart 🧠",
   wander: "touch grass ✈️",
+  faith: "blessed 🙏",
 };
 
 
