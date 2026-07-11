@@ -144,7 +144,7 @@ function HomeScreen() {
                 delay={60}
               />
             )}
-            {(() => { const vc = null; return null; })()}
+            
             {(
               [
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6" },
