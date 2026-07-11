@@ -218,6 +218,7 @@ function ChatList() {
                   ? new Date(c.peer_read_at).getTime() >= new Date(c.last_created_at).getTime()
                   : false;
               const isChannel = c.type === "channel";
+              const online = c.type === "direct" && !!c.peer_id && onlineSet.has(c.peer_id);
               return (
                 <li key={c.id}>
                   <Link
@@ -225,7 +226,15 @@ function ChatList() {
                     params={{ conversationId: c.id }}
                     className="flex items-center gap-3 px-1 py-3 active:bg-muted/60"
                   >
-                    <Avatar name={c.title} url={c.avatar_url} size={52} group={c.type === "group"} channel={isChannel} />
+                    <div className="relative">
+                      <Avatar name={c.title} url={c.avatar_url} size={52} group={c.type === "group"} channel={isChannel} />
+                      {online && (
+                        <span
+                          data-testid="online-dot"
+                          className="absolute bottom-0 right-0 h-3 w-3 rounded-full border-2 border-background bg-[#25D366]"
+                        />
+                      )}
+                    </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
                         <div className="truncate font-semibold">{isChannel ? `📢 ${c.title}` : c.title}</div>
