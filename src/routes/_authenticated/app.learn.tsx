@@ -617,3 +617,206 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
     </div>
   );
 }
+
+/* ================= SCOUT ================= */
+
+type ScoutResult = { store: string; price_inr: number | null; rating: string | null; note: string | null };
+type ScoutResponse = { product: string; results: ScoutResult[]; disclaimer?: string; sources?: Array<{ url: string; title?: string }> };
+
+const STORE_LAUNCH: Record<string, { pkg?: string; url: (q: string) => string }> = {
+  amazon: { pkg: "in.amazon.mShop.android.shopping", url: (q) => `https://www.amazon.in/s?k=${encodeURIComponent(q)}` },
+  flipkart: { pkg: "com.flipkart.android", url: (q) => `https://www.flipkart.com/search?q=${encodeURIComponent(q)}` },
+  meesho: { pkg: "com.meesho.supply", url: (q) => `https://www.meesho.com/search?q=${encodeURIComponent(q)}` },
+  jiomart: { pkg: "com.jpl.jiomart", url: (q) => `https://www.jiomart.com/search/${encodeURIComponent(q)}` },
+  myntra: { pkg: "com.myntra.android", url: (q) => `https://www.myntra.com/${encodeURIComponent(q)}` },
+  croma: { url: (q) => `https://www.croma.com/searchB?q=${encodeURIComponent(q)}` },
+  "reliance digital": { url: (q) => `https://www.reliancedigital.in/search?q=${encodeURIComponent(q)}` },
+  blinkit: { url: (q) => `https://blinkit.com/s/?q=${encodeURIComponent(q)}` },
+  zepto: { url: (q) => `https://www.zeptonow.com/search?query=${encodeURIComponent(q)}` },
+};
+
+function launchStore(store: string, query: string) {
+  const key = store.toLowerCase().replace(/\.in$/, "").trim();
+  const entry = STORE_LAUNCH[key] ?? { url: (q: string) => `https://www.google.com/search?q=${encodeURIComponent(store + " " + q)}` };
+  const fallback = entry.url(query);
+  import("@/lib/miniapps").then(({ launchMiniApp }) => {
+    launchMiniApp({ name: store, url: fallback, androidPackage: entry.pkg });
+  });
+}
+
+function ScoutPanel() {
+  const [query, setQuery] = useState("");
+  const [image, setImage] = useState<{ base64: string; mime: string; preview: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<ScoutResponse | null>(null);
+  const [listening, setListening] = useState(false);
+  const [speechSupported, setSpeechSupported] = useState(false);
+  const recRef = useRef<any>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    setSpeechSupported(!!SR);
+    return () => { try { recRef.current?.stop?.(); } catch {} };
+  }, []);
+
+  async function toggleMic() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      toast.info("ur browser can't do voice yet 😔");
+      return;
+    }
+    if (listening) { try { recRef.current?.stop?.(); } catch {} return; }
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+      s.getTracks().forEach((t) => t.stop());
+    } catch {
+      toast.error("mic blocked — allow it in browser settings");
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "en-IN";
+    rec.interimResults = true;
+    rec.continuous = false;
+    let interim = "";
+    rec.onresult = (e: any) => {
+      let finalT = "";
+      interim = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalT += r[0].transcript;
+        else interim += r[0].transcript;
+      }
+      if (finalT) setQuery((p) => (p ? `${p} ${finalT}` : finalT).slice(0, 300));
+    };
+    rec.onerror = () => { setListening(false); recRef.current = null; };
+    rec.onend = () => { setListening(false); recRef.current = null; };
+    recRef.current = rec;
+    try { rec.start(); setListening(true); } catch { setListening(false); }
+  }
+
+  function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 5 * 1024 * 1024) { toast.error("image too big — under 5MB pls"); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result ?? "");
+      const b64 = dataUrl.split(",")[1] ?? "";
+      setImage({ base64: b64, mime: f.type || "image/jpeg", preview: dataUrl });
+    };
+    reader.readAsDataURL(f);
+    if (fileRef.current) fileRef.current.value = "";
+  }
+
+  async function scout() {
+    if (!query.trim() && !image) { toast.error("type or snap something first 👀"); return; }
+    setLoading(true);
+    setData(null);
+    try {
+      const { data: r, error } = await supabase.functions.invoke("smart-scout", {
+        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto" },
+      });
+      if (error) throw error;
+      if ((r as any)?.error) throw new Error((r as any).error);
+      setData(r as ScoutResponse);
+    } catch (e: any) {
+      toast.error(e?.message ?? "scout glitched — try again");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const rankBadge = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`);
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-wider text-primary/80">
+          scout live prices across india — any language 🌐
+        </div>
+        <div className="relative">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value.slice(0, 300))}
+            placeholder="parker jotter pen, iphone 15, atta 5kg…"
+            className="w-full min-w-0 rounded-xl border border-border bg-background p-3 pr-24 text-sm focus:border-primary focus:outline-none"
+          />
+          <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+            {speechSupported && (
+              <button
+                onClick={toggleMic}
+                aria-label={listening ? "stop" : "dictate"}
+                className={`grid h-8 w-8 place-items-center rounded-full border ${listening ? "border-red-500 bg-red-500/20 text-red-400 animate-pulse" : "border-border bg-background text-muted-foreground"}`}
+              >
+                <Mic className="h-4 w-4" />
+              </button>
+            )}
+            <button
+              onClick={() => fileRef.current?.click()}
+              aria-label="photo"
+              className="grid h-8 w-8 place-items-center rounded-full border border-border bg-background text-muted-foreground"
+            >
+              <Camera className="h-4 w-4" />
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickImage} />
+          </div>
+        </div>
+        {image && (
+          <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-background p-2">
+            <img src={image.preview} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+            <div className="min-w-0 flex-1 truncate text-xs text-muted-foreground">photo attached — we'll ID it 📸</div>
+            <button onClick={() => setImage(null)} className="shrink-0 text-xs text-red-400">remove</button>
+          </div>
+        )}
+        <button
+          onClick={scout}
+          disabled={loading}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          {loading ? "scouting the best prices 🕵️…" : "find best price"}
+        </button>
+      </div>
+
+      {data && (
+        <div className="space-y-2">
+          <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4">
+            <div className="text-[11px] uppercase tracking-wider text-primary/80">product</div>
+            <div className="mt-1 font-display text-lg font-bold break-words">{data.product}</div>
+          </div>
+          {data.results.length === 0 && (
+            <div className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
+              no prices found rn — try a more specific name
+            </div>
+          )}
+          {data.results.map((r, i) => (
+            <div key={i} className="rounded-2xl border border-border bg-card p-4">
+              <div className="flex items-start gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">{rankBadge(i)}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-semibold">{r.store}</div>
+                  {r.rating && <div className="text-xs text-muted-foreground truncate">★ {r.rating}</div>}
+                </div>
+                <div className="shrink-0 font-display text-lg font-bold">
+                  {typeof r.price_inr === "number" ? `₹${r.price_inr.toLocaleString("en-IN")}` : "—"}
+                </div>
+              </div>
+              {r.note && <div className="mt-2 text-xs text-muted-foreground break-words">{r.note}</div>}
+              <button
+                onClick={() => launchStore(r.store, data.product)}
+                className="mt-3 flex w-full items-center justify-center gap-1 rounded-xl border border-border bg-background py-2 text-xs font-semibold"
+              >
+                open in {r.store} <ExternalLink className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+          <div className="pt-2 text-center text-[11px] text-muted-foreground">
+            prices scouted live from the web — tap through to verify, they move fast 📈
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
