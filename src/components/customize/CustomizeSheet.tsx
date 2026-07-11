@@ -1,8 +1,49 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Palette, Upload, RotateCcw, X } from "lucide-react";
+import { Palette, Upload, RotateCcw, X, Eye, EyeOff } from "lucide-react";
+
+const HIDDEN_TILES_KEY = "oniq.tiles.hidden.v1";
+
+export function useHiddenTiles(): [Set<TileKey>, (key: TileKey, hidden: boolean) => void] {
+  const [hidden, setHidden] = useState<Set<TileKey>>(new Set());
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(HIDDEN_TILES_KEY);
+      if (raw) setHidden(new Set(JSON.parse(raw) as TileKey[]));
+    } catch { /* noop */ }
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === HIDDEN_TILES_KEY) {
+        try { setHidden(new Set(JSON.parse(e.newValue || "[]") as TileKey[])); } catch { /* noop */ }
+      }
+    };
+    const onCustom = () => {
+      try {
+        const raw = localStorage.getItem(HIDDEN_TILES_KEY);
+        setHidden(new Set(raw ? (JSON.parse(raw) as TileKey[]) : []));
+      } catch { /* noop */ }
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("oniq:hidden-tiles-changed", onCustom);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("oniq:hidden-tiles-changed", onCustom);
+    };
+  }, []);
+  const set = (key: TileKey, isHidden: boolean) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (isHidden) next.add(key); else next.delete(key);
+      try {
+        localStorage.setItem(HIDDEN_TILES_KEY, JSON.stringify(Array.from(next)));
+        window.dispatchEvent(new CustomEvent("oniq:hidden-tiles-changed"));
+      } catch { /* noop */ }
+      return next;
+    });
+  };
+  return [hidden, set];
+}
 
 const SIGNED_TTL_SECONDS = 60 * 60 * 24 * 365 * 100; // ~100 years
 
