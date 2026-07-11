@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronLeft, ChevronRight, ExternalLink, BookOpen, Headphones, Calendar as CalIcon, ShoppingBag, ArrowLeft } from "lucide-react";
-import { launchMiniApp } from "@/lib/miniapps";
+
 
 export const Route = createFileRoute("/_authenticated/app/faith")({
   component: FaithPage,
@@ -197,27 +197,29 @@ function ReadSection({ religion }: { religion: Religion }) {
 
 const LISTEN: Record<Religion, { label: string; url: string }[]> = {
   hindu: [
-    { label: "Bhagavad Gita — audiobook (LibriVox)", url: "https://librivox.org/the-bhagavad-gita-by-vyasa/" },
-    { label: "Vedic chants (archive.org)", url: "https://archive.org/details/VedicChants" },
+    { label: "Bhagavad Gita — LibriVox audiobook (archive.org)", url: "https://archive.org/details/bhagavad-gita_1502_librivox_201711" },
   ],
   islam: [
-    { label: "Quran recitation — Mishary Rashid (archive.org)", url: "https://archive.org/details/mishary-rashid-alafasy-quran" },
-    { label: "Full Quran audio (archive.org)", url: "https://archive.org/details/quran-audio" },
+    { label: "Holy Quran — ʿAbd al-Raḥmān Al-Awsī (archive.org)", url: "https://archive.org/details/coranpro-abdurrahman-alausi" },
+    { label: "Quran — Warsh narration, Al-Daghoshi (archive.org)", url: "https://archive.org/details/warsh_abdalkreem_daghoshi" },
   ],
   christian: [
-    { label: "KJV Bible — audiobook (LibriVox)", url: "https://librivox.org/the-holy-bible-king-james-version-kjv/" },
-    { label: "New Testament (LibriVox)", url: "https://librivox.org/the-new-testament-of-the-king-james-bible/" },
+    { label: "Psalms (KJV) — LibriVox audiobook (archive.org)", url: "https://archive.org/details/psalms_kjv_1202_librivox" },
+    { label: "Deuteronomy (KJV) — LibriVox (archive.org)", url: "https://archive.org/details/deuteronomy_kjv_1110_librivox" },
   ],
   sikh: [
-    { label: "Kirtan — Harmandir Sahib (archive.org)", url: "https://archive.org/details/kirtan" },
+    { label: "Gurbani Kirtan (archive.org)", url: "https://archive.org/details/gurbani-kirtan" },
+    { label: "Japji Sahib (archive.org)", url: "https://archive.org/details/JapjiSahib" },
+    { label: "Asa Di Vaar (archive.org)", url: "https://archive.org/details/AsaDiVaar" },
+    { label: "SikhNet Gurbani player", url: "https://www.sikhnet.com/gurbani" },
   ],
   buddhist: [
-    { label: "Dhammapada — audiobook (LibriVox)", url: "https://librivox.org/the-dhammapada-by-anonymous/" },
-    { label: "Buddhist chants (archive.org)", url: "https://archive.org/details/buddhistchants" },
+    { label: "Dhammapada — LibriVox audiobook (archive.org)", url: "https://archive.org/details/dhammapada_0707_librivox" },
+    { label: "Dhammapada — alt reading (archive.org)", url: "https://archive.org/details/dhammapada_2105_librivox" },
   ],
   jewish: [
-    { label: "Torah readings (archive.org)", url: "https://archive.org/details/torah" },
-    { label: "Psalms — audiobook (LibriVox)", url: "https://librivox.org/the-book-of-psalms/" },
+    { label: "Sefaria — audio texts library", url: "https://www.sefaria.org/texts/audio" },
+    { label: "Psalms (KJV) — LibriVox audiobook (archive.org)", url: "https://archive.org/details/psalms_kjv_1202_librivox" },
   ],
 };
 
@@ -293,71 +295,60 @@ function DatesSection({ religion }: { religion: Religion }) {
 // SHOP
 // ============================================================
 
-const SHOP: Record<Religion, { label: string; query: string }[]> = {
+const SHOP: Record<Religion, { label: string; desc: string; url: string }[]> = {
   hindu: [
-    { label: "puja thali sets", query: "puja+thali+set" },
-    { label: "diya & incense", query: "diya+incense+combo" },
-    { label: "idols & murtis", query: "hindu+god+idol" },
-    { label: "wedding essentials", query: "hindu+wedding+essentials" },
-    { label: "shraddha samagri", query: "shraddha+samagri" },
+    { label: "Vedic Vaani", desc: "puja samagri, idols, yajna kits — ships worldwide", url: "https://vedicvaani.com/" },
+    { label: "Krishna Store", desc: "ISKCON devotional books, deity wear, japa malas", url: "https://krishnastore.com/" },
+    { label: "Hindu Gallery", desc: "brass idols, temple decor, prayer accessories", url: "https://www.hindugallery.com/" },
+    { label: "Exotic India Art", desc: "murtis, ritual items, sacred art", url: "https://www.exoticindiaart.com/" },
   ],
   islam: [
-    { label: "prayer mat", query: "prayer+mat+islamic" },
-    { label: "quran + rehal", query: "quran+with+rehal" },
-    { label: "tasbeeh beads", query: "tasbeeh+beads" },
-    { label: "hijab & abaya", query: "hijab+abaya" },
-    { label: "attar / itr", query: "attar+itr" },
+    { label: "Kitaabun", desc: "classical Islamic books, Quran editions, tafsir", url: "https://kitaabun.com/" },
+    { label: "Islamic Bookstore", desc: "Quran, hadith, prayer mats, tasbeeh", url: "https://islamicbookstore.com/" },
+    { label: "Islamic Goods", desc: "prayer rugs, thobes, hijabs, attar", url: "https://www.islamicgoods.com/" },
+    { label: "Hidaya (India)", desc: "Islamic essentials — books, mats, itr", url: "https://www.hidaya.in/" },
   ],
   christian: [
-    { label: "holy bible", query: "holy+bible" },
-    { label: "rosary beads", query: "rosary+beads" },
-    { label: "crucifix wall art", query: "crucifix+wall+art" },
-    { label: "communion candles", query: "communion+candles" },
-    { label: "baptism gifts", query: "baptism+gifts" },
+    { label: "Bible Society of India", desc: "Bibles in every Indian language", url: "https://www.biblesociety.in/" },
+    { label: "Christian Art Gifts", desc: "devotionals, journals, wall art, gifts", url: "https://www.christianartgifts.com/" },
+    { label: "St Pauls India", desc: "catholic books, rosaries, sacramentals", url: "https://stpauls.in/" },
   ],
   sikh: [
-    { label: "kirpan", query: "sikh+kirpan" },
-    { label: "kara steel bracelet", query: "sikh+kara+steel" },
-    { label: "gutka sahib", query: "gutka+sahib" },
-    { label: "chola / bana", query: "sikh+chola" },
-    { label: "nishan sahib", query: "nishan+sahib+flag" },
+    { label: "Sikh Book Club", desc: "gurbani books, pothis, sikh literature", url: "https://sikhbookclub.com/" },
+    { label: "Singh Brothers Amritsar", desc: "gutkas, saroops, sikh publications", url: "https://www.singhbrothers.com/" },
   ],
   buddhist: [
-    { label: "buddha idol", query: "buddha+idol" },
-    { label: "prayer wheel", query: "buddhist+prayer+wheel" },
-    { label: "mala beads (108)", query: "mala+beads+108" },
-    { label: "incense sticks", query: "buddhist+incense" },
-    { label: "singing bowl", query: "tibetan+singing+bowl" },
+    { label: "Tibet Shop", desc: "prayer wheels, thangkas, singing bowls", url: "https://www.tibetshop.com/" },
+    { label: "Exotic India — Buddhist", desc: "buddha statues, malas, ritual items", url: "https://www.exoticindiaart.com/" },
   ],
   jewish: [
-    { label: "menorah", query: "menorah" },
-    { label: "mezuzah", query: "mezuzah" },
-    { label: "tallit", query: "tallit+prayer+shawl" },
-    { label: "kippah", query: "kippah+yarmulke" },
-    { label: "shabbat candles", query: "shabbat+candles" },
+    { label: "A Holy Land", desc: "judaica from Israel — mezuzahs, tallits, menorahs", url: "https://www.aholyland.com/" },
+    { label: "Judaism.com", desc: "seforim, kippot, shabbat & holiday essentials", url: "https://www.judaism.com/" },
   ],
 };
 
 function ShopSection({ religion }: { religion: Religion }) {
   const items = SHOP[religion];
-  const open = (q: string) => {
-    launchMiniApp({ name: "Amazon", url: `https://www.amazon.in/s?k=${q}`, androidPackage: "in.amazon.mShop.android.shopping" });
-  };
   return (
     <ul className="space-y-2">
       {items.map((it) => (
-        <li key={it.query}>
-          <button
-            onClick={() => open(it.query)}
+        <li key={it.url}>
+          <a
+            href={it.url}
+            target="_blank"
+            rel="noopener noreferrer"
             className="press w-full flex items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left"
           >
-            <ShoppingBag className="h-4 w-4 text-primary" />
-            <span className="flex-1 text-sm">{it.label}</span>
-            <ExternalLink className="h-4 w-4 text-muted-foreground" />
-          </button>
+            <ShoppingBag className="h-4 w-4 text-primary shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold truncate">{it.label}</div>
+              <div className="text-[11px] text-muted-foreground truncate">{it.desc}</div>
+            </div>
+            <ExternalLink className="h-4 w-4 text-muted-foreground shrink-0" />
+          </a>
         </li>
       ))}
-      <li className="text-[11px] text-muted-foreground pt-1">opens Amazon — ONIQ doesn't sell these items 🛍</li>
+      <li className="text-[11px] text-muted-foreground pt-1">opens third-party stores — ONIQ doesn't sell these items 🛍</li>
     </ul>
   );
 }
