@@ -234,7 +234,11 @@ function DiscoverScreen() {
                         {formatDistanceToNow(new Date(p.created_at ?? Date.now()), { addSuffix: true })}
                       </div>
                     </div>
+                    {p.user_id === me && p.visibility === "moots" && (
+                      <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>
+                    )}
                   </div>
+
                   {p.content && <p className="mt-3 text-sm">{p.content}</p>}
                   {p.media_urls?.[0] && (
                     <img src={p.media_urls[0]} alt="" className="mt-3 max-h-96 w-full rounded-2xl object-cover" />
