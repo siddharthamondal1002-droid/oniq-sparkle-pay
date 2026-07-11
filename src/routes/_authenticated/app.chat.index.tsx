@@ -96,6 +96,7 @@ function ChatList() {
           last_sender_name: r.last_sender_name ?? null,
           last_created_at: r.last_created_at ?? null,
           peer_read_at: r.peer_read_at ?? null,
+          peer_id: r.peer_id ?? null,
           unread: r.unread ?? 0,
         }));
     },
