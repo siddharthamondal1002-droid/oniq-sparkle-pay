@@ -515,6 +515,54 @@ function SocialButton({ label, onClick, disabled }: { label: string; onClick: ()
   );
 }
 
+function OtpBoxes({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const inputs = Array.from({ length: 6 });
+  function handleChange(i: number, raw: string) {
+    const digit = raw.replace(/\D/g, "").slice(-1);
+    const chars = value.padEnd(6, " ").split("");
+    chars[i] = digit || " ";
+    const next = chars.join("").replace(/\s+$/, "").trimEnd();
+    onChange(next.replace(/\s/g, ""));
+    if (digit) {
+      const nextEl = document.getElementById(`otp-${i + 1}`) as HTMLInputElement | null;
+      nextEl?.focus();
+    }
+  }
+  function handleKey(i: number, e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Backspace" && !value[i] && i > 0) {
+      const prev = document.getElementById(`otp-${i - 1}`) as HTMLInputElement | null;
+      prev?.focus();
+    }
+  }
+  function handlePaste(e: React.ClipboardEvent<HTMLInputElement>) {
+    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (pasted) {
+      e.preventDefault();
+      onChange(pasted);
+      const target = document.getElementById(`otp-${Math.min(pasted.length, 5)}`) as HTMLInputElement | null;
+      target?.focus();
+    }
+  }
+  return (
+    <div className="flex justify-between gap-2" onPaste={handlePaste}>
+      {inputs.map((_, i) => (
+        <input
+          key={i}
+          id={`otp-${i}`}
+          type="text"
+          inputMode="numeric"
+          maxLength={1}
+          autoComplete={i === 0 ? "one-time-code" : "off"}
+          value={value[i] ?? ""}
+          onChange={(e) => handleChange(i, e.target.value)}
+          onKeyDown={(e) => handleKey(i, e)}
+          className="h-12 w-full rounded-xl border border-border bg-input/40 text-center text-lg font-semibold focus:border-primary focus:outline-none"
+        />
+      ))}
+    </div>
+  );
+}
+
 function Field({
   icon: Icon,
   value,
