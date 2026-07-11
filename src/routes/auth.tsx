@@ -128,21 +128,27 @@ function AuthPage() {
     }
   }
 
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
+  function fullPhone(): string | null {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 8 || digits.length > 15) return null;
+    return dialCode + digits;
+  }
+
+  async function handleSendOtp(e?: React.FormEvent) {
+    if (e) e.preventDefault();
     if (loading) return;
-    const normalized = normalizePhone(phone);
+    const normalized = fullPhone();
     if (!normalized) {
-      toast.error("Enter a valid phone — try +91 98765 43210");
+      toast.error("that number looks off — check the digits 📱");
       return;
     }
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOtp({ phone: normalized });
       if (error) throw error;
-      setPhone(normalized);
       setOtpSent(true);
-      toast.success("Code sent — check your SMS 📩");
+      setResendIn(30);
+      toast.success("otp sent ✉️ check your messages");
     } catch (err) {
       toast.error(friendlyAuthError(err));
     } finally {
@@ -150,21 +156,34 @@ function AuthPage() {
     }
   }
 
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleVerifyOtp(e?: React.FormEvent, codeOverride?: string) {
+    if (e) e.preventDefault();
     if (loading) return;
-    if (!/^[0-9]{6}$/.test(otp.trim())) {
-      toast.error("That code should be 6 digits");
+    const code = (codeOverride ?? otp).trim();
+    if (!/^[0-9]{6}$/.test(code)) {
+      toast.error("that code should be 6 digits 🔢");
       return;
     }
+    const normalized = fullPhone();
+    if (!normalized) return;
     setLoading(true);
     try {
       const { error } = await supabase.auth.verifyOtp({
-        phone,
-        token: otp.trim(),
+        phone: normalized,
+        token: code,
         type: "sms",
       });
-      if (error) throw error;
+      if (error) {
+        const m = (error.message || "").toLowerCase();
+        if (m.includes("rate") || m.includes("too many")) {
+          toast.error("too many attempts 🚫 wait a bit");
+        } else if (m.includes("invalid") || m.includes("expired")) {
+          toast.error("invalid code — try again 🔄");
+        } else {
+          throw error;
+        }
+        return;
+      }
       navigate({ to: "/app" });
     } catch (err) {
       toast.error(friendlyAuthError(err));
@@ -172,6 +191,7 @@ function AuthPage() {
       setLoading(false);
     }
   }
+
 
   async function handleSocial(provider: "google" | "facebook" | "apple") {
     if (loading) return;
