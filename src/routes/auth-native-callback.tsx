@@ -14,27 +14,41 @@ export const Route = createFileRoute("/auth-native-callback")({
   component: NativeCallback,
 });
 
+/** Read auth params from either the URL hash (#a=b&c=d) or the query string. */
+export function parseAuthReturnParams(url: string): URLSearchParams {
+  const u = new URL(url);
+  const hash = u.hash.startsWith("#") ? u.hash.slice(1) : u.hash;
+  const merged = new URLSearchParams(u.search);
+  if (hash) {
+    for (const [k, v] of new URLSearchParams(hash)) merged.set(k, v);
+  }
+  return merged;
+}
+
+/** Complete the Lovable broker return leg — mirrors processOAuthResponse in
+ *  @lovable.dev/cloud-auth-js v1.1.2. Broker returns access_token +
+ *  refresh_token (+ state) on success, or error/error_description on failure. */
+export async function completeBrokerReturn(url: string): Promise<{ ok: true } | { ok: false; message: string }> {
+  const p = parseAuthReturnParams(url);
+  const errParam = p.get("error_description") || p.get("error");
+  if (errParam) return { ok: false, message: errParam };
+  const access_token = p.get("access_token");
+  const refresh_token = p.get("refresh_token");
+  if (!access_token || !refresh_token) return { ok: false, message: "No tokens in callback" };
+  const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+  if (error) return { ok: false, message: error.message };
+  return { ok: true };
+}
+
 function NativeCallback() {
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    const url = new URL(window.location.href);
-    const errorParam = url.searchParams.get("error_description") || url.searchParams.get("error");
-    if (errorParam) {
-      setErr(errorParam);
-      toast.error(`Sign-in failed — ${errorParam}`);
-      return;
-    }
-    const code = url.searchParams.get("code");
-    if (!code) {
-      setErr("No auth code in URL");
-      return;
-    }
     (async () => {
-      const { error } = await supabase.auth.exchangeCodeForSession(code);
-      if (error) {
-        setErr(error.message);
-        toast.error(`Sign-in didn't complete — ${error.message}`);
+      const result = await completeBrokerReturn(window.location.href);
+      if (!result.ok) {
+        setErr(result.message);
+        toast.error(`Sign-in didn't complete — ${result.message}`);
         return;
       }
       window.location.replace("/app");
