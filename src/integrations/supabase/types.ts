@@ -1745,6 +1745,7 @@ export type Database = {
         Args: { _amount: number; _from_username: string; _note?: string }
         Returns: string
       }
+      delete_bank_account: { Args: { _bank_id: string }; Returns: undefined }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
