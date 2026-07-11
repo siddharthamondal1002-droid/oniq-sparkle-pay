@@ -198,8 +198,8 @@ function Tile({
       )}
       {!showSkin && (
         <div
-          className="relative grid h-11 w-11 place-items-center rounded-2xl overflow-hidden"
-          style={{ color: tint, background: `${tint}1A` }}
+          className="relative grid h-11 w-11 place-items-center rounded-2xl overflow-hidden transition-transform duration-200"
+          style={{ color: tint, background: `${tint}26`, boxShadow: `0 0 18px ${tint}40, inset 0 0 0 1px ${tint}33` }}
         >
           <Icon className="h-5 w-5" />
         </div>
@@ -213,14 +213,17 @@ function Tile({
     </>
   );
   const base =
-    "press fade-up relative overflow-hidden flex flex-col items-center justify-center gap-2 rounded-2xl bg-card/85 p-2 border border-border";
-  const style = { animationDelay: `${delay}ms` };
+    "press fade-up relative overflow-hidden flex flex-col items-center justify-center gap-2 rounded-2xl bg-card p-2 border border-border transition-colors";
+  const washStyle = !showSkin
+    ? { background: `radial-gradient(120% 90% at 0% 0%, ${tint}47 0%, ${tint}14 35%, transparent 65%), hsl(var(--card))` }
+    : undefined;
+  const style = { animationDelay: `${delay}ms`, ...(washStyle ?? {}) };
   if (locked) {
     return <div className={`${base} opacity-60`} style={style}>{inner}</div>;
   }
   return (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    <Link to={to as any} className={`${base} hover:bg-surface-2 transition-colors`} style={style}>
+    <Link to={to as any} className={`${base} hover:brightness-110`} style={style}>
       {inner}
     </Link>
   );
