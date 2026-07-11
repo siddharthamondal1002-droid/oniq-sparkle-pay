@@ -24,7 +24,7 @@ export const Route = createFileRoute("/_authenticated/app/learn")({
   component: LearnScreen,
 });
 
-type Tab = "translate" | "lessons";
+type Tab = "scout" | "translate" | "lessons";
 type Lang = string;
 
 const INDIAN_LANGS: Array<{ code: string; label: string }> = [
