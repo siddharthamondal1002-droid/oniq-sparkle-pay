@@ -1,10 +1,13 @@
 import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { Home, MessageCircle, Compass, User } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { GlobalIncomingCall } from "@/components/chat/GlobalIncomingCall";
 import { PolicyNoticeBanner } from "@/components/safety/PolicyNoticeBanner";
 import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher";
 import { MessageNotifier } from "@/components/chat/MessageNotifier";
+import { usePresenceTracker } from "@/hooks/usePresence";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
