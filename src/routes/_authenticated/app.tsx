@@ -34,6 +34,7 @@ function AppShell() {
     queryFn: async () => (await supabase.auth.getUser()).data.user,
   });
   usePresenceTracker(me?.id ?? null);
+  useEffect(() => { if (me?.id) void initPush(); }, [me?.id]);
   const wallpaper = theme?.wallpaper_url ?? null;
 
   const normalized = pathname.length > 1 && pathname.endsWith("/")
