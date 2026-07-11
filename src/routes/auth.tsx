@@ -291,7 +291,24 @@ function AuthPage() {
             <div className="h-px flex-1 bg-border" />
           </div>
 
-          {/* Phone sign-in pill hidden until SMS provider is configured. */}
+          {/* Method pill selector: email | phone */}
+          <div className="mb-4 grid grid-cols-2 gap-1 rounded-full border border-border bg-card/40 p-1 text-xs">
+            <button
+              type="button"
+              onClick={() => { setMethod("email"); setOtpSent(false); setOtp(""); }}
+              className={`rounded-full py-2 font-semibold transition ${method === "email" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              ✉️ Email
+            </button>
+            <button
+              type="button"
+              onClick={() => setMethod("phone")}
+              className={`rounded-full py-2 font-semibold transition ${method === "phone" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              📱 Phone
+            </button>
+          </div>
+
 
           {method === "email" ? (
             confirmationSentTo ? (
