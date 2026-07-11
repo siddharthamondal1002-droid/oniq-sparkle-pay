@@ -49,6 +49,7 @@ function convTime(iso: string | null): string {
 
 function ChatList() {
   const qc = useQueryClient();
+  const onlineSet = useOnlineUsers();
   const [showNew, setShowNew] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
