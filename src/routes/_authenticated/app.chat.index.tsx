@@ -23,6 +23,7 @@ type EnrichedConv = {
   last_sender_name: string | null;
   last_created_at: string | null;
   peer_read_at: string | null;
+  peer_id: string | null;
   unread: number;
 };
 
