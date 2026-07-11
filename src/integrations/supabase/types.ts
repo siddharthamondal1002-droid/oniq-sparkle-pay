@@ -434,6 +434,44 @@ export type Database = {
           },
         ]
       }
+      cycle_logs: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          period_end: string | null
+          period_start: string
+          symptoms: string[] | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          period_end?: string | null
+          period_start: string
+          symptoms?: string[] | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          period_end?: string | null
+          period_start?: string
+          symptoms?: string[] | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cycle_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_tokens: {
         Row: {
           platform: string
@@ -609,6 +647,79 @@ export type Database = {
           user_b?: string
         }
         Relationships: []
+      }
+      health_checkins: {
+        Row: {
+          created_at: string
+          day: string
+          energy: number | null
+          exercised: boolean | null
+          id: string
+          mood: number | null
+          sleep_hrs: number | null
+          user_id: string
+          water_glasses: number | null
+        }
+        Insert: {
+          created_at?: string
+          day?: string
+          energy?: number | null
+          exercised?: boolean | null
+          id?: string
+          mood?: number | null
+          sleep_hrs?: number | null
+          user_id: string
+          water_glasses?: number | null
+        }
+        Update: {
+          created_at?: string
+          day?: string
+          energy?: number | null
+          exercised?: boolean | null
+          id?: string
+          mood?: number | null
+          sleep_hrs?: number | null
+          user_id?: string
+          water_glasses?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_checkins_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      health_profiles: {
+        Row: {
+          created_at: string
+          experience: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          experience: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          experience?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "health_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       learn_courses: {
         Row: {

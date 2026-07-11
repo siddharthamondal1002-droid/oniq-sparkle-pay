@@ -20,7 +20,9 @@ import {
   SkipBack,
   SkipForward,
   Maximize2,
+  Heart,
 } from "lucide-react";
+import { useVitalsTileColor } from "@/components/vitals/useVitalsTileColor";
 import { CompactLiveNews, loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
 import {
   CustomizeButton,
@@ -52,6 +54,8 @@ function HomeScreen() {
   const skins = theme?.tile_skins ?? {};
   const [hidden] = useHiddenTiles();
   const installPrompt = useInstallPrompt();
+  const vitalsColor = useVitalsTileColor();
+
 
 
   const first = profile?.display_name?.split(" ")[0] ?? profile?.username ?? "there";
@@ -140,6 +144,7 @@ function HomeScreen() {
                 delay={60}
               />
             )}
+            
             {(
               [
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6" },
@@ -151,6 +156,7 @@ function HomeScreen() {
                 { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C" },
                 { key: "upi", to: "/app/upi", icon: IndianRupee, label: "tap in 💳", color: "#22C55E" },
                 { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
+                { key: "vitals", to: "/app/vitals", icon: Heart, label: "vitals 🫀", color: vitalsColor },
               ] as const
             ).filter((t) => !hidden.has(t.key as TileKey)).map((t, i) => (
               <Tile
