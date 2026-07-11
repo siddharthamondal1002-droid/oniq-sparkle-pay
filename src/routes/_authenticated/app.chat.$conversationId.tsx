@@ -230,6 +230,35 @@ function ChatThread() {
     supabase.rpc("mark_conversation_read", { _conversation_id: conversationId });
   };
 
+  // Zero this conversation's unread across all cached chat-list queries,
+  // then recompute the app icon badge from the summed unreads. Keeps the
+  // badge death instantaneous when I open a thread or receive a message
+  // while already reading it.
+  const zeroUnreadInCache = () => {
+    qc.setQueriesData<Array<{ id: string; unread?: number }> | undefined>(
+      { queryKey: ["conversations"] },
+      (prev) => {
+        if (!prev) return prev;
+        return prev.map((c) => (c.id === conversationId ? { ...c, unread: 0 } : c));
+      },
+    );
+    if (typeof navigator === "undefined") return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const nav = navigator as any;
+    let total = 0;
+    for (const [, data] of qc.getQueriesData<Array<{ unread?: number }>>({
+      queryKey: ["conversations"],
+    })) {
+      if (Array.isArray(data)) for (const c of data) total += c?.unread ?? 0;
+    }
+    try {
+      if (total > 0 && typeof nav.setAppBadge === "function") nav.setAppBadge(total);
+      else if (typeof nav.clearAppBadge === "function") nav.clearAppBadge();
+    } catch {
+      /* unsupported */
+    }
+  };
+
   // Realtime: messages INSERT + UPDATE + peer read receipts.
   useEffect(() => {
     const channel = supabase
