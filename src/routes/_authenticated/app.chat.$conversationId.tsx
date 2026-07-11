@@ -231,8 +231,8 @@ function ChatThread() {
     },
   });
 
-  const markRead = () => {
-    supabase.rpc("mark_conversation_read", { _conversation_id: conversationId });
+  const markRead = async () => {
+    await supabase.rpc("mark_conversation_read", { _conversation_id: conversationId });
   };
 
   // Zero this conversation's unread across all cached chat-list queries,
