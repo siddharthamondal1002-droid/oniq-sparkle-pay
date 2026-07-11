@@ -420,7 +420,8 @@ function HeroTile({
               onError={() => setSkinError(true)}
               className="absolute inset-0 h-full w-full object-cover"
             />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/15 to-transparent" />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+
           </>
         ) : (
           <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
