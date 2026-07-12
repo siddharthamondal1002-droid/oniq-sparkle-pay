@@ -194,11 +194,17 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const armConnectTimeout = () => {
     clearConnectTimeout();
     connectTimeoutRef.current = window.setTimeout(() => {
-      // If no peer ever reached connected, tear down.
-      const anyConnected = [...peerPoolRef.current.values()].some((p) => p.connState === "connected");
-      if (!anyConnected) {
-        toast.error("Couldn't connect — network too strict, try again on WiFi 📶");
+      // If no peer ever reached connected AND every peer has already tried
+      // relay-only escalation, give up. Otherwise let ICE recovery keep trying.
+      const peers = [...peerPoolRef.current.values()];
+      const anyConnected = peers.some((p) => p.connState === "connected");
+      const allRelayTried = peers.length > 0 && peers.every((p) => p.forceRelay);
+      if (!anyConnected && allRelayTried) {
+        toast.error("Couldn't connect. Please try again.");
         endEveryone(true);
+      } else if (!anyConnected) {
+        // Extend once — relay escalation may still be in flight.
+        armConnectTimeout();
       }
     }, 25000);
   };
