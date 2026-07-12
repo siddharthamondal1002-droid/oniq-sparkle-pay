@@ -442,6 +442,11 @@ function AuthPage() {
             <>
               {!otpSent ? (
                 <form onSubmit={handleSendOtp} className="space-y-3">
+                  {!widgetReady && (
+                    <div className="rounded-xl border border-border bg-input/30 px-3 py-2 text-center text-[11px] text-muted-foreground">
+                      phone sign-in warming up 🔧 — use Google/email for now
+                    </div>
+                  )}
                   <div className="flex gap-2">
                     <select
                       aria-label="Country code"
