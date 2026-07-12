@@ -1380,6 +1380,23 @@ function ChatThread() {
         className="flex flex-col gap-2 border-t border-border/60 bg-background/95 px-3 pb-6 pt-3 backdrop-blur"
       >
 
+        {editing && (
+          <div className="flex items-center gap-2 rounded-xl border-l-2 border-yellow-400 bg-muted/60 px-3 py-2">
+            <Pencil className="h-4 w-4 text-yellow-400" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-yellow-400">Editing message</div>
+              <div className="truncate text-xs text-muted-foreground">{truncate(editing.content ?? "", 90)}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setEditing(null); setText(""); }}
+              aria-label="Cancel edit"
+              className="grid h-7 w-7 place-items-center rounded-full hover:bg-muted"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {replyTo && (
           <div className="flex items-center gap-2 rounded-xl border-l-2 border-[#00D4B8] bg-muted/60 px-3 py-2">
             <div className="min-w-0 flex-1">
