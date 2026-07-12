@@ -849,6 +849,26 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   const [notOnOniq, setNotOnOniq] = useState<PickedContact[]>([]);
   const [noEmailCount, setNoEmailCount] = useState(0);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [searchQ, setSearchQ] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(searchQ.trim()), 200);
+    return () => clearTimeout(t);
+  }, [searchQ]);
+  const { data: searchResults = [], isFetching: searching } = useQuery({
+    queryKey: ["moot-search", searchDebounced, meId],
+    enabled: searchDebounced.length >= 1,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .neq("id", meId)
+        .or(`username.ilike.%${searchDebounced}%,display_name.ilike.%${searchDebounced}%`)
+        .limit(15);
+      return (data ?? []) as Array<{ id: string; username: string | null; display_name: string | null; avatar_url: string | null }>;
+    },
+  });
 
   const inviteMessage = "pull up to ONIQ — one app, every world 🌍";
   const inviteUrl = "https://oniqhub.com";
