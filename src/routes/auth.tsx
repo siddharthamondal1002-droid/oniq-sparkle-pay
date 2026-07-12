@@ -84,6 +84,7 @@ function AuthPage() {
   const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const [widgetReady, setWidgetReady] = useState(false);
 
   useEffect(() => {
     if (resendIn <= 0) return;
