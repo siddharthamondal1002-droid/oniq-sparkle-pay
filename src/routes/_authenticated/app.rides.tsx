@@ -68,8 +68,12 @@ function RidesScreen() {
       const label = await reverseGeocode(lat, lon);
       setPickup({ lat, lon, label });
       setPickupIsCurrent(true);
+      const c = detectCity(lat, lon);
+      setCity(c);
+      setCachedCity(c);
       setGeoState("ready");
       if (fromTap) toast.success("Locked in 📍 " + label);
+
     } catch {
       setGeoState("denied");
       if (fromTap) {
