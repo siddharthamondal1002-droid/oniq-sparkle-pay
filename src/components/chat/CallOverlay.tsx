@@ -313,7 +313,15 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       entry.connState = pc.connectionState;
       publishTiles();
       const st = pc.connectionState;
+      // eslint-disable-next-line no-console
+      console.log(`[mesh] peer ${peerId} connectionState → ${st}`);
       if (st === "connected") {
+        entry.reachedConnected = true;
+        entry.restartAttempts = 0;
+        if (entry.recoveryTimer) {
+          clearTimeout(entry.recoveryTimer);
+          entry.recoveryTimer = null;
+        }
         clearConnectTimeout();
         stopAllCallSounds();
         setStatus("connected");
@@ -324,8 +332,38 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             500,
           );
         }
-      } else if (st === "failed" || st === "closed") {
-        // Remove just this peer; others may still be up.
+      } else if (st === "disconnected" || st === "failed") {
+        // Transient flap or ICE failure — try to recover before tearing down.
+        // WebRTC often recovers from 'disconnected' within seconds; 'failed'
+        // can be salvaged with an ICE restart (offerer only).
+        if (!entry.reachedConnected) {
+          // Never connected — leave it to armConnectTimeout / higher-level flow.
+          if (st === "failed") teardownPeer(peerId, false);
+          return;
+        }
+        // Try ICE restart once from the offerer side.
+        if (isOffererFor(peerId) && entry.restartAttempts < 1) {
+          entry.restartAttempts += 1;
+          try {
+            // eslint-disable-next-line no-console
+            console.log(`[mesh] peer ${peerId} attempting ICE restart`);
+            pc.restartIce();
+          } catch (err) {
+            console.warn("[mesh] restartIce failed", err);
+          }
+        }
+        // Arm grace: only teardown if still not recovered after 10s.
+        if (entry.recoveryTimer) clearTimeout(entry.recoveryTimer);
+        entry.recoveryTimer = window.setTimeout(() => {
+          entry.recoveryTimer = null;
+          const cur = peerPoolRef.current.get(peerId);
+          if (!cur) return;
+          if (cur.pc.connectionState === "connected") return;
+          // eslint-disable-next-line no-console
+          console.log(`[mesh] peer ${peerId} grace expired in ${cur.pc.connectionState} — tearing down`);
+          teardownPeer(peerId, false);
+        }, 10000);
+      } else if (st === "closed") {
         teardownPeer(peerId, false);
       }
     };
