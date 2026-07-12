@@ -266,6 +266,7 @@ function ChatThread() {
 
   const toggleReaction = async (messageId: string, emoji: string) => {
     if (!me) return;
+    if (messageId.startsWith("temp-")) { toast("hang on — still sending"); return; }
     const existing = reactions.find((r) => r.message_id === messageId && r.user_id === me.id && r.emoji === emoji);
     if (existing) {
       await supabase.from("message_reactions").delete().eq("id", existing.id);
