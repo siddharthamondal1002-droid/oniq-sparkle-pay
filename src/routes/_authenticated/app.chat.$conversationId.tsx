@@ -941,9 +941,10 @@ function ChatThread() {
 
   const title = header?.title ?? "Conversation";
   // Filter out messages from blocked peer while blocked (client-side hide)
+  const notHidden = messages.filter((m) => !hiddenIds.has(m.id));
   const baseVisible = isBlocked && peerId
-    ? messages.filter((m) => m.sender_id !== peerId)
-    : messages;
+    ? notHidden.filter((m) => m.sender_id !== peerId)
+    : notHidden;
   const searchTerm = searchQ.trim().toLowerCase();
   const visible = searchTerm
     ? baseVisible.filter((m) => (m.content ?? "").toLowerCase().includes(searchTerm))
