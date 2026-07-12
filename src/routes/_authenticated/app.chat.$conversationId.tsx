@@ -1014,27 +1014,36 @@ function ChatThread() {
             </div>
           </div>
         </button>
-        {!isGroup && !isChannel && (
-
-          <>
-            <button
-              data-testid="call-audio"
-              onClick={() => callRef.current?.startCall("audio")}
-              aria-label="Voice call"
-              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
-            >
-              <Phone className="h-5 w-5" />
-            </button>
-            <button
-              data-testid="call-video"
-              onClick={() => callRef.current?.startCall("video")}
-              aria-label="Video call"
-              className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
-            >
-              <Video className="h-5 w-5" />
-            </button>
-          </>
-        )}
+        {!isChannel && (() => {
+          const memberCount = isGroup ? members.length : 2;
+          const overCap = memberCount > 4;
+          const onClick = (t: "audio" | "video") => () => {
+            if (overCap) { toast.error("group calls fit 4 for now 🎥 — smaller squad"); return; }
+            callRef.current?.startCall(t);
+          };
+          return (
+            <>
+              <button
+                data-testid="call-audio"
+                onClick={onClick("audio")}
+                aria-label="Voice call"
+                disabled={overCap}
+                className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
+              >
+                <Phone className="h-5 w-5" />
+              </button>
+              <button
+                data-testid="call-video"
+                onClick={onClick("video")}
+                aria-label="Video call"
+                disabled={overCap}
+                className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
+              >
+                <Video className="h-5 w-5" />
+              </button>
+            </>
+          );
+        })()}
         <button
           type="button"
           data-testid="chat-search-toggle"
