@@ -956,7 +956,60 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
 
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
+    <div className="fixed inset-0 z-[80] flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
+      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 pb-8 sm:rounded-3xl sm:border">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-xl font-semibold">the moots 🤝</h2>
+          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            ref={searchInputRef}
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder="search @username or name 🔍"
+            className="w-full rounded-full border border-border bg-input/40 py-2.5 pl-11 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            data-testid="moots-search-input"
+          />
+        </div>
+        {searchDebounced.length >= 1 && (
+          <div className="mt-2 max-h-52 overflow-y-auto rounded-2xl border border-border/60">
+            {searching ? (
+              <div className="py-3 text-center text-xs text-muted-foreground">searching…</div>
+            ) : searchResults.length === 0 ? (
+              <div className="py-3 text-center text-xs text-muted-foreground">no ppl found</div>
+            ) : (
+              <ul className="divide-y divide-border/40">
+                {searchResults.map((u) => {
+                  const fs = data?.statusMap.get(u.id);
+                  return (
+                    <li key={u.id} className="flex items-center gap-3 p-2">
+                      <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={36} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{u.display_name}</div>
+                        <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
+                      </div>
+                      {fs === "accepted" ? (
+                        <button onClick={() => openChat(u.id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">chat 💬</button>
+                      ) : fs === "pending-out" ? (
+                        <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">pending ⏳</span>
+                      ) : fs === "pending-in" ? (
+                        <button disabled={busy === u.id} onClick={() => respond(u.id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50">accept ✅</button>
+                      ) : (
+                        <button disabled={addingId === u.id} onClick={() => addMoot(u.id)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50">
+                          {addingId === u.id ? "…" : "add moot ➕"}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
       <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold">the moots 🤝</h2>
