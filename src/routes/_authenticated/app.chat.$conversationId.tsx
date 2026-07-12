@@ -1509,12 +1509,75 @@ function ChatThread() {
             </button>
           </div>
         ) : (
+        <div className="flex flex-col gap-2">
+          {pendingBatch.length > 0 && (
+            <div data-testid="chat-batch-tray" className="rounded-2xl border border-border bg-card/60 p-2">
+              <div className="mb-1 flex items-center justify-between px-1">
+                <span className="text-xs text-muted-foreground">
+                  {batchProgress
+                    ? `uploading ${batchProgress.done}/${batchProgress.total}…`
+                    : `${pendingBatch.length} item${pendingBatch.length === 1 ? "" : "s"}`}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={clearBatch}
+                    disabled={uploading}
+                    className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-40"
+                  >
+                    Clear
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="chat-batch-send"
+                    onClick={() => void sendPendingBatch()}
+                    disabled={uploading}
+                    className="rounded-full bg-[#0B5A4E] px-3 py-1 text-xs font-medium text-white transition active:scale-95 disabled:opacity-40"
+                  >
+                    <Send className="mr-1 inline h-3 w-3" /> Send
+                  </button>
+                </div>
+              </div>
+              <div className="flex gap-2 overflow-x-auto">
+                {pendingBatch.map((it) => (
+                  <div key={it.id} className="relative shrink-0">
+                    {it.kind === "image" ? (
+                      <img src={it.previewUrl} alt="" className="h-20 w-20 rounded-lg object-cover" />
+                    ) : it.kind === "video" ? (
+                      <div className="relative h-20 w-20 overflow-hidden rounded-lg bg-black/40">
+                        <video src={it.previewUrl} className="h-full w-full object-cover" muted preload="metadata" />
+                        <div className="absolute inset-0 grid place-items-center">
+                          <Play className="h-6 w-6 text-white drop-shadow" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex h-20 w-32 flex-col justify-center rounded-lg bg-muted p-2">
+                        <div className="truncate text-xs font-medium">{it.file.name}</div>
+                        <div className="text-[10px] text-muted-foreground">{humanSize(it.file.size)}</div>
+                      </div>
+                    )}
+                    {!uploading && (
+                      <button
+                        type="button"
+                        aria-label="Remove"
+                        onClick={() => removeFromBatch(it.id)}
+                        className="absolute -right-1 -top-1 grid h-5 w-5 place-items-center rounded-full bg-black/70 text-white"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handlePickImage} data-testid="chat-file-input" />
-          <input ref={videoInputRef} type="file" accept="video/*" hidden onChange={handlePickVideo} data-testid="chat-video-input" />
-          <input ref={anyFileInputRef} type="file" hidden onChange={handlePickAnyFile} data-testid="chat-anyfile-input" />
+          <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={handlePickImage} data-testid="chat-file-input" />
+          <input ref={videoInputRef} type="file" accept="video/*" multiple hidden onChange={handlePickVideo} data-testid="chat-video-input" />
+          <input ref={anyFileInputRef} type="file" multiple hidden onChange={handlePickAnyFile} data-testid="chat-anyfile-input" />
           <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handlePickImage} data-testid="chat-camera-input" />
           <input ref={cameraVideoRef} type="file" accept="video/*" capture="environment" hidden onChange={handlePickVideo} data-testid="chat-camera-video-input" />
+
           <div className="relative">
             <button
               type="button"
