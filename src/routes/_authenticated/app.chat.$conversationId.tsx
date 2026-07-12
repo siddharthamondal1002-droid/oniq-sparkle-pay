@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2 } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
@@ -24,7 +24,14 @@ type Message = {
   is_ai: boolean | null;
   file_name: string | null;
   file_size: number | null;
+  edited_at: string | null;
+  starred_by: string[] | null;
 };
+
+type Reaction = { id: string; message_id: string; user_id: string; emoji: string };
+
+const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🙏"] as const;
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 function humanSize(n: number | null | undefined): string {
   if (!n || n <= 0) return "";
