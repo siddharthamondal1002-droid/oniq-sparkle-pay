@@ -225,8 +225,98 @@ function ChatThread() {
     },
   });
 
+  // Reactions for all messages in this conversation. Realtime refetch on any change.
+  const messageIds = useMemo(() => messages.map((m) => m.id), [messages]);
+  const { data: reactions = [], refetch: refetchReactions } = useQuery({
+    queryKey: ["reactions", conversationId, messageIds.length],
+    enabled: messageIds.length > 0,
+    staleTime: Infinity,
+    queryFn: async (): Promise<Reaction[]> => {
+      const { data } = await supabase
+        .from("message_reactions")
+        .select("id, message_id, user_id, emoji")
+        .in("message_id", messageIds);
+      return (data ?? []) as Reaction[];
+    },
+  });
 
-  // Peer's last_read_at → drives read ticks.
+  const reactionsByMsg = useMemo(() => {
+    const m = new Map<string, Reaction[]>();
+    for (const r of reactions) {
+      const arr = m.get(r.message_id) ?? [];
+      arr.push(r);
+      m.set(r.message_id, arr);
+    }
+    return m;
+  }, [reactions]);
+
+  useEffect(() => {
+    if (messageIds.length === 0) return;
+    const ids = new Set(messageIds);
+    const ch = supabase
+      .channel(`reactions:${conversationId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, (payload) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mid = ((payload.new || payload.old) as any)?.message_id;
+        if (mid && ids.has(mid)) refetchReactions();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [conversationId, messageIds, refetchReactions]);
+
+  const toggleReaction = async (messageId: string, emoji: string) => {
+    if (!me) return;
+    const existing = reactions.find((r) => r.message_id === messageId && r.user_id === me.id && r.emoji === emoji);
+    if (existing) {
+      await supabase.from("message_reactions").delete().eq("id", existing.id);
+    } else {
+      await supabase.from("message_reactions").insert({ message_id: messageId, user_id: me.id, emoji });
+    }
+    refetchReactions();
+  };
+
+  const toggleStar = async (m: Message) => {
+    const { error } = await supabase.rpc("toggle_message_star", { _message_id: m.id });
+    if (error) { toast.error(error.message); return; }
+    qc.setQueryData<Message[]>(["messages", conversationId], (prev) =>
+      (prev ?? []).map((x) => {
+        if (x.id !== m.id) return x;
+        const arr = x.starred_by ?? [];
+        const has = me && arr.includes(me.id);
+        return { ...x, starred_by: has ? arr.filter((u) => u !== me!.id) : [...arr, me!.id] };
+      }),
+    );
+    toast(me && (m.starred_by ?? []).includes(me.id) ? "Unstarred" : "Starred ⭐");
+  };
+
+  const startEdit = (m: Message) => {
+    if (m.sender_id !== me?.id) return;
+    if (m.type !== "text") { toast("Only text messages can be edited"); return; }
+    const created = m.created_at ? new Date(m.created_at).getTime() : 0;
+    if (Date.now() - created > EDIT_WINDOW_MS) { toast("Too late — 15-min edit window"); return; }
+    setEditing(m);
+    setText(m.content ?? "");
+    setMenuFor(null);
+    inputRef.current?.focus();
+  };
+
+  const submitEdit = async () => {
+    if (!editing) return;
+    const content = text.trim();
+    if (!content) return;
+    const prev = editing;
+    setText("");
+    setEditing(null);
+    qc.setQueryData<Message[]>(["messages", conversationId], (list) =>
+      (list ?? []).map((x) => (x.id === prev.id ? { ...x, content, edited_at: new Date().toISOString() } : x)),
+    );
+    const { error } = await supabase
+      .from("messages")
+      .update({ content, edited_at: new Date().toISOString() })
+      .eq("id", prev.id);
+    if (error) toast.error("Couldn't edit — try again");
+  };
+
   const { data: peerReadAt, refetch: refetchPeerRead } = useQuery({
     queryKey: ["peer-read", conversationId, me?.id],
     enabled: !!me,
