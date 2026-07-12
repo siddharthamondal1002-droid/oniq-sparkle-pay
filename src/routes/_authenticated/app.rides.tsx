@@ -38,6 +38,9 @@ function RidesScreen() {
   const [pickup, setPickup] = useState<Point | null>(null);
   const [pickupIsCurrent, setPickupIsCurrent] = useState(true);
   const [geoState, setGeoState] = useState<"locating" | "ready" | "denied">("locating");
+  const [city, setCity] = useState<DetectedCity>(() => getCachedCity());
+  const [showElsewhere, setShowElsewhere] = useState(false);
+
   const [locating, setLocating] = useState(false);
   const [searching, setSearching] = useState(false);
 
