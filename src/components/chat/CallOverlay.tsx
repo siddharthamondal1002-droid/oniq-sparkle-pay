@@ -124,6 +124,9 @@ type PeerEntry = {
   pendingIce: RTCIceCandidateInit[];
   hasRemoteDesc: boolean;
   connState: RTCPeerConnectionState;
+  reachedConnected: boolean;
+  recoveryTimer: number | null;
+  restartAttempts: number;
 };
 
 // UI-visible peer tile info (subset of PeerEntry).
