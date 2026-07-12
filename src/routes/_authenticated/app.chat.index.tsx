@@ -330,7 +330,7 @@ function ChatList() {
       </div>
 
 
-      {mounted &&
+      {mounted && !showNew && !showRequests &&
         createPortal(
           <button
             onClick={() => setShowNew(true)}
