@@ -86,6 +86,9 @@ function ChatThread() {
   const [peerTyping, setPeerTyping] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [menuFor, setMenuFor] = useState<Message | null>(null);
+  const [editing, setEditing] = useState<Message | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
