@@ -402,6 +402,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const teardownPeer = (peerId: string, sendBye: boolean) => {
     const entry = peerPoolRef.current.get(peerId);
     if (!entry) return;
+    if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
     if (sendBye) sendSig("bye", peerId);
     try { entry.pc.close(); } catch {}
     peerPoolRef.current.delete(peerId);
