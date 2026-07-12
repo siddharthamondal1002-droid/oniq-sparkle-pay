@@ -109,6 +109,9 @@ type PeerEntry = {
   reachedConnected: boolean;
   recoveryTimer: number | null;
   restartAttempts: number;
+  forceRelay: boolean;
+  disconnectedSince: number | null;
+  disconnectedTimer: number | null;
 };
 
 // UI-visible peer tile info (subset of PeerEntry).
