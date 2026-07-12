@@ -217,7 +217,7 @@ function ChatThread() {
     queryFn: async (): Promise<Message[]> => {
       const { data } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai, file_name, file_size")
+        .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai, file_name, file_size, edited_at, starred_by")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true })
         .limit(200);
