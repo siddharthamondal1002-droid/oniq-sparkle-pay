@@ -531,6 +531,7 @@ function ChatThread() {
 
   const send = async (e: FormEvent) => {
     e.preventDefault();
+    if (editing) { await submitEdit(); return; }
     const content = text.trim();
     if (!content) return;
     if (!me) {
