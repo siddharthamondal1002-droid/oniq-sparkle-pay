@@ -1242,6 +1242,18 @@ function ChatThread() {
                   onTouchMove={(e) => moveTouch(m, e)}
                   onTouchEnd={endPress}
                   onTouchCancel={endPress}
+                  onDoubleClick={() => { if (!m.is_deleted) toggleReaction(m.id, "❤️"); }}
+                  onClick={() => {
+                    if (m.is_deleted) return;
+                    const now = Date.now();
+                    const last = lastTapRef.current;
+                    if (last && last.id === m.id && now - last.t < 300) {
+                      lastTapRef.current = null;
+                      toggleReaction(m.id, "❤️");
+                    } else {
+                      lastTapRef.current = { id: m.id, t: now };
+                    }
+                  }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setMenuFor(m);
