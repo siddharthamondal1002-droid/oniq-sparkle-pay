@@ -79,8 +79,9 @@ Deno.serve(async (req) => {
       method: "POST",
       headers: { authorization: key, "Content-Type": "application/json" },
       body: JSON.stringify({
-        variables_values: otp,
-        route: "otp",
+        message: `Your ONIQ verification code is ${otp}. Valid for 10 minutes.`,
+        language: "english",
+        route: "q",
         numbers: phone,
       }),
     });
