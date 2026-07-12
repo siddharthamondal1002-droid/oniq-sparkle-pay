@@ -69,12 +69,12 @@ function withMungedSdp(desc: RTCSessionDescriptionInit): RTCSessionDescriptionIn
 }
 
 // Shared ICE config helper — used by every RTCPeerConnection (1:1 + mesh).
-// TURN credentials are fetched from the `turn-creds` edge function (auth-gated,
-// server holds the metered API key). We prefetch once per call session into
-// `sessionIceServers` so `getIceConfig` stays synchronous inside the signaling
-// flow. Never inline creds anywhere else.
+// TURN credentials are fetched from the `get-turn-credentials` edge function
+// (auth-gated, server holds the Metered API key). We prefetch once per call
+// session into `sessionIceServers` so `getIceConfig` stays synchronous inside
+// the signaling flow. Never inline creds anywhere else.
 const STUN_ONLY: RTCIceServer[] = [
-  { urls: "stun:stun.relay.metered.ca:80" },
+  { urls: "stun:stun.l.google.com:19302" },
 ];
 
 const ICE_TTL_MS = 30 * 60 * 1000;
@@ -87,7 +87,7 @@ async function ensureIceServers(): Promise<RTCIceServer[]> {
   try {
     const { data: sess } = await supabase.auth.getSession();
     const token = sess.session?.access_token ?? "";
-    const { data, error } = await supabase.functions.invoke("turn-creds", {
+    const { data, error } = await supabase.functions.invoke("get-turn-credentials", {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (error || !data?.iceServers?.length) throw error ?? new Error("no ice");
