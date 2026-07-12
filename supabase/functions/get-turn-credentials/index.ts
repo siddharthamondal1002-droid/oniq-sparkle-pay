@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
   }
 
   const domain = Deno.env.get("METERED_DOMAIN");
-  const apiKey = Deno.env.get("METERED_API_KEY");
+  const apiKey = Deno.env.get("METERED_API_KEY") ?? Deno.env.get("METERED_TURN_API_KEY");
   if (!domain || !apiKey) {
     console.warn("get-turn-credentials: missing METERED_DOMAIN or METERED_API_KEY");
     return json(200, FALLBACK);
