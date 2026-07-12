@@ -886,6 +886,7 @@ function ChatThread() {
 
   const deleteForEveryone = async (m: Message) => {
     setMenuFor(null);
+    setDeleteConfirm(null);
     // Optimistic
     qc.setQueryData<Message[]>(["messages", conversationId], (prev) =>
       (prev ?? []).map((x) => (x.id === m.id ? { ...x, is_deleted: true, content: null } : x)),
@@ -897,6 +898,35 @@ function ChatThread() {
     if (error) {
       toast.error("Couldn't delete — try again");
       console.error(error);
+    }
+  };
+
+  const deleteForMe = async (m: Message) => {
+    setMenuFor(null);
+    setDeleteConfirm(null);
+    if (!me?.id) return;
+    // Optimistic add to local hidden set
+    qc.setQueryData<Set<string>>(["message_hides", conversationId, me.id], (prev) => {
+      const next = new Set(prev ?? []);
+      next.add(m.id);
+      return next;
+    });
+    const { error } = await supabase
+      .from("message_hides")
+      .insert({ user_id: me.id, message_id: m.id, conversation_id: conversationId });
+    if (error && !String(error.message).includes("duplicate")) {
+      toast.error("Couldn't hide — try again");
+      console.error(error);
+    }
+  };
+
+  const copyMessage = async (m: Message) => {
+    setMenuFor(null);
+    try {
+      await navigator.clipboard.writeText(m.content ?? "");
+      toast.success("Copied");
+    } catch {
+      toast.error("Copy failed");
     }
   };
 
