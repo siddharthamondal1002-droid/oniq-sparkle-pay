@@ -1040,17 +1040,17 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
               </ul>
             )}
 
-            <button
-              type="button"
-              onClick={pickContacts}
-              disabled={picking}
-              className="mt-2 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
-            >
-              {picking ? "checking your contacts…" : "find ur ppl 📇"}
-            </button>
-            {!contactsSupported && (
-              <div className="mt-1 text-xs text-muted-foreground">tip: ur browser can't do contacts 😔 — search by @username instead</div>
+            {contactsSupported && (
+              <button
+                type="button"
+                onClick={pickContacts}
+                disabled={picking}
+                className="mt-2 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
+              >
+                {picking ? "checking your contacts…" : "find ur ppl 📇"}
+              </button>
             )}
+
             {noEmailCount > 0 && (
               <div className="mt-1 text-xs text-muted-foreground">{noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by email for now</div>
             )}
