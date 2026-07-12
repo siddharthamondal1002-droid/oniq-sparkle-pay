@@ -407,40 +407,18 @@ function RidesScreen() {
         </div>
       )}
 
-      {/* Classic providers (always available) */}
-      <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
-        pick your ride, main character
-      </h2>
-      <div className="mt-3 space-y-2">
-        <Provider
-          name="Uber"
-          desc={destination ? "Opens Uber with your destination pre-filled" : "Cabs, autos & moto"}
-          color="#000000"
-          icon={Car}
-          href={uberHref}
-          testId="ride-uber"
-          onBlocked={needDestination}
-        />
-        <Provider
-          name="Ola"
-          desc={destination ? "Opens Ola booking with your drop location" : "Cabs & autos"}
-          color="#3b7d0e"
-          icon={Car}
-          href={olaHref}
-          testId="ride-ola"
-          onBlocked={needDestination}
-          inApp
-        />
-        <Provider
-          name="Rapido"
-          desc="Bike taxis & autos"
-          color="#A67C00"
-          icon={Bike}
-          href="https://rapido.bike"
-          testId="ride-rapido"
-          inApp
-        />
-      </div>
+      {/* Providers, filtered by city */}
+      <CityProviders
+        city={city}
+        geoState={geoState}
+        destination={destination}
+        uberHref={uberHref}
+        olaHref={olaHref}
+        showElsewhere={showElsewhere}
+        setShowElsewhere={setShowElsewhere}
+        onBlocked={needDestination}
+      />
+
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Rides are booked and paid in the provider's app. Pickup uses your live location.
