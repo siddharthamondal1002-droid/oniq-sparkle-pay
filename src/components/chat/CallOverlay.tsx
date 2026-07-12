@@ -68,44 +68,26 @@ function withMungedSdp(desc: RTCSessionDescriptionInit): RTCSessionDescriptionIn
   return { ...desc, sdp: mungeOpus(desc.sdp) };
 }
 
-const STUN_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "stun:stun.cloudflare.com:3478" },
+// Shared ICE config — used by every RTCPeerConnection (1:1 and group mesh).
+// metered.ca TURN with TLS/443 + TCP transports for CGNAT/symmetric-NAT
+// networks (Indian mobile carriers etc.). Never inline anywhere else.
+const METERED_ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.relay.metered.ca:80" },
+  { urls: "turn:global.relay.metered.ca:80", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
+  { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
+  { urls: "turn:global.relay.metered.ca:443", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
+  { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
 ];
-const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
-  ...STUN_SERVERS,
-  { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-];
-
-let cachedIceServers: RTCIceServer[] | null = null;
-let iceServersPromise: Promise<RTCIceServer[]> | null = null;
+function getIceConfig(forceRelay = false): RTCConfiguration {
+  return {
+    iceServers: METERED_ICE_SERVERS,
+    iceCandidatePoolSize: 10,
+    iceTransportPolicy: forceRelay ? "relay" : "all",
+  };
+}
+// Kept as a no-op for callers that awaited ICE fetch previously.
 async function ensureIceServers(): Promise<RTCIceServer[]> {
-  if (cachedIceServers) return cachedIceServers;
-  if (iceServersPromise) return iceServersPromise;
-  iceServersPromise = (async () => {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 3000);
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token ?? "";
-      const { data: fnData, error } = await supabase.functions.invoke("turn-creds", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      clearTimeout(timer);
-      if (error || !fnData?.iceServers?.length) throw error ?? new Error("no ice");
-      const merged = [...(fnData.iceServers as RTCIceServer[]), ...STUN_SERVERS];
-      cachedIceServers = merged;
-      return merged;
-    } catch (e) {
-      console.warn("TURN fallback", e);
-      cachedIceServers = FALLBACK_ICE_SERVERS;
-      return FALLBACK_ICE_SERVERS;
-    }
-  })();
-  return iceServersPromise;
+  return METERED_ICE_SERVERS;
 }
 
 type Status = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "ended";
