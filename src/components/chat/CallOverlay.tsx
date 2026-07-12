@@ -420,7 +420,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (notify && activeRef.current) sendSig("end", null);
     for (const peerId of [...peerPoolRef.current.keys()]) {
       const entry = peerPoolRef.current.get(peerId);
-      if (entry) { try { entry.pc.close(); } catch {} }
+      if (entry) {
+        if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
+        try { entry.pc.close(); } catch {}
+      }
       peerPoolRef.current.delete(peerId);
     }
     clearConnectTimeout();
