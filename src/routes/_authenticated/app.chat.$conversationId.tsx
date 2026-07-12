@@ -1002,6 +1002,22 @@ function ChatThread() {
           )}
         </div>
       </header>
+      {showSearch && (
+        <div className="flex items-center gap-2 border-b border-border/60 bg-background/95 px-3 py-2">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <input
+            autoFocus
+            data-testid="chat-search-input"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder="Search in conversation…"
+            className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
+          />
+          <button type="button" onClick={() => { setSearchQ(""); setShowSearch(false); }} className="grid h-7 w-7 place-items-center rounded-full hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
 
       <CallOverlay
