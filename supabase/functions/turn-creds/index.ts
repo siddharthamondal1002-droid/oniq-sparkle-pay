@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
   if (key) {
     try {
       const r = await fetch(
-        `https://oniq.metered.ca/api/v1/turn/credentials?apiKey=${encodeURIComponent(key)}`,
+        `https://oniqhub.metered.live/api/v1/turn/credentials?apiKey=${encodeURIComponent(key)}`,
       );
       if (r.ok) {
         const arr = await r.json();
