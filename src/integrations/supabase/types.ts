@@ -1918,6 +1918,7 @@ export type Database = {
       }
       set_primary_bank: { Args: { _bank_id: string }; Returns: undefined }
       toggle_clip_like: { Args: { _clip_id: string }; Returns: boolean }
+      toggle_message_star: { Args: { _message_id: string }; Returns: boolean }
       toggle_moment_like: { Args: { _post_id: string }; Returns: boolean }
       unread_count: { Args: { _conversation_id: string }; Returns: number }
       wipe_my_chat_media: { Args: never; Returns: number }
