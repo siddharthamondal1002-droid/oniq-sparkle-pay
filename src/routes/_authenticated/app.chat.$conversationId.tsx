@@ -957,6 +957,15 @@ function ChatThread() {
             </button>
           </>
         )}
+        <button
+          type="button"
+          data-testid="chat-search-toggle"
+          onClick={() => { setShowSearch((v) => !v); if (showSearch) setSearchQ(""); }}
+          aria-label="Search in chat"
+          className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+        >
+          <Search className="h-5 w-5" />
+        </button>
         <div className="relative">
           <button
             data-testid="chat-menu"
