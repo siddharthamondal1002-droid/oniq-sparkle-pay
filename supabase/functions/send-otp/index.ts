@@ -78,7 +78,12 @@ Deno.serve(async (req) => {
     const r = await fetch("https://www.fast2sms.com/dev/bulkV2", {
       method: "POST",
       headers: { authorization: key, "Content-Type": "application/json" },
-      body: JSON.stringify({ variables_values: otp, route: "otp", numbers: phone }),
+      body: JSON.stringify({
+        message: `Your ONIQ verification code is ${otp}`,
+        language: "english",
+        route: "q",
+        numbers: phone,
+      }),
     });
     if (!r.ok) {
       const txt = await r.text();
