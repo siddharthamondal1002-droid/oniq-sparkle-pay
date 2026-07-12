@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2, ArrowLeft, Megaphone, Plus, UserPlus } from "lucide-react";
@@ -330,7 +330,7 @@ function ChatList() {
       </div>
 
 
-      {mounted &&
+      {mounted && !showNew && !showRequests &&
         createPortal(
           <button
             onClick={() => setShowNew(true)}
@@ -849,6 +849,26 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   const [notOnOniq, setNotOnOniq] = useState<PickedContact[]>([]);
   const [noEmailCount, setNoEmailCount] = useState(0);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  const [searchQ, setSearchQ] = useState("");
+  const [searchDebounced, setSearchDebounced] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setSearchDebounced(searchQ.trim()), 200);
+    return () => clearTimeout(t);
+  }, [searchQ]);
+  const { data: searchResults = [], isFetching: searching } = useQuery({
+    queryKey: ["moot-search", searchDebounced, meId],
+    enabled: searchDebounced.length >= 1,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .neq("id", meId)
+        .or(`username.ilike.%${searchDebounced}%,display_name.ilike.%${searchDebounced}%`)
+        .limit(15);
+      return (data ?? []) as Array<{ id: string; username: string | null; display_name: string | null; avatar_url: string | null }>;
+    },
+  });
 
   const inviteMessage = "pull up to ONIQ — one app, every world 🌍";
   const inviteUrl = "https://oniqhub.com";
@@ -883,7 +903,8 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   const pickContacts = async () => {
     const nav = typeof navigator !== "undefined" ? (navigator as unknown as { contacts?: { select: (props: string[], opts: { multiple: boolean }) => Promise<Array<{ name?: string[]; email?: string[] }>> } }) : null;
     if (!nav?.contacts || typeof nav.contacts.select !== "function") {
-      toast("ur browser can't do contacts 😔 — search by @username instead");
+      toast("ur browser can't do contacts 😔 — search by @username instead 🔍");
+      searchInputRef.current?.focus();
       return;
     }
     setPicking(true);
@@ -918,8 +939,13 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
       setNotOnOniq(notOnDedup);
       if (resp.data.on_oniq.length === 0 && notOnDedup.length === 0) toast("nothing to match — try picking again");
     } catch (e) {
-      if ((e as { name?: string })?.name !== "AbortError") {
+      const name = (e as { name?: string })?.name;
+      const msg = (e as { message?: string })?.message;
+      if (name === "AbortError") {
         toast("contact picker cancelled");
+      } else {
+        toast.error(msg ? `contacts failed: ${msg}` : "contacts failed — search by @username instead 🔍");
+        searchInputRef.current?.focus();
       }
     } finally {
       setPicking(false);
@@ -930,14 +956,60 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
 
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
-      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
+    <div className="fixed inset-0 z-[80] flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
+      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 pb-8 sm:rounded-3xl sm:border">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold">the moots 🤝</h2>
           <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
             <X className="h-4 w-4" />
           </button>
         </div>
+        <div className="relative mt-3">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            ref={searchInputRef}
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder="search @username or name 🔍"
+            className="w-full rounded-full border border-border bg-input/40 py-2.5 pl-11 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            data-testid="moots-search-input"
+          />
+        </div>
+        {searchDebounced.length >= 1 && (
+          <div className="mt-2 max-h-52 overflow-y-auto rounded-2xl border border-border/60">
+            {searching ? (
+              <div className="py-3 text-center text-xs text-muted-foreground">searching…</div>
+            ) : searchResults.length === 0 ? (
+              <div className="py-3 text-center text-xs text-muted-foreground">no ppl found</div>
+            ) : (
+              <ul className="divide-y divide-border/40">
+                {searchResults.map((u) => {
+                  const fs = data?.statusMap.get(u.id);
+                  return (
+                    <li key={u.id} className="flex items-center gap-3 p-2">
+                      <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={36} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium">{u.display_name}</div>
+                        <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
+                      </div>
+                      {fs === "accepted" ? (
+                        <button onClick={() => openChat(u.id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">chat 💬</button>
+                      ) : fs === "pending-out" ? (
+                        <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">pending ⏳</span>
+                      ) : fs === "pending-in" ? (
+                        <button disabled={busy === u.id} onClick={() => respond(u.id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50">accept ✅</button>
+                      ) : (
+                        <button disabled={addingId === u.id} onClick={() => addMoot(u.id)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50">
+                          {addingId === u.id ? "…" : "add moot ➕"}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
         <div className="mt-3 max-h-[65vh] space-y-4 overflow-y-auto">
           <section>
             <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">moot requests 👀</div>
