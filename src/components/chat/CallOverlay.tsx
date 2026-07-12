@@ -68,27 +68,46 @@ function withMungedSdp(desc: RTCSessionDescriptionInit): RTCSessionDescriptionIn
   return { ...desc, sdp: mungeOpus(desc.sdp) };
 }
 
-// Shared ICE config — used by every RTCPeerConnection (1:1 and group mesh).
-// metered.ca TURN with TLS/443 + TCP transports for CGNAT/symmetric-NAT
-// networks (Indian mobile carriers etc.). Never inline anywhere else.
-const METERED_ICE_SERVERS: RTCIceServer[] = [
+// Shared ICE config helper — used by every RTCPeerConnection (1:1 + mesh).
+// TURN credentials are fetched from the `turn-creds` edge function (auth-gated,
+// server holds the metered API key). We prefetch once per call session into
+// `sessionIceServers` so `getIceConfig` stays synchronous inside the signaling
+// flow. Never inline creds anywhere else.
+const STUN_ONLY: RTCIceServer[] = [
   { urls: "stun:stun.relay.metered.ca:80" },
-  { urls: "turn:global.relay.metered.ca:80", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
-  { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
-  { urls: "turn:global.relay.metered.ca:443", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
-  { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
 ];
+
+const ICE_TTL_MS = 30 * 60 * 1000;
+let cachedIce: { servers: RTCIceServer[]; expiresAt: number } | null = null;
+let sessionIceServers: RTCIceServer[] = STUN_ONLY;
+
+async function ensureIceServers(): Promise<RTCIceServer[]> {
+  const now = Date.now();
+  if (cachedIce && cachedIce.expiresAt > now) return [...cachedIce.servers];
+  try {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token ?? "";
+    const { data, error } = await supabase.functions.invoke("turn-creds", {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (error || !data?.iceServers?.length) throw error ?? new Error("no ice");
+    const servers = data.iceServers as RTCIceServer[];
+    cachedIce = { servers, expiresAt: now + ICE_TTL_MS };
+    return [...servers];
+  } catch (e) {
+    console.warn("ensureIceServers fallback to STUN-only", e);
+    return [...STUN_ONLY];
+  }
+}
+
 function getIceConfig(forceRelay = false): RTCConfiguration {
   return {
-    iceServers: METERED_ICE_SERVERS,
+    iceServers: sessionIceServers,
     iceCandidatePoolSize: 10,
     iceTransportPolicy: forceRelay ? "relay" : "all",
   };
 }
-// Kept as a no-op for callers that awaited ICE fetch previously.
-async function ensureIceServers(): Promise<RTCIceServer[]> {
-  return METERED_ICE_SERVERS;
-}
+
 
 type Status = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "ended";
 
@@ -523,7 +542,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     try {
       const stream = await getMedia(type);
-      await ensureIceServers();
+      sessionIceServers = await ensureIceServers();
       attachLocal(stream, type);
     } catch {
       endEveryone(false);
@@ -623,7 +642,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       // Create PC to this peer if we don't have one.
       if (peerPoolRef.current.has(p.from)) return;
       if (!localStreamRef.current) return; // media not ready yet; ignore, they'll hello again
-      await ensureIceServers();
+      sessionIceServers = await ensureIceServers();
       createPeerEntry(p.from, p.fromName);
       // Non-offerer will wait for their offer.
     });
@@ -632,7 +651,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     ch.on("broadcast", { event: "offer" }, async ({ payload }) => {
       const p = payload as { from: string; to: string; callId: string; sdp: RTCSessionDescriptionInit };
       if (!forMe(p) || !matchesCall(p)) return;
-      await ensureIceServers();
+      sessionIceServers = await ensureIceServers();
       let entry = peerPoolRef.current.get(p.from);
       if (!entry) entry = createPeerEntry(p.from);
       try {
@@ -759,7 +778,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     stopAllCallSounds();
     try {
       const stream = await getMedia(callTypeRef.current);
-      await ensureIceServers();
+      sessionIceServers = await ensureIceServers();
       attachLocal(stream, callTypeRef.current);
       // Announce presence — existing members will offer to us.
       sendSig("hello", null, { fromName: meName });
