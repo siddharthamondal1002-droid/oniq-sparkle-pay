@@ -940,19 +940,26 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
       if (resp.data.on_oniq.length === 0 && notOnDedup.length === 0) toast("nothing to match — try picking again");
     } catch (e) {
       const name = (e as { name?: string })?.name;
-      const msg = (e as { message?: string })?.message;
+      const msg = String((e as { message?: string })?.message ?? "");
       if (name === "AbortError") {
         toast("contact picker cancelled");
       } else {
-        toast.error(msg ? `contacts failed: ${msg}` : "contacts failed — search by @username instead 🔍");
+        // Never surface raw ContactsManager errors (e.g. "top frame" in WebView).
+        toast("pick from contacts isn't available here — search by @username 👇");
         searchInputRef.current?.focus();
+        void msg;
       }
     } finally {
       setPicking(false);
     }
   };
 
-  const contactsSupported = typeof navigator !== "undefined" && "contacts" in navigator && typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select === "function";
+  const contactsSupported = typeof navigator !== "undefined"
+    && "contacts" in navigator
+    && typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select === "function"
+    && typeof window !== "undefined"
+    && window.top === window.self;
+
 
 
   return (
@@ -1033,17 +1040,17 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
               </ul>
             )}
 
-            <button
-              type="button"
-              onClick={pickContacts}
-              disabled={picking}
-              className="mt-2 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
-            >
-              {picking ? "checking your contacts…" : "find ur ppl 📇"}
-            </button>
-            {!contactsSupported && (
-              <div className="mt-1 text-xs text-muted-foreground">tip: ur browser can't do contacts 😔 — search by @username instead</div>
+            {contactsSupported && (
+              <button
+                type="button"
+                onClick={pickContacts}
+                disabled={picking}
+                className="mt-2 w-full rounded-2xl bg-[#25D366] py-3 text-sm font-semibold text-black disabled:opacity-50"
+              >
+                {picking ? "checking your contacts…" : "find ur ppl 📇"}
+              </button>
             )}
+
             {noEmailCount > 0 && (
               <div className="mt-1 text-xs text-muted-foreground">{noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by email for now</div>
             )}
