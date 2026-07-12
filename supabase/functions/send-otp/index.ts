@@ -67,7 +67,11 @@ Deno.serve(async (req) => {
     });
   }
 
-  const key = Deno.env.get("FAST2SMS_API_KEY");
+  // MSG91 transactional OTP route — delivers to DND numbers (unlike Fast2SMS
+  // promotional Quick route). NOTE: we still generate + store the OTP in
+  // otp_attempts and pass it to MSG91 as the `otp` param, so MSG91 sends OUR
+  // code. verify-otp remains unchanged — it matches against our stored value.
+  const key = Deno.env.get("MSG91_AUTH_KEY");
   if (!key) {
     return new Response(JSON.stringify({ success: true, dev_mode: true, otp }), {
       headers: { ...CORS, "Content-Type": "application/json" },
@@ -75,19 +79,18 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const r = await fetch("https://www.fast2sms.com/dev/bulkV2", {
+    const r = await fetch("https://control.msg91.com/api/v5/otp", {
       method: "POST",
-      headers: { authorization: key, "Content-Type": "application/json" },
+      headers: { authkey: key, "Content-Type": "application/json" },
       body: JSON.stringify({
-        message: `Your ONIQ verification code is ${otp}. Valid for 10 minutes.`,
-        language: "english",
-        route: "q",
-        numbers: phone,
+        template_id: Deno.env.get("MSG91_TEMPLATE_ID") ?? "",
+        mobile: "91" + phone,
+        otp,
       }),
     });
-    if (!r.ok) {
-      const txt = await r.text();
-      console.error("fast2sms error", r.status, txt);
+    const body = await r.json().catch(() => ({} as { type?: string }));
+    if (!r.ok || (body as { type?: string }).type !== "success") {
+      console.error("msg91 error", r.status, body);
       return new Response(JSON.stringify({ error: "SMS provider failed" }), {
         status: 502, headers: { ...CORS, "Content-Type": "application/json" },
       });
@@ -96,7 +99,7 @@ Deno.serve(async (req) => {
       headers: { ...CORS, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("fast2sms exception", e);
+    console.error("msg91 exception", e);
     return new Response(JSON.stringify({ error: "SMS provider unreachable" }), {
       status: 502, headers: { ...CORS, "Content-Type": "application/json" },
     });
