@@ -68,44 +68,26 @@ function withMungedSdp(desc: RTCSessionDescriptionInit): RTCSessionDescriptionIn
   return { ...desc, sdp: mungeOpus(desc.sdp) };
 }
 
-const STUN_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "stun:stun.cloudflare.com:3478" },
+// Shared ICE config — used by every RTCPeerConnection (1:1 and group mesh).
+// metered.ca TURN with TLS/443 + TCP transports for CGNAT/symmetric-NAT
+// networks (Indian mobile carriers etc.). Never inline anywhere else.
+const METERED_ICE_SERVERS: RTCIceServer[] = [
+  { urls: "stun:stun.relay.metered.ca:80" },
+  { urls: "turn:global.relay.metered.ca:80", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
+  { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
+  { urls: "turn:global.relay.metered.ca:443", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
+  { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: "8f16f5bac3759c13ba1352df", credential: "H+eInJRHo/2PqYXH" },
 ];
-const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
-  ...STUN_SERVERS,
-  { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
-];
-
-let cachedIceServers: RTCIceServer[] | null = null;
-let iceServersPromise: Promise<RTCIceServer[]> | null = null;
+function getIceConfig(forceRelay = false): RTCConfiguration {
+  return {
+    iceServers: METERED_ICE_SERVERS,
+    iceCandidatePoolSize: 10,
+    iceTransportPolicy: forceRelay ? "relay" : "all",
+  };
+}
+// Kept as a no-op for callers that awaited ICE fetch previously.
 async function ensureIceServers(): Promise<RTCIceServer[]> {
-  if (cachedIceServers) return cachedIceServers;
-  if (iceServersPromise) return iceServersPromise;
-  iceServersPromise = (async () => {
-    try {
-      const ctrl = new AbortController();
-      const timer = setTimeout(() => ctrl.abort(), 3000);
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token ?? "";
-      const { data: fnData, error } = await supabase.functions.invoke("turn-creds", {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      clearTimeout(timer);
-      if (error || !fnData?.iceServers?.length) throw error ?? new Error("no ice");
-      const merged = [...(fnData.iceServers as RTCIceServer[]), ...STUN_SERVERS];
-      cachedIceServers = merged;
-      return merged;
-    } catch (e) {
-      console.warn("TURN fallback", e);
-      cachedIceServers = FALLBACK_ICE_SERVERS;
-      return FALLBACK_ICE_SERVERS;
-    }
-  })();
-  return iceServersPromise;
+  return METERED_ICE_SERVERS;
 }
 
 type Status = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "ended";
@@ -127,6 +109,9 @@ type PeerEntry = {
   reachedConnected: boolean;
   recoveryTimer: number | null;
   restartAttempts: number;
+  forceRelay: boolean;
+  disconnectedSince: number | null;
+  disconnectedTimer: number | null;
 };
 
 // UI-visible peer tile info (subset of PeerEntry).
@@ -209,11 +194,17 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const armConnectTimeout = () => {
     clearConnectTimeout();
     connectTimeoutRef.current = window.setTimeout(() => {
-      // If no peer ever reached connected, tear down.
-      const anyConnected = [...peerPoolRef.current.values()].some((p) => p.connState === "connected");
-      if (!anyConnected) {
-        toast.error("Couldn't connect — network too strict, try again on WiFi 📶");
+      // If no peer ever reached connected AND every peer has already tried
+      // relay-only escalation, give up. Otherwise let ICE recovery keep trying.
+      const peers = [...peerPoolRef.current.values()];
+      const anyConnected = peers.some((p) => p.connState === "connected");
+      const allRelayTried = peers.length > 0 && peers.every((p) => p.forceRelay);
+      if (!anyConnected && allRelayTried) {
+        toast.error("Couldn't connect. Please try again.");
         endEveryone(true);
+      } else if (!anyConnected) {
+        // Extend once — relay escalation may still be in flight.
+        armConnectTimeout();
       }
     }, 25000);
   };
@@ -273,14 +264,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     return (meId ?? "") < peerId;
   };
 
-  const createPeerEntry = (peerId: string, hintedName?: string): PeerEntry => {
+  const createPeerEntry = (peerId: string, hintedName?: string, forceRelay = false): PeerEntry => {
     const existing = peerPoolRef.current.get(peerId);
     if (existing) return existing;
-    const pc = new RTCPeerConnection({
-      iceServers: cachedIceServers ?? FALLBACK_ICE_SERVERS,
-      iceCandidatePoolSize: 10,
-      iceTransportPolicy: "all",
-    });
+    const pc = new RTCPeerConnection(getIceConfig(forceRelay));
     if (hintedName) peerNamesRef.current.set(peerId, hintedName);
     const entry: PeerEntry = {
       peerId,
@@ -293,6 +280,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       reachedConnected: false,
       recoveryTimer: null,
       restartAttempts: 0,
+      forceRelay,
+      disconnectedSince: null,
+      disconnectedTimer: null,
     };
     peerPoolRef.current.set(peerId, entry);
 
@@ -310,6 +300,79 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       stopAllCallSounds();
       publishTiles();
     };
+
+    // Rebuild this peer connection with iceTransportPolicy: "relay" and
+    // re-signal a fresh connection. Called when restartIce() also fails.
+    const escalateToRelay = () => {
+      if (entry.forceRelay) return; // already tried relay-only
+      // eslint-disable-next-line no-console
+      console.log(`[mesh] peer ${peerId} escalating to relay-only TURN`);
+      setStatus((s) => (s === "connected" ? s : "connecting"));
+      toast("Connection failed. Retrying…");
+      teardownPeer(peerId, true);
+      // Recreate our side now (relay-only). Offerer triggers new offer via
+      // onnegotiationneeded; callee waits for our fresh offer.
+      const fresh = createPeerEntry(peerId, entry.peerName, true);
+      // Nudge remote to rebuild its PC (its `hello` handler recreates it).
+      sendSig("hello", null, { fromName: meName });
+      void fresh;
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      const st = pc.iceConnectionState;
+      // eslint-disable-next-line no-console
+      console.log(`[mesh] peer ${peerId} iceConnectionState → ${st}`);
+      if (st === "connected" || st === "completed") {
+        entry.disconnectedSince = null;
+        if (entry.disconnectedTimer) {
+          clearTimeout(entry.disconnectedTimer);
+          entry.disconnectedTimer = null;
+        }
+        return;
+      }
+      if (st === "disconnected") {
+        if (entry.disconnectedSince == null) entry.disconnectedSince = Date.now();
+        if (entry.disconnectedTimer) clearTimeout(entry.disconnectedTimer);
+        entry.disconnectedTimer = window.setTimeout(() => {
+          entry.disconnectedTimer = null;
+          const cur = peerPoolRef.current.get(peerId);
+          if (!cur) return;
+          const s = cur.pc.iceConnectionState;
+          if (s === "connected" || s === "completed") return;
+          if (isOffererFor(peerId)) {
+            try {
+              // eslint-disable-next-line no-console
+              console.log(`[mesh] peer ${peerId} restartIce after 5s disconnect`);
+              cur.pc.restartIce();
+            } catch (err) { console.warn("[mesh] restartIce failed", err); }
+          }
+        }, 5000);
+        return;
+      }
+      if (st === "failed") {
+        // First failure: try restartIce once. Second failure within 10s: force relay.
+        if (entry.restartAttempts < 1 && isOffererFor(peerId)) {
+          entry.restartAttempts += 1;
+          try {
+            // eslint-disable-next-line no-console
+            console.log(`[mesh] peer ${peerId} restartIce on ice-failed`);
+            pc.restartIce();
+          } catch (err) { console.warn("[mesh] restartIce failed", err); }
+          if (entry.recoveryTimer) clearTimeout(entry.recoveryTimer);
+          entry.recoveryTimer = window.setTimeout(() => {
+            entry.recoveryTimer = null;
+            const cur = peerPoolRef.current.get(peerId);
+            if (!cur) return;
+            const s = cur.pc.iceConnectionState;
+            if (s === "connected" || s === "completed") return;
+            escalateToRelay();
+          }, 10000);
+        } else if (!entry.forceRelay && isOffererFor(peerId)) {
+          escalateToRelay();
+        }
+      }
+    };
+
     pc.onconnectionstatechange = () => {
       entry.connState = pc.connectionState;
       publishTiles();
@@ -319,10 +382,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (st === "connected") {
         entry.reachedConnected = true;
         entry.restartAttempts = 0;
-        if (entry.recoveryTimer) {
-          clearTimeout(entry.recoveryTimer);
-          entry.recoveryTimer = null;
-        }
+        if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
+        if (entry.disconnectedTimer) { clearTimeout(entry.disconnectedTimer); entry.disconnectedTimer = null; }
+        entry.disconnectedSince = null;
         clearConnectTimeout();
         stopAllCallSounds();
         setStatus("connected");
@@ -333,40 +395,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             500,
           );
         }
-      } else if (st === "disconnected" || st === "failed") {
-        // Transient flap or ICE failure — try to recover before tearing down.
-        // WebRTC often recovers from 'disconnected' within seconds; 'failed'
-        // can be salvaged with an ICE restart (offerer only).
-        if (!entry.reachedConnected) {
-          // Never connected — leave it to armConnectTimeout / higher-level flow.
-          if (st === "failed") teardownPeer(peerId, false);
-          return;
-        }
-        // Try ICE restart once from the offerer side.
-        if (isOffererFor(peerId) && entry.restartAttempts < 1) {
-          entry.restartAttempts += 1;
-          try {
-            // eslint-disable-next-line no-console
-            console.log(`[mesh] peer ${peerId} attempting ICE restart`);
-            pc.restartIce();
-          } catch (err) {
-            console.warn("[mesh] restartIce failed", err);
-          }
-        }
-        // Arm grace: only teardown if still not recovered after 10s.
-        if (entry.recoveryTimer) clearTimeout(entry.recoveryTimer);
-        entry.recoveryTimer = window.setTimeout(() => {
-          entry.recoveryTimer = null;
-          const cur = peerPoolRef.current.get(peerId);
-          if (!cur) return;
-          if (cur.pc.connectionState === "connected") return;
-          // eslint-disable-next-line no-console
-          console.log(`[mesh] peer ${peerId} grace expired in ${cur.pc.connectionState} — tearing down`);
-          teardownPeer(peerId, false);
-        }, 10000);
       } else if (st === "closed") {
         teardownPeer(peerId, false);
       }
+      // Recovery on 'disconnected'/'failed' is handled via
+      // oniceconnectionstatechange (5s grace + restartIce + relay escalation).
     };
     pc.onnegotiationneeded = async () => {
       if (!isOffererFor(peerId)) return;
@@ -388,7 +421,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
     void applyBitrateCaps(pc);
     // eslint-disable-next-line no-console
-    console.log(`[mesh] PeerPool size: ${peerPoolRef.current.size} (added ${peerId})`);
+    console.log(`[mesh] PeerPool size: ${peerPoolRef.current.size} (added ${peerId}${forceRelay ? " relay-only" : ""})`);
     publishTiles();
     return entry;
   };
@@ -404,6 +437,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     const entry = peerPoolRef.current.get(peerId);
     if (!entry) return;
     if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
+    if (entry.disconnectedTimer) { clearTimeout(entry.disconnectedTimer); entry.disconnectedTimer = null; }
     if (sendBye) sendSig("bye", peerId);
     try { entry.pc.close(); } catch {}
     peerPoolRef.current.delete(peerId);
@@ -423,6 +457,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       const entry = peerPoolRef.current.get(peerId);
       if (entry) {
         if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
+        if (entry.disconnectedTimer) { clearTimeout(entry.disconnectedTimer); entry.disconnectedTimer = null; }
         try { entry.pc.close(); } catch {}
       }
       peerPoolRef.current.delete(peerId);
@@ -474,8 +509,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const startCall = async (type: CallType) => {
     if (!meId || activeRef.current) return;
-    if (peerIdsRef.current.length > 4) {
-      toast.error("group calls fit 4 for now 🎥 — smaller squad");
+    if (peerIdsRef.current.length > 3) {
+      toast("Group calls support up to 4 people for now");
       return;
     }
     activeRef.current = true;
