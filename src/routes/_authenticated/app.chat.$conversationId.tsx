@@ -1118,6 +1118,8 @@ function ChatThread() {
           "Someone"
         }
         peerName={title}
+        isGroup={isGroup}
+        groupTitle={isGroup ? title : undefined}
       />
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3">
