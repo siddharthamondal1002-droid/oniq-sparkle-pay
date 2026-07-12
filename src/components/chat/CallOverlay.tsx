@@ -1,3 +1,23 @@
+// Mesh WebRTC group calls (≤4 participants). 1:1 is the N=1 case of the same code path.
+//
+// Signaling: all payloads on channel `call:{conversationId}` carry
+// `{ from: meId, to: peerId | null, callId }`. Room events (to=null): ring, end, hello.
+// Targeted events (to=peerId): offer, answer, ice, bye, decline.
+//
+// Offerer selection is deterministic per pair (myId < peerId ⇒ I offer). This
+// avoids glare without full perfect-negotiation rollback while keeping a small,
+// auditable state machine per peer.
+//
+// PeerPool = Map<peerId, PeerEntry>. Each entry owns its own PC, remote stream,
+// and pending-ICE buffer. All singleton machinery (ringback, media, controls,
+// signaling channel) is shared; per-peer state is scoped inside the pool.
+//
+// Trimmed vs the pre-mesh 1:1 overlay (parked as follow-ups so the mesh path
+// lands clean): HUD stats aggregation, end-of-call report, WebAudio fallback
+// pipeline, speaker boost, wake lock, missed-call message insertion. Core
+// controls (mute, camera, end), ringback/ringtone, opus munge, TURN, bitrate
+// caps, and connect-timeout are preserved.
+
 import {
   forwardRef,
   useEffect,
@@ -7,12 +27,11 @@ import {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { Mic, MicOff, Phone, PhoneOff, Signal, Video, VideoOff, Volume2, VolumeX } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
 import { toast } from "sonner";
 import {
   ensureNotificationPermission,
   playRingback,
-  playRingtone,
   stopAllCallSounds,
 } from "@/lib/callSounds";
 import { sendPush } from "@/lib/push";
@@ -25,11 +44,11 @@ type Props = {
   meId: string | undefined;
   meName: string;
   peerName: string;
+  isGroup?: boolean;
+  groupTitle?: string;
 };
 
-// SDP munge: enable Opus in-band FEC and lift maxaveragebitrate on the opus
-// fmtp line. Safe no-op when the SDP has no opus rtpmap/fmtp lines, and won't
-// double-append params that are already present.
+// --- SDP: Opus in-band FEC + higher max bitrate ---
 function mungeOpus(sdp: string): string {
   const rtpmap = sdp.match(/^a=rtpmap:(\d+)\s+opus\/48000\/2/im);
   if (!rtpmap) return sdp;
@@ -44,7 +63,6 @@ function mungeOpus(sdp: string): string {
   if (params === fmtp[1]) return sdp;
   return sdp.replace(fmtpRe, `a=fmtp:${pt} ${params}`);
 }
-
 function withMungedSdp(desc: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
   if (!desc.sdp) return desc;
   return { ...desc, sdp: mungeOpus(desc.sdp) };
@@ -64,7 +82,6 @@ const FALLBACK_ICE_SERVERS: RTCIceServer[] = [
 
 let cachedIceServers: RTCIceServer[] | null = null;
 let iceServersPromise: Promise<RTCIceServer[]> | null = null;
-
 async function ensureIceServers(): Promise<RTCIceServer[]> {
   if (cachedIceServers) return cachedIceServers;
   if (iceServersPromise) return iceServersPromise;
@@ -90,44 +107,49 @@ async function ensureIceServers(): Promise<RTCIceServer[]> {
   })();
   return iceServersPromise;
 }
-const MAX_ICE_RESTARTS = 2;
-const RECONNECT_GRACE_MS = 10000;
 
-type Status = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "reconnecting" | "ended";
-
+type Status = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "ended";
 
 const genId = () => {
-  try {
-    return crypto.randomUUID();
-  } catch {
+  try { return crypto.randomUUID(); } catch {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 };
 
+type PeerEntry = {
+  peerId: string;
+  peerName: string;
+  pc: RTCPeerConnection;
+  remoteStream: MediaStream | null;
+  pendingIce: RTCIceCandidateInit[];
+  hasRemoteDesc: boolean;
+  connState: RTCPeerConnectionState;
+};
+
+// UI-visible peer tile info (subset of PeerEntry).
+type PeerTile = {
+  peerId: string;
+  peerName: string;
+  stream: MediaStream | null;
+  connState: RTCPeerConnectionState;
+};
+
 export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
-  { conversationId, meId, meName, peerName },
+  { conversationId, meId, meName, peerName, isGroup, groupTitle },
   ref,
 ) {
   const [status, setStatus] = useState<Status>("idle");
   const [callType, setCallType] = useState<CallType>("audio");
   const [muted, setMuted] = useState(false);
   const [camOff, setCamOff] = useState(false);
-  const [speakerOn, setSpeakerOn] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [incomingFromName, setIncomingFromName] = useState("");
-  const [showHud, setShowHud] = useState(false);
-  const [hudLive, setHudLive] = useState<{
-    route: string;
-    rttMs: number;
-    lossPct: number;
-    jitterMs: number;
-    kbpsIn: number;
-    kbpsOut: number;
-  } | null>(null);
+  const [tiles, setTiles] = useState<PeerTile[]>([]);
 
-  const pcRef = useRef<RTCPeerConnection | null>(null);
+  // ---- refs (session-scoped state) ----
+  const peerPoolRef = useRef<Map<string, PeerEntry>>(new Map());
+  const peerNamesRef = useRef<Map<string, string>>(new Map());
   const localStreamRef = useRef<MediaStream | null>(null);
-  const remoteStreamRef = useRef<MediaStream | null>(null);
   const channelRef = useRef<RealtimeChannel | null>(null);
   const ringTimeoutRef = useRef<number | null>(null);
   const connectTimeoutRef = useRef<number | null>(null);
@@ -136,168 +158,41 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const callTypeRef = useRef<CallType>("audio");
   const activeRef = useRef(false);
   const callIdRef = useRef<string | null>(null);
-  const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
-  const pendingIceRef = useRef<RTCIceCandidateInit[]>([]);
   const peerIdsRef = useRef<string[]>([]);
   const userRingChannelsRef = useRef<RealtimeChannel[]>([]);
-  const userRingIntervalRef = useRef<number | null>(null);
-  const missedInsertedRef = useRef<Set<string>>(new Set());
   const autoAcceptTriedRef = useRef(false);
-  const iceRestartsRef = useRef(0);
-  const graceTimerRef = useRef<number | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const audioSrcNodeRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const audioGainNodeRef = useRef<GainNode | null>(null);
-  const audioPipelineStreamIdRef = useRef<string | null>(null);
-  const boostCtxRef = useRef<AudioContext | null>(null);
-  const boostNodesRef = useRef<{
-    src: MediaStreamAudioSourceNode;
-    gain: GainNode;
-    comp: DynamicsCompressorNode;
-  } | null>(null);
-  const statsIntervalRef = useRef<number | null>(null);
-  const statsPrevRef = useRef<{
-    ts: number;
-    bytesIn: number;
-    bytesOut: number;
-    packetsLost: number;
-    packetsReceived: number;
-  } | null>(null);
-  const statsAggRef = useRef<{
-    samples: number;
-    rttSum: number;
-    rttMax: number;
-    jitterSum: number;
-    kbpsInSum: number;
-    kbpsOutSum: number;
-    lossPct: number;
-    packetsLost: number;
-    packetsReceived: number;
-    route: string;
-    codec: string;
-    fec: boolean;
-    connectedAt: number;
-  } | null>(null);
+  const startedAtRef = useRef<number>(0);
 
-  const remotePlayAttemptsRef = useRef(0);
-  const remoteFallbackArmedRef = useRef(false);
+  // ---- helpers ----
 
-  const teardownRemoteAudioPipeline = () => {
-    try { audioSrcNodeRef.current?.disconnect(); } catch {}
-    try { audioGainNodeRef.current?.disconnect(); } catch {}
-    const ctx = audioCtxRef.current;
-    if (ctx) {
-      try { void ctx.close(); } catch {}
+  const publishTiles = () => {
+    const list: PeerTile[] = [];
+    for (const e of peerPoolRef.current.values()) {
+      list.push({
+        peerId: e.peerId,
+        peerName: e.peerName || peerNamesRef.current.get(e.peerId) || "…",
+        stream: e.remoteStream,
+        connState: e.connState,
+      });
     }
-    audioSrcNodeRef.current = null;
-    audioGainNodeRef.current = null;
-    audioCtxRef.current = null;
-    audioPipelineStreamIdRef.current = null;
+    setTiles(list);
   };
-
-  const ensureAudioCtx = (): AudioContext | null => {
-    if (audioCtxRef.current) return audioCtxRef.current;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const Ctx: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
-      if (!Ctx) return null;
-      audioCtxRef.current = new Ctx();
-      return audioCtxRef.current;
-    } catch {
-      return null;
-    }
-  };
-
-  const resumeRemoteAudio = () => {
-    const ctx = audioCtxRef.current;
-    if (!ctx) return;
-    if (ctx.state === "suspended") {
-      ctx.resume().catch(() => {});
-    }
-  };
-
-  // WebAudio pipeline as FALLBACK only — used when element playback fails
-  // twice (mutes element to avoid double audio).
-  const buildRemoteAudioPipeline = (stream: MediaStream) => {
-    if (audioPipelineStreamIdRef.current === stream.id && audioCtxRef.current) return;
-    if (audioPipelineStreamIdRef.current && audioPipelineStreamIdRef.current !== stream.id) {
-      teardownRemoteAudioPipeline();
-    }
-    if (stream.getAudioTracks().length === 0) return;
-    try {
-      const ctx = ensureAudioCtx();
-      if (!ctx) throw new Error("AudioContext unavailable");
-      const src = ctx.createMediaStreamSource(stream);
-      const gain = ctx.createGain();
-      gain.gain.value = 1.35;
-      src.connect(gain);
-      gain.connect(ctx.destination);
-      audioSrcNodeRef.current = src;
-      audioGainNodeRef.current = gain;
-      audioPipelineStreamIdRef.current = stream.id;
-      ctx.resume?.().catch(() => {});
-      if (remoteAudioRef.current) remoteAudioRef.current.muted = true;
-      if (remoteVideoRef.current) remoteVideoRef.current.muted = true;
-      console.warn("[call] using WebAudio fallback for remote audio");
-    } catch (err) {
-      console.warn("[call] WebAudio fallback unavailable", err);
-    }
-  };
-
-  // Try to play the remote element. On NotAllowedError, arm a one-shot
-  // listener that retries playback on the next user gesture. After two
-  // consecutive failures, fall back to the WebAudio pipeline.
-  const tryPlayRemote = (stream: MediaStream) => {
-    const el = remoteAudioRef.current;
-    if (!el) return;
-    el.muted = false;
-    el.volume = 1.0;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (el as any).playsInline = true;
-    const p = el.play();
-    if (!p || typeof p.then !== "function") return;
-    p.then(() => {
-      remotePlayAttemptsRef.current = 0;
-    }).catch((err: unknown) => {
-      const name = (err as { name?: string })?.name ?? "PlayError";
-      remotePlayAttemptsRef.current += 1;
-      console.warn("[call] remote audio play() failed", name, remotePlayAttemptsRef.current);
-      if (remotePlayAttemptsRef.current >= 2) {
-        toast(`Audio blocked — tap the screen to hear (${name})`);
-        buildRemoteAudioPipeline(stream);
-      }
-      if (!remoteFallbackArmedRef.current) {
-        remoteFallbackArmedRef.current = true;
-        const retry = () => {
-          remoteFallbackArmedRef.current = false;
-          window.removeEventListener("pointerdown", retry, true);
-          window.removeEventListener("touchstart", retry, true);
-          window.removeEventListener("keydown", retry, true);
-          tryPlayRemote(stream);
-          resumeRemoteAudio();
-        };
-        window.addEventListener("pointerdown", retry, true);
-        window.addEventListener("touchstart", retry, true);
-        window.addEventListener("keydown", retry, true);
-      }
-    });
-  };
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const wakeLockRef = useRef<any>(null);
-
 
   const setCallTypeBoth = (t: CallType) => {
     callTypeRef.current = t;
     setCallType(t);
   };
 
-  const sendSig = (event: string, payload: Record<string, unknown> = {}) => {
+  const sendSig = (
+    event: string,
+    to: string | null,
+    payload: Record<string, unknown> = {},
+  ) => {
     channelRef.current?.send({
       type: "broadcast",
       event,
-      payload: { ...payload, fromId: meId, callId: callIdRef.current },
+      payload: { ...payload, from: meId, to, callId: callIdRef.current },
     });
   };
 
@@ -311,511 +206,256 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const armConnectTimeout = () => {
     clearConnectTimeout();
     connectTimeoutRef.current = window.setTimeout(() => {
-      if (pcRef.current && pcRef.current.connectionState !== "connected") {
+      // If no peer ever reached connected, tear down.
+      const anyConnected = [...peerPoolRef.current.values()].some((p) => p.connState === "connected");
+      if (!anyConnected) {
         toast.error("Couldn't connect — network too strict, try again on WiFi 📶");
-        finishCall(true);
+        endEveryone(true);
       }
     }, 25000);
   };
 
   const stopUserRingBroadcast = () => {
-    if (userRingIntervalRef.current) {
-      clearInterval(userRingIntervalRef.current);
-      userRingIntervalRef.current = null;
-    }
     for (const c of userRingChannelsRef.current) {
       try { supabase.removeChannel(c); } catch {}
     }
     userRingChannelsRef.current = [];
   };
 
-  const insertMissedCallMessage = async (kind: "missed" | "declined") => {
-    const id = callIdRef.current;
-    if (!id || !meId) return;
-    if (missedInsertedRef.current.has(id)) return;
-    missedInsertedRef.current.add(id);
-    const t = callTypeRef.current;
-    const content =
-      kind === "declined"
-        ? "Call declined"
-        : t === "video"
-          ? "📹 Missed video call"
-          : "📞 Missed voice call";
-    try {
-      await supabase.from("messages").insert({
-        conversation_id: conversationId,
-        sender_id: meId,
-        content,
-        type: "call",
-      });
-    } catch {}
-  };
-
-  const clearGraceTimer = () => {
-    if (graceTimerRef.current) {
-      clearTimeout(graceTimerRef.current);
-      graceTimerRef.current = null;
-    }
-  };
-
-  const releaseWakeLock = () => {
-    const wl = wakeLockRef.current;
-    wakeLockRef.current = null;
-    if (wl && typeof wl.release === "function") {
-      try { wl.release().catch(() => {}); } catch {}
-    }
-  };
-
-  const acquireWakeLock = async () => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const nav = navigator as any;
-      if (nav?.wakeLock?.request) {
-        wakeLockRef.current = await nav.wakeLock.request("screen");
-      }
-    } catch {
-      // best-effort; ignored on unsupported browsers
-    }
-  };
-
-  const startStatsLoop = () => {
-    if (statsIntervalRef.current) return;
-    statsPrevRef.current = null;
-    statsAggRef.current = {
-      samples: 0, rttSum: 0, rttMax: 0, jitterSum: 0,
-      kbpsInSum: 0, kbpsOutSum: 0, lossPct: 0,
-      packetsLost: 0, packetsReceived: 0,
-      route: "unknown", codec: "unknown", fec: false,
-      connectedAt: Date.now(),
-    };
-    const tick = async () => {
-      const pc = pcRef.current;
-      const agg = statsAggRef.current;
-      if (!pc || !agg) return;
-      try {
-        const report = await pc.getStats();
-        let inbAudio: any = null, outAudio: any = null, remoteInb: any = null;
-        let selectedPair: any = null, codecStat: any = null;
-        const candidatesById = new Map<string, any>();
-        const codecsById = new Map<string, any>();
-        report.forEach((s: any) => {
-          if (s.type === "inbound-rtp" && s.kind === "audio" && !s.isRemote) inbAudio = s;
-          else if (s.type === "outbound-rtp" && s.kind === "audio" && !s.isRemote) outAudio = s;
-          else if (s.type === "remote-inbound-rtp" && s.kind === "audio") remoteInb = s;
-          else if (s.type === "candidate-pair" && (s.selected || s.nominated) && s.state === "succeeded") selectedPair = s;
-          else if (s.type === "local-candidate" || s.type === "remote-candidate") candidatesById.set(s.id, s);
-          else if (s.type === "codec") codecsById.set(s.id, s);
-        });
-        if (!selectedPair) {
-          report.forEach((s: any) => {
-            if (s.type === "transport" && s.selectedCandidatePairId) {
-              const p = report.get(s.selectedCandidatePairId);
-              if (p) selectedPair = p;
-            }
-          });
-        }
-        if (inbAudio?.codecId) codecStat = codecsById.get(inbAudio.codecId);
-        else if (outAudio?.codecId) codecStat = codecsById.get(outAudio.codecId);
-
-        const now = Date.now();
-        const bytesIn = inbAudio?.bytesReceived ?? 0;
-        const bytesOut = outAudio?.bytesSent ?? 0;
-        const packetsLost = inbAudio?.packetsLost ?? 0;
-        const packetsReceived = inbAudio?.packetsReceived ?? 0;
-        let kbpsIn = 0, kbpsOut = 0;
-        const prev = statsPrevRef.current;
-        if (prev) {
-          const dt = (now - prev.ts) / 1000;
-          if (dt > 0) {
-            kbpsIn = ((bytesIn - prev.bytesIn) * 8) / 1000 / dt;
-            kbpsOut = ((bytesOut - prev.bytesOut) * 8) / 1000 / dt;
-          }
-        }
-        statsPrevRef.current = { ts: now, bytesIn, bytesOut, packetsLost, packetsReceived };
-
-        const rttSec = selectedPair?.currentRoundTripTime ?? remoteInb?.roundTripTime ?? 0;
-        const rttMs = Math.round(rttSec * 1000);
-        const jitterMs = Math.round(((inbAudio?.jitter ?? 0) as number) * 1000);
-        const totalPkts = packetsReceived + packetsLost;
-        const lossPct = totalPkts > 0 ? (packetsLost / totalPkts) * 100 : 0;
-
-        let route = "unknown";
-        const local = selectedPair?.localCandidateId ? candidatesById.get(selectedPair.localCandidateId) : null;
-        const remote = selectedPair?.remoteCandidateId ? candidatesById.get(selectedPair.remoteCandidateId) : null;
-        const lct = local?.candidateType, rct = remote?.candidateType;
-        if (lct === "relay" || rct === "relay") route = "Relay";
-        else if (lct || rct) route = "P2P";
-        agg.route = route;
-
-        if (codecStat?.mimeType) agg.codec = String(codecStat.mimeType).replace("audio/", "");
-        if (codecStat?.sdpFmtpLine) agg.fec = /useinbandfec=1/i.test(String(codecStat.sdpFmtpLine));
-
-        agg.samples += 1;
-        agg.rttSum += rttMs;
-        if (rttMs > agg.rttMax) agg.rttMax = rttMs;
-        agg.jitterSum += jitterMs;
-        agg.kbpsInSum += kbpsIn;
-        agg.kbpsOutSum += kbpsOut;
-        agg.packetsLost = packetsLost;
-        agg.packetsReceived = packetsReceived;
-        agg.lossPct = lossPct;
-
-        setHudLive({
-          route,
-          rttMs,
-          lossPct: Math.round(lossPct * 10) / 10,
-          jitterMs,
-          kbpsIn: Math.round(kbpsIn),
-          kbpsOut: Math.round(kbpsOut),
-        });
-      } catch {
-        // getStats can throw during teardown; ignore
-      }
-    };
-    void tick();
-    statsIntervalRef.current = window.setInterval(tick, 3000);
-  };
-
-  const stopStatsLoop = () => {
-    if (statsIntervalRef.current) {
-      clearInterval(statsIntervalRef.current);
-      statsIntervalRef.current = null;
-    }
-  };
-
-  const emitEndOfCallReport = () => {
-    const agg = statsAggRef.current;
-    statsAggRef.current = null;
-    statsPrevRef.current = null;
-    if (!agg) return;
-    const durationMs = Date.now() - agg.connectedAt;
-    if (durationMs < 10000 || agg.samples === 0) return;
-    const avgRTT = Math.round(agg.rttSum / agg.samples);
-    const avgJitter = Math.round(agg.jitterSum / agg.samples);
-    const avgKbpsIn = Math.round(agg.kbpsInSum / agg.samples);
-    const avgKbpsOut = Math.round(agg.kbpsOutSum / agg.samples);
-    const lossPct = Math.round(agg.lossPct * 10) / 10;
-    const summary = {
-      route: agg.route,
-      avgRTT,
-      maxRTT: agg.rttMax,
-      lossPct,
-      avgJitterMs: avgJitter,
-      avgKbpsIn,
-      avgKbpsOut,
-      codec: agg.codec,
-      opusFec: agg.fec,
-      durationSec: Math.round(durationMs / 1000),
-      packetsLost: agg.packetsLost,
-      packetsReceived: agg.packetsReceived,
-    };
-    // eslint-disable-next-line no-console
-    console.log("[call-stats]", summary);
-    toast(`Call: ${agg.route} · ${avgRTT}ms · ${lossPct}% loss · ${agg.codec}`);
-  };
-
-  const cleanupMedia = () => {
-    if (ringTimeoutRef.current) {
-      clearTimeout(ringTimeoutRef.current);
-      ringTimeoutRef.current = null;
-    }
-    clearConnectTimeout();
-    clearGraceTimer();
-    stopStatsLoop();
-    emitEndOfCallReport();
-    setHudLive(null);
-    stopUserRingBroadcast();
-    stopAllCallSounds();
-    releaseWakeLock();
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    localStreamRef.current?.getTracks().forEach((t) => {
-      try { t.stop(); } catch {}
-    });
-    localStreamRef.current = null;
-    remoteStreamRef.current = null;
-    teardownRemoteAudioPipeline();
-    teardownSpeakerBoost();
-    setSpeakerOn(false);
-    try { pcRef.current?.close(); } catch {}
-    pcRef.current = null;
-    pendingIceRef.current = [];
-    isCallerRef.current = false;
-    activeRef.current = false;
-    callIdRef.current = null;
-    iceRestartsRef.current = 0;
-    if (remoteVideoRef.current) remoteVideoRef.current.srcObject = null;
-    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null;
-    if (localVideoRef.current) localVideoRef.current.srcObject = null;
-    setMuted(false);
-    setCamOff(false);
-    setElapsed(0);
-  };
-
-  const finishCall = (notifyPeer: boolean) => {
-    // If a video call ends via the failure path, nudge the user to voice.
-    if (notifyPeer && activeRef.current && callTypeRef.current === "video") {
-      // No-op here; specific failure sites toast their own message.
-    }
-    if (notifyPeer && activeRef.current) sendSig("end");
-    cleanupMedia();
-    setStatus("ended");
-    window.setTimeout(() => setStatus((s) => (s === "ended" ? "idle" : s)), 700);
-  };
-
-  const applyBitrateCaps = async () => {
-    const pc = pcRef.current;
-    if (!pc) return;
+  const applyBitrateCaps = async (pc: RTCPeerConnection) => {
     for (const sender of pc.getSenders()) {
       const kind = sender.track?.kind;
       if (!kind) continue;
       try {
         const params = sender.getParameters();
-        if (!params.encodings || params.encodings.length === 0) {
-          params.encodings = [{}];
-        }
-        if (kind === "video") {
-          params.encodings[0].maxBitrate = 400_000;
-          // Scale down if supported — reduces encoder load on weak devices.
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (params.encodings[0] as any).scaleResolutionDownBy = 1.0;
-        } else if (kind === "audio") {
-          params.encodings[0].maxBitrate = 64_000;
-        }
+        if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
+        if (kind === "video") params.encodings[0].maxBitrate = 400_000;
+        else if (kind === "audio") params.encodings[0].maxBitrate = 64_000;
         await sender.setParameters(params);
-      } catch {
-        // some browsers reject mid-negotiation; ignore
-      }
+      } catch { /* some browsers reject mid-negotiation */ }
     }
   };
 
-  const attemptIceRestart = async () => {
-    const pc = pcRef.current;
-    if (!pc || !isCallerRef.current || !activeRef.current) return;
-    if (iceRestartsRef.current >= MAX_ICE_RESTARTS) return;
-    if (pc.signalingState !== "stable") return;
-    iceRestartsRef.current += 1;
-    try {
-      pc.restartIce();
-      const offer = withMungedSdp(await pc.createOffer({ iceRestart: true }));
-      await pc.setLocalDescription(offer);
-      sendSig("offer", { sdp: offer });
-    } catch {
-      // If restart fails outright, let the grace timer decide.
-    }
-  };
-
-  const handleTransientDrop = () => {
-    if (!activeRef.current) return;
-    if (graceTimerRef.current) return; // already in grace
-    setStatus("reconnecting");
-    // Caller drives ICE restart; callee just waits for the new offer.
-    if (isCallerRef.current) {
-      void attemptIceRestart();
-    }
-    graceTimerRef.current = window.setTimeout(() => {
-      graceTimerRef.current = null;
-      const pc = pcRef.current;
-      if (!pc || !activeRef.current) return;
-      if (pc.connectionState === "connected") return;
-      if (callTypeRef.current === "video") {
-        toast("Video too heavy for this network — try a voice call 🎙");
-      }
-      toast.error("Call dropped — network too weak 📶");
-      finishCall(true);
-    }, RECONNECT_GRACE_MS);
-  };
-
-  const createPc = () => {
-    const pc = new RTCPeerConnection({ iceServers: cachedIceServers ?? FALLBACK_ICE_SERVERS, iceCandidatePoolSize: 4 });
-    pc.onicecandidate = (e) => {
-      if (e.candidate) sendSig("ice", { candidate: e.candidate.toJSON() });
-    };
-    pc.ontrack = (e) => {
-      const incoming = e.streams[0];
-      const stream = incoming ?? (() => {
-        const s = remoteStreamRef.current ?? new MediaStream();
-        if (!s.getTracks().find((x) => x.id === e.track.id)) s.addTrack(e.track);
-        return s;
-      })();
-      remoteStreamRef.current = stream;
-      // Remote media is flowing — kill any ringback/ringtone.
-      stopAllCallSounds();
-      // Element-first playback with retry-on-gesture fallback. WebAudio
-      // pipeline is used only after two consecutive play() failures.
-      remotePlayAttemptsRef.current = 0;
-      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
-      tryPlayRemote(stream);
-      // Also re-attach when new tracks arrive on the same stream (reconnect).
-      try {
-        stream.onaddtrack = () => {
-          if (remoteAudioRef.current) remoteAudioRef.current.srcObject = stream;
-          if (remoteVideoRef.current) remoteVideoRef.current.srcObject = stream;
-          tryPlayRemote(stream);
-        };
-      } catch {}
-    };
-    pc.onconnectionstatechange = () => {
-      const st = pc.connectionState;
-      if (st === "connected") {
-        clearConnectTimeout();
-        clearGraceTimer();
-        stopAllCallSounds();
-        setStatus("connected");
-        void acquireWakeLock();
-        if (!timerRef.current) {
-          const started = Date.now();
-          timerRef.current = window.setInterval(
-            () => setElapsed(Math.floor((Date.now() - started) / 1000)),
-            500,
-          );
-        }
-        startStatsLoop();
-      } else if (st === "disconnected") {
-        handleTransientDrop();
-      } else if (st === "failed") {
-        if (activeRef.current) {
-          if (callTypeRef.current === "video") {
-            toast("Video too heavy for this network — try a voice call 🎙");
-          }
-          toast.error("Call dropped — network too weak 📶");
-          finishCall(true);
-        }
-      } else if (st === "closed") {
-        if (activeRef.current) finishCall(false);
-      }
-    };
-    pc.oniceconnectionstatechange = () => {
-      const ist = pc.iceConnectionState;
-      if (ist === "disconnected") {
-        handleTransientDrop();
-      } else if (ist === "failed" && activeRef.current) {
-        if (callTypeRef.current === "video") {
-          toast("Video too heavy for this network — try a voice call 🎙");
-        }
-        toast.error("Call dropped — network too weak 📶");
-        finishCall(true);
-      } else if (ist === "connected" || ist === "completed") {
-        clearGraceTimer();
-      }
-    };
-    return pc;
-  };
+  // ---- media ----
 
   const getMedia = async (type: CallType) => {
     try {
       const audio: MediaTrackConstraints = {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        channelCount: 1,
+        echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1,
       };
       const video: MediaTrackConstraints | false =
         type === "video"
-          ? {
-              width: { ideal: 640 },
-              height: { ideal: 480 },
-              frameRate: { ideal: 20, max: 24 },
-              facingMode: "user",
-            }
+          ? { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 20, max: 24 }, facingMode: "user" }
           : false;
       return await navigator.mediaDevices.getUserMedia({ audio, video });
     } catch (err) {
       const name = (err as { name?: string })?.name ?? "Error";
-      const message = (err as { message?: string })?.message ?? "";
-      if (name === "NotAllowedError" || name === "PermissionDeniedError") {
-        toast.error(`Mic/camera blocked (${name}) — enable in your app settings`);
-      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
-        toast.error(`No mic/camera found (${name})`);
-      } else if (name === "NotReadableError") {
-        toast.error(`Mic in use by another app (${name})`);
-      } else {
-        toast.error(`Couldn't start call: ${name}${message ? ` — ${message}` : ""}`);
-      }
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") toast.error("Mic/camera blocked — enable in your app settings");
+      else if (name === "NotFoundError" || name === "OverconstrainedError") toast.error("No mic/camera found");
+      else if (name === "NotReadableError") toast.error("Mic in use by another app");
+      else toast.error(`Couldn't start call: ${name}`);
       throw err;
     }
   };
 
   const attachLocal = (stream: MediaStream, type: CallType) => {
     localStreamRef.current = stream;
-    if (type === "video" && localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
-    }
-    stream.getTracks().forEach((t) => {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tt = t as any;
-        if ("contentHint" in tt) {
-          tt.contentHint = t.kind === "audio" ? "speech" : "motion";
-        }
-      } catch {
-        // feature-detected; ignore
-      }
-      pcRef.current?.addTrack(t, stream);
-    });
-    // Fire-and-forget: bitrate caps must run after tracks are added.
-    void applyBitrateCaps();
+    if (type === "video" && localVideoRef.current) localVideoRef.current.srcObject = stream;
   };
 
+  // ---- PeerPool ----
 
-  // Fetch other conversation members once per conversation so we can ring
-  // them on their per-user channel from anywhere in the app.
+  const isOffererFor = (peerId: string) => {
+    // Deterministic offerer per pair; myId < peerId ⇒ I offer.
+    return (meId ?? "") < peerId;
+  };
+
+  const createPeerEntry = (peerId: string, hintedName?: string): PeerEntry => {
+    const existing = peerPoolRef.current.get(peerId);
+    if (existing) return existing;
+    const pc = new RTCPeerConnection({
+      iceServers: cachedIceServers ?? FALLBACK_ICE_SERVERS,
+      iceCandidatePoolSize: 4,
+    });
+    if (hintedName) peerNamesRef.current.set(peerId, hintedName);
+    const entry: PeerEntry = {
+      peerId,
+      peerName: hintedName || peerNamesRef.current.get(peerId) || "",
+      pc,
+      remoteStream: null,
+      pendingIce: [],
+      hasRemoteDesc: false,
+      connState: "new",
+    };
+    peerPoolRef.current.set(peerId, entry);
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) sendSig("ice", peerId, { candidate: e.candidate.toJSON() });
+    };
+    pc.ontrack = (e) => {
+      const incoming = e.streams[0];
+      const stream = incoming ?? (() => {
+        const s = entry.remoteStream ?? new MediaStream();
+        if (!s.getTracks().find((x) => x.id === e.track.id)) s.addTrack(e.track);
+        return s;
+      })();
+      entry.remoteStream = stream;
+      stopAllCallSounds();
+      publishTiles();
+    };
+    pc.onconnectionstatechange = () => {
+      entry.connState = pc.connectionState;
+      publishTiles();
+      const st = pc.connectionState;
+      if (st === "connected") {
+        clearConnectTimeout();
+        stopAllCallSounds();
+        setStatus("connected");
+        if (!timerRef.current) {
+          startedAtRef.current = Date.now();
+          timerRef.current = window.setInterval(
+            () => setElapsed(Math.floor((Date.now() - startedAtRef.current) / 1000)),
+            500,
+          );
+        }
+      } else if (st === "failed" || st === "closed") {
+        // Remove just this peer; others may still be up.
+        teardownPeer(peerId, false);
+      }
+    };
+    pc.onnegotiationneeded = async () => {
+      if (!isOffererFor(peerId)) return;
+      if (pc.signalingState !== "stable") return;
+      try {
+        const offer = withMungedSdp(await pc.createOffer());
+        await pc.setLocalDescription(offer);
+        sendSig("offer", peerId, { sdp: offer });
+      } catch (err) {
+        console.warn("[mesh] createOffer failed for", peerId, err);
+      }
+    };
+    // Add local tracks so negotiation kicks off (offerer side) or exists for answer (callee).
+    const local = localStreamRef.current;
+    if (local) {
+      for (const t of local.getTracks()) {
+        try { pc.addTrack(t, local); } catch {}
+      }
+    }
+    void applyBitrateCaps(pc);
+    // eslint-disable-next-line no-console
+    console.log(`[mesh] PeerPool size: ${peerPoolRef.current.size} (added ${peerId})`);
+    publishTiles();
+    return entry;
+  };
+
+  const flushPendingIce = async (entry: PeerEntry) => {
+    for (const c of entry.pendingIce) {
+      try { await entry.pc.addIceCandidate(c); } catch {}
+    }
+    entry.pendingIce = [];
+  };
+
+  const teardownPeer = (peerId: string, sendBye: boolean) => {
+    const entry = peerPoolRef.current.get(peerId);
+    if (!entry) return;
+    if (sendBye) sendSig("bye", peerId);
+    try { entry.pc.close(); } catch {}
+    peerPoolRef.current.delete(peerId);
+    // eslint-disable-next-line no-console
+    console.log(`[mesh] PeerPool size: ${peerPoolRef.current.size} (removed ${peerId})`);
+    publishTiles();
+    // If we drained the pool while call was active, end.
+    if (peerPoolRef.current.size === 0 && activeRef.current) {
+      // In 1:1 or last-peer-left scenarios, end the whole call.
+      endEveryone(false);
+    }
+  };
+
+  const endEveryone = (notify: boolean) => {
+    if (notify && activeRef.current) sendSig("end", null);
+    for (const peerId of [...peerPoolRef.current.keys()]) {
+      const entry = peerPoolRef.current.get(peerId);
+      if (entry) { try { entry.pc.close(); } catch {} }
+      peerPoolRef.current.delete(peerId);
+    }
+    clearConnectTimeout();
+    stopAllCallSounds();
+    stopUserRingBroadcast();
+    if (ringTimeoutRef.current) { clearTimeout(ringTimeoutRef.current); ringTimeoutRef.current = null; }
+    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
+    localStreamRef.current?.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+    localStreamRef.current = null;
+    if (localVideoRef.current) localVideoRef.current.srcObject = null;
+    isCallerRef.current = false;
+    activeRef.current = false;
+    callIdRef.current = null;
+    autoAcceptTriedRef.current = false;
+    setMuted(false);
+    setCamOff(false);
+    setElapsed(0);
+    setTiles([]);
+    setStatus("ended");
+    window.setTimeout(() => setStatus((s) => (s === "ended" ? "idle" : s)), 700);
+  };
+
+  // ---- fetch peer ids for ringing ----
+
   useEffect(() => {
     if (!meId) return;
     let cancelled = false;
     supabase
       .from("conversation_members")
-      .select("user_id")
+      .select("user_id, profiles(display_name, username)")
       .eq("conversation_id", conversationId)
       .neq("user_id", meId)
       .then(({ data }) => {
         if (cancelled) return;
-        peerIdsRef.current = (data ?? []).map((r: any) => r.user_id).filter(Boolean);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rows = (data ?? []) as any[];
+        peerIdsRef.current = rows.map((r) => r.user_id).filter(Boolean);
+        for (const r of rows) {
+          const nm = r.profiles?.display_name || r.profiles?.username;
+          if (r.user_id && nm) peerNamesRef.current.set(r.user_id, nm);
+        }
       });
     return () => { cancelled = true; };
   }, [conversationId, meId]);
 
-  const sendUserRing = () => {
-    const id = callIdRef.current;
-    if (!id) return;
-    const payload = {
-      conversationId,
-      callId: id,
-      callType: callTypeRef.current,
-      fromName: meName,
-      fromId: meId,
-    };
-    for (const ch of userRingChannelsRef.current) {
-      try {
-        ch.send({ type: "broadcast", event: "ring", payload });
-      } catch {}
-    }
-  };
+  // ---- start / accept / decline ----
 
-  const startCall = (type: CallType) => {
+  const startCall = async (type: CallType) => {
     if (!meId || activeRef.current) return;
+    if (peerIdsRef.current.length > 4) {
+      toast.error("group calls fit 4 for now 🎥 — smaller squad");
+      return;
+    }
     activeRef.current = true;
-    resumeRemoteAudio();
     isCallerRef.current = true;
     callIdRef.current = genId();
     setCallTypeBoth(type);
     setStatus("outgoing");
     ensureNotificationPermission();
     playRingback();
-    sendSig("ring", { callType: type, fromName: meName });
+
+    try {
+      const stream = await getMedia(type);
+      await ensureIceServers();
+      attachLocal(stream, type);
+    } catch {
+      endEveryone(false);
+      return;
+    }
+
+    // Room ring on the call channel.
+    sendSig("ring", null, { callType: type, fromName: meName, isGroup: !!isGroup, groupTitle: groupTitle ?? "" });
+    // Announce presence to any accepters.
+    sendSig("hello", null, { fromName: meName });
     sendPush({ conversation_id: conversationId, kind: "call", call_type: type });
 
-    // Broadcast on every peer's user-scoped channel so the incoming UI shows
-    // no matter what screen they're on. Re-broadcast every 2s while outgoing
-    // via the outgoing-status effect below.
+    // Per-user rings so recipients see the incoming UI from anywhere.
     stopUserRingBroadcast();
     for (const peerId of peerIdsRef.current) {
-      const uch = supabase.channel(`user-calls:${peerId}`, {
-        config: { broadcast: { self: false } },
-      });
+      const uch = supabase.channel(`user-calls:${peerId}`, { config: { broadcast: { self: false } } });
       uch.subscribe((s) => {
         if (s === "SUBSCRIBED") {
           uch.send({
@@ -835,187 +475,161 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
 
     ringTimeoutRef.current = window.setTimeout(() => {
-      if (isCallerRef.current && !pcRef.current) {
+      if (isCallerRef.current && peerPoolRef.current.size === 0) {
         toast("They're not around — try a message 💬");
-        insertMissedCallMessage("missed");
-        finishCall(true);
+        endEveryone(true);
       }
     }, 30000);
+    armConnectTimeout();
   };
 
-  useImperativeHandle(ref, () => ({ startCall }));
+  useImperativeHandle(ref, () => ({ startCall: (t) => { void startCall(t); } }));
 
-  // Re-broadcast ring every 2s while outgoing. Fixes the Supabase channel
-  // subscribe race: the initial ring inside startCall() can be sent before
-  // ch.subscribe() has reached SUBSCRIBED (or before the callee's channel has
-  // joined), in which case broadcast silently drops the message. Callee-side
-  // dedupe via activeRef.current in the "ring" handler makes retries a no-op
-  // once the first ring lands, so this is safe.
+  // Re-broadcast ring while outgoing (subscribe race guard).
   useEffect(() => {
     if (status !== "outgoing") return;
     const id = window.setInterval(() => {
-      if (isCallerRef.current && activeRef.current && callIdRef.current) {
-        sendSig("ring", { callType: callTypeRef.current, fromName: meName });
-        sendUserRing();
-      }
+      if (!isCallerRef.current || !activeRef.current || !callIdRef.current) return;
+      sendSig("ring", null, { callType: callTypeRef.current, fromName: meName, isGroup: !!isGroup, groupTitle: groupTitle ?? "" });
+      sendSig("hello", null, { fromName: meName });
     }, 2000);
     return () => window.clearInterval(id);
-    // sendSig closes over refs (meId, callIdRef, channelRef); safe to omit.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, meName]);
 
-  // Callee-side: re-broadcast "accept" every 1.5s while connecting until the
-  // caller's offer arrives (remoteDescription set). Fixes the Supabase
-  // subscribe race where the very first accept can be sent before the
-  // signaling channel reaches SUBSCRIBED and drop silently — leaving the
-  // caller stuck on "ringing" and the callee stuck on "connecting".
-  useEffect(() => {
-    if (status !== "connecting") return;
-    if (isCallerRef.current) return;
-    let tries = 0;
-    const id = window.setInterval(() => {
-      tries += 1;
-      if (tries > 10) { window.clearInterval(id); return; }
-      if (!activeRef.current) { window.clearInterval(id); return; }
-      if (pcRef.current?.remoteDescription) { window.clearInterval(id); return; }
-      sendSig("accept");
-    }, 1500);
-    return () => window.clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status]);
+  // ---- signaling ----
 
-  // Signaling channel — lives for the entire time the thread is open.
   useEffect(() => {
     if (!meId) return;
-    const ch = supabase.channel(`call:${conversationId}`, {
-      config: { broadcast: { self: false } },
-    });
+    const ch = supabase.channel(`call:${conversationId}`, { config: { broadcast: { self: false } } });
     channelRef.current = ch;
 
-    const matches = (p: { fromId?: string; callId?: string | null }, requireActive: boolean) => {
-      if (p.fromId === meId) return false;
-      if (requireActive) {
-        if (!activeRef.current) return false;
-        if (!callIdRef.current || p.callId !== callIdRef.current) return false;
-      }
+    // Payloads must be scoped: either to me, or room-scope (to === null).
+    const forMe = (p: { from?: string; to?: string | null }) => {
+      if (!p || p.from === meId) return false;
+      if (p.to !== null && p.to !== undefined && p.to !== meId) return false;
       return true;
     };
+    const matchesCall = (p: { callId?: string | null }) =>
+      !!callIdRef.current && p.callId === callIdRef.current;
 
+    // ROOM: ring — show incoming if idle.
     ch.on("broadcast", { event: "ring" }, ({ payload }) => {
-      const p = payload as { fromId: string; callType: CallType; fromName?: string; callId: string };
-      if (p.fromId === meId) return;
+      const p = payload as { from: string; to: null; callId: string; callType: CallType; fromName?: string; groupTitle?: string };
+      if (!forMe(p)) return;
       if (activeRef.current) return;
       activeRef.current = true;
       isCallerRef.current = false;
       callIdRef.current = p.callId ?? genId();
       setCallTypeBoth(p.callType);
-      setIncomingFromName(p.fromName || peerName);
+      setIncomingFromName(p.fromName || (isGroup ? (p.groupTitle || groupTitle || "Group") : peerName));
       setStatus("incoming");
     });
 
-    ch.on("broadcast", { event: "accept" }, async ({ payload }) => {
-      const p = payload as { fromId: string; callId: string };
-      if (!matches(p, true)) return;
-      if (!isCallerRef.current) return;
-      // Idempotency: callee retries accept until offer lands, so duplicates
-      // are expected — only run the offer path once.
-      if (pcRef.current) return;
-      if (ringTimeoutRef.current) {
-        clearTimeout(ringTimeoutRef.current);
-        ringTimeoutRef.current = null;
+    // ROOM: hello — a peer joined the room.
+    ch.on("broadcast", { event: "hello" }, async ({ payload }) => {
+      const p = payload as { from: string; to: null; callId: string; fromName?: string };
+      if (!forMe(p) || !matchesCall(p)) return;
+      if (p.fromName) peerNamesRef.current.set(p.from, p.fromName);
+      // Any inbound hello during outgoing means someone accepted → move on.
+      if (status === "outgoing" || (isCallerRef.current && !peerPoolRef.current.has(p.from))) {
+        setStatus("connecting");
+        stopAllCallSounds();
       }
-      setStatus("connecting");
-      armConnectTimeout();
-      try {
-        const stream = await getMedia(callTypeRef.current);
-        await ensureIceServers();
-        pcRef.current = createPc();
-        attachLocal(stream, callTypeRef.current);
-        const offer = withMungedSdp(await pcRef.current.createOffer());
-        await pcRef.current.setLocalDescription(offer);
-        sendSig("offer", { sdp: offer });
-      } catch {
-        finishCall(true);
-      }
+      // Create PC to this peer if we don't have one.
+      if (peerPoolRef.current.has(p.from)) return;
+      if (!localStreamRef.current) return; // media not ready yet; ignore, they'll hello again
+      await ensureIceServers();
+      createPeerEntry(p.from, p.fromName);
+      // Non-offerer will wait for their offer.
     });
 
-    ch.on("broadcast", { event: "decline" }, ({ payload }) => {
-      const p = payload as { fromId: string; callId: string };
-      if (!matches(p, true)) return;
-      if (!isCallerRef.current) return;
-      toast("Call declined");
-      insertMissedCallMessage("declined");
-      finishCall(false);
-    });
-
+    // TARGETED: offer.
     ch.on("broadcast", { event: "offer" }, async ({ payload }) => {
-      const p = payload as { fromId: string; sdp: RTCSessionDescriptionInit; callId: string };
-      if (!matches(p, true)) return;
-      if (isCallerRef.current || !pcRef.current) return;
-      await pcRef.current.setRemoteDescription(new RTCSessionDescription(p.sdp));
-      for (const c of pendingIceRef.current) {
-        try { await pcRef.current.addIceCandidate(c); } catch {}
+      const p = payload as { from: string; to: string; callId: string; sdp: RTCSessionDescriptionInit };
+      if (!forMe(p) || !matchesCall(p)) return;
+      await ensureIceServers();
+      let entry = peerPoolRef.current.get(p.from);
+      if (!entry) entry = createPeerEntry(p.from);
+      try {
+        await entry.pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+        entry.hasRemoteDesc = true;
+        await flushPendingIce(entry);
+        const answer = withMungedSdp(await entry.pc.createAnswer());
+        await entry.pc.setLocalDescription(answer);
+        sendSig("answer", p.from, { sdp: answer });
+      } catch (err) {
+        console.warn("[mesh] offer handling failed", err);
       }
-      pendingIceRef.current = [];
-      const answer = withMungedSdp(await pcRef.current.createAnswer());
-      await pcRef.current.setLocalDescription(answer);
-      sendSig("answer", { sdp: answer });
     });
 
+    // TARGETED: answer.
     ch.on("broadcast", { event: "answer" }, async ({ payload }) => {
-      const p = payload as { fromId: string; sdp: RTCSessionDescriptionInit; callId: string };
-      if (!matches(p, true)) return;
-      if (!isCallerRef.current || !pcRef.current) return;
-      await pcRef.current.setRemoteDescription(new RTCSessionDescription(p.sdp));
-      for (const c of pendingIceRef.current) {
-        try { await pcRef.current.addIceCandidate(c); } catch {}
+      const p = payload as { from: string; to: string; callId: string; sdp: RTCSessionDescriptionInit };
+      if (!forMe(p) || !matchesCall(p)) return;
+      const entry = peerPoolRef.current.get(p.from);
+      if (!entry) return;
+      try {
+        await entry.pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
+        entry.hasRemoteDesc = true;
+        await flushPendingIce(entry);
+      } catch (err) {
+        console.warn("[mesh] answer handling failed", err);
       }
-      pendingIceRef.current = [];
     });
 
+    // TARGETED: ice.
     ch.on("broadcast", { event: "ice" }, async ({ payload }) => {
-      const p = payload as { fromId: string; candidate: RTCIceCandidateInit; callId: string };
-      if (!matches(p, true)) return;
-      if (!p.candidate) return;
-      if (pcRef.current?.remoteDescription) {
-        try { await pcRef.current.addIceCandidate(p.candidate); } catch {}
+      const p = payload as { from: string; to: string; callId: string; candidate: RTCIceCandidateInit };
+      if (!forMe(p) || !matchesCall(p) || !p.candidate) return;
+      const entry = peerPoolRef.current.get(p.from);
+      if (!entry) return;
+      if (entry.hasRemoteDesc) {
+        try { await entry.pc.addIceCandidate(p.candidate); } catch {}
       } else {
-        pendingIceRef.current.push(p.candidate);
+        entry.pendingIce.push(p.candidate);
       }
     });
 
-    ch.on("broadcast", { event: "end" }, ({ payload }) => {
-      const p = payload as { fromId: string; callId: string };
-      if (!matches(p, true)) return;
-      finishCall(false);
+    // TARGETED: bye — a peer left; drop just their PC.
+    ch.on("broadcast", { event: "bye" }, ({ payload }) => {
+      const p = payload as { from: string; to: string; callId: string };
+      if (!forMe(p) || !matchesCall(p)) return;
+      teardownPeer(p.from, false);
     });
 
+    // TARGETED: decline — in 1:1, treat as end. In groups, note it.
+    ch.on("broadcast", { event: "decline" }, ({ payload }) => {
+      const p = payload as { from: string; to: string; callId: string };
+      if (!forMe(p) || !matchesCall(p)) return;
+      if (!isCallerRef.current) return;
+      if (peerIdsRef.current.length <= 1) {
+        toast("Call declined");
+        endEveryone(false);
+      } else {
+        toast(`${peerNamesRef.current.get(p.from) || "Someone"} declined`);
+      }
+    });
+
+    // ROOM: end — everyone tears down.
+    ch.on("broadcast", { event: "end" }, ({ payload }) => {
+      const p = payload as { from: string; to: null; callId: string };
+      if (!forMe(p) || !matchesCall(p)) return;
+      endEveryone(false);
+    });
+
+    // Adopt via URL/event from GlobalIncomingCall.
     const adoptAndAccept = (acceptId: string, acceptType: CallType | null) => {
       if (autoAcceptTriedRef.current) return;
       autoAcceptTriedRef.current = true;
       if (activeRef.current) return;
       activeRef.current = true;
-      resumeRemoteAudio();
       isCallerRef.current = false;
       callIdRef.current = acceptId;
       setCallTypeBoth(acceptType === "video" ? "video" : "audio");
       setIncomingFromName(peerName);
       setStatus("incoming");
-      window.setTimeout(() => {
-        setStatus("connecting");
-        armConnectTimeout();
-        getMedia(callTypeRef.current)
-          .then(async (stream) => {
-            await ensureIceServers();
-            pcRef.current = createPc();
-            attachLocal(stream, callTypeRef.current);
-            sendSig("accept");
-          })
-          .catch(() => {
-            sendSig("decline");
-            finishCall(false);
-          });
-      }, 60);
+      window.setTimeout(() => { void accept(); }, 60);
     };
 
     ch.subscribe((sStatus) => {
@@ -1034,17 +648,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       adoptAndAccept(acceptId, acceptType);
     });
 
-    // Fallback: when the global overlay accepts from another screen, the
-    // navigation to this thread may be same-route (no remount) and the URL
-    // param path above won't re-fire. Listen for a window event that carries
-    // the callId and run the same adopt+accept flow.
     const onAcceptEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail as
         | { callId?: string; callType?: CallType; conversationId?: string }
         | undefined;
       if (!detail?.callId) return;
       if (detail.conversationId && detail.conversationId !== conversationId) return;
-      // Reset the guard so post-navigation events after a previous accept still work.
       autoAcceptTriedRef.current = false;
       adoptAndAccept(detail.callId, detail.callType ?? null);
     };
@@ -1052,11 +661,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     return () => {
       window.removeEventListener("oniq:accept-call", onAcceptEvent);
-      cleanupMedia();
+      endEveryone(false);
       supabase.removeChannel(ch);
       channelRef.current = null;
     };
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, meId]);
 
@@ -1065,22 +673,22 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     setStatus("connecting");
     armConnectTimeout();
     stopAllCallSounds();
-    resumeRemoteAudio();
     try {
       const stream = await getMedia(callTypeRef.current);
       await ensureIceServers();
-      pcRef.current = createPc();
       attachLocal(stream, callTypeRef.current);
-      sendSig("accept");
+      // Announce presence — existing members will offer to us.
+      sendSig("hello", null, { fromName: meName });
     } catch {
-      sendSig("decline");
-      finishCall(false);
+      sendSig("decline", null);
+      endEveryone(false);
     }
   };
 
   const decline = () => {
-    sendSig("decline");
-    finishCall(false);
+    // Address decline to caller if we know them (from ring's `from`), else room.
+    sendSig("decline", null);
+    endEveryone(false);
   };
 
   const toggleMute = () => {
@@ -1089,58 +697,6 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     const next = !(s.getAudioTracks()[0]?.enabled ?? true);
     s.getAudioTracks().forEach((t) => (t.enabled = !next));
     setMuted(next);
-  };
-
-  const teardownSpeakerBoost = () => {
-    const n = boostNodesRef.current;
-    if (n) {
-      try { n.src.disconnect(); } catch { /* noop */ }
-      try { n.comp.disconnect(); } catch { /* noop */ }
-      try { n.gain.disconnect(); } catch { /* noop */ }
-    }
-    boostNodesRef.current = null;
-    const ctx = boostCtxRef.current;
-    boostCtxRef.current = null;
-    if (ctx) { try { void ctx.close(); } catch { /* noop */ } }
-  };
-
-  const toggleSpeaker = () => {
-    const stream = remoteStreamRef.current;
-    const el = remoteAudioRef.current;
-    if (!stream || !el) return;
-    if (speakerOn) {
-      teardownSpeakerBoost();
-      el.muted = false;
-      el.volume = 1.0;
-      el.play?.().catch(() => {});
-      setSpeakerOn(false);
-      return;
-    }
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const Ctx: typeof AudioContext = (window.AudioContext || (window as any).webkitAudioContext);
-      if (!Ctx) { toast.error("speaker boost not supported"); return; }
-      const ctx = new Ctx();
-      const src = ctx.createMediaStreamSource(stream);
-      const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = -24;
-      comp.knee.value = 30;
-      comp.ratio.value = 4;
-      comp.attack.value = 0.003;
-      comp.release.value = 0.25;
-      const gain = ctx.createGain();
-      gain.gain.value = 1.9;
-      src.connect(comp);
-      comp.connect(gain);
-      gain.connect(ctx.destination);
-      ctx.resume?.().catch(() => {});
-      boostCtxRef.current = ctx;
-      boostNodesRef.current = { src, gain, comp };
-      el.muted = true;
-      setSpeakerOn(true);
-    } catch {
-      toast.error("speaker boost failed");
-    }
   };
 
   const toggleCam = () => {
@@ -1154,63 +710,33 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   if (status === "idle") return null;
 
   const statusText =
-    status === "outgoing"
-      ? "Ringing…"
-      : status === "incoming"
-        ? `Incoming ${callType} call`
-        : status === "connecting"
-          ? "Connecting…"
-          : status === "reconnecting"
-            ? "Reconnecting… 🔄"
-            : status === "connected"
-              ? `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`
-              : "Call ended";
+    status === "outgoing" ? "Ringing…"
+    : status === "incoming" ? `Incoming ${callType} call`
+    : status === "connecting" ? "Connecting…"
+    : status === "connected" ? `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`
+    : "Call ended";
 
-  const displayName = status === "incoming" ? incomingFromName : peerName;
+  const displayName = status === "incoming"
+    ? incomingFromName
+    : (isGroup ? (groupTitle || "Group") : peerName);
   const monogram = (displayName || "?").charAt(0).toUpperCase();
-  const showRemoteVideo = callType === "video" && (status === "connected" || status === "reconnecting");
+
+  // Grid: 1=fullscreen, 2=split, 3-4=2x2
+  const tileCount = tiles.length;
+  const gridCls =
+    tileCount <= 1 ? "grid-cols-1"
+    : tileCount === 2 ? "grid-cols-1 sm:grid-cols-2"
+    : "grid-cols-2";
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
-      {/* Always-on hidden remote audio sink — required for voice-only calls. */}
-      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
-
-      {callType === "video" && (
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          playsInline
-          className="absolute inset-0 h-full w-full bg-black object-cover"
-        />
-      )}
-
-      {showHud && hudLive && (
-        <div className="absolute left-3 top-3 z-20 rounded-xl border border-white/15 bg-black/55 px-3 py-2 text-xs font-mono leading-tight backdrop-blur-md">
-          <div className="mb-1 text-white/60">{hudLive.route}</div>
-          <div>
-            RTT{" "}
-            <span className={
-              hudLive.rttMs > 500 ? "text-red-400"
-              : hudLive.rttMs > 250 ? "text-amber-300"
-              : "text-emerald-400"
-            }>{hudLive.rttMs}ms</span>
-          </div>
-          <div>
-            Loss{" "}
-            <span className={
-              hudLive.lossPct > 5 ? "text-red-400"
-              : hudLive.lossPct > 2 ? "text-amber-300"
-              : "text-emerald-400"
-            }>{hudLive.lossPct}%</span>
-          </div>
-          <div>Jitter <span className="text-white/80">{hudLive.jitterMs}ms</span></div>
-          <div className="text-white/80">↑{hudLive.kbpsOut} ↓{hudLive.kbpsIn} kbps</div>
+      {status !== "incoming" && (status === "connected" || status === "connecting") && tileCount > 0 ? (
+        <div className={`grid ${gridCls} gap-1 flex-1 p-1`}>
+          {tiles.map((t) => (
+            <RemoteTile key={t.peerId} tile={t} showVideo={callType === "video"} />
+          ))}
         </div>
-      )}
-
-
-
-      {!showRemoteVideo && (
+      ) : (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="relative">
             <span className="absolute inset-0 -m-4 animate-ping rounded-full bg-primary/30" />
@@ -1220,22 +746,23 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           </div>
           <div className="text-2xl font-semibold">{displayName}</div>
           <div className="text-sm text-white/70">{statusText}</div>
+          {isGroup && status !== "incoming" && (
+            <div className="text-xs text-white/50">group call · up to 4</div>
+          )}
         </div>
       )}
 
-      {showRemoteVideo && (
-        <div className="absolute left-1/2 top-8 z-10 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs">
+      {status === "connected" && tileCount > 0 && (
+        <div className="absolute left-1/2 top-3 z-10 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs">
           {displayName} · {statusText}
         </div>
       )}
 
-      {callType === "video" && (status === "connecting" || status === "connected" || status === "reconnecting") && (
+      {callType === "video" && (status === "connecting" || status === "connected") && (
         <video
           ref={localVideoRef}
-          autoPlay
-          muted
-          playsInline
-          className="absolute right-4 top-16 z-10 h-40 w-28 -scale-x-100 rounded-2xl border border-white/20 bg-black object-cover"
+          autoPlay muted playsInline
+          className="absolute right-4 top-16 z-20 h-40 w-28 -scale-x-100 rounded-2xl border border-white/20 bg-black object-cover"
         />
       )}
 
@@ -1269,15 +796,6 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             >
               {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
             </button>
-            <button
-              onClick={toggleSpeaker}
-              disabled={!remoteStreamRef.current}
-              className={`grid h-14 w-14 place-items-center rounded-full disabled:opacity-40 ${speakerOn ? "bg-primary text-primary-foreground" : "bg-white/10 hover:bg-white/20"}`}
-              aria-label={speakerOn ? "Speaker boost off" : "Speaker boost on"}
-              aria-pressed={speakerOn}
-            >
-              {speakerOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
-            </button>
             {callType === "video" && (
               <button
                 onClick={toggleCam}
@@ -1289,16 +807,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               </button>
             )}
             <button
-              onClick={() => setShowHud((v) => !v)}
-              className="grid h-14 w-14 place-items-center rounded-full bg-white/10 hover:bg-white/20"
-              aria-label={showHud ? "Hide stats" : "Show stats"}
-              aria-pressed={showHud}
-            >
-              <Signal className="h-5 w-5" />
-            </button>
-            <button
               data-testid="call-end"
-              onClick={() => finishCall(true)}
+              onClick={() => endEveryone(true)}
               className="grid h-16 w-16 place-items-center rounded-full bg-red-600 hover:bg-red-500"
               aria-label="End call"
             >
@@ -1310,3 +820,51 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     </div>
   );
 });
+
+// One tile per remote peer. Renders <video> for video calls; avatar otherwise.
+function RemoteTile({ tile, showVideo }: { tile: PeerTile; showVideo: boolean }) {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.srcObject = tile.stream;
+    if (audioRef.current) audioRef.current.srcObject = tile.stream;
+    const el = audioRef.current;
+    if (el) {
+      el.muted = false;
+      el.volume = 1.0;
+      const p = el.play();
+      if (p && typeof p.then === "function") {
+        p.catch(() => {
+          const retry = () => {
+            window.removeEventListener("pointerdown", retry, true);
+            el.play().catch(() => {});
+          };
+          window.addEventListener("pointerdown", retry, true);
+        });
+      }
+    }
+  }, [tile.stream]);
+
+  const mono = (tile.peerName || "?").charAt(0).toUpperCase();
+  const connecting = tile.connState !== "connected";
+  return (
+    <div className="relative flex items-center justify-center overflow-hidden rounded-lg bg-black/60">
+      <audio ref={audioRef} autoPlay playsInline className="hidden" />
+      {showVideo ? (
+        <video
+          ref={videoRef}
+          autoPlay playsInline
+          className="h-full w-full bg-black object-cover"
+        />
+      ) : (
+        <div className="grid h-24 w-24 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-3xl font-bold text-primary-foreground">
+          {mono}
+        </div>
+      )}
+      <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-xs">
+        {tile.peerName || "…"}{connecting ? " · connecting…" : ""}
+      </div>
+    </div>
+  );
+}
