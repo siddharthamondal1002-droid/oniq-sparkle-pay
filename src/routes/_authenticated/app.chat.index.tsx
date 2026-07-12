@@ -939,8 +939,13 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
       setNotOnOniq(notOnDedup);
       if (resp.data.on_oniq.length === 0 && notOnDedup.length === 0) toast("nothing to match — try picking again");
     } catch (e) {
-      if ((e as { name?: string })?.name !== "AbortError") {
+      const name = (e as { name?: string })?.name;
+      const msg = (e as { message?: string })?.message;
+      if (name === "AbortError") {
         toast("contact picker cancelled");
+      } else {
+        toast.error(msg ? `contacts failed: ${msg}` : "contacts failed — search by @username instead 🔍");
+        searchInputRef.current?.focus();
       }
     } finally {
       setPicking(false);
