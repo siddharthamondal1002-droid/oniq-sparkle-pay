@@ -1273,6 +1273,19 @@ function ChatThread() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-muted-foreground/30" />
+            <div className="mb-2 flex items-center justify-around rounded-2xl bg-muted/40 px-2 py-2">
+              {REACTION_EMOJIS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  data-testid={`react-${e}`}
+                  onClick={() => { const f = menuFor; setMenuFor(null); toggleReaction(f.id, e); }}
+                  className="grid h-10 w-10 place-items-center rounded-full text-xl transition active:scale-90 hover:bg-muted"
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -1284,6 +1297,23 @@ function ChatThread() {
             >
               <Reply className="h-4 w-4" /> Reply
             </button>
+            <button
+              type="button"
+              onClick={() => { const f = menuFor; setMenuFor(null); toggleStar(f); }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+            >
+              <Star className="h-4 w-4" /> {me && (menuFor.starred_by ?? []).includes(me.id) ? "Unstar" : "Star ⭐"}
+            </button>
+            {menuFor.sender_id === me?.id && menuFor.type === "text" && !menuFor.is_deleted && menuFor.created_at && (Date.now() - new Date(menuFor.created_at).getTime() < EDIT_WINDOW_MS) && (
+              <button
+                type="button"
+                data-testid="msg-edit"
+                onClick={() => startEdit(menuFor)}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+              >
+                <Pencil className="h-4 w-4" /> Edit
+              </button>
+            )}
             {menuFor.sender_id === me?.id && (
               <button
                 type="button"
