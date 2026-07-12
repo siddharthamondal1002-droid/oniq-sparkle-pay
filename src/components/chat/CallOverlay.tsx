@@ -509,8 +509,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const startCall = async (type: CallType) => {
     if (!meId || activeRef.current) return;
-    if (peerIdsRef.current.length > 4) {
-      toast.error("group calls fit 4 for now 🎥 — smaller squad");
+    if (peerIdsRef.current.length > 3) {
+      toast("Group calls support up to 4 people for now");
       return;
     }
     activeRef.current = true;
