@@ -278,7 +278,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (existing) return existing;
     const pc = new RTCPeerConnection({
       iceServers: cachedIceServers ?? FALLBACK_ICE_SERVERS,
-      iceCandidatePoolSize: 4,
+      iceCandidatePoolSize: 10,
+      iceTransportPolicy: "all",
     });
     if (hintedName) peerNamesRef.current.set(peerId, hintedName);
     const entry: PeerEntry = {
