@@ -1010,13 +1010,6 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             )}
           </div>
         )}
-      <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">the moots 🤝</h2>
-          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
         <div className="mt-3 max-h-[65vh] space-y-4 overflow-y-auto">
           <section>
             <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">moot requests 👀</div>
