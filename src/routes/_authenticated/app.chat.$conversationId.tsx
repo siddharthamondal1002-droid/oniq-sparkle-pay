@@ -465,6 +465,8 @@ function ChatThread() {
       is_ai: false,
       file_name: null,
       file_size: null,
+      edited_at: null,
+      starred_by: [],
     };
     qc.setQueryData<Message[]>(["messages", conversationId], (prev) => [...(prev ?? []), optimistic]);
     setText("");
