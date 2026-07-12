@@ -1192,6 +1192,10 @@ function ChatThread() {
                       mine ? "text-white/70" : "text-muted-foreground"
                     }`}
                   >
+                    {m.edited_at && <span className="italic">edited</span>}
+                    {me && (m.starred_by ?? []).includes(me.id) && (
+                      <Star className={`h-3 w-3 ${mine ? "fill-yellow-300 text-yellow-300" : "fill-yellow-500 text-yellow-500"}`} />
+                    )}
                     <span>{m.created_at ? format(new Date(m.created_at), "HH:mm") : ""}</span>
                     {mine && (isGroup || isChannel) ? (
                       <Check className="h-3.5 w-3.5 text-white/70" />
@@ -1204,6 +1208,32 @@ function ChatThread() {
                     ) : null}
                     {mine && lastOfGroup && false && <Check className="h-3 w-3" />}
                   </div>
+                  {(() => {
+                    const rx = reactionsByMsg.get(m.id) ?? [];
+                    if (rx.length === 0) return null;
+                    const counts = new Map<string, { count: number; mine: boolean }>();
+                    for (const r of rx) {
+                      const cur = counts.get(r.emoji) ?? { count: 0, mine: false };
+                      cur.count += 1;
+                      if (me && r.user_id === me.id) cur.mine = true;
+                      counts.set(r.emoji, cur);
+                    }
+                    return (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {Array.from(counts.entries()).map(([emoji, v]) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleReaction(m.id, emoji); }}
+                            className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] ${v.mine ? "border-[#00D4B8] bg-[#00D4B8]/20 text-foreground" : "border-border bg-background/70 text-foreground"}`}
+                          >
+                            <span>{emoji}</span>
+                            <span className="tabular-nums">{v.count}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {/* Desktop hover Reply */}
                   <button
                     type="button"
