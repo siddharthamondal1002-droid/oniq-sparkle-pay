@@ -38,7 +38,10 @@ public class MainActivity extends BridgeActivity {
     public void onStart() {
         super.onStart();
         if (bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().setWebChromeClient(new WebChromeClient() {
+            // Extend BridgeWebChromeClient (not raw WebChromeClient) so Capacitor's
+            // onShowFileChooser stays wired — otherwise <input type="file"> taps
+            // silently no-op inside the WebView (Smart camera, Ting attach/camera).
+            bridge.getWebView().setWebChromeClient(new BridgeWebChromeClient(bridge) {
                 @Override
                 public void onPermissionRequest(final PermissionRequest request) {
                     runOnUiThread(() -> handleAvPermissionRequest(request));
