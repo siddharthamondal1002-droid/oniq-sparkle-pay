@@ -133,30 +133,80 @@ function AuthPage() {
     if (digits.length < 8 || digits.length > 15) return null;
     return dialCode + digits;
   }
+  function phoneForWidget(): string | null {
+    const digits = phone.replace(/\D/g, "");
+    if (digits.length < 8 || digits.length > 15) return null;
+    // MSG91 widget expects dialCode+number, digits only (no leading +).
+    return dialCode.replace(/\D/g, "") + digits;
+  }
+
+  // MSG91 widget bootstrap: load /otp-provider.js once, call initSendOTP with
+  // exposeMethods:true so we drive sendOTP/verifyOTP/retryOTP from our own UI.
+  // The widget handles OTP generation + captcha on MSG91's DLT-registered
+  // infra (bypasses DND). We only ask our backend to verify the returned
+  // access-token and mint a Supabase session.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("get-otp-config");
+        if (error) throw error;
+        const cfg = (data ?? {}) as { widgetId?: string; tokenAuth?: string | null; ready?: boolean };
+        if (cancelled) return;
+        setWidgetReady(!!cfg.ready);
+        if (!cfg.ready || !cfg.widgetId || !cfg.tokenAuth) return;
+        // Inject the widget script exactly once.
+        const existing = document.getElementById("msg91-otp-provider");
+        const ensureScript = () => new Promise<void>((resolve, reject) => {
+          if (existing) return resolve();
+          const s = document.createElement("script");
+          s.id = "msg91-otp-provider";
+          s.src = "https://verify.msg91.com/otp-provider.js";
+          s.async = true;
+          s.onload = () => resolve();
+          s.onerror = () => reject(new Error("widget load failed"));
+          document.head.appendChild(s);
+        });
+        await ensureScript();
+        const w = window as unknown as { initSendOTP?: (c: unknown) => void };
+        if (typeof w.initSendOTP === "function") {
+          w.initSendOTP({
+            widgetId: cfg.widgetId,
+            tokenAuth: cfg.tokenAuth,
+            exposeMethods: true,
+            success: () => { /* handled via imperative callbacks below */ },
+            failure: (err: unknown) => console.warn("msg91 widget failure", err),
+          });
+          setWidgetReady(true);
+        }
+      } catch (err) {
+        console.warn("otp config load failed", err);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleSendOtp(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (loading) return;
-    const normalized = fullPhone();
-    if (!normalized) {
+    const mobile = phoneForWidget();
+    if (!mobile) {
       toast.error("that number looks off — check the digits 📱");
+      return;
+    }
+    const w = window as unknown as { sendOTP?: (m: string, s: (d: unknown) => void, f: (e: unknown) => void) => void };
+    if (!widgetReady || typeof w.sendOTP !== "function") {
+      toast.error("otp service loading — try again in a sec ⏳");
       return;
     }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("send-otp", {
-        body: { phone: normalized },
+      await new Promise<void>((resolve, reject) => {
+        w.sendOTP!(mobile, () => resolve(), (err) => reject(err));
       });
-      if (error) throw error;
-      const resp = (data ?? {}) as { success?: boolean; dev_mode?: boolean; otp?: string; error?: string };
-      if (resp.error) throw new Error(resp.error);
       setOtpSent(true);
       setResendIn(30);
-      if (resp.dev_mode && resp.otp) {
-        toast.success(`dev mode: ur otp is ${resp.otp} 🔧`, { duration: 15000 });
-      } else {
-        toast.success("otp sent ✉️ check your messages");
-      }
+      toast.success("otp sent ✉️ check your messages");
     } catch (err) {
       toast.error(friendlyAuthError(err));
     } finally {
@@ -172,15 +222,25 @@ function AuthPage() {
       toast.error("that code should be 6 digits 🔢");
       return;
     }
-    const normalized = fullPhone();
-    if (!normalized) return;
+    const w = window as unknown as { verifyOTP?: (c: string, s: (d: { message?: string; ["access-token"]?: string; access_token?: string }) => void, f: (e: unknown) => void) => void };
+    if (typeof w.verifyOTP !== "function") {
+      toast.error("otp service not ready — refresh and try again");
+      return;
+    }
     setLoading(true);
     try {
-      const { data, error } = await supabase.functions.invoke("verify-otp", {
-        body: { phone: normalized, otp: code },
+      const accessToken = await new Promise<string>((resolve, reject) => {
+        w.verifyOTP!(code, (d) => {
+          const t = d?.["access-token"] ?? d?.access_token ?? d?.message;
+          if (typeof t === "string" && t.length > 10) resolve(t);
+          else reject(new Error("no access token"));
+        }, (err) => reject(err));
+      });
+      const { data, error } = await supabase.functions.invoke("msg91-verify-session", {
+        body: { access_token: accessToken },
       });
       if (error) throw error;
-      const resp = (data ?? {}) as { verified?: boolean; email?: string; token_hash?: string; error?: string };
+      const resp = (data ?? {}) as { verified?: boolean; token_hash?: string; error?: string };
       if (!resp.verified || !resp.token_hash) {
         toast.error(resp.error === "invalid or expired code" ? "invalid code — try again 🔄" : (resp.error || "verification failed"));
         return;
