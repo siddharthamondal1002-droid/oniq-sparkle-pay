@@ -457,6 +457,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       const entry = peerPoolRef.current.get(peerId);
       if (entry) {
         if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
+        if (entry.disconnectedTimer) { clearTimeout(entry.disconnectedTimer); entry.disconnectedTimer = null; }
         try { entry.pc.close(); } catch {}
       }
       peerPoolRef.current.delete(peerId);
