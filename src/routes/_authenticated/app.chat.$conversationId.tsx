@@ -815,9 +815,13 @@ function ChatThread() {
 
   const title = header?.title ?? "Conversation";
   // Filter out messages from blocked peer while blocked (client-side hide)
-  const visible = isBlocked && peerId
+  const baseVisible = isBlocked && peerId
     ? messages.filter((m) => m.sender_id !== peerId)
     : messages;
+  const searchTerm = searchQ.trim().toLowerCase();
+  const visible = searchTerm
+    ? baseVisible.filter((m) => (m.content ?? "").toLowerCase().includes(searchTerm))
+    : baseVisible;
 
   // Build render list with day separators + grouping metadata.
   type Row =
