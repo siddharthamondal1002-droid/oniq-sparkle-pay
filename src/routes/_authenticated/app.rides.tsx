@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   geocode,
@@ -15,10 +15,19 @@ import {
   type RideOption,
   type RouteInfo,
 } from "@/lib/miniapps";
+import {
+  detectCity,
+  getCachedCity,
+  setCachedCity,
+  splitByCity,
+  type DetectedCity,
+  type RideProvider as RP,
+} from "@/lib/rideProviders";
 
 export const Route = createFileRoute("/_authenticated/app/rides")({
   component: RidesScreen,
 });
+
 
 type Point = { lat: number; lon: number; label: string };
 
@@ -29,6 +38,9 @@ function RidesScreen() {
   const [pickup, setPickup] = useState<Point | null>(null);
   const [pickupIsCurrent, setPickupIsCurrent] = useState(true);
   const [geoState, setGeoState] = useState<"locating" | "ready" | "denied">("locating");
+  const [city, setCity] = useState<DetectedCity>(() => getCachedCity());
+  const [showElsewhere, setShowElsewhere] = useState(false);
+
   const [locating, setLocating] = useState(false);
   const [searching, setSearching] = useState(false);
 
@@ -56,8 +68,12 @@ function RidesScreen() {
       const label = await reverseGeocode(lat, lon);
       setPickup({ lat, lon, label });
       setPickupIsCurrent(true);
+      const c = detectCity(lat, lon);
+      setCity(c);
+      setCachedCity(c);
       setGeoState("ready");
       if (fromTap) toast.success("Locked in 📍 " + label);
+
     } catch {
       setGeoState("denied");
       if (fromTap) {
@@ -391,40 +407,18 @@ function RidesScreen() {
         </div>
       )}
 
-      {/* Classic providers (always available) */}
-      <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
-        pick your ride, main character
-      </h2>
-      <div className="mt-3 space-y-2">
-        <Provider
-          name="Uber"
-          desc={destination ? "Opens Uber with your destination pre-filled" : "Cabs, autos & moto"}
-          color="#000000"
-          icon={Car}
-          href={uberHref}
-          testId="ride-uber"
-          onBlocked={needDestination}
-        />
-        <Provider
-          name="Ola"
-          desc={destination ? "Opens Ola booking with your drop location" : "Cabs & autos"}
-          color="#3b7d0e"
-          icon={Car}
-          href={olaHref}
-          testId="ride-ola"
-          onBlocked={needDestination}
-          inApp
-        />
-        <Provider
-          name="Rapido"
-          desc="Bike taxis & autos"
-          color="#A67C00"
-          icon={Bike}
-          href="https://rapido.bike"
-          testId="ride-rapido"
-          inApp
-        />
-      </div>
+      {/* Providers, filtered by city */}
+      <CityProviders
+        city={city}
+        geoState={geoState}
+        destination={destination}
+        uberHref={uberHref}
+        olaHref={olaHref}
+        showElsewhere={showElsewhere}
+        setShowElsewhere={setShowElsewhere}
+        onBlocked={needDestination}
+      />
+
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Rides are booked and paid in the provider's app. Pickup uses your live location.
@@ -519,6 +513,7 @@ function Provider({
   testId,
   onBlocked,
   inApp,
+  tag,
 }: {
   name: string;
   desc: string;
@@ -528,18 +523,27 @@ function Provider({
   testId: string;
   onBlocked?: (e: React.MouseEvent) => void;
   inApp?: boolean;
+  tag?: string;
 }) {
   const body = (
     <>
       <div className="grid h-11 w-11 place-items-center rounded-xl text-white" style={{ backgroundColor: color }}>
         <Icon className="h-5 w-5" />
       </div>
-      <div className="flex-1">
-        <div className="text-sm font-semibold">{name}</div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-semibold">{name}</div>
+          {tag && (
+            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary">
+              {tag}
+            </span>
+          )}
+        </div>
         <div className="text-xs text-muted-foreground">{desc}</div>
       </div>
     </>
   );
+
   const cls =
     "flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary/40";
   if (!href) {
@@ -567,3 +571,101 @@ function Provider({
     </a>
   );
 }
+
+function CityProviders({
+  city,
+  geoState,
+  destination,
+  uberHref,
+  olaHref,
+  showElsewhere,
+  setShowElsewhere,
+  onBlocked,
+}: {
+  city: DetectedCity;
+  geoState: "locating" | "ready" | "denied";
+  destination: Point | null;
+  uberHref?: string;
+  olaHref?: string;
+  showElsewhere: boolean;
+  setShowElsewhere: (v: boolean) => void;
+  onBlocked: (e: React.MouseEvent) => void;
+}) {
+  const { available, elsewhere } = useMemo(() => splitByCity(city), [city]);
+
+  function hrefFor(p: RP): string | undefined {
+    if (p.id === "uber") return uberHref ?? p.webUrl;
+    if (p.id === "ola") return olaHref ?? p.webUrl;
+    return p.webUrl;
+  }
+  function descFor(p: RP): string {
+    if (p.id === "uber" && destination) return "Opens Uber with your destination pre-filled";
+    if (p.id === "ola" && destination) return "Opens Ola booking with your drop location";
+    return p.desc;
+  }
+
+  const hint =
+    geoState === "denied"
+      ? "turn on location for ur city's full lineup 📍"
+      : city && city.id !== "other"
+        ? `in ${city.label} rn`
+        : null;
+
+  return (
+    <div data-testid="city-providers">
+      <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
+        pick your ride, main character
+      </h2>
+      {hint && <p className="mt-1 px-1 text-xs text-primary/80">{hint}</p>}
+      <div className="mt-3 space-y-2">
+        {available.map((p) => (
+          <Provider
+            key={p.id}
+            name={p.name}
+            desc={descFor(p)}
+            color={p.color}
+            icon={p.icon === "bike" ? Bike : Car}
+            href={hrefFor(p)}
+            testId={`ride-${p.id}`}
+            onBlocked={p.id === "uber" || p.id === "ola" ? onBlocked : undefined}
+            inApp={p.id !== "uber"}
+            tag={p.tag}
+          />
+        ))}
+      </div>
+
+      {elsewhere.length > 0 && (
+        <div className="mt-4">
+          <button
+            data-testid="toggle-elsewhere"
+            onClick={() => setShowElsewhere(!showElsewhere)}
+            className="flex w-full items-center justify-between rounded-2xl border border-dashed border-border bg-card/50 px-4 py-2.5 text-left text-xs text-muted-foreground"
+          >
+            <span>
+              not in {city?.label ?? "your area"} yet 🙅 ({elsewhere.length})
+            </span>
+            <ChevronDown className={`h-4 w-4 transition ${showElsewhere ? "rotate-180" : ""}`} />
+          </button>
+          {showElsewhere && (
+            <div className="mt-2 space-y-2">
+              {elsewhere.map((p) => (
+                <Provider
+                  key={p.id}
+                  name={p.name}
+                  desc={descFor(p)}
+                  color={p.color}
+                  icon={p.icon === "bike" ? Bike : Car}
+                  href={hrefFor(p)}
+                  testId={`ride-${p.id}`}
+                  inApp
+                  tag={p.tag}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
