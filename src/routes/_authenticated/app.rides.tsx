@@ -561,3 +561,101 @@ function Provider({
     </a>
   );
 }
+
+function CityProviders({
+  city,
+  geoState,
+  destination,
+  uberHref,
+  olaHref,
+  showElsewhere,
+  setShowElsewhere,
+  onBlocked,
+}: {
+  city: DetectedCity;
+  geoState: "locating" | "ready" | "denied";
+  destination: Point | null;
+  uberHref?: string;
+  olaHref?: string;
+  showElsewhere: boolean;
+  setShowElsewhere: (v: boolean) => void;
+  onBlocked: (e: React.MouseEvent) => void;
+}) {
+  const { available, elsewhere } = useMemo(() => splitByCity(city), [city]);
+
+  function hrefFor(p: RP): string | undefined {
+    if (p.id === "uber") return uberHref ?? p.webUrl;
+    if (p.id === "ola") return olaHref ?? p.webUrl;
+    return p.webUrl;
+  }
+  function descFor(p: RP): string {
+    if (p.id === "uber" && destination) return "Opens Uber with your destination pre-filled";
+    if (p.id === "ola" && destination) return "Opens Ola booking with your drop location";
+    return p.desc;
+  }
+
+  const hint =
+    geoState === "denied"
+      ? "turn on location for ur city's full lineup 📍"
+      : city && city.id !== "other"
+        ? `in ${city.label} rn`
+        : null;
+
+  return (
+    <div data-testid="city-providers">
+      <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
+        pick your ride, main character
+      </h2>
+      {hint && <p className="mt-1 px-1 text-xs text-primary/80">{hint}</p>}
+      <div className="mt-3 space-y-2">
+        {available.map((p) => (
+          <Provider
+            key={p.id}
+            name={p.name}
+            desc={descFor(p)}
+            color={p.color}
+            icon={p.icon === "bike" ? Bike : Car}
+            href={hrefFor(p)}
+            testId={`ride-${p.id}`}
+            onBlocked={p.id === "uber" || p.id === "ola" ? onBlocked : undefined}
+            inApp={p.id !== "uber"}
+            tag={p.tag}
+          />
+        ))}
+      </div>
+
+      {elsewhere.length > 0 && (
+        <div className="mt-4">
+          <button
+            data-testid="toggle-elsewhere"
+            onClick={() => setShowElsewhere(!showElsewhere)}
+            className="flex w-full items-center justify-between rounded-2xl border border-dashed border-border bg-card/50 px-4 py-2.5 text-left text-xs text-muted-foreground"
+          >
+            <span>
+              not in {city?.label ?? "your area"} yet 🙅 ({elsewhere.length})
+            </span>
+            <ChevronDown className={`h-4 w-4 transition ${showElsewhere ? "rotate-180" : ""}`} />
+          </button>
+          {showElsewhere && (
+            <div className="mt-2 space-y-2">
+              {elsewhere.map((p) => (
+                <Provider
+                  key={p.id}
+                  name={p.name}
+                  desc={descFor(p)}
+                  color={p.color}
+                  icon={p.icon === "bike" ? Bike : Car}
+                  href={hrefFor(p)}
+                  testId={`ride-${p.id}`}
+                  inApp
+                  tag={p.tag}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
