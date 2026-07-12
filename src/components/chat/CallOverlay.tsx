@@ -289,6 +289,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       pendingIce: [],
       hasRemoteDesc: false,
       connState: "new",
+      reachedConnected: false,
+      recoveryTimer: null,
+      restartAttempts: 0,
     };
     peerPoolRef.current.set(peerId, entry);
 
