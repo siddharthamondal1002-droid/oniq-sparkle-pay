@@ -67,10 +67,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  // MSG91 transactional OTP route — delivers to DND numbers (unlike Fast2SMS
-  // promotional Quick route). NOTE: we still generate + store the OTP in
-  // otp_attempts and pass it to MSG91 as the `otp` param, so MSG91 sends OUR
-  // code. verify-otp remains unchanged — it matches against our stored value.
+  // MSG91 transactional sendhttp (route=4) — delivers to DND numbers, no
+  // pre-approved template required. We still generate + store the OTP in
+  // otp_attempts and just send it as the SMS body, so verify-otp is unchanged.
   const key = Deno.env.get("MSG91_AUTH_KEY");
   if (!key) {
     return new Response(JSON.stringify({ success: true, dev_mode: true, otp }), {
@@ -79,23 +78,20 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const r = await fetch("https://control.msg91.com/api/v5/otp", {
-      method: "POST",
-      headers: { authkey: key, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        template_id: Deno.env.get("MSG91_TEMPLATE_ID") ?? "",
-        mobile: "91" + phone,
-        otp,
-      }),
-    });
-    const body = await r.json().catch(() => ({} as { type?: string }));
-    if (!r.ok || (body as { type?: string }).type !== "success") {
-      console.error("msg91 error", r.status, body);
-      return new Response(JSON.stringify({ error: "SMS provider failed" }), {
+    const sender = Deno.env.get("MSG91_SENDER_ID") ?? "ONIQSM";
+    const message = `Your ONIQ verification code is ${otp}. Valid for 10 minutes.`;
+    const url = `https://api.msg91.com/api/sendhttp.php?authkey=${encodeURIComponent(key)}&mobiles=${encodeURIComponent("91" + phone)}&message=${encodeURIComponent(message)}&sender=${encodeURIComponent(sender)}&route=4&country=91`;
+    const r = await fetch(url);
+    const text = await r.text();
+    // sendhttp returns a request-id string on success, or an error message.
+    const ok = r.ok && /^[a-f0-9-]{20,}$/i.test(text.trim());
+    if (!ok) {
+      console.error("msg91 sendhttp error", r.status, text);
+      return new Response(JSON.stringify({ error: "SMS provider failed", detail: text }), {
         status: 502, headers: { ...CORS, "Content-Type": "application/json" },
       });
     }
-    return new Response(JSON.stringify({ success: true, dev_mode: false }), {
+    return new Response(JSON.stringify({ success: true, dev_mode: false, request_id: text.trim() }), {
       headers: { ...CORS, "Content-Type": "application/json" },
     });
   } catch (e) {
