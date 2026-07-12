@@ -11,7 +11,12 @@ const CORS = {
 };
 
 const FALLBACK = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+    { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+  ],
   fallback: true,
 };
 
@@ -49,7 +54,7 @@ Deno.serve(async (req) => {
   }
 
   const domain = Deno.env.get("METERED_DOMAIN");
-  const apiKey = Deno.env.get("METERED_API_KEY");
+  const apiKey = Deno.env.get("METERED_API_KEY") ?? Deno.env.get("METERED_TURN_API_KEY");
   if (!domain || !apiKey) {
     console.warn("get-turn-credentials: missing METERED_DOMAIN or METERED_API_KEY");
     return json(200, FALLBACK);
