@@ -883,7 +883,8 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   const pickContacts = async () => {
     const nav = typeof navigator !== "undefined" ? (navigator as unknown as { contacts?: { select: (props: string[], opts: { multiple: boolean }) => Promise<Array<{ name?: string[]; email?: string[] }>> } }) : null;
     if (!nav?.contacts || typeof nav.contacts.select !== "function") {
-      toast("ur browser can't do contacts 😔 — search by @username instead");
+      toast("ur browser can't do contacts 😔 — search by @username instead 🔍");
+      searchInputRef.current?.focus();
       return;
     }
     setPicking(true);
