@@ -643,77 +643,153 @@ function ChatThread() {
     sendPush({ conversation_id: conversationId, kind: "message", preview: previewMap[payload.type] });
   };
 
-  const handlePickImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    if (!/^image\//.test(f.type)) return toast.error("images only");
-    if (f.size > 10 * 1024 * 1024) return toast.error("keep it under 10MB");
-    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
-    setUploading(true);
-    try {
-      const ext = (f.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-      const url = await uploadToChatMedia(f, ext);
-      await insertMediaMessage({ type: "image", media_url: url });
-    } catch (err) {
-      console.error(err);
-      toast.error(err instanceof Error ? err.message : "upload failed");
-    } finally {
-      setUploading(false);
-    }
+  // ---- per-file validation + upload (used by single & batch flows) ----
+  const validateImage = (f: File): string | null => {
+    if (!/^image\//.test(f.type)) return "images only";
+    if (f.size > 100 * 1024 * 1024) return "keep it under 100MB";
+    return null;
   };
-
-  const handlePickVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    if (!/^video\//.test(f.type)) return toast.error("videos only");
-    if (f.size > 100 * 1024 * 1024) return toast.error("keep it under 100MB");
-    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
-    const rawExt = (f.name.split(".").pop() || "mp4").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const allowed = ["mp4", "mov", "webm", "mkv"];
-    const ext = allowed.includes(rawExt) ? rawExt : "mp4";
-    setUploading(true);
-    try {
-      const url = await uploadToChatMedia(f, ext);
-      await insertMediaMessage({ type: "video", media_url: url, file_name: f.name, file_size: f.size });
-    } catch (err) {
-      console.error(err);
-      toast.error(err instanceof Error ? err.message : "upload failed");
-    } finally {
-      setUploading(false);
-    }
+  const validateVideo = (f: File): string | null => {
+    if (!/^video\//.test(f.type)) return "videos only";
+    if (f.size > 100 * 1024 * 1024) return "keep it under 100MB";
+    return null;
   };
-
-  const handlePickAnyFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    e.target.value = "";
-    if (!f) return;
-    if (f.size > 50 * 1024 * 1024) return toast.error("keep it under 50MB");
-    if (isBlocked) return toast("You've blocked this user — unblock to chat.");
+  const bannedFileExts = ["exe","apk","bat","sh","cmd","msi","dll","com","scr","ps1"];
+  const allowedFileExts = [
+    "jpg","jpeg","png","webp","gif",
+    "webm","m4a","mp3","ogg","wav",
+    "mp4","mov","mkv",
+    "pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","json",
+    "zip","rar",
+  ];
+  const validateAnyFile = (f: File): string | null => {
+    if (f.size > 50 * 1024 * 1024) return "keep it under 50MB";
     const rawExt = (f.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const banned = ["exe", "apk", "bat", "sh", "cmd", "msi", "dll", "com", "scr", "ps1"];
-    if (!rawExt || banned.includes(rawExt)) {
-      return toast.error("that file type isn't allowed 🚫");
-    }
-    const allowed = [
-      "jpg","jpeg","png","webp","gif",
-      "webm","m4a","mp3","ogg","wav",
-      "mp4","mov","mkv",
-      "pdf","doc","docx","xls","xlsx","ppt","pptx","txt","csv","json",
-      "zip","rar",
-    ];
-    if (!allowed.includes(rawExt)) return toast.error(`.${rawExt} isn't supported yet`);
-    setUploading(true);
+    if (!rawExt || bannedFileExts.includes(rawExt)) return "that file type isn't allowed 🚫";
+    if (!allowedFileExts.includes(rawExt)) return `.${rawExt} isn't supported yet`;
+    return null;
+  };
+
+  type BatchKind = "image" | "video" | "file";
+  const uploadOne = async (f: File, kind: BatchKind): Promise<boolean> => {
     try {
-      const url = await uploadToChatMedia(f, rawExt);
-      await insertMediaMessage({ type: "file", media_url: url, file_name: f.name, file_size: f.size });
+      const rawExt = (f.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (kind === "image") {
+        const ext = rawExt || "jpg";
+        const url = await uploadToChatMedia(f, ext);
+        await insertMediaMessage({ type: "image", media_url: url });
+      } else if (kind === "video") {
+        const allowed = ["mp4","mov","webm","mkv"];
+        const ext = allowed.includes(rawExt) ? rawExt : "mp4";
+        const url = await uploadToChatMedia(f, ext);
+        await insertMediaMessage({ type: "video", media_url: url, file_name: f.name, file_size: f.size });
+      } else {
+        const url = await uploadToChatMedia(f, rawExt);
+        await insertMediaMessage({ type: "file", media_url: url, file_name: f.name, file_size: f.size });
+      }
+      return true;
     } catch (err) {
       console.error(err);
-      toast.error(err instanceof Error ? err.message : "upload failed");
-    } finally {
-      setUploading(false);
+      toast.error(`${f.name}: ${err instanceof Error ? err.message : "upload failed"}`);
+      return false;
     }
+  };
+
+  // ---- batch flow: preview tray + sequential send ----
+  type PendingItem = { id: string; file: File; kind: BatchKind; previewUrl: string };
+  const [pendingBatch, setPendingBatch] = useState<PendingItem[]>([]);
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const revokePendingUrls = (items: PendingItem[]) => {
+    items.forEach((it) => { try { URL.revokeObjectURL(it.previewUrl); } catch {} });
+  };
+  const clearBatch = () => {
+    setPendingBatch((prev) => { revokePendingUrls(prev); return []; });
+  };
+  const removeFromBatch = (id: string) => {
+    setPendingBatch((prev) => {
+      const gone = prev.find((p) => p.id === id);
+      if (gone) { try { URL.revokeObjectURL(gone.previewUrl); } catch {} }
+      return prev.filter((p) => p.id !== id);
+    });
+  };
+
+  const handlePickedFiles = async (files: File[], kind: BatchKind) => {
+    if (files.length === 0) return;
+    if (isBlocked) { toast("You've blocked this user — unblock to chat."); return; }
+    let list = files;
+    if (list.length > 10) {
+      toast("10 at a time bestie 😅");
+      list = list.slice(0, 10);
+    }
+    const validator = kind === "image" ? validateImage : kind === "video" ? validateVideo : validateAnyFile;
+    const accepted: File[] = [];
+    for (const f of list) {
+      const err = validator(f);
+      if (err) toast.error(`${f.name}: ${err}`);
+      else accepted.push(f);
+    }
+    if (accepted.length === 0) return;
+    // Single-file: preserve identical immediate-send behavior.
+    if (accepted.length === 1) {
+      setUploading(true);
+      try { await uploadOne(accepted[0], kind); } finally { setUploading(false); }
+      return;
+    }
+    // Multi-file: populate preview tray, wait for user to tap send.
+    const items: PendingItem[] = accepted.map((f) => ({
+      id: crypto.randomUUID(),
+      file: f,
+      kind,
+      previewUrl: URL.createObjectURL(f),
+    }));
+    setPendingBatch((prev) => {
+      revokePendingUrls(prev);
+      return items;
+    });
+  };
+
+  const sendPendingBatch = async () => {
+    const items = pendingBatch;
+    if (items.length === 0) return;
+    setUploading(true);
+    setBatchProgress({ done: 0, total: items.length });
+    let ok = 0;
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      const success = await uploadOne(it.file, it.kind);
+      if (success) ok++;
+      setBatchProgress({ done: i + 1, total: items.length });
+    }
+    // One push per batch (insertMediaMessage already pushes per item, but we
+    // want a single "N items" nudge for the recipient — best-effort override).
+    if (ok > 1) {
+      sendPush({
+        conversation_id: conversationId,
+        kind: "message",
+        preview: `📎 ${ok} items`,
+      });
+    }
+    revokePendingUrls(items);
+    setPendingBatch([]);
+    setBatchProgress(null);
+    setUploading(false);
+  };
+
+  const handlePickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    void handlePickedFiles(files, "image");
+  };
+  const handlePickVideo = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    void handlePickedFiles(files, "video");
+  };
+  const handlePickAnyFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = "";
+    void handlePickedFiles(files, "file");
   };
 
 
