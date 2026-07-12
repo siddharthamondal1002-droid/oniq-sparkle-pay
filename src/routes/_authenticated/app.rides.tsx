@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import {
   geocode,
@@ -15,10 +15,19 @@ import {
   type RideOption,
   type RouteInfo,
 } from "@/lib/miniapps";
+import {
+  detectCity,
+  getCachedCity,
+  setCachedCity,
+  splitByCity,
+  type DetectedCity,
+  type RideProvider as RP,
+} from "@/lib/rideProviders";
 
 export const Route = createFileRoute("/_authenticated/app/rides")({
   component: RidesScreen,
 });
+
 
 type Point = { lat: number; lon: number; label: string };
 
