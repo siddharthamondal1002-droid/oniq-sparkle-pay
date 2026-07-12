@@ -258,14 +258,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     return (meId ?? "") < peerId;
   };
 
-  const createPeerEntry = (peerId: string, hintedName?: string): PeerEntry => {
+  const createPeerEntry = (peerId: string, hintedName?: string, forceRelay = false): PeerEntry => {
     const existing = peerPoolRef.current.get(peerId);
     if (existing) return existing;
-    const pc = new RTCPeerConnection({
-      iceServers: cachedIceServers ?? FALLBACK_ICE_SERVERS,
-      iceCandidatePoolSize: 10,
-      iceTransportPolicy: "all",
-    });
+    const pc = new RTCPeerConnection(getIceConfig(forceRelay));
     if (hintedName) peerNamesRef.current.set(peerId, hintedName);
     const entry: PeerEntry = {
       peerId,
@@ -278,6 +274,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       reachedConnected: false,
       recoveryTimer: null,
       restartAttempts: 0,
+      forceRelay,
+      disconnectedSince: null,
+      disconnectedTimer: null,
     };
     peerPoolRef.current.set(peerId, entry);
 
@@ -295,6 +294,79 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       stopAllCallSounds();
       publishTiles();
     };
+
+    // Rebuild this peer connection with iceTransportPolicy: "relay" and
+    // re-signal a fresh connection. Called when restartIce() also fails.
+    const escalateToRelay = () => {
+      if (entry.forceRelay) return; // already tried relay-only
+      // eslint-disable-next-line no-console
+      console.log(`[mesh] peer ${peerId} escalating to relay-only TURN`);
+      setStatus((s) => (s === "connected" ? s : "connecting"));
+      toast("Connection failed. Retrying…");
+      teardownPeer(peerId, true);
+      // Recreate our side now (relay-only). Offerer triggers new offer via
+      // onnegotiationneeded; callee waits for our fresh offer.
+      const fresh = createPeerEntry(peerId, entry.peerName, true);
+      // Nudge remote to rebuild its PC (its `hello` handler recreates it).
+      sendSig("hello", null, { fromName: meName });
+      void fresh;
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      const st = pc.iceConnectionState;
+      // eslint-disable-next-line no-console
+      console.log(`[mesh] peer ${peerId} iceConnectionState → ${st}`);
+      if (st === "connected" || st === "completed") {
+        entry.disconnectedSince = null;
+        if (entry.disconnectedTimer) {
+          clearTimeout(entry.disconnectedTimer);
+          entry.disconnectedTimer = null;
+        }
+        return;
+      }
+      if (st === "disconnected") {
+        if (entry.disconnectedSince == null) entry.disconnectedSince = Date.now();
+        if (entry.disconnectedTimer) clearTimeout(entry.disconnectedTimer);
+        entry.disconnectedTimer = window.setTimeout(() => {
+          entry.disconnectedTimer = null;
+          const cur = peerPoolRef.current.get(peerId);
+          if (!cur) return;
+          const s = cur.pc.iceConnectionState;
+          if (s === "connected" || s === "completed") return;
+          if (isOffererFor(peerId)) {
+            try {
+              // eslint-disable-next-line no-console
+              console.log(`[mesh] peer ${peerId} restartIce after 5s disconnect`);
+              cur.pc.restartIce();
+            } catch (err) { console.warn("[mesh] restartIce failed", err); }
+          }
+        }, 5000);
+        return;
+      }
+      if (st === "failed") {
+        // First failure: try restartIce once. Second failure within 10s: force relay.
+        if (entry.restartAttempts < 1 && isOffererFor(peerId)) {
+          entry.restartAttempts += 1;
+          try {
+            // eslint-disable-next-line no-console
+            console.log(`[mesh] peer ${peerId} restartIce on ice-failed`);
+            pc.restartIce();
+          } catch (err) { console.warn("[mesh] restartIce failed", err); }
+          if (entry.recoveryTimer) clearTimeout(entry.recoveryTimer);
+          entry.recoveryTimer = window.setTimeout(() => {
+            entry.recoveryTimer = null;
+            const cur = peerPoolRef.current.get(peerId);
+            if (!cur) return;
+            const s = cur.pc.iceConnectionState;
+            if (s === "connected" || s === "completed") return;
+            escalateToRelay();
+          }, 10000);
+        } else if (!entry.forceRelay && isOffererFor(peerId)) {
+          escalateToRelay();
+        }
+      }
+    };
+
     pc.onconnectionstatechange = () => {
       entry.connState = pc.connectionState;
       publishTiles();
@@ -304,10 +376,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (st === "connected") {
         entry.reachedConnected = true;
         entry.restartAttempts = 0;
-        if (entry.recoveryTimer) {
-          clearTimeout(entry.recoveryTimer);
-          entry.recoveryTimer = null;
-        }
+        if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
+        if (entry.disconnectedTimer) { clearTimeout(entry.disconnectedTimer); entry.disconnectedTimer = null; }
+        entry.disconnectedSince = null;
         clearConnectTimeout();
         stopAllCallSounds();
         setStatus("connected");
@@ -318,40 +389,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             500,
           );
         }
-      } else if (st === "disconnected" || st === "failed") {
-        // Transient flap or ICE failure — try to recover before tearing down.
-        // WebRTC often recovers from 'disconnected' within seconds; 'failed'
-        // can be salvaged with an ICE restart (offerer only).
-        if (!entry.reachedConnected) {
-          // Never connected — leave it to armConnectTimeout / higher-level flow.
-          if (st === "failed") teardownPeer(peerId, false);
-          return;
-        }
-        // Try ICE restart once from the offerer side.
-        if (isOffererFor(peerId) && entry.restartAttempts < 1) {
-          entry.restartAttempts += 1;
-          try {
-            // eslint-disable-next-line no-console
-            console.log(`[mesh] peer ${peerId} attempting ICE restart`);
-            pc.restartIce();
-          } catch (err) {
-            console.warn("[mesh] restartIce failed", err);
-          }
-        }
-        // Arm grace: only teardown if still not recovered after 10s.
-        if (entry.recoveryTimer) clearTimeout(entry.recoveryTimer);
-        entry.recoveryTimer = window.setTimeout(() => {
-          entry.recoveryTimer = null;
-          const cur = peerPoolRef.current.get(peerId);
-          if (!cur) return;
-          if (cur.pc.connectionState === "connected") return;
-          // eslint-disable-next-line no-console
-          console.log(`[mesh] peer ${peerId} grace expired in ${cur.pc.connectionState} — tearing down`);
-          teardownPeer(peerId, false);
-        }, 10000);
       } else if (st === "closed") {
         teardownPeer(peerId, false);
       }
+      // Recovery on 'disconnected'/'failed' is handled via
+      // oniceconnectionstatechange (5s grace + restartIce + relay escalation).
     };
     pc.onnegotiationneeded = async () => {
       if (!isOffererFor(peerId)) return;
@@ -373,7 +415,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
     void applyBitrateCaps(pc);
     // eslint-disable-next-line no-console
-    console.log(`[mesh] PeerPool size: ${peerPoolRef.current.size} (added ${peerId})`);
+    console.log(`[mesh] PeerPool size: ${peerPoolRef.current.size} (added ${peerId}${forceRelay ? " relay-only" : ""})`);
     publishTiles();
     return entry;
   };
