@@ -940,19 +940,26 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
       if (resp.data.on_oniq.length === 0 && notOnDedup.length === 0) toast("nothing to match — try picking again");
     } catch (e) {
       const name = (e as { name?: string })?.name;
-      const msg = (e as { message?: string })?.message;
+      const msg = String((e as { message?: string })?.message ?? "");
       if (name === "AbortError") {
         toast("contact picker cancelled");
       } else {
-        toast.error(msg ? `contacts failed: ${msg}` : "contacts failed — search by @username instead 🔍");
+        // Never surface raw ContactsManager errors (e.g. "top frame" in WebView).
+        toast("pick from contacts isn't available here — search by @username 👇");
         searchInputRef.current?.focus();
+        void msg;
       }
     } finally {
       setPicking(false);
     }
   };
 
-  const contactsSupported = typeof navigator !== "undefined" && "contacts" in navigator && typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select === "function";
+  const contactsSupported = typeof navigator !== "undefined"
+    && "contacts" in navigator
+    && typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select === "function"
+    && typeof window !== "undefined"
+    && window.top === window.self;
+
 
 
   return (
