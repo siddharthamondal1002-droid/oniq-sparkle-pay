@@ -1452,13 +1452,29 @@ function ChatThread() {
                 <Pencil className="h-4 w-4" /> Edit
               </button>
             )}
+            {menuFor.type === "text" && !menuFor.is_deleted && (
+              <button
+                type="button"
+                onClick={() => copyMessage(menuFor)}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+              >
+                <Copy className="h-4 w-4" /> Copy
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { const f = menuFor; setMenuFor(null); setForwardMsg(f); }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+            >
+              <Share2 className="h-4 w-4" /> Forward ↪️
+            </button>
             {menuFor.sender_id === me?.id && (
               <button
                 type="button"
-                onClick={() => deleteForEveryone(menuFor)}
-                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-red-500 hover:bg-muted"
+                onClick={() => { const f = menuFor; setMenuFor(null); setInfoFor(f); }}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
               >
-                <Trash2 className="h-4 w-4" /> Delete for everyone
+                <Info className="h-4 w-4" /> Info
               </button>
             )}
             {menuFor.sender_id !== me?.id && (
@@ -1476,10 +1492,10 @@ function ChatThread() {
             )}
             <button
               type="button"
-              onClick={() => { const f = menuFor; setMenuFor(null); setForwardMsg(f); }}
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+              onClick={() => { const f = menuFor; setMenuFor(null); setDeleteConfirm(f); }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-red-500 hover:bg-muted"
             >
-              <Share2 className="h-4 w-4" /> Forward ↪️
+              <Trash2 className="h-4 w-4" /> Delete
             </button>
             <button
               type="button"
