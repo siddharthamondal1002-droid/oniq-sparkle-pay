@@ -1508,6 +1508,69 @@ function ChatThread() {
         </div>
       )}
 
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-6" onClick={() => setDeleteConfirm(null)}>
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-1 font-display text-lg font-semibold">Delete message?</div>
+            <div className="mb-4 text-sm text-muted-foreground">
+              {deleteConfirm.sender_id === me?.id
+                ? "You can delete it for everyone or just for yourself."
+                : "This will remove the message from your view only."}
+            </div>
+            <div className="flex flex-col gap-2">
+              {deleteConfirm.sender_id === me?.id && !deleteConfirm.is_deleted && (
+                <button
+                  type="button"
+                  onClick={() => deleteForEveryone(deleteConfirm)}
+                  className="w-full rounded-xl bg-red-500/15 px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-500/25"
+                >
+                  Delete for everyone
+                </button>
+              )}
+              <button
+                type="button"
+                data-testid="delete-for-me"
+                onClick={() => deleteForMe(deleteConfirm)}
+                className="w-full rounded-xl bg-muted px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted/70"
+              >
+                Delete for me
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                className="w-full rounded-xl px-4 py-3 text-sm text-muted-foreground hover:bg-muted"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {infoFor && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-6" onClick={() => setInfoFor(null)}>
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 font-display text-lg font-semibold">Message info</div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Sent</span>
+                <span>{infoFor.created_at ? format(new Date(infoFor.created_at), "d MMM yyyy, HH:mm") : "—"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Read</span>
+                <span>{peerReadAt && infoFor.created_at && new Date(peerReadAt).getTime() >= new Date(infoFor.created_at).getTime()
+                  ? format(new Date(peerReadAt), "d MMM yyyy, HH:mm")
+                  : "Not yet"}</span>
+              </div>
+            </div>
+            <button type="button" onClick={() => setInfoFor(null)} className="mt-4 w-full rounded-xl bg-muted px-4 py-3 text-sm hover:bg-muted/70">Close</button>
+          </div>
+        </div>
+      )}
+
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
 
       {showMembersSheet && (isGroup || isChannel) && (
