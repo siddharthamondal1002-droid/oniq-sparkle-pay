@@ -542,7 +542,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     try {
       const stream = await getMedia(type);
-      await ensureIceServers();
+      sessionIceServers = await ensureIceServers();
       attachLocal(stream, type);
     } catch {
       endEveryone(false);
@@ -642,7 +642,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       // Create PC to this peer if we don't have one.
       if (peerPoolRef.current.has(p.from)) return;
       if (!localStreamRef.current) return; // media not ready yet; ignore, they'll hello again
-      await ensureIceServers();
+      sessionIceServers = await ensureIceServers();
       createPeerEntry(p.from, p.fromName);
       // Non-offerer will wait for their offer.
     });
@@ -651,7 +651,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     ch.on("broadcast", { event: "offer" }, async ({ payload }) => {
       const p = payload as { from: string; to: string; callId: string; sdp: RTCSessionDescriptionInit };
       if (!forMe(p) || !matchesCall(p)) return;
-      await ensureIceServers();
+      sessionIceServers = await ensureIceServers();
       let entry = peerPoolRef.current.get(p.from);
       if (!entry) entry = createPeerEntry(p.from);
       try {
@@ -778,7 +778,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     stopAllCallSounds();
     try {
       const stream = await getMedia(callTypeRef.current);
-      await ensureIceServers();
+      sessionIceServers = await ensureIceServers();
       attachLocal(stream, callTypeRef.current);
       // Announce presence — existing members will offer to us.
       sendSig("hello", null, { fromName: meName });
