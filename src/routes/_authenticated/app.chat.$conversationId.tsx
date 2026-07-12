@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
@@ -86,6 +86,9 @@ function ChatThread() {
   const [peerTyping, setPeerTyping] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [menuFor, setMenuFor] = useState<Message | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<Message | null>(null);
+  const [infoFor, setInfoFor] = useState<Message | null>(null);
+  const lastTapRef = useRef<{ id: string; t: number } | null>(null);
   const [editing, setEditing] = useState<Message | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQ, setSearchQ] = useState("");
@@ -222,6 +225,21 @@ function ChatThread() {
         .order("created_at", { ascending: true })
         .limit(200);
       return (data ?? []) as Message[];
+    },
+  });
+
+  const { data: hiddenIds = new Set<string>() } = useQuery({
+    queryKey: ["message_hides", conversationId, me?.id],
+    enabled: !!me?.id,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    queryFn: async (): Promise<Set<string>> => {
+      const { data } = await supabase
+        .from("message_hides")
+        .select("message_id")
+        .eq("user_id", me!.id)
+        .eq("conversation_id", conversationId);
+      return new Set<string>((data ?? []).map((r: { message_id: string }) => r.message_id));
     },
   });
 
@@ -868,6 +886,7 @@ function ChatThread() {
 
   const deleteForEveryone = async (m: Message) => {
     setMenuFor(null);
+    setDeleteConfirm(null);
     // Optimistic
     qc.setQueryData<Message[]>(["messages", conversationId], (prev) =>
       (prev ?? []).map((x) => (x.id === m.id ? { ...x, is_deleted: true, content: null } : x)),
@@ -882,6 +901,35 @@ function ChatThread() {
     }
   };
 
+  const deleteForMe = async (m: Message) => {
+    setMenuFor(null);
+    setDeleteConfirm(null);
+    if (!me?.id) return;
+    // Optimistic add to local hidden set
+    qc.setQueryData<Set<string>>(["message_hides", conversationId, me.id], (prev) => {
+      const next = new Set(prev ?? []);
+      next.add(m.id);
+      return next;
+    });
+    const { error } = await supabase
+      .from("message_hides")
+      .insert({ user_id: me.id, message_id: m.id, conversation_id: conversationId });
+    if (error && !String(error.message).includes("duplicate")) {
+      toast.error("Couldn't hide — try again");
+      console.error(error);
+    }
+  };
+
+  const copyMessage = async (m: Message) => {
+    setMenuFor(null);
+    try {
+      await navigator.clipboard.writeText(m.content ?? "");
+      toast.success("Copied");
+    } catch {
+      toast.error("Copy failed");
+    }
+  };
+
   const scrollToMessage = (id: string) => {
     const el = document.getElementById(`msg-${id}`);
     if (el) {
@@ -893,9 +941,10 @@ function ChatThread() {
 
   const title = header?.title ?? "Conversation";
   // Filter out messages from blocked peer while blocked (client-side hide)
+  const notHidden = messages.filter((m) => !hiddenIds.has(m.id));
   const baseVisible = isBlocked && peerId
-    ? messages.filter((m) => m.sender_id !== peerId)
-    : messages;
+    ? notHidden.filter((m) => m.sender_id !== peerId)
+    : notHidden;
   const searchTerm = searchQ.trim().toLowerCase();
   const visible = searchTerm
     ? baseVisible.filter((m) => (m.content ?? "").toLowerCase().includes(searchTerm))
@@ -1193,6 +1242,18 @@ function ChatThread() {
                   onTouchMove={(e) => moveTouch(m, e)}
                   onTouchEnd={endPress}
                   onTouchCancel={endPress}
+                  onDoubleClick={() => { if (!m.is_deleted) toggleReaction(m.id, "❤️"); }}
+                  onClick={() => {
+                    if (m.is_deleted) return;
+                    const now = Date.now();
+                    const last = lastTapRef.current;
+                    if (last && last.id === m.id && now - last.t < 300) {
+                      lastTapRef.current = null;
+                      toggleReaction(m.id, "❤️");
+                    } else {
+                      lastTapRef.current = { id: m.id, t: now };
+                    }
+                  }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setMenuFor(m);
@@ -1403,13 +1464,29 @@ function ChatThread() {
                 <Pencil className="h-4 w-4" /> Edit
               </button>
             )}
+            {menuFor.type === "text" && !menuFor.is_deleted && (
+              <button
+                type="button"
+                onClick={() => copyMessage(menuFor)}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+              >
+                <Copy className="h-4 w-4" /> Copy
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { const f = menuFor; setMenuFor(null); setForwardMsg(f); }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+            >
+              <Share2 className="h-4 w-4" /> Forward ↪️
+            </button>
             {menuFor.sender_id === me?.id && (
               <button
                 type="button"
-                onClick={() => deleteForEveryone(menuFor)}
-                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-red-500 hover:bg-muted"
+                onClick={() => { const f = menuFor; setMenuFor(null); setInfoFor(f); }}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
               >
-                <Trash2 className="h-4 w-4" /> Delete for everyone
+                <Info className="h-4 w-4" /> Info
               </button>
             )}
             {menuFor.sender_id !== me?.id && (
@@ -1427,10 +1504,10 @@ function ChatThread() {
             )}
             <button
               type="button"
-              onClick={() => { const f = menuFor; setMenuFor(null); setForwardMsg(f); }}
-              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+              onClick={() => { const f = menuFor; setMenuFor(null); setDeleteConfirm(f); }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm text-red-500 hover:bg-muted"
             >
-              <Share2 className="h-4 w-4" /> Forward ↪️
+              <Trash2 className="h-4 w-4" /> Delete
             </button>
             <button
               type="button"
@@ -1439,6 +1516,69 @@ function ChatThread() {
             >
               Cancel
             </button>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-6" onClick={() => setDeleteConfirm(null)}>
+          <div
+            className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-1 font-display text-lg font-semibold">Delete message?</div>
+            <div className="mb-4 text-sm text-muted-foreground">
+              {deleteConfirm.sender_id === me?.id
+                ? "You can delete it for everyone or just for yourself."
+                : "This will remove the message from your view only."}
+            </div>
+            <div className="flex flex-col gap-2">
+              {deleteConfirm.sender_id === me?.id && !deleteConfirm.is_deleted && (
+                <button
+                  type="button"
+                  onClick={() => deleteForEveryone(deleteConfirm)}
+                  className="w-full rounded-xl bg-red-500/15 px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-500/25"
+                >
+                  Delete for everyone
+                </button>
+              )}
+              <button
+                type="button"
+                data-testid="delete-for-me"
+                onClick={() => deleteForMe(deleteConfirm)}
+                className="w-full rounded-xl bg-muted px-4 py-3 text-sm font-semibold text-foreground hover:bg-muted/70"
+              >
+                Delete for me
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                className="w-full rounded-xl px-4 py-3 text-sm text-muted-foreground hover:bg-muted"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {infoFor && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-6" onClick={() => setInfoFor(null)}>
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 font-display text-lg font-semibold">Message info</div>
+            <div className="space-y-2 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Sent</span>
+                <span>{infoFor.created_at ? format(new Date(infoFor.created_at), "d MMM yyyy, HH:mm") : "—"}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Read</span>
+                <span>{peerReadAt && infoFor.created_at && new Date(peerReadAt).getTime() >= new Date(infoFor.created_at).getTime()
+                  ? format(new Date(peerReadAt), "d MMM yyyy, HH:mm")
+                  : "Not yet"}</span>
+              </div>
+            </div>
+            <button type="button" onClick={() => setInfoFor(null)} className="mt-4 w-full rounded-xl bg-muted px-4 py-3 text-sm hover:bg-muted/70">Close</button>
           </div>
         </div>
       )}
