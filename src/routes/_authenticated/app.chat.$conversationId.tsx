@@ -228,6 +228,21 @@ function ChatThread() {
     },
   });
 
+  const { data: hiddenIds = new Set<string>() } = useQuery({
+    queryKey: ["message_hides", conversationId, me?.id],
+    enabled: !!me?.id,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    queryFn: async (): Promise<Set<string>> => {
+      const { data } = await supabase
+        .from("message_hides")
+        .select("message_id")
+        .eq("user_id", me!.id)
+        .eq("conversation_id", conversationId);
+      return new Set<string>((data ?? []).map((r: { message_id: string }) => r.message_id));
+    },
+  });
+
   // Reactions for all messages in this conversation. Realtime refetch on any change.
   const messageIds = useMemo(() => messages.map((m) => m.id), [messages]);
   const { data: reactions = [], refetch: refetchReactions } = useQuery({
