@@ -277,6 +277,7 @@ function ChatThread() {
   };
 
   const toggleStar = async (m: Message) => {
+    if (m.id.startsWith("temp-")) { toast("hang on — still sending"); return; }
     const { error } = await supabase.rpc("toggle_message_star", { _message_id: m.id });
     if (error) { toast.error(error.message); return; }
     qc.setQueryData<Message[]>(["messages", conversationId], (prev) =>
