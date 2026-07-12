@@ -1672,7 +1672,9 @@ function ChatThread() {
             </button>
           )}
         </div>
+        </div>
         )}
+
       </form>
       )}
 
