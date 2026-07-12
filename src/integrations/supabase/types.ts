@@ -933,12 +933,45 @@ export type Database = {
           },
         ]
       }
+      message_reactions: {
+        Row: {
+          created_at: string
+          emoji: string
+          id: string
+          message_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          emoji: string
+          id?: string
+          message_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          emoji?: string
+          id?: string
+          message_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_reactions_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string | null
           conversation_id: string
           created_at: string | null
           duration_s: number | null
+          edited_at: string | null
           file_name: string | null
           file_size: number | null
           id: string
@@ -948,6 +981,7 @@ export type Database = {
           metadata: Json | null
           reply_to_id: string | null
           sender_id: string
+          starred_by: string[]
           type: string
         }
         Insert: {
@@ -955,6 +989,7 @@ export type Database = {
           conversation_id: string
           created_at?: string | null
           duration_s?: number | null
+          edited_at?: string | null
           file_name?: string | null
           file_size?: number | null
           id?: string
@@ -964,6 +999,7 @@ export type Database = {
           metadata?: Json | null
           reply_to_id?: string | null
           sender_id: string
+          starred_by?: string[]
           type?: string
         }
         Update: {
@@ -971,6 +1007,7 @@ export type Database = {
           conversation_id?: string
           created_at?: string | null
           duration_s?: number | null
+          edited_at?: string | null
           file_name?: string | null
           file_size?: number | null
           id?: string
@@ -980,6 +1017,7 @@ export type Database = {
           metadata?: Json | null
           reply_to_id?: string | null
           sender_id?: string
+          starred_by?: string[]
           type?: string
         }
         Relationships: [
@@ -1880,6 +1918,7 @@ export type Database = {
       }
       set_primary_bank: { Args: { _bank_id: string }; Returns: undefined }
       toggle_clip_like: { Args: { _clip_id: string }; Returns: boolean }
+      toggle_message_star: { Args: { _message_id: string }; Returns: boolean }
       toggle_moment_like: { Args: { _post_id: string }; Returns: boolean }
       unread_count: { Args: { _conversation_id: string }; Returns: number }
       wipe_my_chat_media: { Args: never; Returns: number }

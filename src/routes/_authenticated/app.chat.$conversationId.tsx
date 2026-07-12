@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2 } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
@@ -24,7 +24,14 @@ type Message = {
   is_ai: boolean | null;
   file_name: string | null;
   file_size: number | null;
+  edited_at: string | null;
+  starred_by: string[] | null;
 };
+
+type Reaction = { id: string; message_id: string; user_id: string; emoji: string };
+
+const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🙏"] as const;
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 function humanSize(n: number | null | undefined): string {
   if (!n || n <= 0) return "";
@@ -79,6 +86,9 @@ function ChatThread() {
   const [peerTyping, setPeerTyping] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [menuFor, setMenuFor] = useState<Message | null>(null);
+  const [editing, setEditing] = useState<Message | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQ, setSearchQ] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -207,7 +217,7 @@ function ChatThread() {
     queryFn: async (): Promise<Message[]> => {
       const { data } = await supabase
         .from("messages")
-        .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai, file_name, file_size")
+        .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai, file_name, file_size, edited_at, starred_by")
         .eq("conversation_id", conversationId)
         .order("created_at", { ascending: true })
         .limit(200);
@@ -215,8 +225,100 @@ function ChatThread() {
     },
   });
 
+  // Reactions for all messages in this conversation. Realtime refetch on any change.
+  const messageIds = useMemo(() => messages.map((m) => m.id), [messages]);
+  const { data: reactions = [], refetch: refetchReactions } = useQuery({
+    queryKey: ["reactions", conversationId, messageIds.length],
+    enabled: messageIds.length > 0,
+    staleTime: Infinity,
+    queryFn: async (): Promise<Reaction[]> => {
+      const { data } = await supabase
+        .from("message_reactions")
+        .select("id, message_id, user_id, emoji")
+        .in("message_id", messageIds);
+      return (data ?? []) as Reaction[];
+    },
+  });
 
-  // Peer's last_read_at → drives read ticks.
+  const reactionsByMsg = useMemo(() => {
+    const m = new Map<string, Reaction[]>();
+    for (const r of reactions) {
+      const arr = m.get(r.message_id) ?? [];
+      arr.push(r);
+      m.set(r.message_id, arr);
+    }
+    return m;
+  }, [reactions]);
+
+  useEffect(() => {
+    if (messageIds.length === 0) return;
+    const ids = new Set(messageIds);
+    const ch = supabase
+      .channel(`reactions:${conversationId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "message_reactions" }, (payload) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mid = ((payload.new || payload.old) as any)?.message_id;
+        if (mid && ids.has(mid)) refetchReactions();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [conversationId, messageIds, refetchReactions]);
+
+  const toggleReaction = async (messageId: string, emoji: string) => {
+    if (!me) return;
+    if (messageId.startsWith("temp-")) { toast("hang on — still sending"); return; }
+    const existing = reactions.find((r) => r.message_id === messageId && r.user_id === me.id && r.emoji === emoji);
+    if (existing) {
+      await supabase.from("message_reactions").delete().eq("id", existing.id);
+    } else {
+      await supabase.from("message_reactions").insert({ message_id: messageId, user_id: me.id, emoji });
+    }
+    refetchReactions();
+  };
+
+  const toggleStar = async (m: Message) => {
+    if (m.id.startsWith("temp-")) { toast("hang on — still sending"); return; }
+    const { error } = await supabase.rpc("toggle_message_star", { _message_id: m.id });
+    if (error) { toast.error(error.message); return; }
+    qc.setQueryData<Message[]>(["messages", conversationId], (prev) =>
+      (prev ?? []).map((x) => {
+        if (x.id !== m.id) return x;
+        const arr = x.starred_by ?? [];
+        const has = me && arr.includes(me.id);
+        return { ...x, starred_by: has ? arr.filter((u) => u !== me!.id) : [...arr, me!.id] };
+      }),
+    );
+    toast(me && (m.starred_by ?? []).includes(me.id) ? "Unstarred" : "Starred ⭐");
+  };
+
+  const startEdit = (m: Message) => {
+    if (m.sender_id !== me?.id) return;
+    if (m.type !== "text") { toast("Only text messages can be edited"); return; }
+    const created = m.created_at ? new Date(m.created_at).getTime() : 0;
+    if (Date.now() - created > EDIT_WINDOW_MS) { toast("Too late — 15-min edit window"); return; }
+    setEditing(m);
+    setText(m.content ?? "");
+    setMenuFor(null);
+    inputRef.current?.focus();
+  };
+
+  const submitEdit = async () => {
+    if (!editing) return;
+    const content = text.trim();
+    if (!content) return;
+    const prev = editing;
+    setText("");
+    setEditing(null);
+    qc.setQueryData<Message[]>(["messages", conversationId], (list) =>
+      (list ?? []).map((x) => (x.id === prev.id ? { ...x, content, edited_at: new Date().toISOString() } : x)),
+    );
+    const { error } = await supabase
+      .from("messages")
+      .update({ content, edited_at: new Date().toISOString() })
+      .eq("id", prev.id);
+    if (error) toast.error("Couldn't edit — try again");
+  };
+
   const { data: peerReadAt, refetch: refetchPeerRead } = useQuery({
     queryKey: ["peer-read", conversationId, me?.id],
     enabled: !!me,
@@ -431,6 +533,7 @@ function ChatThread() {
 
   const send = async (e: FormEvent) => {
     e.preventDefault();
+    if (editing) { await submitEdit(); return; }
     const content = text.trim();
     if (!content) return;
     if (!me) {
@@ -458,6 +561,8 @@ function ChatThread() {
       is_ai: false,
       file_name: null,
       file_size: null,
+      edited_at: null,
+      starred_by: [],
     };
     qc.setQueryData<Message[]>(["messages", conversationId], (prev) => [...(prev ?? []), optimistic]);
     setText("");
@@ -712,9 +817,13 @@ function ChatThread() {
 
   const title = header?.title ?? "Conversation";
   // Filter out messages from blocked peer while blocked (client-side hide)
-  const visible = isBlocked && peerId
+  const baseVisible = isBlocked && peerId
     ? messages.filter((m) => m.sender_id !== peerId)
     : messages;
+  const searchTerm = searchQ.trim().toLowerCase();
+  const visible = searchTerm
+    ? baseVisible.filter((m) => (m.content ?? "").toLowerCase().includes(searchTerm))
+    : baseVisible;
 
   // Build render list with day separators + grouping metadata.
   type Row =
@@ -850,6 +959,15 @@ function ChatThread() {
             </button>
           </>
         )}
+        <button
+          type="button"
+          data-testid="chat-search-toggle"
+          onClick={() => { setShowSearch((v) => !v); if (showSearch) setSearchQ(""); }}
+          aria-label="Search in chat"
+          className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+        >
+          <Search className="h-5 w-5" />
+        </button>
         <div className="relative">
           <button
             data-testid="chat-menu"
@@ -886,6 +1004,22 @@ function ChatThread() {
           )}
         </div>
       </header>
+      {showSearch && (
+        <div className="flex items-center gap-2 border-b border-border/60 bg-background/95 px-3 py-2">
+          <Search className="h-4 w-4 text-muted-foreground" />
+          <input
+            autoFocus
+            data-testid="chat-search-input"
+            value={searchQ}
+            onChange={(e) => setSearchQ(e.target.value)}
+            placeholder="Search in conversation…"
+            className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none"
+          />
+          <button type="button" onClick={() => { setSearchQ(""); setShowSearch(false); }} className="grid h-7 w-7 place-items-center rounded-full hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
 
       <CallOverlay
@@ -1060,6 +1194,10 @@ function ChatThread() {
                       mine ? "text-white/70" : "text-muted-foreground"
                     }`}
                   >
+                    {m.edited_at && <span className="italic">edited</span>}
+                    {me && (m.starred_by ?? []).includes(me.id) && (
+                      <Star className={`h-3 w-3 ${mine ? "fill-yellow-300 text-yellow-300" : "fill-yellow-500 text-yellow-500"}`} />
+                    )}
                     <span>{m.created_at ? format(new Date(m.created_at), "HH:mm") : ""}</span>
                     {mine && (isGroup || isChannel) ? (
                       <Check className="h-3.5 w-3.5 text-white/70" />
@@ -1072,6 +1210,32 @@ function ChatThread() {
                     ) : null}
                     {mine && lastOfGroup && false && <Check className="h-3 w-3" />}
                   </div>
+                  {(() => {
+                    const rx = reactionsByMsg.get(m.id) ?? [];
+                    if (rx.length === 0) return null;
+                    const counts = new Map<string, { count: number; mine: boolean }>();
+                    for (const r of rx) {
+                      const cur = counts.get(r.emoji) ?? { count: 0, mine: false };
+                      cur.count += 1;
+                      if (me && r.user_id === me.id) cur.mine = true;
+                      counts.set(r.emoji, cur);
+                    }
+                    return (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {Array.from(counts.entries()).map(([emoji, v]) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleReaction(m.id, emoji); }}
+                            className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] ${v.mine ? "border-[#00D4B8] bg-[#00D4B8]/20 text-foreground" : "border-border bg-background/70 text-foreground"}`}
+                          >
+                            <span>{emoji}</span>
+                            <span className="tabular-nums">{v.count}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   {/* Desktop hover Reply */}
                   <button
                     type="button"
@@ -1111,6 +1275,19 @@ function ChatThread() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-muted-foreground/30" />
+            <div className="mb-2 flex items-center justify-around rounded-2xl bg-muted/40 px-2 py-2">
+              {REACTION_EMOJIS.map((e) => (
+                <button
+                  key={e}
+                  type="button"
+                  data-testid={`react-${e}`}
+                  onClick={() => { const f = menuFor; setMenuFor(null); toggleReaction(f.id, e); }}
+                  className="grid h-10 w-10 place-items-center rounded-full text-xl transition active:scale-90 hover:bg-muted"
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -1122,6 +1299,23 @@ function ChatThread() {
             >
               <Reply className="h-4 w-4" /> Reply
             </button>
+            <button
+              type="button"
+              onClick={() => { const f = menuFor; setMenuFor(null); toggleStar(f); }}
+              className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+            >
+              <Star className="h-4 w-4" /> {me && (menuFor.starred_by ?? []).includes(me.id) ? "Unstar" : "Star ⭐"}
+            </button>
+            {menuFor.sender_id === me?.id && menuFor.type === "text" && !menuFor.is_deleted && menuFor.created_at && (Date.now() - new Date(menuFor.created_at).getTime() < EDIT_WINDOW_MS) && (
+              <button
+                type="button"
+                data-testid="msg-edit"
+                onClick={() => startEdit(menuFor)}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+              >
+                <Pencil className="h-4 w-4" /> Edit
+              </button>
+            )}
             {menuFor.sender_id === me?.id && (
               <button
                 type="button"
@@ -1188,6 +1382,23 @@ function ChatThread() {
         className="flex flex-col gap-2 border-t border-border/60 bg-background/95 px-3 pb-6 pt-3 backdrop-blur"
       >
 
+        {editing && (
+          <div className="flex items-center gap-2 rounded-xl border-l-2 border-yellow-400 bg-muted/60 px-3 py-2">
+            <Pencil className="h-4 w-4 text-yellow-400" />
+            <div className="min-w-0 flex-1">
+              <div className="text-xs font-semibold text-yellow-400">Editing message</div>
+              <div className="truncate text-xs text-muted-foreground">{truncate(editing.content ?? "", 90)}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { setEditing(null); setText(""); }}
+              aria-label="Cancel edit"
+              className="grid h-7 w-7 place-items-center rounded-full hover:bg-muted"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {replyTo && (
           <div className="flex items-center gap-2 rounded-xl border-l-2 border-[#00D4B8] bg-muted/60 px-3 py-2">
             <div className="min-w-0 flex-1">
