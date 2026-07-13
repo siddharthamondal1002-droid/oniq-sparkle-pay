@@ -217,6 +217,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const autoAcceptTriedRef = useRef(false);
   const startedAtRef = useRef<number>(0);
   const statusRef = useRef<Status>("idle");
+  // Call log (caller-side only): row id + last-known status so we can update it
+  // at lifecycle transitions (answered / missed / declined) and write duration_s
+  // on end.
+  const logIdRef = useRef<string | null>(null);
+  const logStatusRef = useRef<"no_answer" | "answered" | "declined" | "missed">("no_answer");
 
   // Keep statusRef in sync so signaling handlers (whose closures are captured
   // once at mount) can read the latest status without stale-closure bugs.
