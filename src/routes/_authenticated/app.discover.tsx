@@ -314,6 +314,13 @@ function DiscoverScreen() {
       {openComments && (
         <CommentsSheet postId={openComments} onClose={() => { setOpenComments(null); refetch(); }} />
       )}
+      {reportTarget && (
+        <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
+      )}
+    </div>
+  );
+}
+
     </div>
   );
 }
