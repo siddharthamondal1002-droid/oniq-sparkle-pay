@@ -861,6 +861,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       const p = payload as { from: string; to: string; callId: string };
       if (!forMe(p) || !matchesCall(p)) return;
       if (!isCallerRef.current) return;
+      // Call log: mark declined (only if not already answered).
+      if (logIdRef.current && logStatusRef.current === "no_answer") {
+        logStatusRef.current = "declined";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).from("call_logs").update({ status: "declined" }).eq("id", logIdRef.current).then(() => {});
+      }
       if (peerIdsRef.current.length <= 1) {
         toast("Call declined");
         endEveryone(false);
