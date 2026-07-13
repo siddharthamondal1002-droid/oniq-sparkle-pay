@@ -175,6 +175,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   // Keep statusRef in sync so signaling handlers (whose closures are captured
   // once at mount) can read the latest status without stale-closure bugs.
   useEffect(() => { statusRef.current = status; }, [status]);
+  // Sync local video srcObject whenever the PiP <video> mounts or status/callType changes.
+  // Guarantees the caller's self-preview attaches even if the stream existed before the element rendered.
+  useEffect(() => {
+    if (callTypeRef.current !== "video") return;
+    const el = localVideoRef.current;
+    const stream = localStreamRef.current;
+    if (el && stream && el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+  }, [status, callType]);
 
   // ---- helpers ----
 
@@ -895,15 +905,15 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         </div>
       )}
 
-      {callType === "video" && (status === "connecting" || status === "connected") && (
+      {callType === "video" && (status === "outgoing" || status === "connecting" || status === "connected") && (
         <video
           ref={localVideoRef}
           autoPlay muted playsInline
-          className="absolute right-4 top-16 z-20 h-40 w-28 -scale-x-100 rounded-2xl border border-white/20 bg-black object-cover"
+          className="pointer-events-none absolute right-4 top-16 z-20 h-40 w-28 -scale-x-100 rounded-2xl border border-white/20 bg-black object-cover"
         />
       )}
 
-      <div className="absolute bottom-10 left-0 right-0 flex items-center justify-center gap-6">
+      <div className="absolute bottom-10 left-0 right-0 z-30 flex items-center justify-center gap-6">
         {status === "incoming" ? (
           <>
             <button
