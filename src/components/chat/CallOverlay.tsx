@@ -748,7 +748,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       setCallTypeBoth(acceptType === "video" ? "video" : "audio");
       setIncomingFromName(peerName);
       setStatus("incoming");
-      window.setTimeout(() => { void accept(); }, 60);
+      window.setTimeout(() => { void accept(true); }, 60);
     };
 
     ch.subscribe((sStatus) => {
