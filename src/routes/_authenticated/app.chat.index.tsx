@@ -7,6 +7,7 @@ import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2, Arro
 import { toast } from "sonner";
 import { format, isToday, isYesterday, differenceInDays } from "date-fns";
 import { useOnlineUsers } from "@/hooks/usePresence";
+import { getNativeContacts, isNativeContactsAvailable, normalizePhone } from "@/lib/nativeContacts";
 
 export const Route = createFileRoute("/_authenticated/app/chat/")({
   component: ChatList,
@@ -876,6 +877,14 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   const [notOnOniq, setNotOnOniq] = useState<PickedContact[]>([]);
   const [noEmailCount, setNoEmailCount] = useState(0);
   const [addingId, setAddingId] = useState<string | null>(null);
+  // Native (Capacitor) contacts flow — separate from web email flow.
+  type NativeMatch = { id: string; username: string | null; display_name: string | null; avatar_url: string | null };
+  const [isNative, setIsNative] = useState(false);
+  const [nativePicking, setNativePicking] = useState(false);
+  const [nativeMatches, setNativeMatches] = useState<NativeMatch[] | null>(null);
+  const [nativeNotCount, setNativeNotCount] = useState(0);
+  const [nativeDenied, setNativeDenied] = useState(false);
+  useEffect(() => { isNativeContactsAvailable().then(setIsNative); }, []);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [searchQ, setSearchQ] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
@@ -981,6 +990,52 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     }
   };
 
+  const pickNativeContacts = async () => {
+    setNativePicking(true);
+    setNativeDenied(false);
+    try {
+      const res = await getNativeContacts();
+      if (!res.ok) {
+        if (res.denied) { setNativeDenied(true); toast("contacts permission denied — tap retry to allow"); }
+        else toast.error("couldn't read contacts");
+        return;
+      }
+      const normalized = new Set<string>();
+      let submitted = 0;
+      for (const c of res.contacts) {
+        for (const p of c.phones ?? []) {
+          const n = normalizePhone(p);
+          if (n) { normalized.add(n); submitted++; }
+        }
+      }
+      const phones = Array.from(normalized);
+      if (phones.length === 0) {
+        setNativeMatches([]); setNativeNotCount(0);
+        toast("no usable phone numbers in ur contacts");
+        return;
+      }
+      // Batch by 500 to keep RPC payloads modest.
+      const matches: NativeMatch[] = [];
+      const seen = new Set<string>();
+      for (let i = 0; i < phones.length; i += 500) {
+        const slice = phones.slice(i, i + 500);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: rows, error } = await (supabase.rpc as any)("match_contacts", { _phones: slice });
+        if (error) { toast.error(error.message); return; }
+        for (const r of (rows ?? []) as NativeMatch[]) {
+          if (!seen.has(r.id)) { seen.add(r.id); matches.push(r); }
+        }
+      }
+      setNativeMatches(matches);
+      setNativeNotCount(Math.max(0, phones.length - matches.length));
+      void submitted;
+    } catch (e) {
+      toast.error(String((e as { message?: string })?.message ?? "contacts failed"));
+    } finally {
+      setNativePicking(false);
+    }
+  };
+
   const contactsSupported = typeof navigator !== "undefined"
     && "contacts" in navigator
     && typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select === "function"
@@ -1080,6 +1135,50 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
 
             {noEmailCount > 0 && (
               <div className="mt-1 text-xs text-muted-foreground">{noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by email for now</div>
+            )}
+
+            {isNative && (
+              <button
+                type="button"
+                onClick={pickNativeContacts}
+                disabled={nativePicking}
+                className="mt-2 w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {nativePicking ? "reading ur contacts…" : "Find friends from contacts 📇"}
+              </button>
+            )}
+            {isNative && nativeDenied && (
+              <div className="mt-2 flex items-center justify-between rounded-2xl border border-border/60 p-2 text-xs">
+                <span className="text-muted-foreground">contacts access blocked — enable it to match ur ppl</span>
+                <button onClick={pickNativeContacts} className="rounded-full bg-primary/15 px-2.5 py-1 font-semibold text-primary">retry</button>
+              </div>
+            )}
+            {nativeMatches !== null && (
+              <div className="mt-3 space-y-2">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">on ONIQ ✨</div>
+                {nativeMatches.length === 0 ? (
+                  <div className="py-2 text-sm text-muted-foreground">none of ur contacts are on ONIQ yet — invite below 📤</div>
+                ) : (
+                  <ul className="space-y-1">
+                    {nativeMatches.map((m) => (
+                      <li key={m.id} className="flex items-center gap-3 rounded-2xl p-2">
+                        <Avatar name={m.display_name || m.username || "?"} url={m.avatar_url} size={40} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium">{m.display_name}</div>
+                          <div className="truncate text-xs text-muted-foreground">@{m.username}</div>
+                        </div>
+                        <button onClick={() => openChat(m.id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">chat 💬</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {nativeNotCount > 0 && (
+                  <div className="flex items-center justify-between rounded-2xl border border-border/60 p-2">
+                    <span className="text-xs text-muted-foreground">{nativeNotCount} contact{nativeNotCount === 1 ? "" : "s"} not on ONIQ yet</span>
+                    <button onClick={invite} className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black">Invite 📤</button>
+                  </div>
+                )}
+              </div>
             )}
           </section>
 
