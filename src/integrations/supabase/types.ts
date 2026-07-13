@@ -1154,6 +1154,7 @@ export type Database = {
           content: string | null
           created_at: string | null
           id: string
+          is_deleted: boolean
           like_count: number | null
           location_name: string | null
           media_urls: string[] | null
@@ -1165,6 +1166,7 @@ export type Database = {
           content?: string | null
           created_at?: string | null
           id?: string
+          is_deleted?: boolean
           like_count?: number | null
           location_name?: string | null
           media_urls?: string[] | null
@@ -1176,6 +1178,7 @@ export type Database = {
           content?: string | null
           created_at?: string | null
           id?: string
+          is_deleted?: boolean
           like_count?: number | null
           location_name?: string | null
           media_urls?: string[] | null

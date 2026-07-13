@@ -1,0 +1,2 @@
+ALTER TABLE public.moments_posts ADD COLUMN IF NOT EXISTS is_deleted boolean NOT NULL DEFAULT false;
+CREATE INDEX IF NOT EXISTS moments_posts_not_deleted_idx ON public.moments_posts (created_at DESC) WHERE is_deleted = false;
