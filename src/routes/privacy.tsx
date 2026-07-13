@@ -56,16 +56,17 @@ function PrivacyPage() {
             <li><strong>Grievance redressal</strong> — contact our Grievance Officer (below) for privacy complaints.</li>
           </ul>
 
-          <h2 className="font-display text-2xl font-semibold">4. Children</h2>
+          <h2 className="font-display text-2xl font-semibold">5. Children</h2>
           <p>ONIQ is intended for users 18 years and above. We do not knowingly collect personal data from children.</p>
 
-          <h2 className="font-display text-2xl font-semibold">5. Breach notification</h2>
+          <h2 className="font-display text-2xl font-semibold">6. Breach notification</h2>
           <p>If we become aware of a personal-data breach that is likely to result in risk to your rights, we will notify affected users and the Data Protection Board of India within the timelines required by DPDP.</p>
 
-          <h2 className="font-display text-2xl font-semibold">6. Retention</h2>
+          <h2 className="font-display text-2xl font-semibold">7. Retention</h2>
           <p>We keep your data while your account is active. When you delete your account, personal content is removed; minimal transaction and safety-log records may be retained where required by law.</p>
 
-          <h2 className="font-display text-2xl font-semibold">7. Contact</h2>
+          <h2 className="font-display text-2xl font-semibold">8. Contact</h2>
+
           <div className="rounded-2xl border border-border bg-card p-5">
             <div className="font-semibold">Grievance Officer</div>
             <div>Siddhartha Mondal</div>
