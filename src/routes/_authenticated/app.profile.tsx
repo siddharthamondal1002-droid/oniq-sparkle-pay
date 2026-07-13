@@ -296,8 +296,8 @@ function SafetySection() {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const { data } = await supabase.from("profiles").select("is_admin").eq("id", u.user.id).maybeSingle();
-      setIsAdmin(!!data?.is_admin);
+      const { data } = await supabase.rpc("is_admin", { _uid: u.user.id });
+      setIsAdmin(!!data);
     })();
   }, []);
 
