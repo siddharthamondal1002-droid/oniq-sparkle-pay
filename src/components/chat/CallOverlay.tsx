@@ -634,22 +634,33 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       setStatus("incoming");
     });
 
-    // ROOM: hello — a peer joined the room.
+    // ROOM or TARGETED: hello — a peer joined (or replied to our hello).
     ch.on("broadcast", { event: "hello" }, async ({ payload }) => {
-      const p = payload as { from: string; to: null; callId: string; fromName?: string };
+      const p = payload as { from: string; to: string | null; callId: string; fromName?: string };
       if (!forMe(p) || !matchesCall(p)) return;
       if (p.fromName) peerNamesRef.current.set(p.from, p.fromName);
       // Any inbound hello during outgoing means someone accepted → move on.
-      if (status === "outgoing" || (isCallerRef.current && !peerPoolRef.current.has(p.from))) {
+      if (statusRef.current === "outgoing" || (isCallerRef.current && !peerPoolRef.current.has(p.from))) {
         setStatus("connecting");
         stopAllCallSounds();
       }
-      // Create PC to this peer if we don't have one.
-      if (peerPoolRef.current.has(p.from)) return;
-      if (!localStreamRef.current) return; // media not ready yet; ignore, they'll hello again
-      sessionIceServers = await ensureIceServers();
-      createPeerEntry(p.from, p.fromName);
-      // Non-offerer will wait for their offer.
+      const wasRoomScoped = p.to == null;
+      const alreadyHad = peerPoolRef.current.has(p.from);
+      // Create PC to this peer if we don't have one AND our media is ready.
+      if (!alreadyHad) {
+        if (!localStreamRef.current) {
+          // Media not ready yet — the sender will keep re-broadcasting until
+          // we're ready. Don't reply; nothing to peer with yet.
+          return;
+        }
+        sessionIceServers = await ensureIceServers();
+        createPeerEntry(p.from, p.fromName);
+      }
+      // Reply with a TARGETED hello so the sender also creates its PeerEntry.
+      // Only reply to room-scoped hellos to avoid an infinite echo.
+      if (wasRoomScoped) {
+        sendSig("hello", p.from, { fromName: meName });
+      }
     });
 
     // TARGETED: offer.
