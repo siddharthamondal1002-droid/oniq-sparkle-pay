@@ -1994,6 +1994,15 @@ export type Database = {
         Returns: undefined
       }
       mark_policy_notice_seen: { Args: never; Returns: undefined }
+      match_contacts: {
+        Args: { _phones: string[] }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          id: string
+          username: string
+        }[]
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
