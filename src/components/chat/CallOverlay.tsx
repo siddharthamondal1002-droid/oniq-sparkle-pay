@@ -217,6 +217,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const autoAcceptTriedRef = useRef(false);
   const startedAtRef = useRef<number>(0);
   const statusRef = useRef<Status>("idle");
+  // Call log (caller-side only): row id + last-known status so we can update it
+  // at lifecycle transitions (answered / missed / declined) and write duration_s
+  // on end.
+  const logIdRef = useRef<string | null>(null);
+  const logStatusRef = useRef<"no_answer" | "answered" | "declined" | "missed">("no_answer");
 
   // Keep statusRef in sync so signaling handlers (whose closures are captured
   // once at mount) can read the latest status without stale-closure bugs.
@@ -489,6 +494,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             500,
           );
         }
+        // Call log: first successful connect → mark answered.
+        if (isCallerRef.current && logIdRef.current && logStatusRef.current !== "answered") {
+          logStatusRef.current = "answered";
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("call_logs")
+            .update({ status: "answered", started_at: new Date().toISOString() })
+            .eq("id", logIdRef.current)
+            .then(() => {});
+        }
       } else if (st === "closed") {
         teardownPeer(peerId, false);
       }
@@ -547,6 +562,18 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const endEveryone = (notify: boolean) => {
     if (notify && activeRef.current) sendSig("end", null);
+    // Call log: if this was an answered call, record duration on end.
+    if (isCallerRef.current && logIdRef.current && logStatusRef.current === "answered") {
+      const dur = timerRef.current ? Math.floor((Date.now() - startedAtRef.current) / 1000) : null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("call_logs")
+        .update({ duration_s: dur })
+        .eq("id", logIdRef.current)
+        .then(() => {});
+    }
+    logIdRef.current = null;
+    logStatusRef.current = "no_answer";
     for (const peerId of [...peerPoolRef.current.keys()]) {
       const entry = peerPoolRef.current.get(peerId);
       if (entry) {
@@ -615,6 +642,26 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     ensureNotificationPermission();
     playRingback();
 
+    // Call log: caller inserts a 'no_answer' row up front; later transitions
+    // (answered / missed / declined / duration) update this row.
+    logStatusRef.current = "no_answer";
+    logIdRef.current = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("call_logs")
+      .insert({
+        conversation_id: conversationId,
+        caller_id: meId,
+        callee_ids: peerIdsRef.current,
+        call_type: type,
+        status: "no_answer",
+      })
+      .select("id")
+      .single()
+      .then(({ data }: { data: { id: string } | null }) => {
+        if (data?.id) logIdRef.current = data.id;
+      });
+
     try {
       const stream = await getMedia(type);
       sessionIceServers = await ensureIceServers();
@@ -654,6 +701,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     ringTimeoutRef.current = window.setTimeout(() => {
       if (isCallerRef.current && peerPoolRef.current.size === 0) {
+        // Call log: nobody answered in 30s → missed.
+        if (logIdRef.current && logStatusRef.current === "no_answer") {
+          logStatusRef.current = "missed";
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any).from("call_logs").update({ status: "missed" }).eq("id", logIdRef.current).then(() => {});
+        }
         toast("They're not around — try a message 💬");
         endEveryone(true);
       }
@@ -808,6 +861,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       const p = payload as { from: string; to: string; callId: string };
       if (!forMe(p) || !matchesCall(p)) return;
       if (!isCallerRef.current) return;
+      // Call log: mark declined (only if not already answered).
+      if (logIdRef.current && logStatusRef.current === "no_answer") {
+        logStatusRef.current = "declined";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any).from("call_logs").update({ status: "declined" }).eq("id", logIdRef.current).then(() => {});
+      }
       if (peerIdsRef.current.length <= 1) {
         toast("Call declined");
         endEveryone(false);
@@ -841,6 +900,18 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (sStatus !== "SUBSCRIBED") return;
       if (typeof window === "undefined") return;
       const params = new URLSearchParams(window.location.search);
+      // Kick off an outgoing call from ?startCall=audio|video (used by Calls tab call-back).
+      const startType = params.get("startCall") as CallType | null;
+      if (startType === "audio" || startType === "video") {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("startCall");
+          window.history.replaceState({}, "", url.toString());
+        } catch {}
+        if (!activeRef.current) {
+          window.setTimeout(() => { void startCall(startType); }, 400);
+        }
+      }
       const acceptId = params.get("acceptCall");
       const acceptType = params.get("acceptType") as CallType | null;
       if (!acceptId) return;

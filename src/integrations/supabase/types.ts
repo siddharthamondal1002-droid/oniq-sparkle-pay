@@ -193,6 +193,42 @@ export type Database = {
           },
         ]
       }
+      call_logs: {
+        Row: {
+          call_type: string
+          callee_ids: string[]
+          caller_id: string
+          conversation_id: string
+          created_at: string
+          duration_s: number | null
+          id: string
+          started_at: string
+          status: string
+        }
+        Insert: {
+          call_type: string
+          callee_ids?: string[]
+          caller_id: string
+          conversation_id: string
+          created_at?: string
+          duration_s?: number | null
+          id?: string
+          started_at?: string
+          status: string
+        }
+        Update: {
+          call_type?: string
+          callee_ids?: string[]
+          caller_id?: string
+          conversation_id?: string
+          created_at?: string
+          duration_s?: number | null
+          id?: string
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
       clips: {
         Row: {
           caption: string | null
@@ -1517,6 +1553,65 @@ export type Database = {
           review_count?: number | null
         }
         Relationships: []
+      }
+      status_updates: {
+        Row: {
+          bg_color: string | null
+          content: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          kind: string
+          media_url: string | null
+          user_id: string
+        }
+        Insert: {
+          bg_color?: string | null
+          content?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          kind: string
+          media_url?: string | null
+          user_id: string
+        }
+        Update: {
+          bg_color?: string | null
+          content?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          kind?: string
+          media_url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
+      status_views: {
+        Row: {
+          status_id: string
+          viewed_at: string
+          viewer_id: string
+        }
+        Insert: {
+          status_id: string
+          viewed_at?: string
+          viewer_id: string
+        }
+        Update: {
+          status_id?: string
+          viewed_at?: string
+          viewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "status_views_status_id_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "status_updates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       suppressed_emails: {
         Row: {

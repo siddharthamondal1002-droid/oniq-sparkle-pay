@@ -47,6 +47,8 @@ import { Route as AuthenticatedAppFoodIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as AuthenticatedAppFoodIdRouteImport } from './routes/_authenticated/app.food.$id'
+import { Route as AuthenticatedAppChatUpdatesRouteImport } from './routes/_authenticated/app.chat.updates'
+import { Route as AuthenticatedAppChatCallsRouteImport } from './routes/_authenticated/app.chat.calls'
 import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
 
 const TermsRoute = TermsRouteImport.update({
@@ -246,6 +248,18 @@ const AuthenticatedAppFoodIdRoute = AuthenticatedAppFoodIdRouteImport.update({
   path: '/food/$id',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppChatUpdatesRoute =
+  AuthenticatedAppChatUpdatesRouteImport.update({
+    id: '/updates',
+    path: '/updates',
+    getParentRoute: () => AuthenticatedAppChatRoute,
+  } as any)
+const AuthenticatedAppChatCallsRoute =
+  AuthenticatedAppChatCallsRouteImport.update({
+    id: '/calls',
+    path: '/calls',
+    getParentRoute: () => AuthenticatedAppChatRoute,
+  } as any)
 const AuthenticatedAppChatConversationIdRoute =
   AuthenticatedAppChatConversationIdRouteImport.update({
     id: '/$conversationId',
@@ -288,6 +302,8 @@ export interface FileRoutesByFullPath {
   '/app/weather': typeof AuthenticatedAppWeatherRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
+  '/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
+  '/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat/': typeof AuthenticatedAppChatIndexRoute
@@ -326,6 +342,8 @@ export interface FileRoutesByTo {
   '/app/weather': typeof AuthenticatedAppWeatherRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
+  '/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
+  '/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat': typeof AuthenticatedAppChatIndexRoute
@@ -368,6 +386,8 @@ export interface FileRoutesById {
   '/_authenticated/app/weather': typeof AuthenticatedAppWeatherRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
+  '/_authenticated/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
+  '/_authenticated/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/_authenticated/app/food/$id': typeof AuthenticatedAppFoodIdRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/_authenticated/app/chat/': typeof AuthenticatedAppChatIndexRoute
@@ -410,6 +430,8 @@ export interface FileRouteTypes {
     | '/app/weather'
     | '/app/'
     | '/app/chat/$conversationId'
+    | '/app/chat/calls'
+    | '/app/chat/updates'
     | '/app/food/$id'
     | '/lovable/email/queue/process'
     | '/app/chat/'
@@ -448,6 +470,8 @@ export interface FileRouteTypes {
     | '/app/weather'
     | '/app'
     | '/app/chat/$conversationId'
+    | '/app/chat/calls'
+    | '/app/chat/updates'
     | '/app/food/$id'
     | '/lovable/email/queue/process'
     | '/app/chat'
@@ -489,6 +513,8 @@ export interface FileRouteTypes {
     | '/_authenticated/app/weather'
     | '/_authenticated/app/'
     | '/_authenticated/app/chat/$conversationId'
+    | '/_authenticated/app/chat/calls'
+    | '/_authenticated/app/chat/updates'
     | '/_authenticated/app/food/$id'
     | '/lovable/email/queue/process'
     | '/_authenticated/app/chat/'
@@ -781,6 +807,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppFoodIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/chat/updates': {
+      id: '/_authenticated/app/chat/updates'
+      path: '/updates'
+      fullPath: '/app/chat/updates'
+      preLoaderRoute: typeof AuthenticatedAppChatUpdatesRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
+    }
+    '/_authenticated/app/chat/calls': {
+      id: '/_authenticated/app/chat/calls'
+      path: '/calls'
+      fullPath: '/app/chat/calls'
+      preLoaderRoute: typeof AuthenticatedAppChatCallsRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
+    }
     '/_authenticated/app/chat/$conversationId': {
       id: '/_authenticated/app/chat/$conversationId'
       path: '/$conversationId'
@@ -793,12 +833,16 @@ declare module '@tanstack/react-router' {
 
 interface AuthenticatedAppChatRouteChildren {
   AuthenticatedAppChatConversationIdRoute: typeof AuthenticatedAppChatConversationIdRoute
+  AuthenticatedAppChatCallsRoute: typeof AuthenticatedAppChatCallsRoute
+  AuthenticatedAppChatUpdatesRoute: typeof AuthenticatedAppChatUpdatesRoute
   AuthenticatedAppChatIndexRoute: typeof AuthenticatedAppChatIndexRoute
 }
 
 const AuthenticatedAppChatRouteChildren: AuthenticatedAppChatRouteChildren = {
   AuthenticatedAppChatConversationIdRoute:
     AuthenticatedAppChatConversationIdRoute,
+  AuthenticatedAppChatCallsRoute: AuthenticatedAppChatCallsRoute,
+  AuthenticatedAppChatUpdatesRoute: AuthenticatedAppChatUpdatesRoute,
   AuthenticatedAppChatIndexRoute: AuthenticatedAppChatIndexRoute,
 }
 
