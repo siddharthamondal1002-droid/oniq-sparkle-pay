@@ -74,16 +74,49 @@ function CallsTab() {
     return () => window.removeEventListener("focus", onFocus);
   }, [refetch]);
 
+  // Conversations we need to hydrate members for (fallback when callee_ids empty).
+  const emptyConvIds = useMemo(() => {
+    const s = new Set<string>();
+    for (const l of logs) {
+      if ((!l.callee_ids || l.callee_ids.length === 0) && l.conversation_id) s.add(l.conversation_id);
+    }
+    return [...s];
+  }, [logs]);
+
+  const { data: convMembers = [] } = useQuery({
+    queryKey: ["call-log-conv-members", emptyConvIds.join(",")],
+    enabled: emptyConvIds.length > 0,
+    queryFn: async (): Promise<{ conversation_id: string; user_id: string }[]> => {
+      const { data } = await supabase
+        .from("conversation_members")
+        .select("conversation_id, user_id")
+        .in("conversation_id", emptyConvIds);
+      return (data ?? []) as { conversation_id: string; user_id: string }[];
+    },
+  });
+  const convMemberMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const r of convMembers) {
+      const arr = m.get(r.conversation_id) ?? [];
+      arr.push(r.user_id);
+      m.set(r.conversation_id, arr);
+    }
+    return m;
+  }, [convMembers]);
+
   // Peer IDs to hydrate (the other party for each log).
   const peerIds = useMemo(() => {
     if (!me) return [];
     const set = new Set<string>();
     for (const l of logs) {
       if (l.caller_id !== me.id) set.add(l.caller_id);
-      for (const c of l.callee_ids || []) if (c !== me.id) set.add(c);
+      const callees = l.callee_ids && l.callee_ids.length > 0
+        ? l.callee_ids
+        : (convMemberMap.get(l.conversation_id) ?? []);
+      for (const c of callees) if (c !== me.id) set.add(c);
     }
     return [...set];
-  }, [logs, me]);
+  }, [logs, me, convMemberMap]);
 
   const { data: profiles = [] } = useQuery({
     queryKey: ["call-log-profiles", peerIds.join(",")],
@@ -101,6 +134,7 @@ function CallsTab() {
     for (const p of profiles) m.set(p.id, p);
     return m;
   }, [profiles]);
+
 
   const goToConversation = (conversationId: string, callType: "audio" | "video") => {
     navigate({
