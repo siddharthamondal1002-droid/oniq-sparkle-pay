@@ -39,23 +39,34 @@ function PrivacyPage() {
           </ul>
           <p>We do <strong>not</strong> sell your personal data. We do <strong>not</strong> show third-party ads.</p>
 
-          <h2 className="font-display text-2xl font-semibold">3. Your rights</h2>
+          <h2 className="font-display text-2xl font-semibold">3. Health & Wellness Data</h2>
+          <p>ONIQ's <strong>Vitals</strong> hub is optional. If you choose to use it, we store:</p>
+          <ul className="list-disc space-y-1 pl-6">
+            <li><strong>Menstrual cycle logs</strong> — period start/end dates, symptoms you tag, and any notes you add.</li>
+            <li><strong>Daily wellness check-ins</strong> — sleep hours, mood, energy, whether you exercised, and water intake.</li>
+          </ul>
+          <p>This data is stored securely in our database and protected by row-level security, so it is accessible only to the account that created it. Health data is <strong>never</strong> used for advertising, <strong>never</strong> shared with or sold to third parties, and is <strong>not</strong> used for analytics or user profiling.</p>
+          <p>You can delete individual cycle logs and check-ins from inside the Vitals hub at any time, use "Delete all my health data" to wipe every health record in one action, or delete your entire ONIQ account — which permanently removes all health data along with the rest of your profile. For any health-data request, contact <a className="text-primary hover:underline" href="mailto:grievance@oniqhub.com">grievance@oniqhub.com</a>.</p>
+
+          <h2 className="font-display text-2xl font-semibold">4. Your rights</h2>
+
           <ul className="list-disc space-y-1 pl-6">
             <li><strong>Access & correction</strong> — view and edit your profile fields from Profile.</li>
             <li><strong>Erasure</strong> — delete your account from Profile → Delete account. This removes your profile, wallet, messages you sent, and uploads.</li>
             <li><strong>Grievance redressal</strong> — contact our Grievance Officer (below) for privacy complaints.</li>
           </ul>
 
-          <h2 className="font-display text-2xl font-semibold">4. Children</h2>
+          <h2 className="font-display text-2xl font-semibold">5. Children</h2>
           <p>ONIQ is intended for users 18 years and above. We do not knowingly collect personal data from children.</p>
 
-          <h2 className="font-display text-2xl font-semibold">5. Breach notification</h2>
+          <h2 className="font-display text-2xl font-semibold">6. Breach notification</h2>
           <p>If we become aware of a personal-data breach that is likely to result in risk to your rights, we will notify affected users and the Data Protection Board of India within the timelines required by DPDP.</p>
 
-          <h2 className="font-display text-2xl font-semibold">6. Retention</h2>
+          <h2 className="font-display text-2xl font-semibold">7. Retention</h2>
           <p>We keep your data while your account is active. When you delete your account, personal content is removed; minimal transaction and safety-log records may be retained where required by law.</p>
 
-          <h2 className="font-display text-2xl font-semibold">7. Contact</h2>
+          <h2 className="font-display text-2xl font-semibold">8. Contact</h2>
+
           <div className="rounded-2xl border border-border bg-card p-5">
             <div className="font-semibold">Grievance Officer</div>
             <div>Siddhartha Mondal</div>
