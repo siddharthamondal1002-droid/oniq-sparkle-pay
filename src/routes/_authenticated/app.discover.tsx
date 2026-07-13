@@ -127,6 +127,22 @@ function DiscoverScreen() {
     if (error) { toast.error(error.message); refetch(); }
   }
 
+  async function deletePost(postId: string) {
+    if (!window.confirm("Delete post?")) return;
+    const prev = qc.getQueryData(["moments"]);
+    qc.setQueryData(["moments"], (old: any) => old?.filter((p: any) => p.id !== postId));
+    const { error } = await supabase
+      .from("moments_posts")
+      .update({ is_deleted: true })
+      .eq("id", postId);
+    if (error) {
+      qc.setQueryData(["moments"], prev);
+      toast.error(error.message);
+    } else {
+      toast.success("Post deleted");
+    }
+  }
+
   return (
     <div className="pb-6">
       <div className="bg-hero px-5 pt-12">
