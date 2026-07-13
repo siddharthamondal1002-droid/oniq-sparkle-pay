@@ -27,7 +27,7 @@ import {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, Mic, MicOff, Phone, PhoneOff, Video, VideoOff, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import {
   ensureNotificationPermission,
@@ -89,6 +89,13 @@ type Props = {
   peerName: string;
   isGroup?: boolean;
   groupTitle?: string;
+  // Optional: when mounted by GlobalCallHost, auto-fire startCall.
+  autoStart?: CallType;
+  // Optional: when mounted by GlobalCallHost from a notification/global-incoming
+  // accept, auto-adopt a callId + type as an incoming call and accept it.
+  autoAccept?: { callId: string; callType: CallType };
+  // Optional: notified once when the call ends (status → idle after ended).
+  onEnded?: () => void;
 };
 
 // --- SDP: Opus in-band FEC + higher max bitrate ---
@@ -185,7 +192,7 @@ type PeerTile = {
 };
 
 export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
-  { conversationId, meId, meName, peerName, isGroup, groupTitle },
+  { conversationId, meId, meName, peerName, isGroup, groupTitle, autoStart, autoAccept, onEnded },
   ref,
 ) {
   const [status, setStatus] = useState<Status>("idle");
@@ -197,6 +204,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const [tiles, setTiles] = useState<PeerTile[]>([]);
   const [speakerOn, setSpeakerOn] = useState(false);
   const [isNative, setIsNative] = useState(false);
+  // P1 fix: refs don't trigger re-render, so controls disabled on
+  // `!localStreamRef.current` stayed stale after media attached. Mirror
+  // media presence in state so mute/camera buttons enable correctly.
+  const [hasMedia, setHasMedia] = useState(false);
+  const [minimized, setMinimized] = useState(false);
   useEffect(() => { void detectNative().then(setIsNative); }, []);
 
   // ---- refs (session-scoped state) ----
