@@ -54,6 +54,7 @@ function ChatList() {
   const [showSearch, setShowSearch] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
   const [query, setQuery] = useState("");
+  const [chip, setChip] = useState<"all" | "unread" | "groups">("all");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -187,14 +188,17 @@ function ChatList() {
 
   const filtered = useMemo(() => {
     if (!convs) return [];
+    let list = convs;
+    if (chip === "unread") list = list.filter((c) => (c.unread ?? 0) > 0);
+    else if (chip === "groups") list = list.filter((c) => c.type === "group");
     const q = query.trim().toLowerCase();
-    if (!q) return convs;
-    return convs.filter(
+    if (!q) return list;
+    return list.filter(
       (c) =>
         c.title.toLowerCase().includes(q) ||
         (c.last_message ?? "").toLowerCase().includes(q),
     );
-  }, [convs, query]);
+  }, [convs, query, chip]);
 
   return (
     <div className="px-4 pt-12 pb-4">
@@ -254,6 +258,29 @@ function ChatList() {
       )}
 
       <ChannelsStrip convs={convs ?? []} />
+
+      <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" data-testid="chat-filter-chips">
+        {([
+          { k: "all", label: "All" },
+          { k: "unread", label: "Unread" },
+          { k: "groups", label: "Groups" },
+        ] as const).map((c) => {
+          const active = chip === c.k;
+          return (
+            <button
+              key={c.k}
+              onClick={() => setChip(c.k)}
+              className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-medium transition ${
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "border border-border bg-card/40 text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {c.label}
+            </button>
+          );
+        })}
+      </div>
 
       <div className="mt-3">
         {isLoading ? (
