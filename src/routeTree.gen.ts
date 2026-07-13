@@ -14,6 +14,7 @@ import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as McpSigninRouteImport } from './routes/mcp-signin'
 import { Route as McpRouteImport } from './routes/mcp'
+import { Route as DeleteAccountRouteImport } from './routes/delete-account'
 import { Route as AuthNativeCallbackRouteImport } from './routes/auth-native-callback'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
@@ -74,6 +75,11 @@ const McpSigninRoute = McpSigninRouteImport.update({
 const McpRoute = McpRouteImport.update({
   id: '/mcp',
   path: '/mcp',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DeleteAccountRoute = DeleteAccountRouteImport.update({
+  id: '/delete-account',
+  path: '/delete-account',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthNativeCallbackRoute = AuthNativeCallbackRouteImport.update({
@@ -271,6 +277,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/auth-native-callback': typeof AuthNativeCallbackRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/mcp': typeof McpRoute
   '/mcp-signin': typeof McpSigninRoute
   '/privacy': typeof PrivacyRoute
@@ -313,6 +320,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/auth-native-callback': typeof AuthNativeCallbackRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/mcp': typeof McpRoute
   '/mcp-signin': typeof McpSigninRoute
   '/privacy': typeof PrivacyRoute
@@ -355,6 +363,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/auth-native-callback': typeof AuthNativeCallbackRoute
+  '/delete-account': typeof DeleteAccountRoute
   '/mcp': typeof McpRoute
   '/mcp-signin': typeof McpSigninRoute
   '/privacy': typeof PrivacyRoute
@@ -399,6 +408,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/auth-native-callback'
+    | '/delete-account'
     | '/mcp'
     | '/mcp-signin'
     | '/privacy'
@@ -441,6 +451,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/auth-native-callback'
+    | '/delete-account'
     | '/mcp'
     | '/mcp-signin'
     | '/privacy'
@@ -482,6 +493,7 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/auth'
     | '/auth-native-callback'
+    | '/delete-account'
     | '/mcp'
     | '/mcp-signin'
     | '/privacy'
@@ -526,6 +538,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   AuthNativeCallbackRoute: typeof AuthNativeCallbackRoute
+  DeleteAccountRoute: typeof DeleteAccountRoute
   McpRoute: typeof McpRoute
   McpSigninRoute: typeof McpSigninRoute
   PrivacyRoute: typeof PrivacyRoute
@@ -574,6 +587,13 @@ declare module '@tanstack/react-router' {
       path: '/mcp'
       fullPath: '/mcp'
       preLoaderRoute: typeof McpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/delete-account': {
+      id: '/delete-account'
+      path: '/delete-account'
+      fullPath: '/delete-account'
+      preLoaderRoute: typeof DeleteAccountRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth-native-callback': {
@@ -916,6 +936,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   AuthNativeCallbackRoute: AuthNativeCallbackRoute,
+  DeleteAccountRoute: DeleteAccountRoute,
   McpRoute: McpRoute,
   McpSigninRoute: McpSigninRoute,
   PrivacyRoute: PrivacyRoute,
