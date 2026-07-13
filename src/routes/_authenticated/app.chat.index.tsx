@@ -877,6 +877,14 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   const [notOnOniq, setNotOnOniq] = useState<PickedContact[]>([]);
   const [noEmailCount, setNoEmailCount] = useState(0);
   const [addingId, setAddingId] = useState<string | null>(null);
+  // Native (Capacitor) contacts flow — separate from web email flow.
+  type NativeMatch = { id: string; username: string | null; display_name: string | null; avatar_url: string | null };
+  const [isNative, setIsNative] = useState(false);
+  const [nativePicking, setNativePicking] = useState(false);
+  const [nativeMatches, setNativeMatches] = useState<NativeMatch[] | null>(null);
+  const [nativeNotCount, setNativeNotCount] = useState(0);
+  const [nativeDenied, setNativeDenied] = useState(false);
+  useEffect(() => { isNativeContactsAvailable().then(setIsNative); }, []);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [searchQ, setSearchQ] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
