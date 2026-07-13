@@ -78,8 +78,10 @@ function PrivacyPage() {
           </p>
 
           <p className="text-sm">
-            See also our <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link>.
+            See also our <Link to="/terms" className="text-primary hover:underline">Terms of Service</Link> and{" "}
+            <Link to="/delete-account" className="text-primary hover:underline">Delete your account</Link>.
           </p>
+
         </section>
       </div>
     </div>
