@@ -645,6 +645,19 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const startCall = async (type: CallType) => {
     if (!meId || activeRef.current) return;
+    // Ensure peer IDs are loaded before we insert the call log / send pushes.
+    // The membership fetch (useEffect above) is async, and autoStart flows
+    // (deep-link / one-tap accept) can race ahead of it, causing callee_ids
+    // to be persisted as '{}' and breaking name resolution in the Calls tab.
+    if (peerIdsRef.current.length === 0) {
+      const { data } = await supabase
+        .from("conversation_members")
+        .select("user_id")
+        .eq("conversation_id", conversationId)
+        .neq("user_id", meId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      peerIdsRef.current = ((data ?? []) as any[]).map((r) => r.user_id).filter(Boolean);
+    }
     if (peerIdsRef.current.length > 3) {
       toast("Group calls support up to 4 people for now");
       return;
@@ -656,6 +669,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     setStatus("outgoing");
     ensureNotificationPermission();
     playRingback();
+
 
     // Call log: caller inserts a 'no_answer' row up front; later transitions
     // (answered / missed / declined / duration) update this row.
