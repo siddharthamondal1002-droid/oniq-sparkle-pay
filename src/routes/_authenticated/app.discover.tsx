@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/app/discover")({
@@ -71,6 +71,7 @@ function DiscoverScreen() {
       const { data } = await supabase
         .from("moments_posts")
         .select("id, content, media_urls, like_count, comment_count, created_at, user_id, visibility, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)")
+        .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(50);
       return data ?? [];
