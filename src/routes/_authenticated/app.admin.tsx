@@ -37,8 +37,8 @@ function AdminInbox() {
       const uid = u.user?.id ?? null;
       setMe(uid);
       if (!uid) { setIsAdmin(false); return; }
-      const { data: p } = await supabase.from("profiles").select("is_admin").eq("id", uid).maybeSingle();
-      setIsAdmin(!!p?.is_admin);
+      const { data: p } = await supabase.rpc("is_admin", { _uid: uid });
+      setIsAdmin(!!p);
     })();
   }, []);
 
