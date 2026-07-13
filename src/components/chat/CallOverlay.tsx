@@ -620,6 +620,26 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     ensureNotificationPermission();
     playRingback();
 
+    // Call log: caller inserts a 'no_answer' row up front; later transitions
+    // (answered / missed / declined / duration) update this row.
+    logStatusRef.current = "no_answer";
+    logIdRef.current = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("call_logs")
+      .insert({
+        conversation_id: conversationId,
+        caller_id: meId,
+        callee_ids: peerIdsRef.current,
+        call_type: type,
+        status: "no_answer",
+      })
+      .select("id")
+      .single()
+      .then(({ data }: { data: { id: string } | null }) => {
+        if (data?.id) logIdRef.current = data.id;
+      });
+
     try {
       const stream = await getMedia(type);
       sessionIceServers = await ensureIceServers();
