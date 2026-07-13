@@ -142,10 +142,23 @@ async function ensureIceServers(): Promise<RTCIceServer[]> {
     });
     if (error || !data?.iceServers?.length) throw error ?? new Error("no ice");
     const servers = data.iceServers as RTCIceServer[];
+    const hasTurn = servers.some((s) => {
+      const u = Array.isArray(s.urls) ? s.urls : [s.urls];
+      return u.some((x) => typeof x === "string" && (x.startsWith("turn:") || x.startsWith("turns:")));
+    });
+    // eslint-disable-next-line no-console
+    console.log(`[ice] got ${servers.length} servers, hasTurn=${hasTurn}`);
+    if (!hasTurn) {
+      toast.error("network issue — call couldn't connect");
+    }
     cachedIce = { servers, expiresAt: now + ICE_TTL_MS };
     return [...servers];
   } catch (e) {
-    console.warn("ensureIceServers fallback to STUN-only", e);
+    // STUN-only fallback essentially guarantees failure across cellular/NAT.
+    // Surface this to the user so they know the call cannot succeed instead
+    // of stalling forever on "Connecting…".
+    console.warn("[ice] ensureIceServers fallback to STUN-only", e);
+    toast.error("network issue — call couldn't connect");
     return [...STUN_ONLY];
   }
 }
