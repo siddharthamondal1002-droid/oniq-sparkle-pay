@@ -28,6 +28,13 @@ public class MainActivity extends BridgeActivity {
     private static final int REQ_AV = 4201;
     private static final int REQ_GEO = 4202;
 
+    @Override
+    public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(SpeakerRouterPlugin.class);
+        super.onCreate(savedInstanceState);
+    }
+
+
     // Currently-shown WebView A/V request awaiting Android runtime perms.
     private PermissionRequest pendingAvRequest;
     // Additional A/V requests that arrive while one is already pending.
