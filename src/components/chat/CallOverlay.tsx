@@ -170,6 +170,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const userRingChannelsRef = useRef<RealtimeChannel[]>([]);
   const autoAcceptTriedRef = useRef(false);
   const startedAtRef = useRef<number>(0);
+  const statusRef = useRef<Status>("idle");
+
+  // Keep statusRef in sync so signaling handlers (whose closures are captured
+  // once at mount) can read the latest status without stale-closure bugs.
+  useEffect(() => { statusRef.current = status; }, [status]);
 
   // ---- helpers ----
 
