@@ -131,7 +131,10 @@ Deno.serve(async (req) => {
     });
   }
 
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+    global: { fetch: wrapFetch(SERVICE_KEY) },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   // Verify sender is a member of the conversation
   const { data: senderMember } = await admin
