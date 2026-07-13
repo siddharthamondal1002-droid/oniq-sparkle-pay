@@ -77,8 +77,26 @@ Deno.serve(async (req) => {
   const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
 
+  // New-format Supabase API keys (sb_publishable_/sb_secret_) are opaque, not JWTs.
+  // Default supabase-js sends them as `Authorization: Bearer <key>`, which PostgREST
+  // rejects with "Expected 3 parts in JWT; got 1", silently zeroing every DB read
+  // in this function. Wrap fetch to send them via `apikey` header only.
+  const isNewKey = (k: string) => k.startsWith("sb_publishable_") || k.startsWith("sb_secret_");
+  const wrapFetch = (key: string, extraAuth?: string): typeof fetch => (input, init) => {
+    const headers = new Headers(
+      typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
+    );
+    if (init?.headers) new Headers(init.headers).forEach((v, k) => headers.set(k, v));
+    if (isNewKey(key) && headers.get("Authorization") === `Bearer ${key}`) {
+      headers.delete("Authorization");
+    }
+    headers.set("apikey", key);
+    if (extraAuth) headers.set("Authorization", extraAuth);
+    return fetch(input, { ...init, headers });
+  };
+
   const userClient = createClient(SUPABASE_URL, ANON, {
-    global: { headers: { Authorization: authHeader } },
+    global: { headers: { Authorization: authHeader }, fetch: wrapFetch(ANON, authHeader) },
   });
   const { data: userRes, error: userErr } = await userClient.auth.getUser();
   if (userErr || !userRes.user) {
@@ -113,7 +131,10 @@ Deno.serve(async (req) => {
     });
   }
 
-  const admin = createClient(SUPABASE_URL, SERVICE_KEY);
+  const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
+    global: { fetch: wrapFetch(SERVICE_KEY) },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
 
   // Verify sender is a member of the conversation
   const { data: senderMember } = await admin
