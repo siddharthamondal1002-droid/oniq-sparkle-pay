@@ -165,8 +165,12 @@ function CallsTab() {
         <ul className="mt-4 divide-y divide-border/50">
           {logs.map((l) => {
             const outgoing = me?.id === l.caller_id;
-            const peerId = outgoing ? (l.callee_ids?.[0] ?? "") : l.caller_id;
+            const effectiveCallees = (l.callee_ids && l.callee_ids.length > 0)
+              ? l.callee_ids
+              : (convMemberMap.get(l.conversation_id) ?? []).filter((u) => u !== l.caller_id);
+            const peerId = outgoing ? (effectiveCallees[0] ?? "") : l.caller_id;
             const peer = profMap.get(peerId);
+
             const peerName = peer?.display_name || peer?.username || "Someone";
             const missed = l.status === "missed" || l.status === "no_answer" || (!outgoing && l.status === "declined");
             const Icon = l.call_type === "video" ? Video : Phone;
