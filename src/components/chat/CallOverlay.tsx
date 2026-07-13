@@ -900,6 +900,18 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (sStatus !== "SUBSCRIBED") return;
       if (typeof window === "undefined") return;
       const params = new URLSearchParams(window.location.search);
+      // Kick off an outgoing call from ?startCall=audio|video (used by Calls tab call-back).
+      const startType = params.get("startCall") as CallType | null;
+      if (startType === "audio" || startType === "video") {
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("startCall");
+          window.history.replaceState({}, "", url.toString());
+        } catch {}
+        if (!activeRef.current) {
+          window.setTimeout(() => { void startCall(startType); }, 400);
+        }
+      }
       const acceptId = params.get("acceptCall");
       const acceptType = params.get("acceptType") as CallType | null;
       if (!acceptId) return;
