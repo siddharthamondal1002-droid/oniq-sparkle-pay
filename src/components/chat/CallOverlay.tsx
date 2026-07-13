@@ -195,6 +195,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const [elapsed, setElapsed] = useState(0);
   const [incomingFromName, setIncomingFromName] = useState("");
   const [tiles, setTiles] = useState<PeerTile[]>([]);
+  const [speakerOn, setSpeakerOn] = useState(false);
+  const [isNative, setIsNative] = useState(false);
+  useEffect(() => { void detectNative().then(setIsNative); }, []);
 
   // ---- refs (session-scoped state) ----
   const peerPoolRef = useRef<Map<string, PeerEntry>>(new Map());
