@@ -256,7 +256,7 @@ function DiscoverScreen() {
                     {p.user_id === me && p.visibility === "moots" && (
                       <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>
                     )}
-                    {p.user_id === me && (
+                    {p.user_id === me ? (
                       <button
                         type="button"
                         onClick={() => deletePost(p.id)}
@@ -264,6 +264,16 @@ function DiscoverScreen() {
                         aria-label="Delete post"
                       >
                         <Trash2 className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setReportTarget({ type: "moment", id: p.id })}
+                        className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-500"
+                        aria-label="Report post"
+                        title="Report post"
+                      >
+                        <Flag className="h-4 w-4" />
                       </button>
                     )}
                   </div>
