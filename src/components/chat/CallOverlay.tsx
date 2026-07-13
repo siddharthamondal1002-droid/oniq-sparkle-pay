@@ -605,6 +605,22 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, meName]);
 
+  // Accepter side: while connecting and no peer entries yet, keep hello-ing
+  // the room every 2s so the deterministic-offerer partner (who may have
+  // stopped its outgoing hello loop) rebuilds a PeerEntry for us and starts
+  // offering. Clears the moment any peer exists or call state leaves connecting.
+  useEffect(() => {
+    if (status !== "connecting") return;
+    const id = window.setInterval(() => {
+      if (!activeRef.current || !callIdRef.current) return;
+      if (peerPoolRef.current.size > 0) return;
+      if (!localStreamRef.current) return;
+      sendSig("hello", null, { fromName: meName });
+    }, 2000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, meName]);
+
   // ---- signaling ----
 
   useEffect(() => {
