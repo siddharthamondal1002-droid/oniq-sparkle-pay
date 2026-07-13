@@ -175,6 +175,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   // Keep statusRef in sync so signaling handlers (whose closures are captured
   // once at mount) can read the latest status without stale-closure bugs.
   useEffect(() => { statusRef.current = status; }, [status]);
+  // Sync local video srcObject whenever the PiP <video> mounts or status/callType changes.
+  // Guarantees the caller's self-preview attaches even if the stream existed before the element rendered.
+  useEffect(() => {
+    if (callTypeRef.current !== "video") return;
+    const el = localVideoRef.current;
+    const stream = localStreamRef.current;
+    if (el && stream && el.srcObject !== stream) {
+      el.srcObject = stream;
+    }
+  }, [status, callType]);
 
   // ---- helpers ----
 
