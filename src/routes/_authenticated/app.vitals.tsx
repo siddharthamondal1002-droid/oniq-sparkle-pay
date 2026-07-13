@@ -127,12 +127,15 @@ function VitalsPage() {
         ) : (
           <div className="mt-6 space-y-6">
             <DailyCheckin todayRow={(checkins ?? []).find((c) => c.day === today()) ?? null} />
+            <RecentCheckins rows={(checkins ?? []).filter((c) => c.day !== today())} />
             {hp.experience === "women" && <CycleSection />}
             <CareSection experience={hp.experience} />
             <ReportsSection />
+            <WipeHealthData />
             <p className="text-[11px] text-muted-foreground text-center pt-2">{DISCLAIMER}</p>
           </div>
         )}
+
       </div>
     </div>
   );
@@ -412,10 +415,26 @@ function CycleSection() {
           <div className="text-xs text-muted-foreground mb-1">recent</div>
           <ul className="space-y-1">
             {(cycles ?? []).slice(0, 5).map((c) => (
-              <li key={c.id} className="text-xs rounded-xl bg-surface-2 p-2">
-                <span className="font-semibold">{c.period_start}</span>
-                {c.period_end && <> → <span>{c.period_end}</span></>}
-                {c.symptoms?.length ? <span className="text-muted-foreground"> · {c.symptoms.join(", ")}</span> : null}
+              <li key={c.id} className="text-xs rounded-xl bg-surface-2 p-2 flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                  <span className="font-semibold">{c.period_start}</span>
+                  {c.period_end && <> → <span>{c.period_end}</span></>}
+                  {c.symptoms?.length ? <span className="text-muted-foreground"> · {c.symptoms.join(", ")}</span> : null}
+                  {c.notes ? <div className="text-muted-foreground mt-0.5 truncate">{c.notes}</div> : null}
+                </div>
+                <button
+                  aria-label="delete cycle log"
+                  onClick={async () => {
+                    if (!confirm("delete this cycle log?")) return;
+                    const { error } = await supabase.from("cycle_logs").delete().eq("id", c.id);
+                    if (error) return toast.error(error.message);
+                    qc.invalidateQueries({ queryKey: ["cycle-logs"] });
+                    toast.success("deleted 🗑");
+                  }}
+                  className="press grid h-7 w-7 place-items-center rounded-full bg-surface hover:bg-pink-500/20 text-muted-foreground hover:text-pink-400"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </li>
             ))}
           </ul>
@@ -424,6 +443,89 @@ function CycleSection() {
     </section>
   );
 }
+
+// ============================================================
+// RECENT CHECK-INS + WIPE ALL
+// ============================================================
+
+function RecentCheckins({ rows }: { rows: Checkin[] }) {
+  const qc = useQueryClient();
+  if (!rows.length) return null;
+  const del = async (id?: string) => {
+    if (!id) return;
+    if (!confirm("delete this check-in?")) return;
+    const { error } = await supabase.from("health_checkins").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    qc.invalidateQueries({ queryKey: ["health-checkins"] });
+    toast.success("deleted 🗑");
+  };
+  return (
+    <section className="rounded-3xl border border-border bg-card p-4">
+      <h3 className="font-display text-base font-bold mb-3">recent check-ins</h3>
+      <ul className="space-y-1">
+        {rows.slice(0, 10).map((r) => (
+          <li key={r.id ?? r.day} className="text-xs rounded-xl bg-surface-2 p-2 flex items-center gap-2">
+            <div className="flex-1 min-w-0">
+              <span className="font-semibold">{r.day}</span>
+              <span className="text-muted-foreground">
+                {r.sleep_hrs != null && <> · 💤 {r.sleep_hrs}h</>}
+                {r.mood != null && <> · mood {r.mood}/5</>}
+                {r.energy != null && <> · ⚡ {r.energy}/5</>}
+                {r.water_glasses != null && <> · 💧 {r.water_glasses}</>}
+                {r.exercised ? <> · 🏃</> : null}
+              </span>
+            </div>
+            <button aria-label="delete check-in" onClick={() => del(r.id)}
+              className="press grid h-7 w-7 place-items-center rounded-full bg-surface hover:bg-red-500/20 text-muted-foreground hover:text-red-400">
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function WipeHealthData() {
+  const qc = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const wipe = async () => {
+    if (!confirm("Permanently delete ALL your health data (cycle logs, check-ins, health profile)? This cannot be undone.")) return;
+    if (!confirm("Are you sure? This is permanent.")) return;
+    setBusy(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("sign in first");
+      const uid = u.user.id;
+      const r1 = await supabase.from("cycle_logs").delete().eq("user_id", uid);
+      if (r1.error) throw r1.error;
+      const r2 = await supabase.from("health_checkins").delete().eq("user_id", uid);
+      if (r2.error) throw r2.error;
+      const r3 = await supabase.from("health_profiles").delete().eq("user_id", uid);
+      if (r3.error) throw r3.error;
+      writeVitalsCache(null, null);
+      qc.invalidateQueries({ queryKey: ["health-profile"] });
+      qc.invalidateQueries({ queryKey: ["health-checkins"] });
+      qc.invalidateQueries({ queryKey: ["cycle-logs"] });
+      toast.success("all health data wiped 🧼");
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : "couldn't wipe");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="rounded-3xl border border-red-500/30 bg-card p-4">
+      <h3 className="font-display text-base font-bold text-red-400 mb-1">delete all my health data</h3>
+      <p className="text-xs text-muted-foreground mb-3">wipes every cycle log, check-in, and your health profile. permanent — no undo.</p>
+      <button onClick={wipe} disabled={busy}
+        className="press w-full flex items-center justify-center gap-2 rounded-2xl bg-red-500/15 border border-red-500/30 text-red-300 py-3 font-semibold disabled:opacity-60">
+        <Trash2 className="h-4 w-4" />{busy ? "wiping…" : "delete all health data"}
+      </button>
+    </section>
+  );
+}
+
 
 // ============================================================
 // CARE
