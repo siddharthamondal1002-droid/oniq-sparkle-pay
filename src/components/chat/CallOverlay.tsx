@@ -494,6 +494,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             500,
           );
         }
+        // Call log: first successful connect → mark answered.
+        if (isCallerRef.current && logIdRef.current && logStatusRef.current !== "answered") {
+          logStatusRef.current = "answered";
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("call_logs")
+            .update({ status: "answered", started_at: new Date().toISOString() })
+            .eq("id", logIdRef.current)
+            .then(() => {});
+        }
       } else if (st === "closed") {
         teardownPeer(peerId, false);
       }
