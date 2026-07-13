@@ -142,10 +142,23 @@ async function ensureIceServers(): Promise<RTCIceServer[]> {
     });
     if (error || !data?.iceServers?.length) throw error ?? new Error("no ice");
     const servers = data.iceServers as RTCIceServer[];
+    const hasTurn = servers.some((s) => {
+      const u = Array.isArray(s.urls) ? s.urls : [s.urls];
+      return u.some((x) => typeof x === "string" && (x.startsWith("turn:") || x.startsWith("turns:")));
+    });
+    // eslint-disable-next-line no-console
+    console.log(`[ice] got ${servers.length} servers, hasTurn=${hasTurn}`);
+    if (!hasTurn) {
+      toast.error("network issue — call couldn't connect");
+    }
     cachedIce = { servers, expiresAt: now + ICE_TTL_MS };
     return [...servers];
   } catch (e) {
-    console.warn("ensureIceServers fallback to STUN-only", e);
+    // STUN-only fallback essentially guarantees failure across cellular/NAT.
+    // Surface this to the user so they know the call cannot succeed instead
+    // of stalling forever on "Connecting…".
+    console.warn("[ice] ensureIceServers fallback to STUN-only", e);
+    toast.error("network issue — call couldn't connect");
     return [...STUN_ONLY];
   }
 }
@@ -304,20 +317,33 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const armConnectTimeout = () => {
     clearConnectTimeout();
+    // Hard 20s ICE deadline: if no peer has reached connected by then, the
+    // call cannot recover in a user-tolerable window. Surface a clear toast
+    // and record status='failed' in call_logs so it isn't confused with
+    // no_answer/missed. Recovery paths (restartIce, relay escalation) still
+    // run in the background but no longer keep the UI on "Connecting…"
+    // indefinitely.
     connectTimeoutRef.current = window.setTimeout(() => {
-      // If no peer ever reached connected AND every peer has already tried
-      // relay-only escalation, give up. Otherwise let ICE recovery keep trying.
       const peers = [...peerPoolRef.current.values()];
       const anyConnected = peers.some((p) => p.connState === "connected");
-      const allRelayTried = peers.length > 0 && peers.every((p) => p.forceRelay);
-      if (!anyConnected && allRelayTried) {
-        toast.error("Couldn't connect. Please try again.");
-        endEveryone(true);
-      } else if (!anyConnected) {
-        // Extend once — relay escalation may still be in flight.
-        armConnectTimeout();
+      if (anyConnected) return;
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[mesh] ICE connect timeout after 20s — peers:",
+        peers.map((p) => ({ id: p.peerId, ice: p.pc.iceConnectionState, conn: p.connState, forceRelay: p.forceRelay })),
+      );
+      toast.error("network issue — call couldn't connect");
+      if (isCallerRef.current && logIdRef.current) {
+        logStatusRef.current = "no_answer";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("call_logs")
+          .update({ status: "failed" })
+          .eq("id", logIdRef.current)
+          .then(() => {});
       }
-    }, 25000);
+      endEveryone(true);
+    }, 20000);
   };
 
   const stopUserRingBroadcast = () => {
