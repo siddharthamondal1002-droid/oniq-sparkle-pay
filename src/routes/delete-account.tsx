@@ -144,6 +144,34 @@ function DeleteAccountPage() {
             </p>
           </div>
 
+          <h2 className="font-display text-2xl font-semibold">
+            Delete some of your data (without deleting your account)
+          </h2>
+          <p>
+            You do not need to delete your ONIQ account to remove specific data. Inside the app you
+            can:
+          </p>
+          <ul className="list-disc space-y-1 pl-6">
+            <li>Delete individual messages you sent (delete for everyone) in any chat.</li>
+            <li>Delete your Moments posts and Clips at any time.</li>
+            <li>
+              Delete individual health records — cycle logs and daily check-ins — in the Vitals
+              hub, or use "Delete all my health data" to wipe every health record in one action.
+            </li>
+          </ul>
+          <p>
+            For any other partial data deletion request (for example, specific records you cannot
+            remove in-app), email{" "}
+            <a
+              className="text-primary hover:underline"
+              href="mailto:grievance@oniqhub.com?subject=Data%20Deletion%20Request"
+            >
+              grievance@oniqhub.com
+            </a>{" "}
+            with subject "Data Deletion Request" from your registered email, describing what you
+            want removed. Verified requests are processed within <strong>7 days</strong>.
+          </p>
+
           <h2 className="font-display text-2xl font-semibold">What is permanently deleted</h2>
           <ul className="list-disc space-y-1 pl-6">
             <li>Your profile (name, username, avatar, bio) and sign-in account</li>
