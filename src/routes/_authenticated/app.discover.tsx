@@ -20,6 +20,7 @@ function DiscoverScreen() {
   const [posting, setPosting] = useState(false);
   const [me, setMe] = useState<string | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
+  const [openComments, setOpenComments] = useState<string | null>(null);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [visibility, setVisibility] = useState<"public" | "moots">(() => {
     if (typeof sessionStorage === "undefined") return "public";
