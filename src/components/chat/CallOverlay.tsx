@@ -365,6 +365,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const attachLocal = (stream: MediaStream, type: CallType) => {
     localStreamRef.current = stream;
+    setHasMedia(true);
     if (type === "video" && localVideoRef.current) localVideoRef.current.srcObject = stream;
   };
 
@@ -602,6 +603,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     localStreamRef.current?.getTracks().forEach((t) => { try { t.stop(); } catch {} });
     localStreamRef.current = null;
+    setHasMedia(false);
+    setMinimized(false);
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     isCallerRef.current = false;
     activeRef.current = false;
@@ -687,7 +690,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     sendSig("ring", null, { callType: type, fromName: meName, isGroup: !!isGroup, groupTitle: groupTitle ?? "" });
     // Announce presence to any accepters.
     sendSig("hello", null, { fromName: meName });
-    sendPush({ conversation_id: conversationId, kind: "call", call_type: type });
+    sendPush({ conversation_id: conversationId, kind: "call", call_type: type, call_id: callIdRef.current ?? undefined });
 
     // Per-user rings so recipients see the incoming UI from anywhere.
     stopUserRingBroadcast();
@@ -1079,7 +1082,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           <>
             <button
               onClick={toggleMute}
-              disabled={!localStreamRef.current}
+              disabled={!hasMedia}
               className={`grid h-14 w-14 place-items-center rounded-full disabled:opacity-40 ${muted ? "bg-red-600 hover:bg-red-500" : "bg-white/10 hover:bg-white/20"}`}
               aria-label={muted ? "Unmute mic" : "Mute mic"}
               aria-pressed={muted}
@@ -1088,10 +1091,19 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             </button>
             {isNative && (status === "connecting" || status === "connected") && (
               <button
-                onClick={() => {
+                onClick={async () => {
                   const next = !speakerOn;
                   setSpeakerOn(next);
-                  void nativeSetSpeaker(next);
+                  // eslint-disable-next-line no-console
+                  console.log("[call] speaker toggle →", next);
+                  try {
+                    await nativeSetSpeaker(next);
+                  } catch (err) {
+                    // eslint-disable-next-line no-console
+                    console.warn("[call] speaker toggle failed", err);
+                    toast.error("Couldn't switch speaker");
+                    setSpeakerOn(!next);
+                  }
                 }}
                 className={`grid h-14 w-14 place-items-center rounded-full ${speakerOn ? "bg-white/20 hover:bg-white/30" : "bg-white/10 hover:bg-white/20"}`}
                 aria-label={speakerOn ? "Speaker on" : "Speaker off"}
@@ -1103,7 +1115,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             {callType === "video" && (
               <button
                 onClick={toggleCam}
-                disabled={!localStreamRef.current}
+                disabled={!hasMedia}
                 className="grid h-14 w-14 place-items-center rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40"
                 aria-label={camOff ? "Turn camera on" : "Turn camera off"}
               >
