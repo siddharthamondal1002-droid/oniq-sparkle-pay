@@ -743,8 +743,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       const stream = await getMedia(type);
       sessionIceServers = await ensureIceServers();
       attachLocal(stream, type);
-    } catch {
-      endEveryone(false);
+    } catch (e) {
+      if (e instanceof IceUnavailableError) handleIceUnavailable(e);
+      else endEveryone(false);
       return;
     }
 
@@ -901,7 +902,13 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           // we're ready. Don't reply; nothing to peer with yet.
           return;
         }
-        sessionIceServers = await ensureIceServers();
+        try {
+          sessionIceServers = await ensureIceServers();
+        } catch (e) {
+          if (e instanceof IceUnavailableError) handleIceUnavailable(e);
+          else endEveryone(false);
+          return;
+        }
         createPeerEntry(p.from, p.fromName);
       }
       // Reply with a TARGETED hello so the sender also creates its PeerEntry.
