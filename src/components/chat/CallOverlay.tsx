@@ -562,6 +562,18 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const endEveryone = (notify: boolean) => {
     if (notify && activeRef.current) sendSig("end", null);
+    // Call log: if this was an answered call, record duration on end.
+    if (isCallerRef.current && logIdRef.current && logStatusRef.current === "answered") {
+      const dur = timerRef.current ? Math.floor((Date.now() - startedAtRef.current) / 1000) : null;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("call_logs")
+        .update({ duration_s: dur })
+        .eq("id", logIdRef.current)
+        .then(() => {});
+    }
+    logIdRef.current = null;
+    logStatusRef.current = "no_answer";
     for (const peerId of [...peerPoolRef.current.keys()]) {
       const entry = peerPoolRef.current.get(peerId);
       if (entry) {
