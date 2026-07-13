@@ -36,6 +36,50 @@ import {
 } from "@/lib/callSounds";
 import { sendPush } from "@/lib/push";
 
+// --- Native SpeakerRouter bridge (Capacitor Android plugin). No-op on web. ---
+type SpeakerRouterPlugin = {
+  setSpeaker: (opts: { on: boolean }) => Promise<{ on: boolean }>;
+  reset: () => Promise<void>;
+};
+let _speakerPlugin: SpeakerRouterPlugin | null | undefined;
+let _isNative = false;
+async function getSpeakerPlugin(): Promise<SpeakerRouterPlugin | null> {
+  if (_speakerPlugin !== undefined) return _speakerPlugin;
+  try {
+    const core = await import("@capacitor/core");
+    _isNative = !!core.Capacitor?.isNativePlatform?.();
+    if (!_isNative) { _speakerPlugin = null; return null; }
+    _speakerPlugin = core.registerPlugin<SpeakerRouterPlugin>("SpeakerRouter");
+    return _speakerPlugin;
+  } catch {
+    _speakerPlugin = null;
+    return null;
+  }
+}
+function isNativePlatformSync(): boolean {
+  try {
+    // Best-effort sync check; may be false until getSpeakerPlugin() has run once.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const core = require("@capacitor/core") as typeof import("@capacitor/core");
+    return !!core.Capacitor?.isNativePlatform?.();
+  } catch {
+    return _isNative;
+  }
+}
+async function nativeSetSpeaker(on: boolean): Promise<void> {
+  try {
+    const plugin = await getSpeakerPlugin();
+    if (plugin) await plugin.setSpeaker({ on });
+  } catch { /* no-op */ }
+}
+async function nativeResetSpeaker(): Promise<void> {
+  try {
+    const plugin = await getSpeakerPlugin();
+    if (plugin) await plugin.reset();
+  } catch { /* no-op */ }
+}
+
+
 export type CallType = "audio" | "video";
 export type CallHandle = { startCall: (type: CallType) => void };
 
