@@ -899,7 +899,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             </button>
             <button
               data-testid="call-accept"
-              onClick={accept}
+              onClick={() => { void accept(); }}
               className="grid h-16 w-16 place-items-center rounded-full bg-green-600 hover:bg-green-500"
               aria-label="Accept call"
             >
