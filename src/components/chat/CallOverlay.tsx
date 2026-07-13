@@ -787,9 +787,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, meId]);
 
-  const accept = async () => {
-    if (status !== "incoming") return;
+  const accept = async (force = false) => {
+    if (!force && statusRef.current !== "incoming") return;
+    if (statusRef.current !== "incoming" && statusRef.current !== "connecting" && !force) return;
     setStatus("connecting");
+    statusRef.current = "connecting";
     armConnectTimeout();
     stopAllCallSounds();
     try {
