@@ -170,6 +170,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const userRingChannelsRef = useRef<RealtimeChannel[]>([]);
   const autoAcceptTriedRef = useRef(false);
   const startedAtRef = useRef<number>(0);
+  const statusRef = useRef<Status>("idle");
+
+  // Keep statusRef in sync so signaling handlers (whose closures are captured
+  // once at mount) can read the latest status without stale-closure bugs.
+  useEffect(() => { statusRef.current = status; }, [status]);
 
   // ---- helpers ----
 
@@ -600,6 +605,22 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, meName]);
 
+  // Accepter side: while connecting and no peer entries yet, keep hello-ing
+  // the room every 2s so the deterministic-offerer partner (who may have
+  // stopped its outgoing hello loop) rebuilds a PeerEntry for us and starts
+  // offering. Clears the moment any peer exists or call state leaves connecting.
+  useEffect(() => {
+    if (status !== "connecting") return;
+    const id = window.setInterval(() => {
+      if (!activeRef.current || !callIdRef.current) return;
+      if (peerPoolRef.current.size > 0) return;
+      if (!localStreamRef.current) return;
+      sendSig("hello", null, { fromName: meName });
+    }, 2000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, meName]);
+
   // ---- signaling ----
 
   useEffect(() => {
@@ -629,22 +650,33 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       setStatus("incoming");
     });
 
-    // ROOM: hello — a peer joined the room.
+    // ROOM or TARGETED: hello — a peer joined (or replied to our hello).
     ch.on("broadcast", { event: "hello" }, async ({ payload }) => {
-      const p = payload as { from: string; to: null; callId: string; fromName?: string };
+      const p = payload as { from: string; to: string | null; callId: string; fromName?: string };
       if (!forMe(p) || !matchesCall(p)) return;
       if (p.fromName) peerNamesRef.current.set(p.from, p.fromName);
       // Any inbound hello during outgoing means someone accepted → move on.
-      if (status === "outgoing" || (isCallerRef.current && !peerPoolRef.current.has(p.from))) {
+      if (statusRef.current === "outgoing" || (isCallerRef.current && !peerPoolRef.current.has(p.from))) {
         setStatus("connecting");
         stopAllCallSounds();
       }
-      // Create PC to this peer if we don't have one.
-      if (peerPoolRef.current.has(p.from)) return;
-      if (!localStreamRef.current) return; // media not ready yet; ignore, they'll hello again
-      sessionIceServers = await ensureIceServers();
-      createPeerEntry(p.from, p.fromName);
-      // Non-offerer will wait for their offer.
+      const wasRoomScoped = p.to == null;
+      const alreadyHad = peerPoolRef.current.has(p.from);
+      // Create PC to this peer if we don't have one AND our media is ready.
+      if (!alreadyHad) {
+        if (!localStreamRef.current) {
+          // Media not ready yet — the sender will keep re-broadcasting until
+          // we're ready. Don't reply; nothing to peer with yet.
+          return;
+        }
+        sessionIceServers = await ensureIceServers();
+        createPeerEntry(p.from, p.fromName);
+      }
+      // Reply with a TARGETED hello so the sender also creates its PeerEntry.
+      // Only reply to room-scoped hellos to avoid an infinite echo.
+      if (wasRoomScoped) {
+        sendSig("hello", p.from, { fromName: meName });
+      }
     });
 
     // TARGETED: offer.
@@ -732,7 +764,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       setCallTypeBoth(acceptType === "video" ? "video" : "audio");
       setIncomingFromName(peerName);
       setStatus("incoming");
-      window.setTimeout(() => { void accept(); }, 60);
+      window.setTimeout(() => { void accept(true); }, 60);
     };
 
     ch.subscribe((sStatus) => {
@@ -771,9 +803,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, meId]);
 
-  const accept = async () => {
-    if (status !== "incoming") return;
+  const accept = async (force = false) => {
+    if (!force && statusRef.current !== "incoming") return;
+    if (statusRef.current !== "incoming" && statusRef.current !== "connecting" && !force) return;
     setStatus("connecting");
+    statusRef.current = "connecting";
     armConnectTimeout();
     stopAllCallSounds();
     try {
@@ -881,7 +915,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             </button>
             <button
               data-testid="call-accept"
-              onClick={accept}
+              onClick={() => { void accept(); }}
               className="grid h-16 w-16 place-items-center rounded-full bg-green-600 hover:bg-green-500"
               aria-label="Accept call"
             >
