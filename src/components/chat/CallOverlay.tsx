@@ -649,6 +649,23 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     window.setTimeout(() => setStatus((s) => (s === "ended" ? "idle" : s)), 700);
   };
 
+  // ICE is unhealthy (edge fn returned STUN-only fallback, or errored):
+  // don't start a doomed call. Toast the user, mark the log failed, end UI.
+  const handleIceUnavailable = (err: unknown) => {
+    console.warn("[ice] unhealthy — refusing to start call", err);
+    toast.error("calls are having a moment 📞 try again in a sec");
+    if (isCallerRef.current && logIdRef.current) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from("call_logs")
+        .update({ status: "failed" })
+        .eq("id", logIdRef.current)
+        .then(() => {});
+    }
+    endEveryone(false);
+  };
+
+
   // ---- fetch peer ids for ringing ----
 
   useEffect(() => {
