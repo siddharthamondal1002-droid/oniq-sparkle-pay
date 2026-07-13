@@ -27,7 +27,7 @@ import {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff } from "lucide-react";
+import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import {
   ensureNotificationPermission,
@@ -35,6 +35,49 @@ import {
   stopAllCallSounds,
 } from "@/lib/callSounds";
 import { sendPush } from "@/lib/push";
+
+// --- Native SpeakerRouter bridge (Capacitor Android plugin). No-op on web. ---
+type SpeakerRouterPlugin = {
+  setSpeaker: (opts: { on: boolean }) => Promise<{ on: boolean }>;
+  reset: () => Promise<void>;
+};
+let _speakerPlugin: SpeakerRouterPlugin | null | undefined;
+let _isNative = false;
+async function getSpeakerPlugin(): Promise<SpeakerRouterPlugin | null> {
+  if (_speakerPlugin !== undefined) return _speakerPlugin;
+  try {
+    const core = await import("@capacitor/core");
+    _isNative = !!core.Capacitor?.isNativePlatform?.();
+    if (!_isNative) { _speakerPlugin = null; return null; }
+    _speakerPlugin = core.registerPlugin<SpeakerRouterPlugin>("SpeakerRouter");
+    return _speakerPlugin;
+  } catch {
+    _speakerPlugin = null;
+    return null;
+  }
+}
+async function detectNative(): Promise<boolean> {
+  try {
+    const core = await import("@capacitor/core");
+    return !!core.Capacitor?.isNativePlatform?.();
+  } catch {
+    return false;
+  }
+}
+
+async function nativeSetSpeaker(on: boolean): Promise<void> {
+  try {
+    const plugin = await getSpeakerPlugin();
+    if (plugin) await plugin.setSpeaker({ on });
+  } catch { /* no-op */ }
+}
+async function nativeResetSpeaker(): Promise<void> {
+  try {
+    const plugin = await getSpeakerPlugin();
+    if (plugin) await plugin.reset();
+  } catch { /* no-op */ }
+}
+
 
 export type CallType = "audio" | "video";
 export type CallHandle = { startCall: (type: CallType) => void };
@@ -152,6 +195,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const [elapsed, setElapsed] = useState(0);
   const [incomingFromName, setIncomingFromName] = useState("");
   const [tiles, setTiles] = useState<PeerTile[]>([]);
+  const [speakerOn, setSpeakerOn] = useState(false);
+  const [isNative, setIsNative] = useState(false);
+  useEffect(() => { void detectNative().then(setIsNative); }, []);
 
   // ---- refs (session-scoped state) ----
   const peerPoolRef = useRef<Map<string, PeerEntry>>(new Map());
@@ -185,6 +231,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       el.srcObject = stream;
     }
   }, [status, callType]);
+
+  // Native audio routing: default speaker ON for video, OFF (earpiece) for audio,
+  // whenever a call enters connecting/connected. Reset on idle/ended.
+  useEffect(() => {
+    if (!isNative) return;
+    if (status === "connecting" || status === "connected") {
+      const desired = callType === "video";
+      setSpeakerOn(desired);
+      void nativeSetSpeaker(desired);
+    } else if (status === "idle" || status === "ended") {
+      setSpeakerOn(false);
+      void nativeResetSpeaker();
+    }
+  }, [status, callType, isNative]);
 
   // ---- helpers ----
 
@@ -943,6 +1003,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             >
               {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
             </button>
+            {isNative && (status === "connecting" || status === "connected") && (
+              <button
+                onClick={() => {
+                  const next = !speakerOn;
+                  setSpeakerOn(next);
+                  void nativeSetSpeaker(next);
+                }}
+                className={`grid h-14 w-14 place-items-center rounded-full ${speakerOn ? "bg-white/20 hover:bg-white/30" : "bg-white/10 hover:bg-white/20"}`}
+                aria-label={speakerOn ? "Speaker on" : "Speaker off"}
+                aria-pressed={speakerOn}
+              >
+                {speakerOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+              </button>
+            )}
             {callType === "video" && (
               <button
                 onClick={toggleCam}
