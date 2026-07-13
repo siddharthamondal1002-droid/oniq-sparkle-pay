@@ -9,6 +9,7 @@ export function sendPush(payload: {
   kind: PushKind;
   preview?: string;
   call_type?: string;
+  call_id?: string;
 }) {
   // Fire-and-forget — never block UI, never throw.
   try {

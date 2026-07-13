@@ -27,7 +27,7 @@ import {
 } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { Mic, MicOff, Phone, PhoneOff, Video, VideoOff, Volume2, VolumeX } from "lucide-react";
+import { ChevronDown, Mic, MicOff, Phone, PhoneOff, Video, VideoOff, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import {
   ensureNotificationPermission,
@@ -89,6 +89,13 @@ type Props = {
   peerName: string;
   isGroup?: boolean;
   groupTitle?: string;
+  // Optional: when mounted by GlobalCallHost, auto-fire startCall.
+  autoStart?: CallType;
+  // Optional: when mounted by GlobalCallHost from a notification/global-incoming
+  // accept, auto-adopt a callId + type as an incoming call and accept it.
+  autoAccept?: { callId: string; callType: CallType };
+  // Optional: notified once when the call ends (status → idle after ended).
+  onEnded?: () => void;
 };
 
 // --- SDP: Opus in-band FEC + higher max bitrate ---
@@ -185,7 +192,7 @@ type PeerTile = {
 };
 
 export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
-  { conversationId, meId, meName, peerName, isGroup, groupTitle },
+  { conversationId, meId, meName, peerName, isGroup, groupTitle, autoStart, autoAccept, onEnded },
   ref,
 ) {
   const [status, setStatus] = useState<Status>("idle");
@@ -197,6 +204,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const [tiles, setTiles] = useState<PeerTile[]>([]);
   const [speakerOn, setSpeakerOn] = useState(false);
   const [isNative, setIsNative] = useState(false);
+  // P1 fix: refs don't trigger re-render, so controls disabled on
+  // `!localStreamRef.current` stayed stale after media attached. Mirror
+  // media presence in state so mute/camera buttons enable correctly.
+  const [hasMedia, setHasMedia] = useState(false);
+  const [minimized, setMinimized] = useState(false);
   useEffect(() => { void detectNative().then(setIsNative); }, []);
 
   // ---- refs (session-scoped state) ----
@@ -353,6 +365,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const attachLocal = (stream: MediaStream, type: CallType) => {
     localStreamRef.current = stream;
+    setHasMedia(true);
     if (type === "video" && localVideoRef.current) localVideoRef.current.srcObject = stream;
   };
 
@@ -590,6 +603,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
     localStreamRef.current?.getTracks().forEach((t) => { try { t.stop(); } catch {} });
     localStreamRef.current = null;
+    setHasMedia(false);
+    setMinimized(false);
     if (localVideoRef.current) localVideoRef.current.srcObject = null;
     isCallerRef.current = false;
     activeRef.current = false;
@@ -675,7 +690,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     sendSig("ring", null, { callType: type, fromName: meName, isGroup: !!isGroup, groupTitle: groupTitle ?? "" });
     // Announce presence to any accepters.
     sendSig("hello", null, { fromName: meName });
-    sendPush({ conversation_id: conversationId, kind: "call", call_type: type });
+    sendPush({ conversation_id: conversationId, kind: "call", call_type: type, call_id: callIdRef.current ?? undefined });
 
     // Per-user rings so recipients see the incoming UI from anywhere.
     stopUserRingBroadcast();
@@ -715,6 +730,38 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   };
 
   useImperativeHandle(ref, () => ({ startCall: (t) => { void startCall(t); } }));
+
+  // GlobalCallHost props: autoStart fires a new outgoing call; autoAccept
+  // adopts an incoming callId. Both dispatched after a tick so the signaling
+  // channel useEffect (below) has time to subscribe and register listeners.
+  useEffect(() => {
+    if (autoStart) {
+      const t = window.setTimeout(() => {
+        if (!activeRef.current) void startCall(autoStart);
+      }, 250);
+      return () => window.clearTimeout(t);
+    }
+    if (autoAccept) {
+      const t = window.setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent("oniq:accept-call", {
+            detail: { callId: autoAccept.callId, callType: autoAccept.callType, conversationId },
+          }),
+        );
+      }, 400);
+      return () => window.clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Notify host once when the call is fully torn down (ended → idle).
+  const prevStatusRef = useRef<Status>("idle");
+  useEffect(() => {
+    if (prevStatusRef.current === "ended" && status === "idle") {
+      onEnded?.();
+    }
+    prevStatusRef.current = status;
+  }, [status, onEnded]);
 
   // Re-broadcast ring while outgoing (subscribe race guard).
   useEffect(() => {
@@ -1006,8 +1053,38 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     : tileCount === 2 ? "grid-cols-1 sm:grid-cols-2"
     : "grid-cols-2";
 
+  // Minimized: floating pill instead of fullscreen. PC/tracks keep running.
+  if (minimized) {
+    const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+    const ss = String(elapsed % 60).padStart(2, "0");
+    const timeLabel = status === "connected" ? `${mm}:${ss}` : (status === "connecting" ? "connecting…" : "ringing…");
+    return (
+      <button
+        type="button"
+        onClick={() => setMinimized(false)}
+        data-testid="call-pill"
+        className="fixed bottom-24 left-1/2 z-[90] -translate-x-1/2 flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-green-500 active:scale-95"
+        aria-label="Return to ongoing call"
+      >
+        <Phone className="h-4 w-4 animate-pulse" />
+        Ongoing call · {timeLabel} · tap to return
+      </button>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
+      {status !== "incoming" && (status === "connecting" || status === "connected") && (
+        <button
+          type="button"
+          onClick={() => setMinimized(true)}
+          className="absolute left-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-full bg-white/10 hover:bg-white/20"
+          aria-label="Minimize call"
+          data-testid="call-minimize"
+        >
+          <ChevronDown className="h-5 w-5" />
+        </button>
+      )}
       {status !== "incoming" && (status === "connected" || status === "connecting") && tileCount > 0 ? (
         <div className={`grid ${gridCls} gap-1 flex-1 p-1`}>
           {tiles.map((t) => (
@@ -1067,7 +1144,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           <>
             <button
               onClick={toggleMute}
-              disabled={!localStreamRef.current}
+              disabled={!hasMedia}
               className={`grid h-14 w-14 place-items-center rounded-full disabled:opacity-40 ${muted ? "bg-red-600 hover:bg-red-500" : "bg-white/10 hover:bg-white/20"}`}
               aria-label={muted ? "Unmute mic" : "Mute mic"}
               aria-pressed={muted}
@@ -1076,10 +1153,19 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             </button>
             {isNative && (status === "connecting" || status === "connected") && (
               <button
-                onClick={() => {
+                onClick={async () => {
                   const next = !speakerOn;
                   setSpeakerOn(next);
-                  void nativeSetSpeaker(next);
+                  // eslint-disable-next-line no-console
+                  console.log("[call] speaker toggle →", next);
+                  try {
+                    await nativeSetSpeaker(next);
+                  } catch (err) {
+                    // eslint-disable-next-line no-console
+                    console.warn("[call] speaker toggle failed", err);
+                    toast.error("Couldn't switch speaker");
+                    setSpeakerOn(!next);
+                  }
                 }}
                 className={`grid h-14 w-14 place-items-center rounded-full ${speakerOn ? "bg-white/20 hover:bg-white/30" : "bg-white/10 hover:bg-white/20"}`}
                 aria-label={speakerOn ? "Speaker on" : "Speaker off"}
@@ -1091,7 +1177,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             {callType === "video" && (
               <button
                 onClick={toggleCam}
-                disabled={!localStreamRef.current}
+                disabled={!hasMedia}
                 className="grid h-14 w-14 place-items-center rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40"
                 aria-label={camOff ? "Turn camera on" : "Turn camera off"}
               >
