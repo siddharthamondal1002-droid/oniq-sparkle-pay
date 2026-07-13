@@ -56,16 +56,15 @@ async function getSpeakerPlugin(): Promise<SpeakerRouterPlugin | null> {
     return null;
   }
 }
-function isNativePlatformSync(): boolean {
+async function detectNative(): Promise<boolean> {
   try {
-    // Best-effort sync check; may be false until getSpeakerPlugin() has run once.
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const core = require("@capacitor/core") as typeof import("@capacitor/core");
+    const core = await import("@capacitor/core");
     return !!core.Capacitor?.isNativePlatform?.();
   } catch {
-    return _isNative;
+    return false;
   }
 }
+
 async function nativeSetSpeaker(on: boolean): Promise<void> {
   try {
     const plugin = await getSpeakerPlugin();
