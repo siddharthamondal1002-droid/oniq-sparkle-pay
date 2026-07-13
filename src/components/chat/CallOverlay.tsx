@@ -701,6 +701,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     ringTimeoutRef.current = window.setTimeout(() => {
       if (isCallerRef.current && peerPoolRef.current.size === 0) {
+        // Call log: nobody answered in 30s → missed.
+        if (logIdRef.current && logStatusRef.current === "no_answer") {
+          logStatusRef.current = "missed";
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any).from("call_logs").update({ status: "missed" }).eq("id", logIdRef.current).then(() => {});
+        }
         toast("They're not around — try a message 💬");
         endEveryone(true);
       }
