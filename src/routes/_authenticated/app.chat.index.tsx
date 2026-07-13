@@ -1136,6 +1136,50 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             {noEmailCount > 0 && (
               <div className="mt-1 text-xs text-muted-foreground">{noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by email for now</div>
             )}
+
+            {isNative && (
+              <button
+                type="button"
+                onClick={pickNativeContacts}
+                disabled={nativePicking}
+                className="mt-2 w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {nativePicking ? "reading ur contacts…" : "Find friends from contacts 📇"}
+              </button>
+            )}
+            {isNative && nativeDenied && (
+              <div className="mt-2 flex items-center justify-between rounded-2xl border border-border/60 p-2 text-xs">
+                <span className="text-muted-foreground">contacts access blocked — enable it to match ur ppl</span>
+                <button onClick={pickNativeContacts} className="rounded-full bg-primary/15 px-2.5 py-1 font-semibold text-primary">retry</button>
+              </div>
+            )}
+            {nativeMatches !== null && (
+              <div className="mt-3 space-y-2">
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">on ONIQ ✨</div>
+                {nativeMatches.length === 0 ? (
+                  <div className="py-2 text-sm text-muted-foreground">none of ur contacts are on ONIQ yet — invite below 📤</div>
+                ) : (
+                  <ul className="space-y-1">
+                    {nativeMatches.map((m) => (
+                      <li key={m.id} className="flex items-center gap-3 rounded-2xl p-2">
+                        <Avatar name={m.display_name || m.username || "?"} url={m.avatar_url} size={40} />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium">{m.display_name}</div>
+                          <div className="truncate text-xs text-muted-foreground">@{m.username}</div>
+                        </div>
+                        <button onClick={() => openChat(m.id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">chat 💬</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {nativeNotCount > 0 && (
+                  <div className="flex items-center justify-between rounded-2xl border border-border/60 p-2">
+                    <span className="text-xs text-muted-foreground">{nativeNotCount} contact{nativeNotCount === 1 ? "" : "s"} not on ONIQ yet</span>
+                    <button onClick={invite} className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black">Invite 📤</button>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           {onOniq !== null && (
