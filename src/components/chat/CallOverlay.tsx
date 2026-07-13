@@ -131,36 +131,41 @@ const ICE_TTL_MS = 30 * 60 * 1000;
 let cachedIce: { servers: RTCIceServer[]; expiresAt: number } | null = null;
 let sessionIceServers: RTCIceServer[] = STUN_ONLY;
 
+// Distinct error so call sites can react (toast + mark log failed + end UI)
+// instead of stalling on "Connecting…" with a doomed STUN-only config.
+export class IceUnavailableError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = "IceUnavailableError";
+  }
+}
+
 async function ensureIceServers(): Promise<RTCIceServer[]> {
   const now = Date.now();
   if (cachedIce && cachedIce.expiresAt > now) return [...cachedIce.servers];
-  try {
-    const { data: sess } = await supabase.auth.getSession();
-    const token = sess.session?.access_token ?? "";
-    const { data, error } = await supabase.functions.invoke("get-turn-credentials", {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (error || !data?.iceServers?.length) throw error ?? new Error("no ice");
-    const servers = data.iceServers as RTCIceServer[];
-    const hasTurn = servers.some((s) => {
-      const u = Array.isArray(s.urls) ? s.urls : [s.urls];
-      return u.some((x) => typeof x === "string" && (x.startsWith("turn:") || x.startsWith("turns:")));
-    });
-    // eslint-disable-next-line no-console
-    console.log(`[ice] got ${servers.length} servers, hasTurn=${hasTurn}`);
-    if (!hasTurn) {
-      toast.error("network issue — call couldn't connect");
-    }
-    cachedIce = { servers, expiresAt: now + ICE_TTL_MS };
-    return [...servers];
-  } catch (e) {
-    // STUN-only fallback essentially guarantees failure across cellular/NAT.
-    // Surface this to the user so they know the call cannot succeed instead
-    // of stalling forever on "Connecting…".
-    console.warn("[ice] ensureIceServers fallback to STUN-only", e);
-    toast.error("network issue — call couldn't connect");
-    return [...STUN_ONLY];
+  const { data: sess } = await supabase.auth.getSession();
+  const token = sess.session?.access_token ?? "";
+  const { data, error } = await supabase.functions.invoke("get-turn-credentials", {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (error || !data?.iceServers?.length) {
+    console.warn("[ice] get-turn-credentials failed", error);
+    throw new IceUnavailableError("edge-fn-error");
   }
+  const source = (data as { source?: string }).source;
+  const servers = data.iceServers as RTCIceServer[];
+  const hasTurn = servers.some((s) => {
+    const u = Array.isArray(s.urls) ? s.urls : [s.urls];
+    return u.some((x) => typeof x === "string" && (x.startsWith("turn:") || x.startsWith("turns:")));
+  });
+  // eslint-disable-next-line no-console
+  console.log(`[ice] got ${servers.length} servers, source=${source}, hasTurn=${hasTurn}`);
+  if (source !== "metered" || !hasTurn) {
+    // Do NOT cache fallback client-side — next call retries the edge fn.
+    throw new IceUnavailableError(`unhealthy source=${source} hasTurn=${hasTurn}`);
+  }
+  cachedIce = { servers, expiresAt: now + ICE_TTL_MS };
+  return [...servers];
 }
 
 function getIceConfig(forceRelay = false): RTCConfiguration {
