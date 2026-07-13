@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2, Trash2 } from "lucide-react";
+import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2, Trash2, Flag } from "lucide-react";
+import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/app/discover")({
@@ -20,6 +21,7 @@ function DiscoverScreen() {
   const [me, setMe] = useState<string | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [openComments, setOpenComments] = useState<string | null>(null);
+  const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [visibility, setVisibility] = useState<"public" | "moots">(() => {
     if (typeof sessionStorage === "undefined") return "public";
     return (sessionStorage.getItem("oniq_post_visibility") as "public" | "moots") ?? "public";
@@ -254,7 +256,7 @@ function DiscoverScreen() {
                     {p.user_id === me && p.visibility === "moots" && (
                       <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>
                     )}
-                    {p.user_id === me && (
+                    {p.user_id === me ? (
                       <button
                         type="button"
                         onClick={() => deletePost(p.id)}
@@ -262,6 +264,16 @@ function DiscoverScreen() {
                         aria-label="Delete post"
                       >
                         <Trash2 className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setReportTarget({ type: "moment", id: p.id })}
+                        className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-500"
+                        aria-label="Report post"
+                        title="Report post"
+                      >
+                        <Flag className="h-4 w-4" />
                       </button>
                     )}
                   </div>
@@ -302,9 +314,14 @@ function DiscoverScreen() {
       {openComments && (
         <CommentsSheet postId={openComments} onClose={() => { setOpenComments(null); refetch(); }} />
       )}
+      {reportTarget && (
+        <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
+      )}
     </div>
   );
 }
+
+
 
 function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => void }) {
   const [text, setText] = useState("");
