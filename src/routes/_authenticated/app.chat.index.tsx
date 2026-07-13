@@ -7,6 +7,7 @@ import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2, Arro
 import { toast } from "sonner";
 import { format, isToday, isYesterday, differenceInDays } from "date-fns";
 import { useOnlineUsers } from "@/hooks/usePresence";
+import { getNativeContacts, isNativeContactsAvailable, normalizePhone } from "@/lib/nativeContacts";
 
 export const Route = createFileRoute("/_authenticated/app/chat/")({
   component: ChatList,
