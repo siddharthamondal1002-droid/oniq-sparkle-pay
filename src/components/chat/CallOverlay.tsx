@@ -922,7 +922,13 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     ch.on("broadcast", { event: "offer" }, async ({ payload }) => {
       const p = payload as { from: string; to: string; callId: string; sdp: RTCSessionDescriptionInit };
       if (!forMe(p) || !matchesCall(p)) return;
-      sessionIceServers = await ensureIceServers();
+      try {
+        sessionIceServers = await ensureIceServers();
+      } catch (e) {
+        if (e instanceof IceUnavailableError) handleIceUnavailable(e);
+        else endEveryone(false);
+        return;
+      }
       let entry = peerPoolRef.current.get(p.from);
       if (!entry) entry = createPeerEntry(p.from);
       try {
@@ -1073,9 +1079,14 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       attachLocal(stream, callTypeRef.current);
       // Announce presence — existing members will offer to us.
       sendSig("hello", null, { fromName: meName });
-    } catch {
-      sendSig("decline", null);
-      endEveryone(false);
+    } catch (e) {
+      if (e instanceof IceUnavailableError) {
+        sendSig("decline", null);
+        handleIceUnavailable(e);
+      } else {
+        sendSig("decline", null);
+        endEveryone(false);
+      }
     }
   };
 
