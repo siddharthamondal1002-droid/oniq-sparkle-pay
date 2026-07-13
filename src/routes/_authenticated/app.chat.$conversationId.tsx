@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
-import { CallOverlay, type CallHandle } from "@/components/chat/CallOverlay";
+// CallOverlay is mounted globally by GlobalCallHost — see src/components/chat/GlobalCallHost.tsx.
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { useIsOnline } from "@/hooks/usePresence";
 import { sendPush } from "@/lib/push";
@@ -95,7 +95,7 @@ function ChatThread() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const callRef = useRef<CallHandle>(null);
+  // callRef removed — CallOverlay is now mounted globally by GlobalCallHost.
   const typingChanRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lastTypingSentRef = useRef(0);
   const typingIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1068,7 +1068,22 @@ function ChatThread() {
           const overCap = memberCount > 4;
           const onClick = (t: "audio" | "video") => () => {
             if (overCap) { toast.error("group calls fit 4 for now 🎥 — smaller squad"); return; }
-            callRef.current?.startCall(t);
+            const meName =
+              (me?.user_metadata as { display_name?: string; full_name?: string } | undefined)?.display_name ||
+              (me?.user_metadata as { display_name?: string; full_name?: string } | undefined)?.full_name ||
+              me?.email ||
+              "Someone";
+            window.dispatchEvent(new CustomEvent("oniq:start-call", {
+              detail: {
+                conversationId,
+                callType: t,
+                peerName: title,
+                isGroup,
+                groupTitle: isGroup ? title : undefined,
+                meId: me?.id,
+                meName,
+              },
+            }));
           };
           return (
             <>
@@ -1156,20 +1171,7 @@ function ChatThread() {
       )}
 
 
-      <CallOverlay
-        ref={callRef}
-        conversationId={conversationId}
-        meId={me?.id}
-        meName={
-          (me?.user_metadata as { display_name?: string; full_name?: string } | undefined)?.display_name ||
-          (me?.user_metadata as { display_name?: string; full_name?: string } | undefined)?.full_name ||
-          me?.email ||
-          "Someone"
-        }
-        peerName={title}
-        isGroup={isGroup}
-        groupTitle={isGroup ? title : undefined}
-      />
+      {/* CallOverlay is mounted globally by GlobalCallHost (src/routes/_authenticated/app.tsx). */}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3">
         {isLoading ? (

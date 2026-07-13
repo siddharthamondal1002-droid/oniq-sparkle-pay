@@ -731,6 +731,38 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   useImperativeHandle(ref, () => ({ startCall: (t) => { void startCall(t); } }));
 
+  // GlobalCallHost props: autoStart fires a new outgoing call; autoAccept
+  // adopts an incoming callId. Both dispatched after a tick so the signaling
+  // channel useEffect (below) has time to subscribe and register listeners.
+  useEffect(() => {
+    if (autoStart) {
+      const t = window.setTimeout(() => {
+        if (!activeRef.current) void startCall(autoStart);
+      }, 250);
+      return () => window.clearTimeout(t);
+    }
+    if (autoAccept) {
+      const t = window.setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent("oniq:accept-call", {
+            detail: { callId: autoAccept.callId, callType: autoAccept.callType, conversationId },
+          }),
+        );
+      }, 400);
+      return () => window.clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Notify host once when the call is fully torn down (ended → idle).
+  const prevStatusRef = useRef<Status>("idle");
+  useEffect(() => {
+    if (prevStatusRef.current === "ended" && status === "idle") {
+      onEnded?.();
+    }
+    prevStatusRef.current = status;
+  }, [status, onEnded]);
+
   // Re-broadcast ring while outgoing (subscribe race guard).
   useEffect(() => {
     if (status !== "outgoing") return;
@@ -1021,8 +1053,38 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     : tileCount === 2 ? "grid-cols-1 sm:grid-cols-2"
     : "grid-cols-2";
 
+  // Minimized: floating pill instead of fullscreen. PC/tracks keep running.
+  if (minimized) {
+    const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
+    const ss = String(elapsed % 60).padStart(2, "0");
+    const timeLabel = status === "connected" ? `${mm}:${ss}` : (status === "connecting" ? "connecting…" : "ringing…");
+    return (
+      <button
+        type="button"
+        onClick={() => setMinimized(false)}
+        data-testid="call-pill"
+        className="fixed bottom-24 left-1/2 z-[90] -translate-x-1/2 flex items-center gap-2 rounded-full bg-green-600 px-4 py-2 text-sm font-medium text-white shadow-lg hover:bg-green-500 active:scale-95"
+        aria-label="Return to ongoing call"
+      >
+        <Phone className="h-4 w-4 animate-pulse" />
+        Ongoing call · {timeLabel} · tap to return
+      </button>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black text-white">
+      {status !== "incoming" && (status === "connecting" || status === "connected") && (
+        <button
+          type="button"
+          onClick={() => setMinimized(true)}
+          className="absolute left-4 top-4 z-40 grid h-10 w-10 place-items-center rounded-full bg-white/10 hover:bg-white/20"
+          aria-label="Minimize call"
+          data-testid="call-minimize"
+        >
+          <ChevronDown className="h-5 w-5" />
+        </button>
+      )}
       {status !== "incoming" && (status === "connected" || status === "connecting") && tileCount > 0 ? (
         <div className={`grid ${gridCls} gap-1 flex-1 p-1`}>
           {tiles.map((t) => (

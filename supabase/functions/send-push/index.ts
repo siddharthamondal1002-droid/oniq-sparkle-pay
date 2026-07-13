@@ -95,6 +95,7 @@ Deno.serve(async (req) => {
     kind?: "message" | "call";
     preview?: string;
     call_type?: string;
+    call_id?: string;
   };
   try {
     body = await req.json();
@@ -104,7 +105,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "content-type": "application/json" },
     });
   }
-  const { conversation_id, kind, preview, call_type } = body;
+  const { conversation_id, kind, preview, call_type, call_id } = body;
   if (!conversation_id || !kind) {
     return new Response(JSON.stringify({ error: "missing fields" }), {
       status: 400,
@@ -190,13 +191,20 @@ Deno.serve(async (req) => {
         // OniqMessagingService always runs — even when the app is backgrounded
         // or killed — and can ring the phone via a full-screen intent.
         const isCall = kind === "call";
+        // Include acceptCall+acceptType in the deep link so tapping the call
+        // notification lands the user directly on the accepting call —
+        // GlobalIncomingCall's URL-adopt path picks these up on load.
+        const callUrl = call_id
+          ? `/app/chat/${conversation_id}?acceptCall=${encodeURIComponent(call_id)}&acceptType=${encodeURIComponent(call_type ?? "audio")}`
+          : `/app/chat/${conversation_id}`;
         const dataPayload: Record<string, string> = isCall
           ? {
               kind: "call",
               title,
               body: bodyText,
-              url: `/app/chat/${conversation_id}`,
+              url: callUrl,
               call_type: call_type ?? "voice",
+              call_id: call_id ?? "",
               conversation_id,
             }
           : {

@@ -33,7 +33,16 @@ type AcceptDetail = {
 
 type Session =
   | { kind: "start"; nonce: string; detail: StartDetail }
-  | { kind: "accept"; nonce: string; detail: AcceptDetail & { peerName?: string; isGroup?: boolean; groupTitle?: string; meName?: string; meId?: string } };
+  | {
+      kind: "accept";
+      nonce: string;
+      conversationId: string;
+      callId: string;
+      callType: CallType;
+      peerName: string;
+      meId?: string;
+      meName: string;
+    };
 
 export function GlobalCallHost() {
   const [session, setSession] = useState<Session | null>(null);
@@ -60,7 +69,13 @@ export function GlobalCallHost() {
     const onAccept = async (e: Event) => {
       const d = (e as CustomEvent).detail as AcceptDetail | undefined;
       if (!d?.callId || !d?.conversationId) return;
-      // Look up a friendly peer name for the mounted overlay.
+      // If we already mounted an overlay for this conversation, let the
+      // overlay's own `oniq:accept-call` listener handle it — no remount.
+      if (session && (session.kind === "start"
+        ? session.detail.conversationId === d.conversationId
+        : session.conversationId === d.conversationId)) {
+        return;
+      }
       let peerName = "Someone";
       try {
         const { data: rows } = await supabase
@@ -77,7 +92,12 @@ export function GlobalCallHost() {
       setSession({
         kind: "accept",
         nonce: `${d.conversationId}:${d.callId}`,
-        detail: { ...d, peerName, meId: me?.id, meName },
+        conversationId: d.conversationId,
+        callId: d.callId,
+        callType: d.callType,
+        peerName,
+        meId: me?.id,
+        meName,
       });
     };
     window.addEventListener("oniq:start-call", onStart as EventListener);
@@ -86,7 +106,7 @@ export function GlobalCallHost() {
       window.removeEventListener("oniq:start-call", onStart as EventListener);
       window.removeEventListener("oniq:accept-call", onAccept as EventListener);
     };
-  }, [me?.id, meName]);
+  }, [me?.id, meName, session]);
 
   if (!session) return null;
 
@@ -107,17 +127,14 @@ export function GlobalCallHost() {
     );
   }
 
-  const d = session.detail;
   return (
     <CallOverlay
       key={session.nonce}
-      conversationId={d.conversationId}
-      meId={d.meId}
-      meName={d.meName ?? "Someone"}
-      peerName={d.peerName ?? "Someone"}
-      isGroup={d.isGroup}
-      groupTitle={d.groupTitle}
-      autoAccept={{ callId: d.callId, callType: d.callType }}
+      conversationId={session.conversationId}
+      meId={session.meId}
+      meName={session.meName}
+      peerName={session.peerName}
+      autoAccept={{ callId: session.callId, callType: session.callType }}
       onEnded={() => setSession(null)}
     />
   );

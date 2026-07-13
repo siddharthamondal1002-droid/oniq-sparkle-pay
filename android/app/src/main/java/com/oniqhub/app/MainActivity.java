@@ -208,8 +208,9 @@ public class MainActivity extends BridgeActivity {
         if (url == null || url.isEmpty()) return;
         intent.removeExtra("oniq_url");
         if (bridge == null || bridge.getWebView() == null) return;
-        Uri base = Uri.parse("https://oniqhub.com");
-        String target = url.startsWith("http") ? url : base.buildUpon().encodedPath(url).build().toString();
+        // Preserve any query string on the deep link (e.g. ?acceptCall=…) —
+        // Uri.encodedPath() would encode ? and break the one-tap-answer flow.
+        String target = url.startsWith("http") ? url : ("https://oniqhub.com" + url);
         final String finalTarget = target;
         runOnUiThread(() -> bridge.getWebView().loadUrl(finalTarget));
     }
