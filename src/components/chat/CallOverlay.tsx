@@ -1003,6 +1003,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             >
               {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
             </button>
+            {isNative && (status === "connecting" || status === "connected") && (
+              <button
+                onClick={() => {
+                  const next = !speakerOn;
+                  setSpeakerOn(next);
+                  void nativeSetSpeaker(next);
+                }}
+                className={`grid h-14 w-14 place-items-center rounded-full ${speakerOn ? "bg-white/20 hover:bg-white/30" : "bg-white/10 hover:bg-white/20"}`}
+                aria-label={speakerOn ? "Speaker on" : "Speaker off"}
+                aria-pressed={speakerOn}
+              >
+                {speakerOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+              </button>
+            )}
             {callType === "video" && (
               <button
                 onClick={toggleCam}
