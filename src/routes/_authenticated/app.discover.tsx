@@ -321,9 +321,7 @@ function DiscoverScreen() {
   );
 }
 
-    </div>
-  );
-}
+
 
 function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => void }) {
   const [text, setText] = useState("");
