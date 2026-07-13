@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Heart, MessageCircle, Share2, Eye, Volume2, VolumeX,
-  ChevronLeft, Plus, X, Send, Loader2, UserPlus, UserCheck, Flag,
+  ChevronLeft, Plus, X, Send, Loader2, UserPlus, UserCheck, Flag, Trash2,
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 
@@ -108,6 +108,7 @@ function ClipsScreen() {
               }}
               onOpenComments={() => setOpenComments(clip.id)}
               onReport={() => setReportTarget({ type: "clip", id: clip.id })}
+              onDeleted={() => query.refetch()}
             />
           ))}
           {query.isFetchingNextPage && (
@@ -145,7 +146,7 @@ function ClipsScreen() {
 }
 
 function ClipCard({
-  clip, muted, me, isLast, onLoadMore, onOpenComments, onReport,
+  clip, muted, me, isLast, onLoadMore, onOpenComments, onReport, onDeleted,
 }: {
   clip: Clip;
   muted: boolean;
@@ -154,6 +155,7 @@ function ClipCard({
   onLoadMore: () => void;
   onOpenComments: () => void;
   onReport: () => void;
+  onDeleted: () => void;
 }) {
   const qc = useQueryClient();
   const sectionRef = useRef<HTMLDivElement | null>(null);
@@ -316,9 +318,39 @@ function ClipCard({
           <Eye className="h-6 w-6" />
           <span className="text-xs">{viewCount}</span>
         </div>
-        <button onClick={onReport} className="flex flex-col items-center gap-1 text-white/70" aria-label="Report clip">
-          <Flag className="h-5 w-5" />
-        </button>
+        {me === clip.user_id ? (
+          <button
+            onClick={async () => {
+              if (!window.confirm("Delete this clip?")) return;
+              // optimistic: yank from feed cache immediately
+              qc.setQueriesData({ queryKey: ["clips-feed"] }, (old: any) => {
+                if (!old?.pages) return old;
+                return {
+                  ...old,
+                  pages: old.pages.map((p: Clip[]) => p.filter((c) => c.id !== clip.id)),
+                };
+              });
+              const { error } = await supabase
+                .from("clips")
+                .update({ is_deleted: true })
+                .eq("id", clip.id);
+              if (error) {
+                toast.error(error.message);
+                onDeleted();
+              } else {
+                toast.success("Clip deleted");
+              }
+            }}
+            className="flex flex-col items-center gap-1 text-white/70"
+            aria-label="Delete clip"
+          >
+            <Trash2 className="h-5 w-5" />
+          </button>
+        ) : (
+          <button onClick={onReport} className="flex flex-col items-center gap-1 text-white/70" aria-label="Report clip">
+            <Flag className="h-5 w-5" />
+          </button>
+        )}
       </div>
 
       <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">

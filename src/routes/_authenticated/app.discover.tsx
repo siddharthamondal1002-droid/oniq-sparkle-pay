@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2 } from "lucide-react";
+import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2, Trash2 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/app/discover")({
@@ -71,6 +71,7 @@ function DiscoverScreen() {
       const { data } = await supabase
         .from("moments_posts")
         .select("id, content, media_urls, like_count, comment_count, created_at, user_id, visibility, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)")
+        .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(50);
       return data ?? [];
@@ -124,6 +125,22 @@ function DiscoverScreen() {
         : p));
     const { error } = await supabase.rpc("toggle_moment_like", { _post_id: postId });
     if (error) { toast.error(error.message); refetch(); }
+  }
+
+  async function deletePost(postId: string) {
+    if (!window.confirm("Delete post?")) return;
+    const prev = qc.getQueryData(["moments"]);
+    qc.setQueryData(["moments"], (old: any) => old?.filter((p: any) => p.id !== postId));
+    const { error } = await supabase
+      .from("moments_posts")
+      .update({ is_deleted: true })
+      .eq("id", postId);
+    if (error) {
+      qc.setQueryData(["moments"], prev);
+      toast.error(error.message);
+    } else {
+      toast.success("Post deleted");
+    }
   }
 
   return (
@@ -236,6 +253,16 @@ function DiscoverScreen() {
                     </div>
                     {p.user_id === me && p.visibility === "moots" && (
                       <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>
+                    )}
+                    {p.user_id === me && (
+                      <button
+                        type="button"
+                        onClick={() => deletePost(p.id)}
+                        className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+                        aria-label="Delete post"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     )}
                   </div>
 
