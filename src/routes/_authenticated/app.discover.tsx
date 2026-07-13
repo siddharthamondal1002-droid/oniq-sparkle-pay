@@ -3,7 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2, Trash2 } from "lucide-react";
+import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2, Trash2, Flag } from "lucide-react";
+import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { formatDistanceToNow } from "date-fns";
 
 export const Route = createFileRoute("/_authenticated/app/discover")({
