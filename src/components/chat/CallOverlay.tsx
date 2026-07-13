@@ -232,6 +232,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
   }, [status, callType]);
 
+  // Native audio routing: default speaker ON for video, OFF (earpiece) for audio,
+  // whenever a call enters connecting/connected. Reset on idle/ended.
+  useEffect(() => {
+    if (!isNative) return;
+    if (status === "connecting" || status === "connected") {
+      const desired = callType === "video";
+      setSpeakerOn(desired);
+      void nativeSetSpeaker(desired);
+    } else if (status === "idle" || status === "ended") {
+      setSpeakerOn(false);
+      void nativeResetSpeaker();
+    }
+  }, [status, callType, isNative]);
+
   // ---- helpers ----
 
   const publishTiles = () => {
