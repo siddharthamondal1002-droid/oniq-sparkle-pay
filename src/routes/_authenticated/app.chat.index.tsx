@@ -990,6 +990,52 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     }
   };
 
+  const pickNativeContacts = async () => {
+    setNativePicking(true);
+    setNativeDenied(false);
+    try {
+      const res = await getNativeContacts();
+      if (!res.ok) {
+        if (res.denied) { setNativeDenied(true); toast("contacts permission denied — tap retry to allow"); }
+        else toast.error("couldn't read contacts");
+        return;
+      }
+      const normalized = new Set<string>();
+      let submitted = 0;
+      for (const c of res.contacts) {
+        for (const p of c.phones ?? []) {
+          const n = normalizePhone(p);
+          if (n) { normalized.add(n); submitted++; }
+        }
+      }
+      const phones = Array.from(normalized);
+      if (phones.length === 0) {
+        setNativeMatches([]); setNativeNotCount(0);
+        toast("no usable phone numbers in ur contacts");
+        return;
+      }
+      // Batch by 500 to keep RPC payloads modest.
+      const matches: NativeMatch[] = [];
+      const seen = new Set<string>();
+      for (let i = 0; i < phones.length; i += 500) {
+        const slice = phones.slice(i, i + 500);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: rows, error } = await (supabase.rpc as any)("match_contacts", { _phones: slice });
+        if (error) { toast.error(error.message); return; }
+        for (const r of (rows ?? []) as NativeMatch[]) {
+          if (!seen.has(r.id)) { seen.add(r.id); matches.push(r); }
+        }
+      }
+      setNativeMatches(matches);
+      setNativeNotCount(Math.max(0, phones.length - matches.length));
+      void submitted;
+    } catch (e) {
+      toast.error(String((e as { message?: string })?.message ?? "contacts failed"));
+    } finally {
+      setNativePicking(false);
+    }
+  };
+
   const contactsSupported = typeof navigator !== "undefined"
     && "contacts" in navigator
     && typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select === "function"
