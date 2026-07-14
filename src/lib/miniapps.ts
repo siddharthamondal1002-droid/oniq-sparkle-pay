@@ -12,8 +12,10 @@ export type MiniApp = {
   color: string; // brand tile color
   letter: string; // fallback monogram
   androidPackage?: string; // Android package id for intent:// deep launch
+  appScheme?: string; // iOS/web deep-link scheme (e.g. "uber://"); triggers app-first with https fallback
   emoji?: string; // optional tile emoji instead of letter
 };
+
 
 export const MINI_APPS: MiniApp[] = [
   // Food
