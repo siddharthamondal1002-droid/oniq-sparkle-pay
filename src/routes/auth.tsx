@@ -380,7 +380,7 @@ function AuthPage() {
           )}
 
 
-          {method === "email" ? (
+          {(!OTP_LOGIN_ENABLED || method === "email") ? (
             confirmationSentTo ? (
               <div className="space-y-3 text-center">
                 <div className="text-2xl">📬</div>
