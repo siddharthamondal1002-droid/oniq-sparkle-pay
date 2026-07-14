@@ -669,7 +669,7 @@ function CityProviders({
             href={hrefFor(p)}
             testId={`ride-${p.id}`}
             onBlocked={p.id === "uber" || p.id === "ola" ? onBlocked : undefined}
-            inApp={p.id !== "uber"}
+            inApp
             tag={p.tag}
           />
         ))}
