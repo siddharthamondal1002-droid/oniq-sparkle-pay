@@ -254,6 +254,43 @@ export function openDeepLink(url: string) {
   window.location.href = url;
 }
 
+/**
+ * Launch a UPI intent so the OS resolves it to the user's UPI app
+ * (GPay / PhonePe / Paytm / BHIM chooser on Android).
+ * Native Capacitor: hand the URL to `@capacitor/app` App.openUrl — the
+ * default Android WebViewClient silently rejects custom schemes on
+ * <a href> clicks (`ERR_UNKNOWN_URL_SCHEME`), so we MUST go through
+ * the OS intent system. Web: window.location.href.
+ */
+export async function launchUpiIntent(url: string): Promise<void> {
+  if (typeof window === "undefined") return;
+  try {
+    const native = await isCapacitorNative();
+    if (native) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const mod: any = await import(/* @vite-ignore */ "@capacitor/app");
+        await mod.App.openUrl({ url });
+        return;
+      } catch (err) {
+        // openUrl throws when no app can handle the scheme.
+        try {
+          const { toast } = await import(/* @vite-ignore */ "sonner");
+          toast.error("No UPI app installed — try Google Pay, PhonePe, or Paytm");
+        } catch { /* ignore */ }
+        console.warn("[upi] openUrl failed", err);
+        return;
+      }
+    }
+    // Web path — Chrome handles upi:// via the OS intent chooser.
+    window.location.href = url;
+  } catch (err) {
+    console.warn("[upi] launch failed", err);
+    try { window.location.href = url; } catch { /* ignore */ }
+  }
+}
+
+
 // ---------------- UPI (NPCI standard intent) ----------------
 
 export type UpiParams = {

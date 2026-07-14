@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, IndianRupee, Copy, AtSign, ScanLine } from "lucide-react";
 import { toast } from "sonner";
-import { UPI_APPS, upiLink, isValidVpa } from "@/lib/miniapps";
+import { UPI_APPS, upiLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
 import { UpiScannerOverlay } from "@/components/upi/UpiScannerOverlay";
 
 type UpiSearch = { pa?: string; pn?: string; am?: string; tn?: string };
@@ -47,9 +47,11 @@ function UpiScreen() {
 
   const ready = isValidVpa(vpa) && (!amount || (Number.isFinite(amt) && amt > 0 && amt <= 100000));
 
-  function guard(e: React.MouseEvent) {
-    if (!validate()) e.preventDefault();
+  function launchApp(app: (typeof UPI_APPS)[number]) {
+    if (!validate()) return;
+    void launchUpiIntent(app.scheme(params));
   }
+
 
   async function copyLink() {
     if (!validate()) return;
@@ -144,17 +146,18 @@ function UpiScreen() {
       </h2>
       <div className="mt-3 grid grid-cols-2 gap-2">
         {UPI_APPS.map((app) => (
-          <a
+          <button
             key={app.id}
-            href={ready ? app.scheme(params) : "#"}
+            type="button"
+            disabled={!ready}
             data-testid={`upi-${app.id}`}
             data-upi-ready={ready ? "true" : "false"}
-            onClick={guard}
-            className="rounded-2xl border border-border bg-card p-4 text-center text-sm font-semibold transition hover:border-primary/40"
+            onClick={() => launchApp(app)}
+            className="rounded-2xl border border-border bg-card p-4 text-center text-sm font-semibold transition hover:border-primary/40 disabled:opacity-50"
             style={{ color: app.color }}
           >
             {app.name}
-          </a>
+          </button>
         ))}
       </div>
 
