@@ -113,42 +113,68 @@ function isAndroid() {
   return /Android/i.test(navigator.userAgent);
 }
 
+async function isCapacitorNative(): Promise<boolean> {
+  try {
+    const { Capacitor } = await import(/* @vite-ignore */ "@capacitor/core");
+    return Capacitor.isNativePlatform?.() ?? false;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * Launch a mini app in a way that preserves back-navigation to ONIQ.
- * On Android with a known package we fire an intent:// URI in the SAME tab
- * so the OS back stack returns to ONIQ when the user exits the target app.
- * Otherwise we navigate same-tab to the web fallback.
+ * Open a URL outside the Capacitor webview.
+ * - Native: Capacitor Browser (Chrome Custom Tab) — honours Android app links,
+ *   so https universal links like m.uber.com/ul/ launch the installed app.
+ * - Web: opens in a new tab.
  */
-export function launchMiniApp(app: {
+export async function openInApp(url: string) {
+  try {
+    if (await isCapacitorNative()) {
+      const mod = await import(/* @vite-ignore */ "@capacitor/browser");
+      await mod.Browser.open({ url, presentationStyle: "popover", toolbarColor: "#0E0F13" });
+      return;
+    }
+  } catch {
+    /* fall through to web */
+  }
+  try {
+    const opened = window.open(url, "_blank", "noopener,noreferrer");
+    if (opened) return;
+  } catch {
+    /* ignore */
+  }
+  window.location.href = url;
+}
+
+/**
+ * Launch a partner mini app. On Android with a known package we try the
+ * native app via intent:// (routed through the OS by Capacitor's App plugin),
+ * with an https fallback baked into the intent so it never dead-ends.
+ * Everywhere else we open the web URL in Chrome Custom Tab / new tab.
+ */
+export async function launchMiniApp(app: {
   name: string;
   url: string;
   androidPackage?: string;
 }) {
   writePending({ app: app.name, at: Date.now() });
   if (typeof window === "undefined") return;
-  if (isAndroid() && app.androidPackage) {
+  const native = await isCapacitorNative();
+  if (native && isAndroid() && app.androidPackage) {
     const fallback = encodeURIComponent(app.url);
     const intent = `intent://#Intent;package=${app.androidPackage};S.browser_fallback_url=${fallback};end`;
-    window.location.href = intent;
-    return;
+    try {
+      const mod: any = await import(/* @vite-ignore */ "@capacitor/app");
+      await mod.App.openUrl({ url: intent });
+      return;
+    } catch {
+      /* fall through to Custom Tab */
+    }
   }
-  window.location.href = app.url;
+  await openInApp(app.url);
 }
 
-
-/**
- * Open a URL inside ONIQ. On device (Capacitor) this uses the in-app browser
- * sheet — the user never leaves ONIQ and swipes it away to return. On plain
- * web it falls back to a new tab.
- */
-export async function openInApp(url: string) {
-  try {
-    const mod = await import(/* @vite-ignore */ "@capacitor/browser");
-    await mod.Browser.open({ url, presentationStyle: "popover", toolbarColor: "#0E0F13" });
-  } catch {
-    window.open(url, "_blank", "noopener,noreferrer");
-  }
-}
 
 /** Fire an OS-level deep link (upi://, uber:// etc). Returns immediately. */
 export function openDeepLink(url: string) {
