@@ -141,6 +141,21 @@ export async function openInApp(url: string) {
   } catch {
     /* fall through to web */
   }
+  // Anchor click works even when window.open is blocked, and always opens
+  // in a new tab so ONIQ never navigates away.
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener,noreferrer";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  } catch {
+    /* ignore */
+  }
   try {
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (opened) return;
@@ -151,32 +166,87 @@ export async function openInApp(url: string) {
 }
 
 /**
- * Launch a partner mini app. On Android with a known package we try the
- * native app via intent:// (routed through the OS by Capacitor's App plugin),
- * with an https fallback baked into the intent so it never dead-ends.
- * Everywhere else we open the web URL in Chrome Custom Tab / new tab.
+ * Web-only: try to launch a native app via its custom scheme (e.g. uber://).
+ * Uses a hidden iframe + visibility change detection with a 1200ms timeout.
+ * Resolves true if the app appears to have been opened (page went hidden),
+ * false if the scheme handler didn't fire (app not installed).
+ */
+async function tryWebAppScheme(scheme: string): Promise<boolean> {
+  if (typeof document === "undefined") return false;
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (opened: boolean) => {
+      if (done) return;
+      done = true;
+      document.removeEventListener("visibilitychange", onVis);
+      try { iframe.remove(); } catch { /* ignore */ }
+      resolve(opened);
+    };
+    const onVis = () => { if (document.hidden) finish(true); };
+    document.addEventListener("visibilitychange", onVis);
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;left:-10000px;width:1px;height:1px;border:0;";
+    iframe.src = scheme;
+    try {
+      document.body.appendChild(iframe);
+    } catch {
+      finish(false);
+      return;
+    }
+    setTimeout(() => finish(document.hidden), 1200);
+  });
+}
+
+/**
+ * Launch a partner mini app.
+ * - Native Android + androidPackage → intent:// with baked-in https fallback
+ *   (OS opens the app when installed, otherwise Chrome opens the fallback).
+ * - Native without a package → Chrome Custom Tab on the https URL.
+ * - Web + appScheme → try scheme via hidden iframe, wait 1200ms, fall back to
+ *   https in a new tab if the app didn't intercept.
+ * - Web without appScheme → https in a new tab.
+ * Any unrecoverable failure toasts and force-opens the https URL.
  */
 export async function launchMiniApp(app: {
   name: string;
   url: string;
   androidPackage?: string;
+  appScheme?: string;
 }) {
   writePending({ app: app.name, at: Date.now() });
   if (typeof window === "undefined") return;
-  const native = await isCapacitorNative();
-  if (native && isAndroid() && app.androidPackage) {
-    const fallback = encodeURIComponent(app.url);
-    const intent = `intent://#Intent;package=${app.androidPackage};S.browser_fallback_url=${fallback};end`;
-    try {
-      const mod: any = await import(/* @vite-ignore */ "@capacitor/app");
-      await mod.App.openUrl({ url: intent });
+  try {
+    const native = await isCapacitorNative();
+    if (native) {
+      if (isAndroid() && app.androidPackage) {
+        const fallback = encodeURIComponent(app.url);
+        const intent = `intent://#Intent;package=${app.androidPackage};S.browser_fallback_url=${fallback};end`;
+        try {
+          const mod: any = await import(/* @vite-ignore */ "@capacitor/app");
+          await mod.App.openUrl({ url: intent });
+          return;
+        } catch {
+          /* fall through to Custom Tab */
+        }
+      }
+      await openInApp(app.url);
       return;
-    } catch {
-      /* fall through to Custom Tab */
     }
+    // Web path
+    if (app.appScheme) {
+      const opened = await tryWebAppScheme(app.appScheme);
+      if (opened) return;
+    }
+    await openInApp(app.url);
+  } catch {
+    try {
+      const { toast } = await import(/* @vite-ignore */ "sonner");
+      toast("couldn't open that one 🤔 opening web instead");
+    } catch { /* ignore */ }
+    try { await openInApp(app.url); } catch { /* ignore */ }
   }
-  await openInApp(app.url);
 }
+
 
 
 /** Fire an OS-level deep link (upi://, uber:// etc). Returns immediately. */
