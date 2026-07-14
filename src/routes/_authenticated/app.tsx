@@ -63,8 +63,8 @@ function AppShell() {
         <Outlet />
       </main>
 
-      <GlobalIncomingCall />
-      <GlobalCallHost />
+      {CALLS_ENABLED && <GlobalIncomingCall />}
+      {CALLS_ENABLED && <GlobalCallHost />}
       <PolicyNoticeBanner />
       <MiniAppReturnWatcher />
       <MessageNotifier />
