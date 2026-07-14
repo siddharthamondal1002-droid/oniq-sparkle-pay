@@ -695,18 +695,42 @@ function ScoutPanel() {
     try { rec.start(); setListening(true); } catch { setListening(false); }
   }
 
-  function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
+  async function compressToJpeg(file: File, maxDim = 1024, quality = 0.7): Promise<{ dataUrl: string; base64: string }> {
+    const srcUrl = URL.createObjectURL(file);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = reject;
+        el.src = srcUrl;
+      });
+      let { width, height } = img;
+      if (width > height && width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
+      else if (height >= width && height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
+      const canvas = document.createElement("canvas");
+      canvas.width = width; canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("canvas unavailable");
+      ctx.drawImage(img, 0, 0, width, height);
+      const dataUrl = canvas.toDataURL("image/jpeg", quality);
+      const base64 = dataUrl.split(",")[1] ?? "";
+      return { dataUrl, base64 };
+    } finally {
+      URL.revokeObjectURL(srcUrl);
+    }
+  }
+
+  async function onPickImage(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (!f) return;
-    if (f.size > 5 * 1024 * 1024) { toast.error("image too big — under 5MB pls"); return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result ?? "");
-      const b64 = dataUrl.split(",")[1] ?? "";
-      setImage({ base64: b64, mime: f.type || "image/jpeg", preview: dataUrl });
-    };
-    reader.readAsDataURL(f);
     if (fileRef.current) fileRef.current.value = "";
+    if (!f) return;
+    if (f.size > 20 * 1024 * 1024) { toast.error("image too big — pick a smaller one"); return; }
+    try {
+      const { dataUrl, base64 } = await compressToJpeg(f);
+      setImage({ base64, mime: "image/jpeg", preview: dataUrl });
+    } catch {
+      toast.error("couldn't read that image — try another 📸");
+    }
   }
 
   const [scoutError, setScoutError] = useState<string | null>(null);
