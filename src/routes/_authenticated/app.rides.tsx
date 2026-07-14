@@ -131,6 +131,24 @@ function RidesScreen() {
     }
   }
 
+  async function searchPickup() {
+    if (pickupQuery.trim().length < 3) {
+      toast.error("Gimme at least 3 letters 💀");
+      return;
+    }
+    setPickupSearching(true);
+    try {
+      const r = await geocode(pickupQuery.trim());
+      setPickupResults(r);
+      if (!r.length) toast.info("Found nothing fr — add your city name, that helps");
+    } catch {
+      toast.error("Search failed. Check your connection.");
+    } finally {
+      setPickupSearching(false);
+    }
+  }
+
+
   async function runCompare(from: Point | null, to: Point | null) {
     if (!from || !to) {
       toast.error("Need pickup and destination first");
