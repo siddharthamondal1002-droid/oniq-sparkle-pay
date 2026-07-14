@@ -1,19 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles, ChevronDown } from "lucide-react";
+import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles, ChevronDown, Wallet } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   geocode,
   uberLink,
   olaLink,
   openInApp,
-  getRoute,
-  estimateRides,
   getCurrentLocation,
   reverseGeocode,
   type GeoResult,
-  type RideOption,
-  type RouteInfo,
 } from "@/lib/miniapps";
 import {
   detectCity,
@@ -30,6 +27,17 @@ export const Route = createFileRoute("/_authenticated/app/rides")({
 
 
 type Point = { lat: number; lon: number; label: string };
+
+type ServerRideOption = {
+  providerId: string;
+  providerName: string;
+  vehicle: string;
+  color: string;
+  icon: "car" | "bike" | "auto";
+  fareLow: number;
+  fareHigh: number;
+  etaMins: number;
+};
 
 function RidesScreen() {
   const [query, setQuery] = useState("");
@@ -49,9 +57,10 @@ function RidesScreen() {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  const [route, setRoute] = useState<RouteInfo | null>(null);
-  const [options, setOptions] = useState<RideOption[]>([]);
+  const [route, setRoute] = useState<{ km: number; mins: number } | null>(null);
+  const [options, setOptions] = useState<ServerRideOption[]>([]);
   const [comparing, setComparing] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
 
   // Detect mic support (browser-only)
   useEffect(() => {
@@ -124,12 +133,24 @@ function RidesScreen() {
     setComparing(true);
     setRoute(null);
     setOptions([]);
+    setCompareError(null);
     try {
-      const r = await getRoute({ lat: from.lat, lon: from.lon }, { lat: to.lat, lon: to.lon });
-      setRoute(r);
-      setOptions(estimateRides(r.km, r.mins));
+      const { data, error } = await supabase.functions.invoke("estimate-fares", {
+        body: {
+          pickup: { lat: from.lat, lon: from.lon, label: from.label },
+          destination: { lat: to.lat, lon: to.lon, label: to.label },
+        },
+      });
+      if (error) throw error;
+      const payload = data as { route?: { km: number; mins: number }; options?: ServerRideOption[]; error?: string };
+      if (payload?.error || !payload?.route || !payload?.options?.length) {
+        throw new Error(payload?.error ?? "no options");
+      }
+      setRoute(payload.route);
+      setOptions(payload.options);
     } catch {
-      toast.error("Route service is busy — try again in a sec");
+      setCompareError("couldn't crunch that route 🧮 try again");
+      toast.error("couldn't crunch that route 🧮 try again");
     } finally {
       setComparing(false);
     }
@@ -368,9 +389,10 @@ function RidesScreen() {
             data-testid="ride-compare"
             onClick={() => runCompare(pickup, destination)}
             disabled={comparing}
-            className="mt-3 w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {comparing ? "Comparing…" : "Compare rides"}
+            <Wallet className="h-4 w-4" />
+            {comparing ? "Crunching fares…" : "get best fare 💰"}
           </button>
         )}
       </div>
@@ -381,13 +403,23 @@ function RidesScreen() {
           <div className="h-4 w-40 animate-pulse rounded bg-muted" />
           <div className="h-20 animate-pulse rounded-2xl bg-muted" />
           <div className="h-20 animate-pulse rounded-2xl bg-muted" />
+          <div className="h-20 animate-pulse rounded-2xl bg-muted" />
+        </div>
+      )}
+
+      {!comparing && compareError && (
+        <div className="mt-4 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+          {compareError}
         </div>
       )}
 
       {!comparing && route && options.length > 0 && (
         <div className="mt-5">
-          <div className="px-1 text-xs text-muted-foreground">
-            {route.km} km · {route.mins} min
+          <p className="px-1 text-[11px] font-medium uppercase tracking-wider text-primary/80">
+            estimated fares — actual prices set by the provider and may surge
+          </p>
+          <div className="mt-1 px-1 text-xs text-muted-foreground">
+            {route.km} km · ~{route.mins} min
           </div>
           <div className="mt-2 space-y-2">
             {options.map((opt, i) => (
@@ -402,7 +434,7 @@ function RidesScreen() {
             ))}
           </div>
           <p className="mt-2 px-1 text-xs text-muted-foreground">
-            Estimates — final fare & driver assignment happen in the provider's app.
+            Final fare & driver assignment happen in the provider's app.
           </p>
         </div>
       )}
@@ -434,7 +466,7 @@ function FareCard({
   olaHref,
   onBlocked,
 }: {
-  opt: RideOption;
+  opt: ServerRideOption;
   best: boolean;
   uberHref?: string;
   olaHref?: string;
@@ -442,8 +474,17 @@ function FareCard({
 }) {
   const isUber = opt.providerId === "uber";
   const isOla = opt.providerId === "ola";
-  const href = isUber ? uberHref : isOla ? olaHref : "https://rapido.bike";
-  const inApp = !isUber;
+  const href = isUber
+    ? uberHref
+    : isOla
+      ? olaHref
+      : opt.providerId.startsWith("rapido")
+        ? "https://rapido.bike"
+        : opt.providerId === "indrive"
+          ? "https://indrive.com"
+          : undefined;
+  const inApp = !isUber && !!href;
+  const Icon = opt.icon === "bike" ? Bike : Car;
 
   const inner = (
     <>
@@ -451,7 +492,7 @@ function FareCard({
         className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white"
         style={{ backgroundColor: opt.color }}
       >
-        {opt.providerId.startsWith("rapido-bike") ? <Bike className="h-5 w-5" /> : <Car className="h-5 w-5" />}
+        <Icon className="h-5 w-5" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
