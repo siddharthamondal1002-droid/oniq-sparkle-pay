@@ -52,6 +52,12 @@ function RidesScreen() {
   const [locating, setLocating] = useState(false);
   const [searching, setSearching] = useState(false);
 
+  const [pickupEditing, setPickupEditing] = useState(false);
+  const [pickupQuery, setPickupQuery] = useState("");
+  const [pickupResults, setPickupResults] = useState<GeoResult[]>([]);
+  const [pickupSearching, setPickupSearching] = useState(false);
+
+
   const [genie, setGenie] = useState("");
   const [micSupported, setMicSupported] = useState(false);
   const [listening, setListening] = useState(false);
