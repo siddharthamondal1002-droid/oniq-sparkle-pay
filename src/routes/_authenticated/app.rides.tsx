@@ -137,12 +137,24 @@ function RidesScreen() {
     setComparing(true);
     setRoute(null);
     setOptions([]);
+    setCompareError(null);
     try {
-      const r = await getRoute({ lat: from.lat, lon: from.lon }, { lat: to.lat, lon: to.lon });
-      setRoute(r);
-      setOptions(estimateRides(r.km, r.mins));
+      const { data, error } = await supabase.functions.invoke("estimate-fares", {
+        body: {
+          pickup: { lat: from.lat, lon: from.lon, label: from.label },
+          destination: { lat: to.lat, lon: to.lon, label: to.label },
+        },
+      });
+      if (error) throw error;
+      const payload = data as { route?: { km: number; mins: number }; options?: ServerRideOption[]; error?: string };
+      if (payload?.error || !payload?.route || !payload?.options?.length) {
+        throw new Error(payload?.error ?? "no options");
+      }
+      setRoute(payload.route);
+      setOptions(payload.options);
     } catch {
-      toast.error("Route service is busy — try again in a sec");
+      setCompareError("couldn't crunch that route 🧮 try again");
+      toast.error("couldn't crunch that route 🧮 try again");
     } finally {
       setComparing(false);
     }
