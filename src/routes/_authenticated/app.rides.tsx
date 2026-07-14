@@ -57,7 +57,7 @@ function RidesScreen() {
   const [listening, setListening] = useState(false);
   const recognitionRef = useRef<any>(null);
 
-  const [route, setRoute] = useState<RouteInfo | null>(null);
+  const [route, setRoute] = useState<{ km: number; mins: number } | null>(null);
   const [options, setOptions] = useState<ServerRideOption[]>([]);
   const [comparing, setComparing] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
