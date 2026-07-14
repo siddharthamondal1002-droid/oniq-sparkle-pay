@@ -1063,7 +1063,7 @@ function ChatThread() {
             </div>
           </div>
         </button>
-        {!isChannel && (() => {
+        {CALLS_ENABLED && !isChannel && (() => {
           const memberCount = isGroup ? members.length : 2;
           const overCap = memberCount > 4;
           const onClick = (t: "audio" | "video") => () => {
