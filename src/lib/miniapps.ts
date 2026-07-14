@@ -19,25 +19,26 @@ export type MiniApp = {
 
 export const MINI_APPS: MiniApp[] = [
   // Food
-  { id: "swiggy", name: "Swiggy", tagline: "Food & grocery delivery", category: "food", url: "https://www.swiggy.com", color: "#FC8019", letter: "S" },
-  { id: "zomato", name: "Zomato", tagline: "Restaurants & delivery", category: "food", url: "https://www.zomato.com", color: "#E23744", letter: "Z" },
+  { id: "swiggy", name: "Swiggy", tagline: "Food & grocery delivery", category: "food", url: "https://www.swiggy.com", color: "#FC8019", letter: "S", androidPackage: "in.swiggy.android", appScheme: "swiggy://" },
+  { id: "zomato", name: "Zomato", tagline: "Restaurants & delivery", category: "food", url: "https://www.zomato.com", color: "#E23744", letter: "Z", androidPackage: "com.application.zomato", appScheme: "zomato://" },
   { id: "dominos", name: "Domino's", tagline: "Pizza delivery", category: "food", url: "https://www.dominos.co.in", color: "#0A6EBD", letter: "D" },
   // Rides 🚗
-  { id: "uber", name: "Uber", tagline: "Book a cab", category: "rides", url: "https://m.uber.com", color: "#000000", letter: "U", androidPackage: "com.ubercab", emoji: "🚕" },
-  { id: "ola", name: "Ola", tagline: "Cabs & autos", category: "rides", url: "https://book.olacabs.com", color: "#a4c639", letter: "O", androidPackage: "com.olacabs.customer", emoji: "🚖" },
-  { id: "rapido", name: "Rapido", tagline: "Bike taxis & autos", category: "rides", url: "https://rapido.bike", color: "#FFCB05", letter: "R", androidPackage: "com.rapido.passenger", emoji: "🏍️" },
-  { id: "indrive", name: "inDrive", tagline: "Name your fare", category: "rides", url: "https://indrive.com", color: "#C1F11D", letter: "I", androidPackage: "sinet.startup.inDriver", emoji: "💸" },
+  { id: "uber", name: "Uber", tagline: "Book a cab", category: "rides", url: "https://m.uber.com", color: "#000000", letter: "U", androidPackage: "com.ubercab", appScheme: "uber://", emoji: "🚕" },
+  { id: "ola", name: "Ola", tagline: "Cabs & autos", category: "rides", url: "https://book.olacabs.com", color: "#a4c639", letter: "O", androidPackage: "com.olacabs.customer", appScheme: "olacabs://", emoji: "🚖" },
+  { id: "rapido", name: "Rapido", tagline: "Bike taxis & autos", category: "rides", url: "https://rapido.bike", color: "#FFCB05", letter: "R", androidPackage: "com.rapido.passenger", appScheme: "rapido://", emoji: "🏍️" },
+  { id: "indrive", name: "inDrive", tagline: "Name your fare", category: "rides", url: "https://indrive.com", color: "#C1F11D", letter: "I", androidPackage: "sinet.startup.inDriver", appScheme: "indrive://", emoji: "💸" },
   { id: "nammayatri", name: "Namma Yatri", tagline: "Zero-commission autos", category: "rides", url: "https://nammayatri.in", color: "#FFCE00", letter: "N", androidPackage: "in.juspay.nammayatri", emoji: "🛺" },
   { id: "blusmart", name: "BluSmart", tagline: "All-electric cabs", category: "rides", url: "https://blu-smart.com", color: "#003DA5", letter: "B", androidPackage: "com.blusmart.rider", emoji: "⚡" },
   // Quick commerce 🛒
-  { id: "zepto", name: "Zepto", tagline: "Groceries in 10 min", category: "quickcommerce", url: "https://www.zeptonow.com", color: "#7C3AED", letter: "Z", androidPackage: "com.zeptoconsumerapp", emoji: "⚡" },
-  { id: "blinkit", name: "Blinkit", tagline: "Groceries in minutes", category: "quickcommerce", url: "https://blinkit.com", color: "#F8CB46", letter: "B", androidPackage: "com.grofers.customerapp", emoji: "🛍️" },
-  { id: "instamart", name: "Swiggy Instamart", tagline: "Instant groceries", category: "quickcommerce", url: "https://www.swiggy.com/instamart", color: "#FC8019", letter: "I", androidPackage: "in.swiggy.android", emoji: "🥬" },
-  { id: "bigbasket", name: "BigBasket", tagline: "Groceries & essentials", category: "quickcommerce", url: "https://www.bigbasket.com", color: "#84C225", letter: "B", androidPackage: "com.bigbasket.mobileapp", emoji: "🧺" },
+  { id: "zepto", name: "Zepto", tagline: "Groceries in 10 min", category: "quickcommerce", url: "https://www.zeptonow.com", color: "#7C3AED", letter: "Z", androidPackage: "com.zeptoconsumerapp", appScheme: "zepto://", emoji: "⚡" },
+  { id: "blinkit", name: "Blinkit", tagline: "Groceries in minutes", category: "quickcommerce", url: "https://blinkit.com", color: "#F8CB46", letter: "B", androidPackage: "com.grofers.customerapp", appScheme: "blinkit://", emoji: "🛍️" },
+  { id: "instamart", name: "Swiggy Instamart", tagline: "Instant groceries", category: "quickcommerce", url: "https://www.swiggy.com/instamart", color: "#FC8019", letter: "I", androidPackage: "in.swiggy.android", appScheme: "swiggy://", emoji: "🥬" },
+  { id: "bigbasket", name: "BigBasket", tagline: "Groceries & essentials", category: "quickcommerce", url: "https://www.bigbasket.com", color: "#84C225", letter: "B", androidPackage: "com.bigbasket.mobileapp", appScheme: "bigbasket://", emoji: "🧺" },
   // Payments
-  { id: "gpay", name: "Google Pay", tagline: "UPI payments", category: "payments", url: "https://pay.google.com", color: "#4285F4", letter: "G" },
-  { id: "phonepe", name: "PhonePe", tagline: "UPI & recharges", category: "payments", url: "https://www.phonepe.com", color: "#5F259F", letter: "P" },
-  { id: "paytm", name: "Paytm", tagline: "Payments & bills", category: "payments", url: "https://paytm.com", color: "#00BAF2", letter: "P" },
+  { id: "gpay", name: "Google Pay", tagline: "UPI payments", category: "payments", url: "https://pay.google.com", color: "#4285F4", letter: "G", appScheme: "tez://" },
+  { id: "phonepe", name: "PhonePe", tagline: "UPI & recharges", category: "payments", url: "https://www.phonepe.com", color: "#5F259F", letter: "P", appScheme: "phonepe://" },
+  { id: "paytm", name: "Paytm", tagline: "Payments & bills", category: "payments", url: "https://paytm.com", color: "#00BAF2", letter: "P", appScheme: "paytmmp://" },
+
   // Social
   { id: "instagram", name: "Instagram", tagline: "Photos & reels", category: "social", url: "https://www.instagram.com", color: "#E1306C", letter: "I" },
   { id: "youtube", name: "YouTube", tagline: "Videos & shorts", category: "social", url: "https://m.youtube.com", color: "#FF0000", letter: "Y" },
