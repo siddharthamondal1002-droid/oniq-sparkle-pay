@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { useIsOnline } from "@/hooks/usePresence";
 import { sendPush } from "@/lib/push";
+import { CALLS_ENABLED } from "@/lib/flags";
 
 type Message = {
   id: string;
