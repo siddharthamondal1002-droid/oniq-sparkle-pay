@@ -393,9 +393,10 @@ function RidesScreen() {
             data-testid="ride-compare"
             onClick={() => runCompare(pickup, destination)}
             disabled={comparing}
-            className="mt-3 w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            {comparing ? "Comparing…" : "Compare rides"}
+            <Wallet className="h-4 w-4" />
+            {comparing ? "Crunching fares…" : "get best fare 💰"}
           </button>
         )}
       </div>
@@ -406,13 +407,23 @@ function RidesScreen() {
           <div className="h-4 w-40 animate-pulse rounded bg-muted" />
           <div className="h-20 animate-pulse rounded-2xl bg-muted" />
           <div className="h-20 animate-pulse rounded-2xl bg-muted" />
+          <div className="h-20 animate-pulse rounded-2xl bg-muted" />
+        </div>
+      )}
+
+      {!comparing && compareError && (
+        <div className="mt-4 rounded-2xl border border-border bg-card p-4 text-sm text-muted-foreground">
+          {compareError}
         </div>
       )}
 
       {!comparing && route && options.length > 0 && (
         <div className="mt-5">
-          <div className="px-1 text-xs text-muted-foreground">
-            {route.km} km · {route.mins} min
+          <p className="px-1 text-[11px] font-medium uppercase tracking-wider text-primary/80">
+            estimated fares — actual prices set by the provider and may surge
+          </p>
+          <div className="mt-1 px-1 text-xs text-muted-foreground">
+            {route.km} km · ~{route.mins} min
           </div>
           <div className="mt-2 space-y-2">
             {options.map((opt, i) => (
@@ -427,7 +438,7 @@ function RidesScreen() {
             ))}
           </div>
           <p className="mt-2 px-1 text-xs text-muted-foreground">
-            Estimates — final fare & driver assignment happen in the provider's app.
+            Final fare & driver assignment happen in the provider's app.
           </p>
         </div>
       )}
