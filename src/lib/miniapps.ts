@@ -165,8 +165,8 @@ export async function launchMiniApp(app: {
     const fallback = encodeURIComponent(app.url);
     const intent = `intent://#Intent;package=${app.androidPackage};S.browser_fallback_url=${fallback};end`;
     try {
-      const { App } = await import(/* @vite-ignore */ "@capacitor/app");
-      await App.openUrl({ url: intent });
+      const mod: any = await import(/* @vite-ignore */ "@capacitor/app");
+      await mod.App.openUrl({ url: intent });
       return;
     } catch {
       /* fall through to Custom Tab */
