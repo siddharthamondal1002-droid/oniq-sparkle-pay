@@ -21,6 +21,7 @@ import {
   SkipForward,
   Maximize2,
   Heart,
+  Briefcase,
 } from "lucide-react";
 import { useVitalsTileColor } from "@/components/vitals/useVitalsTileColor";
 import { CompactLiveNews, loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
