@@ -12,30 +12,33 @@ export type MiniApp = {
   color: string; // brand tile color
   letter: string; // fallback monogram
   androidPackage?: string; // Android package id for intent:// deep launch
+  appScheme?: string; // iOS/web deep-link scheme (e.g. "uber://"); triggers app-first with https fallback
   emoji?: string; // optional tile emoji instead of letter
 };
 
+
 export const MINI_APPS: MiniApp[] = [
   // Food
-  { id: "swiggy", name: "Swiggy", tagline: "Food & grocery delivery", category: "food", url: "https://www.swiggy.com", color: "#FC8019", letter: "S" },
-  { id: "zomato", name: "Zomato", tagline: "Restaurants & delivery", category: "food", url: "https://www.zomato.com", color: "#E23744", letter: "Z" },
+  { id: "swiggy", name: "Swiggy", tagline: "Food & grocery delivery", category: "food", url: "https://www.swiggy.com", color: "#FC8019", letter: "S", androidPackage: "in.swiggy.android", appScheme: "swiggy://" },
+  { id: "zomato", name: "Zomato", tagline: "Restaurants & delivery", category: "food", url: "https://www.zomato.com", color: "#E23744", letter: "Z", androidPackage: "com.application.zomato", appScheme: "zomato://" },
   { id: "dominos", name: "Domino's", tagline: "Pizza delivery", category: "food", url: "https://www.dominos.co.in", color: "#0A6EBD", letter: "D" },
   // Rides 🚗
-  { id: "uber", name: "Uber", tagline: "Book a cab", category: "rides", url: "https://m.uber.com", color: "#000000", letter: "U", androidPackage: "com.ubercab", emoji: "🚕" },
-  { id: "ola", name: "Ola", tagline: "Cabs & autos", category: "rides", url: "https://book.olacabs.com", color: "#a4c639", letter: "O", androidPackage: "com.olacabs.customer", emoji: "🚖" },
-  { id: "rapido", name: "Rapido", tagline: "Bike taxis & autos", category: "rides", url: "https://rapido.bike", color: "#FFCB05", letter: "R", androidPackage: "com.rapido.passenger", emoji: "🏍️" },
-  { id: "indrive", name: "inDrive", tagline: "Name your fare", category: "rides", url: "https://indrive.com", color: "#C1F11D", letter: "I", androidPackage: "sinet.startup.inDriver", emoji: "💸" },
+  { id: "uber", name: "Uber", tagline: "Book a cab", category: "rides", url: "https://m.uber.com", color: "#000000", letter: "U", androidPackage: "com.ubercab", appScheme: "uber://", emoji: "🚕" },
+  { id: "ola", name: "Ola", tagline: "Cabs & autos", category: "rides", url: "https://book.olacabs.com", color: "#a4c639", letter: "O", androidPackage: "com.olacabs.customer", appScheme: "olacabs://", emoji: "🚖" },
+  { id: "rapido", name: "Rapido", tagline: "Bike taxis & autos", category: "rides", url: "https://rapido.bike", color: "#FFCB05", letter: "R", androidPackage: "com.rapido.passenger", appScheme: "rapido://", emoji: "🏍️" },
+  { id: "indrive", name: "inDrive", tagline: "Name your fare", category: "rides", url: "https://indrive.com", color: "#C1F11D", letter: "I", androidPackage: "sinet.startup.inDriver", appScheme: "indrive://", emoji: "💸" },
   { id: "nammayatri", name: "Namma Yatri", tagline: "Zero-commission autos", category: "rides", url: "https://nammayatri.in", color: "#FFCE00", letter: "N", androidPackage: "in.juspay.nammayatri", emoji: "🛺" },
   { id: "blusmart", name: "BluSmart", tagline: "All-electric cabs", category: "rides", url: "https://blu-smart.com", color: "#003DA5", letter: "B", androidPackage: "com.blusmart.rider", emoji: "⚡" },
   // Quick commerce 🛒
-  { id: "zepto", name: "Zepto", tagline: "Groceries in 10 min", category: "quickcommerce", url: "https://www.zeptonow.com", color: "#7C3AED", letter: "Z", androidPackage: "com.zeptoconsumerapp", emoji: "⚡" },
-  { id: "blinkit", name: "Blinkit", tagline: "Groceries in minutes", category: "quickcommerce", url: "https://blinkit.com", color: "#F8CB46", letter: "B", androidPackage: "com.grofers.customerapp", emoji: "🛍️" },
-  { id: "instamart", name: "Swiggy Instamart", tagline: "Instant groceries", category: "quickcommerce", url: "https://www.swiggy.com/instamart", color: "#FC8019", letter: "I", androidPackage: "in.swiggy.android", emoji: "🥬" },
-  { id: "bigbasket", name: "BigBasket", tagline: "Groceries & essentials", category: "quickcommerce", url: "https://www.bigbasket.com", color: "#84C225", letter: "B", androidPackage: "com.bigbasket.mobileapp", emoji: "🧺" },
+  { id: "zepto", name: "Zepto", tagline: "Groceries in 10 min", category: "quickcommerce", url: "https://www.zeptonow.com", color: "#7C3AED", letter: "Z", androidPackage: "com.zeptoconsumerapp", appScheme: "zepto://", emoji: "⚡" },
+  { id: "blinkit", name: "Blinkit", tagline: "Groceries in minutes", category: "quickcommerce", url: "https://blinkit.com", color: "#F8CB46", letter: "B", androidPackage: "com.grofers.customerapp", appScheme: "blinkit://", emoji: "🛍️" },
+  { id: "instamart", name: "Swiggy Instamart", tagline: "Instant groceries", category: "quickcommerce", url: "https://www.swiggy.com/instamart", color: "#FC8019", letter: "I", androidPackage: "in.swiggy.android", appScheme: "swiggy://", emoji: "🥬" },
+  { id: "bigbasket", name: "BigBasket", tagline: "Groceries & essentials", category: "quickcommerce", url: "https://www.bigbasket.com", color: "#84C225", letter: "B", androidPackage: "com.bigbasket.mobileapp", appScheme: "bigbasket://", emoji: "🧺" },
   // Payments
-  { id: "gpay", name: "Google Pay", tagline: "UPI payments", category: "payments", url: "https://pay.google.com", color: "#4285F4", letter: "G" },
-  { id: "phonepe", name: "PhonePe", tagline: "UPI & recharges", category: "payments", url: "https://www.phonepe.com", color: "#5F259F", letter: "P" },
-  { id: "paytm", name: "Paytm", tagline: "Payments & bills", category: "payments", url: "https://paytm.com", color: "#00BAF2", letter: "P" },
+  { id: "gpay", name: "Google Pay", tagline: "UPI payments", category: "payments", url: "https://pay.google.com", color: "#4285F4", letter: "G", appScheme: "tez://" },
+  { id: "phonepe", name: "PhonePe", tagline: "UPI & recharges", category: "payments", url: "https://www.phonepe.com", color: "#5F259F", letter: "P", appScheme: "phonepe://" },
+  { id: "paytm", name: "Paytm", tagline: "Payments & bills", category: "payments", url: "https://paytm.com", color: "#00BAF2", letter: "P", appScheme: "paytmmp://" },
+
   // Social
   { id: "instagram", name: "Instagram", tagline: "Photos & reels", category: "social", url: "https://www.instagram.com", color: "#E1306C", letter: "I" },
   { id: "youtube", name: "YouTube", tagline: "Videos & shorts", category: "social", url: "https://m.youtube.com", color: "#FF0000", letter: "Y" },
@@ -138,6 +141,21 @@ export async function openInApp(url: string) {
   } catch {
     /* fall through to web */
   }
+  // Anchor click works even when window.open is blocked, and always opens
+  // in a new tab so ONIQ never navigates away.
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.target = "_blank";
+    a.rel = "noopener,noreferrer";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    return;
+  } catch {
+    /* ignore */
+  }
   try {
     const opened = window.open(url, "_blank", "noopener,noreferrer");
     if (opened) return;
@@ -148,32 +166,87 @@ export async function openInApp(url: string) {
 }
 
 /**
- * Launch a partner mini app. On Android with a known package we try the
- * native app via intent:// (routed through the OS by Capacitor's App plugin),
- * with an https fallback baked into the intent so it never dead-ends.
- * Everywhere else we open the web URL in Chrome Custom Tab / new tab.
+ * Web-only: try to launch a native app via its custom scheme (e.g. uber://).
+ * Uses a hidden iframe + visibility change detection with a 1200ms timeout.
+ * Resolves true if the app appears to have been opened (page went hidden),
+ * false if the scheme handler didn't fire (app not installed).
+ */
+async function tryWebAppScheme(scheme: string): Promise<boolean> {
+  if (typeof document === "undefined") return false;
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = (opened: boolean) => {
+      if (done) return;
+      done = true;
+      document.removeEventListener("visibilitychange", onVis);
+      try { iframe.remove(); } catch { /* ignore */ }
+      resolve(opened);
+    };
+    const onVis = () => { if (document.hidden) finish(true); };
+    document.addEventListener("visibilitychange", onVis);
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;left:-10000px;width:1px;height:1px;border:0;";
+    iframe.src = scheme;
+    try {
+      document.body.appendChild(iframe);
+    } catch {
+      finish(false);
+      return;
+    }
+    setTimeout(() => finish(document.hidden), 1200);
+  });
+}
+
+/**
+ * Launch a partner mini app.
+ * - Native Android + androidPackage → intent:// with baked-in https fallback
+ *   (OS opens the app when installed, otherwise Chrome opens the fallback).
+ * - Native without a package → Chrome Custom Tab on the https URL.
+ * - Web + appScheme → try scheme via hidden iframe, wait 1200ms, fall back to
+ *   https in a new tab if the app didn't intercept.
+ * - Web without appScheme → https in a new tab.
+ * Any unrecoverable failure toasts and force-opens the https URL.
  */
 export async function launchMiniApp(app: {
   name: string;
   url: string;
   androidPackage?: string;
+  appScheme?: string;
 }) {
   writePending({ app: app.name, at: Date.now() });
   if (typeof window === "undefined") return;
-  const native = await isCapacitorNative();
-  if (native && isAndroid() && app.androidPackage) {
-    const fallback = encodeURIComponent(app.url);
-    const intent = `intent://#Intent;package=${app.androidPackage};S.browser_fallback_url=${fallback};end`;
-    try {
-      const mod: any = await import(/* @vite-ignore */ "@capacitor/app");
-      await mod.App.openUrl({ url: intent });
+  try {
+    const native = await isCapacitorNative();
+    if (native) {
+      if (isAndroid() && app.androidPackage) {
+        const fallback = encodeURIComponent(app.url);
+        const intent = `intent://#Intent;package=${app.androidPackage};S.browser_fallback_url=${fallback};end`;
+        try {
+          const mod: any = await import(/* @vite-ignore */ "@capacitor/app");
+          await mod.App.openUrl({ url: intent });
+          return;
+        } catch {
+          /* fall through to Custom Tab */
+        }
+      }
+      await openInApp(app.url);
       return;
-    } catch {
-      /* fall through to Custom Tab */
     }
+    // Web path
+    if (app.appScheme) {
+      const opened = await tryWebAppScheme(app.appScheme);
+      if (opened) return;
+    }
+    await openInApp(app.url);
+  } catch {
+    try {
+      const { toast } = await import(/* @vite-ignore */ "sonner");
+      toast("couldn't open that one 🤔 opening web instead");
+    } catch { /* ignore */ }
+    try { await openInApp(app.url); } catch { /* ignore */ }
   }
-  await openInApp(app.url);
 }
+
 
 
 /** Fire an OS-level deep link (upi://, uber:// etc). Returns immediately. */

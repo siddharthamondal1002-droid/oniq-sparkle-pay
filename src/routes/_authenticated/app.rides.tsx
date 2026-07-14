@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles, ChevronDown, Wallet } from "lucide-react";
+import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles, ChevronDown, ChevronRight, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -51,6 +51,12 @@ function RidesScreen() {
 
   const [locating, setLocating] = useState(false);
   const [searching, setSearching] = useState(false);
+
+  const [pickupEditing, setPickupEditing] = useState(false);
+  const [pickupQuery, setPickupQuery] = useState("");
+  const [pickupResults, setPickupResults] = useState<GeoResult[]>([]);
+  const [pickupSearching, setPickupSearching] = useState(false);
+
 
   const [genie, setGenie] = useState("");
   const [micSupported, setMicSupported] = useState(false);
@@ -124,6 +130,24 @@ function RidesScreen() {
       setSearching(false);
     }
   }
+
+  async function searchPickup() {
+    if (pickupQuery.trim().length < 3) {
+      toast.error("Gimme at least 3 letters 💀");
+      return;
+    }
+    setPickupSearching(true);
+    try {
+      const r = await geocode(pickupQuery.trim());
+      setPickupResults(r);
+      if (!r.length) toast.info("Found nothing fr — add your city name, that helps");
+    } catch {
+      toast.error("Search failed. Check your connection.");
+    } finally {
+      setPickupSearching(false);
+    }
+  }
+
 
   async function runCompare(from: Point | null, to: Point | null) {
     if (!from || !to) {
@@ -281,48 +305,105 @@ function RidesScreen() {
 
       {/* Pickup */}
       <div className="mt-3 rounded-2xl border border-border bg-card p-4">
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          data-testid="pickup-row"
+          onClick={() => {
+            setPickupEditing((v) => !v);
+            if (!pickupEditing) setPickupQuery(pickup && !pickupIsCurrent ? pickup.label : "");
+          }}
+          className="flex w-full items-center gap-3 text-left"
+        >
           <div className="grid h-9 w-9 place-items-center rounded-full bg-primary/15 text-primary">
             <Navigation className="h-4 w-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs text-muted-foreground">Pickup</div>
+            <div className="text-xs text-muted-foreground">Pickup {pickup && pickupIsCurrent && "· 📍 current"}</div>
             <div className="text-sm font-medium truncate">
               {geoState === "locating" && !pickup
                 ? "Locating you…"
                 : pickup
                   ? pickup.label
-                  : "Location off — tap below"}
+                  : "tap to set pickup"}
             </div>
           </div>
-          {!pickupIsCurrent && (
+          <ChevronRight
+            className={`h-4 w-4 text-muted-foreground transition ${pickupEditing ? "rotate-90" : ""}`}
+          />
+        </button>
+
+        {pickupEditing && (
+          <div className="mt-3 space-y-3">
             <button
+              data-testid="use-current-location"
               onClick={() => {
-                setPickup(null);
-                locateMe();
+                setPickupEditing(false);
+                setPickupResults([]);
+                setPickupQuery("");
+                locateMe(true);
               }}
-              className="text-xs text-primary underline"
-            >
-              reset
-            </button>
-          )}
-        </div>
-        {geoState === "denied" && pickupIsCurrent && (
-          <div className="mt-3">
-            <button
-              data-testid="retry-gps"
-              onClick={() => locateMe(true)}
               disabled={locating}
               className="w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
             >
-              {locating ? "Locating…" : "📍 Use my location"}
+              {locating ? "Locating…" : "📍 use current location"}
             </button>
-            <p className="mt-2 text-xs text-muted-foreground">
-              or type a pickup in the Genie: "from X to Y"
-            </p>
+
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  data-testid="pickup-search-input"
+                  value={pickupQuery}
+                  onChange={(e) => setPickupQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && searchPickup()}
+                  placeholder="search a pickup address…"
+                  className="w-full rounded-xl border border-border bg-background py-3 pl-10 pr-3 text-sm focus:border-primary focus:outline-none"
+                />
+              </div>
+              <button
+                onClick={searchPickup}
+                disabled={pickupSearching}
+                className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
+              >
+                <Search className="h-4 w-4" />
+              </button>
+            </div>
+
+            {pickupSearching && <div className="h-10 animate-pulse rounded-xl bg-muted" />}
+
+            {pickupResults.length > 0 && (
+              <div className="space-y-1">
+                {pickupResults.map((r, i) => (
+                  <button
+                    key={i}
+                    data-testid={`pickup-result-${i}`}
+                    onClick={() => {
+                      setPickup({ lat: r.lat, lon: r.lon, label: r.label });
+                      setPickupIsCurrent(false);
+                      setPickupResults([]);
+                      setPickupQuery(r.label);
+                      setPickupEditing(false);
+                      toast.success("Pickup set 📍 " + r.label);
+                    }}
+                    className="flex w-full items-start gap-2 rounded-xl p-2.5 text-left text-sm hover:bg-muted"
+                  >
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span className="line-clamp-2">{r.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {geoState === "denied" && (
+              <p className="text-xs text-muted-foreground">
+                Location is blocked — search a pickup address, or allow location and tap "use current location".
+              </p>
+            )}
           </div>
         )}
       </div>
+
+
 
       {/* Destination search */}
       <div className="mt-3 rounded-2xl border border-border bg-card p-4">
