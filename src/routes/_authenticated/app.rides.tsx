@@ -32,6 +32,17 @@ export const Route = createFileRoute("/_authenticated/app/rides")({
 
 type Point = { lat: number; lon: number; label: string };
 
+type ServerRideOption = {
+  providerId: string;
+  providerName: string;
+  vehicle: string;
+  color: string;
+  icon: "car" | "bike" | "auto";
+  fareLow: number;
+  fareHigh: number;
+  etaMins: number;
+};
+
 function RidesScreen() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<GeoResult[]>([]);
