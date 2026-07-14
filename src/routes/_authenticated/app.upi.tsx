@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, IndianRupee, Copy, AtSign, ScanLine } from "lucide-react";
 import { toast } from "sonner";
-import { UPI_APPS, upiLink, isValidVpa } from "@/lib/miniapps";
+import { UPI_APPS, upiLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
 import { UpiScannerOverlay } from "@/components/upi/UpiScannerOverlay";
 
 type UpiSearch = { pa?: string; pn?: string; am?: string; tn?: string };
