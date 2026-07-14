@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { GlobalIncomingCall } from "@/components/chat/GlobalIncomingCall";
 import { GlobalCallHost } from "@/components/chat/GlobalCallHost";
+import { CALLS_ENABLED } from "@/lib/flags";
 import { PolicyNoticeBanner } from "@/components/safety/PolicyNoticeBanner";
 import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher";
 import { MessageNotifier } from "@/components/chat/MessageNotifier";
@@ -62,8 +63,8 @@ function AppShell() {
         <Outlet />
       </main>
 
-      <GlobalIncomingCall />
-      <GlobalCallHost />
+      {CALLS_ENABLED && <GlobalIncomingCall />}
+      {CALLS_ENABLED && <GlobalCallHost />}
       <PolicyNoticeBanner />
       <MiniAppReturnWatcher />
       <MessageNotifier />

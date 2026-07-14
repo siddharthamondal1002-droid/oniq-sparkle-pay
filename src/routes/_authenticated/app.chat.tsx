@@ -1,15 +1,18 @@
 import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
 import { MessageCircle, Radio, Phone } from "lucide-react";
+import { CALLS_ENABLED } from "@/lib/flags";
 
 export const Route = createFileRoute("/_authenticated/app/chat")({
   component: ChatWorldLayout,
 });
 
-const TABS = [
+const ALL_TABS = [
   { to: "/app/chat", label: "Chats", icon: MessageCircle, exact: true },
   { to: "/app/chat/updates", label: "Updates", icon: Radio, exact: false },
   { to: "/app/chat/calls", label: "Calls", icon: Phone, exact: false },
 ] as const;
+
+const TABS = CALLS_ENABLED ? ALL_TABS : ALL_TABS.filter((t) => t.to !== "/app/chat/calls");
 
 function ChatWorldLayout() {
   const { pathname } = useLocation();
@@ -17,14 +20,16 @@ function ChatWorldLayout() {
   const showTabs =
     normalized === "/app/chat" ||
     normalized === "/app/chat/updates" ||
-    normalized === "/app/chat/calls";
+    (CALLS_ENABLED && normalized === "/app/chat/calls");
+
+  const gridColsClass = TABS.length === 3 ? "grid-cols-3" : "grid-cols-2";
 
   return (
     <div className={showTabs ? "pb-24" : ""}>
       <Outlet />
       {showTabs && (
         <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <div className="grid grid-cols-3 rounded-3xl border border-border glass p-1.5 shadow-card">
+          <div className={`grid ${gridColsClass} rounded-3xl border border-border glass p-1.5 shadow-card`}>
             {TABS.map((t) => {
               const active = t.exact ? normalized === t.to : normalized.startsWith(t.to);
               const Icon = t.icon;

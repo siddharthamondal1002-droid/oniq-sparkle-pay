@@ -4,10 +4,33 @@ import { useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Phone, Video, PhoneMissed, PhoneIncoming, PhoneOutgoing } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
+import { CALLS_ENABLED } from "@/lib/flags";
 
 export const Route = createFileRoute("/_authenticated/app/chat/calls")({
-  component: CallsTab,
+  component: CallsRouteGate,
 });
+
+function CallsRouteGate() {
+  if (!CALLS_ENABLED) {
+    return (
+      <div className="px-4 pt-12 pb-4">
+        <div className="flex items-center gap-2 px-1">
+          <Link to="/app/chat" aria-label="Back" className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="font-display text-3xl font-bold">Calls</h1>
+        </div>
+        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground">
+          <div className="grid h-16 w-16 place-items-center rounded-full bg-primary/10 text-primary">
+            <Phone className="h-7 w-7" />
+          </div>
+          <div className="text-sm">calls are coming soon 📞</div>
+        </div>
+      </div>
+    );
+  }
+  return <CallsTab />;
+}
 
 type CallRow = {
   id: string;

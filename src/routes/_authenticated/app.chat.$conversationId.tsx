@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { useIsOnline } from "@/hooks/usePresence";
 import { sendPush } from "@/lib/push";
+import { CALLS_ENABLED } from "@/lib/flags";
 
 type Message = {
   id: string;
@@ -1063,7 +1064,7 @@ function ChatThread() {
             </div>
           </div>
         </button>
-        {!isChannel && (() => {
+        {CALLS_ENABLED && !isChannel && (() => {
           const memberCount = isGroup ? members.length : 2;
           const overCap = memberCount > 4;
           const onClick = (t: "audio" | "video") => () => {
