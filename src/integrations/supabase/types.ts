@@ -1312,6 +1312,51 @@ export type Database = {
         }
         Relationships: []
       }
+      partner_applications: {
+        Row: {
+          area: string | null
+          availability: string[]
+          city: string
+          created_at: string
+          experience_years: number
+          full_name: string
+          id: string
+          note: string | null
+          phone: string
+          skills: string[]
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          area?: string | null
+          availability?: string[]
+          city: string
+          created_at?: string
+          experience_years?: number
+          full_name: string
+          id?: string
+          note?: string | null
+          phone: string
+          skills?: string[]
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          area?: string | null
+          availability?: string[]
+          city?: string
+          created_at?: string
+          experience_years?: number
+          full_name?: string
+          id?: string
+          note?: string | null
+          phone?: string
+          skills?: string[]
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       payment_requests: {
         Row: {
           amount: number
