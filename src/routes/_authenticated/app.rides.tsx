@@ -8,13 +8,9 @@ import {
   uberLink,
   olaLink,
   openInApp,
-  getRoute,
-  estimateRides,
   getCurrentLocation,
   reverseGeocode,
   type GeoResult,
-  type RideOption,
-  type RouteInfo,
 } from "@/lib/miniapps";
 import {
   detectCity,
