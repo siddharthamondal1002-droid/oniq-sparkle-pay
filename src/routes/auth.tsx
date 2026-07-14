@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { ArrowLeft, Mail, Lock, Phone } from "lucide-react";
+import { OTP_LOGIN_ENABLED } from "@/lib/flags";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -358,26 +359,28 @@ function AuthPage() {
             <div className="h-px flex-1 bg-border" />
           </div>
 
-          {/* Method pill selector: email | phone */}
-          <div className="mb-4 grid grid-cols-2 gap-1 rounded-full border border-border bg-card/40 p-1 text-xs">
-            <button
-              type="button"
-              onClick={() => { setMethod("email"); setOtpSent(false); setOtp(""); }}
-              className={`rounded-full py-2 font-semibold transition ${method === "email" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              ✉️ Email
-            </button>
-            <button
-              type="button"
-              onClick={() => setMethod("phone")}
-              className={`rounded-full py-2 font-semibold transition ${method === "phone" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
-            >
-              📱 Phone
-            </button>
-          </div>
+          {/* Method pill selector: email | phone (phone gated behind flag) */}
+          {OTP_LOGIN_ENABLED && (
+            <div className="mb-4 grid grid-cols-2 gap-1 rounded-full border border-border bg-card/40 p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => { setMethod("email"); setOtpSent(false); setOtp(""); }}
+                className={`rounded-full py-2 font-semibold transition ${method === "email" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                ✉️ Email
+              </button>
+              <button
+                type="button"
+                onClick={() => setMethod("phone")}
+                className={`rounded-full py-2 font-semibold transition ${method === "phone" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                📱 Phone
+              </button>
+            </div>
+          )}
 
 
-          {method === "email" ? (
+          {(!OTP_LOGIN_ENABLED || method === "email") ? (
             confirmationSentTo ? (
               <div className="space-y-3 text-center">
                 <div className="text-2xl">📬</div>
