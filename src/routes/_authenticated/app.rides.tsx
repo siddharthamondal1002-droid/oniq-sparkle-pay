@@ -470,7 +470,7 @@ function FareCard({
   olaHref,
   onBlocked,
 }: {
-  opt: RideOption;
+  opt: ServerRideOption;
   best: boolean;
   uberHref?: string;
   olaHref?: string;
@@ -478,8 +478,17 @@ function FareCard({
 }) {
   const isUber = opt.providerId === "uber";
   const isOla = opt.providerId === "ola";
-  const href = isUber ? uberHref : isOla ? olaHref : "https://rapido.bike";
-  const inApp = !isUber;
+  const href = isUber
+    ? uberHref
+    : isOla
+      ? olaHref
+      : opt.providerId.startsWith("rapido")
+        ? "https://rapido.bike"
+        : opt.providerId === "indrive"
+          ? "https://indrive.com"
+          : undefined;
+  const inApp = !isUber && !!href;
+  const Icon = opt.icon === "bike" ? Bike : Car;
 
   const inner = (
     <>
@@ -487,7 +496,7 @@ function FareCard({
         className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-white"
         style={{ backgroundColor: opt.color }}
       >
-        {opt.providerId.startsWith("rapido-bike") ? <Bike className="h-5 w-5" /> : <Car className="h-5 w-5" />}
+        <Icon className="h-5 w-5" />
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
