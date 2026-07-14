@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { ArrowLeft, Mail, Lock, Phone } from "lucide-react";
+import { OTP_LOGIN_ENABLED } from "@/lib/flags";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
