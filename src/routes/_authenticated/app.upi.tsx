@@ -146,17 +146,18 @@ function UpiScreen() {
       </h2>
       <div className="mt-3 grid grid-cols-2 gap-2">
         {UPI_APPS.map((app) => (
-          <a
+          <button
             key={app.id}
-            href={ready ? app.scheme(params) : "#"}
+            type="button"
+            disabled={!ready}
             data-testid={`upi-${app.id}`}
             data-upi-ready={ready ? "true" : "false"}
-            onClick={guard}
-            className="rounded-2xl border border-border bg-card p-4 text-center text-sm font-semibold transition hover:border-primary/40"
+            onClick={() => launchApp(app)}
+            className="rounded-2xl border border-border bg-card p-4 text-center text-sm font-semibold transition hover:border-primary/40 disabled:opacity-50"
             style={{ color: app.color }}
           >
             {app.name}
-          </a>
+          </button>
         ))}
       </div>
 
