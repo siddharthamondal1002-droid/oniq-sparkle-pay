@@ -47,9 +47,11 @@ function UpiScreen() {
 
   const ready = isValidVpa(vpa) && (!amount || (Number.isFinite(amt) && amt > 0 && amt <= 100000));
 
-  function guard(e: React.MouseEvent) {
-    if (!validate()) e.preventDefault();
+  function launchApp(app: (typeof UPI_APPS)[number]) {
+    if (!validate()) return;
+    void launchUpiIntent(app.scheme(params));
   }
+
 
   async function copyLink() {
     if (!validate()) return;
