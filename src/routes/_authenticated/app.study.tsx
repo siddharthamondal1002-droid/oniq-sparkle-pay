@@ -757,3 +757,389 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
     </>
   );
 }
+
+// ------------------------- Quiz -------------------------
+
+type QuizQ = { question: string; options: string[]; correct_index: number; explanation: string };
+
+function QuizModal({
+  profile,
+  initialSubject,
+  onClose,
+}: {
+  profile: LearnerProfile;
+  initialSubject: string;
+  onClose: () => void;
+}) {
+  const [subject] = useState(initialSubject);
+  const [topic] = useState(initialSubject);
+  const [questions, setQuestions] = useState<QuizQ[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [idx, setIdx] = useState(0);
+  const [picked, setPicked] = useState<number | null>(null);
+  const [correct, setCorrect] = useState(0);
+  const [done, setDone] = useState(false);
+  const insertedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setErrorMsg(null);
+      try {
+        const { data, error } = await supabase.functions.invoke("study-quiz", {
+          body: {
+            profile: { board: profile.board, classLevel: profile.class_level },
+            subject,
+            topic,
+          },
+        });
+        if (cancelled) return;
+        if (error) throw error;
+        const d = data as { source?: string; questions?: QuizQ[]; reason?: string };
+        if (d?.source === "quiz" && Array.isArray(d.questions) && d.questions.length === 5) {
+          setQuestions(d.questions);
+        } else {
+          setErrorMsg("couldn't build that quiz — try again");
+        }
+      } catch {
+        if (!cancelled) setErrorMsg("couldn't build that quiz — try again");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile.board, profile.class_level, subject, topic]);
+
+  async function saveAttempt(finalCorrect: number) {
+    if (insertedRef.current) return;
+    insertedRef.current = true;
+    try {
+      await (supabase as unknown as {
+        from: (t: string) => {
+          insert: (row: unknown) => Promise<{ error: Error | null }>;
+        };
+      }).from("quiz_attempts").insert({
+        profile_id: profile.id,
+        subject,
+        topic,
+        total_questions: 5,
+        correct_count: finalCorrect,
+      });
+    } catch {
+      // best-effort
+    }
+  }
+
+  function choose(i: number) {
+    if (picked !== null || !questions) return;
+    setPicked(i);
+    if (i === questions[idx].correct_index) setCorrect((c) => c + 1);
+  }
+
+  function next() {
+    if (!questions) return;
+    if (idx + 1 >= questions.length) {
+      const finalCorrect = correct;
+      setDone(true);
+      void saveAttempt(finalCorrect);
+    } else {
+      setIdx(idx + 1);
+      setPicked(null);
+    }
+  }
+
+  const q = questions?.[idx] ?? null;
+  const isCorrect = q && picked !== null && picked === q.correct_index;
+
+  return (
+    <div className="rounded-3xl border border-border bg-card p-6 shadow-2xl">
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice quiz</div>
+          <div className="font-display text-lg font-bold">{subject}</div>
+        </div>
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="grid h-8 w-8 place-items-center rounded-full border border-border"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {loading && (
+        <div className="mt-8 text-center text-sm text-muted-foreground">
+          quiz is warming up… 📝
+        </div>
+      )}
+
+      {!loading && errorMsg && (
+        <div className="mt-8 text-center">
+          <div className="text-3xl">🌿</div>
+          <p className="mt-2 text-sm text-muted-foreground">{errorMsg}</p>
+          <button
+            onClick={onClose}
+            className="mt-4 rounded-xl border border-border px-4 py-2 text-sm"
+          >
+            close
+          </button>
+        </div>
+      )}
+
+      {!loading && !errorMsg && q && !done && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+            <span>Question {idx + 1} of 5</span>
+            <span>Score: {correct}</span>
+          </div>
+          <div className="mt-3 text-sm font-medium">{q.question}</div>
+          <div className="mt-4 space-y-2">
+            {q.options.map((opt, i) => {
+              const isPicked = picked === i;
+              const isAnswer = picked !== null && i === q.correct_index;
+              const isWrongPick = picked !== null && isPicked && i !== q.correct_index;
+              return (
+                <button
+                  key={i}
+                  onClick={() => choose(i)}
+                  disabled={picked !== null}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                    isAnswer
+                      ? "border-green-500/50 bg-green-500/10 text-green-300"
+                      : isWrongPick
+                      ? "border-red-500/50 bg-red-500/10 text-red-300"
+                      : isPicked
+                      ? "border-primary bg-primary/10"
+                      : "border-border bg-card hover:bg-muted"
+                  }`}
+                >
+                  {opt}
+                </button>
+              );
+            })}
+          </div>
+          {picked !== null && (
+            <div className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
+              isCorrect ? "border-green-500/30 bg-green-500/5 text-green-300" : "border-border bg-muted/40 text-muted-foreground"
+            }`}>
+              <div className="font-medium">
+                {isCorrect ? "nice one! ✨" : "not this time — here's why"}
+              </div>
+              <div className="mt-1">{q.explanation}</div>
+            </div>
+          )}
+          {picked !== null && (
+            <button
+              onClick={next}
+              className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+            >
+              {idx + 1 >= 5 ? "see results" : "next question"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {done && questions && (
+        <div className="mt-4 text-center">
+          <div className="text-4xl">
+            {correct === 5 ? "🏆" : correct >= 3 ? "🎉" : "🌱"}
+          </div>
+          <div className="mt-2 font-display text-xl font-bold">
+            you got {correct}/5!
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {correct === 5
+              ? "flawless — a proper study champion."
+              : correct >= 3
+              ? "solid work — keep at it, you're building real understanding."
+              : "great start — every attempt makes the next one easier 💪"}
+          </p>
+          <button
+            onClick={onClose}
+            className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+          >
+            done
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ------------------------- Progress -------------------------
+
+type Attempt = {
+  id: string;
+  profile_id: string;
+  subject: string;
+  topic: string;
+  total_questions: number;
+  correct_count: number;
+  created_at: string;
+};
+
+function useAttempts() {
+  return useQuery({
+    queryKey: ["quiz-attempts"],
+    queryFn: async (): Promise<Attempt[]> => {
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => {
+          select: (c: string) => {
+            order: (col: string, opts: { ascending: boolean }) => Promise<{ data: Attempt[] | null; error: Error | null }>;
+          };
+        };
+      })
+        .from("quiz_attempts")
+        .select("id, profile_id, subject, topic, total_questions, correct_count, created_at")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; onClose: () => void }) {
+  const { data: attempts, isLoading } = useAttempts();
+
+  function statsFor(profileId: string) {
+    const rows = (attempts ?? []).filter((a) => a.profile_id === profileId);
+    const totalQ = rows.reduce((s, r) => s + r.total_questions, 0);
+    const totalC = rows.reduce((s, r) => s + r.correct_count, 0);
+    const acc = totalQ > 0 ? Math.round((totalC / totalQ) * 100) : 0;
+
+    const bySubject = new Map<string, { attempts: number; q: number; c: number }>();
+    for (const r of rows) {
+      const cur = bySubject.get(r.subject) ?? { attempts: 0, q: 0, c: 0 };
+      cur.attempts += 1;
+      cur.q += r.total_questions;
+      cur.c += r.correct_count;
+      bySubject.set(r.subject, cur);
+    }
+    const subjects = Array.from(bySubject.entries()).map(([subject, s]) => ({
+      subject,
+      attempts: s.attempts,
+      accuracy: s.q > 0 ? Math.round((s.c / s.q) * 100) : 0,
+    }));
+
+    // streak: distinct calendar days in the last 14 days
+    const now = new Date();
+    const cutoff = new Date(now);
+    cutoff.setDate(cutoff.getDate() - 14);
+    const days = new Set<string>();
+    for (const r of rows) {
+      const d = new Date(r.created_at);
+      if (d >= cutoff) days.add(d.toISOString().slice(0, 10));
+    }
+
+    const recent = rows.slice(0, 5);
+    return {
+      totalAttempts: rows.length,
+      accuracy: acc,
+      subjects,
+      streak: days.size,
+      recent,
+    };
+  }
+
+  return (
+    <div className="max-h-[85vh] overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl">
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">progress</div>
+          <h2 className="font-display text-lg font-bold">learning journey 📊</h2>
+        </div>
+        <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full border border-border">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      {isLoading && (
+        <div className="mt-8 text-center text-sm text-muted-foreground">loading progress…</div>
+      )}
+
+      {!isLoading && (
+        <div className="mt-4 space-y-5">
+          {profiles.map((p) => {
+            const s = statsFor(p.id);
+            return (
+              <div key={p.id} className="rounded-2xl border border-border bg-background/40 p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="font-semibold">{p.name}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {BOARD_UPPER[p.board]} · {p.class_level === "ug" ? "UG" : p.class_level === "pg" ? "PG" : `Class ${p.class_level}`}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xl font-display font-bold">{s.accuracy}%</div>
+                    <div className="text-[10px] text-muted-foreground">accuracy</div>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl border border-border bg-card p-2">
+                    <div className="text-base font-semibold">{s.totalAttempts}</div>
+                    <div className="text-[10px] text-muted-foreground">quizzes</div>
+                  </div>
+                  <div className="rounded-xl border border-border bg-card p-2">
+                    <div className="text-base font-semibold">{s.streak} 🔥</div>
+                    <div className="text-[10px] text-muted-foreground">days (14d)</div>
+                  </div>
+                  <div className="rounded-xl border border-border bg-card p-2">
+                    <div className="text-base font-semibold">{s.subjects.length}</div>
+                    <div className="text-[10px] text-muted-foreground">subjects</div>
+                  </div>
+                </div>
+
+                {s.totalAttempts === 0 && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    no quizzes yet — tap "practice quiz 📝" to get started ✨
+                  </p>
+                )}
+
+                {s.subjects.length > 0 && (
+                  <div className="mt-4">
+                    <div className="text-[11px] font-medium text-muted-foreground">by subject</div>
+                    <div className="mt-1 space-y-1">
+                      {s.subjects.map((sub) => (
+                        <div key={sub.subject} className="flex items-center justify-between text-xs">
+                          <span>{sub.subject}</span>
+                          <span className="text-muted-foreground">
+                            {sub.attempts} {sub.attempts === 1 ? "quiz" : "quizzes"} · {sub.accuracy}%
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {s.recent.length > 0 && (
+                  <div className="mt-4">
+                    <div className="text-[11px] font-medium text-muted-foreground">recent attempts</div>
+                    <div className="mt-1 space-y-1">
+                      {s.recent.map((r) => {
+                        const d = new Date(r.created_at);
+                        const when = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+                        return (
+                          <div key={r.id} className="flex items-center justify-between text-xs">
+                            <span className="truncate">{r.subject}</span>
+                            <span className="text-muted-foreground">
+                              {when} · {r.correct_count}/{r.total_questions}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
