@@ -22,6 +22,7 @@ import {
   Maximize2,
   Heart,
   Briefcase,
+  BookOpen,
 } from "lucide-react";
 import { useVitalsTileColor } from "@/components/vitals/useVitalsTileColor";
 import { CompactLiveNews, loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
