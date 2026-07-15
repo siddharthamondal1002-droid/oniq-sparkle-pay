@@ -470,6 +470,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const [loading, setLoading] = useState(false);
   const [notConfigured, setNotConfigured] = useState(false);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
+  const [quizSubject, setQuizSubject] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
