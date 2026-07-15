@@ -514,7 +514,7 @@ export async function getCurrentLocation(): Promise<{ lat: number; lon: number }
   });
 }
 
-export async function reverseGeocode(lat: number, lon: number): Promise<string> {
+async function nominatimReverse(lat: number, lon: number): Promise<string> {
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16`,
@@ -528,4 +528,12 @@ export async function reverseGeocode(lat: number, lon: number): Promise<string> 
   } catch {
     return "Your current location";
   }
+}
+
+export async function reverseGeocode(lat: number, lon: number): Promise<string> {
+  const data = await invokeMappls({ op: "reverse", lat, lon });
+  if (data?.source === "mappls" && typeof data.label === "string" && data.label.trim()) {
+    return data.label.trim();
+  }
+  return nominatimReverse(lat, lon);
 }
