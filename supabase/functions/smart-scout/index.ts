@@ -1,4 +1,5 @@
 // smart-scout — Claude price scout with web_search tool
+import { langInstruction } from "../_shared/llm.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -34,6 +35,7 @@ Deno.serve(async (req) => {
     const imageBase64 = typeof body?.imageBase64 === "string" ? body.imageBase64 : "";
     const imageMime = typeof body?.imageMime === "string" ? body.imageMime : "image/jpeg";
     const language = typeof body?.language === "string" ? body.language.slice(0, 20) : "auto";
+    const lang = typeof body?.lang === "string" ? body.lang : "";
 
     if (!query && !imageBase64) return json({ error: "Give me a product name or a photo 📸" }, 400);
 
@@ -45,8 +47,10 @@ Deno.serve(async (req) => {
       "IMPORTANT — do NOT rely on a single generic search. Run TARGETED per-store searches BY NAME for each major store before concluding it's unavailable, e.g.: '<product> price Amazon.in', '<product> price Flipkart', '<product> price Meesho', '<product> price JioMart', '<product> price Myntra', '<product> price Croma', '<product> price Reliance Digital', '<product> price Blinkit', '<product> price Zepto'. Prefer product-listing pages over blogs. " +
       "For every store you tried, INCLUDE a row in results: if you found a live price, set price_inr to the number in INR; if you couldn't verify a live price for that store, INCLUDE the row anyway with price_inr: null and note: \"couldn't verify live — check in app\". Never silently drop a store. " +
       `Respond ONLY with valid JSON matching: { "product": string, "results": [{ "store": string, "price_inr": number|null, "rating": string|null, "note": string|null }], "disclaimer": string }. ` +
+      "The JSON KEYS (product, results, store, price_inr, rating, note, disclaimer) MUST remain in English exactly as specified. The store field MUST be the retailer name in English (e.g. 'Amazon.in'). price_inr MUST be a raw number. Only the 'disclaimer' and 'note' prose may be localised. " +
       "Sort results lowest price first; null-price rows go last. If the user's query is in another language, understand it and set product to include both the local-language name and the English name. " +
-      `User's preferred language hint: ${language}. No markdown, no code fences — raw JSON only.`;
+      `User's preferred language hint: ${language}. No markdown, no code fences — raw JSON only.` +
+      langInstruction(lang);
 
     const userContent: any[] = [];
     if (imageBase64) {

@@ -226,8 +226,10 @@ function RidesScreen() {
     const raw = text.trim();
     if (!raw) return;
     try {
+      let lang = "en";
+      try { const m = await import("@/lib/userLanguage"); lang = await m.getUserLanguage(); } catch { /* noop */ }
       const { data, error } = await supabase.functions.invoke("ride-genie", {
-        body: { text: raw, currentLabel: pickup?.label },
+        body: { text: raw, currentLabel: pickup?.label, lang },
       });
       if (error) return handleGenieRegex(raw);
       const payload = data as {

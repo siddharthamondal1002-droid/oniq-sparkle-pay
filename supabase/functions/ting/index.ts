@@ -1,4 +1,6 @@
 // Ting edge function — Claude (Anthropic) with optional web search
+import { langInstruction } from "../_shared/llm.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -41,6 +43,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const messages = Array.isArray(body?.messages) ? body.messages : null;
     const search = body?.search !== false; // default on
+    const lang = typeof body?.lang === "string" ? body.lang : "";
     const attachment = body?.attachment as
       | { kind: "image" | "pdf" | "text"; mime?: string; data?: string; text?: string }
       | undefined;
@@ -99,7 +102,7 @@ Deno.serve(async (req) => {
     const payload: Record<string, unknown> = {
       model: "claude-sonnet-4-6",
       max_tokens: 1024,
-      system: SYSTEM,
+      system: SYSTEM + langInstruction(lang),
       messages: outMessages,
     };
     if (search) {

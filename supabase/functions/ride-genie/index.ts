@@ -2,7 +2,7 @@
 // into structured intent via Claude tool use. INTENT ONLY — never returns
 // coordinates, fares, or facts. Falls back silently on the client.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json } from "../_shared/llm.ts";
+import { callClaude, corsHeaders, json, langInstruction } from "../_shared/llm.ts";
 
 const SYSTEM = [
   "You extract ride-booking intent from Indian users speaking casually.",
@@ -56,7 +56,7 @@ Deno.serve(async (req) => {
     return json(401, { error: "unauthorized" });
   }
 
-  const body = await req.json().catch(() => ({})) as { text?: string; currentLabel?: string };
+  const body = await req.json().catch(() => ({})) as { text?: string; currentLabel?: string; lang?: string };
   const text = (body?.text ?? "").trim();
   if (!text) return json(200, { source: "unavailable", reason: "empty text" });
 
@@ -64,8 +64,14 @@ Deno.serve(async (req) => {
     ? `(User's current location: ${String(body.currentLabel).slice(0, 200)})\n\n`
     : "";
 
+  // Localise ONLY the `reply` prose. pickup/destination must remain verbatim.
+  const langExtra = langInstruction(body?.lang);
+  const localisedNote = langExtra
+    ? "\n\nLOCALISATION: The `reply` field must be written in the target language below. The `pickup` and `destination` fields MUST remain in their original script exactly as the user said them — never translate or transliterate place names." + langExtra
+    : "";
+
   const res = await callClaude({
-    system: SYSTEM,
+    system: SYSTEM + localisedNote,
     messages: [{ role: "user", content: `${userPreamble}${text}` }],
     tools: [TOOL],
     toolChoice: { type: "tool", name: "parse_ride_request" },

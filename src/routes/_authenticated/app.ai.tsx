@@ -194,6 +194,10 @@ function TingScreen() {
         return { role: m.role, content: "(no message)" };
       });
       const body: Record<string, unknown> = { messages: payload, search: webSearch };
+      try {
+        const { getUserLanguage } = await import("@/lib/userLanguage");
+        body.lang = await getUserLanguage();
+      } catch { /* degrade to English */ }
       if (att) {
         body.attachment =
           att.kind === "text"

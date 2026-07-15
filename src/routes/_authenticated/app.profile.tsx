@@ -170,6 +170,8 @@ function ProfileScreen() {
 
       <SoundsSection />
 
+      <LanguageSection />
+
       <MyDataSection />
 
       <SafetySection />
@@ -518,4 +520,91 @@ function MyDataSection() {
     </div>
   );
 }
+
+function LanguageSection() {
+  const [lang, setLang] = useState<string>("en");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: u } = await supabase.auth.getUser();
+        if (!u.user) return;
+        const { data } = await supabase
+          .from("profiles")
+          .select("language")
+          .eq("id", u.user.id)
+          .maybeSingle();
+        if (data?.language && LANG_ENTRIES.some(([c]) => c === data.language)) {
+          setLang(data.language);
+        }
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  async function onChange(next: string) {
+    setLang(next);
+    setSaving(true);
+    try {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("Not signed in");
+      const { error } = await supabase
+        .from("profiles")
+        .update({ language: next })
+        .eq("id", u.user.id);
+      if (error) throw error;
+      const { setUserLanguageCache } = await import("@/lib/userLanguage");
+      setUserLanguageCache(next);
+      toast.success("language locked in ✨");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "couldn't save language");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-8 space-y-3">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wider text-muted-foreground">
+        Language 🌐
+      </div>
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <label className="block text-sm font-semibold">AI answer language</label>
+        <select
+          value={lang}
+          disabled={loading || saving}
+          onChange={(e) => onChange(e.target.value)}
+          className="mt-3 w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-60"
+        >
+          {LANG_ENTRIES.map(([code, native]) => (
+            <option key={code} value={code}>{native}</option>
+          ))}
+        </select>
+        <p className="mt-2 text-xs text-muted-foreground">
+          AI answers appear in this language. The app menus stay in English.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+const LANG_ENTRIES: Array<[string, string]> = [
+  ["en", "English"],
+  ["hi", "हिन्दी"],
+  ["bn", "বাংলা"],
+  ["te", "తెలుగు"],
+  ["mr", "मराठी"],
+  ["ta", "தமிழ்"],
+  ["gu", "ગુજરાતી"],
+  ["kn", "ಕನ್ನಡ"],
+  ["ml", "മലയാളം"],
+  ["pa", "ਪੰਜਾਬੀ"],
+  ["or", "ଓଡ଼ିଆ"],
+  ["as", "অসমীয়া"],
+  ["ur", "اردو"],
+];
+
 

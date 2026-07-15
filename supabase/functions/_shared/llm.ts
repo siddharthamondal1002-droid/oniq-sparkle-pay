@@ -2,6 +2,31 @@
 // Reuses the same secret + model that the ting function already relies on.
 // Never throws; always returns a discriminated union.
 
+export const SUPPORTED_LANGS: Record<string, string> = {
+  en: "English",
+  hi: "Hindi",
+  bn: "Bengali",
+  te: "Telugu",
+  mr: "Marathi",
+  ta: "Tamil",
+  gu: "Gujarati",
+  kn: "Kannada",
+  ml: "Malayalam",
+  pa: "Punjabi",
+  or: "Odia",
+  as: "Assamese",
+  ur: "Urdu",
+};
+
+export function langInstruction(lang?: string | null): string {
+  if (!lang || typeof lang !== "string") return "";
+  const code = lang.toLowerCase().trim();
+  if (!code || code === "en") return "";
+  const name = SUPPORTED_LANGS[code];
+  if (!name) return "";
+  return `\n\nRespond in ${name}. Use the ${name} script. Keep these UNCHANGED and untranslated: brand names, retailer names, place names, app names, currency symbols, and all numbers/prices. If the user writes in English, still reply in ${name}.`;
+}
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
