@@ -208,7 +208,7 @@ function AppTile({ item, size }: { item: FolderItem; size: "lg" | "sm" }) {
   );
 }
 
-function FolderCard({ folder, onOpen }: { folder: Folder; onOpen: () => void }) {
+function FolderCard({ folder, index, onOpen }: { folder: Folder; index: number; onOpen: () => void }) {
   const items = folder.items;
   const overflow = items.length > 4;
   const bigs = overflow ? items.slice(0, 3) : items.slice(0, 4);
@@ -217,7 +217,8 @@ function FolderCard({ folder, onOpen }: { folder: Folder; onOpen: () => void }) 
   return (
     <button
       onClick={onOpen}
-      className="flex flex-col items-center gap-2 transition active:scale-95"
+      style={{ animationDelay: `${index * 40}ms` }}
+      className="flex flex-col items-center gap-2 transition-transform duration-150 active:scale-95 animate-in fade-in-0 zoom-in-95 duration-300 fill-mode-both motion-reduce:animate-none motion-reduce:transition-none"
     >
       <div className="relative aspect-square w-full rounded-[28px] border border-white/10 bg-card/60 p-3 shadow-card backdrop-blur-xl">
         <div className="grid h-full w-full grid-cols-2 grid-rows-2 gap-2">
