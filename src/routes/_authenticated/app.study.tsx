@@ -468,25 +468,73 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [hydrating, setHydrating] = useState(true);
   const [notConfigured, setNotConfigured] = useState(false);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [quizSubject, setQuizSubject] = useState<string | null>(null);
+  const [showQuizPicker, setShowQuizPicker] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
 
   const subjects = subjectsFor(profile.board, profile.class_level);
 
-  // Reset chat when switching profiles
+  // Hydrate chat history from study_messages when the active profile changes.
   useEffect(() => {
+    let cancelled = false;
     setMessages([]);
     setInput("");
     setAttachment(null);
+    setHydrating(true);
+    (async () => {
+      try {
+        const { data, error } = await (supabase as unknown as {
+          from: (t: string) => {
+            select: (c: string) => {
+              eq: (col: string, val: string) => {
+                order: (col: string, opts: { ascending: boolean }) => {
+                  limit: (n: number) => Promise<{ data: { role: "user" | "assistant"; content: string; used_vault: boolean }[] | null; error: Error | null }>;
+                };
+              };
+            };
+          };
+        })
+          .from("study_messages")
+          .select("role, content, used_vault")
+          .eq("profile_id", profile.id)
+          .order("created_at", { ascending: true })
+          .limit(50);
+        if (cancelled) return;
+        if (error) throw error;
+        const rows = data ?? [];
+        setMessages(rows.map((r) => ({ role: r.role, content: r.content, usedVault: !!r.used_vault })));
+      } catch {
+        // best-effort — start with empty chat
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [profile.id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
+
+  async function persistExchange(userContent: string, assistantContent: string, usedVault: boolean) {
+    try {
+      await (supabase as unknown as {
+        from: (t: string) => {
+          insert: (rows: unknown) => Promise<{ error: Error | null }>;
+        };
+      }).from("study_messages").insert([
+        { profile_id: profile.id, role: "user", content: userContent, used_vault: false },
+        { profile_id: profile.id, role: "assistant", content: assistantContent, used_vault: usedVault },
+      ]);
+    } catch {
+      // best-effort
+    }
+  }
 
   async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -564,7 +612,15 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
         return;
       }
       if (d?.error) throw new Error(d.error);
-      setMessages([...next, { role: "assistant", content: d?.reply ?? "", usedVault: !!d?.usedVault }]);
+      const reply = d?.reply ?? "";
+      const usedVault = !!d?.usedVault;
+      setMessages([...next, { role: "assistant", content: reply, usedVault }]);
+      // Persist the exchange. For attachments, store a short placeholder
+      // in place of binary data — matches the tutor payload convention.
+      const storedUser = text.trim() || (att
+        ? `(shared a ${att.kind === "pdf" ? "PDF" : att.kind === "text" ? "text file" : "image"})`
+        : "(no message)");
+      void persistExchange(storedUser, reply, usedVault);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
       toast.error(msg && !/non-2xx/i.test(msg) ? msg : "Study Buddy tripped — please try again 🌿");
@@ -585,6 +641,10 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             <p className="mt-1 text-sm text-muted-foreground">
               Add <code className="rounded bg-muted px-1">ANTHROPIC_API_KEY</code> in project secrets.
             </p>
+          </div>
+        ) : hydrating ? (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            loading your chat…
           </div>
         ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
@@ -659,7 +719,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
           <div className="mb-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             <button
               type="button"
-              onClick={() => setQuizSubject(subjects[0] ?? "General")}
+              onClick={() => setShowQuizPicker(true)}
               className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
             >
               practice quiz 📝
@@ -669,13 +729,45 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                 key={s}
                 type="button"
                 onClick={() => setInput(`Help me with ${s}: `)}
-                onDoubleClick={() => setQuizSubject(s)}
                 className="shrink-0 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-muted"
               >
                 {s}
               </button>
             ))}
           </div>
+          {showQuizPicker && (
+            <ModalCard onClose={() => setShowQuizPicker(false)}>
+              <div className="rounded-3xl border border-border bg-card p-6 shadow-2xl">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice quiz</div>
+                    <div className="font-display text-lg font-bold">pick a subject 📝</div>
+                  </div>
+                  <button
+                    onClick={() => setShowQuizPicker(false)}
+                    aria-label="Close"
+                    className="grid h-8 w-8 place-items-center rounded-full border border-border"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {subjects.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        setShowQuizPicker(false);
+                        setQuizSubject(s);
+                      }}
+                      className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm hover:bg-muted"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </ModalCard>
+          )}
           {quizSubject && (
             <QuizModal
               profile={profile}
@@ -683,6 +775,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onClose={() => setQuizSubject(null)}
             />
           )}
+
 
           {attachment && (
             <div className="mb-2 flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-xs w-fit">

@@ -1723,6 +1723,41 @@ export type Database = {
           },
         ]
       }
+      study_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          profile_id: string
+          role: string
+          used_vault: boolean
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          profile_id: string
+          role: string
+          used_vault?: boolean
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          profile_id?: string
+          role?: string
+          used_vault?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_messages_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "learner_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       study_notes: {
         Row: {
           board: string
