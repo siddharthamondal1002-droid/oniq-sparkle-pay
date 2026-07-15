@@ -133,14 +133,15 @@ function TingScreen() {
           return;
         }
         if (f.size > 5 * 1024 * 1024) return toast.error("images must be under 5MB");
-        const data = await fileToBase64(f);
+        // Compress to keep the request payload small (matches smart-scout).
+        const { base64, dataUrl } = await compressToJpeg(f, 1024, 0.7);
         setAttachment({
           kind: "image",
-          mime,
+          mime: "image/jpeg",
           name: f.name,
           size: f.size,
-          data,
-          previewUrl: URL.createObjectURL(f),
+          data: base64,
+          previewUrl: dataUrl,
         });
       } else if (mime === "application/pdf" || /\.pdf$/i.test(f.name)) {
         if (f.size > 10 * 1024 * 1024) return toast.error("PDFs must be under 10MB");
