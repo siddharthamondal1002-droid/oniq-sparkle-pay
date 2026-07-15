@@ -542,14 +542,14 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
       }
       const { data, error } = await supabase.functions.invoke("study-tutor", { body });
       if (error) throw error;
-      const d = data as { configured?: boolean; reply?: string; error?: string };
+      const d = data as { configured?: boolean; reply?: string; error?: string; usedVault?: boolean };
       if (d?.configured === false) {
         setNotConfigured(true);
         setMessages(messages);
         return;
       }
       if (d?.error) throw new Error(d.error);
-      setMessages([...next, { role: "assistant", content: d?.reply ?? "" }]);
+      setMessages([...next, { role: "assistant", content: d?.reply ?? "", usedVault: !!d?.usedVault }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
       toast.error(msg && !/non-2xx/i.test(msg) ? msg : "Study Buddy tripped — please try again 🌿");
