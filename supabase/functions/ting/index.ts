@@ -1,4 +1,6 @@
 // Ting edge function — Claude (Anthropic) with optional web search
+import { langInstruction } from "../_shared/llm.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
