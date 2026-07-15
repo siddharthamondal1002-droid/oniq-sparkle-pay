@@ -719,7 +719,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
           <div className="mb-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             <button
               type="button"
-              onClick={() => setQuizSubject(subjects[0] ?? "General")}
+              onClick={() => setShowQuizPicker(true)}
               className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
             >
               practice quiz 📝
@@ -729,13 +729,45 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                 key={s}
                 type="button"
                 onClick={() => setInput(`Help me with ${s}: `)}
-                onDoubleClick={() => setQuizSubject(s)}
                 className="shrink-0 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-muted"
               >
                 {s}
               </button>
             ))}
           </div>
+          {showQuizPicker && (
+            <ModalCard onClose={() => setShowQuizPicker(false)}>
+              <div className="rounded-3xl border border-border bg-card p-6 shadow-2xl">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice quiz</div>
+                    <div className="font-display text-lg font-bold">pick a subject 📝</div>
+                  </div>
+                  <button
+                    onClick={() => setShowQuizPicker(false)}
+                    aria-label="Close"
+                    className="grid h-8 w-8 place-items-center rounded-full border border-border"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  {subjects.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        setShowQuizPicker(false);
+                        setQuizSubject(s);
+                      }}
+                      className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm hover:bg-muted"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </ModalCard>
+          )}
           {quizSubject && (
             <QuizModal
               profile={profile}
@@ -743,6 +775,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onClose={() => setQuizSubject(null)}
             />
           )}
+
 
           {attachment && (
             <div className="mb-2 flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-xs w-fit">
