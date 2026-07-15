@@ -1,0 +1,312 @@
+// study-paper-generate — build a real exam-format paper (30/80/100 marks).
+// JWT-gated. Uses service role to store answer key server-side; returns a
+// sanitized paper (no correct_index / model_answer / rubric_points) to client.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { callClaude, corsHeaders, json } from "../_shared/llm.ts";
+
+const BOARD_LABEL: Record<string, string> = {
+  cbse: "CBSE",
+  icse: "ICSE",
+  igcse: "IGCSE",
+  college: "College",
+};
+const BOARD_CURRICULUM: Record<string, string> = {
+  cbse: "CBSE (follows NCERT textbooks and syllabus).",
+  icse: "ICSE (follows the CISCE syllabus).",
+  igcse: "IGCSE (follows Cambridge International; use British spelling).",
+  college: "College-level (Indian UG/PG; align with standard Indian university syllabi).",
+};
+
+type Section = { type: "mcq" | "short" | "long"; marks: number; count: number };
+
+const MARK_STRUCTURES: Record<30 | 80 | 100, Section[]> = {
+  30: [
+    { type: "mcq", marks: 1, count: 10 },
+    { type: "short", marks: 3, count: 4 },
+    { type: "long", marks: 4, count: 2 },
+  ], // 10 + 12 + 8 = 30
+  80: [
+    { type: "mcq", marks: 1, count: 20 },
+    { type: "short", marks: 3, count: 10 },
+    { type: "long", marks: 5, count: 6 },
+  ], // 20 + 30 + 30 = 80
+  100: [
+    { type: "mcq", marks: 1, count: 20 },
+    { type: "short", marks: 3, count: 15 },
+    { type: "long", marks: 5, count: 7 },
+  ], // 20 + 45 + 35 = 100
+};
+
+// Self-check at cold start — refuse to boot with a broken structure.
+for (const [k, secs] of Object.entries(MARK_STRUCTURES)) {
+  const sum = secs.reduce((a, s) => a + s.marks * s.count, 0);
+  if (sum !== Number(k)) {
+    console.error(`MARK_STRUCTURES[${k}] sums to ${sum}, expected ${k}`);
+  }
+}
+
+const PAPER_TOOL_INPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    mcq: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          question: { type: "string" },
+          options: { type: "array", minItems: 4, maxItems: 4, items: { type: "string" } },
+          correct_index: { type: "integer", minimum: 0, maximum: 3 },
+          explanation: { type: "string" },
+        },
+        required: ["question", "options", "correct_index", "explanation"],
+      },
+    },
+    short: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          question: { type: "string" },
+          model_answer: { type: "string" },
+          rubric_points: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
+        },
+        required: ["question", "model_answer", "rubric_points"],
+      },
+    },
+    long: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          question: { type: "string" },
+          model_answer: { type: "string" },
+          rubric_points: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
+        },
+        required: ["question", "model_answer", "rubric_points"],
+      },
+    },
+  },
+  required: ["mcq", "short", "long"],
+};
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const authHeader = req.headers.get("Authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
+  if (!token) return json(401, { error: "unauthorized" });
+
+  let userId = "";
+  try {
+    const supa = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: `Bearer ${token}` } } },
+    );
+    const { data, error } = await supa.auth.getUser(token);
+    if (error || !data?.user) return json(401, { error: "unauthorized" });
+    userId = data.user.id;
+  } catch {
+    return json(401, { error: "unauthorized" });
+  }
+
+  let body: {
+    profile?: { board?: string; classLevel?: string; id?: string };
+    subject?: string;
+    totalMarks?: number;
+    profileId?: string;
+  } = {};
+  try { body = await req.json(); } catch { /* ignore */ }
+
+  const boardKey = String(body.profile?.board ?? "").toLowerCase();
+  const board = BOARD_LABEL[boardKey] ? boardKey : "cbse";
+  const classLevel = ["5","6","7","8","9","10","11","12","ug","pg"].includes(String(body.profile?.classLevel ?? ""))
+    ? String(body.profile?.classLevel) : "8";
+  const subject = String(body.subject ?? "").trim().slice(0, 80);
+  const totalMarks = Number(body.totalMarks);
+  const profileId = String(body.profileId ?? body.profile?.id ?? "").trim();
+  if (!subject) return json(200, { source: "unavailable", reason: "subject required" });
+  if (!profileId) return json(200, { source: "unavailable", reason: "profile id required" });
+  if (!(totalMarks === 30 || totalMarks === 80 || totalMarks === 100)) {
+    return json(200, { source: "unavailable", reason: "totalMarks must be 30, 80 or 100" });
+  }
+  const structure = MARK_STRUCTURES[totalMarks as 30 | 80 | 100];
+  const structSum = structure.reduce((a, s) => a + s.marks * s.count, 0);
+  if (structSum !== totalMarks) {
+    return json(200, { source: "unavailable", reason: "invalid mark structure" });
+  }
+
+  // Service-role client for study_papers writes + ownership check.
+  const admin = createClient(
+    Deno.env.get("SUPABASE_URL") ?? "",
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    { auth: { persistSession: false } },
+  );
+
+  // Verify the caller owns this learner profile.
+  try {
+    const { data: prof, error: profErr } = await admin
+      .from("learner_profiles")
+      .select("id, user_id")
+      .eq("id", profileId)
+      .maybeSingle();
+    if (profErr || !prof || (prof as { user_id: string }).user_id !== userId) {
+      return json(403, { error: "forbidden" });
+    }
+  } catch {
+    return json(500, { source: "unavailable", reason: "profile check failed" });
+  }
+
+  const boardLabel = BOARD_LABEL[board];
+  const cur = BOARD_CURRICULUM[board];
+  const gradeStr =
+    classLevel === "ug" ? "an undergraduate (UG) student"
+    : classLevel === "pg" ? "a postgraduate (PG) student"
+    : `a class ${classLevel} student`;
+
+  const mcqCount = structure.find((s) => s.type === "mcq")!.count;
+  const shortSec = structure.find((s) => s.type === "short")!;
+  const longSec = structure.find((s) => s.type === "long")!;
+
+  const system = [
+    `You are writing a real ${totalMarks}-mark practice examination paper for ${gradeStr} studying under ${boardLabel} in India. ${cur}`,
+    `Subject: ${subject}.`,
+    "",
+    "STRUCTURE (produce EXACTLY these counts — no more, no fewer):",
+    `- mcq: ${mcqCount} multiple-choice questions, 1 mark each, 4 options each with exactly one correct answer.`,
+    `- short: ${shortSec.count} short-answer questions, ${shortSec.marks} marks each. Provide a concise model_answer (the ideal answer, 40–120 words) and 2–4 rubric_points (short bullet criteria a grader should check for).`,
+    `- long: ${longSec.count} long-answer questions, ${longSec.marks} marks each. Provide a fuller model_answer (120–300 words) and 2–4 rubric_points.`,
+    "",
+    "Rules:",
+    "- Age-appropriate, syllabus-aligned, non-trivial but fair. Test understanding, not tricks.",
+    "- Spread across the subject's key topics for this class. Don't cluster around one narrow topic.",
+    "- Wrong MCQ options should be plausible common mistakes.",
+    "- rubric_points must be concrete and answer-specific (e.g. 'defines momentum as p = mv', 'mentions vector nature'), not vague like 'good explanation'.",
+    "- Honesty: never invent facts, dates, formulas, chapter references, or past-paper citations. If unsure, use safely-known content.",
+    "- No personal data, no politics, no religion, no adult content.",
+    "- Return ONLY via the generate_paper tool. Do not include any extra prose.",
+  ].join("\n");
+
+  const res = await callClaude({
+    system,
+    messages: [{
+      role: "user",
+      content: `Please generate the ${totalMarks}-mark ${subject} paper for a ${boardLabel} ${gradeStr}.`,
+    }],
+    tools: [{ name: "generate_paper", description: "Return the full paper.", input_schema: PAPER_TOOL_INPUT_SCHEMA }],
+    toolChoice: { type: "tool", name: "generate_paper" },
+    maxTokens: 8000,
+    timeoutMs: 90000,
+  });
+
+  if (!res.ok) return json(200, { source: "unavailable", reason: res.reason });
+
+  try {
+    const blocks = Array.isArray(res.data?.content) ? res.data.content : [];
+    const toolUse = blocks.find((b: { type?: string }) => b?.type === "tool_use") as
+      | { input?: { mcq?: unknown; short?: unknown; long?: unknown } } | undefined;
+    const raw = toolUse?.input;
+    if (!raw) return json(200, { source: "unavailable", reason: "no paper" });
+
+    type MCQIn = { question?: unknown; options?: unknown; correct_index?: unknown; explanation?: unknown };
+    type WrittenIn = { question?: unknown; model_answer?: unknown; rubric_points?: unknown };
+
+    const mcqRaw = Array.isArray(raw.mcq) ? raw.mcq as MCQIn[] : [];
+    const shortRaw = Array.isArray(raw.short) ? raw.short as WrittenIn[] : [];
+    const longRaw = Array.isArray(raw.long) ? raw.long as WrittenIn[] : [];
+
+    if (mcqRaw.length < mcqCount || shortRaw.length < shortSec.count || longRaw.length < longSec.count) {
+      return json(200, { source: "unavailable", reason: "malformed paper" });
+    }
+
+    // Full internal record (stored server-side).
+    type StoredQ =
+      | { id: string; type: "mcq"; marks: number; question: string; options: string[]; correct_index: number; explanation: string }
+      | { id: string; type: "short" | "long"; marks: number; question: string; model_answer: string; rubric_points: string[] };
+
+    const stored: StoredQ[] = [];
+
+    for (let i = 0; i < mcqCount; i++) {
+      const q = mcqRaw[i];
+      const options = Array.isArray(q.options) ? q.options.slice(0, 4).map((o) => String(o)) : [];
+      const ci = Number(q.correct_index);
+      if (!q.question || options.length !== 4 || !Number.isInteger(ci) || ci < 0 || ci > 3) {
+        return json(200, { source: "unavailable", reason: "bad mcq item" });
+      }
+      stored.push({
+        id: `mcq-${i}`,
+        type: "mcq",
+        marks: 1,
+        question: String(q.question).trim(),
+        options,
+        correct_index: ci,
+        explanation: String(q.explanation ?? "").trim(),
+      });
+    }
+    for (let i = 0; i < shortSec.count; i++) {
+      const q = shortRaw[i];
+      const rp = Array.isArray(q.rubric_points) ? q.rubric_points.slice(0, 4).map((s) => String(s).trim()).filter(Boolean) : [];
+      if (!q.question || !q.model_answer || rp.length < 2) {
+        return json(200, { source: "unavailable", reason: "bad short item" });
+      }
+      stored.push({
+        id: `short-${i}`,
+        type: "short",
+        marks: shortSec.marks,
+        question: String(q.question).trim(),
+        model_answer: String(q.model_answer).trim(),
+        rubric_points: rp,
+      });
+    }
+    for (let i = 0; i < longSec.count; i++) {
+      const q = longRaw[i];
+      const rp = Array.isArray(q.rubric_points) ? q.rubric_points.slice(0, 4).map((s) => String(s).trim()).filter(Boolean) : [];
+      if (!q.question || !q.model_answer || rp.length < 2) {
+        return json(200, { source: "unavailable", reason: "bad long item" });
+      }
+      stored.push({
+        id: `long-${i}`,
+        type: "long",
+        marks: longSec.marks,
+        question: String(q.question).trim(),
+        model_answer: String(q.model_answer).trim(),
+        rubric_points: rp,
+      });
+    }
+
+    // Insert full record via service role.
+    const { data: inserted, error: insErr } = await admin
+      .from("study_papers")
+      .insert({
+        profile_id: profileId,
+        subject,
+        total_marks: totalMarks,
+        questions: stored,
+        status: "in_progress",
+      })
+      .select("id")
+      .single();
+    if (insErr || !inserted) {
+      console.warn("study-paper-generate: insert failed", insErr?.message);
+      return json(200, { source: "unavailable", reason: "storage failed" });
+    }
+
+    // Sanitize for the client — strip every answer-key field.
+    const clientQuestions = stored.map((q) => {
+      if (q.type === "mcq") {
+        return { id: q.id, type: "mcq" as const, marks: q.marks, question: q.question, options: q.options };
+      }
+      return { id: q.id, type: q.type, marks: q.marks, question: q.question };
+    });
+
+    return json(200, {
+      source: "paper",
+      paper_id: (inserted as { id: string }).id,
+      subject,
+      total_marks: totalMarks,
+      questions: clientQuestions,
+    });
+  } catch (e) {
+    return json(200, { source: "unavailable", reason: (e as Error).message.slice(0, 100) });
+  }
+});
