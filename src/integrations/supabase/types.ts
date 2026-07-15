@@ -1685,6 +1685,42 @@ export type Database = {
           },
         ]
       }
+      study_notes: {
+        Row: {
+          board: string
+          class_level: string
+          content: string
+          created_at: string
+          id: string
+          search: unknown
+          source: string
+          subject: string
+          topic: string
+        }
+        Insert: {
+          board: string
+          class_level: string
+          content: string
+          created_at?: string
+          id?: string
+          search?: unknown
+          source?: string
+          subject: string
+          topic: string
+        }
+        Update: {
+          board?: string
+          class_level?: string
+          content?: string
+          created_at?: string
+          id?: string
+          search?: unknown
+          source?: string
+          subject?: string
+          topic?: string
+        }
+        Relationships: []
+      }
       suppressed_emails: {
         Row: {
           created_at: string

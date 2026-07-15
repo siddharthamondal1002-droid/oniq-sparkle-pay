@@ -35,6 +35,7 @@ type Msg = {
   role: "user" | "assistant";
   content: string;
   attachment?: { kind: Attachment["kind"]; name: string; previewUrl?: string };
+  usedVault?: boolean;
 };
 
 const BOARDS: { value: Board; label: string }[] = [
@@ -541,14 +542,14 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
       }
       const { data, error } = await supabase.functions.invoke("study-tutor", { body });
       if (error) throw error;
-      const d = data as { configured?: boolean; reply?: string; error?: string };
+      const d = data as { configured?: boolean; reply?: string; error?: string; usedVault?: boolean };
       if (d?.configured === false) {
         setNotConfigured(true);
         setMessages(messages);
         return;
       }
       if (d?.error) throw new Error(d.error);
-      setMessages([...next, { role: "assistant", content: d?.reply ?? "" }]);
+      setMessages([...next, { role: "assistant", content: d?.reply ?? "", usedVault: !!d?.usedVault }]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
       toast.error(msg && !/non-2xx/i.test(msg) ? msg : "Study Buddy tripped — please try again 🌿");
@@ -606,6 +607,11 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                       }`}
                     >
                       {m.content}
+                    </div>
+                  )}
+                  {m.role === "assistant" && m.usedVault && (
+                    <div className="mt-1 text-[10px] text-muted-foreground">
+                      📚 from the ONIQ study vault
                     </div>
                   )}
                 </div>
