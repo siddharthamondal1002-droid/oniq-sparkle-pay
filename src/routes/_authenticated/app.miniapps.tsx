@@ -161,8 +161,10 @@ function MiniAppsScreen() {
                     className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40"
                   >
                     <div
-                      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-bold text-white"
-                      style={{ backgroundColor: item.color }}
+                      className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-bold${
+                        relativeLuminance(item.color) < 0.05 ? " ring-1 ring-inset ring-white/15" : ""
+                      }`}
+                      style={{ backgroundColor: item.color, color: item.emoji ? undefined : readableInk(item.color) }}
                     >
                       {item.emoji ?? item.letter}
                     </div>
