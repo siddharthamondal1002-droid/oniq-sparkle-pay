@@ -1419,7 +1419,7 @@ function useAttempts() {
         };
       })
         .from("quiz_attempts")
-        .select("id, profile_id, subject, topic, total_questions, correct_count, created_at")
+        .select("id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, created_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -1427,27 +1427,44 @@ function useAttempts() {
   });
 }
 
+// Normalize a quiz_attempts row to a unified numerator/denominator regardless
+// of whether it's a quick 5-Q quiz (total_questions/correct_count) or a full
+// paper (total_marks/marks_scored).
+function attemptScore(r: Attempt): { num: number; den: number } {
+  if (r.total_marks && r.total_marks > 0) {
+    return { num: Math.max(0, r.marks_scored ?? 0), den: r.total_marks };
+  }
+  if (r.total_questions && r.total_questions > 0) {
+    return { num: Math.max(0, r.correct_count ?? 0), den: r.total_questions };
+  }
+  return { num: 0, den: 0 };
+}
+
 function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; onClose: () => void }) {
   const { data: attempts, isLoading } = useAttempts();
 
   function statsFor(profileId: string) {
     const rows = (attempts ?? []).filter((a) => a.profile_id === profileId);
-    const totalQ = rows.reduce((s, r) => s + r.total_questions, 0);
-    const totalC = rows.reduce((s, r) => s + r.correct_count, 0);
-    const acc = totalQ > 0 ? Math.round((totalC / totalQ) * 100) : 0;
-
-    const bySubject = new Map<string, { attempts: number; q: number; c: number }>();
+    let totalNum = 0, totalDen = 0;
     for (const r of rows) {
-      const cur = bySubject.get(r.subject) ?? { attempts: 0, q: 0, c: 0 };
+      const { num, den } = attemptScore(r);
+      totalNum += num; totalDen += den;
+    }
+    const acc = totalDen > 0 ? Math.round((totalNum / totalDen) * 100) : 0;
+
+    const bySubject = new Map<string, { attempts: number; num: number; den: number }>();
+    for (const r of rows) {
+      const { num, den } = attemptScore(r);
+      const cur = bySubject.get(r.subject) ?? { attempts: 0, num: 0, den: 0 };
       cur.attempts += 1;
-      cur.q += r.total_questions;
-      cur.c += r.correct_count;
+      cur.num += num;
+      cur.den += den;
       bySubject.set(r.subject, cur);
     }
     const subjects = Array.from(bySubject.entries()).map(([subject, s]) => ({
       subject,
       attempts: s.attempts,
-      accuracy: s.q > 0 ? Math.round((s.c / s.q) * 100) : 0,
+      accuracy: s.den > 0 ? Math.round((s.num / s.den) * 100) : 0,
     }));
 
     // streak: distinct calendar days in the last 14 days
@@ -1469,6 +1486,7 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
       recent,
     };
   }
+
 
   return (
     <div className="max-h-[85vh] overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl">
