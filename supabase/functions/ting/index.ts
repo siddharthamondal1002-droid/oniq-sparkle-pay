@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     const payload: Record<string, unknown> = {
       model: "claude-sonnet-4-6",
       max_tokens: 1024,
-      system: SYSTEM,
+      system: SYSTEM + langInstruction(lang),
       messages: outMessages,
     };
     if (search) {
