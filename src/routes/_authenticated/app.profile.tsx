@@ -170,6 +170,8 @@ function ProfileScreen() {
 
       <SoundsSection />
 
+      <LanguageSection />
+
       <MyDataSection />
 
       <SafetySection />
