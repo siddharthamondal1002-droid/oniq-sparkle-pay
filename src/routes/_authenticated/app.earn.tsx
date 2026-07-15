@@ -12,21 +12,62 @@ export const Route = createFileRoute("/_authenticated/app/earn")({
 
 type Tab = "hire" | "partner";
 
-type Category = { id: string; label: string; emoji: string };
+type Category = { id: string; label: string; emoji: string; providers?: Provider[] };
+
+// declared below; forward type
+type Provider = {
+  id: string;
+  name: string;
+  url: string;
+  androidPackage?: string;
+  appScheme?: string;
+  color: string;
+  emoji: string;
+};
+
+const PROVIDERS: Provider[] = [
+  {
+    id: "urbancompany",
+    name: "Urban Company",
+    url: "https://www.urbancompany.com",
+    androidPackage: "com.urbanclap.urbanclap",
+    appScheme: "urbancompany://",
+    color: "#E91E63",
+    emoji: "🧹",
+  },
+  {
+    id: "snabbit",
+    name: "Snabbit",
+    url: "https://www.snabbit.com",
+    androidPackage: "com.snabbit.customer",
+    color: "#FF6B35",
+    emoji: "⚡",
+  },
+];
 
 const CATEGORIES: Category[] = [
-  { id: "house_cleaning", label: "House Cleaning", emoji: "🧹" },
-  { id: "kitchen_cleaning", label: "Kitchen Cleaning", emoji: "🍳" },
-  { id: "bathroom_cleaning", label: "Bathroom Cleaning", emoji: "🛁" },
-  { id: "cook", label: "Cook / Chef", emoji: "👨‍🍳" },
-  { id: "dishwashing", label: "Dishwashing", emoji: "🍽️" },
-  { id: "laundry", label: "Laundry", emoji: "🧺" },
-  { id: "fan_window", label: "Fan/Window Cleaning", emoji: "🪟" },
-  { id: "appliance_repair", label: "Appliance Repair", emoji: "🔧" },
-  { id: "electrician", label: "Electrician", emoji: "💡" },
-  { id: "plumber", label: "Plumber", emoji: "🚰" },
-  { id: "beauty", label: "Beauty & Salon at home", emoji: "💅" },
-  { id: "tutor", label: "Tutor", emoji: "📚" },
+  { id: "house_cleaning", label: "House Cleaning", emoji: "🧹", providers: PROVIDERS },
+  { id: "kitchen_cleaning", label: "Kitchen Cleaning", emoji: "🍳", providers: PROVIDERS },
+  { id: "bathroom_cleaning", label: "Bathroom Cleaning", emoji: "🛁", providers: PROVIDERS },
+  { id: "cook", label: "Cook / Chef", emoji: "👨‍🍳", providers: PROVIDERS },
+  { id: "dishwashing", label: "Dishwashing", emoji: "🍽️", providers: PROVIDERS },
+  { id: "laundry", label: "Laundry", emoji: "🧺", providers: PROVIDERS },
+  { id: "fan_window", label: "Fan/Window Cleaning", emoji: "🪟", providers: PROVIDERS },
+  { id: "appliance_repair", label: "Appliance Repair", emoji: "🔧", providers: PROVIDERS },
+  { id: "electrician", label: "Electrician", emoji: "💡", providers: PROVIDERS },
+  { id: "plumber", label: "Plumber", emoji: "🚰", providers: PROVIDERS },
+  { id: "beauty", label: "Beauty & Salon at home", emoji: "💅", providers: PROVIDERS },
+  { id: "tutor", label: "Tutor", emoji: "📚", providers: PROVIDERS },
+  { id: "bike_mechanic", label: "Bike Mechanic", emoji: "🏍️" },
+  { id: "car_mechanic", label: "Car Mechanic", emoji: "🚗" },
+  { id: "physiotherapist", label: "Physiotherapist", emoji: "🧑‍⚕️" },
+  { id: "caregiver", label: "Caregiver / Attendant", emoji: "🧑‍🦽" },
+  { id: "babysitter", label: "Babysitter", emoji: "👶" },
+  { id: "pet_sitter", label: "Pet Sitter", emoji: "🐾" },
+  { id: "tax_ca", label: "Tax Consultant / CA", emoji: "🧾" },
+  { id: "lawyer_civil", label: "Lawyer — Civil", emoji: "⚖️" },
+  { id: "lawyer_criminal", label: "Lawyer — Criminal", emoji: "⚖️" },
+  { id: "lawyer_corporate", label: "Lawyer — Corporate", emoji: "⚖️" },
 ];
 
 const CITIES = [
