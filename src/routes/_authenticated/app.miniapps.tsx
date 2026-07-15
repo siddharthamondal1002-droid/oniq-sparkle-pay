@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, ExternalLink, Car, IndianRupee } from "lucide-react";
-import { MINI_APPS, CATEGORY_LABELS, launchMiniApp, type MiniApp } from "@/lib/miniapps";
+import { MINI_APPS, CATEGORY_LABELS, launchMiniApp, relativeLuminance, readableInk, type MiniApp } from "@/lib/miniapps";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/_authenticated/app/miniapps")({
