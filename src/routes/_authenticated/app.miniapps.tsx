@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, ExternalLink, Car, IndianRupee } from "lucide-react";
-import { MINI_APPS, CATEGORY_LABELS, launchMiniApp, type MiniApp } from "@/lib/miniapps";
+import { MINI_APPS, CATEGORY_LABELS, launchMiniApp, relativeLuminance, readableInk, type MiniApp } from "@/lib/miniapps";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 export const Route = createFileRoute("/_authenticated/app/miniapps")({
@@ -161,8 +161,10 @@ function MiniAppsScreen() {
                     className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40"
                   >
                     <div
-                      className="grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-bold text-white"
-                      style={{ backgroundColor: item.color }}
+                      className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-bold${
+                        relativeLuminance(item.color) < 0.05 ? " ring-1 ring-inset ring-white/15" : ""
+                      }`}
+                      style={{ backgroundColor: item.color, color: item.emoji ? undefined : readableInk(item.color) }}
                     >
                       {item.emoji ?? item.letter}
                     </div>
@@ -183,12 +185,15 @@ function MiniAppsScreen() {
 }
 
 function AppTile({ item, size }: { item: FolderItem; size: "lg" | "sm" }) {
-  const cls =
+  const isDark = relativeLuminance(item.color) < 0.05;
+  const base =
     size === "lg"
-      ? "h-full w-full rounded-xl grid place-items-center font-display font-bold text-white text-lg"
-      : "h-full w-full rounded-[4px] grid place-items-center font-display font-bold text-white text-[8px] leading-none";
+      ? "h-full w-full rounded-xl grid place-items-center font-display font-bold text-lg"
+      : "h-full w-full rounded-[4px] grid place-items-center font-display font-bold text-[8px] leading-none";
+  const cls = `${base}${isDark ? " ring-1 ring-inset ring-white/15" : ""}`;
+  const ink = item.emoji ? undefined : readableInk(item.color);
   return (
-    <div className={cls} style={{ backgroundColor: item.color }}>
+    <div className={cls} style={{ backgroundColor: item.color, color: ink }}>
       <span className={size === "lg" ? "text-lg" : "text-[10px]"}>
         {item.emoji ?? item.letter}
       </span>
@@ -229,8 +234,16 @@ function FolderCard({ folder, onOpen }: { folder: Folder; onOpen: () => void }) 
         </div>
       </div>
       <div className="w-full text-center">
-        <div className="truncate text-xs text-muted-foreground">{folder.label}</div>
-        <div className="text-[10px] text-muted-foreground/60">
+        <div
+          className="truncate text-xs text-white/90"
+          style={{ textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}
+        >
+          {folder.label}
+        </div>
+        <div
+          className="text-[10px] text-white/60"
+          style={{ textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}
+        >
           {items.length} app{items.length === 1 ? "" : "s"}
         </div>
       </div>
