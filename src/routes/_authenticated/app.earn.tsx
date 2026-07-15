@@ -222,6 +222,9 @@ function ProviderChooser({ category, onClose }: { category: Category; onClose: (
         <div className="font-display text-lg font-bold">
           {category.emoji} {category.label}
         </div>
+        <div className="mt-1 text-[11px] text-muted-foreground">
+          Independent services — coverage varies by city. Links checked July 2026.
+        </div>
         <div className="mt-4 space-y-2">
           {providers.map((p) => (
             <button
