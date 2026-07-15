@@ -137,20 +137,20 @@ function MiniAppsScreen() {
         Third-party apps are independent services. ONIQ opens them for your convenience.
       </p>
 
-      <Sheet open={!!activeFolder} onOpenChange={(o) => !o && setOpenKey(null)}>
-        <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-3xl border-border bg-background">
+      <Dialog open={!!activeFolder} onOpenChange={(o) => !o && setOpenKey(null)}>
+        <DialogContent
+          className="max-h-[80vh] w-[90vw] max-w-md gap-0 overflow-y-auto rounded-3xl border border-white/10 bg-card p-5 motion-reduce:animate-none"
+        >
           {activeFolder && (
             <>
-              <SheetHeader>
-                <SheetTitle className="text-left font-display text-xl">{activeFolder.label}</SheetTitle>
-              </SheetHeader>
+              <DialogTitle className="text-left font-display text-xl">{activeFolder.label}</DialogTitle>
               {activeFolder.disclaimer && (
                 <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
                   {activeFolder.disclaimer}
                 </p>
               )}
-              <div className="mt-4 space-y-2 pb-6">
-                {activeFolder.items.map((item) => (
+              <div className="mt-4 space-y-2 pb-2">
+                {activeFolder.items.map((item, idx) => (
                   <button
                     key={item.id}
                     onClick={() => {
@@ -158,7 +158,8 @@ function MiniAppsScreen() {
                       setOpenKey(null);
                     }}
                     data-testid={`miniapp-${item.id}`}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40"
+                    style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition active:scale-[0.97] hover:border-primary/40 animate-in fade-in-0 slide-in-from-bottom-2 duration-300 fill-mode-both motion-reduce:animate-none motion-reduce:transition-none"
                   >
                     <div
                       className={`relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl font-display text-lg font-bold${
@@ -179,8 +180,8 @@ function MiniAppsScreen() {
               </div>
             </>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
