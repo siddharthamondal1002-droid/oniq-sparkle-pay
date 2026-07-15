@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { ArrowLeft, Send, Globe, ExternalLink, Paperclip, X, Camera, Mic } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { compressToJpeg } from "@/lib/imageCompress";
 
 export const Route = createFileRoute("/_authenticated/app/ai")({
   component: TingScreen,
