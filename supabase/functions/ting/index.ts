@@ -55,6 +55,11 @@ Deno.serve(async (req) => {
       if (typeof m.content !== "string" || m.content.length > 4000) {
         return json({ error: "invalid content" }, 400);
       }
+      // Anthropic rejects whitespace-only text blocks with a 400 — patch here
+      // as a safety net in case older clients still send " ".
+      if (m.content.trim().length === 0) {
+        m.content = "(no message)";
+      }
     }
 
     // Attach file to the last user message if present.
