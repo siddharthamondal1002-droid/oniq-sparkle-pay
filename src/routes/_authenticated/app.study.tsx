@@ -1122,6 +1122,276 @@ function QuizModal({
   );
 }
 
+// ------------------------- Full Paper -------------------------
+
+type PaperQClient =
+  | { id: string; type: "mcq"; marks: number; question: string; options: string[] }
+  | { id: string; type: "short" | "long"; marks: number; question: string };
+
+type GradeResult = {
+  awarded_marks: number;
+  max_marks: number;
+  feedback: string;
+  correct_index?: number;
+};
+
+function PaperModal({
+  profile,
+  subject,
+  totalMarks,
+  onClose,
+}: {
+  profile: LearnerProfile;
+  subject: string;
+  totalMarks: 30 | 80 | 100;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [paperId, setPaperId] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<PaperQClient[] | null>(null);
+  const [idx, setIdx] = useState(0);
+  const [mcqPick, setMcqPick] = useState<number | null>(null);
+  const [written, setWritten] = useState("");
+  const [grading, setGrading] = useState(false);
+  const [gradeResult, setGradeResult] = useState<GradeResult | null>(null);
+  const [totalScored, setTotalScored] = useState(0);
+  const [done, setDone] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const finishedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setErrorMsg(null);
+      try {
+        const { data, error } = await supabase.functions.invoke("study-paper-generate", {
+          body: {
+            profile: { board: profile.board, classLevel: profile.class_level },
+            profileId: profile.id,
+            subject,
+            totalMarks,
+          },
+        });
+        if (cancelled) return;
+        if (error) throw error;
+        const d = data as { source?: string; paper_id?: string; questions?: PaperQClient[]; reason?: string };
+        if (d?.source === "paper" && d.paper_id && Array.isArray(d.questions) && d.questions.length > 0) {
+          setPaperId(d.paper_id);
+          setQuestions(d.questions);
+        } else {
+          setErrorMsg("couldn't build that paper — try again 🌿");
+        }
+      } catch {
+        if (!cancelled) setErrorMsg("couldn't build that paper — try again 🌿");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile.id, profile.board, profile.class_level, subject, totalMarks]);
+
+  const q = questions?.[idx] ?? null;
+  const isLast = questions ? idx + 1 >= questions.length : false;
+
+  async function submitAnswer() {
+    if (!q || !paperId || grading) return;
+    setGrading(true);
+    try {
+      const answer: string | number = q.type === "mcq" ? (mcqPick ?? -1) : written.trim();
+      const { data, error } = await supabase.functions.invoke("study-paper-grade", {
+        body: { paper_id: paperId, question_id: q.id, answer },
+      });
+      if (error) throw error;
+      const d = data as GradeResult & { source?: string; reason?: string };
+      if (typeof d.awarded_marks !== "number") {
+        toast.error("couldn't grade that one — try again");
+        return;
+      }
+      setGradeResult({
+        awarded_marks: d.awarded_marks,
+        max_marks: d.max_marks ?? q.marks,
+        feedback: d.feedback ?? "",
+        correct_index: d.correct_index,
+      });
+      setTotalScored((s) => s + d.awarded_marks);
+    } catch {
+      toast.error("couldn't grade that one — try again");
+    } finally {
+      setGrading(false);
+    }
+  }
+
+  async function next() {
+    if (!questions) return;
+    if (isLast) {
+      setDone(true);
+      if (!finishedRef.current && paperId) {
+        finishedRef.current = true;
+        setFinishing(true);
+        try {
+          await supabase.functions.invoke("study-paper-finish", {
+            body: { paper_id: paperId, marks_scored: totalScored, total_marks: totalMarks, subject },
+          });
+        } catch { /* best-effort */ }
+        finally { setFinishing(false); }
+      }
+    } else {
+      setIdx(idx + 1);
+      setMcqPick(null);
+      setWritten("");
+      setGradeResult(null);
+    }
+  }
+
+  const pct = totalMarks > 0 ? Math.round((totalScored / totalMarks) * 100) : 0;
+
+  return (
+    <ModalCard onClose={onClose}>
+      <div className="max-h-[85vh] overflow-y-auto rounded-3xl border border-border bg-card p-6 shadow-2xl">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice paper</div>
+            <div className="font-display text-lg font-bold">{subject} · {totalMarks} marks</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full border border-border">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {loading && (
+          <div className="mt-10 text-center text-sm text-muted-foreground">
+            building your paper… 📄
+          </div>
+        )}
+
+        {!loading && errorMsg && (
+          <div className="mt-8 text-center">
+            <div className="text-3xl">🌿</div>
+            <p className="mt-2 text-sm text-muted-foreground">{errorMsg}</p>
+            <button onClick={onClose} className="mt-4 rounded-xl border border-border px-4 py-2 text-sm">close</button>
+          </div>
+        )}
+
+        {!loading && !errorMsg && q && !done && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>Question {idx + 1} of {questions?.length ?? 0} · {q.marks} {q.marks === 1 ? "mark" : "marks"}</span>
+              <span>Score: {totalScored}/{totalMarks}</span>
+            </div>
+            <div className="mt-3 text-sm font-medium whitespace-pre-wrap">{q.question}</div>
+
+            {q.type === "mcq" ? (
+              <div className="mt-4 space-y-2">
+                {q.options.map((opt, i) => {
+                  const picked = mcqPick === i;
+                  const graded = gradeResult !== null;
+                  const isAnswer = graded && gradeResult?.correct_index === i;
+                  const isWrongPick = graded && picked && gradeResult?.correct_index !== i;
+                  return (
+                    <button
+                      key={i}
+                      disabled={graded}
+                      onClick={() => setMcqPick(i)}
+                      className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                        isAnswer
+                          ? "border-green-500/50 bg-green-500/10 text-green-300"
+                          : isWrongPick
+                          ? "border-red-500/50 bg-red-500/10 text-red-300"
+                          : picked
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-card hover:bg-muted"
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-4">
+                <textarea
+                  value={written}
+                  onChange={(e) => setWritten(e.target.value.slice(0, 6000))}
+                  disabled={gradeResult !== null}
+                  placeholder={q.type === "long" ? "write your full answer here…" : "write your short answer here…"}
+                  rows={q.type === "long" ? 8 : 5}
+                  className="w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm focus:outline-none disabled:opacity-70"
+                />
+                <div className="mt-1 text-[10px] text-muted-foreground text-right">{written.length}/6000</div>
+              </div>
+            )}
+
+            {gradeResult && (
+              <div className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
+                gradeResult.awarded_marks === gradeResult.max_marks
+                  ? "border-green-500/30 bg-green-500/5 text-green-300"
+                  : gradeResult.awarded_marks > 0
+                  ? "border-yellow-500/30 bg-yellow-500/5 text-yellow-200"
+                  : "border-border bg-muted/40 text-muted-foreground"
+              }`}>
+                <div className="font-medium">
+                  {gradeResult.awarded_marks}/{gradeResult.max_marks} · {
+                    gradeResult.awarded_marks === gradeResult.max_marks ? "full marks ✨"
+                    : gradeResult.awarded_marks > 0 ? "partial credit"
+                    : "no marks this time"
+                  }
+                </div>
+                {gradeResult.feedback && <div className="mt-1">{gradeResult.feedback}</div>}
+              </div>
+            )}
+
+            {!gradeResult ? (
+              <button
+                onClick={submitAnswer}
+                disabled={grading || (q.type === "mcq" ? mcqPick === null : written.trim().length === 0)}
+                className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {grading ? "grading…" : "submit answer"}
+              </button>
+            ) : (
+              <button
+                onClick={next}
+                className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+              >
+                {isLast ? "see results" : "next question"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {done && (
+          <div className="mt-4 text-center">
+            <div className="text-4xl">
+              {pct >= 90 ? "🏆" : pct >= 60 ? "🎉" : "🌱"}
+            </div>
+            <div className="mt-2 font-display text-xl font-bold">
+              you scored {totalScored}/{totalMarks}!
+            </div>
+            <div className="text-xs text-muted-foreground">that's {pct}%</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {pct >= 90
+                ? "outstanding — you know this cold."
+                : pct >= 60
+                ? "solid work — real understanding showing through."
+                : "great practice — every attempt makes the next one easier 💪"}
+            </p>
+            {finishing && <div className="mt-2 text-[10px] text-muted-foreground">saving…</div>}
+            <button
+              onClick={onClose}
+              disabled={finishing}
+              className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              done
+            </button>
+          </div>
+        )}
+      </div>
+    </ModalCard>
+  );
+}
+
 // ------------------------- Progress -------------------------
 
 type Attempt = {
@@ -1129,10 +1399,13 @@ type Attempt = {
   profile_id: string;
   subject: string;
   topic: string;
-  total_questions: number;
-  correct_count: number;
+  total_questions: number | null;
+  correct_count: number | null;
+  total_marks: number | null;
+  marks_scored: number | null;
   created_at: string;
 };
+
 
 function useAttempts() {
   return useQuery({
