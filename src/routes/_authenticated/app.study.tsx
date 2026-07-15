@@ -233,6 +233,12 @@ function StudyScreen() {
           />
         </ModalCard>
       )}
+
+      {showProgress && profiles && (
+        <ModalCard onClose={() => setShowProgress(false)}>
+          <ProgressDashboard profiles={profiles} onClose={() => setShowProgress(false)} />
+        </ModalCard>
+      )}
     </div>
   );
 }
