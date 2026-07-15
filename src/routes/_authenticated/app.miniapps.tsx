@@ -161,12 +161,13 @@ function MiniAppsScreen() {
                     className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40"
                   >
                     <div
-                      className={`grid h-11 w-11 shrink-0 place-items-center rounded-xl font-display text-lg font-bold${
+                      className={`relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-2xl font-display text-lg font-bold${
                         relativeLuminance(item.color) < 0.05 ? " ring-1 ring-inset ring-white/15" : ""
                       }`}
                       style={{ backgroundColor: item.color, color: item.emoji ? undefined : readableInk(item.color) }}
                     >
-                      {item.emoji ?? item.letter}
+                      <span className="relative z-10">{item.emoji ?? item.letter}</span>
+                      <div className="pointer-events-none absolute inset-x-0 top-0 h-[40%] rounded-t-2xl bg-gradient-to-b from-white/20 to-transparent" />
                     </div>
                     <div className="flex-1">
                       <div className="text-sm font-semibold">{item.name}</div>
@@ -188,15 +189,20 @@ function AppTile({ item, size }: { item: FolderItem; size: "lg" | "sm" }) {
   const isDark = relativeLuminance(item.color) < 0.05;
   const base =
     size === "lg"
-      ? "h-full w-full rounded-xl grid place-items-center font-display font-bold text-lg"
-      : "h-full w-full rounded-[4px] grid place-items-center font-display font-bold text-[8px] leading-none";
+      ? "relative h-full w-full overflow-hidden rounded-2xl grid place-items-center font-display font-bold"
+      : "relative h-full w-full overflow-hidden rounded-[4px] grid place-items-center font-display font-bold leading-none";
   const cls = `${base}${isDark ? " ring-1 ring-inset ring-white/15" : ""}`;
   const ink = item.emoji ? undefined : readableInk(item.color);
   return (
     <div className={cls} style={{ backgroundColor: item.color, color: ink }}>
-      <span className={size === "lg" ? "text-lg" : "text-[10px]"}>
+      <span className={`relative z-10 ${size === "lg" ? "text-xl" : "text-[10px]"}`}>
         {item.emoji ?? item.letter}
       </span>
+      <div
+        className={`pointer-events-none absolute inset-x-0 top-0 h-[40%] bg-gradient-to-b from-white/20 to-transparent ${
+          size === "lg" ? "rounded-t-2xl" : "rounded-t-[4px]"
+        }`}
+      />
     </div>
   );
 }
