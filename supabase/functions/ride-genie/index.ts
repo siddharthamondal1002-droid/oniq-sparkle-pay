@@ -2,7 +2,7 @@
 // into structured intent via Claude tool use. INTENT ONLY — never returns
 // coordinates, fares, or facts. Falls back silently on the client.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json } from "../_shared/llm.ts";
+import { callClaude, corsHeaders, json, langInstruction } from "../_shared/llm.ts";
 
 const SYSTEM = [
   "You extract ride-booking intent from Indian users speaking casually.",
