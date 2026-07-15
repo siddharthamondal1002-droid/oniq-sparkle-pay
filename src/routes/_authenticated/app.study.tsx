@@ -468,25 +468,73 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [hydrating, setHydrating] = useState(true);
   const [notConfigured, setNotConfigured] = useState(false);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [quizSubject, setQuizSubject] = useState<string | null>(null);
+  const [showQuizPicker, setShowQuizPicker] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
 
   const subjects = subjectsFor(profile.board, profile.class_level);
 
-  // Reset chat when switching profiles
+  // Hydrate chat history from study_messages when the active profile changes.
   useEffect(() => {
+    let cancelled = false;
     setMessages([]);
     setInput("");
     setAttachment(null);
+    setHydrating(true);
+    (async () => {
+      try {
+        const { data, error } = await (supabase as unknown as {
+          from: (t: string) => {
+            select: (c: string) => {
+              eq: (col: string, val: string) => {
+                order: (col: string, opts: { ascending: boolean }) => {
+                  limit: (n: number) => Promise<{ data: { role: "user" | "assistant"; content: string; used_vault: boolean }[] | null; error: Error | null }>;
+                };
+              };
+            };
+          };
+        })
+          .from("study_messages")
+          .select("role, content, used_vault")
+          .eq("profile_id", profile.id)
+          .order("created_at", { ascending: true })
+          .limit(50);
+        if (cancelled) return;
+        if (error) throw error;
+        const rows = data ?? [];
+        setMessages(rows.map((r) => ({ role: r.role, content: r.content, usedVault: !!r.used_vault })));
+      } catch {
+        // best-effort — start with empty chat
+      } finally {
+        if (!cancelled) setHydrating(false);
+      }
+    })();
+    return () => { cancelled = true; };
   }, [profile.id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
+
+  async function persistExchange(userContent: string, assistantContent: string, usedVault: boolean) {
+    try {
+      await (supabase as unknown as {
+        from: (t: string) => {
+          insert: (rows: unknown) => Promise<{ error: Error | null }>;
+        };
+      }).from("study_messages").insert([
+        { profile_id: profile.id, role: "user", content: userContent, used_vault: false },
+        { profile_id: profile.id, role: "assistant", content: assistantContent, used_vault: usedVault },
+      ]);
+    } catch {
+      // best-effort
+    }
+  }
 
   async function handlePick(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
