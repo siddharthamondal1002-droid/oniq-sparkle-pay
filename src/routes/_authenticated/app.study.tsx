@@ -35,6 +35,7 @@ type Msg = {
   role: "user" | "assistant";
   content: string;
   attachment?: { kind: Attachment["kind"]; name: string; previewUrl?: string };
+  usedVault?: boolean;
 };
 
 const BOARDS: { value: Board; label: string }[] = [
