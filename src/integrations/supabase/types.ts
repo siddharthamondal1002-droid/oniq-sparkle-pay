@@ -1483,6 +1483,44 @@ export type Database = {
         }
         Relationships: []
       }
+      quiz_attempts: {
+        Row: {
+          correct_count: number
+          created_at: string
+          id: string
+          profile_id: string
+          subject: string
+          topic: string
+          total_questions: number
+        }
+        Insert: {
+          correct_count: number
+          created_at?: string
+          id?: string
+          profile_id: string
+          subject: string
+          topic: string
+          total_questions: number
+        }
+        Update: {
+          correct_count?: number
+          created_at?: string
+          id?: string
+          profile_id?: string
+          subject?: string
+          topic?: string
+          total_questions?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quiz_attempts_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "learner_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       red_packets: {
         Row: {
           amount: number
