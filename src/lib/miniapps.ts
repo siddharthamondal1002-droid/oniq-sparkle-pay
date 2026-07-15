@@ -537,3 +537,19 @@ export async function reverseGeocode(lat: number, lon: number): Promise<string> 
   }
   return nominatimReverse(lat, lon);
 }
+
+export function relativeLuminance(hex: string): number {
+  if (typeof hex !== "string") return 0;
+  let h = hex.trim().replace(/^#/, "");
+  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
+  if (h.length !== 6 || /[^0-9a-fA-F]/.test(h)) return 0;
+  const r = parseInt(h.slice(0, 2), 16) / 255;
+  const g = parseInt(h.slice(2, 4), 16) / 255;
+  const b = parseInt(h.slice(4, 6), 16) / 255;
+  const lin = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+  return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+}
+
+export function readableInk(hex: string): string {
+  return relativeLuminance(hex) > 0.179 ? "#0E0F13" : "#FFFFFF";
+}
