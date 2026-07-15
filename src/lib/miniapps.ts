@@ -19,9 +19,9 @@ export type MiniApp = {
 
 export const MINI_APPS: MiniApp[] = [
   // Food
-  { id: "swiggy", name: "Swiggy", tagline: "Food & grocery delivery", category: "food", url: "https://www.swiggy.com", color: "#FC8019", letter: "S", androidPackage: "in.swiggy.android", appScheme: "swiggy://" },
-  { id: "zomato", name: "Zomato", tagline: "Restaurants & delivery", category: "food", url: "https://www.zomato.com", color: "#E23744", letter: "Z", androidPackage: "com.application.zomato", appScheme: "zomato://" },
-  { id: "dominos", name: "Domino's", tagline: "Pizza delivery", category: "food", url: "https://www.dominos.co.in", color: "#0A6EBD", letter: "D" },
+  { id: "swiggy", name: "Swiggy", tagline: "Food & grocery delivery", category: "food", url: "https://www.swiggy.com", color: "#FC8019", letter: "S", androidPackage: "in.swiggy.android", appScheme: "swiggy://", emoji: "🛵" },
+  { id: "zomato", name: "Zomato", tagline: "Restaurants & delivery", category: "food", url: "https://www.zomato.com", color: "#E23744", letter: "Z", androidPackage: "com.application.zomato", appScheme: "zomato://", emoji: "🍽️" },
+  { id: "dominos", name: "Domino's", tagline: "Pizza delivery", category: "food", url: "https://www.dominos.co.in", color: "#0A6EBD", letter: "D", emoji: "🍕" },
   // Rides 🚗
   { id: "uber", name: "Uber", tagline: "Book a cab", category: "rides", url: "https://m.uber.com", color: "#000000", letter: "U", androidPackage: "com.ubercab", appScheme: "uber://", emoji: "🚕" },
   { id: "ola", name: "Ola", tagline: "Cabs & autos", category: "rides", url: "https://book.olacabs.com", color: "#a4c639", letter: "O", androidPackage: "com.olacabs.customer", appScheme: "olacabs://", emoji: "🚖" },
@@ -35,28 +35,28 @@ export const MINI_APPS: MiniApp[] = [
   { id: "instamart", name: "Swiggy Instamart", tagline: "Instant groceries", category: "quickcommerce", url: "https://www.swiggy.com/instamart", color: "#FC8019", letter: "I", androidPackage: "in.swiggy.android", appScheme: "swiggy://", emoji: "🥬" },
   { id: "bigbasket", name: "BigBasket", tagline: "Groceries & essentials", category: "quickcommerce", url: "https://www.bigbasket.com", color: "#84C225", letter: "B", androidPackage: "com.bigbasket.mobileapp", appScheme: "bigbasket://", emoji: "🧺" },
   // Payments
-  { id: "gpay", name: "Google Pay", tagline: "UPI payments", category: "payments", url: "https://pay.google.com", color: "#4285F4", letter: "G", appScheme: "tez://" },
-  { id: "phonepe", name: "PhonePe", tagline: "UPI & recharges", category: "payments", url: "https://www.phonepe.com", color: "#5F259F", letter: "P", appScheme: "phonepe://" },
-  { id: "paytm", name: "Paytm", tagline: "Payments & bills", category: "payments", url: "https://paytm.com", color: "#00BAF2", letter: "P", appScheme: "paytmmp://" },
+  { id: "gpay", name: "Google Pay", tagline: "UPI payments", category: "payments", url: "https://pay.google.com", color: "#4285F4", letter: "G", appScheme: "tez://", emoji: "💳" },
+  { id: "phonepe", name: "PhonePe", tagline: "UPI & recharges", category: "payments", url: "https://www.phonepe.com", color: "#5F259F", letter: "P", appScheme: "phonepe://", emoji: "📲" },
+  { id: "paytm", name: "Paytm", tagline: "Payments & bills", category: "payments", url: "https://paytm.com", color: "#00BAF2", letter: "P", appScheme: "paytmmp://", emoji: "💰" },
 
   // Social
-  { id: "instagram", name: "Instagram", tagline: "Photos & reels", category: "social", url: "https://www.instagram.com", color: "#E1306C", letter: "I" },
-  { id: "youtube", name: "YouTube", tagline: "Videos & shorts", category: "social", url: "https://m.youtube.com", color: "#FF0000", letter: "Y" },
-  { id: "x", name: "X", tagline: "What's happening", category: "social", url: "https://x.com", color: "#111111", letter: "X" },
-  { id: "reddit", name: "Reddit", tagline: "Communities", category: "social", url: "https://www.reddit.com", color: "#FF4500", letter: "R" },
-  { id: "facebook", name: "Facebook", tagline: "Friends & groups", category: "social", url: "https://m.facebook.com", color: "#1877F2", letter: "F" },
-  { id: "whatsapp", name: "WhatsApp", tagline: "Messaging", category: "social", url: "https://www.whatsapp.com", color: "#25D366", letter: "W" },
-  { id: "telegram", name: "Telegram", tagline: "Chats & channels", category: "social", url: "https://web.telegram.org", color: "#26A5E4", letter: "T" },
-  { id: "tiktok", name: "TikTok", tagline: "Short videos", category: "social", url: "https://www.tiktok.com", color: "#010101", letter: "T" },
-  { id: "linkedin", name: "LinkedIn", tagline: "Professional network", category: "social", url: "https://www.linkedin.com", color: "#0A66C2", letter: "L" },
-  { id: "snapchat", name: "Snapchat", tagline: "Snaps & stories", category: "social", url: "https://web.snapchat.com", color: "#C9A200", letter: "S" },
-  { id: "pinterest", name: "Pinterest", tagline: "Ideas & inspo", category: "social", url: "https://www.pinterest.com", color: "#E60023", letter: "P" },
-  { id: "threads", name: "Threads", tagline: "Text conversations", category: "social", url: "https://www.threads.net", color: "#1A1A1A", letter: "T" },
-  { id: "discord", name: "Discord", tagline: "Servers & voice", category: "social", url: "https://discord.com/app", color: "#5865F2", letter: "D" },
-  { id: "twitch", name: "Twitch", tagline: "Live streams", category: "social", url: "https://m.twitch.tv", color: "#9146FF", letter: "T" },
+  { id: "instagram", name: "Instagram", tagline: "Photos & reels", category: "social", url: "https://www.instagram.com", color: "#E1306C", letter: "I", emoji: "📸" },
+  { id: "youtube", name: "YouTube", tagline: "Videos & shorts", category: "social", url: "https://m.youtube.com", color: "#FF0000", letter: "Y", emoji: "▶️" },
+  { id: "x", name: "X", tagline: "What's happening", category: "social", url: "https://x.com", color: "#111111", letter: "X", emoji: "✖️" },
+  { id: "reddit", name: "Reddit", tagline: "Communities", category: "social", url: "https://www.reddit.com", color: "#FF4500", letter: "R", emoji: "👽" },
+  { id: "facebook", name: "Facebook", tagline: "Friends & groups", category: "social", url: "https://m.facebook.com", color: "#1877F2", letter: "F", emoji: "📘" },
+  { id: "whatsapp", name: "WhatsApp", tagline: "Messaging", category: "social", url: "https://www.whatsapp.com", color: "#25D366", letter: "W", emoji: "💬" },
+  { id: "telegram", name: "Telegram", tagline: "Chats & channels", category: "social", url: "https://web.telegram.org", color: "#26A5E4", letter: "T", emoji: "✈️" },
+  { id: "tiktok", name: "TikTok", tagline: "Short videos", category: "social", url: "https://www.tiktok.com", color: "#010101", letter: "T", emoji: "🎵" },
+  { id: "linkedin", name: "LinkedIn", tagline: "Professional network", category: "social", url: "https://www.linkedin.com", color: "#0A66C2", letter: "L", emoji: "💼" },
+  { id: "snapchat", name: "Snapchat", tagline: "Snaps & stories", category: "social", url: "https://web.snapchat.com", color: "#C9A200", letter: "S", emoji: "👻" },
+  { id: "pinterest", name: "Pinterest", tagline: "Ideas & inspo", category: "social", url: "https://www.pinterest.com", color: "#E60023", letter: "P", emoji: "📌" },
+  { id: "threads", name: "Threads", tagline: "Text conversations", category: "social", url: "https://www.threads.net", color: "#1A1A1A", letter: "T", emoji: "🧵" },
+  { id: "discord", name: "Discord", tagline: "Servers & voice", category: "social", url: "https://discord.com/app", color: "#5865F2", letter: "D", emoji: "🎮" },
+  { id: "twitch", name: "Twitch", tagline: "Live streams", category: "social", url: "https://m.twitch.tv", color: "#9146FF", letter: "T", emoji: "📡" },
   // Shopping
-  { id: "amazon", name: "Amazon", tagline: "Everything store", category: "shopping", url: "https://www.amazon.in", color: "#FF9900", letter: "A" },
-  { id: "flipkart", name: "Flipkart", tagline: "Fashion & electronics", category: "shopping", url: "https://www.flipkart.com", color: "#2874F0", letter: "F" },
+  { id: "amazon", name: "Amazon", tagline: "Everything store", category: "shopping", url: "https://www.amazon.in", color: "#FF9900", letter: "A", emoji: "📦" },
+  { id: "flipkart", name: "Flipkart", tagline: "Fashion & electronics", category: "shopping", url: "https://www.flipkart.com", color: "#2874F0", letter: "F", emoji: "🛒" },
   // Services 🛠
   { id: "urbancompany", name: "Urban Company", tagline: "Home services on demand", category: "services", url: "https://www.urbancompany.com", color: "#E91E63", letter: "U", androidPackage: "com.urbanclap.urbanclap", emoji: "🧹" },
   { id: "snabbit", name: "Snabbit", tagline: "10-min home help", category: "services", url: "https://snabbit.com", color: "#FF6B35", letter: "S", androidPackage: "com.snabbit.customer", emoji: "⚡" },
@@ -318,9 +318,9 @@ export function upiLink(p: UpiParams) {
 /** App-targeted UPI intents. */
 export const UPI_APPS = [
   { id: "any", name: "Any UPI app", scheme: (p: UpiParams) => `upi://pay?${upiQuery(p)}`, color: "#00D4B8" },
-  { id: "gpay", name: "Google Pay", scheme: (p: UpiParams) => `tez://upi/pay?${upiQuery(p)}`, color: "#4285F4" },
-  { id: "phonepe", name: "PhonePe", scheme: (p: UpiParams) => `phonepe://pay?${upiQuery(p)}`, color: "#5F259F" },
-  { id: "paytm", name: "Paytm", scheme: (p: UpiParams) => `paytmmp://pay?${upiQuery(p)}`, color: "#00BAF2" },
+  { id: "gpay", name: "Google Pay", scheme: (p: UpiParams) => `tez://upi/pay?${upiQuery(p)}`, color: "#4285F4", emoji: "💳" },
+  { id: "phonepe", name: "PhonePe", scheme: (p: UpiParams) => `phonepe://pay?${upiQuery(p)}`, color: "#5F259F", emoji: "📲" },
+  { id: "paytm", name: "Paytm", scheme: (p: UpiParams) => `paytmmp://pay?${upiQuery(p)}`, color: "#00BAF2", emoji: "💰" },
 ] as const;
 
 export function isValidVpa(vpa: string) {
