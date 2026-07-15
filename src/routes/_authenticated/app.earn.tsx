@@ -45,6 +45,17 @@ const PROVIDERS: Provider[] = [
   },
 ];
 
+const GOMECHANIC: Provider = { id: "gomechanic", name: "GoMechanic", url: "https://gomechanic.in", color: "#E63946", emoji: "🔧" };
+const READYASSIST: Provider = { id: "readyassist", name: "ReadyAssist", url: "https://readyassist.in", color: "#FF8500", emoji: "🛠️" };
+const PRACTO: Provider = { id: "practo", name: "Practo", url: "https://www.practo.com", color: "#199FD9", emoji: "🩺" };
+const PORTEA: Provider = { id: "portea", name: "Portea", url: "https://www.portea.com", color: "#00A0B0", emoji: "🏥" };
+const CARE24: Provider = { id: "care24", name: "Care24", url: "https://www.care24.co.in", color: "#4CAF50", emoji: "🤲" };
+const CLEARTAX: Provider = { id: "cleartax", name: "ClearTax", url: "https://cleartax.in", color: "#1F73B7", emoji: "🧾" };
+const QUICKO: Provider = { id: "quicko", name: "Quicko", url: "https://quicko.com", color: "#7C3AED", emoji: "📊" };
+const LAWRATO: Provider = { id: "lawrato", name: "LawRato", url: "https://lawrato.com", color: "#0B5394", emoji: "⚖️" };
+const VAKILSEARCH: Provider = { id: "vakilsearch", name: "Vakilsearch", url: "https://vakilsearch.com", color: "#E85D26", emoji: "📜" };
+const INDIAFILINGS: Provider = { id: "indiafilings", name: "IndiaFilings", url: "https://www.indiafilings.com", color: "#2E7D32", emoji: "🏢" };
+
 const CATEGORIES: Category[] = [
   { id: "house_cleaning", label: "House Cleaning", emoji: "🧹", providers: PROVIDERS },
   { id: "kitchen_cleaning", label: "Kitchen Cleaning", emoji: "🍳", providers: PROVIDERS },
@@ -58,16 +69,16 @@ const CATEGORIES: Category[] = [
   { id: "plumber", label: "Plumber", emoji: "🚰", providers: PROVIDERS },
   { id: "beauty", label: "Beauty & Salon at home", emoji: "💅", providers: PROVIDERS },
   { id: "tutor", label: "Tutor", emoji: "📚", providers: PROVIDERS },
-  { id: "bike_mechanic", label: "Bike Mechanic", emoji: "🏍️" },
-  { id: "car_mechanic", label: "Car Mechanic", emoji: "🚗" },
-  { id: "physiotherapist", label: "Physiotherapist", emoji: "🧑‍⚕️" },
-  { id: "caregiver", label: "Caregiver / Attendant", emoji: "🧑‍🦽" },
+  { id: "bike_mechanic", label: "Bike Mechanic", emoji: "🏍️", providers: [GOMECHANIC, READYASSIST] },
+  { id: "car_mechanic", label: "Car Mechanic", emoji: "🚗", providers: [GOMECHANIC, READYASSIST] },
+  { id: "physiotherapist", label: "Physiotherapist", emoji: "🧑‍⚕️", providers: [PRACTO, PORTEA] },
+  { id: "caregiver", label: "Caregiver / Attendant", emoji: "🧑‍🦽", providers: [PORTEA, CARE24] },
   { id: "babysitter", label: "Babysitter", emoji: "👶" },
   { id: "pet_sitter", label: "Pet Sitter", emoji: "🐾" },
-  { id: "tax_ca", label: "Tax Consultant / CA", emoji: "🧾" },
-  { id: "lawyer_civil", label: "Lawyer — Civil", emoji: "⚖️" },
-  { id: "lawyer_criminal", label: "Lawyer — Criminal", emoji: "⚖️" },
-  { id: "lawyer_corporate", label: "Lawyer — Corporate", emoji: "⚖️" },
+  { id: "tax_ca", label: "Tax Consultant / CA", emoji: "🧾", providers: [CLEARTAX, QUICKO] },
+  { id: "lawyer_civil", label: "Lawyer — Civil", emoji: "⚖️", providers: [LAWRATO, VAKILSEARCH] },
+  { id: "lawyer_criminal", label: "Lawyer — Criminal", emoji: "⚖️", providers: [LAWRATO] },
+  { id: "lawyer_corporate", label: "Lawyer — Corporate", emoji: "⚖️", providers: [VAKILSEARCH, INDIAFILINGS] },
 ];
 
 const CITIES = [
@@ -210,6 +221,9 @@ function ProviderChooser({ category, onClose }: { category: Category; onClose: (
         </div>
         <div className="font-display text-lg font-bold">
           {category.emoji} {category.label}
+        </div>
+        <div className="mt-1 text-[11px] text-muted-foreground">
+          Independent services — coverage varies by city. Links checked July 2026.
         </div>
         <div className="mt-4 space-y-2">
           {providers.map((p) => (
