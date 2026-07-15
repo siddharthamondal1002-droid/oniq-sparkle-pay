@@ -609,6 +609,11 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                       {m.content}
                     </div>
                   )}
+                  {m.role === "assistant" && m.usedVault && (
+                    <div className="mt-1 text-[10px] text-muted-foreground">
+                      📚 from the ONIQ study vault
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
