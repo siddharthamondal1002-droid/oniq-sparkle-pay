@@ -1567,11 +1567,16 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
                       {s.recent.map((r) => {
                         const d = new Date(r.created_at);
                         const when = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+                        const { num, den } = attemptScore(r);
+                        const isPaper = !!(r.total_marks && r.total_marks > 0);
                         return (
                           <div key={r.id} className="flex items-center justify-between text-xs">
-                            <span className="truncate">{r.subject}</span>
+                            <span className="truncate">
+                              {r.subject}
+                              {isPaper && <span className="ml-1 text-[9px] text-muted-foreground">· paper</span>}
+                            </span>
                             <span className="text-muted-foreground">
-                              {when} · {r.correct_count}/{r.total_questions}
+                              {when} · {num}/{den}{isPaper ? "" : ""}
                             </span>
                           </div>
                         );
