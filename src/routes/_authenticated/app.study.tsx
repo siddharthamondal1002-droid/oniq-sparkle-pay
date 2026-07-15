@@ -472,7 +472,9 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const [notConfigured, setNotConfigured] = useState(false);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
   const [quizSubject, setQuizSubject] = useState<string | null>(null);
+  const [paperSpec, setPaperSpec] = useState<{ subject: string; totalMarks: 30 | 80 | 100 } | null>(null);
   const [showQuizPicker, setShowQuizPicker] = useState(false);
+  const [pickerSubject, setPickerSubject] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
@@ -736,35 +738,86 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             ))}
           </div>
           {showQuizPicker && (
-            <ModalCard onClose={() => setShowQuizPicker(false)}>
+            <ModalCard
+              onClose={() => {
+                setShowQuizPicker(false);
+                setPickerSubject(null);
+              }}
+            >
               <div className="rounded-3xl border border-border bg-card p-6 shadow-2xl">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice quiz</div>
-                    <div className="font-display text-lg font-bold">pick a subject 📝</div>
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice</div>
+                    <div className="font-display text-lg font-bold">
+                      {pickerSubject ? "pick a format 📝" : "pick a subject 📝"}
+                    </div>
+                    {pickerSubject && (
+                      <div className="mt-0.5 text-[11px] text-muted-foreground">{pickerSubject}</div>
+                    )}
                   </div>
                   <button
-                    onClick={() => setShowQuizPicker(false)}
+                    onClick={() => {
+                      setShowQuizPicker(false);
+                      setPickerSubject(null);
+                    }}
                     aria-label="Close"
                     className="grid h-8 w-8 place-items-center rounded-full border border-border"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  {subjects.map((s) => (
+
+                {!pickerSubject ? (
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {subjects.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setPickerSubject(s)}
+                        className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm hover:bg-muted"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-2">
                     <button
-                      key={s}
                       onClick={() => {
                         setShowQuizPicker(false);
-                        setQuizSubject(s);
+                        setQuizSubject(pickerSubject);
+                        setPickerSubject(null);
                       }}
-                      className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm hover:bg-muted"
+                      className="w-full rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-left hover:bg-primary/15"
                     >
-                      {s}
+                      <div className="text-sm font-semibold text-primary">quick quiz</div>
+                      <div className="text-[11px] text-muted-foreground">5 multiple-choice questions</div>
                     </button>
-                  ))}
-                </div>
+                    {([30, 80, 100] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          setShowQuizPicker(false);
+                          setPaperSpec({ subject: pickerSubject, totalMarks: m });
+                          setPickerSubject(null);
+                        }}
+                        className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left hover:bg-muted"
+                      >
+                        <div className="text-sm font-semibold">full paper · {m} marks</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {m === 30 ? "MCQs, short & long answers · ~30 min"
+                            : m === 80 ? "MCQs, short & long answers · ~2 hr"
+                            : "MCQs, short & long answers · ~3 hr"}
+                        </div>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setPickerSubject(null)}
+                      className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
+                    >
+                      ← change subject
+                    </button>
+                  </div>
+                )}
               </div>
             </ModalCard>
           )}
@@ -773,6 +826,14 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               profile={profile}
               initialSubject={quizSubject}
               onClose={() => setQuizSubject(null)}
+            />
+          )}
+          {paperSpec && (
+            <PaperModal
+              profile={profile}
+              subject={paperSpec.subject}
+              totalMarks={paperSpec.totalMarks}
+              onClose={() => setPaperSpec(null)}
             />
           )}
 
@@ -1061,6 +1122,276 @@ function QuizModal({
   );
 }
 
+// ------------------------- Full Paper -------------------------
+
+type PaperQClient =
+  | { id: string; type: "mcq"; marks: number; question: string; options: string[] }
+  | { id: string; type: "short" | "long"; marks: number; question: string };
+
+type GradeResult = {
+  awarded_marks: number;
+  max_marks: number;
+  feedback: string;
+  correct_index?: number;
+};
+
+function PaperModal({
+  profile,
+  subject,
+  totalMarks,
+  onClose,
+}: {
+  profile: LearnerProfile;
+  subject: string;
+  totalMarks: 30 | 80 | 100;
+  onClose: () => void;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [paperId, setPaperId] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<PaperQClient[] | null>(null);
+  const [idx, setIdx] = useState(0);
+  const [mcqPick, setMcqPick] = useState<number | null>(null);
+  const [written, setWritten] = useState("");
+  const [grading, setGrading] = useState(false);
+  const [gradeResult, setGradeResult] = useState<GradeResult | null>(null);
+  const [totalScored, setTotalScored] = useState(0);
+  const [done, setDone] = useState(false);
+  const [finishing, setFinishing] = useState(false);
+  const finishedRef = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setErrorMsg(null);
+      try {
+        const { data, error } = await supabase.functions.invoke("study-paper-generate", {
+          body: {
+            profile: { board: profile.board, classLevel: profile.class_level },
+            profileId: profile.id,
+            subject,
+            totalMarks,
+          },
+        });
+        if (cancelled) return;
+        if (error) throw error;
+        const d = data as { source?: string; paper_id?: string; questions?: PaperQClient[]; reason?: string };
+        if (d?.source === "paper" && d.paper_id && Array.isArray(d.questions) && d.questions.length > 0) {
+          setPaperId(d.paper_id);
+          setQuestions(d.questions);
+        } else {
+          setErrorMsg("couldn't build that paper — try again 🌿");
+        }
+      } catch {
+        if (!cancelled) setErrorMsg("couldn't build that paper — try again 🌿");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile.id, profile.board, profile.class_level, subject, totalMarks]);
+
+  const q = questions?.[idx] ?? null;
+  const isLast = questions ? idx + 1 >= questions.length : false;
+
+  async function submitAnswer() {
+    if (!q || !paperId || grading) return;
+    setGrading(true);
+    try {
+      const answer: string | number = q.type === "mcq" ? (mcqPick ?? -1) : written.trim();
+      const { data, error } = await supabase.functions.invoke("study-paper-grade", {
+        body: { paper_id: paperId, question_id: q.id, answer },
+      });
+      if (error) throw error;
+      const d = data as GradeResult & { source?: string; reason?: string };
+      if (typeof d.awarded_marks !== "number") {
+        toast.error("couldn't grade that one — try again");
+        return;
+      }
+      setGradeResult({
+        awarded_marks: d.awarded_marks,
+        max_marks: d.max_marks ?? q.marks,
+        feedback: d.feedback ?? "",
+        correct_index: d.correct_index,
+      });
+      setTotalScored((s) => s + d.awarded_marks);
+    } catch {
+      toast.error("couldn't grade that one — try again");
+    } finally {
+      setGrading(false);
+    }
+  }
+
+  async function next() {
+    if (!questions) return;
+    if (isLast) {
+      setDone(true);
+      if (!finishedRef.current && paperId) {
+        finishedRef.current = true;
+        setFinishing(true);
+        try {
+          await supabase.functions.invoke("study-paper-finish", {
+            body: { paper_id: paperId, marks_scored: totalScored, total_marks: totalMarks, subject },
+          });
+        } catch { /* best-effort */ }
+        finally { setFinishing(false); }
+      }
+    } else {
+      setIdx(idx + 1);
+      setMcqPick(null);
+      setWritten("");
+      setGradeResult(null);
+    }
+  }
+
+  const pct = totalMarks > 0 ? Math.round((totalScored / totalMarks) * 100) : 0;
+
+  return (
+    <ModalCard onClose={onClose}>
+      <div className="max-h-[85vh] overflow-y-auto rounded-3xl border border-border bg-card p-6 shadow-2xl">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice paper</div>
+            <div className="font-display text-lg font-bold">{subject} · {totalMarks} marks</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full border border-border">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {loading && (
+          <div className="mt-10 text-center text-sm text-muted-foreground">
+            building your paper… 📄
+          </div>
+        )}
+
+        {!loading && errorMsg && (
+          <div className="mt-8 text-center">
+            <div className="text-3xl">🌿</div>
+            <p className="mt-2 text-sm text-muted-foreground">{errorMsg}</p>
+            <button onClick={onClose} className="mt-4 rounded-xl border border-border px-4 py-2 text-sm">close</button>
+          </div>
+        )}
+
+        {!loading && !errorMsg && q && !done && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+              <span>Question {idx + 1} of {questions?.length ?? 0} · {q.marks} {q.marks === 1 ? "mark" : "marks"}</span>
+              <span>Score: {totalScored}/{totalMarks}</span>
+            </div>
+            <div className="mt-3 text-sm font-medium whitespace-pre-wrap">{q.question}</div>
+
+            {q.type === "mcq" ? (
+              <div className="mt-4 space-y-2">
+                {q.options.map((opt, i) => {
+                  const picked = mcqPick === i;
+                  const graded = gradeResult !== null;
+                  const isAnswer = graded && gradeResult?.correct_index === i;
+                  const isWrongPick = graded && picked && gradeResult?.correct_index !== i;
+                  return (
+                    <button
+                      key={i}
+                      disabled={graded}
+                      onClick={() => setMcqPick(i)}
+                      className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                        isAnswer
+                          ? "border-green-500/50 bg-green-500/10 text-green-300"
+                          : isWrongPick
+                          ? "border-red-500/50 bg-red-500/10 text-red-300"
+                          : picked
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-card hover:bg-muted"
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="mt-4">
+                <textarea
+                  value={written}
+                  onChange={(e) => setWritten(e.target.value.slice(0, 6000))}
+                  disabled={gradeResult !== null}
+                  placeholder={q.type === "long" ? "write your full answer here…" : "write your short answer here…"}
+                  rows={q.type === "long" ? 8 : 5}
+                  className="w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm focus:outline-none disabled:opacity-70"
+                />
+                <div className="mt-1 text-[10px] text-muted-foreground text-right">{written.length}/6000</div>
+              </div>
+            )}
+
+            {gradeResult && (
+              <div className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
+                gradeResult.awarded_marks === gradeResult.max_marks
+                  ? "border-green-500/30 bg-green-500/5 text-green-300"
+                  : gradeResult.awarded_marks > 0
+                  ? "border-yellow-500/30 bg-yellow-500/5 text-yellow-200"
+                  : "border-border bg-muted/40 text-muted-foreground"
+              }`}>
+                <div className="font-medium">
+                  {gradeResult.awarded_marks}/{gradeResult.max_marks} · {
+                    gradeResult.awarded_marks === gradeResult.max_marks ? "full marks ✨"
+                    : gradeResult.awarded_marks > 0 ? "partial credit"
+                    : "no marks this time"
+                  }
+                </div>
+                {gradeResult.feedback && <div className="mt-1">{gradeResult.feedback}</div>}
+              </div>
+            )}
+
+            {!gradeResult ? (
+              <button
+                onClick={submitAnswer}
+                disabled={grading || (q.type === "mcq" ? mcqPick === null : written.trim().length === 0)}
+                className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              >
+                {grading ? "grading…" : "submit answer"}
+              </button>
+            ) : (
+              <button
+                onClick={next}
+                className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+              >
+                {isLast ? "see results" : "next question"}
+              </button>
+            )}
+          </div>
+        )}
+
+        {done && (
+          <div className="mt-4 text-center">
+            <div className="text-4xl">
+              {pct >= 90 ? "🏆" : pct >= 60 ? "🎉" : "🌱"}
+            </div>
+            <div className="mt-2 font-display text-xl font-bold">
+              you scored {totalScored}/{totalMarks}!
+            </div>
+            <div className="text-xs text-muted-foreground">that's {pct}%</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {pct >= 90
+                ? "outstanding — you know this cold."
+                : pct >= 60
+                ? "solid work — real understanding showing through."
+                : "great practice — every attempt makes the next one easier 💪"}
+            </p>
+            {finishing && <div className="mt-2 text-[10px] text-muted-foreground">saving…</div>}
+            <button
+              onClick={onClose}
+              disabled={finishing}
+              className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              done
+            </button>
+          </div>
+        )}
+      </div>
+    </ModalCard>
+  );
+}
+
 // ------------------------- Progress -------------------------
 
 type Attempt = {
@@ -1068,10 +1399,13 @@ type Attempt = {
   profile_id: string;
   subject: string;
   topic: string;
-  total_questions: number;
-  correct_count: number;
+  total_questions: number | null;
+  correct_count: number | null;
+  total_marks: number | null;
+  marks_scored: number | null;
   created_at: string;
 };
+
 
 function useAttempts() {
   return useQuery({
@@ -1085,7 +1419,7 @@ function useAttempts() {
         };
       })
         .from("quiz_attempts")
-        .select("id, profile_id, subject, topic, total_questions, correct_count, created_at")
+        .select("id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, created_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -1093,27 +1427,44 @@ function useAttempts() {
   });
 }
 
+// Normalize a quiz_attempts row to a unified numerator/denominator regardless
+// of whether it's a quick 5-Q quiz (total_questions/correct_count) or a full
+// paper (total_marks/marks_scored).
+function attemptScore(r: Attempt): { num: number; den: number } {
+  if (r.total_marks && r.total_marks > 0) {
+    return { num: Math.max(0, r.marks_scored ?? 0), den: r.total_marks };
+  }
+  if (r.total_questions && r.total_questions > 0) {
+    return { num: Math.max(0, r.correct_count ?? 0), den: r.total_questions };
+  }
+  return { num: 0, den: 0 };
+}
+
 function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; onClose: () => void }) {
   const { data: attempts, isLoading } = useAttempts();
 
   function statsFor(profileId: string) {
     const rows = (attempts ?? []).filter((a) => a.profile_id === profileId);
-    const totalQ = rows.reduce((s, r) => s + r.total_questions, 0);
-    const totalC = rows.reduce((s, r) => s + r.correct_count, 0);
-    const acc = totalQ > 0 ? Math.round((totalC / totalQ) * 100) : 0;
-
-    const bySubject = new Map<string, { attempts: number; q: number; c: number }>();
+    let totalNum = 0, totalDen = 0;
     for (const r of rows) {
-      const cur = bySubject.get(r.subject) ?? { attempts: 0, q: 0, c: 0 };
+      const { num, den } = attemptScore(r);
+      totalNum += num; totalDen += den;
+    }
+    const acc = totalDen > 0 ? Math.round((totalNum / totalDen) * 100) : 0;
+
+    const bySubject = new Map<string, { attempts: number; num: number; den: number }>();
+    for (const r of rows) {
+      const { num, den } = attemptScore(r);
+      const cur = bySubject.get(r.subject) ?? { attempts: 0, num: 0, den: 0 };
       cur.attempts += 1;
-      cur.q += r.total_questions;
-      cur.c += r.correct_count;
+      cur.num += num;
+      cur.den += den;
       bySubject.set(r.subject, cur);
     }
     const subjects = Array.from(bySubject.entries()).map(([subject, s]) => ({
       subject,
       attempts: s.attempts,
-      accuracy: s.q > 0 ? Math.round((s.c / s.q) * 100) : 0,
+      accuracy: s.den > 0 ? Math.round((s.num / s.den) * 100) : 0,
     }));
 
     // streak: distinct calendar days in the last 14 days
@@ -1135,6 +1486,7 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
       recent,
     };
   }
+
 
   return (
     <div className="max-h-[85vh] overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl">
@@ -1215,11 +1567,16 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
                       {s.recent.map((r) => {
                         const d = new Date(r.created_at);
                         const when = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+                        const { num, den } = attemptScore(r);
+                        const isPaper = !!(r.total_marks && r.total_marks > 0);
                         return (
                           <div key={r.id} className="flex items-center justify-between text-xs">
-                            <span className="truncate">{r.subject}</span>
+                            <span className="truncate">
+                              {r.subject}
+                              {isPaper && <span className="ml-1 text-[9px] text-muted-foreground">· paper</span>}
+                            </span>
                             <span className="text-muted-foreground">
-                              {when} · {r.correct_count}/{r.total_questions}
+                              {when} · {num}/{den}{isPaper ? "" : ""}
                             </span>
                           </div>
                         );
