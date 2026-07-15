@@ -131,6 +131,7 @@ function EarnScreen() {
 
 function HirePanel({ goPartner }: { goPartner: () => void }) {
   const [chooserFor, setChooserFor] = useState<Category | null>(null);
+  const [noProviderFor, setNoProviderFor] = useState<Category | null>(null);
 
   return (
     <div className="mt-5 space-y-5">
@@ -138,7 +139,7 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
         {CATEGORIES.map((c) => (
           <button
             key={c.id}
-            onClick={() => setChooserFor(c)}
+            onClick={() => (c.providers && c.providers.length ? setChooserFor(c) : setNoProviderFor(c))}
             className="press flex flex-col items-center justify-center gap-1 rounded-2xl border border-border bg-card p-3 text-center hover:brightness-110"
           >
             <span className="text-2xl">{c.emoji}</span>
@@ -166,11 +167,40 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
       {chooserFor && (
         <ProviderChooser category={chooserFor} onClose={() => setChooserFor(null)} />
       )}
+      {noProviderFor && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setNoProviderFor(null)} aria-hidden />
+          <div className="glass relative z-10 w-full max-w-md rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+            <div className="font-display text-lg font-bold">
+              {noProviderFor.emoji} {noProviderFor.label}
+            </div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              no partner service here yet — be the first ONIQ partner in your area 💼
+            </div>
+            <button
+              onClick={() => {
+                setNoProviderFor(null);
+                goPartner();
+              }}
+              className="press mt-4 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground"
+            >
+              become a partner
+            </button>
+            <button
+              onClick={() => setNoProviderFor(null)}
+              className="press mt-2 w-full rounded-xl bg-surface-2 py-2 text-sm font-medium"
+            >
+              cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function ProviderChooser({ category, onClose }: { category: Category; onClose: () => void }) {
+  const providers = category.providers ?? [];
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden />
@@ -182,7 +212,7 @@ function ProviderChooser({ category, onClose }: { category: Category; onClose: (
           {category.emoji} {category.label}
         </div>
         <div className="mt-4 space-y-2">
-          {PROVIDERS.map((p) => (
+          {providers.map((p) => (
             <button
               key={p.id}
               onClick={async () => {
