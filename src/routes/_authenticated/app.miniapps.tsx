@@ -86,9 +86,54 @@ function MiniAppsScreen() {
         );
       })}
 
+      {/* Government portals — emoji-only, no emblems/seals (State Emblem of India Act) */}
+      <section>
+        <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
+          gov 🇮🇳
+        </h2>
+        <p className="mt-2 px-1 text-[11px] leading-relaxed text-muted-foreground">
+          Official government portals. ONIQ is not affiliated with, endorsed by, or acting on behalf of any government body. Links open the official websites.
+        </p>
+        <div className="mt-3 space-y-2">
+          {GOV_PORTALS.map((g) => (
+            <button
+              key={g.url}
+              onClick={() => launchMiniApp({ name: g.name, url: g.url })}
+              className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left transition hover:border-primary/40"
+            >
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-2 text-xl">
+                {g.emoji}
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold">{g.name}</div>
+                <div className="text-xs text-muted-foreground">{g.tagline}</div>
+              </div>
+              <ExternalLink className="h-4 w-4 text-muted-foreground" />
+            </button>
+          ))}
+        </div>
+      </section>
+
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Third-party apps are independent services. ONIQ opens them for your convenience.
       </p>
     </div>
   );
 }
+
+const GOV_PORTALS: { name: string; tagline: string; url: string; emoji: string }[] = [
+  { name: "Grievances (CPGRAMS)", tagline: "File & track public grievances", url: "https://pgportal.gov.in", emoji: "📝" },
+  { name: "Court case status (eCourts)", tagline: "Check case status online", url: "https://services.ecourts.gov.in", emoji: "⚖️" },
+  { name: "All gov services", tagline: "India.gov.in services portal", url: "https://services.india.gov.in", emoji: "🏛️" },
+  { name: "DigiLocker", tagline: "Your documents, digital", url: "https://www.digilocker.gov.in", emoji: "🗂️" },
+  { name: "Income Tax", tagline: "File returns & track refunds", url: "https://www.incometax.gov.in", emoji: "💸" },
+  { name: "GST", tagline: "GST portal", url: "https://www.gst.gov.in", emoji: "🧾" },
+  { name: "Passport Seva", tagline: "Apply & track passport", url: "https://www.passportindia.gov.in", emoji: "🛂" },
+  { name: "Aadhaar (UIDAI)", tagline: "Aadhaar services", url: "https://uidai.gov.in", emoji: "🆔" },
+  { name: "EPFO", tagline: "Provident fund services", url: "https://www.epfindia.gov.in", emoji: "🏦" },
+  { name: "RTO / vehicle (Parivahan)", tagline: "License & vehicle services", url: "https://parivahan.gov.in", emoji: "🚘" },
+  { name: "Cybercrime", tagline: "Report cybercrime", url: "https://cybercrime.gov.in", emoji: "🛡️" },
+  { name: "Consumer Helpline", tagline: "Consumer complaints", url: "https://consumerhelpline.gov.in", emoji: "📞" },
+  { name: "KMC (Kolkata)", tagline: "Kolkata Municipal Corporation", url: "https://www.kmcgov.in", emoji: "🏙️" },
+  { name: "West Bengal gov", tagline: "Government of West Bengal", url: "https://wb.gov.in", emoji: "🌆" },
+];

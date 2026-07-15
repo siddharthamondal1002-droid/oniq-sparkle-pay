@@ -12,39 +12,20 @@ export const Route = createFileRoute("/_authenticated/app/earn")({
 
 type Tab = "hire" | "partner";
 
-type Category = { id: string; label: string; emoji: string };
+type Category = { id: string; label: string; emoji: string; providers?: Provider[] };
 
-const CATEGORIES: Category[] = [
-  { id: "house_cleaning", label: "House Cleaning", emoji: "🧹" },
-  { id: "kitchen_cleaning", label: "Kitchen Cleaning", emoji: "🍳" },
-  { id: "bathroom_cleaning", label: "Bathroom Cleaning", emoji: "🛁" },
-  { id: "cook", label: "Cook / Chef", emoji: "👨‍🍳" },
-  { id: "dishwashing", label: "Dishwashing", emoji: "🍽️" },
-  { id: "laundry", label: "Laundry", emoji: "🧺" },
-  { id: "fan_window", label: "Fan/Window Cleaning", emoji: "🪟" },
-  { id: "appliance_repair", label: "Appliance Repair", emoji: "🔧" },
-  { id: "electrician", label: "Electrician", emoji: "💡" },
-  { id: "plumber", label: "Plumber", emoji: "🚰" },
-  { id: "beauty", label: "Beauty & Salon at home", emoji: "💅" },
-  { id: "tutor", label: "Tutor", emoji: "📚" },
-];
+// declared below; forward type
+type Provider = {
+  id: string;
+  name: string;
+  url: string;
+  androidPackage?: string;
+  appScheme?: string;
+  color: string;
+  emoji: string;
+};
 
-const CITIES = [
-  "Kolkata",
-  "Bengaluru",
-  "Mumbai",
-  "Delhi",
-  "Hyderabad",
-  "Chennai",
-  "Pune",
-  "Ahmedabad",
-  "Gurugram",
-  "Noida",
-];
-
-const AVAILABILITY = ["Mornings", "Afternoons", "Evenings", "Weekends", "Full-time"];
-
-const PROVIDERS = [
+const PROVIDERS: Provider[] = [
   {
     id: "urbancompany",
     name: "Urban Company",
@@ -63,6 +44,49 @@ const PROVIDERS = [
     emoji: "⚡",
   },
 ];
+
+const CATEGORIES: Category[] = [
+  { id: "house_cleaning", label: "House Cleaning", emoji: "🧹", providers: PROVIDERS },
+  { id: "kitchen_cleaning", label: "Kitchen Cleaning", emoji: "🍳", providers: PROVIDERS },
+  { id: "bathroom_cleaning", label: "Bathroom Cleaning", emoji: "🛁", providers: PROVIDERS },
+  { id: "cook", label: "Cook / Chef", emoji: "👨‍🍳", providers: PROVIDERS },
+  { id: "dishwashing", label: "Dishwashing", emoji: "🍽️", providers: PROVIDERS },
+  { id: "laundry", label: "Laundry", emoji: "🧺", providers: PROVIDERS },
+  { id: "fan_window", label: "Fan/Window Cleaning", emoji: "🪟", providers: PROVIDERS },
+  { id: "appliance_repair", label: "Appliance Repair", emoji: "🔧", providers: PROVIDERS },
+  { id: "electrician", label: "Electrician", emoji: "💡", providers: PROVIDERS },
+  { id: "plumber", label: "Plumber", emoji: "🚰", providers: PROVIDERS },
+  { id: "beauty", label: "Beauty & Salon at home", emoji: "💅", providers: PROVIDERS },
+  { id: "tutor", label: "Tutor", emoji: "📚", providers: PROVIDERS },
+  { id: "bike_mechanic", label: "Bike Mechanic", emoji: "🏍️" },
+  { id: "car_mechanic", label: "Car Mechanic", emoji: "🚗" },
+  { id: "physiotherapist", label: "Physiotherapist", emoji: "🧑‍⚕️" },
+  { id: "caregiver", label: "Caregiver / Attendant", emoji: "🧑‍🦽" },
+  { id: "babysitter", label: "Babysitter", emoji: "👶" },
+  { id: "pet_sitter", label: "Pet Sitter", emoji: "🐾" },
+  { id: "tax_ca", label: "Tax Consultant / CA", emoji: "🧾" },
+  { id: "lawyer_civil", label: "Lawyer — Civil", emoji: "⚖️" },
+  { id: "lawyer_criminal", label: "Lawyer — Criminal", emoji: "⚖️" },
+  { id: "lawyer_corporate", label: "Lawyer — Corporate", emoji: "⚖️" },
+];
+
+const CITIES = [
+  "Kolkata",
+  "Bengaluru",
+  "Mumbai",
+  "Delhi",
+  "Hyderabad",
+  "Chennai",
+  "Pune",
+  "Ahmedabad",
+  "Gurugram",
+  "Noida",
+];
+
+const AVAILABILITY = ["Mornings", "Afternoons", "Evenings", "Weekends", "Full-time"];
+
+
+
 
 function EarnScreen() {
   const [tab, setTab] = useState<Tab>("hire");
@@ -107,6 +131,7 @@ function EarnScreen() {
 
 function HirePanel({ goPartner }: { goPartner: () => void }) {
   const [chooserFor, setChooserFor] = useState<Category | null>(null);
+  const [noProviderFor, setNoProviderFor] = useState<Category | null>(null);
 
   return (
     <div className="mt-5 space-y-5">
@@ -114,7 +139,7 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
         {CATEGORIES.map((c) => (
           <button
             key={c.id}
-            onClick={() => setChooserFor(c)}
+            onClick={() => (c.providers && c.providers.length ? setChooserFor(c) : setNoProviderFor(c))}
             className="press flex flex-col items-center justify-center gap-1 rounded-2xl border border-border bg-card p-3 text-center hover:brightness-110"
           >
             <span className="text-2xl">{c.emoji}</span>
@@ -142,11 +167,40 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
       {chooserFor && (
         <ProviderChooser category={chooserFor} onClose={() => setChooserFor(null)} />
       )}
+      {noProviderFor && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setNoProviderFor(null)} aria-hidden />
+          <div className="glass relative z-10 w-full max-w-md rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+            <div className="font-display text-lg font-bold">
+              {noProviderFor.emoji} {noProviderFor.label}
+            </div>
+            <div className="mt-2 text-sm text-muted-foreground">
+              no partner service here yet — be the first ONIQ partner in your area 💼
+            </div>
+            <button
+              onClick={() => {
+                setNoProviderFor(null);
+                goPartner();
+              }}
+              className="press mt-4 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground"
+            >
+              become a partner
+            </button>
+            <button
+              onClick={() => setNoProviderFor(null)}
+              className="press mt-2 w-full rounded-xl bg-surface-2 py-2 text-sm font-medium"
+            >
+              cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function ProviderChooser({ category, onClose }: { category: Category; onClose: () => void }) {
+  const providers = category.providers ?? [];
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden />
@@ -158,7 +212,7 @@ function ProviderChooser({ category, onClose }: { category: Category; onClose: (
           {category.emoji} {category.label}
         </div>
         <div className="mt-4 space-y-2">
-          {PROVIDERS.map((p) => (
+          {providers.map((p) => (
             <button
               key={p.id}
               onClick={async () => {
