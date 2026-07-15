@@ -156,7 +156,7 @@ function StudyScreen() {
         <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-orange-400 to-pink-500 text-white">
           <span className="text-base">📚</span>
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="font-display text-base font-semibold truncate">
             {active ? active.name : "Study Buddy"}
           </div>
@@ -166,6 +166,13 @@ function StudyScreen() {
             </div>
           )}
         </div>
+        <button
+          onClick={() => setShowProgress(true)}
+          aria-label="Progress"
+          className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card"
+        >
+          <BarChart3 className="h-4 w-4" />
+        </button>
       </header>
 
       {/* Profile chips */}
