@@ -85,25 +85,8 @@ const CITIES = [
 
 const AVAILABILITY = ["Mornings", "Afternoons", "Evenings", "Weekends", "Full-time"];
 
-const PROVIDERS = [
-  {
-    id: "urbancompany",
-    name: "Urban Company",
-    url: "https://www.urbancompany.com",
-    androidPackage: "com.urbanclap.urbanclap",
-    appScheme: "urbancompany://",
-    color: "#E91E63",
-    emoji: "🧹",
-  },
-  {
-    id: "snabbit",
-    name: "Snabbit",
-    url: "https://www.snabbit.com",
-    androidPackage: "com.snabbit.customer",
-    color: "#FF6B35",
-    emoji: "⚡",
-  },
-];
+
+
 
 function EarnScreen() {
   const [tab, setTab] = useState<Tab>("hire");
