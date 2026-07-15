@@ -642,6 +642,10 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               Add <code className="rounded bg-muted px-1">ANTHROPIC_API_KEY</code> in project secrets.
             </p>
           </div>
+        ) : hydrating ? (
+          <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+            loading your chat…
+          </div>
         ) : messages.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center text-center">
             <div className="grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-orange-400 to-pink-500 text-white">
