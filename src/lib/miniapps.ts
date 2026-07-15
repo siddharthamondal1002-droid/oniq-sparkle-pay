@@ -366,11 +366,23 @@ export function olaLink(drop: RidePoint, pickup?: RidePoint) {
   return `https://book.olacabs.com/?${q.toString()}`;
 }
 
-// ---------------- Free geocoding (OpenStreetMap Nominatim, no key) ----------------
+// ---------------- Geocoding (Mappls primary, Nominatim fallback) ----------------
 
 export type GeoResult = { lat: number; lon: number; label: string };
 
-export async function geocode(query: string): Promise<GeoResult[]> {
+async function invokeMappls(payload: { op: "geocode" | "reverse" | "autosuggest"; query?: string; lat?: number; lon?: number; near?: string }): Promise<any | null> {
+  try {
+    const { supabase } = await import(/* @vite-ignore */ "@/integrations/supabase/client");
+    const { data, error } = await supabase.functions.invoke("mappls-geo", { body: payload });
+    if (error) { console.warn("[mappls-geo] invoke error", error?.message ?? error); return null; }
+    return data;
+  } catch (e) {
+    console.warn("[mappls-geo] invoke threw", e);
+    return null;
+  }
+}
+
+async function nominatimGeocode(query: string): Promise<GeoResult[]> {
   const res = await fetch(
     `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`,
     { headers: { Accept: "application/json" } },
@@ -384,6 +396,26 @@ export async function geocode(query: string): Promise<GeoResult[]> {
       label: r.display_name.split(",").slice(0, 3).join(","),
     }))
     .filter((r) => Number.isFinite(r.lat) && Number.isFinite(r.lon));
+}
+
+export async function geocode(query: string): Promise<GeoResult[]> {
+  const data = await invokeMappls({ op: "geocode", query });
+  if (data?.source === "mappls" && Array.isArray(data.results) && data.results.length > 0) {
+    return data.results as GeoResult[];
+  }
+  return nominatimGeocode(query);
+}
+
+/**
+ * Mappls autosuggest — exported for future UI wiring. Silently falls back to
+ * Nominatim forward search so callers always get something usable.
+ */
+export async function autosuggest(query: string, near?: { lat: number; lon: number }): Promise<GeoResult[]> {
+  const data = await invokeMappls({ op: "autosuggest", query, lat: near?.lat, lon: near?.lon });
+  if (data?.source === "mappls" && Array.isArray(data.results) && data.results.length > 0) {
+    return data.results as GeoResult[];
+  }
+  return nominatimGeocode(query);
 }
 
 // ---------------- Ride Genie: routing + fare estimation ----------------
