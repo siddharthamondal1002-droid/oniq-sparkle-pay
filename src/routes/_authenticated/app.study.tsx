@@ -655,19 +655,34 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
           }}
           className="border-t border-border bg-card/60 p-3 backdrop-blur"
         >
-          {/* Subject chips */}
+          {/* Subject chips + practice quiz */}
           <div className="mb-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+            <button
+              type="button"
+              onClick={() => setQuizSubject(subjects[0] ?? "General")}
+              className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
+            >
+              practice quiz 📝
+            </button>
             {subjects.map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setInput(`Help me with ${s}: `)}
+                onDoubleClick={() => setQuizSubject(s)}
                 className="shrink-0 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-muted"
               >
                 {s}
               </button>
             ))}
           </div>
+          {quizSubject && (
+            <QuizModal
+              profile={profile}
+              initialSubject={quizSubject}
+              onClose={() => setQuizSubject(null)}
+            />
+          )}
 
           {attachment && (
             <div className="mb-2 flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-xs w-fit">
