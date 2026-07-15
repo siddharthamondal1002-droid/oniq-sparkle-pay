@@ -43,6 +43,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const messages = Array.isArray(body?.messages) ? body.messages : null;
     const search = body?.search !== false; // default on
+    const lang = typeof body?.lang === "string" ? body.lang : "";
     const attachment = body?.attachment as
       | { kind: "image" | "pdf" | "text"; mime?: string; data?: string; text?: string }
       | undefined;
