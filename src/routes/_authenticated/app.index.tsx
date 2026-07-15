@@ -22,6 +22,7 @@ import {
   Maximize2,
   Heart,
   Briefcase,
+  BookOpen,
 } from "lucide-react";
 import { useVitalsTileColor } from "@/components/vitals/useVitalsTileColor";
 import { CompactLiveNews, loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
@@ -159,6 +160,7 @@ function HomeScreen() {
                 { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
                 { key: "vitals", to: "/app/vitals", icon: Heart, label: "vitals 🫀", color: vitalsColor },
                 { key: "earn", to: "/app/earn", icon: Briefcase, label: "earn 💼", color: "#00D4B8" },
+                { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185" },
               ] as const
             ).filter((t) => !hidden.has(t.key as TileKey)).map((t, i) => (
               <Tile

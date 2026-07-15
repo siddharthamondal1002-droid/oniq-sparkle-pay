@@ -919,6 +919,33 @@ export type Database = {
           },
         ]
       }
+      learner_profiles: {
+        Row: {
+          board: string
+          class_level: string
+          created_at: string
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          board: string
+          class_level: string
+          created_at?: string
+          id?: string
+          name: string
+          user_id?: string
+        }
+        Update: {
+          board?: string
+          class_level?: string
+          created_at?: string
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       menu_items: {
         Row: {
           category: string
