@@ -185,12 +185,15 @@ function MiniAppsScreen() {
 }
 
 function AppTile({ item, size }: { item: FolderItem; size: "lg" | "sm" }) {
-  const cls =
+  const isDark = relativeLuminance(item.color) < 0.05;
+  const base =
     size === "lg"
-      ? "h-full w-full rounded-xl grid place-items-center font-display font-bold text-white text-lg"
-      : "h-full w-full rounded-[4px] grid place-items-center font-display font-bold text-white text-[8px] leading-none";
+      ? "h-full w-full rounded-xl grid place-items-center font-display font-bold text-lg"
+      : "h-full w-full rounded-[4px] grid place-items-center font-display font-bold text-[8px] leading-none";
+  const cls = `${base}${isDark ? " ring-1 ring-inset ring-white/15" : ""}`;
+  const ink = item.emoji ? undefined : readableInk(item.color);
   return (
-    <div className={cls} style={{ backgroundColor: item.color }}>
+    <div className={cls} style={{ backgroundColor: item.color, color: ink }}>
       <span className={size === "lg" ? "text-lg" : "text-[10px]"}>
         {item.emoji ?? item.letter}
       </span>
