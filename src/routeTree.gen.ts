@@ -30,6 +30,7 @@ import { Route as AuthenticatedAppWalletRouteImport } from './routes/_authentica
 import { Route as AuthenticatedAppVitalsRouteImport } from './routes/_authenticated/app.vitals'
 import { Route as AuthenticatedAppUpiRouteImport } from './routes/_authenticated/app.upi'
 import { Route as AuthenticatedAppTravelRouteImport } from './routes/_authenticated/app.travel'
+import { Route as AuthenticatedAppStudyRouteImport } from './routes/_authenticated/app.study'
 import { Route as AuthenticatedAppScanRouteImport } from './routes/_authenticated/app.scan'
 import { Route as AuthenticatedAppRidesRouteImport } from './routes/_authenticated/app.rides'
 import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/app.profile'
@@ -158,6 +159,11 @@ const AuthenticatedAppUpiRoute = AuthenticatedAppUpiRouteImport.update({
 const AuthenticatedAppTravelRoute = AuthenticatedAppTravelRouteImport.update({
   id: '/travel',
   path: '/travel',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppStudyRoute = AuthenticatedAppStudyRouteImport.update({
+  id: '/study',
+  path: '/study',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const AuthenticatedAppScanRoute = AuthenticatedAppScanRouteImport.update({
@@ -316,6 +322,7 @@ export interface FileRoutesByFullPath {
   '/app/profile': typeof AuthenticatedAppProfileRoute
   '/app/rides': typeof AuthenticatedAppRidesRoute
   '/app/scan': typeof AuthenticatedAppScanRoute
+  '/app/study': typeof AuthenticatedAppStudyRoute
   '/app/travel': typeof AuthenticatedAppTravelRoute
   '/app/upi': typeof AuthenticatedAppUpiRoute
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
@@ -359,6 +366,7 @@ export interface FileRoutesByTo {
   '/app/profile': typeof AuthenticatedAppProfileRoute
   '/app/rides': typeof AuthenticatedAppRidesRoute
   '/app/scan': typeof AuthenticatedAppScanRoute
+  '/app/study': typeof AuthenticatedAppStudyRoute
   '/app/travel': typeof AuthenticatedAppTravelRoute
   '/app/upi': typeof AuthenticatedAppUpiRoute
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
@@ -406,6 +414,7 @@ export interface FileRoutesById {
   '/_authenticated/app/profile': typeof AuthenticatedAppProfileRoute
   '/_authenticated/app/rides': typeof AuthenticatedAppRidesRoute
   '/_authenticated/app/scan': typeof AuthenticatedAppScanRoute
+  '/_authenticated/app/study': typeof AuthenticatedAppStudyRoute
   '/_authenticated/app/travel': typeof AuthenticatedAppTravelRoute
   '/_authenticated/app/upi': typeof AuthenticatedAppUpiRoute
   '/_authenticated/app/vitals': typeof AuthenticatedAppVitalsRoute
@@ -453,6 +462,7 @@ export interface FileRouteTypes {
     | '/app/profile'
     | '/app/rides'
     | '/app/scan'
+    | '/app/study'
     | '/app/travel'
     | '/app/upi'
     | '/app/vitals'
@@ -496,6 +506,7 @@ export interface FileRouteTypes {
     | '/app/profile'
     | '/app/rides'
     | '/app/scan'
+    | '/app/study'
     | '/app/travel'
     | '/app/upi'
     | '/app/vitals'
@@ -542,6 +553,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/profile'
     | '/_authenticated/app/rides'
     | '/_authenticated/app/scan'
+    | '/_authenticated/app/study'
     | '/_authenticated/app/travel'
     | '/_authenticated/app/upi'
     | '/_authenticated/app/vitals'
@@ -724,6 +736,13 @@ declare module '@tanstack/react-router' {
       path: '/travel'
       fullPath: '/app/travel'
       preLoaderRoute: typeof AuthenticatedAppTravelRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/study': {
+      id: '/_authenticated/app/study'
+      path: '/study'
+      fullPath: '/app/study'
+      preLoaderRoute: typeof AuthenticatedAppStudyRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/scan': {
@@ -923,6 +942,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppProfileRoute: typeof AuthenticatedAppProfileRoute
   AuthenticatedAppRidesRoute: typeof AuthenticatedAppRidesRoute
   AuthenticatedAppScanRoute: typeof AuthenticatedAppScanRoute
+  AuthenticatedAppStudyRoute: typeof AuthenticatedAppStudyRoute
   AuthenticatedAppTravelRoute: typeof AuthenticatedAppTravelRoute
   AuthenticatedAppUpiRoute: typeof AuthenticatedAppUpiRoute
   AuthenticatedAppVitalsRoute: typeof AuthenticatedAppVitalsRoute
@@ -948,6 +968,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppProfileRoute: AuthenticatedAppProfileRoute,
   AuthenticatedAppRidesRoute: AuthenticatedAppRidesRoute,
   AuthenticatedAppScanRoute: AuthenticatedAppScanRoute,
+  AuthenticatedAppStudyRoute: AuthenticatedAppStudyRoute,
   AuthenticatedAppTravelRoute: AuthenticatedAppTravelRoute,
   AuthenticatedAppUpiRoute: AuthenticatedAppUpiRoute,
   AuthenticatedAppVitalsRoute: AuthenticatedAppVitalsRoute,
