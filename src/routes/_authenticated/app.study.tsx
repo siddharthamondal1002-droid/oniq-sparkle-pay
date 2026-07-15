@@ -612,7 +612,15 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
         return;
       }
       if (d?.error) throw new Error(d.error);
-      setMessages([...next, { role: "assistant", content: d?.reply ?? "", usedVault: !!d?.usedVault }]);
+      const reply = d?.reply ?? "";
+      const usedVault = !!d?.usedVault;
+      setMessages([...next, { role: "assistant", content: reply, usedVault }]);
+      // Persist the exchange. For attachments, store a short placeholder
+      // in place of binary data — matches the tutor payload convention.
+      const storedUser = text.trim() || (att
+        ? `(shared a ${att.kind === "pdf" ? "PDF" : att.kind === "text" ? "text file" : "image"})`
+        : "(no message)");
+      void persistExchange(storedUser, reply, usedVault);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
       toast.error(msg && !/non-2xx/i.test(msg) ? msg : "Study Buddy tripped — please try again 🌿");
