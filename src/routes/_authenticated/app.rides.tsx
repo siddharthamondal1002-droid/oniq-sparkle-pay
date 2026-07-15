@@ -180,7 +180,7 @@ function RidesScreen() {
     }
   }
 
-  async function handleGenie(text: string) {
+  async function handleGenieRegex(text: string) {
     const raw = text.trim();
     if (!raw) return;
     const stripped = raw.replace(/^(book me a ride|book a ride|ride|cab)\s+/i, "").trim();
@@ -219,6 +219,64 @@ function RidesScreen() {
       if (pickPt && dropPt) await runCompare(pickPt, dropPt);
     } catch {
       toast.error("Genie glitched — try again");
+    }
+  }
+
+  async function handleGenie(text: string) {
+    const raw = text.trim();
+    if (!raw) return;
+    try {
+      const { data, error } = await supabase.functions.invoke("ride-genie", {
+        body: { text: raw, currentLabel: pickup?.label },
+      });
+      if (error) return handleGenieRegex(raw);
+      const payload = data as {
+        source?: string;
+        parsed?: {
+          intent: "book" | "compare" | "unclear";
+          pickup: string | null;
+          destination: string | null;
+          vehicle: "bike" | "auto" | "car" | "any" | null;
+          reply: string | null;
+        };
+      };
+      if (payload?.source !== "llm" || !payload.parsed) return handleGenieRegex(raw);
+      const p = payload.parsed;
+      if (p.intent === "unclear") {
+        toast.info(p.reply ?? "couldn't catch that — try again bestie");
+        return;
+      }
+      if (!p.destination) return handleGenieRegex(raw);
+
+      const dropRes = await geocode(p.destination);
+      if (!dropRes.length) {
+        toast.error("couldn't find that place — add your city name");
+        return;
+      }
+      const dropPt: Point = { lat: dropRes[0].lat, lon: dropRes[0].lon, label: dropRes[0].label };
+
+      let pickPt: Point | null = pickup;
+      if (p.pickup) {
+        const pickRes = await geocode(p.pickup);
+        if (!pickRes.length) {
+          toast.error("couldn't find that pickup — add your city name");
+          return;
+        }
+        pickPt = { lat: pickRes[0].lat, lon: pickRes[0].lon, label: pickRes[0].label };
+        setPickup(pickPt);
+        setPickupIsCurrent(false);
+      }
+      if (!pickPt) {
+        toast.error("Waiting on your location — try again in a sec");
+        return;
+      }
+      setDestination(dropPt);
+      setQuery(dropPt.label);
+      setResults([]);
+      await runCompare(pickPt, dropPt);
+    } catch {
+      // silent fallback — no user-visible error
+      return handleGenieRegex(raw);
     }
   }
 
