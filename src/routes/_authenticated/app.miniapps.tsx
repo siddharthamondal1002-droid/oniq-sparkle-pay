@@ -128,8 +128,8 @@ function MiniAppsScreen() {
 
       {/* Folder grid */}
       <div className="mt-6 grid grid-cols-2 gap-4">
-        {folders.map((f) => (
-          <FolderCard key={f.key} folder={f} onOpen={() => setOpenKey(f.key)} />
+        {folders.map((f, i) => (
+          <FolderCard key={f.key} folder={f} index={i} onOpen={() => setOpenKey(f.key)} />
         ))}
       </div>
 
