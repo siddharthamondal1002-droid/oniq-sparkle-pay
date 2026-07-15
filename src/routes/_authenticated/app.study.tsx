@@ -738,35 +738,86 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             ))}
           </div>
           {showQuizPicker && (
-            <ModalCard onClose={() => setShowQuizPicker(false)}>
+            <ModalCard
+              onClose={() => {
+                setShowQuizPicker(false);
+                setPickerSubject(null);
+              }}
+            >
               <div className="rounded-3xl border border-border bg-card p-6 shadow-2xl">
                 <div className="flex items-start justify-between">
                   <div>
-                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice quiz</div>
-                    <div className="font-display text-lg font-bold">pick a subject 📝</div>
+                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice</div>
+                    <div className="font-display text-lg font-bold">
+                      {pickerSubject ? "pick a format 📝" : "pick a subject 📝"}
+                    </div>
+                    {pickerSubject && (
+                      <div className="mt-0.5 text-[11px] text-muted-foreground">{pickerSubject}</div>
+                    )}
                   </div>
                   <button
-                    onClick={() => setShowQuizPicker(false)}
+                    onClick={() => {
+                      setShowQuizPicker(false);
+                      setPickerSubject(null);
+                    }}
                     aria-label="Close"
                     className="grid h-8 w-8 place-items-center rounded-full border border-border"
                   >
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="mt-4 grid grid-cols-2 gap-2">
-                  {subjects.map((s) => (
+
+                {!pickerSubject ? (
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    {subjects.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => setPickerSubject(s)}
+                        className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm hover:bg-muted"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-4 space-y-2">
                     <button
-                      key={s}
                       onClick={() => {
                         setShowQuizPicker(false);
-                        setQuizSubject(s);
+                        setQuizSubject(pickerSubject);
+                        setPickerSubject(null);
                       }}
-                      className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm hover:bg-muted"
+                      className="w-full rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-left hover:bg-primary/15"
                     >
-                      {s}
+                      <div className="text-sm font-semibold text-primary">quick quiz</div>
+                      <div className="text-[11px] text-muted-foreground">5 multiple-choice questions</div>
                     </button>
-                  ))}
-                </div>
+                    {([30, 80, 100] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => {
+                          setShowQuizPicker(false);
+                          setPaperSpec({ subject: pickerSubject, totalMarks: m });
+                          setPickerSubject(null);
+                        }}
+                        className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left hover:bg-muted"
+                      >
+                        <div className="text-sm font-semibold">full paper · {m} marks</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {m === 30 ? "MCQs, short & long answers · ~30 min"
+                            : m === 80 ? "MCQs, short & long answers · ~2 hr"
+                            : "MCQs, short & long answers · ~3 hr"}
+                        </div>
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => setPickerSubject(null)}
+                      className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
+                    >
+                      ← change subject
+                    </button>
+                  </div>
+                )}
               </div>
             </ModalCard>
           )}
@@ -775,6 +826,14 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               profile={profile}
               initialSubject={quizSubject}
               onClose={() => setQuizSubject(null)}
+            />
+          )}
+          {paperSpec && (
+            <PaperModal
+              profile={profile}
+              subject={paperSpec.subject}
+              totalMarks={paperSpec.totalMarks}
+              onClose={() => setPaperSpec(null)}
             />
           )}
 
