@@ -179,7 +179,20 @@ function TingScreen() {
     setAttachment(null);
     setLoading(true);
     try {
-      const payload = next.slice(-30).map((m) => ({ role: m.role, content: m.content || " " }));
+      // Cap history to the last ~10 turns AND never send a whitespace-only
+      // content block — Anthropic 400s on those, which killed multi-turn
+      // image chats after the first empty-caption image.
+      const payload = next.slice(-20).map((m) => {
+        const raw = (m.content ?? "").trim();
+        if (raw) return { role: m.role, content: raw };
+        // Image/pdf-only turn: use a short non-whitespace placeholder so the
+        // history stays valid without resending the bytes.
+        if (m.attachment) {
+          const kind = m.attachment.kind === "pdf" ? "PDF" : m.attachment.kind === "text" ? "text file" : "image";
+          return { role: m.role, content: `(shared a ${kind})` };
+        }
+        return { role: m.role, content: "(no message)" };
+      });
       const body: Record<string, unknown> = { messages: payload, search: webSearch };
       if (att) {
         body.attachment =
@@ -201,7 +214,8 @@ function TingScreen() {
         { role: "assistant", content: d?.reply ?? "", sources: d?.sources ?? [] },
       ]);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Ting failed");
+      const msg = e instanceof Error ? e.message : "";
+      toast.error(msg && !/non-2xx/i.test(msg) ? msg : "ting choked on that 😵‍💫 try again");
     } finally {
       setLoading(false);
     }
