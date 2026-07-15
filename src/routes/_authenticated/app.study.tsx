@@ -125,6 +125,7 @@ function StudyScreen() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [editing, setEditing] = useState<LearnerProfile | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [showProgress, setShowProgress] = useState(false);
 
   useEffect(() => {
     if (profiles && profiles.length > 0 && !activeId) {
