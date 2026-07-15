@@ -741,8 +741,10 @@ function ScoutPanel() {
     setData(null);
     setScoutError(null);
     try {
+      let lang = "en";
+      try { const m = await import("@/lib/userLanguage"); lang = await m.getUserLanguage(); } catch { /* noop */ }
       const { data: r, error } = await supabase.functions.invoke("smart-scout", {
-        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto" },
+        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto", lang },
       });
       if (error) throw error;
       if ((r as any)?.error) throw new Error((r as any).error);
