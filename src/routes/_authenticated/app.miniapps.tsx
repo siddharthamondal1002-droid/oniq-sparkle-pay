@@ -234,8 +234,16 @@ function FolderCard({ folder, onOpen }: { folder: Folder; onOpen: () => void }) 
         </div>
       </div>
       <div className="w-full text-center">
-        <div className="truncate text-xs text-muted-foreground">{folder.label}</div>
-        <div className="text-[10px] text-muted-foreground/60">
+        <div
+          className="truncate text-xs text-white/90"
+          style={{ textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}
+        >
+          {folder.label}
+        </div>
+        <div
+          className="text-[10px] text-white/60"
+          style={{ textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}
+        >
           {items.length} app{items.length === 1 ? "" : "s"}
         </div>
       </div>
