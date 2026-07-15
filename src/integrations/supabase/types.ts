@@ -1488,27 +1488,33 @@ export type Database = {
           correct_count: number
           created_at: string
           id: string
+          marks_scored: number | null
           profile_id: string
           subject: string
           topic: string
+          total_marks: number | null
           total_questions: number
         }
         Insert: {
           correct_count: number
           created_at?: string
           id?: string
+          marks_scored?: number | null
           profile_id: string
           subject: string
           topic: string
+          total_marks?: number | null
           total_questions: number
         }
         Update: {
           correct_count?: number
           created_at?: string
           id?: string
+          marks_scored?: number | null
           profile_id?: string
           subject?: string
           topic?: string
+          total_marks?: number | null
           total_questions?: number
         }
         Relationships: [
@@ -1793,6 +1799,47 @@ export type Database = {
           topic?: string
         }
         Relationships: []
+      }
+      study_papers: {
+        Row: {
+          created_at: string
+          id: string
+          marks_scored: number | null
+          profile_id: string
+          questions: Json
+          status: string
+          subject: string
+          total_marks: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          marks_scored?: number | null
+          profile_id: string
+          questions: Json
+          status?: string
+          subject: string
+          total_marks: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          marks_scored?: number | null
+          profile_id?: string
+          questions?: Json
+          status?: string
+          subject?: string
+          total_marks?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "study_papers_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "learner_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       suppressed_emails: {
         Row: {
