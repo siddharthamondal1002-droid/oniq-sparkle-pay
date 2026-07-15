@@ -1,4 +1,5 @@
 // smart-scout — Claude price scout with web_search tool
+import { langInstruction } from "../_shared/llm.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
