@@ -61,7 +61,7 @@ Deno.serve(async (req) => {
 
   const boardKey = String(body.profile?.board ?? "").toLowerCase();
   const board = BOARD_LABEL[boardKey] ? boardKey : "cbse";
-  const classLevel = ["5","6","7","8","9","10","11","12","ug","pg"].includes(String(body.profile?.classLevel ?? ""))
+  const classLevel = (VALID_CLASS_LEVELS as readonly string[]).includes(String(body.profile?.classLevel ?? ""))
     ? String(body.profile?.classLevel) : "8";
   const subject = String(body.subject ?? "").trim().slice(0, 80);
   const topic = String(body.topic ?? "").trim().slice(0, 120) || subject;
@@ -69,10 +69,7 @@ Deno.serve(async (req) => {
 
   const boardLabel = BOARD_LABEL[board];
   const cur = BOARD_CURRICULUM[board];
-  const gradeStr =
-    classLevel === "ug" ? "an undergraduate (UG) student"
-    : classLevel === "pg" ? "a postgraduate (PG) student"
-    : `a class ${classLevel} student`;
+  const gradeStr = gradeString(classLevel);
 
   const system = [
     `You write short practice quizzes for ${gradeStr} studying under ${boardLabel} in India. ${cur}`,
