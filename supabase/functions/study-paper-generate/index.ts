@@ -137,10 +137,7 @@ Deno.serve(async (req) => {
 
   const boardLabel = BOARD_LABEL[board];
   const cur = BOARD_CURRICULUM[board];
-  const gradeStr =
-    classLevel === "ug" ? "an undergraduate (UG) student"
-    : classLevel === "pg" ? "a postgraduate (PG) student"
-    : `a class ${classLevel} student`;
+  const gradeStr = gradeString(classLevel);
 
   const mcqCount = structure.find((s) => s.type === "mcq")!.count;
   const shortSec = structure.find((s) => s.type === "short")!;
