@@ -2314,6 +2314,19 @@ function PaperAnswerArea({
         </button>
       </div>
 
+      {needsReattach && !draft && (
+        <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-[11px] text-yellow-200">
+          <span>📸 photo attached last time — reattach to submit this one.</span>
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            className="shrink-0 rounded-full border border-yellow-400/40 bg-yellow-500/10 px-2 py-1 text-[10px] font-semibold text-yellow-100"
+          >
+            reattach
+          </button>
+        </div>
+      )}
+
       {mode === "text" ? (
         <>
           <textarea
