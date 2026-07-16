@@ -218,7 +218,7 @@ function StudyScreen() {
           </div>
           {active && (
             <div className="text-[10px] text-muted-foreground">
-              {BOARD_UPPER[active.board]} · {active.class_level === "ug" ? "UG" : active.class_level === "pg" ? "PG" : `Class ${active.class_level}`}
+              {BOARD_UPPER[active.board]} · {active.class_level === "ug" ? "UG" : active.class_level === "pg" ? "PG" : active.class_level === "drop" ? "Drop year" : active.class_level === "aspirant" ? "Aspirant" : `Class ${active.class_level}`}
             </div>
           )}
         </div>
@@ -2055,7 +2055,7 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
                   <div>
                     <div className="font-semibold">{p.name}</div>
                     <div className="text-[10px] text-muted-foreground">
-                      {BOARD_UPPER[p.board]} · {p.class_level === "ug" ? "UG" : p.class_level === "pg" ? "PG" : `Class ${p.class_level}`}
+                      {BOARD_UPPER[p.board]} · {p.class_level === "ug" ? "UG" : p.class_level === "pg" ? "PG" : p.class_level === "drop" ? "Drop year" : p.class_level === "aspirant" ? "Aspirant" : `Class ${p.class_level}`}
                     </div>
                   </div>
                   <div className="text-right">
