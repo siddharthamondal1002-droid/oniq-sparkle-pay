@@ -211,7 +211,13 @@ Deno.serve(async (req) => {
     const toolUse = blocks.find((b: { type?: string }) => b?.type === "tool_use") as
       | { input?: Record<string, unknown> } | undefined;
     const arr = toolUse?.input?.[kind];
-    if (!Array.isArray(arr)) return { ok: false, reason: `${kind}: no items` };
+    if (!Array.isArray(arr)) {
+      const stopReason = (r.data as { stop_reason?: unknown } | undefined)?.stop_reason;
+      const textBlock = blocks.find((b: { type?: string }) => b?.type === "text") as { text?: string } | undefined;
+      const textPreview = typeof textBlock?.text === "string" ? textBlock.text.slice(0, 150) : "";
+      console.warn(`study-paper-generate: genSection no-items kind=${kind} stop_reason=${String(stopReason)} text_preview="${textPreview}"`);
+      return { ok: false, reason: `${kind}: no items` };
+    }
     return { ok: true, items: arr };
   }
 
