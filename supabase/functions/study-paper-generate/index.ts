@@ -220,9 +220,18 @@ Deno.serve(async (req) => {
     genSection("short", shortSec.count, shortSec.marks),
     genSection("long", longSec.count, longSec.marks),
   ]);
-  if (!mcqRes.ok) return json(200, { source: "unavailable", reason: mcqRes.reason });
-  if (!shortRes.ok) return json(200, { source: "unavailable", reason: shortRes.reason });
-  if (!longRes.ok) return json(200, { source: "unavailable", reason: longRes.reason });
+  if (!mcqRes.ok) {
+    console.warn(`study-paper-generate: section fail totalMarks=${totalMarks} subject="${subject}" reason="${mcqRes.reason}"`);
+    return json(200, { source: "unavailable", reason: mcqRes.reason });
+  }
+  if (!shortRes.ok) {
+    console.warn(`study-paper-generate: section fail totalMarks=${totalMarks} subject="${subject}" reason="${shortRes.reason}"`);
+    return json(200, { source: "unavailable", reason: shortRes.reason });
+  }
+  if (!longRes.ok) {
+    console.warn(`study-paper-generate: section fail totalMarks=${totalMarks} subject="${subject}" reason="${longRes.reason}"`);
+    return json(200, { source: "unavailable", reason: longRes.reason });
+  }
 
   try {
     type MCQIn = { question?: unknown; options?: unknown; correct_index?: unknown; explanation?: unknown };
