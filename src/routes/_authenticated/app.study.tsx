@@ -1406,37 +1406,92 @@ function PaperModal({
     };
   }, []);
 
+  const generateFresh = React.useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("study-paper-generate", {
+        body: {
+          profile: { board: profile.board, classLevel: profile.class_level },
+          profileId: profile.id,
+          subject,
+          totalMarks,
+        },
+      });
+      if (error) throw error;
+      const d = data as { source?: string; paper_id?: string; questions?: PaperQClient[]; reason?: string };
+      if (d?.source === "paper" && d.paper_id && Array.isArray(d.questions) && d.questions.length > 0) {
+        setPaperId(d.paper_id);
+        setQuestions(d.questions);
+        setDrafts({});
+        setReattachIds(new Set());
+        setCurrentIdx(0);
+      } else {
+        setErrorMsg("couldn't build that paper — try again 🌿");
+      }
+    } catch {
+      setErrorMsg("couldn't build that paper — try again 🌿");
+    } finally {
+      setLoading(false);
+    }
+  }, [profile.id, profile.board, profile.class_level, subject, totalMarks]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setErrorMsg(null);
+      // Try resume first: same-subject, same-total-marks, in_progress row.
       try {
-        const { data, error } = await supabase.functions.invoke("study-paper-generate", {
-          body: {
-            profile: { board: profile.board, classLevel: profile.class_level },
-            profileId: profile.id,
-            subject,
-            totalMarks,
-          },
+        const { data: res } = await supabase.functions.invoke("study-paper-resume", {
+          body: { profile_id: profile.id, subject },
         });
         if (cancelled) return;
-        if (error) throw error;
-        const d = data as { source?: string; paper_id?: string; questions?: PaperQClient[]; reason?: string };
-        if (d?.source === "paper" && d.paper_id && Array.isArray(d.questions) && d.questions.length > 0) {
-          setPaperId(d.paper_id);
-          setQuestions(d.questions);
-        } else {
-          setErrorMsg("couldn't build that paper — try again 🌿");
+        const r = res as {
+          found?: boolean;
+          paper_id?: string;
+          total_marks?: number;
+          questions?: PaperQClient[];
+          draft_answers?: Record<string, unknown>;
+          updated_at?: string;
+        };
+        if (
+          r?.found &&
+          r.paper_id &&
+          Array.isArray(r.questions) &&
+          r.questions.length > 0 &&
+          r.total_marks === totalMarks
+        ) {
+          // Hydrate saved drafts. Text drafts fill in; photo drafts flag for reattach.
+          const map: Record<string, PaperDraft> = {};
+          const reattach = new Set<string>();
+          for (const [qid, d] of Object.entries(r.draft_answers ?? {})) {
+            const dd = d as { kind?: string; value?: unknown };
+            if (dd?.kind === "text" && typeof dd.value === "string" && dd.value.length > 0) {
+              map[qid] = { kind: "text", value: dd.value };
+            } else if (dd?.kind === "photo") {
+              reattach.add(qid);
+            }
+          }
+          setResumeOffer({
+            paperId: r.paper_id,
+            totalMarks: r.total_marks,
+            answered: Object.keys(map).length + reattach.size,
+            total: r.questions.length,
+            questions: r.questions,
+            drafts: map,
+            reattach,
+            updatedAt: r.updated_at ?? "",
+          });
+          setLoading(false);
+          return;
         }
-      } catch {
-        if (!cancelled) setErrorMsg("couldn't build that paper — try again 🌿");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      } catch { /* resume is best-effort; fall through to generate */ }
+      if (!cancelled) await generateFresh();
     })();
     return () => { cancelled = true; };
-  }, [profile.id, profile.board, profile.class_level, subject, totalMarks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id, subject, totalMarks]);
 
   // Revoke object URLs on unmount.
   useEffect(() => {
@@ -1444,6 +1499,7 @@ function PaperModal({
       Object.values(drafts).forEach((d) => {
         if (d.kind === "photo") URL.revokeObjectURL(d.previewUrl);
       });
+      Object.values(saveTimers.current).forEach((t) => clearTimeout(t));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1462,6 +1518,27 @@ function PaperModal({
 
   const answeredCount = questions ? questions.filter((qq) => isAnswered(qq.id)).length : 0;
 
+  // Debounced autosave (~800ms). Best-effort, silent on failure. Only text
+  // drafts persist their content; photo drafts persist a marker (bytes stay
+  // local until submit).
+  function scheduleSave(qid: string, next: PaperDraft | null) {
+    if (!paperId) return;
+    if (saveTimers.current[qid]) clearTimeout(saveTimers.current[qid]);
+    saveTimers.current[qid] = setTimeout(async () => {
+      let payload: null | { kind: "text"; value: string } | { kind: "photo"; attached: true } = null;
+      if (next && next.kind === "text") payload = { kind: "text", value: next.value };
+      else if (next && next.kind === "photo") payload = { kind: "photo", attached: true };
+      // MCQ picks and empty drafts don't persist per spec.
+      if (next && next.kind === "mcq") return;
+      try {
+        await supabase.functions.invoke("study-paper-save-draft", {
+          body: { paper_id: paperId, question_id: qid, draft: payload },
+        });
+        setSavedTick((n) => n + 1);
+      } catch { /* silent */ }
+    }, 800);
+  }
+
   function setDraft(qid: string, next: PaperDraft | null) {
     setDrafts((prev) => {
       const copy = { ...prev };
@@ -1473,6 +1550,17 @@ function PaperModal({
       else copy[qid] = next;
       return copy;
     });
+    // Once the student attaches or edits a real answer, the "reattach"
+    // marker for that question is cleared.
+    if (next) {
+      setReattachIds((prev) => {
+        if (!prev.has(qid)) return prev;
+        const nx = new Set(prev);
+        nx.delete(qid);
+        return nx;
+      });
+    }
+    scheduleSave(qid, next);
   }
 
   async function handlePhotoPick(qid: string, e: React.ChangeEvent<HTMLInputElement>) {
@@ -1488,6 +1576,31 @@ function PaperModal({
       toast.error("couldn't read that photo");
     }
   }
+
+  function acceptResume() {
+    if (!resumeOffer) return;
+    setPaperId(resumeOffer.paperId);
+    setQuestions(resumeOffer.questions);
+    setDrafts(resumeOffer.drafts);
+    setReattachIds(resumeOffer.reattach);
+    setCurrentIdx(0);
+    setResumeOffer(null);
+    setLoading(false);
+  }
+
+  async function declineResume() {
+    if (!resumeOffer) return;
+    // Best-effort abandon of the old row so future resume checks skip it.
+    try {
+      await supabase.functions.invoke("study-paper-finish", {
+        body: { paper_id: resumeOffer.paperId, action: "abandon" },
+      });
+    } catch { /* best-effort */ }
+    setResumeOffer(null);
+    await generateFresh();
+  }
+
+
 
   async function runBatchGrading() {
     if (!questions || !paperId || phase === "grading") return;
