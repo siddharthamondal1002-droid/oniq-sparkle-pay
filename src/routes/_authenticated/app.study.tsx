@@ -1712,13 +1712,24 @@ function PaperModal({
           <div className="truncate font-display text-sm font-bold">{subject} · {totalMarks} marks</div>
         </div>
         {phase === "answering" ? (
-          <button
-            onClick={() => setConfirm("submit")}
-            disabled={loading || !!errorMsg || !questions}
-            className="shrink-0 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-          >
-            submit paper
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              onClick={() => setDownloadSheet(true)}
+              disabled={loading || !!errorMsg || !questions}
+              aria-label="Download or print paper"
+              title="Download / print"
+              className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground disabled:opacity-50"
+            >
+              <span aria-hidden className="text-base leading-none">📄</span>
+            </button>
+            <button
+              onClick={() => setConfirm("submit")}
+              disabled={loading || !!errorMsg || !questions}
+              className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              submit paper
+            </button>
+          </div>
         ) : (
           <div className="w-[92px]" />
         )}
