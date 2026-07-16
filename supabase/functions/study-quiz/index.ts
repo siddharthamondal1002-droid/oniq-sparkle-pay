@@ -1,21 +1,7 @@
 // study-quiz — generate a 5-question board/class-aware quiz for a learner.
 // JWT-gated; reuses shared callClaude. Returns HTTP 200 always.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json } from "../_shared/llm.ts";
-
-const BOARD_LABEL: Record<string, string> = {
-  cbse: "CBSE",
-  icse: "ICSE",
-  igcse: "IGCSE",
-  college: "College",
-};
-
-const BOARD_CURRICULUM: Record<string, string> = {
-  cbse: "CBSE (follows NCERT textbooks and syllabus).",
-  icse: "ICSE (follows the CISCE syllabus).",
-  igcse: "IGCSE (follows Cambridge International; use British spelling).",
-  college: "College-level (Indian UG/PG; align with standard Indian university syllabi).",
-};
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json } from "../_shared/llm.ts";
 
 const QUIZ_TOOL = {
   name: "generate_quiz",
