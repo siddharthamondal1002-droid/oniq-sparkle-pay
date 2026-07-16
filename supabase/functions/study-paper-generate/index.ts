@@ -190,12 +190,12 @@ Deno.serve(async (req) => {
       instr = `Produce EXACTLY ${count} short-answer questions, ${marks} marks each. Provide a concise model_answer (40–120 words) and 2–4 concrete, answer-specific rubric_points (e.g. "defines momentum as p = mv", not "good explanation").`;
       schema = SHORT_SECTION_SCHEMA;
       toolName = "return_short";
-      maxTokens = Math.max(2500, count * 350);
+      maxTokens = Math.max(3500, count * 450);
     } else {
       instr = `Produce EXACTLY ${count} long-answer questions, ${marks} marks each. Provide a fuller model_answer (120–300 words) and 2–4 concrete, answer-specific rubric_points.`;
       schema = LONG_SECTION_SCHEMA;
       toolName = "return_long";
-      maxTokens = Math.max(3500, count * 600);
+      maxTokens = Math.max(6000, count * 900);
     }
 
     const r = await callClaude({
@@ -211,7 +211,13 @@ Deno.serve(async (req) => {
     const toolUse = blocks.find((b: { type?: string }) => b?.type === "tool_use") as
       | { input?: Record<string, unknown> } | undefined;
     const arr = toolUse?.input?.[kind];
-    if (!Array.isArray(arr)) return { ok: false, reason: `${kind}: no items` };
+    if (!Array.isArray(arr)) {
+      const stopReason = (r.data as { stop_reason?: unknown } | undefined)?.stop_reason;
+      const textBlock = blocks.find((b: { type?: string }) => b?.type === "text") as { text?: string } | undefined;
+      const textPreview = typeof textBlock?.text === "string" ? textBlock.text.slice(0, 150) : "";
+      console.warn(`study-paper-generate: genSection no-items kind=${kind} stop_reason=${String(stopReason)} text_preview="${textPreview}"`);
+      return { ok: false, reason: `${kind}: no items` };
+    }
     return { ok: true, items: arr };
   }
 
