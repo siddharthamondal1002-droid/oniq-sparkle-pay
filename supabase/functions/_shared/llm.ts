@@ -27,6 +27,41 @@ export function langInstruction(lang?: string | null): string {
   return `\n\nRespond in ${name}. Use the ${name} script. Keep these UNCHANGED and untranslated: brand names, retailer names, place names, app names, currency symbols, and all numbers/prices. If the user writes in English, still reply in ${name}.`;
 }
 
+// ---------- Shared board / class-level framing ----------
+// Used by study-tutor, study-quiz, and study-paper-generate so curriculum
+// wording never drifts across functions.
+export const BOARD_LABEL: Record<string, string> = {
+  cbse: "CBSE",
+  icse: "ICSE",
+  igcse: "IGCSE",
+  college: "College",
+  jee: "JEE",
+  neet: "NEET",
+  clat: "CLAT",
+  govt_exam: "Govt / Competitive Exams",
+};
+
+export const BOARD_CURRICULUM: Record<string, string> = {
+  cbse: "CBSE (follows NCERT textbooks and syllabus).",
+  icse: "ICSE (follows the CISCE syllabus; expect broader English + humanities depth).",
+  igcse: "IGCSE (follows Cambridge International; use British spelling and Cambridge-style problem framing).",
+  college: "College-level (Indian UG/PG; align with standard Indian university syllabi).",
+  jee: "JEE (Joint Entrance Examination) aspirant — NCERT foundation with JEE-level application, multi-concept problem-solving, and speed/accuracy focus.",
+  neet: "NEET aspirant — NCERT-based, MCQ exam pattern, precise factual recall alongside conceptual understanding, especially in Biology.",
+  clat: "CLAT / law entrance aspirant — legal reasoning through principle-and-fact application, reading comprehension, current affairs awareness, logical and quantitative reasoning at entrance-exam level.",
+  govt_exam: "General competitive/government exam aspirant — this covers COMMON foundational ground shared across most Indian competitive exams (general knowledge & current affairs, quantitative aptitude, reasoning, English) at a prelims/tier-1 level. Be explicit when relevant that specific exams (UPSC/SSC/Banking/Railways/State PSCs etc.) have their own detailed official syllabi and specialized paper patterns beyond this general scope — do not claim to replicate any single exam's complete syllabus.",
+};
+
+export const VALID_CLASS_LEVELS = ["5","6","7","8","9","10","11","12","ug","pg","drop","aspirant"] as const;
+
+export function gradeString(classLevel: string): string {
+  if (classLevel === "ug") return "an undergraduate (UG) student";
+  if (classLevel === "pg") return "a postgraduate (PG) student";
+  if (classLevel === "drop") return "a drop-year aspirant (dedicated entrance-exam prep year)";
+  if (classLevel === "aspirant") return "an aspirant preparing for competitive exams (not tied to a school class)";
+  return `a class ${classLevel} student`;
+}
+
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
