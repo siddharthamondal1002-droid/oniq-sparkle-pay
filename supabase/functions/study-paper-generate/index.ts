@@ -2,20 +2,7 @@
 // JWT-gated. Uses service role to store answer key server-side; returns a
 // sanitized paper (no correct_index / model_answer / rubric_points) to client.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json } from "../_shared/llm.ts";
-
-const BOARD_LABEL: Record<string, string> = {
-  cbse: "CBSE",
-  icse: "ICSE",
-  igcse: "IGCSE",
-  college: "College",
-};
-const BOARD_CURRICULUM: Record<string, string> = {
-  cbse: "CBSE (follows NCERT textbooks and syllabus).",
-  icse: "ICSE (follows the CISCE syllabus).",
-  igcse: "IGCSE (follows Cambridge International; use British spelling).",
-  college: "College-level (Indian UG/PG; align with standard Indian university syllabi).",
-};
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json } from "../_shared/llm.ts";
 
 type Section = { type: "mcq" | "short" | "long"; marks: number; count: number };
 
@@ -111,7 +98,7 @@ Deno.serve(async (req) => {
 
   const boardKey = String(body.profile?.board ?? "").toLowerCase();
   const board = BOARD_LABEL[boardKey] ? boardKey : "cbse";
-  const classLevel = ["5","6","7","8","9","10","11","12","ug","pg"].includes(String(body.profile?.classLevel ?? ""))
+  const classLevel = (VALID_CLASS_LEVELS as readonly string[]).includes(String(body.profile?.classLevel ?? ""))
     ? String(body.profile?.classLevel) : "8";
   const subject = String(body.subject ?? "").trim().slice(0, 80);
   const totalMarks = Number(body.totalMarks);
@@ -150,10 +137,7 @@ Deno.serve(async (req) => {
 
   const boardLabel = BOARD_LABEL[board];
   const cur = BOARD_CURRICULUM[board];
-  const gradeStr =
-    classLevel === "ug" ? "an undergraduate (UG) student"
-    : classLevel === "pg" ? "a postgraduate (PG) student"
-    : `a class ${classLevel} student`;
+  const gradeStr = gradeString(classLevel);
 
   const mcqCount = structure.find((s) => s.type === "mcq")!.count;
   const shortSec = structure.find((s) => s.type === "short")!;

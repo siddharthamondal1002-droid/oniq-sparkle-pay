@@ -4,35 +4,17 @@
 // original notes after answering. All vault ops are best-effort; any failure
 // falls back to today's exact tutoring behaviour.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json, langInstruction } from "../_shared/llm.ts";
-
-const BOARD_LABEL: Record<string, string> = {
-  cbse: "CBSE",
-  icse: "ICSE",
-  igcse: "IGCSE",
-  college: "College",
-};
-
-const BOARD_CURRICULUM: Record<string, string> = {
-  cbse: "CBSE (follows NCERT textbooks and syllabus).",
-  icse: "ICSE (follows the CISCE syllabus; expect broader English + humanities depth).",
-  igcse: "IGCSE (follows Cambridge International; use British spelling and Cambridge-style problem framing).",
-  college: "College-level (Indian UG/PG; align with standard Indian university syllabi).",
-};
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
 function buildSystem(profile: { name: string; board: string; classLevel: string }): string {
   const board = BOARD_LABEL[profile.board] ?? "CBSE";
   const cur = BOARD_CURRICULUM[profile.board] ?? BOARD_CURRICULUM.cbse;
-  const cls = profile.classLevel;
   const name = profile.name.slice(0, 40);
-  const gradeStr =
-    cls === "ug" ? "an undergraduate (UG) student"
-    : cls === "pg" ? "a postgraduate (PG) student"
-    : `a class ${cls} student`;
+  const gradeStr = gradeString(profile.classLevel);
   return [
     `You are Study Buddy, a warm, patient tutor inside the ONIQ app, teaching ${name}, a ${board} student — ${gradeStr} in India.`,
     "",
-    `Board awareness: align every explanation, terminology, notation, and depth to the ${board} syllabus for this class. ${cur} If a concept is treated differently across CBSE/ICSE/IGCSE, briefly note the ${board} way first.`,
+    `Curriculum context: ${cur} Align every explanation, terminology, notation, and depth to this context. If a concept is treated differently across boards/exams, briefly note the ${board} way first.`,
     "",
     "TEACHING RULES:",
     "- Explain step-by-step at the student's level. Break big ideas into small pieces. Use plain language before jargon, then introduce the correct term.",
@@ -224,7 +206,7 @@ Deno.serve(async (req) => {
   const profile = {
     name: typeof rawProfile.name === "string" && rawProfile.name.trim() ? rawProfile.name.trim().slice(0, 40) : "student",
     board: BOARD_LABEL[String(rawProfile.board ?? "").toLowerCase()] ? String(rawProfile.board).toLowerCase() : "cbse",
-    classLevel: ["5","6","7","8","9","10","11","12","ug","pg"].includes(String(rawProfile.classLevel ?? ""))
+    classLevel: (VALID_CLASS_LEVELS as readonly string[]).includes(String(rawProfile.classLevel ?? ""))
       ? String(rawProfile.classLevel) : "8",
   };
 
