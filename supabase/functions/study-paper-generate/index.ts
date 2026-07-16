@@ -332,6 +332,7 @@ Deno.serve(async (req) => {
       return { id: q.id, type: q.type, marks: q.marks, question: q.question };
     });
 
+    console.warn(`study-paper-generate: SUCCESS totalMarks=${totalMarks} subject="${subject}" questions=${clientQuestions.length} (mcq=${mcqCount} short=${shortSec.count} long=${longSec.count})`);
     return json(200, {
       source: "paper",
       paper_id: (inserted as { id: string }).id,
@@ -340,6 +341,7 @@ Deno.serve(async (req) => {
       questions: clientQuestions,
     });
   } catch (e) {
+    console.warn(`study-paper-generate: exception totalMarks=${totalMarks} subject="${subject}" err="${(e as Error).message.slice(0, 200)}"`);
     return json(200, { source: "unavailable", reason: (e as Error).message.slice(0, 100) });
   }
 });
