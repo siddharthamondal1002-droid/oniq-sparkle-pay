@@ -1406,7 +1406,7 @@ function PaperModal({
     };
   }, []);
 
-  const generateFresh = React.useCallback(async (): Promise<void> => {
+  const generateFresh = useCallback(async (): Promise<void> => {
     setLoading(true);
     setErrorMsg(null);
     try {
