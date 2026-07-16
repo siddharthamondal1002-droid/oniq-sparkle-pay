@@ -98,7 +98,7 @@ Deno.serve(async (req) => {
 
   const boardKey = String(body.profile?.board ?? "").toLowerCase();
   const board = BOARD_LABEL[boardKey] ? boardKey : "cbse";
-  const classLevel = ["5","6","7","8","9","10","11","12","ug","pg"].includes(String(body.profile?.classLevel ?? ""))
+  const classLevel = (VALID_CLASS_LEVELS as readonly string[]).includes(String(body.profile?.classLevel ?? ""))
     ? String(body.profile?.classLevel) : "8";
   const subject = String(body.subject ?? "").trim().slice(0, 80);
   const totalMarks = Number(body.totalMarks);
