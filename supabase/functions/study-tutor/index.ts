@@ -206,7 +206,7 @@ Deno.serve(async (req) => {
   const profile = {
     name: typeof rawProfile.name === "string" && rawProfile.name.trim() ? rawProfile.name.trim().slice(0, 40) : "student",
     board: BOARD_LABEL[String(rawProfile.board ?? "").toLowerCase()] ? String(rawProfile.board).toLowerCase() : "cbse",
-    classLevel: ["5","6","7","8","9","10","11","12","ug","pg"].includes(String(rawProfile.classLevel ?? ""))
+    classLevel: (VALID_CLASS_LEVELS as readonly string[]).includes(String(rawProfile.classLevel ?? ""))
       ? String(rawProfile.classLevel) : "8",
   };
 
