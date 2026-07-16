@@ -83,8 +83,8 @@ function AppShell() {
 
       {showNav && (
         <>
-          <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 h-28 w-full max-w-md -translate-x-1/2 bg-gradient-to-t from-background via-background/85 to-transparent" />
-          <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 h-28 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 bg-gradient-to-t from-background via-background/85 to-transparent" />
+          <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <div className="grid grid-cols-4 rounded-3xl border border-border glass p-1.5 shadow-card">
               {tabs.map((t) => {
                 const active = t.to === "/app" ? normalized === "/app" : normalized.startsWith(t.to);
