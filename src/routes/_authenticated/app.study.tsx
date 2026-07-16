@@ -2163,6 +2163,75 @@ function PaperModal({
           </div>
         </div>
       )}
+
+      {/* ---- Resume-in-progress offer ---- */}
+      {resumeOffer && (
+        <div className="fixed inset-0 z-[95] grid place-items-center bg-black/75 p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl">
+            <div className="text-3xl">📄</div>
+            <div className="mt-2 font-display text-lg font-bold">resume your paper?</div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              you have a <span className="font-semibold text-foreground">{subject}</span> paper
+              ({resumeOffer.totalMarks} marks) in progress — {resumeOffer.answered}/{resumeOffer.total} answered.
+            </p>
+            {resumeOffer.reattach.size > 0 && (
+              <p className="mt-1 text-[11px] text-yellow-300/90">
+                {resumeOffer.reattach.size} photo answer{resumeOffer.reattach.size === 1 ? "" : "s"} will need to be reattached.
+              </p>
+            )}
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => void declineResume()}
+                className="flex-1 rounded-xl border border-border py-3 text-sm text-muted-foreground"
+              >
+                start fresh
+              </button>
+              <button
+                onClick={acceptResume}
+                className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+              >
+                resume
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Download / print sheet ---- */}
+      {downloadSheet && (
+        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" onClick={() => setDownloadSheet(false)}>
+          <div
+            className="w-full max-w-sm rounded-t-3xl border border-border bg-card p-5 shadow-2xl sm:rounded-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="font-display text-lg font-bold">download the paper 📄</div>
+            <p className="mt-1 text-xs text-muted-foreground">questions only — no answers included. save as PDF or print on paper.</p>
+            <div className="mt-4 space-y-2">
+              <button
+                onClick={() => void doPrintInApp()}
+                className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+              >
+                🖨️ print / save as PDF
+              </button>
+              <button
+                onClick={() => void doOpenInBrowser()}
+                className="w-full rounded-xl border border-border py-3 text-sm"
+              >
+                🌐 open in browser to save as PDF
+              </button>
+              <p className="text-[10px] leading-relaxed text-muted-foreground">
+                on some Android versions in-app print doesn't work reliably — if the first option does nothing, use the browser option (opens Chrome, then use Chrome's Share → Print → Save as PDF).
+              </p>
+              <button
+                onClick={() => setDownloadSheet(false)}
+                className="w-full rounded-xl border border-border py-2 text-xs text-muted-foreground"
+              >
+                cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     portalHost
   );
