@@ -159,45 +159,78 @@ Deno.serve(async (req) => {
   const shortSec = structure.find((s) => s.type === "short")!;
   const longSec = structure.find((s) => s.type === "long")!;
 
-  const system = [
+  const baseSystem = [
     `You are writing a real ${totalMarks}-mark practice examination paper for ${gradeStr} studying under ${boardLabel} in India. ${cur}`,
     `Subject: ${subject}.`,
-    "",
-    "STRUCTURE (produce EXACTLY these counts — no more, no fewer):",
-    `- mcq: ${mcqCount} multiple-choice questions, 1 mark each, 4 options each with exactly one correct answer.`,
-    `- short: ${shortSec.count} short-answer questions, ${shortSec.marks} marks each. Provide a concise model_answer (the ideal answer, 40–120 words) and 2–4 rubric_points (short bullet criteria a grader should check for).`,
-    `- long: ${longSec.count} long-answer questions, ${longSec.marks} marks each. Provide a fuller model_answer (120–300 words) and 2–4 rubric_points.`,
     "",
     "Rules:",
     "- Age-appropriate, syllabus-aligned, non-trivial but fair. Test understanding, not tricks.",
     "- Spread across the subject's key topics for this class. Don't cluster around one narrow topic.",
-    "- Wrong MCQ options should be plausible common mistakes.",
-    "- rubric_points must be concrete and answer-specific (e.g. 'defines momentum as p = mv', 'mentions vector nature'), not vague like 'good explanation'.",
     "- Honesty: never invent facts, dates, formulas, chapter references, or past-paper citations. If unsure, use safely-known content.",
     "- No personal data, no politics, no religion, no adult content.",
-    "- Return ONLY via the generate_paper tool. Do not include any extra prose.",
   ].join("\n");
 
-  const res = await callClaude({
-    system,
-    messages: [{
-      role: "user",
-      content: `Please generate the ${totalMarks}-mark ${subject} paper for a ${boardLabel} ${gradeStr}.`,
-    }],
-    tools: [{ name: "generate_paper", description: "Return the full paper.", input_schema: PAPER_TOOL_INPUT_SCHEMA }],
-    toolChoice: { type: "tool", name: "generate_paper" },
-    maxTokens: 8000,
-    timeoutMs: 90000,
-  });
+  const userMsg = `Generate the questions for the ${totalMarks}-mark ${subject} paper for a ${boardLabel} ${gradeStr}.`;
 
-  if (!res.ok) return json(200, { source: "unavailable", reason: res.reason });
+  async function genSection(
+    kind: "mcq" | "short" | "long",
+    count: number,
+    marks: number,
+  ): Promise<{ ok: true; items: unknown[] } | { ok: false; reason: string }> {
+    let instr = "";
+    let schema: unknown;
+    let toolName = "";
+    let maxTokens = 2000;
+    if (kind === "mcq") {
+      instr = `Produce EXACTLY ${count} multiple-choice questions, 1 mark each, 4 options each with exactly one correct answer. Wrong options should be plausible common mistakes. Keep each question concise.`;
+      schema = MCQ_SECTION_SCHEMA;
+      toolName = "return_mcq";
+      maxTokens = Math.max(1500, count * 180);
+    } else if (kind === "short") {
+      instr = `Produce EXACTLY ${count} short-answer questions, ${marks} marks each. Provide a concise model_answer (40–120 words) and 2–4 concrete, answer-specific rubric_points (e.g. "defines momentum as p = mv", not "good explanation").`;
+      schema = SHORT_SECTION_SCHEMA;
+      toolName = "return_short";
+      maxTokens = Math.max(2500, count * 350);
+    } else {
+      instr = `Produce EXACTLY ${count} long-answer questions, ${marks} marks each. Provide a fuller model_answer (120–300 words) and 2–4 concrete, answer-specific rubric_points.`;
+      schema = LONG_SECTION_SCHEMA;
+      toolName = "return_long";
+      maxTokens = Math.max(3500, count * 600);
+    }
+
+    const r = await callClaude({
+      system: baseSystem + "\n\n" + instr + `\nReturn ONLY via the ${toolName} tool.`,
+      messages: [{ role: "user", content: userMsg }],
+      tools: [{ name: toolName, description: `Return the ${kind} section.`, input_schema: schema }],
+      toolChoice: { type: "tool", name: toolName },
+      maxTokens,
+      timeoutMs: 90000,
+    });
+    if (!r.ok) return { ok: false, reason: `${kind}: ${r.reason}` };
+    const blocks = Array.isArray(r.data?.content) ? r.data.content : [];
+    const toolUse = blocks.find((b: { type?: string }) => b?.type === "tool_use") as
+      | { input?: Record<string, unknown> } | undefined;
+    const arr = toolUse?.input?.[kind];
+    if (!Array.isArray(arr)) return { ok: false, reason: `${kind}: no items` };
+    return { ok: true, items: arr };
+  }
+
+  const [mcqRes, shortRes, longRes] = await Promise.all([
+    genSection("mcq", mcqCount, 1),
+    genSection("short", shortSec.count, shortSec.marks),
+    genSection("long", longSec.count, longSec.marks),
+  ]);
+  if (!mcqRes.ok) return json(200, { source: "unavailable", reason: mcqRes.reason });
+  if (!shortRes.ok) return json(200, { source: "unavailable", reason: shortRes.reason });
+  if (!longRes.ok) return json(200, { source: "unavailable", reason: longRes.reason });
 
   try {
-    const blocks = Array.isArray(res.data?.content) ? res.data.content : [];
-    const toolUse = blocks.find((b: { type?: string }) => b?.type === "tool_use") as
-      | { input?: { mcq?: unknown; short?: unknown; long?: unknown } } | undefined;
-    const raw = toolUse?.input;
-    if (!raw) return json(200, { source: "unavailable", reason: "no paper" });
+    type MCQIn = { question?: unknown; options?: unknown; correct_index?: unknown; explanation?: unknown };
+    type WrittenIn = { question?: unknown; model_answer?: unknown; rubric_points?: unknown };
+
+    const mcqRaw = mcqRes.items as MCQIn[];
+    const shortRaw = shortRes.items as WrittenIn[];
+    const longRaw = longRes.items as WrittenIn[];
 
     type MCQIn = { question?: unknown; options?: unknown; correct_index?: unknown; explanation?: unknown };
     type WrittenIn = { question?: unknown; model_answer?: unknown; rubric_points?: unknown };
