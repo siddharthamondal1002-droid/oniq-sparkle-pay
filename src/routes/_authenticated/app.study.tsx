@@ -220,18 +220,16 @@ function StudyScreen() {
   const [editing, setEditing] = useState<LearnerProfile | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
-  const [mode, setMode] = useState<"school" | "govt">("school");
 
-  const schoolProfiles = (profiles ?? []).filter((p) => p.board !== "govt_exam");
-  const govtProfile = (profiles ?? []).find((p) => p.board === "govt_exam") ?? null;
+  const allProfiles = profiles ?? [];
 
   useEffect(() => {
-    if (schoolProfiles.length > 0 && !activeId) {
-      setActiveId(schoolProfiles[0].id);
+    if (allProfiles.length > 0 && !activeId) {
+      setActiveId(allProfiles[0].id);
     }
-  }, [schoolProfiles, activeId]);
+  }, [allProfiles, activeId]);
 
-  const active = schoolProfiles.find((p) => p.id === activeId) ?? null;
+  const active = allProfiles.find((p) => p.id === activeId) ?? null;
 
   if (isLoading) {
     return (
@@ -241,16 +239,15 @@ function StudyScreen() {
     );
   }
 
-  // First-run: no profiles at all → keep the existing school setup as the entry.
   if (!profiles || profiles.length === 0) {
     return <SetupCard onCreated={(p) => setActiveId(p.id)} first />;
   }
 
-  const inGovt = mode === "govt";
-  const headerName = inGovt ? (govtProfile?.name ?? "Govt Exams") : (active?.name ?? "Study Buddy");
-  const headerSub = inGovt
-    ? (govtProfile ? `Govt Exams · ${govtProfile.class_level === "ug" ? "UG" : govtProfile.class_level === "pg" ? "PG" : govtProfile.class_level === "drop" ? "Drop year" : govtProfile.class_level === "aspirant" ? "Aspirant" : `Class ${govtProfile.class_level}`}` : "Competitive / govt exam prep")
-    : (active ? `${BOARD_UPPER[active.board]} · ${active.class_level === "ug" ? "UG" : active.class_level === "pg" ? "PG" : active.class_level === "drop" ? "Drop year" : active.class_level === "aspirant" ? "Aspirant" : `Class ${active.class_level}`}` : null);
+  const activeIsGovt = active ? isGovtBoard(active.board) : false;
+  const headerName = active?.name ?? "Study Buddy";
+  const headerSub = active
+    ? `${BOARD_UPPER[active.board]} · ${active.class_level === "ug" ? "UG" : active.class_level === "pg" ? "PG" : active.class_level === "drop" ? "Drop year" : active.class_level === "aspirant" ? "Aspirant" : `Class ${active.class_level}`}`
+    : null;
 
   return (
     <div className="flex h-screen flex-col">
@@ -258,8 +255,8 @@ function StudyScreen() {
         <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div className={`grid h-9 w-9 place-items-center rounded-xl text-white ${inGovt ? "bg-gradient-to-br from-amber-500 to-yellow-600" : "bg-gradient-to-br from-orange-400 to-pink-500"}`}>
-          <span className="text-base">{inGovt ? "🏛️" : "📚"}</span>
+        <div className={`grid h-9 w-9 place-items-center rounded-xl text-white ${activeIsGovt ? "bg-gradient-to-br from-amber-500 to-yellow-600" : "bg-gradient-to-br from-orange-400 to-pink-500"}`}>
+          <span className="text-base">{activeIsGovt ? "🏛️" : "📚"}</span>
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-display text-base font-semibold truncate">{headerName}</div>
@@ -274,44 +271,30 @@ function StudyScreen() {
         </button>
       </header>
 
-      {/* Profile chips + govt-exam tab */}
+      {/* Unified profile chips: every learner_profiles row is a chip. Govt-family gets amber accent + emoji badge. */}
       <div className="flex items-center gap-2 overflow-x-auto border-b border-border px-4 py-2 no-scrollbar">
-        {schoolProfiles.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => { setMode("school"); setActiveId(p.id); }}
-            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
-              !inGovt && p.id === activeId
-                ? "border-primary/40 bg-primary/15 text-primary"
-                : "border-border bg-card text-muted-foreground"
-            }`}
-          >
-            {p.name}
-          </button>
-        ))}
-        <button
-          onClick={() => setMode("govt")}
-          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
-            inGovt
-              ? "border-amber-500/60 bg-amber-500/20 text-amber-300"
-              : "border-amber-500/30 bg-amber-500/10 text-amber-200/80"
-          }`}
-        >
-          🏛️ govt exams
-        </button>
-        {!inGovt && active && (
+        {allProfiles.map((p) => {
+          const govt = isGovtBoard(p.board);
+          const isActive = p.id === activeId;
+          const base = "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1";
+          const cls = govt
+            ? (isActive
+                ? `${base} border-amber-500/60 bg-amber-500/20 text-amber-300`
+                : `${base} border-amber-500/30 bg-amber-500/10 text-amber-200/80`)
+            : (isActive
+                ? `${base} border-primary/40 bg-primary/15 text-primary`
+                : `${base} border-border bg-card text-muted-foreground`);
+          return (
+            <button key={p.id} onClick={() => setActiveId(p.id)} className={cls}>
+              {govt && <span aria-hidden>{BOARD_EMOJI[p.board] || "🏛️"}</span>}
+              <span>{p.name}</span>
+            </button>
+          );
+        })}
+        {active && (
           <button
             onClick={() => setEditing(active)}
             aria-label="Edit profile"
-            className="shrink-0 grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-        )}
-        {inGovt && govtProfile && (
-          <button
-            onClick={() => setEditing(govtProfile)}
-            aria-label="Edit govt exam profile"
             className="shrink-0 grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground"
           >
             <Pencil className="h-3 w-3" />
@@ -326,24 +309,13 @@ function StudyScreen() {
         </button>
       </div>
 
-      {inGovt ? (
-        govtProfile ? (
-          <TutorChat profile={govtProfile} />
-        ) : (
-          <div className="flex-1 overflow-y-auto p-4">
-            <GovtSetupCard onCreated={() => { /* profile list will refetch; stay in govt mode */ }} />
-          </div>
-        )
-      ) : (
-        active && <TutorChat profile={active} />
-      )}
+      {active && <TutorChat profile={active} />}
 
       {showAdd && (
         <ModalCard onClose={() => setShowAdd(false)}>
           <SetupCard
             onCreated={(p) => {
-              if (p.board === "govt_exam") setMode("govt");
-              else { setMode("school"); setActiveId(p.id); }
+              setActiveId(p.id);
               setShowAdd(false);
             }}
           />
@@ -356,7 +328,7 @@ function StudyScreen() {
             profile={editing}
             onDone={() => setEditing(null)}
             onDeleted={() => {
-              if (editing.board !== "govt_exam") setActiveId(null);
+              setActiveId(null);
               setEditing(null);
             }}
           />
@@ -368,6 +340,7 @@ function StudyScreen() {
           <ProgressDashboard profiles={profiles} onClose={() => setShowProgress(false)} />
         </ModalCard>
       )}
+
     </div>
   );
 }
