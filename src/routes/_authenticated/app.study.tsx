@@ -569,19 +569,17 @@ function EditProfile({
       />
 
       <label className="mt-4 block text-xs font-medium text-muted-foreground">Board</label>
-      <div className="mt-1 grid grid-cols-2 gap-2">
-        {BOARDS.map((b) => (
-          <button
-            key={b.value}
-            onClick={() => { setBoard(b.value); const opts = classLevelsFor(b.value); if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value); }}
-            className={`rounded-xl border px-3 py-2 text-sm transition ${
-              board === b.value ? "border-primary bg-primary/15 text-primary" : "border-border bg-card"
-            }`}
-          >
-            {b.label}
-          </button>
-        ))}
+      <div className="mt-1">
+        <BoardPicker
+          board={board}
+          onChange={(b) => {
+            setBoard(b);
+            const opts = classLevelsFor(b);
+            if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value);
+          }}
+        />
       </div>
+
 
       <label className="mt-4 block text-xs font-medium text-muted-foreground">Class</label>
       <select
