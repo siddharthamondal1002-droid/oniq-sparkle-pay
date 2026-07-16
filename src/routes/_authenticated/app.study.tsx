@@ -2652,3 +2652,618 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
   );
 }
 
+// ------------------------- Mock Test (timed, MCQ-only) -------------------------
+
+type MockQClient = {
+  id: string;
+  type: "mcq";
+  marks: number;
+  subject: string;
+  question: string;
+  options: string[];
+};
+
+function formatCountdown(secondsLeft: number): string {
+  const s = Math.max(0, Math.floor(secondsLeft));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return h > 0 ? `${h}:${pad(m)}:${pad(sec)}` : `${pad(m)}:${pad(sec)}`;
+}
+
+function MockPaperModal({
+  profile,
+  subjects,
+  durationMinutes,
+  onClose,
+}: {
+  profile: LearnerProfile;
+  subjects: string[];
+  durationMinutes: 30 | 60 | 90;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [paperId, setPaperId] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<MockQClient[] | null>(null);
+  const [startedAtMs, setStartedAtMs] = useState<number | null>(null);
+  const [durationSec, setDurationSec] = useState<number>(durationMinutes * 60);
+  const [nowMs, setNowMs] = useState<number>(() => Date.now());
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [picks, setPicks] = useState<Record<string, number>>({});
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [phase, setPhase] = useState<"answering" | "grading" | "done">("answering");
+  const [confirmClose, setConfirmClose] = useState(false);
+  const [gradedCount, setGradedCount] = useState(0);
+  const [results, setResults] = useState<Record<string, PaperGradeEntry>>({});
+  const [totalScored, setTotalScored] = useState(0);
+  const [finishing, setFinishing] = useState(false);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
+  const finishedRef = useRef(false);
+  const autoSubmittedRef = useRef(false);
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+
+  const totalMarks = questions?.length ?? 0;
+
+  // Mount full-screen portal host (same pattern as PaperModal).
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const host = document.createElement("div");
+    host.setAttribute("data-mock-modal-host", "true");
+    Object.assign(host.style, {
+      position: "fixed", top: "0", left: "0", right: "0", bottom: "0",
+      width: "100vw", height: "100dvh", zIndex: "999", overflow: "hidden",
+    });
+    document.documentElement.appendChild(host);
+    setPortalHost(host);
+    return () => { host.remove(); setPortalHost(null); };
+  }, []);
+
+  // Wall-clock tick every second (works regardless of tab focus — we anchor
+  // to server-provided started_at + duration_seconds, not a pausable local
+  // counter).
+  useEffect(() => {
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const secondsLeft = startedAtMs && durationSec
+    ? Math.max(0, durationSec - Math.floor((nowMs - startedAtMs) / 1000))
+    : durationSec;
+
+  const generateFresh = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("study-paper-mock", {
+        body: {
+          profile: { board: profile.board, classLevel: profile.class_level },
+          profileId: profile.id,
+          subjects,
+          durationMinutes,
+        },
+      });
+      if (error) throw error;
+      const d = data as {
+        source?: string;
+        paper_id?: string;
+        questions?: MockQClient[];
+        started_at?: string;
+        duration_seconds?: number;
+        reason?: string;
+      };
+      if (d?.source === "paper" && d.paper_id && Array.isArray(d.questions) && d.questions.length > 0 && d.started_at && d.duration_seconds) {
+        setPaperId(d.paper_id);
+        setQuestions(d.questions);
+        setStartedAtMs(new Date(d.started_at).getTime());
+        setDurationSec(d.duration_seconds);
+        setPicks({});
+        setCurrentIdx(0);
+      } else {
+        setErrorMsg("couldn't build that mock — try again 🌿");
+      }
+    } catch {
+      setErrorMsg("couldn't build that mock — try again 🌿");
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id, profile.board, profile.class_level, subjects.join("|"), durationMinutes]);
+
+  // Init: try resume (kind='mock') first; if expired, auto-finish; otherwise
+  // resume with the correctly-reduced timer.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setErrorMsg(null);
+      try {
+        const { data: res } = await supabase.functions.invoke("study-paper-resume", {
+          body: { profile_id: profile.id, kind: "mock" },
+        });
+        if (cancelled) return;
+        const r = res as {
+          found?: boolean;
+          paper_id?: string;
+          total_marks?: number;
+          questions?: MockQClient[];
+          draft_answers?: Record<string, unknown>;
+          started_at?: string | null;
+          duration_seconds?: number | null;
+        };
+        if (
+          r?.found && r.paper_id && Array.isArray(r.questions) && r.questions.length > 0 &&
+          r.started_at && r.duration_seconds
+        ) {
+          const startedMs = new Date(r.started_at).getTime();
+          const durSec = r.duration_seconds;
+          setPaperId(r.paper_id);
+          setQuestions(r.questions);
+          setStartedAtMs(startedMs);
+          setDurationSec(durSec);
+          // Restore picks from draft_answers.
+          const nextPicks: Record<string, number> = {};
+          for (const [qid, d] of Object.entries(r.draft_answers ?? {})) {
+            const dd = d as { kind?: string; value?: unknown };
+            if (dd?.kind === "mcq" && typeof dd.value === "number" && dd.value >= 0 && dd.value <= 3) {
+              nextPicks[qid] = dd.value;
+            }
+          }
+          setPicks(nextPicks);
+          setCurrentIdx(0);
+          setLoading(false);
+          // If time already expired while app was closed, auto-finish immediately.
+          const elapsed = Math.floor((Date.now() - startedMs) / 1000);
+          if (elapsed >= durSec) {
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define
+            queueMicrotask(() => { void runBatchGrading(true); });
+          }
+          return;
+        }
+      } catch { /* fall through */ }
+      if (!cancelled) await generateFresh();
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id, durationMinutes]);
+
+  // Debounced autosave — persists MCQ pick as { kind: "mcq", value: n }.
+  function scheduleSave(qid: string, pick: number) {
+    if (!paperId) return;
+    if (saveTimers.current[qid]) clearTimeout(saveTimers.current[qid]);
+    saveTimers.current[qid] = setTimeout(async () => {
+      try {
+        await supabase.functions.invoke("study-paper-save-draft", {
+          body: { paper_id: paperId, question_id: qid, draft: { kind: "mcq", value: pick } },
+        });
+      } catch { /* silent */ }
+    }, 600);
+  }
+
+  function pickAnswer(qid: string, opt: number) {
+    setPicks((prev) => ({ ...prev, [qid]: opt }));
+    scheduleSave(qid, opt);
+  }
+
+  useEffect(() => {
+    return () => { Object.values(saveTimers.current).forEach((t) => clearTimeout(t)); };
+  }, []);
+
+  const runBatchGrading = useCallback(async (timeExpired = false) => {
+    if (!questions || !paperId || phase !== "answering") return;
+    setPhase("grading");
+    setGradedCount(0);
+    setResults({});
+    const perQ: Record<string, PaperGradeEntry> = {};
+    if (timeExpired) toast.message("⏰ time's up! grading your paper…");
+
+    await gradePool(questions, 4, async (qq) => {
+      const answer = picks[qq.id];
+      const requestBody: Record<string, unknown> = {
+        paper_id: paperId,
+        question_id: qq.id,
+        answer: typeof answer === "number" ? answer : -1,
+      };
+      try {
+        const { data, error } = await supabase.functions.invoke("study-paper-grade", { body: requestBody });
+        if (error) throw error;
+        const d = data as GradeResult & { source?: string };
+        if (typeof d.awarded_marks !== "number") {
+          perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
+        } else {
+          perQ[qq.id] = {
+            awarded: d.awarded_marks,
+            max: d.max_marks ?? qq.marks,
+            feedback: d.feedback ?? "",
+            correct_index: d.correct_index,
+          };
+        }
+      } catch {
+        perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
+      }
+    }, () => setGradedCount((c) => c + 1));
+
+    const sum = Object.values(perQ).reduce((acc, r) => acc + r.awarded, 0);
+    setResults(perQ);
+    setTotalScored(sum);
+
+    if (!finishedRef.current && paperId && questions) {
+      finishedRef.current = true;
+      setFinishing(true);
+      try {
+        await supabase.functions.invoke("study-paper-finish", {
+          body: {
+            paper_id: paperId,
+            marks_scored: sum,
+            total_marks: questions.length,
+            subject: `Mock Test (${durationMinutes}m)`,
+          },
+        });
+        qc.invalidateQueries({ queryKey: QUIZ_ATTEMPTS_KEY });
+      } catch { /* best-effort */ }
+      finally { setFinishing(false); }
+    }
+    setPhase("done");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questions, paperId, picks, phase, durationMinutes, qc]);
+
+  // Auto-submit when the wall-clock hits zero.
+  useEffect(() => {
+    if (phase !== "answering") return;
+    if (!startedAtMs || !questions) return;
+    if (secondsLeft <= 0 && !autoSubmittedRef.current) {
+      autoSubmittedRef.current = true;
+      void runBatchGrading(true);
+    }
+  }, [secondsLeft, phase, startedAtMs, questions, runBatchGrading]);
+
+  function requestClose() {
+    if (phase === "done") { onClose(); return; }
+    if (phase === "grading") return;
+    setConfirmClose(true);
+  }
+
+  const answeredCount = questions ? questions.filter((qq) => typeof picks[qq.id] === "number").length : 0;
+  const totalQuestions = questions?.length ?? 0;
+  const q = questions?.[currentIdx] ?? null;
+  const urgent = secondsLeft < 300;
+
+  // Section groupings by subject, preserving first-seen order.
+  const sections = (() => {
+    if (!questions) return [] as { subject: string; label: string; items: { qq: MockQClient; i: number }[] }[];
+    const order: string[] = [];
+    const byS = new Map<string, { qq: MockQClient; i: number }[]>();
+    questions.forEach((qq, i) => {
+      if (!byS.has(qq.subject)) { byS.set(qq.subject, []); order.push(qq.subject); }
+      byS.get(qq.subject)!.push({ qq, i });
+    });
+    return order.map((s, k) => ({
+      subject: s,
+      label: `SECTION ${String.fromCharCode(65 + k)} — ${s}`,
+      items: byS.get(s)!,
+    }));
+  })();
+
+  const sectionForCurrent = q ? sections.find((s) => s.items.some((it) => it.qq.id === q.id)) : null;
+
+  const pct = totalMarks > 0 ? Math.round((totalScored / totalMarks) * 100) : 0;
+
+  if (!portalHost) return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-background text-foreground"
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 999 }}
+    >
+      {/* Top bar with countdown */}
+      <div
+        className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur"
+        style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+      >
+        <button onClick={requestClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border">
+          <X className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 flex-1 text-center">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">mock test</div>
+          <div className="truncate font-display text-sm font-bold">
+            {durationMinutes} min · {totalQuestions || DURATION_TO_TOTAL_CLIENT[durationMinutes]} MCQs
+          </div>
+        </div>
+        {phase === "answering" && startedAtMs ? (
+          <div
+            className={`shrink-0 rounded-full border px-3 py-1.5 font-mono text-sm font-bold tabular-nums ${
+              urgent
+                ? "border-red-500/60 bg-red-500/15 text-red-300 animate-pulse"
+                : "border-amber-500/40 bg-amber-500/10 text-amber-200"
+            }`}
+            aria-label="Time remaining"
+          >
+            ⏱ {formatCountdown(secondsLeft)}
+          </div>
+        ) : (
+          <div className="w-[92px]" />
+        )}
+      </div>
+
+      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
+        {loading && (
+          <div className="mt-20 text-center text-sm text-muted-foreground">
+            building your mock test… 🕐
+          </div>
+        )}
+
+        {!loading && errorMsg && (
+          <div className="mt-20 px-6 text-center">
+            <div className="text-4xl">🌿</div>
+            <p className="mt-2 text-sm text-muted-foreground">{errorMsg}</p>
+            <button onClick={onClose} className="mt-4 rounded-xl border border-border px-4 py-2 text-sm">close</button>
+          </div>
+        )}
+
+        {!loading && !errorMsg && phase === "grading" && questions && (
+          <div className="mt-24 px-6 text-center">
+            <div className="text-4xl">📝</div>
+            <div className="mt-3 font-display text-lg font-bold">grading your paper…</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {gradedCount}/{questions.length} graded
+            </div>
+            <div className="mx-auto mt-4 h-2 max-w-xs overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${questions.length ? Math.min(100, (gradedCount / questions.length) * 100) : 0}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {!loading && !errorMsg && phase === "done" && questions && (
+          <div className="mx-auto max-w-2xl px-4 pt-6">
+            <div className="text-center">
+              <div className="text-5xl">{pct >= 90 ? "🏆" : pct >= 60 ? "🎉" : "🌱"}</div>
+              <div className="mt-2 font-display text-2xl font-bold">
+                you scored {totalScored}/{totalMarks}!
+              </div>
+              <div className="text-xs text-muted-foreground">that's {pct}%</div>
+              {finishing && <div className="mt-2 text-[10px] text-muted-foreground">saving…</div>}
+            </div>
+
+            <div className="mt-6 space-y-4 pb-6">
+              {sections.map((sec) => {
+                const secItems = sec.items;
+                const secNum = secItems.reduce((acc, it) => acc + (results[it.qq.id]?.awarded ?? 0), 0);
+                const secDen = secItems.length;
+                return (
+                  <div key={sec.subject} className="rounded-xl border border-border bg-background/40 p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{sec.label}</div>
+                      <div className="font-mono text-[11px] text-muted-foreground">{secNum}/{secDen}</div>
+                    </div>
+                    <div className="mt-2 space-y-1.5">
+                      {secItems.map(({ qq, i }) => {
+                        const r = results[qq.id];
+                        if (!r) return null;
+                        const correct = r.awarded === r.max;
+                        return (
+                          <div
+                            key={qq.id}
+                            className={`rounded-lg border px-2.5 py-1.5 text-[11px] ${
+                              correct ? "border-green-500/30 bg-green-500/5" : "border-red-500/20 bg-red-500/5"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="font-semibold">Q{i + 1}</div>
+                              <div className={`font-mono ${correct ? "text-green-300" : "text-red-300"}`}>{r.awarded}/{r.max}</div>
+                            </div>
+                            <div className="mt-0.5 line-clamp-2 text-muted-foreground">{qq.question}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={onClose}
+              disabled={finishing}
+              className="mb-6 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              done
+            </button>
+          </div>
+        )}
+
+        {!loading && !errorMsg && phase === "answering" && questions && q && (
+          <>
+            {/* Palette strip */}
+            <div className="sticky top-0 z-[5] border-b border-border bg-background/95 px-3 py-2 backdrop-blur">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 overflow-x-auto">
+                  <div className="flex items-center gap-1.5">
+                    {questions.map((qq, i) => {
+                      const answered = typeof picks[qq.id] === "number";
+                      const current = i === currentIdx;
+                      return (
+                        <button
+                          key={qq.id}
+                          onClick={() => setCurrentIdx(i)}
+                          className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-[11px] font-semibold transition ${
+                            current
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : answered
+                              ? "border-primary/40 bg-primary/15 text-primary"
+                              : "border-border bg-card text-muted-foreground"
+                          }`}
+                        >
+                          {i + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPaletteOpen(true)}
+                  className="shrink-0 rounded-lg border border-border px-2 py-1.5 text-[11px] text-muted-foreground"
+                >
+                  ⊞ all
+                </button>
+                <button
+                  onClick={() => void runBatchGrading(false)}
+                  className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-[11px] font-semibold text-primary-foreground"
+                >
+                  submit
+                </button>
+              </div>
+              <div className="mt-1.5 text-center text-[10px] text-muted-foreground">
+                {answeredCount}/{totalQuestions} answered
+              </div>
+            </div>
+
+            <div className="mx-auto max-w-2xl px-4 pt-4">
+              <div
+                className="rounded-2xl border border-stone-300 p-5 font-serif text-stone-900 shadow-[0_2px_10px_rgba(0,0,0,0.35)]"
+                style={{ background: "#f7f1e3" }}
+              >
+                <div className="text-center">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-700">
+                    {BOARD_UPPER[profile.board]}
+                  </div>
+                  <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">MOCK TEST</div>
+                  <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-[11px] text-stone-800">
+                    <span><span className="font-semibold">Questions:</span> {totalQuestions}</span>
+                    <span><span className="font-semibold">Total Duration:</span> {durationMinutes} min</span>
+                    <span><span className="font-semibold">Marks:</span> 1 each · no negative</span>
+                  </div>
+                </div>
+                <div className="my-3 border-t border-stone-400/60" />
+
+                {sectionForCurrent && (
+                  <div className="mb-2 text-center text-[11px] font-semibold uppercase tracking-widest text-stone-700">
+                    {sectionForCurrent.label}
+                  </div>
+                )}
+
+                <div className="flex items-baseline justify-between gap-3 text-[11px] text-stone-600">
+                  <span>Question {currentIdx + 1} of {totalQuestions}</span>
+                  <span>[{q.marks} {q.marks === 1 ? "mark" : "marks"}]</span>
+                </div>
+
+                <div className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-stone-900">
+                  <span className="font-semibold">Q{currentIdx + 1}. </span>{q.question}
+                </div>
+              </div>
+
+              {/* MCQ options */}
+              <div className="mt-4 space-y-2">
+                {q.options.map((opt, i) => {
+                  const picked = picks[q.id] === i;
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => pickAnswer(q.id, i)}
+                      className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                        picked ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-muted"
+                      }`}
+                    >
+                      <span className="mr-2 font-semibold text-muted-foreground">{String.fromCharCode(65 + i)}.</span>
+                      {opt}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-5 flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
+                  disabled={currentIdx === 0}
+                  className="flex-1 rounded-xl border border-border py-3 text-sm text-muted-foreground hover:bg-muted disabled:opacity-40"
+                >
+                  ← prev
+                </button>
+                <button
+                  onClick={() => setCurrentIdx(Math.min(totalQuestions - 1, currentIdx + 1))}
+                  disabled={currentIdx >= totalQuestions - 1}
+                  className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-40"
+                >
+                  next →
+                </button>
+              </div>
+              <div className="pb-6" />
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Palette overlay — grouped by subject */}
+      {paletteOpen && questions && (
+        <div className="fixed inset-0 z-[80] flex flex-col bg-background/95 backdrop-blur">
+          <div
+            className="flex items-center justify-between border-b border-border px-4 py-3"
+            style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+          >
+            <div className="font-display text-sm font-bold">all questions</div>
+            <button onClick={() => setPaletteOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-border">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            {sections.map((sec) => (
+              <div key={sec.subject} className="mb-4">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{sec.label}</div>
+                <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
+                  {sec.items.map(({ qq, i }) => {
+                    const answered = typeof picks[qq.id] === "number";
+                    const current = i === currentIdx;
+                    return (
+                      <button
+                        key={qq.id}
+                        onClick={() => { setCurrentIdx(i); setPaletteOpen(false); }}
+                        className={`grid h-11 place-items-center rounded-lg border text-sm font-semibold ${
+                          current
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : answered
+                            ? "border-primary/40 bg-primary/15 text-primary"
+                            : "border-border bg-card text-muted-foreground"
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {confirmClose && (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4" onClick={() => setConfirmClose(false)}>
+          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="font-display text-lg font-bold">leave the mock test?</div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              the timer keeps running — you can resume, but when time hits zero the paper auto-submits.
+            </p>
+            <div className="mt-5 flex gap-2">
+              <button onClick={() => setConfirmClose(false)} className="flex-1 rounded-xl border border-border py-3 text-sm">keep going</button>
+              <button
+                onClick={() => { setConfirmClose(false); onClose(); }}
+                className="flex-1 rounded-xl border border-red-500/40 py-3 text-sm text-red-400"
+              >
+                leave
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>,
+    portalHost,
+  );
+}
+
+// Local mirror of the server-side duration→count mapping so the top bar can
+// show a count before the paper has finished generating.
+const DURATION_TO_TOTAL_CLIENT: Record<number, number> = { 30: 50, 60: 100, 90: 150 };
+
