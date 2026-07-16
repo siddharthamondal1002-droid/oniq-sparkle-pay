@@ -11,8 +11,8 @@ export const Route = createFileRoute("/_authenticated/app/study")({
   component: StudyScreen,
 });
 
-type Board = "cbse" | "icse" | "igcse" | "college";
-type ClassLevel = "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg";
+type Board = "cbse" | "icse" | "igcse" | "college" | "jee" | "neet" | "clat" | "govt_exam";
+type ClassLevel = "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg" | "drop" | "aspirant";
 
 type LearnerProfile = {
   id: string;
@@ -44,9 +44,13 @@ const BOARDS: { value: Board; label: string }[] = [
   { value: "icse", label: "ICSE" },
   { value: "igcse", label: "IGCSE" },
   { value: "college", label: "College+" },
+  { value: "jee", label: "JEE 🎯" },
+  { value: "neet", label: "NEET 🩺" },
+  { value: "clat", label: "CLAT / Law 📖" },
+  { value: "govt_exam", label: "Govt / Competitive Exams 🏛️" },
 ];
 
-const CLASS_LEVELS: { value: ClassLevel; label: string }[] = [
+const ALL_CLASS_LEVELS: { value: ClassLevel; label: string }[] = [
   { value: "5", label: "Class 5" },
   { value: "6", label: "Class 6" },
   { value: "7", label: "Class 7" },
@@ -57,16 +61,67 @@ const CLASS_LEVELS: { value: ClassLevel; label: string }[] = [
   { value: "12", label: "Class 12" },
   { value: "ug", label: "Undergraduate" },
   { value: "pg", label: "Postgraduate" },
+  { value: "drop", label: "Drop year" },
+  { value: "aspirant", label: "Aspirant" },
 ];
+
+function classLevelsFor(board: Board): { value: ClassLevel; label: string }[] {
+  if (board === "jee" || board === "neet" || board === "clat") {
+    return [
+      { value: "11", label: "Class 11" },
+      { value: "12", label: "Class 12" },
+      { value: "drop", label: "Drop year" },
+    ];
+  }
+  if (board === "govt_exam") {
+    return [
+      { value: "11", label: "Class 11" },
+      { value: "12", label: "Class 12" },
+      { value: "drop", label: "Drop year" },
+      { value: "ug", label: "Undergraduate" },
+      { value: "pg", label: "Postgraduate" },
+      { value: "aspirant", label: "Aspirant" },
+    ];
+  }
+  // Existing school boards: unchanged.
+  return ALL_CLASS_LEVELS.filter((c) => c.value !== "drop" && c.value !== "aspirant");
+}
 
 const BOARD_UPPER: Record<Board, string> = {
   cbse: "CBSE",
   icse: "ICSE",
   igcse: "IGCSE",
   college: "College",
+  jee: "JEE",
+  neet: "NEET",
+  clat: "CLAT",
+  govt_exam: "Govt Exams",
 };
 
 function subjectsFor(board: Board, cls: ClassLevel): string[] {
+  if (board === "jee") {
+    return ["Physics", "Chemistry", "Mathematics"];
+  }
+  if (board === "neet") {
+    return ["Physics", "Chemistry", "Biology"];
+  }
+  if (board === "clat") {
+    return [
+      "Legal Reasoning",
+      "English & Comprehension",
+      "General Knowledge & Current Affairs",
+      "Logical Reasoning",
+      "Quantitative Techniques",
+    ];
+  }
+  if (board === "govt_exam") {
+    return [
+      "General Knowledge & Current Affairs",
+      "Quantitative Aptitude",
+      "Reasoning",
+      "English Language",
+    ];
+  }
   if (cls === "ug" || cls === "pg" || board === "college") {
     return ["Maths", "Physics", "Chemistry", "Biology", "English", "Economics", "Computer Science", "General"];
   }
