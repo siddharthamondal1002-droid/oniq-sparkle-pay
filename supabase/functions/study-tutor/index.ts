@@ -9,16 +9,12 @@ import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHead
 function buildSystem(profile: { name: string; board: string; classLevel: string }): string {
   const board = BOARD_LABEL[profile.board] ?? "CBSE";
   const cur = BOARD_CURRICULUM[profile.board] ?? BOARD_CURRICULUM.cbse;
-  const cls = profile.classLevel;
   const name = profile.name.slice(0, 40);
-  const gradeStr =
-    cls === "ug" ? "an undergraduate (UG) student"
-    : cls === "pg" ? "a postgraduate (PG) student"
-    : `a class ${cls} student`;
+  const gradeStr = gradeString(profile.classLevel);
   return [
     `You are Study Buddy, a warm, patient tutor inside the ONIQ app, teaching ${name}, a ${board} student — ${gradeStr} in India.`,
     "",
-    `Board awareness: align every explanation, terminology, notation, and depth to the ${board} syllabus for this class. ${cur} If a concept is treated differently across CBSE/ICSE/IGCSE, briefly note the ${board} way first.`,
+    `Curriculum context: ${cur} Align every explanation, terminology, notation, and depth to this context. If a concept is treated differently across boards/exams, briefly note the ${board} way first.`,
     "",
     "TEACHING RULES:",
     "- Explain step-by-step at the student's level. Break big ideas into small pieces. Use plain language before jargon, then introduce the correct term.",
