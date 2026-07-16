@@ -45,48 +45,39 @@ for (const [k, secs] of Object.entries(MARK_STRUCTURES)) {
   }
 }
 
-const PAPER_TOOL_INPUT_SCHEMA = {
+const MCQ_ITEM_SCHEMA = {
   type: "object",
   properties: {
-    mcq: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          question: { type: "string" },
-          options: { type: "array", minItems: 4, maxItems: 4, items: { type: "string" } },
-          correct_index: { type: "integer", minimum: 0, maximum: 3 },
-          explanation: { type: "string" },
-        },
-        required: ["question", "options", "correct_index", "explanation"],
-      },
-    },
-    short: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          question: { type: "string" },
-          model_answer: { type: "string" },
-          rubric_points: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
-        },
-        required: ["question", "model_answer", "rubric_points"],
-      },
-    },
-    long: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          question: { type: "string" },
-          model_answer: { type: "string" },
-          rubric_points: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
-        },
-        required: ["question", "model_answer", "rubric_points"],
-      },
-    },
+    question: { type: "string" },
+    options: { type: "array", minItems: 4, maxItems: 4, items: { type: "string" } },
+    correct_index: { type: "integer", minimum: 0, maximum: 3 },
+    explanation: { type: "string" },
   },
-  required: ["mcq", "short", "long"],
+  required: ["question", "options", "correct_index", "explanation"],
+};
+const WRITTEN_ITEM_SCHEMA = {
+  type: "object",
+  properties: {
+    question: { type: "string" },
+    model_answer: { type: "string" },
+    rubric_points: { type: "array", minItems: 2, maxItems: 4, items: { type: "string" } },
+  },
+  required: ["question", "model_answer", "rubric_points"],
+};
+const MCQ_SECTION_SCHEMA = {
+  type: "object",
+  properties: { mcq: { type: "array", items: MCQ_ITEM_SCHEMA } },
+  required: ["mcq"],
+};
+const SHORT_SECTION_SCHEMA = {
+  type: "object",
+  properties: { short: { type: "array", items: WRITTEN_ITEM_SCHEMA } },
+  required: ["short"],
+};
+const LONG_SECTION_SCHEMA = {
+  type: "object",
+  properties: { long: { type: "array", items: WRITTEN_ITEM_SCHEMA } },
+  required: ["long"],
 };
 
 Deno.serve(async (req) => {
