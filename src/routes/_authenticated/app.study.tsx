@@ -345,79 +345,7 @@ function StudyScreen() {
   );
 }
 
-function GovtSetupCard({ onCreated }: { onCreated: (p: LearnerProfile) => void }) {
-  const qc = useQueryClient();
-  const [name, setName] = useState("");
-  const [classLevel, setClassLevel] = useState<ClassLevel>("aspirant");
-  const options = classLevelsFor("govt_exam");
 
-  const create = useMutation({
-    mutationFn: async () => {
-      const trimmed = name.trim();
-      if (!trimmed) throw new Error("please enter a name");
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("not signed in");
-      const { data, error } = await (supabase as unknown as {
-        from: (t: string) => {
-          insert: (row: unknown) => {
-            select: (c: string) => {
-              single: () => Promise<{ data: LearnerProfile | null; error: Error | null }>;
-            };
-          };
-        };
-      })
-        .from("learner_profiles")
-        .insert({ user_id: u.user.id, name: trimmed, board: "govt_exam", class_level: classLevel })
-        .select("id, name, board, class_level, created_at")
-        .single();
-      if (error || !data) throw error ?? new Error("failed");
-      return data;
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["learner-profiles"] });
-      onCreated(data);
-      toast.success("govt exam prep unlocked 🏛️");
-    },
-    onError: (e) => toast.error((e as Error).message || "couldn't set up"),
-  });
-
-  return (
-    <div className="mx-auto max-w-sm rounded-3xl border border-amber-500/30 bg-card p-6 shadow-2xl">
-      <div className="text-3xl">🏛️</div>
-      <h2 className="mt-2 font-display text-xl font-bold">Govt / competitive exam prep</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        General foundation shared across UPSC, SSC, Banking, Railways, State PSCs — GK, quant, reasoning, English.
-      </p>
-
-      <label className="mt-5 block text-xs font-medium text-muted-foreground">Your name</label>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value.slice(0, 40))}
-        placeholder="e.g. Aditya"
-        className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
-      />
-
-      <label className="mt-4 block text-xs font-medium text-muted-foreground">Level</label>
-      <select
-        value={classLevel}
-        onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
-        className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
-      >
-        {options.map((c) => (
-          <option key={c.value} value={c.value}>{c.label}</option>
-        ))}
-      </select>
-
-      <button
-        onClick={() => create.mutate()}
-        disabled={create.isPending || !name.trim()}
-        className="mt-6 w-full rounded-xl bg-amber-500 py-3 text-sm font-semibold text-amber-950 disabled:opacity-50"
-      >
-        {create.isPending ? "Setting up…" : "Start prep"}
-      </button>
-    </div>
-  );
-}
 
 
 function ModalCard({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
