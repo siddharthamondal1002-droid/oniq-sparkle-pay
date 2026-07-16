@@ -220,9 +220,18 @@ Deno.serve(async (req) => {
     genSection("short", shortSec.count, shortSec.marks),
     genSection("long", longSec.count, longSec.marks),
   ]);
-  if (!mcqRes.ok) return json(200, { source: "unavailable", reason: mcqRes.reason });
-  if (!shortRes.ok) return json(200, { source: "unavailable", reason: shortRes.reason });
-  if (!longRes.ok) return json(200, { source: "unavailable", reason: longRes.reason });
+  if (!mcqRes.ok) {
+    console.warn(`study-paper-generate: section fail totalMarks=${totalMarks} subject="${subject}" reason="${mcqRes.reason}"`);
+    return json(200, { source: "unavailable", reason: mcqRes.reason });
+  }
+  if (!shortRes.ok) {
+    console.warn(`study-paper-generate: section fail totalMarks=${totalMarks} subject="${subject}" reason="${shortRes.reason}"`);
+    return json(200, { source: "unavailable", reason: shortRes.reason });
+  }
+  if (!longRes.ok) {
+    console.warn(`study-paper-generate: section fail totalMarks=${totalMarks} subject="${subject}" reason="${longRes.reason}"`);
+    return json(200, { source: "unavailable", reason: longRes.reason });
+  }
 
   try {
     type MCQIn = { question?: unknown; options?: unknown; correct_index?: unknown; explanation?: unknown };
@@ -236,6 +245,7 @@ Deno.serve(async (req) => {
 
 
     if (mcqRaw.length < mcqCount || shortRaw.length < shortSec.count || longRaw.length < longSec.count) {
+      console.warn(`study-paper-generate: malformed paper totalMarks=${totalMarks} subject="${subject}" got mcq=${mcqRaw.length}/${mcqCount} short=${shortRaw.length}/${shortSec.count} long=${longRaw.length}/${longSec.count}`);
       return json(200, { source: "unavailable", reason: "malformed paper" });
     }
 
@@ -251,6 +261,7 @@ Deno.serve(async (req) => {
       const options = Array.isArray(q.options) ? q.options.slice(0, 4).map((o) => String(o)) : [];
       const ci = Number(q.correct_index);
       if (!q.question || options.length !== 4 || !Number.isInteger(ci) || ci < 0 || ci > 3) {
+        console.warn(`study-paper-generate: bad mcq item i=${i} totalMarks=${totalMarks} subject="${subject}"`);
         return json(200, { source: "unavailable", reason: "bad mcq item" });
       }
       stored.push({
@@ -267,6 +278,7 @@ Deno.serve(async (req) => {
       const q = shortRaw[i];
       const rp = Array.isArray(q.rubric_points) ? q.rubric_points.slice(0, 4).map((s) => String(s).trim()).filter(Boolean) : [];
       if (!q.question || !q.model_answer || rp.length < 2) {
+        console.warn(`study-paper-generate: bad short item i=${i} totalMarks=${totalMarks} subject="${subject}" rp=${rp.length}`);
         return json(200, { source: "unavailable", reason: "bad short item" });
       }
       stored.push({
@@ -282,6 +294,7 @@ Deno.serve(async (req) => {
       const q = longRaw[i];
       const rp = Array.isArray(q.rubric_points) ? q.rubric_points.slice(0, 4).map((s) => String(s).trim()).filter(Boolean) : [];
       if (!q.question || !q.model_answer || rp.length < 2) {
+        console.warn(`study-paper-generate: bad long item i=${i} totalMarks=${totalMarks} subject="${subject}" rp=${rp.length}`);
         return json(200, { source: "unavailable", reason: "bad long item" });
       }
       stored.push({
@@ -319,6 +332,7 @@ Deno.serve(async (req) => {
       return { id: q.id, type: q.type, marks: q.marks, question: q.question };
     });
 
+    console.warn(`study-paper-generate: SUCCESS totalMarks=${totalMarks} subject="${subject}" questions=${clientQuestions.length} (mcq=${mcqCount} short=${shortSec.count} long=${longSec.count})`);
     return json(200, {
       source: "paper",
       paper_id: (inserted as { id: string }).id,
@@ -327,6 +341,7 @@ Deno.serve(async (req) => {
       questions: clientQuestions,
     });
   } catch (e) {
+    console.warn(`study-paper-generate: exception totalMarks=${totalMarks} subject="${subject}" err="${(e as Error).message.slice(0, 200)}"`);
     return json(200, { source: "unavailable", reason: (e as Error).message.slice(0, 100) });
   }
 });
