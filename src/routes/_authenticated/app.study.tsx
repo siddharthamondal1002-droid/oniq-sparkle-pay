@@ -1647,6 +1647,8 @@ function PaperModal({
                   <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">
                     {profile.class_level === "ug" ? "Undergraduate"
                       : profile.class_level === "pg" ? "Postgraduate"
+                      : profile.class_level === "drop" ? "Drop year"
+                      : profile.class_level === "aspirant" ? "Aspirant"
                       : `Class ${profile.class_level}`}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-[11px] text-stone-800">
