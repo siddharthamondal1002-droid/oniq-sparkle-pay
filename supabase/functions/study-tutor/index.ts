@@ -4,21 +4,7 @@
 // original notes after answering. All vault ops are best-effort; any failure
 // falls back to today's exact tutoring behaviour.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json, langInstruction } from "../_shared/llm.ts";
-
-const BOARD_LABEL: Record<string, string> = {
-  cbse: "CBSE",
-  icse: "ICSE",
-  igcse: "IGCSE",
-  college: "College",
-};
-
-const BOARD_CURRICULUM: Record<string, string> = {
-  cbse: "CBSE (follows NCERT textbooks and syllabus).",
-  icse: "ICSE (follows the CISCE syllabus; expect broader English + humanities depth).",
-  igcse: "IGCSE (follows Cambridge International; use British spelling and Cambridge-style problem framing).",
-  college: "College-level (Indian UG/PG; align with standard Indian university syllabi).",
-};
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
 function buildSystem(profile: { name: string; board: string; classLevel: string }): string {
   const board = BOARD_LABEL[profile.board] ?? "CBSE";
