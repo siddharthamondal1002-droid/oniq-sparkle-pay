@@ -11,7 +11,10 @@ export const Route = createFileRoute("/_authenticated/app/study")({
   component: StudyScreen,
 });
 
-type Board = "cbse" | "icse" | "igcse" | "college" | "jee" | "neet" | "clat" | "govt_exam";
+type Board =
+  | "cbse" | "icse" | "igcse" | "college" | "jee" | "neet" | "clat"
+  | "govt_exam" | "govt_railway" | "govt_banking" | "govt_police"
+  | "govt_judiciary" | "govt_ssc" | "govt_psc";
 type ClassLevel = "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg" | "drop" | "aspirant";
 
 type LearnerProfile = {
@@ -39,7 +42,8 @@ type Msg = {
   usedVault?: boolean;
 };
 
-const BOARDS: { value: Board; label: string }[] = [
+// School / entrance-exam boards shown as direct chips in the picker.
+const SCHOOL_BOARDS: { value: Board; label: string }[] = [
   { value: "cbse", label: "CBSE" },
   { value: "icse", label: "ICSE" },
   { value: "igcse", label: "IGCSE" },
@@ -47,8 +51,22 @@ const BOARDS: { value: Board; label: string }[] = [
   { value: "jee", label: "JEE 🎯" },
   { value: "neet", label: "NEET 🩺" },
   { value: "clat", label: "CLAT / Law 📖" },
-  { value: "govt_exam", label: "Govt / Competitive Exams 🏛️" },
 ];
+
+// Govt-family sub-tracks (revealed after choosing "Govt / Competitive Exams").
+const GOVT_TRACKS: { value: Board; label: string }[] = [
+  { value: "govt_railway", label: "Railways 🚆" },
+  { value: "govt_banking", label: "Banking 🏦" },
+  { value: "govt_police", label: "Police 👮" },
+  { value: "govt_judiciary", label: "Judiciary ⚖️" },
+  { value: "govt_ssc", label: "SSC 📝" },
+  { value: "govt_psc", label: "PSC 🏛️" },
+  { value: "govt_exam", label: "General 🏛️" },
+];
+
+function isGovtBoard(b: Board): boolean {
+  return b.startsWith("govt");
+}
 
 const ALL_CLASS_LEVELS: { value: ClassLevel; label: string }[] = [
   { value: "5", label: "Class 5" },
@@ -73,7 +91,7 @@ function classLevelsFor(board: Board): { value: ClassLevel; label: string }[] {
       { value: "drop", label: "Drop year" },
     ];
   }
-  if (board === "govt_exam") {
+  if (isGovtBoard(board)) {
     return [
       { value: "11", label: "Class 11" },
       { value: "12", label: "Class 12" },
@@ -83,7 +101,6 @@ function classLevelsFor(board: Board): { value: ClassLevel; label: string }[] {
       { value: "aspirant", label: "Aspirant" },
     ];
   }
-  // Existing school boards: unchanged.
   return ALL_CLASS_LEVELS.filter((c) => c.value !== "drop" && c.value !== "aspirant");
 }
 
@@ -96,15 +113,23 @@ const BOARD_UPPER: Record<Board, string> = {
   neet: "NEET",
   clat: "CLAT",
   govt_exam: "Govt Exams",
+  govt_railway: "Railways",
+  govt_banking: "Banking",
+  govt_police: "Police",
+  govt_judiciary: "Judiciary",
+  govt_ssc: "SSC",
+  govt_psc: "PSC",
+};
+
+const BOARD_EMOJI: Record<Board, string> = {
+  cbse: "", icse: "", igcse: "", college: "", jee: "🎯", neet: "🩺", clat: "📖",
+  govt_exam: "🏛️", govt_railway: "🚆", govt_banking: "🏦", govt_police: "👮",
+  govt_judiciary: "⚖️", govt_ssc: "📝", govt_psc: "🏛️",
 };
 
 function subjectsFor(board: Board, cls: ClassLevel): string[] {
-  if (board === "jee") {
-    return ["Physics", "Chemistry", "Mathematics"];
-  }
-  if (board === "neet") {
-    return ["Physics", "Chemistry", "Biology"];
-  }
+  if (board === "jee") return ["Physics", "Chemistry", "Mathematics"];
+  if (board === "neet") return ["Physics", "Chemistry", "Biology"];
   if (board === "clat") {
     return [
       "Legal Reasoning",
@@ -114,13 +139,26 @@ function subjectsFor(board: Board, cls: ClassLevel): string[] {
       "Quantitative Techniques",
     ];
   }
+  if (board === "govt_railway") {
+    return ["General Awareness", "Mathematics", "General Intelligence & Reasoning", "General Science"];
+  }
+  if (board === "govt_banking") {
+    return ["Quantitative Aptitude", "Reasoning Ability", "English Language", "Banking & General Awareness", "Computer Knowledge"];
+  }
+  if (board === "govt_police") {
+    return ["General Knowledge & Current Affairs", "Reasoning", "Numerical Ability", "General English/Hindi"];
+  }
+  if (board === "govt_judiciary") {
+    return ["Constitutional Law", "CPC", "CrPC", "IPC / BNS", "Evidence Act", "Contract Law", "Current Legal Affairs"];
+  }
+  if (board === "govt_ssc") {
+    return ["General Awareness", "Quantitative Aptitude", "English Language", "General Intelligence & Reasoning"];
+  }
+  if (board === "govt_psc") {
+    return ["General Studies", "Current Affairs", "Reasoning & Aptitude"];
+  }
   if (board === "govt_exam") {
-    return [
-      "General Knowledge & Current Affairs",
-      "Quantitative Aptitude",
-      "Reasoning",
-      "English Language",
-    ];
+    return ["General Knowledge & Current Affairs", "Quantitative Aptitude", "Reasoning", "English Language"];
   }
   if (cls === "ug" || cls === "pg" || board === "college") {
     return ["Maths", "Physics", "Chemistry", "Biology", "English", "Economics", "Computer Science", "General"];
