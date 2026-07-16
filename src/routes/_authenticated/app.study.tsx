@@ -1994,7 +1994,7 @@ function PaperModal({
                 </button>
               </div>
               <div className="mt-1.5 text-center text-[10px] text-muted-foreground">
-                {answeredCount}/{totalQuestions} answered
+                {answeredCount}/{totalQuestions} answered {savedTick > 0 && <span className="ml-1 text-primary/70">· saved ✓</span>}
               </div>
             </div>
 
