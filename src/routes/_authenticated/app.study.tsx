@@ -1716,6 +1716,9 @@ function PaperModal({
       )}
     </div>
   );
+    </div>,
+    document.body
+  );
 }
 
 function PaperAnswerArea({
