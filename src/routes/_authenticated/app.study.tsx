@@ -2244,12 +2244,14 @@ function PaperAnswerArea({
   onDraft,
   onPhotoPick,
   photoInputRef,
+  needsReattach = false,
 }: {
   q: PaperQClient;
   draft: PaperDraft | undefined;
   onDraft: (next: PaperDraft | null) => void;
   onPhotoPick: (e: React.ChangeEvent<HTMLInputElement>) => void;
   photoInputRef: React.MutableRefObject<HTMLInputElement | null>;
+  needsReattach?: boolean;
 }) {
   if (q.type === "mcq") {
     const pick = draft && draft.kind === "mcq" ? draft.pick : null;
