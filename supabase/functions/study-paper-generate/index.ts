@@ -245,6 +245,7 @@ Deno.serve(async (req) => {
 
 
     if (mcqRaw.length < mcqCount || shortRaw.length < shortSec.count || longRaw.length < longSec.count) {
+      console.warn(`study-paper-generate: malformed paper totalMarks=${totalMarks} subject="${subject}" got mcq=${mcqRaw.length}/${mcqCount} short=${shortRaw.length}/${shortSec.count} long=${longRaw.length}/${longSec.count}`);
       return json(200, { source: "unavailable", reason: "malformed paper" });
     }
 
