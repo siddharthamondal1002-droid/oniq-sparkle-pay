@@ -382,7 +382,7 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
         onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
         className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
       >
-        {CLASS_LEVELS.map((c) => (
+        {classLevelsFor(board).map((c) => (
           <option key={c.value} value={c.value}>{c.label}</option>
         ))}
       </select>
