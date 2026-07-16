@@ -46,9 +46,19 @@ function AppShell() {
   const showNav = TOP_LEVEL.has(normalized);
 
   return (
-    <div className={`relative mx-auto flex min-h-screen max-w-md flex-col bg-background ${showNav ? "pb-28" : "pb-4"}`}>
+    <>
+      {/* Desktop/tablet backdrop — subtle branded gradient behind the mobile frame */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 hidden md:block"
+        style={{
+          background:
+            "radial-gradient(ellipse at 20% 0%, color-mix(in oklab, var(--primary) 12%, transparent) 0%, transparent 55%), radial-gradient(ellipse at 80% 100%, color-mix(in oklab, var(--primary) 8%, transparent) 0%, transparent 60%), var(--background)",
+        }}
+      />
+    <div className={`relative mx-auto flex min-h-screen max-w-md md:max-w-lg lg:max-w-xl flex-col bg-background ${showNav ? "pb-28" : "pb-4"}`}>
       {wallpaper && (
-        <div className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-md">
+        <div className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-md md:max-w-lg lg:max-w-xl">
           <img
             src={wallpaper}
             alt=""
@@ -73,8 +83,8 @@ function AppShell() {
 
       {showNav && (
         <>
-          <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 h-28 w-full max-w-md -translate-x-1/2 bg-gradient-to-t from-background via-background/85 to-transparent" />
-          <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 h-28 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 bg-gradient-to-t from-background via-background/85 to-transparent" />
+          <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <div className="grid grid-cols-4 rounded-3xl border border-border glass p-1.5 shadow-card">
               {tabs.map((t) => {
                 const active = t.to === "/app" ? normalized === "/app" : normalized.startsWith(t.to);
@@ -101,6 +111,7 @@ function AppShell() {
         </>
       )}
     </div>
+    </>
   );
 }
 
