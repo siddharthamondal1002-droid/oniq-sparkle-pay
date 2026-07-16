@@ -24,13 +24,17 @@ Deno.serve(async (req) => {
     return json(401, { error: "unauthorized" });
   }
 
-  let body: { paper_id?: string; marks_scored?: number; total_marks?: number; subject?: string } = {};
+  let body: { paper_id?: string; marks_scored?: number; total_marks?: number; subject?: string; action?: string } = {};
   try { body = await req.json(); } catch { /* ignore */ }
   const paperId = String(body.paper_id ?? "").trim();
+  const action = String(body.action ?? "complete").trim();
   const marksScored = Math.max(0, Math.round(Number(body.marks_scored ?? 0)));
   const totalMarks = Math.round(Number(body.total_marks ?? 0));
   const subject = String(body.subject ?? "").trim().slice(0, 80);
-  if (!paperId || !totalMarks || !subject) return json(200, { source: "unavailable", reason: "missing fields" });
+  if (!paperId) return json(200, { source: "unavailable", reason: "missing fields" });
+  if (action === "complete" && (!totalMarks || !subject)) {
+    return json(200, { source: "unavailable", reason: "missing fields" });
+  }
 
   const admin = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
