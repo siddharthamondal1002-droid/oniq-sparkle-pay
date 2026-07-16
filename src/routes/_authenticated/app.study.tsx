@@ -2044,6 +2044,7 @@ function PaperModal({
                 onDraft={(next) => setDraft(q.id, next)}
                 onPhotoPick={(e) => handlePhotoPick(q.id, e)}
                 photoInputRef={photoInputRef}
+                needsReattach={reattachIds.has(q.id)}
               />
 
               {/* -------- Prev / Next -------- */}
