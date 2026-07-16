@@ -2,20 +2,7 @@
 // JWT-gated. Uses service role to store answer key server-side; returns a
 // sanitized paper (no correct_index / model_answer / rubric_points) to client.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { callClaude, corsHeaders, json } from "../_shared/llm.ts";
-
-const BOARD_LABEL: Record<string, string> = {
-  cbse: "CBSE",
-  icse: "ICSE",
-  igcse: "IGCSE",
-  college: "College",
-};
-const BOARD_CURRICULUM: Record<string, string> = {
-  cbse: "CBSE (follows NCERT textbooks and syllabus).",
-  icse: "ICSE (follows the CISCE syllabus).",
-  igcse: "IGCSE (follows Cambridge International; use British spelling).",
-  college: "College-level (Indian UG/PG; align with standard Indian university syllabi).",
-};
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json } from "../_shared/llm.ts";
 
 type Section = { type: "mcq" | "short" | "long"; marks: number; count: number };
 
