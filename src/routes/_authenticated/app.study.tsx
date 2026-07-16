@@ -1355,6 +1355,7 @@ function PaperModal({
   const [questions, setQuestions] = useState<PaperQClient[] | null>(null);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, PaperDraft>>({});
+  const [reattachIds, setReattachIds] = useState<Set<string>>(new Set());
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [phase, setPhase] = useState<"answering" | "grading" | "done">("answering");
   const [confirm, setConfirm] = useState<null | "submit" | "close">(null);
@@ -1365,6 +1366,22 @@ function PaperModal({
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const finishedRef = useRef(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [savedTick, setSavedTick] = useState(0);
+  const [resumeOffer, setResumeOffer] = useState<
+    | null
+    | {
+        paperId: string;
+        totalMarks: number;
+        answered: number;
+        total: number;
+        questions: PaperQClient[];
+        drafts: Record<string, PaperDraft>;
+        reattach: Set<string>;
+        updatedAt: string;
+      }
+  >(null);
+  const [downloadSheet, setDownloadSheet] = useState(false);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
