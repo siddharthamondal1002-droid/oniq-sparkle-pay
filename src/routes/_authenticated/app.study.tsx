@@ -899,6 +899,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onClose={() => {
                 setShowQuizPicker(false);
                 setPickerSubject(null);
+                setPickerMode("root");
               }}
             >
               <div className="rounded-3xl border border-border bg-card p-6 shadow-2xl">
@@ -906,16 +907,26 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                   <div>
                     <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice</div>
                     <div className="font-display text-lg font-bold">
-                      {pickerSubject ? "pick a format 📝" : "pick a subject 📝"}
+                      {pickerMode === "mock"
+                        ? "pick a duration 🕐"
+                        : pickerSubject
+                        ? "pick a format 📝"
+                        : "pick a subject 📝"}
                     </div>
-                    {pickerSubject && (
+                    {pickerSubject && pickerMode === "root" && (
                       <div className="mt-0.5 text-[11px] text-muted-foreground">{pickerSubject}</div>
+                    )}
+                    {pickerMode === "mock" && (
+                      <div className="mt-0.5 text-[11px] text-muted-foreground">
+                        all subjects · MCQ only · auto-submit at 0
+                      </div>
                     )}
                   </div>
                   <button
                     onClick={() => {
                       setShowQuizPicker(false);
                       setPickerSubject(null);
+                      setPickerMode("root");
                     }}
                     aria-label="Close"
                     className="grid h-8 w-8 place-items-center rounded-full border border-border"
@@ -924,17 +935,58 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                   </button>
                 </div>
 
-                {!pickerSubject ? (
-                  <div className="mt-4 grid grid-cols-2 gap-2">
-                    {subjects.map((s) => (
+                {pickerMode === "mock" ? (
+                  <div className="mt-4 space-y-2">
+                    {([30, 60, 90] as const).map((m) => {
+                      const totalQ = m === 30 ? 50 : m === 60 ? 100 : 150;
+                      return (
+                        <button
+                          key={m}
+                          onClick={() => {
+                            setShowQuizPicker(false);
+                            setMockSpec({ durationMinutes: m });
+                            setPickerMode("root");
+                          }}
+                          className="w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-left hover:bg-amber-500/15"
+                        >
+                          <div className="text-sm font-semibold text-amber-200">🕐 {m} min mock</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {totalQ} MCQs · timed, auto-submits at 0
+                          </div>
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => setPickerMode("root")}
+                      className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
+                    >
+                      ← back
+                    </button>
+                  </div>
+                ) : !pickerSubject ? (
+                  <div className="mt-4">
+                    {isGovtBoard(profile.board) && (
                       <button
-                        key={s}
-                        onClick={() => setPickerSubject(s)}
-                        className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm hover:bg-muted"
+                        onClick={() => setPickerMode("mock")}
+                        className="mb-3 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-left hover:bg-amber-500/15"
                       >
-                        {s}
+                        <div className="text-sm font-semibold text-amber-200">🕐 mock test — mixed & timed</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          all subjects, MCQ-only, real timer with auto-submit
+                        </div>
                       </button>
-                    ))}
+                    )}
+                    <div className="grid grid-cols-2 gap-2">
+                      {subjects.map((s) => (
+                        <button
+                          key={s}
+                          onClick={() => setPickerSubject(s)}
+                          className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm hover:bg-muted"
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <div className="mt-4 space-y-2">
@@ -993,6 +1045,15 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onClose={() => setPaperSpec(null)}
             />
           )}
+          {mockSpec && (
+            <MockPaperModal
+              profile={profile}
+              subjects={subjects}
+              durationMinutes={mockSpec.durationMinutes}
+              onClose={() => setMockSpec(null)}
+            />
+          )}
+
 
 
           {attachment && (
