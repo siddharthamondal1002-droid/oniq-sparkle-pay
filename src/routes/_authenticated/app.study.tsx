@@ -347,6 +347,59 @@ function StudyScreen() {
 
 
 
+function BoardPicker({
+  board,
+  onChange,
+}: {
+  board: Board;
+  onChange: (b: Board) => void;
+}) {
+  const [showGovt, setShowGovt] = useState<boolean>(isGovtBoard(board));
+  const govtActive = isGovtBoard(board);
+  return (
+    <div>
+      <div className="grid grid-cols-2 gap-2">
+        {SCHOOL_BOARDS.map((b) => (
+          <button
+            type="button"
+            key={b.value}
+            onClick={() => { setShowGovt(false); onChange(b.value); }}
+            className={`rounded-xl border px-3 py-2 text-sm transition ${
+              board === b.value ? "border-primary bg-primary/15 text-primary" : "border-border bg-card"
+            }`}
+          >
+            {b.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={() => setShowGovt((v) => !v || !govtActive)}
+          className={`col-span-2 rounded-xl border px-3 py-2 text-sm transition ${
+            govtActive ? "border-amber-500/60 bg-amber-500/15 text-amber-300" : "border-amber-500/30 bg-amber-500/5 text-amber-200/90"
+          }`}
+        >
+          Govt / Competitive Exams 🏛️
+        </button>
+      </div>
+      {(showGovt || govtActive) && (
+        <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-2">
+          {GOVT_TRACKS.map((b) => (
+            <button
+              type="button"
+              key={b.value}
+              onClick={() => onChange(b.value)}
+              className={`rounded-lg border px-3 py-1.5 text-xs transition ${
+                board === b.value ? "border-amber-500/70 bg-amber-500/25 text-amber-200" : "border-amber-500/20 bg-card text-muted-foreground"
+              }`}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ModalCard({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
@@ -357,6 +410,7 @@ function ModalCard({ children, onClose }: { children: React.ReactNode; onClose: 
     </div>
   );
 }
+
 
 function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile) => void; first?: boolean }) {
   const qc = useQueryClient();
