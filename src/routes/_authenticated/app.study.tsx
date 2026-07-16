@@ -894,7 +894,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               </button>
             ))}
           </div>
-          {showQuizPicker && (
+          {showQuizPicker && createPortal(
             <ModalCard
               onClose={() => {
                 setShowQuizPicker(false);
@@ -1028,7 +1028,8 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                   </div>
                 )}
               </div>
-            </ModalCard>
+            </ModalCard>,
+            document.body,
           )}
           {quizSubject && (
             <QuizModal
