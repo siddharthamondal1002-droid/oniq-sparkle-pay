@@ -1485,7 +1485,7 @@ export type Database = {
       }
       quiz_attempts: {
         Row: {
-          correct_count: number
+          correct_count: number | null
           created_at: string
           id: string
           marks_scored: number | null
@@ -1493,10 +1493,10 @@ export type Database = {
           subject: string
           topic: string
           total_marks: number | null
-          total_questions: number
+          total_questions: number | null
         }
         Insert: {
-          correct_count: number
+          correct_count?: number | null
           created_at?: string
           id?: string
           marks_scored?: number | null
@@ -1504,10 +1504,10 @@ export type Database = {
           subject: string
           topic: string
           total_marks?: number | null
-          total_questions: number
+          total_questions?: number | null
         }
         Update: {
-          correct_count?: number
+          correct_count?: number | null
           created_at?: string
           id?: string
           marks_scored?: number | null
@@ -1515,7 +1515,7 @@ export type Database = {
           subject?: string
           topic?: string
           total_marks?: number | null
-          total_questions?: number
+          total_questions?: number | null
         }
         Relationships: [
           {
