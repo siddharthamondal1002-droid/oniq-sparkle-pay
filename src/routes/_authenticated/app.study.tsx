@@ -1691,6 +1691,130 @@ function PaperModal({
       })).filter((s) => s.items.length > 0)
     : [];
 
+  // -------- Printable / downloadable paper --------
+  function buildPaperHtml(): string {
+    const qs = questions ?? [];
+    const boardLbl = BOARD_UPPER[profile.board];
+    const clsLbl =
+      profile.class_level === "ug" ? "Undergraduate"
+      : profile.class_level === "pg" ? "Postgraduate"
+      : profile.class_level === "drop" ? "Drop year"
+      : profile.class_level === "aspirant" ? "Aspirant"
+      : `Class ${profile.class_level}`;
+    const time = timeHintFor(totalMarks);
+    const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+    const sections = (["mcq", "short", "long"] as const)
+      .map((t) => ({ t, info: sectionForType(t), items: qs.filter((qq) => qq.type === t) }))
+      .filter((s) => s.items.length > 0);
+    let sectionsHtml = "";
+    let counter = 0;
+    for (const s of sections) {
+      sectionsHtml += `<h2 class="section">${esc(s.info.label)}</h2>`;
+      for (const qq of s.items) {
+        counter++;
+        sectionsHtml += `<div class="q"><div class="qhead"><span class="qn">Q${counter}.</span> <span class="qm">[${qq.marks} ${qq.marks === 1 ? "mark" : "marks"}]</span></div><div class="qbody">${esc(qq.question)}</div>`;
+        if (qq.type === "mcq") {
+          sectionsHtml += '<ol type="A" class="opts">';
+          for (const opt of qq.options) sectionsHtml += `<li>${esc(opt)}</li>`;
+          sectionsHtml += "</ol>";
+        } else if (qq.type === "short") {
+          sectionsHtml += '<div class="lines">' + '<div class="line"></div>'.repeat(4) + "</div>";
+        } else {
+          sectionsHtml += '<div class="lines">' + '<div class="line"></div>'.repeat(10) + "</div>";
+        }
+        sectionsHtml += "</div>";
+      }
+    }
+    return `<!doctype html>
+<html><head><meta charset="utf-8"><title>${esc(subject)} — ${totalMarks} marks</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  * { box-sizing: border-box; }
+  html, body { background: #fff; color: #111; font-family: Georgia, "Times New Roman", serif; margin: 0; padding: 0; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 24px; }
+  header { text-align: center; border-bottom: 1px solid #999; padding-bottom: 10px; margin-bottom: 16px; }
+  header .board { font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700; }
+  header .cls { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #555; margin-top: 2px; }
+  header .meta { font-size: 12px; margin-top: 6px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
+  header .meta b { font-weight: 700; }
+  h2.section { font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; text-align: center; margin: 18px 0 8px; border-top: 1px dashed #bbb; padding-top: 10px; font-weight: 700; }
+  .q { margin: 10px 0 14px; page-break-inside: avoid; }
+  .qhead { display: flex; justify-content: space-between; font-size: 12px; color: #444; }
+  .qn { font-weight: 700; color: #111; }
+  .qm { font-variant-numeric: tabular-nums; }
+  .qbody { font-size: 14px; line-height: 1.5; margin-top: 3px; white-space: pre-wrap; }
+  ol.opts { margin: 6px 0 0 22px; font-size: 13px; line-height: 1.7; }
+  .lines { margin-top: 6px; }
+  .line { height: 22px; border-bottom: 1px solid #bbb; }
+  footer { margin-top: 20px; text-align: center; font-size: 10px; color: #888; }
+  @media print { .noprint { display: none !important; } }
+</style></head>
+<body><div class="wrap">
+  <header>
+    <div class="board">${esc(boardLbl)}</div>
+    <div class="cls">${esc(clsLbl)}</div>
+    <div class="meta"><span><b>Subject:</b> ${esc(subject)}</span><span><b>Max Marks:</b> ${totalMarks}</span><span><b>Time:</b> ${esc(time)}</span></div>
+  </header>
+  ${sectionsHtml}
+  <footer>— End of paper —</footer>
+  <div class="noprint" style="margin-top:16px;text-align:center;">
+    <button onclick="window.print()" style="padding:10px 18px;font-size:14px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;cursor:pointer">🖨️ Print / Save as PDF</button>
+  </div>
+</div></body></html>`;
+  }
+
+  async function doPrintInApp() {
+    const html = buildPaperHtml();
+    // Try opening a new window (works reliably in desktop browsers).
+    let w: Window | null = null;
+    try { w = window.open("", "_blank"); } catch { w = null; }
+    if (w) {
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => { try { w!.focus(); w!.print(); } catch { /* ignore */ } }, 500);
+      setDownloadSheet(false);
+      return;
+    }
+    // Native WebView: render via hidden iframe and call print on that frame.
+    // This is best-effort — some Android WebView builds silently ignore print.
+    try {
+      const iframe = document.createElement("iframe");
+      iframe.setAttribute("aria-hidden", "true");
+      Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument;
+      if (!doc) throw new Error("no doc");
+      doc.open();
+      doc.write(html);
+      doc.close();
+      setTimeout(() => {
+        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch { /* ignore */ }
+        setTimeout(() => iframe.remove(), 60_000);
+      }, 500);
+      setDownloadSheet(false);
+      toast.success("if nothing happened, try 'open in browser' below");
+    } catch {
+      toast.error("in-app print not available — try 'open in browser'");
+    }
+  }
+
+  async function doOpenInBrowser() {
+    const html = buildPaperHtml();
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    setDownloadSheet(false);
+    // Prefer Capacitor Browser on native; fall back to window.open on web.
+    try {
+      const mod = await import(/* @vite-ignore */ "@capacitor/browser");
+      await mod.Browser.open({ url, presentationStyle: "popover", toolbarColor: "#0E0F13" });
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+    // Keep the objectURL alive for a while so the browser can load it.
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+  }
+
   if (!portalHost) return null;
   return createPortal(
     <div
