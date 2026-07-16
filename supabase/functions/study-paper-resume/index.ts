@@ -1,15 +1,18 @@
 // study-paper-resume — find the most-recent in-progress paper for a
-// (profile_id, subject) pair and return it in the SAME sanitized shape
-// study-paper-generate returns (paper_id, subject, total_marks, questions
-// WITHOUT answer keys) plus the saved draft_answers map.
+// (profile_id, subject) pair (kind='marks') OR the most-recent in-progress
+// mock (kind='mock') for a profile, and return it in the SAME sanitized
+// shape study-paper-generate/study-paper-mock returns (paper_id, subject,
+// total_marks, questions WITHOUT answer keys) plus the saved draft_answers
+// map. For mock papers, also returns kind + started_at + duration_seconds
+// so the client can anchor its countdown to server time.
 //
 // JWT-gated, ownership verified via learner_profiles.user_id.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders, json } from "../_shared/llm.ts";
 
-type StoredQ =
-  | { id: string; type: "mcq"; marks: number; question: string; options: string[]; correct_index: number; explanation: string }
-  | { id: string; type: "short" | "long"; marks: number; question: string; model_answer: string; rubric_points: string[] };
+type StoredMCQ = { id: string; type: "mcq"; marks: number; question: string; options: string[]; correct_index: number; explanation: string; subject?: string };
+type StoredWritten = { id: string; type: "short" | "long"; marks: number; question: string; model_answer: string; rubric_points: string[] };
+type StoredQ = StoredMCQ | StoredWritten;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -32,11 +35,13 @@ Deno.serve(async (req) => {
     return json(401, { error: "unauthorized" });
   }
 
-  let body: { profile_id?: string; subject?: string } = {};
+  let body: { profile_id?: string; subject?: string; kind?: string } = {};
   try { body = await req.json(); } catch { /* ignore */ }
   const profileId = String(body.profile_id ?? "").trim();
+  const kind = body.kind === "mock" ? "mock" : "marks";
   const subject = String(body.subject ?? "").trim().slice(0, 80);
-  if (!profileId || !subject) return json(200, { found: false, reason: "missing fields" });
+  if (!profileId) return json(200, { found: false, reason: "missing fields" });
+  if (kind === "marks" && !subject) return json(200, { found: false, reason: "missing fields" });
 
   const admin = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
@@ -44,7 +49,6 @@ Deno.serve(async (req) => {
     { auth: { persistSession: false } },
   );
 
-  // Ownership: only resume if this learner_profile belongs to the caller.
   try {
     const { data: prof, error: profErr } = await admin
       .from("learner_profiles")
@@ -59,15 +63,16 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { data, error } = await admin
+    let q = admin
       .from("study_papers")
-      .select("id, subject, total_marks, questions, draft_answers, updated_at")
+      .select("id, subject, total_marks, questions, draft_answers, updated_at, kind, started_at, duration_seconds")
       .eq("profile_id", profileId)
-      .eq("subject", subject)
       .eq("status", "in_progress")
+      .eq("kind", kind)
       .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(1);
+    if (kind === "marks") q = q.eq("subject", subject);
+    const { data, error } = await q.maybeSingle();
     if (error || !data) return json(200, { found: false });
 
     const row = data as {
@@ -77,12 +82,19 @@ Deno.serve(async (req) => {
       questions: StoredQ[];
       draft_answers: Record<string, unknown> | null;
       updated_at: string;
+      kind: string;
+      started_at: string | null;
+      duration_seconds: number | null;
     };
-    const clientQuestions = (row.questions ?? []).map((q) => {
-      if (q.type === "mcq") {
-        return { id: q.id, type: "mcq" as const, marks: q.marks, question: q.question, options: q.options };
+
+    const clientQuestions = (row.questions ?? []).map((qq) => {
+      if (qq.type === "mcq") {
+        const mcq = qq as StoredMCQ;
+        const base: Record<string, unknown> = { id: mcq.id, type: "mcq", marks: mcq.marks, question: mcq.question, options: mcq.options };
+        if (mcq.subject) base.subject = mcq.subject;
+        return base;
       }
-      return { id: q.id, type: q.type, marks: q.marks, question: q.question };
+      return { id: qq.id, type: qq.type, marks: qq.marks, question: qq.question };
     });
 
     return json(200, {
@@ -94,6 +106,9 @@ Deno.serve(async (req) => {
       questions: clientQuestions,
       draft_answers: row.draft_answers ?? {},
       updated_at: row.updated_at,
+      kind: row.kind,
+      started_at: row.started_at,
+      duration_seconds: row.duration_seconds,
     });
   } catch (e) {
     console.warn("study-paper-resume: exception", (e as Error).message);
