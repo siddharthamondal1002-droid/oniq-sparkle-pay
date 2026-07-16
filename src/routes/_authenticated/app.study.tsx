@@ -1714,8 +1714,6 @@ function PaperModal({
           </div>
         </div>
       )}
-    </div>
-  );
     </div>,
     document.body
   );
