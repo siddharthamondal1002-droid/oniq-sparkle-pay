@@ -46,9 +46,19 @@ function AppShell() {
   const showNav = TOP_LEVEL.has(normalized);
 
   return (
-    <div className={`relative mx-auto flex min-h-screen max-w-md flex-col bg-background ${showNav ? "pb-28" : "pb-4"}`}>
+    <>
+      {/* Desktop/tablet backdrop — subtle branded gradient behind the mobile frame */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 -z-10 hidden md:block"
+        style={{
+          background:
+            "radial-gradient(ellipse at 20% 0%, color-mix(in oklab, var(--primary) 12%, transparent) 0%, transparent 55%), radial-gradient(ellipse at 80% 100%, color-mix(in oklab, var(--primary) 8%, transparent) 0%, transparent 60%), var(--background)",
+        }}
+      />
+    <div className={`relative mx-auto flex min-h-screen max-w-md md:max-w-lg lg:max-w-xl flex-col bg-background ${showNav ? "pb-28" : "pb-4"}`}>
       {wallpaper && (
-        <div className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-md">
+        <div className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-md md:max-w-lg lg:max-w-xl">
           <img
             src={wallpaper}
             alt=""
