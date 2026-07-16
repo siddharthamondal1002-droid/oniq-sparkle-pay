@@ -1149,6 +1149,39 @@ function sectionForType(t: "mcq" | "short" | "long"): { key: "A" | "B" | "C"; la
   return { key: "C", label: "SECTION C — Long Answer" };
 }
 
+type PaperDraft =
+  | { kind: "mcq"; pick: number }
+  | { kind: "text"; value: string }
+  | { kind: "photo"; mime: string; data: string; previewUrl: string };
+
+type PaperGradeEntry = {
+  awarded: number;
+  max: number;
+  feedback: string;
+  transcript?: string;
+  correct_index?: number;
+  usedPhoto?: boolean;
+};
+
+async function gradePool<T, R>(items: T[], limit: number, worker: (item: T, i: number) => Promise<R>, onProgress: () => void): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let cursor = 0;
+  const runners = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      try {
+        results[i] = await worker(items[i], i);
+      } catch {
+        // caller normalizes; store a zero-shaped result via worker itself
+      }
+      onProgress();
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
 function PaperModal({
   profile,
   subject,
@@ -1165,18 +1198,15 @@ function PaperModal({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [paperId, setPaperId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<PaperQClient[] | null>(null);
-  const [idx, setIdx] = useState(0);
-  const [mcqPick, setMcqPick] = useState<number | null>(null);
-  const [written, setWritten] = useState("");
-  const [answerMode, setAnswerMode] = useState<"text" | "photo">("text");
-  const [photo, setPhoto] = useState<{ mime: string; data: string; previewUrl: string } | null>(null);
-  const [grading, setGrading] = useState(false);
-  const [gradeResult, setGradeResult] = useState<(GradeResult & { transcript?: string }) | null>(null);
-  const [totalScored, setTotalScored] = useState(0);
-  const [gradedCount, setGradedCount] = useState(0);
-  const [done, setDone] = useState(false);
-  const [finishing, setFinishing] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const [drafts, setDrafts] = useState<Record<string, PaperDraft>>({});
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [phase, setPhase] = useState<"answering" | "grading" | "done">("answering");
   const [confirm, setConfirm] = useState<null | "submit" | "close">(null);
+  const [gradedCount, setGradedCount] = useState(0);
+  const [results, setResults] = useState<Record<string, PaperGradeEntry>>({});
+  const [totalScored, setTotalScored] = useState(0);
+  const [finishing, setFinishing] = useState(false);
   const finishedRef = useRef(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1212,436 +1242,448 @@ function PaperModal({
     return () => { cancelled = true; };
   }, [profile.id, profile.board, profile.class_level, subject, totalMarks]);
 
-  const q = questions?.[idx] ?? null;
-  const isLast = questions ? idx + 1 >= questions.length : false;
-  const prevType = idx > 0 && questions ? questions[idx - 1].type : null;
-  const showSectionHeader = q && (idx === 0 || prevType !== q.type);
-  const sectionInfo = q ? sectionForType(q.type) : null;
+  // Revoke object URLs on unmount.
+  useEffect(() => {
+    return () => {
+      Object.values(drafts).forEach((d) => {
+        if (d.kind === "photo") URL.revokeObjectURL(d.previewUrl);
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  async function handlePhotoPick(e: React.ChangeEvent<HTMLInputElement>) {
+  const q = questions?.[currentIdx] ?? null;
+  const totalQuestions = questions?.length ?? 0;
+
+  function isAnswered(qid: string): boolean {
+    const d = drafts[qid];
+    if (!d) return false;
+    if (d.kind === "mcq") return true;
+    if (d.kind === "text") return d.value.trim().length > 0;
+    if (d.kind === "photo") return d.data.length > 0;
+    return false;
+  }
+
+  const answeredCount = questions ? questions.filter((qq) => isAnswered(qq.id)).length : 0;
+
+  function setDraft(qid: string, next: PaperDraft | null) {
+    setDrafts((prev) => {
+      const copy = { ...prev };
+      const existing = copy[qid];
+      if (existing && existing.kind === "photo" && (!next || next.kind !== "photo" || next.data !== existing.data)) {
+        URL.revokeObjectURL(existing.previewUrl);
+      }
+      if (!next) delete copy[qid];
+      else copy[qid] = next;
+      return copy;
+    });
+  }
+
+  async function handlePhotoPick(qid: string, e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
     e.target.value = "";
     if (!f) return;
     if (!f.type.startsWith("image/")) return toast.error("please pick an image");
     if (f.size > 10 * 1024 * 1024) return toast.error("image must be under 10MB");
     try {
-      // Higher-quality settings so handwriting stays legible after compression.
       const { base64, dataUrl } = await compressToJpeg(f, 1600, 0.85);
-      if (photo?.previewUrl) URL.revokeObjectURL(photo.previewUrl);
-      setPhoto({ mime: "image/jpeg", data: base64, previewUrl: dataUrl });
+      setDraft(qid, { kind: "photo", mime: "image/jpeg", data: base64, previewUrl: dataUrl });
     } catch {
       toast.error("couldn't read that photo");
     }
   }
 
-  function removePhoto() {
-    if (photo?.previewUrl) URL.revokeObjectURL(photo.previewUrl);
-    setPhoto(null);
-  }
+  async function runBatchGrading() {
+    if (!questions || !paperId || phase === "grading") return;
+    setPhase("grading");
+    setGradedCount(0);
+    setResults({});
 
-  async function submitAnswer() {
-    if (!q || !paperId || grading) return;
-    setGrading(true);
-    try {
-      const requestBody: Record<string, unknown> = { paper_id: paperId, question_id: q.id };
-      if (q.type === "mcq") {
-        requestBody.answer = mcqPick ?? -1;
-      } else if (answerMode === "photo" && photo) {
-        requestBody.answer_image = { mime: photo.mime, data: photo.data };
+    const gradable = questions.filter((qq) => isAnswered(qq.id));
+    const perQ: Record<string, PaperGradeEntry> = {};
+
+    // Unanswered → zero locally.
+    for (const qq of questions) {
+      if (!isAnswered(qq.id)) {
+        perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "no answer submitted." };
+      }
+    }
+
+    await gradePool(gradable, 3, async (qq) => {
+      const draft = drafts[qq.id];
+      const requestBody: Record<string, unknown> = { paper_id: paperId, question_id: qq.id };
+      let usedPhoto = false;
+      if (qq.type === "mcq") {
+        requestBody.answer = draft && draft.kind === "mcq" ? draft.pick : -1;
+      } else if (draft && draft.kind === "photo") {
+        requestBody.answer_image = { mime: draft.mime, data: draft.data };
+        usedPhoto = true;
+      } else if (draft && draft.kind === "text") {
+        requestBody.answer = draft.value.trim();
       } else {
-        requestBody.answer = written.trim();
+        requestBody.answer = "";
       }
-      const { data, error } = await supabase.functions.invoke("study-paper-grade", { body: requestBody });
-      if (error) throw error;
-      const d = data as GradeResult & { source?: string; reason?: string; transcript?: string };
-      if (typeof d.awarded_marks !== "number") {
-        toast.error("couldn't grade that one — try again");
-        return;
+      try {
+        const { data, error } = await supabase.functions.invoke("study-paper-grade", { body: requestBody });
+        if (error) throw error;
+        const d = data as GradeResult & { source?: string; reason?: string; transcript?: string };
+        if (typeof d.awarded_marks !== "number") {
+          perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
+        } else {
+          perQ[qq.id] = {
+            awarded: d.awarded_marks,
+            max: d.max_marks ?? qq.marks,
+            feedback: d.feedback ?? "",
+            transcript: d.transcript,
+            correct_index: d.correct_index,
+            usedPhoto,
+          };
+        }
+      } catch {
+        perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
       }
-      setGradeResult({
-        awarded_marks: d.awarded_marks,
-        max_marks: d.max_marks ?? q.marks,
-        feedback: d.feedback ?? "",
-        correct_index: d.correct_index,
-        transcript: d.transcript,
-      });
-      setTotalScored((s) => s + d.awarded_marks);
-      setGradedCount((c) => c + 1);
-    } catch {
-      toast.error("couldn't grade that one — try again");
-    } finally {
-      setGrading(false);
+    }, () => setGradedCount((c) => c + 1));
+
+    const sum = Object.values(perQ).reduce((acc, r) => acc + r.awarded, 0);
+    setResults(perQ);
+    setTotalScored(sum);
+
+    // Persist.
+    if (!finishedRef.current && paperId) {
+      finishedRef.current = true;
+      setFinishing(true);
+      try {
+        await supabase.functions.invoke("study-paper-finish", {
+          body: { paper_id: paperId, marks_scored: sum, total_marks: totalMarks, subject },
+        });
+        qc.invalidateQueries({ queryKey: QUIZ_ATTEMPTS_KEY });
+      } catch { /* best-effort */ }
+      finally { setFinishing(false); }
     }
+
+    setPhase("done");
   }
 
-  async function finalizePaper(finalScored: number) {
-    if (finishedRef.current || !paperId) return;
-    finishedRef.current = true;
-    setFinishing(true);
-    try {
-      await supabase.functions.invoke("study-paper-finish", {
-        body: { paper_id: paperId, marks_scored: finalScored, total_marks: totalMarks, subject },
-      });
-      // Refresh ProgressDashboard so the new attempt appears immediately.
-      qc.invalidateQueries({ queryKey: QUIZ_ATTEMPTS_KEY });
-    } catch { /* best-effort */ }
-    finally { setFinishing(false); }
-  }
-
-  async function next() {
-    if (!questions) return;
-    if (isLast) {
-      setDone(true);
-      await finalizePaper(totalScored);
-    } else {
-      setIdx(idx + 1);
-      setMcqPick(null);
-      setWritten("");
-      setAnswerMode("text");
-      removePhoto();
-      setGradeResult(null);
-    }
-  }
-
-  async function submitNow() {
-    // Skip the rest — unanswered questions score 0, denominator stays totalMarks.
-    setConfirm(null);
-    setDone(true);
-    await finalizePaper(totalScored);
-  }
-
-  function handleCloseAttempt() {
-    if (done) { onClose(); return; }
-    if (gradedCount === 0) { onClose(); return; }
+  function requestClose() {
+    if (phase === "done") { onClose(); return; }
+    if (phase === "grading") return; // block close during grading
+    if (Object.keys(drafts).length === 0) { onClose(); return; }
     setConfirm("close");
   }
 
   const pct = totalMarks > 0 ? Math.round((totalScored / totalMarks) * 100) : 0;
 
-  // Prevent backdrop-click auto-close so partial progress isn't lost silently.
-  const shellClose = () => handleCloseAttempt();
+  // Palette: group by section for the full grid.
+  const paletteSections = questions
+    ? (["mcq", "short", "long"] as const).map((t) => ({
+        t,
+        info: sectionForType(t),
+        items: questions.map((qq, i) => ({ qq, i })).filter((x) => x.qq.type === t),
+      })).filter((s) => s.items.length > 0)
+    : [];
 
   return (
-    <ModalCard onClose={shellClose}>
-      <div className="max-h-[90vh] overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl">
-        {/* Dark app-chrome header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice paper</div>
-            <div className="font-display text-lg font-bold">{subject} · {totalMarks} marks</div>
-            {!loading && !errorMsg && q && !done && (
-              <div className="mt-0.5 text-[11px] text-muted-foreground">
-                Score so far: {totalScored}/{totalMarks}
-              </div>
-            )}
-          </div>
-          <button onClick={handleCloseAttempt} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full border border-border">
-            <X className="h-4 w-4" />
-          </button>
+    <div className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-background text-foreground">
+      {/* ---- Sticky top bar ---- */}
+      <div
+        className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur"
+        style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+      >
+        <button onClick={requestClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border">
+          <X className="h-4 w-4" />
+        </button>
+        <div className="min-w-0 flex-1 text-center">
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">exam mode</div>
+          <div className="truncate font-display text-sm font-bold">{subject} · {totalMarks} marks</div>
         </div>
+        {phase === "answering" ? (
+          <button
+            onClick={() => setConfirm("submit")}
+            disabled={loading || !!errorMsg || !questions}
+            className="shrink-0 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            submit paper
+          </button>
+        ) : (
+          <div className="w-[92px]" />
+        )}
+      </div>
 
+      {/* ---- Body ---- */}
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+      >
         {loading && (
-          <div className="mt-10 text-center text-sm text-muted-foreground">
+          <div className="mt-20 text-center text-sm text-muted-foreground">
             building your paper… 📄
           </div>
         )}
 
         {!loading && errorMsg && (
-          <div className="mt-8 text-center">
-            <div className="text-3xl">🌿</div>
+          <div className="mt-20 px-6 text-center">
+            <div className="text-4xl">🌿</div>
             <p className="mt-2 text-sm text-muted-foreground">{errorMsg}</p>
             <button onClick={onClose} className="mt-4 rounded-xl border border-border px-4 py-2 text-sm">close</button>
           </div>
         )}
 
-        {!loading && !errorMsg && q && !done && (
-          <div className="mt-4">
-            {/* -------- The "paper" surface -------- */}
-            <div
-              className="rounded-2xl border border-stone-300 p-5 font-serif text-stone-900 shadow-[0_2px_10px_rgba(0,0,0,0.35)]"
-              style={{ background: "#f7f1e3" }}
-            >
-              {/* Exam header — shown on every question so it always reads like a sheet */}
-              <div className="text-center">
-                <div className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-700">
-                  {BOARD_UPPER[profile.board]}
-                </div>
-                <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">
-                  {profile.class_level === "ug" ? "Undergraduate"
-                    : profile.class_level === "pg" ? "Postgraduate"
-                    : `Class ${profile.class_level}`}
-                </div>
-                <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-[11px] text-stone-800">
-                  <span><span className="font-semibold">Subject:</span> {subject}</span>
-                  <span><span className="font-semibold">Max Marks:</span> {totalMarks}</span>
-                  <span><span className="font-semibold">Time:</span> {timeHintFor(totalMarks)}</span>
-                </div>
-              </div>
-              <div className="my-3 border-t border-stone-400/60" />
-
-              {showSectionHeader && sectionInfo && (
-                <div className="mb-3 text-center text-[11px] font-semibold uppercase tracking-widest text-stone-700">
-                  {sectionInfo.label}
-                </div>
-              )}
-
-              <div className="flex items-baseline justify-between gap-3 text-[11px] text-stone-600">
-                <span>Question {idx + 1} of {questions?.length ?? 0}</span>
-                <span>[{q.marks} {q.marks === 1 ? "mark" : "marks"}]</span>
-              </div>
-
-              <div className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-stone-900">
-                <span className="font-semibold">Q{idx + 1}. </span>{q.question}
-              </div>
+        {!loading && !errorMsg && phase === "grading" && questions && (
+          <div className="mt-24 px-6 text-center">
+            <div className="text-4xl">📝</div>
+            <div className="mt-3 font-display text-lg font-bold">grading your paper…</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {gradedCount}/{questions.filter((qq) => isAnswered(qq.id)).length} graded
             </div>
-
-            {/* -------- Answer area (app chrome) -------- */}
-            {q.type === "mcq" ? (
-              <div className="mt-4 space-y-2">
-                {q.options.map((opt, i) => {
-                  const picked = mcqPick === i;
-                  const graded = gradeResult !== null;
-                  const isAnswer = graded && gradeResult?.correct_index === i;
-                  const isWrongPick = graded && picked && gradeResult?.correct_index !== i;
-                  return (
-                    <button
-                      key={i}
-                      disabled={graded}
-                      onClick={() => setMcqPick(i)}
-                      className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition ${
-                        isAnswer
-                          ? "border-green-500/50 bg-green-500/10 text-green-300"
-                          : isWrongPick
-                          ? "border-red-500/50 bg-red-500/10 text-red-300"
-                          : picked
-                          ? "border-primary bg-primary/10"
-                          : "border-border bg-card hover:bg-muted"
-                      }`}
-                    >
-                      <span className="mr-2 font-semibold text-muted-foreground">
-                        {String.fromCharCode(65 + i)}.
-                      </span>
-                      {opt}
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="mt-4">
-                {/* Answer-mode toggle */}
-                <div className="mb-2 flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setAnswerMode("text")}
-                    disabled={gradeResult !== null}
-                    className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
-                      answerMode === "text"
-                        ? "border-primary/40 bg-primary/15 text-primary"
-                        : "border-border bg-card text-muted-foreground"
-                    }`}
-                  >
-                    ✍️ type it
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAnswerMode("photo")}
-                    disabled={gradeResult !== null}
-                    className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
-                      answerMode === "photo"
-                        ? "border-primary/40 bg-primary/15 text-primary"
-                        : "border-border bg-card text-muted-foreground"
-                    }`}
-                  >
-                    📸 photo of your written answer
-                  </button>
-                </div>
-
-                {answerMode === "text" ? (
-                  <>
-                    <textarea
-                      value={written}
-                      onChange={(e) => setWritten(e.target.value.slice(0, 6000))}
-                      disabled={gradeResult !== null}
-                      placeholder={q.type === "long" ? "write your full answer here…" : "write your short answer here…"}
-                      rows={q.type === "long" ? 8 : 5}
-                      className="w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm focus:outline-none disabled:opacity-70"
-                    />
-                    <div className="mt-1 text-[10px] text-muted-foreground text-right">{written.length}/6000</div>
-                  </>
-                ) : (
-                  <div>
-                    <input
-                      ref={photoInputRef}
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      hidden
-                      onChange={handlePhotoPick}
-                    />
-                    {photo ? (
-                      <div className="relative">
-                        <img
-                          src={photo.previewUrl}
-                          alt="Your handwritten answer"
-                          className="max-h-72 w-full rounded-xl border border-border object-contain bg-black/20"
-                        />
-                        {gradeResult === null && (
-                          <button
-                            type="button"
-                            onClick={removePhoto}
-                            aria-label="Remove photo"
-                            className="absolute top-2 right-2 grid h-7 w-7 place-items-center rounded-full bg-black/70 text-white"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => photoInputRef.current?.click()}
-                        disabled={gradeResult !== null}
-                        className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-input/30 py-8 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50"
-                      >
-                        <Camera className="h-4 w-4" /> take a photo of your answer
-                      </button>
-                    )}
-                    {photo && gradeResult === null && (
-                      <button
-                        type="button"
-                        onClick={() => photoInputRef.current?.click()}
-                        className="mt-2 w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
-                      >
-                        retake photo
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {gradeResult && gradeResult.transcript !== undefined && gradeResult.transcript.length > 0 && answerMode === "photo" && q.type !== "mcq" && (
-              <div className="mt-3 rounded-xl border border-border bg-muted/30 px-3 py-2 text-xs">
-                <div className="font-medium text-muted-foreground">here's what we read from your photo:</div>
-                <div className="mt-1 whitespace-pre-wrap text-foreground/90">{gradeResult.transcript}</div>
-              </div>
-            )}
-
-            {gradeResult && (
-              <div className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
-                gradeResult.awarded_marks === gradeResult.max_marks
-                  ? "border-green-500/30 bg-green-500/5 text-green-300"
-                  : gradeResult.awarded_marks > 0
-                  ? "border-yellow-500/30 bg-yellow-500/5 text-yellow-200"
-                  : "border-border bg-muted/40 text-muted-foreground"
-              }`}>
-                <div className="font-medium">
-                  {gradeResult.awarded_marks}/{gradeResult.max_marks} · {
-                    gradeResult.awarded_marks === gradeResult.max_marks ? "full marks ✨"
-                    : gradeResult.awarded_marks > 0 ? "partial credit"
-                    : "no marks this time"
-                  }
-                </div>
-                {gradeResult.feedback && <div className="mt-1">{gradeResult.feedback}</div>}
-              </div>
-            )}
-
-            {!gradeResult ? (
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={submitAnswer}
-                  disabled={
-                    grading ||
-                    (q.type === "mcq"
-                      ? mcqPick === null
-                      : answerMode === "photo"
-                        ? !photo
-                        : written.trim().length === 0)
-                  }
-                  className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-                >
-                  {grading ? "grading…" : "submit answer"}
-                </button>
-                <button
-                  onClick={() => setConfirm("submit")}
-                  disabled={grading}
-                  className="rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground hover:bg-muted disabled:opacity-50"
-                >
-                  submit now ✋
-                </button>
-              </div>
-            ) : (
-              <div className="mt-4 flex gap-2">
-                <button
-                  onClick={next}
-                  className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
-                >
-                  {isLast ? "see results" : "next question"}
-                </button>
-                {!isLast && (
-                  <button
-                    onClick={() => setConfirm("submit")}
-                    className="rounded-xl border border-border px-4 py-3 text-sm text-muted-foreground hover:bg-muted"
-                  >
-                    submit now ✋
-                  </button>
-                )}
-              </div>
-            )}
+            <div className="mx-auto mt-4 h-2 max-w-xs overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${questions.length ? Math.min(100, (gradedCount / Math.max(1, questions.filter((qq) => isAnswered(qq.id)).length)) * 100) : 0}%` }}
+              />
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">hang tight — reading each answer carefully ✍️</p>
           </div>
         )}
 
-        {done && (
-          <div className="mt-4 text-center">
-            <div className="text-4xl">
-              {pct >= 90 ? "🏆" : pct >= 60 ? "🎉" : "🌱"}
+        {!loading && !errorMsg && phase === "done" && questions && (
+          <div className="mx-auto max-w-2xl px-4 pt-6">
+            <div className="text-center">
+              <div className="text-5xl">{pct >= 90 ? "🏆" : pct >= 60 ? "🎉" : "🌱"}</div>
+              <div className="mt-2 font-display text-2xl font-bold">
+                you scored {totalScored}/{totalMarks}!
+              </div>
+              <div className="text-xs text-muted-foreground">that's {pct}%</div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {pct >= 90 ? "outstanding — you know this cold."
+                  : pct >= 60 ? "solid work — real understanding showing through."
+                  : "great practice — every attempt makes the next one easier 💪"}
+              </p>
+              {finishing && <div className="mt-2 text-[10px] text-muted-foreground">saving…</div>}
             </div>
-            <div className="mt-2 font-display text-xl font-bold">
-              you scored {totalScored}/{totalMarks}!
+
+            <div className="mt-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">review</div>
+            <div className="mt-2 space-y-2 pb-6">
+              {questions.map((qq, i) => {
+                const r = results[qq.id];
+                if (!r) return null;
+                const full = r.awarded === r.max;
+                const partial = r.awarded > 0 && !full;
+                return (
+                  <div
+                    key={qq.id}
+                    className={`rounded-xl border px-3 py-2.5 text-xs ${
+                      full ? "border-green-500/30 bg-green-500/5"
+                      : partial ? "border-yellow-500/30 bg-yellow-500/5"
+                      : "border-border bg-muted/30"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="font-semibold">Q{i + 1} · {qq.type === "mcq" ? "MCQ" : qq.type === "short" ? "Short" : "Long"}</div>
+                      <div className={`font-mono text-[11px] ${full ? "text-green-300" : partial ? "text-yellow-200" : "text-muted-foreground"}`}>
+                        {r.awarded}/{r.max}
+                      </div>
+                    </div>
+                    <div className="mt-1 line-clamp-2 text-muted-foreground">{qq.question}</div>
+                    {r.usedPhoto && r.transcript && (
+                      <div className="mt-2 rounded-lg border border-border bg-background/50 px-2 py-1.5">
+                        <div className="text-[10px] font-medium text-muted-foreground">here's what we read from your photo:</div>
+                        <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">{r.transcript}</div>
+                      </div>
+                    )}
+                    {r.feedback && <div className="mt-1.5 text-foreground/90">{r.feedback}</div>}
+                  </div>
+                );
+              })}
             </div>
-            <div className="text-xs text-muted-foreground">that's {pct}%</div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {pct >= 90
-                ? "outstanding — you know this cold."
-                : pct >= 60
-                ? "solid work — real understanding showing through."
-                : "great practice — every attempt makes the next one easier 💪"}
-            </p>
-            {finishing && <div className="mt-2 text-[10px] text-muted-foreground">saving…</div>}
+
             <button
               onClick={onClose}
               disabled={finishing}
-              className="mt-5 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              className="mb-6 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
               done
             </button>
           </div>
         )}
+
+        {!loading && !errorMsg && phase === "answering" && questions && q && (
+          <>
+            {/* Palette strip */}
+            <div className="sticky top-0 z-[5] border-b border-border bg-background/95 px-3 py-2 backdrop-blur">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 overflow-x-auto">
+                  <div className="flex items-center gap-1.5">
+                    {questions.map((qq, i) => {
+                      const answered = isAnswered(qq.id);
+                      const current = i === currentIdx;
+                      return (
+                        <button
+                          key={qq.id}
+                          onClick={() => setCurrentIdx(i)}
+                          className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-[11px] font-semibold transition ${
+                            current
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : answered
+                              ? "border-primary/40 bg-primary/15 text-primary"
+                              : "border-border bg-card text-muted-foreground"
+                          }`}
+                          aria-label={`Question ${i + 1}${answered ? " (answered)" : ""}`}
+                        >
+                          {i + 1}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setPaletteOpen(true)}
+                  className="shrink-0 rounded-lg border border-border px-2 py-1.5 text-[11px] text-muted-foreground"
+                  aria-label="View all questions"
+                >
+                  ⊞ all
+                </button>
+              </div>
+              <div className="mt-1.5 text-center text-[10px] text-muted-foreground">
+                {answeredCount}/{totalQuestions} answered
+              </div>
+            </div>
+
+            <div className="mx-auto max-w-2xl px-4 pt-4">
+              {/* -------- The "paper" surface -------- */}
+              <div
+                className="rounded-2xl border border-stone-300 p-5 font-serif text-stone-900 shadow-[0_2px_10px_rgba(0,0,0,0.35)]"
+                style={{ background: "#f7f1e3" }}
+              >
+                <div className="text-center">
+                  <div className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-700">
+                    {BOARD_UPPER[profile.board]}
+                  </div>
+                  <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">
+                    {profile.class_level === "ug" ? "Undergraduate"
+                      : profile.class_level === "pg" ? "Postgraduate"
+                      : `Class ${profile.class_level}`}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-[11px] text-stone-800">
+                    <span><span className="font-semibold">Subject:</span> {subject}</span>
+                    <span><span className="font-semibold">Max Marks:</span> {totalMarks}</span>
+                    <span><span className="font-semibold">Time:</span> {timeHintFor(totalMarks)}</span>
+                  </div>
+                </div>
+                <div className="my-3 border-t border-stone-400/60" />
+
+                <div className="mb-2 text-center text-[11px] font-semibold uppercase tracking-widest text-stone-700">
+                  {sectionForType(q.type).label}
+                </div>
+
+                <div className="flex items-baseline justify-between gap-3 text-[11px] text-stone-600">
+                  <span>Question {currentIdx + 1} of {totalQuestions}</span>
+                  <span>[{q.marks} {q.marks === 1 ? "mark" : "marks"}]</span>
+                </div>
+
+                <div className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-stone-900">
+                  <span className="font-semibold">Q{currentIdx + 1}. </span>{q.question}
+                </div>
+              </div>
+
+              {/* -------- Answer draft area -------- */}
+              <PaperAnswerArea
+                q={q}
+                draft={drafts[q.id]}
+                onDraft={(next) => setDraft(q.id, next)}
+                onPhotoPick={(e) => handlePhotoPick(q.id, e)}
+                photoInputRef={photoInputRef}
+              />
+
+              {/* -------- Prev / Next -------- */}
+              <div className="mt-5 flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentIdx(Math.max(0, currentIdx - 1))}
+                  disabled={currentIdx === 0}
+                  className="flex-1 rounded-xl border border-border py-3 text-sm text-muted-foreground hover:bg-muted disabled:opacity-40"
+                >
+                  ← prev
+                </button>
+                <button
+                  onClick={() => setCurrentIdx(Math.min(totalQuestions - 1, currentIdx + 1))}
+                  disabled={currentIdx >= totalQuestions - 1}
+                  className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-40"
+                >
+                  next →
+                </button>
+              </div>
+              <div className="pb-6" />
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Confirm dialogs */}
-      {confirm === "submit" && (
-        <div
-          className="fixed inset-0 z-[60] grid place-items-center bg-black/70 p-4"
-          onClick={() => setConfirm(null)}
-        >
+      {/* ---- Palette full-grid overlay ---- */}
+      {paletteOpen && questions && (
+        <div className="fixed inset-0 z-[80] flex flex-col bg-background/95 backdrop-blur">
           <div
-            className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+            className="flex items-center justify-between border-b border-border px-4 py-3"
+            style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
           >
-            <div className="font-display text-lg font-bold">submit now?</div>
+            <div className="font-display text-sm font-bold">all questions</div>
+            <button onClick={() => setPaletteOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-border">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto p-4">
+            <div className="mb-3 flex items-center gap-3 text-[11px] text-muted-foreground">
+              <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded border border-primary/40 bg-primary/15" /> answered</span>
+              <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded border border-border bg-card" /> unanswered</span>
+              <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded border border-primary bg-primary" /> current</span>
+            </div>
+            {paletteSections.map((sec) => (
+              <div key={sec.t} className="mb-4">
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  {sec.info.label}
+                </div>
+                <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
+                  {sec.items.map(({ qq, i }) => {
+                    const answered = isAnswered(qq.id);
+                    const current = i === currentIdx;
+                    return (
+                      <button
+                        key={qq.id}
+                        onClick={() => { setCurrentIdx(i); setPaletteOpen(false); }}
+                        className={`grid h-11 place-items-center rounded-lg border text-sm font-semibold ${
+                          current
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : answered
+                            ? "border-primary/40 bg-primary/15 text-primary"
+                            : "border-border bg-card text-muted-foreground"
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ---- Submit confirm ---- */}
+      {confirm === "submit" && questions && (
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4" onClick={() => setConfirm(null)}>
+          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="font-display text-lg font-bold">submit your paper?</div>
             <p className="mt-1 text-sm text-muted-foreground">
-              submit what you've answered so far? unanswered questions score 0.
+              {answeredCount} of {totalQuestions} questions answered.
             </p>
+            {answeredCount < totalQuestions && (
+              <p className="mt-1 text-xs text-yellow-300/90">
+                {totalQuestions - answeredCount} left blank — those will score 0.
+              </p>
+            )}
             <div className="mt-5 flex gap-2">
+              <button onClick={() => setConfirm(null)} className="flex-1 rounded-xl border border-border py-3 text-sm">keep working</button>
               <button
-                onClick={() => setConfirm(null)}
-                className="flex-1 rounded-xl border border-border py-3 text-sm"
-              >
-                keep going
-              </button>
-              <button
-                onClick={() => void submitNow()}
+                onClick={() => { setConfirm(null); void runBatchGrading(); }}
                 className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
               >
                 submit
@@ -1651,47 +1693,152 @@ function PaperModal({
         </div>
       )}
 
+      {/* ---- Close confirm ---- */}
       {confirm === "close" && (
-        <div
-          className="fixed inset-0 z-[60] grid place-items-center bg-black/70 p-4"
-          onClick={() => setConfirm(null)}
-        >
-          <div
-            className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="font-display text-lg font-bold">leaving already?</div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              you've answered {gradedCount} {gradedCount === 1 ? "question" : "questions"} so far.
-            </p>
-            <div className="mt-5 space-y-2">
-              <button
-                onClick={async () => {
-                  setConfirm(null);
-                  await finalizePaper(totalScored);
-                  onClose();
-                }}
-                className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
-              >
-                submit what you've answered
-              </button>
+        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4" onClick={() => setConfirm(null)}>
+          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="font-display text-lg font-bold">leave without submitting?</div>
+            <p className="mt-1 text-sm text-muted-foreground">your answers won't be saved.</p>
+            <div className="mt-5 flex gap-2">
+              <button onClick={() => setConfirm(null)} className="flex-1 rounded-xl border border-border py-3 text-sm">keep working</button>
               <button
                 onClick={() => { setConfirm(null); onClose(); }}
-                className="w-full rounded-xl border border-red-500/40 py-3 text-sm text-red-400"
+                className="flex-1 rounded-xl border border-red-500/40 py-3 text-sm text-red-400"
               >
-                discard this attempt
-              </button>
-              <button
-                onClick={() => setConfirm(null)}
-                className="w-full rounded-xl border border-border py-3 text-sm text-muted-foreground"
-              >
-                keep going
+                leave
               </button>
             </div>
           </div>
         </div>
       )}
-    </ModalCard>
+    </div>
+  );
+}
+
+function PaperAnswerArea({
+  q,
+  draft,
+  onDraft,
+  onPhotoPick,
+  photoInputRef,
+}: {
+  q: PaperQClient;
+  draft: PaperDraft | undefined;
+  onDraft: (next: PaperDraft | null) => void;
+  onPhotoPick: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  photoInputRef: React.MutableRefObject<HTMLInputElement | null>;
+}) {
+  if (q.type === "mcq") {
+    const pick = draft && draft.kind === "mcq" ? draft.pick : null;
+    return (
+      <div className="mt-4 space-y-2">
+        {q.options.map((opt, i) => {
+          const picked = pick === i;
+          return (
+            <button
+              key={i}
+              onClick={() => onDraft({ kind: "mcq", pick: i })}
+              className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+                picked ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-muted"
+              }`}
+            >
+              <span className="mr-2 font-semibold text-muted-foreground">{String.fromCharCode(65 + i)}.</span>
+              {opt}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
+  const mode: "text" | "photo" = draft?.kind === "photo" ? "photo" : "text";
+  const value = draft?.kind === "text" ? draft.value : "";
+  const photo = draft?.kind === "photo" ? draft : null;
+
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onDraft(value.length > 0 ? { kind: "text", value } : null)}
+          className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
+            mode === "text" ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground"
+          }`}
+        >
+          ✍️ type it
+        </button>
+        <button
+          type="button"
+          onClick={() => { if (mode !== "photo") photoInputRef.current?.click(); }}
+          className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
+            mode === "photo" ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground"
+          }`}
+        >
+          📸 photo of your written answer
+        </button>
+      </div>
+
+      {mode === "text" ? (
+        <>
+          <textarea
+            value={value}
+            onChange={(e) => {
+              const v = e.target.value.slice(0, 6000);
+              onDraft(v.length > 0 ? { kind: "text", value: v } : null);
+            }}
+            placeholder={q.type === "long" ? "write your full answer here…" : "write your short answer here…"}
+            rows={q.type === "long" ? 8 : 5}
+            className="w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm focus:outline-none"
+          />
+          <div className="mt-1 text-right text-[10px] text-muted-foreground">{value.length}/6000</div>
+        </>
+      ) : (
+        <div>
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            hidden
+            onChange={onPhotoPick}
+          />
+          {photo ? (
+            <div className="relative">
+              <img
+                src={photo.previewUrl}
+                alt="Your handwritten answer"
+                className="max-h-72 w-full rounded-xl border border-border bg-black/20 object-contain"
+              />
+              <button
+                type="button"
+                onClick={() => onDraft(null)}
+                aria-label="Remove photo"
+                className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/70 text-white"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border bg-input/30 py-8 text-sm text-muted-foreground hover:bg-muted"
+            >
+              <Camera className="h-4 w-4" /> take a photo of your answer
+            </button>
+          )}
+          {photo && (
+            <button
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+              className="mt-2 w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
+            >
+              retake photo
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 
