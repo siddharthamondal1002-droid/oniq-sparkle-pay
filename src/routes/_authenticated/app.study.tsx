@@ -1712,7 +1712,11 @@ type Attempt = {
 
 function useAttempts() {
   return useQuery({
-    queryKey: ["quiz-attempts"],
+    queryKey: QUIZ_ATTEMPTS_KEY,
+    // Always refetch when the dashboard mounts so a freshly finished paper
+    // appears immediately, even if cache invalidation elsewhere was missed.
+    refetchOnMount: "always",
+    staleTime: 0,
     queryFn: async (): Promise<Attempt[]> => {
       const { data, error } = await (supabase as unknown as {
         from: (t: string) => {
