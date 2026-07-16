@@ -232,12 +232,8 @@ Deno.serve(async (req) => {
     const shortRaw = shortRes.items as WrittenIn[];
     const longRaw = longRes.items as WrittenIn[];
 
-    type MCQIn = { question?: unknown; options?: unknown; correct_index?: unknown; explanation?: unknown };
-    type WrittenIn = { question?: unknown; model_answer?: unknown; rubric_points?: unknown };
 
-    const mcqRaw = Array.isArray(raw.mcq) ? raw.mcq as MCQIn[] : [];
-    const shortRaw = Array.isArray(raw.short) ? raw.short as WrittenIn[] : [];
-    const longRaw = Array.isArray(raw.long) ? raw.long as WrittenIn[] : [];
+
 
     if (mcqRaw.length < mcqCount || shortRaw.length < shortSec.count || longRaw.length < longSec.count) {
       return json(200, { source: "unavailable", reason: "malformed paper" });
