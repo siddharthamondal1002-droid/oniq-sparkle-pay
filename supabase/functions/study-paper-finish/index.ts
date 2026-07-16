@@ -69,6 +69,22 @@ Deno.serve(async (req) => {
     return json(500, { source: "unavailable", reason: "auth check failed" });
   }
 
+  // "abandon" branch: reuses the same JWT + ownership check as "complete";
+  // just flips the paper's status so the resume flow won't offer it again
+  // and doesn't record a quiz_attempts row.
+  if (action === "abandon") {
+    try {
+      const { error: upErr } = await admin
+        .from("study_papers")
+        .update({ status: "abandoned" })
+        .eq("id", paperId);
+      if (upErr) console.warn("study-paper-finish: abandon err", upErr.message);
+    } catch (e) {
+      console.warn("study-paper-finish: abandon exception", (e as Error).message);
+    }
+    return json(200, { ok: true, action: "abandon" });
+  }
+
   const clampedMarks = Math.min(marksScored, paper.total_marks);
 
   try {
