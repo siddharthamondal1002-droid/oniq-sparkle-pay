@@ -1804,10 +1804,13 @@ export type Database = {
         Row: {
           created_at: string
           draft_answers: Json
+          duration_seconds: number | null
           id: string
+          kind: string
           marks_scored: number | null
           profile_id: string
           questions: Json
+          started_at: string | null
           status: string
           subject: string
           total_marks: number
@@ -1816,10 +1819,13 @@ export type Database = {
         Insert: {
           created_at?: string
           draft_answers?: Json
+          duration_seconds?: number | null
           id?: string
+          kind?: string
           marks_scored?: number | null
           profile_id: string
           questions: Json
+          started_at?: string | null
           status?: string
           subject: string
           total_marks: number
@@ -1828,10 +1834,13 @@ export type Database = {
         Update: {
           created_at?: string
           draft_answers?: Json
+          duration_seconds?: number | null
           id?: string
+          kind?: string
           marks_scored?: number | null
           profile_id?: string
           questions?: Json
+          started_at?: string | null
           status?: string
           subject?: string
           total_marks?: number
