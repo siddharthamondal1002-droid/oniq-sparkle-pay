@@ -294,6 +294,7 @@ Deno.serve(async (req) => {
       const q = longRaw[i];
       const rp = Array.isArray(q.rubric_points) ? q.rubric_points.slice(0, 4).map((s) => String(s).trim()).filter(Boolean) : [];
       if (!q.question || !q.model_answer || rp.length < 2) {
+        console.warn(`study-paper-generate: bad long item i=${i} totalMarks=${totalMarks} subject="${subject}" rp=${rp.length}`);
         return json(200, { source: "unavailable", reason: "bad long item" });
       }
       stored.push({
