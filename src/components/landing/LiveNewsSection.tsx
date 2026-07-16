@@ -66,7 +66,7 @@ export function CompactLiveNews() {
   const current = items?.[idx];
   return (
     <button
-      onClick={() => navigate({ to: "/app/news" })}
+      onClick={() => navigate({ to: "/app/news", search: { tab: undefined } })}
       className="press glass fade-up mt-5 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-colors"
       aria-label="Open Pulse news"
     >
