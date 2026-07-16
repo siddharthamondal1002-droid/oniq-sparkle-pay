@@ -11,7 +11,10 @@ export const Route = createFileRoute("/_authenticated/app/study")({
   component: StudyScreen,
 });
 
-type Board = "cbse" | "icse" | "igcse" | "college" | "jee" | "neet" | "clat" | "govt_exam";
+type Board =
+  | "cbse" | "icse" | "igcse" | "college" | "jee" | "neet" | "clat"
+  | "govt_exam" | "govt_railway" | "govt_banking" | "govt_police"
+  | "govt_judiciary" | "govt_ssc" | "govt_psc";
 type ClassLevel = "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg" | "drop" | "aspirant";
 
 type LearnerProfile = {
@@ -39,7 +42,8 @@ type Msg = {
   usedVault?: boolean;
 };
 
-const BOARDS: { value: Board; label: string }[] = [
+// School / entrance-exam boards shown as direct chips in the picker.
+const SCHOOL_BOARDS: { value: Board; label: string }[] = [
   { value: "cbse", label: "CBSE" },
   { value: "icse", label: "ICSE" },
   { value: "igcse", label: "IGCSE" },
@@ -47,8 +51,22 @@ const BOARDS: { value: Board; label: string }[] = [
   { value: "jee", label: "JEE 🎯" },
   { value: "neet", label: "NEET 🩺" },
   { value: "clat", label: "CLAT / Law 📖" },
-  { value: "govt_exam", label: "Govt / Competitive Exams 🏛️" },
 ];
+
+// Govt-family sub-tracks (revealed after choosing "Govt / Competitive Exams").
+const GOVT_TRACKS: { value: Board; label: string }[] = [
+  { value: "govt_railway", label: "Railways 🚆" },
+  { value: "govt_banking", label: "Banking 🏦" },
+  { value: "govt_police", label: "Police 👮" },
+  { value: "govt_judiciary", label: "Judiciary ⚖️" },
+  { value: "govt_ssc", label: "SSC 📝" },
+  { value: "govt_psc", label: "PSC 🏛️" },
+  { value: "govt_exam", label: "General 🏛️" },
+];
+
+function isGovtBoard(b: Board): boolean {
+  return b.startsWith("govt");
+}
 
 const ALL_CLASS_LEVELS: { value: ClassLevel; label: string }[] = [
   { value: "5", label: "Class 5" },
@@ -73,7 +91,7 @@ function classLevelsFor(board: Board): { value: ClassLevel; label: string }[] {
       { value: "drop", label: "Drop year" },
     ];
   }
-  if (board === "govt_exam") {
+  if (isGovtBoard(board)) {
     return [
       { value: "11", label: "Class 11" },
       { value: "12", label: "Class 12" },
@@ -83,7 +101,6 @@ function classLevelsFor(board: Board): { value: ClassLevel; label: string }[] {
       { value: "aspirant", label: "Aspirant" },
     ];
   }
-  // Existing school boards: unchanged.
   return ALL_CLASS_LEVELS.filter((c) => c.value !== "drop" && c.value !== "aspirant");
 }
 
@@ -96,15 +113,23 @@ const BOARD_UPPER: Record<Board, string> = {
   neet: "NEET",
   clat: "CLAT",
   govt_exam: "Govt Exams",
+  govt_railway: "Railways",
+  govt_banking: "Banking",
+  govt_police: "Police",
+  govt_judiciary: "Judiciary",
+  govt_ssc: "SSC",
+  govt_psc: "PSC",
+};
+
+const BOARD_EMOJI: Record<Board, string> = {
+  cbse: "", icse: "", igcse: "", college: "", jee: "🎯", neet: "🩺", clat: "📖",
+  govt_exam: "🏛️", govt_railway: "🚆", govt_banking: "🏦", govt_police: "👮",
+  govt_judiciary: "⚖️", govt_ssc: "📝", govt_psc: "🏛️",
 };
 
 function subjectsFor(board: Board, cls: ClassLevel): string[] {
-  if (board === "jee") {
-    return ["Physics", "Chemistry", "Mathematics"];
-  }
-  if (board === "neet") {
-    return ["Physics", "Chemistry", "Biology"];
-  }
+  if (board === "jee") return ["Physics", "Chemistry", "Mathematics"];
+  if (board === "neet") return ["Physics", "Chemistry", "Biology"];
   if (board === "clat") {
     return [
       "Legal Reasoning",
@@ -114,13 +139,26 @@ function subjectsFor(board: Board, cls: ClassLevel): string[] {
       "Quantitative Techniques",
     ];
   }
+  if (board === "govt_railway") {
+    return ["General Awareness", "Mathematics", "General Intelligence & Reasoning", "General Science"];
+  }
+  if (board === "govt_banking") {
+    return ["Quantitative Aptitude", "Reasoning Ability", "English Language", "Banking & General Awareness", "Computer Knowledge"];
+  }
+  if (board === "govt_police") {
+    return ["General Knowledge & Current Affairs", "Reasoning", "Numerical Ability", "General English/Hindi"];
+  }
+  if (board === "govt_judiciary") {
+    return ["Constitutional Law", "CPC", "CrPC", "IPC / BNS", "Evidence Act", "Contract Law", "Current Legal Affairs"];
+  }
+  if (board === "govt_ssc") {
+    return ["General Awareness", "Quantitative Aptitude", "English Language", "General Intelligence & Reasoning"];
+  }
+  if (board === "govt_psc") {
+    return ["General Studies", "Current Affairs", "Reasoning & Aptitude"];
+  }
   if (board === "govt_exam") {
-    return [
-      "General Knowledge & Current Affairs",
-      "Quantitative Aptitude",
-      "Reasoning",
-      "English Language",
-    ];
+    return ["General Knowledge & Current Affairs", "Quantitative Aptitude", "Reasoning", "English Language"];
   }
   if (cls === "ug" || cls === "pg" || board === "college") {
     return ["Maths", "Physics", "Chemistry", "Biology", "English", "Economics", "Computer Science", "General"];
@@ -182,18 +220,16 @@ function StudyScreen() {
   const [editing, setEditing] = useState<LearnerProfile | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
-  const [mode, setMode] = useState<"school" | "govt">("school");
 
-  const schoolProfiles = (profiles ?? []).filter((p) => p.board !== "govt_exam");
-  const govtProfile = (profiles ?? []).find((p) => p.board === "govt_exam") ?? null;
+  const allProfiles = profiles ?? [];
 
   useEffect(() => {
-    if (schoolProfiles.length > 0 && !activeId) {
-      setActiveId(schoolProfiles[0].id);
+    if (allProfiles.length > 0 && !activeId) {
+      setActiveId(allProfiles[0].id);
     }
-  }, [schoolProfiles, activeId]);
+  }, [allProfiles, activeId]);
 
-  const active = schoolProfiles.find((p) => p.id === activeId) ?? null;
+  const active = allProfiles.find((p) => p.id === activeId) ?? null;
 
   if (isLoading) {
     return (
@@ -203,16 +239,15 @@ function StudyScreen() {
     );
   }
 
-  // First-run: no profiles at all → keep the existing school setup as the entry.
   if (!profiles || profiles.length === 0) {
     return <SetupCard onCreated={(p) => setActiveId(p.id)} first />;
   }
 
-  const inGovt = mode === "govt";
-  const headerName = inGovt ? (govtProfile?.name ?? "Govt Exams") : (active?.name ?? "Study Buddy");
-  const headerSub = inGovt
-    ? (govtProfile ? `Govt Exams · ${govtProfile.class_level === "ug" ? "UG" : govtProfile.class_level === "pg" ? "PG" : govtProfile.class_level === "drop" ? "Drop year" : govtProfile.class_level === "aspirant" ? "Aspirant" : `Class ${govtProfile.class_level}`}` : "Competitive / govt exam prep")
-    : (active ? `${BOARD_UPPER[active.board]} · ${active.class_level === "ug" ? "UG" : active.class_level === "pg" ? "PG" : active.class_level === "drop" ? "Drop year" : active.class_level === "aspirant" ? "Aspirant" : `Class ${active.class_level}`}` : null);
+  const activeIsGovt = active ? isGovtBoard(active.board) : false;
+  const headerName = active?.name ?? "Study Buddy";
+  const headerSub = active
+    ? `${BOARD_UPPER[active.board]} · ${active.class_level === "ug" ? "UG" : active.class_level === "pg" ? "PG" : active.class_level === "drop" ? "Drop year" : active.class_level === "aspirant" ? "Aspirant" : `Class ${active.class_level}`}`
+    : null;
 
   return (
     <div className="flex h-screen flex-col">
@@ -220,8 +255,8 @@ function StudyScreen() {
         <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div className={`grid h-9 w-9 place-items-center rounded-xl text-white ${inGovt ? "bg-gradient-to-br from-amber-500 to-yellow-600" : "bg-gradient-to-br from-orange-400 to-pink-500"}`}>
-          <span className="text-base">{inGovt ? "🏛️" : "📚"}</span>
+        <div className={`grid h-9 w-9 place-items-center rounded-xl text-white ${activeIsGovt ? "bg-gradient-to-br from-amber-500 to-yellow-600" : "bg-gradient-to-br from-orange-400 to-pink-500"}`}>
+          <span className="text-base">{activeIsGovt ? "🏛️" : "📚"}</span>
         </div>
         <div className="min-w-0 flex-1">
           <div className="font-display text-base font-semibold truncate">{headerName}</div>
@@ -236,44 +271,30 @@ function StudyScreen() {
         </button>
       </header>
 
-      {/* Profile chips + govt-exam tab */}
+      {/* Unified profile chips: every learner_profiles row is a chip. Govt-family gets amber accent + emoji badge. */}
       <div className="flex items-center gap-2 overflow-x-auto border-b border-border px-4 py-2 no-scrollbar">
-        {schoolProfiles.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => { setMode("school"); setActiveId(p.id); }}
-            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
-              !inGovt && p.id === activeId
-                ? "border-primary/40 bg-primary/15 text-primary"
-                : "border-border bg-card text-muted-foreground"
-            }`}
-          >
-            {p.name}
-          </button>
-        ))}
-        <button
-          onClick={() => setMode("govt")}
-          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
-            inGovt
-              ? "border-amber-500/60 bg-amber-500/20 text-amber-300"
-              : "border-amber-500/30 bg-amber-500/10 text-amber-200/80"
-          }`}
-        >
-          🏛️ govt exams
-        </button>
-        {!inGovt && active && (
+        {allProfiles.map((p) => {
+          const govt = isGovtBoard(p.board);
+          const isActive = p.id === activeId;
+          const base = "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1";
+          const cls = govt
+            ? (isActive
+                ? `${base} border-amber-500/60 bg-amber-500/20 text-amber-300`
+                : `${base} border-amber-500/30 bg-amber-500/10 text-amber-200/80`)
+            : (isActive
+                ? `${base} border-primary/40 bg-primary/15 text-primary`
+                : `${base} border-border bg-card text-muted-foreground`);
+          return (
+            <button key={p.id} onClick={() => setActiveId(p.id)} className={cls}>
+              {govt && <span aria-hidden>{BOARD_EMOJI[p.board] || "🏛️"}</span>}
+              <span>{p.name}</span>
+            </button>
+          );
+        })}
+        {active && (
           <button
             onClick={() => setEditing(active)}
             aria-label="Edit profile"
-            className="shrink-0 grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground"
-          >
-            <Pencil className="h-3 w-3" />
-          </button>
-        )}
-        {inGovt && govtProfile && (
-          <button
-            onClick={() => setEditing(govtProfile)}
-            aria-label="Edit govt exam profile"
             className="shrink-0 grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground"
           >
             <Pencil className="h-3 w-3" />
@@ -288,24 +309,13 @@ function StudyScreen() {
         </button>
       </div>
 
-      {inGovt ? (
-        govtProfile ? (
-          <TutorChat profile={govtProfile} />
-        ) : (
-          <div className="flex-1 overflow-y-auto p-4">
-            <GovtSetupCard onCreated={() => { /* profile list will refetch; stay in govt mode */ }} />
-          </div>
-        )
-      ) : (
-        active && <TutorChat profile={active} />
-      )}
+      {active && <TutorChat profile={active} />}
 
       {showAdd && (
         <ModalCard onClose={() => setShowAdd(false)}>
           <SetupCard
             onCreated={(p) => {
-              if (p.board === "govt_exam") setMode("govt");
-              else { setMode("school"); setActiveId(p.id); }
+              setActiveId(p.id);
               setShowAdd(false);
             }}
           />
@@ -318,7 +328,7 @@ function StudyScreen() {
             profile={editing}
             onDone={() => setEditing(null)}
             onDeleted={() => {
-              if (editing.board !== "govt_exam") setActiveId(null);
+              setActiveId(null);
               setEditing(null);
             }}
           />
@@ -330,84 +340,66 @@ function StudyScreen() {
           <ProgressDashboard profiles={profiles} onClose={() => setShowProgress(false)} />
         </ModalCard>
       )}
+
     </div>
   );
 }
 
-function GovtSetupCard({ onCreated }: { onCreated: (p: LearnerProfile) => void }) {
-  const qc = useQueryClient();
-  const [name, setName] = useState("");
-  const [classLevel, setClassLevel] = useState<ClassLevel>("aspirant");
-  const options = classLevelsFor("govt_exam");
 
-  const create = useMutation({
-    mutationFn: async () => {
-      const trimmed = name.trim();
-      if (!trimmed) throw new Error("please enter a name");
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("not signed in");
-      const { data, error } = await (supabase as unknown as {
-        from: (t: string) => {
-          insert: (row: unknown) => {
-            select: (c: string) => {
-              single: () => Promise<{ data: LearnerProfile | null; error: Error | null }>;
-            };
-          };
-        };
-      })
-        .from("learner_profiles")
-        .insert({ user_id: u.user.id, name: trimmed, board: "govt_exam", class_level: classLevel })
-        .select("id, name, board, class_level, created_at")
-        .single();
-      if (error || !data) throw error ?? new Error("failed");
-      return data;
-    },
-    onSuccess: (data) => {
-      qc.invalidateQueries({ queryKey: ["learner-profiles"] });
-      onCreated(data);
-      toast.success("govt exam prep unlocked 🏛️");
-    },
-    onError: (e) => toast.error((e as Error).message || "couldn't set up"),
-  });
 
+function BoardPicker({
+  board,
+  onChange,
+}: {
+  board: Board;
+  onChange: (b: Board) => void;
+}) {
+  const [showGovt, setShowGovt] = useState<boolean>(isGovtBoard(board));
+  const govtActive = isGovtBoard(board);
   return (
-    <div className="mx-auto max-w-sm rounded-3xl border border-amber-500/30 bg-card p-6 shadow-2xl">
-      <div className="text-3xl">🏛️</div>
-      <h2 className="mt-2 font-display text-xl font-bold">Govt / competitive exam prep</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        General foundation shared across UPSC, SSC, Banking, Railways, State PSCs — GK, quant, reasoning, English.
-      </p>
-
-      <label className="mt-5 block text-xs font-medium text-muted-foreground">Your name</label>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value.slice(0, 40))}
-        placeholder="e.g. Aditya"
-        className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
-      />
-
-      <label className="mt-4 block text-xs font-medium text-muted-foreground">Level</label>
-      <select
-        value={classLevel}
-        onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
-        className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
-      >
-        {options.map((c) => (
-          <option key={c.value} value={c.value}>{c.label}</option>
+    <div>
+      <div className="grid grid-cols-2 gap-2">
+        {SCHOOL_BOARDS.map((b) => (
+          <button
+            type="button"
+            key={b.value}
+            onClick={() => { setShowGovt(false); onChange(b.value); }}
+            className={`rounded-xl border px-3 py-2 text-sm transition ${
+              board === b.value ? "border-primary bg-primary/15 text-primary" : "border-border bg-card"
+            }`}
+          >
+            {b.label}
+          </button>
         ))}
-      </select>
-
-      <button
-        onClick={() => create.mutate()}
-        disabled={create.isPending || !name.trim()}
-        className="mt-6 w-full rounded-xl bg-amber-500 py-3 text-sm font-semibold text-amber-950 disabled:opacity-50"
-      >
-        {create.isPending ? "Setting up…" : "Start prep"}
-      </button>
+        <button
+          type="button"
+          onClick={() => setShowGovt((v) => !v || !govtActive)}
+          className={`col-span-2 rounded-xl border px-3 py-2 text-sm transition ${
+            govtActive ? "border-amber-500/60 bg-amber-500/15 text-amber-300" : "border-amber-500/30 bg-amber-500/5 text-amber-200/90"
+          }`}
+        >
+          Govt / Competitive Exams 🏛️
+        </button>
+      </div>
+      {(showGovt || govtActive) && (
+        <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 p-2">
+          {GOVT_TRACKS.map((b) => (
+            <button
+              type="button"
+              key={b.value}
+              onClick={() => onChange(b.value)}
+              className={`rounded-lg border px-3 py-1.5 text-xs transition ${
+                board === b.value ? "border-amber-500/70 bg-amber-500/25 text-amber-200" : "border-amber-500/20 bg-card text-muted-foreground"
+              }`}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
-
 
 function ModalCard({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
@@ -418,6 +410,7 @@ function ModalCard({ children, onClose }: { children: React.ReactNode; onClose: 
     </div>
   );
 }
+
 
 function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile) => void; first?: boolean }) {
   const qc = useQueryClient();
@@ -472,19 +465,17 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
       />
 
       <label className="mt-4 block text-xs font-medium text-muted-foreground">Board</label>
-      <div className="mt-1 grid grid-cols-2 gap-2">
-        {BOARDS.map((b) => (
-          <button
-            key={b.value}
-            onClick={() => { setBoard(b.value); const opts = classLevelsFor(b.value); if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value); }}
-            className={`rounded-xl border px-3 py-2 text-sm transition ${
-              board === b.value ? "border-primary bg-primary/15 text-primary" : "border-border bg-card"
-            }`}
-          >
-            {b.label}
-          </button>
-        ))}
+      <div className="mt-1">
+        <BoardPicker
+          board={board}
+          onChange={(b) => {
+            setBoard(b);
+            const opts = classLevelsFor(b);
+            if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value);
+          }}
+        />
       </div>
+
 
       <label className="mt-4 block text-xs font-medium text-muted-foreground">Class</label>
       <select
@@ -578,19 +569,17 @@ function EditProfile({
       />
 
       <label className="mt-4 block text-xs font-medium text-muted-foreground">Board</label>
-      <div className="mt-1 grid grid-cols-2 gap-2">
-        {BOARDS.map((b) => (
-          <button
-            key={b.value}
-            onClick={() => { setBoard(b.value); const opts = classLevelsFor(b.value); if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value); }}
-            className={`rounded-xl border px-3 py-2 text-sm transition ${
-              board === b.value ? "border-primary bg-primary/15 text-primary" : "border-border bg-card"
-            }`}
-          >
-            {b.label}
-          </button>
-        ))}
+      <div className="mt-1">
+        <BoardPicker
+          board={board}
+          onChange={(b) => {
+            setBoard(b);
+            const opts = classLevelsFor(b);
+            if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value);
+          }}
+        />
       </div>
+
 
       <label className="mt-4 block text-xs font-medium text-muted-foreground">Class</label>
       <select
