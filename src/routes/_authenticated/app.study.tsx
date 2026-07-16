@@ -1945,6 +1945,17 @@ function PaperAnswerArea({
 
   return (
     <div className="mt-4">
+      {/* Hidden input is mounted unconditionally so its ref is available in
+          both "type it" and "photo" modes — otherwise tapping the 📸 tab in
+          text mode hits a null ref and nothing happens. */}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        hidden
+        onChange={onPhotoPick}
+      />
       <div className="mb-2 flex items-center gap-1.5">
         <button
           type="button"
@@ -1957,7 +1968,7 @@ function PaperAnswerArea({
         </button>
         <button
           type="button"
-          onClick={() => { if (mode !== "photo") photoInputRef.current?.click(); }}
+          onClick={() => photoInputRef.current?.click()}
           className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
             mode === "photo" ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground"
           }`}
@@ -1982,14 +1993,7 @@ function PaperAnswerArea({
         </>
       ) : (
         <div>
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            hidden
-            onChange={onPhotoPick}
-          />
+
           {photo ? (
             <div className="relative">
               <img
