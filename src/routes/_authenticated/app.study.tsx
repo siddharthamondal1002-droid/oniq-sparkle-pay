@@ -1383,8 +1383,10 @@ function PaperModal({
       })).filter((s) => s.items.length > 0)
     : [];
 
-  return (
+  if (typeof document === "undefined") return null;
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-background text-foreground">
+
       {/* ---- Sticky top bar ---- */}
       <div
         className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur"
