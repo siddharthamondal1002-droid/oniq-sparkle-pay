@@ -261,6 +261,7 @@ Deno.serve(async (req) => {
       const options = Array.isArray(q.options) ? q.options.slice(0, 4).map((o) => String(o)) : [];
       const ci = Number(q.correct_index);
       if (!q.question || options.length !== 4 || !Number.isInteger(ci) || ci < 0 || ci > 3) {
+        console.warn(`study-paper-generate: bad mcq item i=${i} totalMarks=${totalMarks} subject="${subject}"`);
         return json(200, { source: "unavailable", reason: "bad mcq item" });
       }
       stored.push({
