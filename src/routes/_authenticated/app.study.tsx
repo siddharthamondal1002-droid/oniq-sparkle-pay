@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Send, Paperclip, X, Camera, Plus, Trash2, Pencil, Check, BarChart3 } from "lucide-react";
@@ -1355,6 +1355,7 @@ function PaperModal({
   const [questions, setQuestions] = useState<PaperQClient[] | null>(null);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, PaperDraft>>({});
+  const [reattachIds, setReattachIds] = useState<Set<string>>(new Set());
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [phase, setPhase] = useState<"answering" | "grading" | "done">("answering");
   const [confirm, setConfirm] = useState<null | "submit" | "close">(null);
@@ -1365,6 +1366,22 @@ function PaperModal({
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const finishedRef = useRef(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [savedTick, setSavedTick] = useState(0);
+  const [resumeOffer, setResumeOffer] = useState<
+    | null
+    | {
+        paperId: string;
+        totalMarks: number;
+        answered: number;
+        total: number;
+        questions: PaperQClient[];
+        drafts: Record<string, PaperDraft>;
+        reattach: Set<string>;
+        updatedAt: string;
+      }
+  >(null);
+  const [downloadSheet, setDownloadSheet] = useState(false);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -1389,37 +1406,92 @@ function PaperModal({
     };
   }, []);
 
+  const generateFresh = useCallback(async (): Promise<void> => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("study-paper-generate", {
+        body: {
+          profile: { board: profile.board, classLevel: profile.class_level },
+          profileId: profile.id,
+          subject,
+          totalMarks,
+        },
+      });
+      if (error) throw error;
+      const d = data as { source?: string; paper_id?: string; questions?: PaperQClient[]; reason?: string };
+      if (d?.source === "paper" && d.paper_id && Array.isArray(d.questions) && d.questions.length > 0) {
+        setPaperId(d.paper_id);
+        setQuestions(d.questions);
+        setDrafts({});
+        setReattachIds(new Set());
+        setCurrentIdx(0);
+      } else {
+        setErrorMsg("couldn't build that paper — try again 🌿");
+      }
+    } catch {
+      setErrorMsg("couldn't build that paper — try again 🌿");
+    } finally {
+      setLoading(false);
+    }
+  }, [profile.id, profile.board, profile.class_level, subject, totalMarks]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setErrorMsg(null);
+      // Try resume first: same-subject, same-total-marks, in_progress row.
       try {
-        const { data, error } = await supabase.functions.invoke("study-paper-generate", {
-          body: {
-            profile: { board: profile.board, classLevel: profile.class_level },
-            profileId: profile.id,
-            subject,
-            totalMarks,
-          },
+        const { data: res } = await supabase.functions.invoke("study-paper-resume", {
+          body: { profile_id: profile.id, subject },
         });
         if (cancelled) return;
-        if (error) throw error;
-        const d = data as { source?: string; paper_id?: string; questions?: PaperQClient[]; reason?: string };
-        if (d?.source === "paper" && d.paper_id && Array.isArray(d.questions) && d.questions.length > 0) {
-          setPaperId(d.paper_id);
-          setQuestions(d.questions);
-        } else {
-          setErrorMsg("couldn't build that paper — try again 🌿");
+        const r = res as {
+          found?: boolean;
+          paper_id?: string;
+          total_marks?: number;
+          questions?: PaperQClient[];
+          draft_answers?: Record<string, unknown>;
+          updated_at?: string;
+        };
+        if (
+          r?.found &&
+          r.paper_id &&
+          Array.isArray(r.questions) &&
+          r.questions.length > 0 &&
+          r.total_marks === totalMarks
+        ) {
+          // Hydrate saved drafts. Text drafts fill in; photo drafts flag for reattach.
+          const map: Record<string, PaperDraft> = {};
+          const reattach = new Set<string>();
+          for (const [qid, d] of Object.entries(r.draft_answers ?? {})) {
+            const dd = d as { kind?: string; value?: unknown };
+            if (dd?.kind === "text" && typeof dd.value === "string" && dd.value.length > 0) {
+              map[qid] = { kind: "text", value: dd.value };
+            } else if (dd?.kind === "photo") {
+              reattach.add(qid);
+            }
+          }
+          setResumeOffer({
+            paperId: r.paper_id,
+            totalMarks: r.total_marks,
+            answered: Object.keys(map).length + reattach.size,
+            total: r.questions.length,
+            questions: r.questions,
+            drafts: map,
+            reattach,
+            updatedAt: r.updated_at ?? "",
+          });
+          setLoading(false);
+          return;
         }
-      } catch {
-        if (!cancelled) setErrorMsg("couldn't build that paper — try again 🌿");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      } catch { /* resume is best-effort; fall through to generate */ }
+      if (!cancelled) await generateFresh();
     })();
     return () => { cancelled = true; };
-  }, [profile.id, profile.board, profile.class_level, subject, totalMarks]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id, subject, totalMarks]);
 
   // Revoke object URLs on unmount.
   useEffect(() => {
@@ -1427,6 +1499,7 @@ function PaperModal({
       Object.values(drafts).forEach((d) => {
         if (d.kind === "photo") URL.revokeObjectURL(d.previewUrl);
       });
+      Object.values(saveTimers.current).forEach((t) => clearTimeout(t));
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1445,6 +1518,27 @@ function PaperModal({
 
   const answeredCount = questions ? questions.filter((qq) => isAnswered(qq.id)).length : 0;
 
+  // Debounced autosave (~800ms). Best-effort, silent on failure. Only text
+  // drafts persist their content; photo drafts persist a marker (bytes stay
+  // local until submit).
+  function scheduleSave(qid: string, next: PaperDraft | null) {
+    if (!paperId) return;
+    if (saveTimers.current[qid]) clearTimeout(saveTimers.current[qid]);
+    saveTimers.current[qid] = setTimeout(async () => {
+      let payload: null | { kind: "text"; value: string } | { kind: "photo"; attached: true } = null;
+      if (next && next.kind === "text") payload = { kind: "text", value: next.value };
+      else if (next && next.kind === "photo") payload = { kind: "photo", attached: true };
+      // MCQ picks and empty drafts don't persist per spec.
+      if (next && next.kind === "mcq") return;
+      try {
+        await supabase.functions.invoke("study-paper-save-draft", {
+          body: { paper_id: paperId, question_id: qid, draft: payload },
+        });
+        setSavedTick((n) => n + 1);
+      } catch { /* silent */ }
+    }, 800);
+  }
+
   function setDraft(qid: string, next: PaperDraft | null) {
     setDrafts((prev) => {
       const copy = { ...prev };
@@ -1456,6 +1550,17 @@ function PaperModal({
       else copy[qid] = next;
       return copy;
     });
+    // Once the student attaches or edits a real answer, the "reattach"
+    // marker for that question is cleared.
+    if (next) {
+      setReattachIds((prev) => {
+        if (!prev.has(qid)) return prev;
+        const nx = new Set(prev);
+        nx.delete(qid);
+        return nx;
+      });
+    }
+    scheduleSave(qid, next);
   }
 
   async function handlePhotoPick(qid: string, e: React.ChangeEvent<HTMLInputElement>) {
@@ -1471,6 +1576,31 @@ function PaperModal({
       toast.error("couldn't read that photo");
     }
   }
+
+  function acceptResume() {
+    if (!resumeOffer) return;
+    setPaperId(resumeOffer.paperId);
+    setQuestions(resumeOffer.questions);
+    setDrafts(resumeOffer.drafts);
+    setReattachIds(resumeOffer.reattach);
+    setCurrentIdx(0);
+    setResumeOffer(null);
+    setLoading(false);
+  }
+
+  async function declineResume() {
+    if (!resumeOffer) return;
+    // Best-effort abandon of the old row so future resume checks skip it.
+    try {
+      await supabase.functions.invoke("study-paper-finish", {
+        body: { paper_id: resumeOffer.paperId, action: "abandon" },
+      });
+    } catch { /* best-effort */ }
+    setResumeOffer(null);
+    await generateFresh();
+  }
+
+
 
   async function runBatchGrading() {
     if (!questions || !paperId || phase === "grading") return;
@@ -1561,6 +1691,130 @@ function PaperModal({
       })).filter((s) => s.items.length > 0)
     : [];
 
+  // -------- Printable / downloadable paper --------
+  function buildPaperHtml(): string {
+    const qs = questions ?? [];
+    const boardLbl = BOARD_UPPER[profile.board];
+    const clsLbl =
+      profile.class_level === "ug" ? "Undergraduate"
+      : profile.class_level === "pg" ? "Postgraduate"
+      : profile.class_level === "drop" ? "Drop year"
+      : profile.class_level === "aspirant" ? "Aspirant"
+      : `Class ${profile.class_level}`;
+    const time = timeHintFor(totalMarks);
+    const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+    const sections = (["mcq", "short", "long"] as const)
+      .map((t) => ({ t, info: sectionForType(t), items: qs.filter((qq) => qq.type === t) }))
+      .filter((s) => s.items.length > 0);
+    let sectionsHtml = "";
+    let counter = 0;
+    for (const s of sections) {
+      sectionsHtml += `<h2 class="section">${esc(s.info.label)}</h2>`;
+      for (const qq of s.items) {
+        counter++;
+        sectionsHtml += `<div class="q"><div class="qhead"><span class="qn">Q${counter}.</span> <span class="qm">[${qq.marks} ${qq.marks === 1 ? "mark" : "marks"}]</span></div><div class="qbody">${esc(qq.question)}</div>`;
+        if (qq.type === "mcq") {
+          sectionsHtml += '<ol type="A" class="opts">';
+          for (const opt of qq.options) sectionsHtml += `<li>${esc(opt)}</li>`;
+          sectionsHtml += "</ol>";
+        } else if (qq.type === "short") {
+          sectionsHtml += '<div class="lines">' + '<div class="line"></div>'.repeat(4) + "</div>";
+        } else {
+          sectionsHtml += '<div class="lines">' + '<div class="line"></div>'.repeat(10) + "</div>";
+        }
+        sectionsHtml += "</div>";
+      }
+    }
+    return `<!doctype html>
+<html><head><meta charset="utf-8"><title>${esc(subject)} — ${totalMarks} marks</title>
+<style>
+  @page { size: A4; margin: 18mm; }
+  * { box-sizing: border-box; }
+  html, body { background: #fff; color: #111; font-family: Georgia, "Times New Roman", serif; margin: 0; padding: 0; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 24px; }
+  header { text-align: center; border-bottom: 1px solid #999; padding-bottom: 10px; margin-bottom: 16px; }
+  header .board { font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700; }
+  header .cls { font-size: 10px; letter-spacing: 0.15em; text-transform: uppercase; color: #555; margin-top: 2px; }
+  header .meta { font-size: 12px; margin-top: 6px; display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; }
+  header .meta b { font-weight: 700; }
+  h2.section { font-size: 12px; letter-spacing: 0.15em; text-transform: uppercase; text-align: center; margin: 18px 0 8px; border-top: 1px dashed #bbb; padding-top: 10px; font-weight: 700; }
+  .q { margin: 10px 0 14px; page-break-inside: avoid; }
+  .qhead { display: flex; justify-content: space-between; font-size: 12px; color: #444; }
+  .qn { font-weight: 700; color: #111; }
+  .qm { font-variant-numeric: tabular-nums; }
+  .qbody { font-size: 14px; line-height: 1.5; margin-top: 3px; white-space: pre-wrap; }
+  ol.opts { margin: 6px 0 0 22px; font-size: 13px; line-height: 1.7; }
+  .lines { margin-top: 6px; }
+  .line { height: 22px; border-bottom: 1px solid #bbb; }
+  footer { margin-top: 20px; text-align: center; font-size: 10px; color: #888; }
+  @media print { .noprint { display: none !important; } }
+</style></head>
+<body><div class="wrap">
+  <header>
+    <div class="board">${esc(boardLbl)}</div>
+    <div class="cls">${esc(clsLbl)}</div>
+    <div class="meta"><span><b>Subject:</b> ${esc(subject)}</span><span><b>Max Marks:</b> ${totalMarks}</span><span><b>Time:</b> ${esc(time)}</span></div>
+  </header>
+  ${sectionsHtml}
+  <footer>— End of paper —</footer>
+  <div class="noprint" style="margin-top:16px;text-align:center;">
+    <button onclick="window.print()" style="padding:10px 18px;font-size:14px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;cursor:pointer">🖨️ Print / Save as PDF</button>
+  </div>
+</div></body></html>`;
+  }
+
+  async function doPrintInApp() {
+    const html = buildPaperHtml();
+    // Try opening a new window (works reliably in desktop browsers).
+    let w: Window | null = null;
+    try { w = window.open("", "_blank"); } catch { w = null; }
+    if (w) {
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      setTimeout(() => { try { w!.focus(); w!.print(); } catch { /* ignore */ } }, 500);
+      setDownloadSheet(false);
+      return;
+    }
+    // Native WebView: render via hidden iframe and call print on that frame.
+    // This is best-effort — some Android WebView builds silently ignore print.
+    try {
+      const iframe = document.createElement("iframe");
+      iframe.setAttribute("aria-hidden", "true");
+      Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
+      document.body.appendChild(iframe);
+      const doc = iframe.contentDocument;
+      if (!doc) throw new Error("no doc");
+      doc.open();
+      doc.write(html);
+      doc.close();
+      setTimeout(() => {
+        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch { /* ignore */ }
+        setTimeout(() => iframe.remove(), 60_000);
+      }, 500);
+      setDownloadSheet(false);
+      toast.success("if nothing happened, try 'open in browser' below");
+    } catch {
+      toast.error("in-app print not available — try 'open in browser'");
+    }
+  }
+
+  async function doOpenInBrowser() {
+    const html = buildPaperHtml();
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    setDownloadSheet(false);
+    // Prefer Capacitor Browser on native; fall back to window.open on web.
+    try {
+      const mod = await import(/* @vite-ignore */ "@capacitor/browser");
+      await mod.Browser.open({ url, presentationStyle: "popover", toolbarColor: "#0E0F13" });
+    } catch {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+    // Keep the objectURL alive for a while so the browser can load it.
+    setTimeout(() => URL.revokeObjectURL(url), 5 * 60 * 1000);
+  }
+
   if (!portalHost) return null;
   return createPortal(
     <div
@@ -1582,13 +1836,24 @@ function PaperModal({
           <div className="truncate font-display text-sm font-bold">{subject} · {totalMarks} marks</div>
         </div>
         {phase === "answering" ? (
-          <button
-            onClick={() => setConfirm("submit")}
-            disabled={loading || !!errorMsg || !questions}
-            className="shrink-0 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
-          >
-            submit paper
-          </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <button
+              onClick={() => setDownloadSheet(true)}
+              disabled={loading || !!errorMsg || !questions}
+              aria-label="Download or print paper"
+              title="Download / print"
+              className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground disabled:opacity-50"
+            >
+              <span aria-hidden className="text-base leading-none">📄</span>
+            </button>
+            <button
+              onClick={() => setConfirm("submit")}
+              disabled={loading || !!errorMsg || !questions}
+              className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              submit paper
+            </button>
+          </div>
         ) : (
           <div className="w-[92px]" />
         )}
@@ -1729,7 +1994,7 @@ function PaperModal({
                 </button>
               </div>
               <div className="mt-1.5 text-center text-[10px] text-muted-foreground">
-                {answeredCount}/{totalQuestions} answered
+                {answeredCount}/{totalQuestions} answered {savedTick > 0 && <span className="ml-1 text-primary/70">· saved ✓</span>}
               </div>
             </div>
 
@@ -1779,6 +2044,7 @@ function PaperModal({
                 onDraft={(next) => setDraft(q.id, next)}
                 onPhotoPick={(e) => handlePhotoPick(q.id, e)}
                 photoInputRef={photoInputRef}
+                needsReattach={reattachIds.has(q.id)}
               />
 
               {/* -------- Prev / Next -------- */}
@@ -1898,6 +2164,75 @@ function PaperModal({
           </div>
         </div>
       )}
+
+      {/* ---- Resume-in-progress offer ---- */}
+      {resumeOffer && (
+        <div className="fixed inset-0 z-[95] grid place-items-center bg-black/75 p-4">
+          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl">
+            <div className="text-3xl">📄</div>
+            <div className="mt-2 font-display text-lg font-bold">resume your paper?</div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              you have a <span className="font-semibold text-foreground">{subject}</span> paper
+              ({resumeOffer.totalMarks} marks) in progress — {resumeOffer.answered}/{resumeOffer.total} answered.
+            </p>
+            {resumeOffer.reattach.size > 0 && (
+              <p className="mt-1 text-[11px] text-yellow-300/90">
+                {resumeOffer.reattach.size} photo answer{resumeOffer.reattach.size === 1 ? "" : "s"} will need to be reattached.
+              </p>
+            )}
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => void declineResume()}
+                className="flex-1 rounded-xl border border-border py-3 text-sm text-muted-foreground"
+              >
+                start fresh
+              </button>
+              <button
+                onClick={acceptResume}
+                className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+              >
+                resume
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ---- Download / print sheet ---- */}
+      {downloadSheet && (
+        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" onClick={() => setDownloadSheet(false)}>
+          <div
+            className="w-full max-w-sm rounded-t-3xl border border-border bg-card p-5 shadow-2xl sm:rounded-3xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="font-display text-lg font-bold">download the paper 📄</div>
+            <p className="mt-1 text-xs text-muted-foreground">questions only — no answers included. save as PDF or print on paper.</p>
+            <div className="mt-4 space-y-2">
+              <button
+                onClick={() => void doPrintInApp()}
+                className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+              >
+                🖨️ print / save as PDF
+              </button>
+              <button
+                onClick={() => void doOpenInBrowser()}
+                className="w-full rounded-xl border border-border py-3 text-sm"
+              >
+                🌐 open in browser to save as PDF
+              </button>
+              <p className="text-[10px] leading-relaxed text-muted-foreground">
+                on some Android versions in-app print doesn't work reliably — if the first option does nothing, use the browser option (opens Chrome, then use Chrome's Share → Print → Save as PDF).
+              </p>
+              <button
+                onClick={() => setDownloadSheet(false)}
+                className="w-full rounded-xl border border-border py-2 text-xs text-muted-foreground"
+              >
+                cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     portalHost
   );
@@ -1909,12 +2244,14 @@ function PaperAnswerArea({
   onDraft,
   onPhotoPick,
   photoInputRef,
+  needsReattach = false,
 }: {
   q: PaperQClient;
   draft: PaperDraft | undefined;
   onDraft: (next: PaperDraft | null) => void;
   onPhotoPick: (e: React.ChangeEvent<HTMLInputElement>) => void;
   photoInputRef: React.MutableRefObject<HTMLInputElement | null>;
+  needsReattach?: boolean;
 }) {
   if (q.type === "mcq") {
     const pick = draft && draft.kind === "mcq" ? draft.pick : null;
@@ -1976,6 +2313,19 @@ function PaperAnswerArea({
           📸 photo of your written answer
         </button>
       </div>
+
+      {needsReattach && !draft && (
+        <div className="mb-2 flex items-center justify-between gap-2 rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-3 py-2 text-[11px] text-yellow-200">
+          <span>📸 photo attached last time — reattach to submit this one.</span>
+          <button
+            type="button"
+            onClick={() => photoInputRef.current?.click()}
+            className="shrink-0 rounded-full border border-yellow-400/40 bg-yellow-500/10 px-2 py-1 text-[10px] font-semibold text-yellow-100"
+          >
+            reattach
+          </button>
+        </div>
+      )}
 
       {mode === "text" ? (
         <>

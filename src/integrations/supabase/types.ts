@@ -1803,6 +1803,7 @@ export type Database = {
       study_papers: {
         Row: {
           created_at: string
+          draft_answers: Json
           id: string
           marks_scored: number | null
           profile_id: string
@@ -1810,9 +1811,11 @@ export type Database = {
           status: string
           subject: string
           total_marks: number
+          updated_at: string
         }
         Insert: {
           created_at?: string
+          draft_answers?: Json
           id?: string
           marks_scored?: number | null
           profile_id: string
@@ -1820,9 +1823,11 @@ export type Database = {
           status?: string
           subject: string
           total_marks: number
+          updated_at?: string
         }
         Update: {
           created_at?: string
+          draft_answers?: Json
           id?: string
           marks_scored?: number | null
           profile_id?: string
@@ -1830,6 +1835,7 @@ export type Database = {
           status?: string
           subject?: string
           total_marks?: number
+          updated_at?: string
         }
         Relationships: [
           {

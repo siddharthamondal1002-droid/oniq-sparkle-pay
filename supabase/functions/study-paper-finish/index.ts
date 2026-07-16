@@ -24,13 +24,17 @@ Deno.serve(async (req) => {
     return json(401, { error: "unauthorized" });
   }
 
-  let body: { paper_id?: string; marks_scored?: number; total_marks?: number; subject?: string } = {};
+  let body: { paper_id?: string; marks_scored?: number; total_marks?: number; subject?: string; action?: string } = {};
   try { body = await req.json(); } catch { /* ignore */ }
   const paperId = String(body.paper_id ?? "").trim();
+  const action = String(body.action ?? "complete").trim();
   const marksScored = Math.max(0, Math.round(Number(body.marks_scored ?? 0)));
   const totalMarks = Math.round(Number(body.total_marks ?? 0));
   const subject = String(body.subject ?? "").trim().slice(0, 80);
-  if (!paperId || !totalMarks || !subject) return json(200, { source: "unavailable", reason: "missing fields" });
+  if (!paperId) return json(200, { source: "unavailable", reason: "missing fields" });
+  if (action === "complete" && (!totalMarks || !subject)) {
+    return json(200, { source: "unavailable", reason: "missing fields" });
+  }
 
   const admin = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
@@ -63,6 +67,22 @@ Deno.serve(async (req) => {
     }
   } catch {
     return json(500, { source: "unavailable", reason: "auth check failed" });
+  }
+
+  // "abandon" branch: reuses the same JWT + ownership check as "complete";
+  // just flips the paper's status so the resume flow won't offer it again
+  // and doesn't record a quiz_attempts row.
+  if (action === "abandon") {
+    try {
+      const { error: upErr } = await admin
+        .from("study_papers")
+        .update({ status: "abandoned" })
+        .eq("id", paperId);
+      if (upErr) console.warn("study-paper-finish: abandon err", upErr.message);
+    } catch (e) {
+      console.warn("study-paper-finish: abandon exception", (e as Error).message);
+    }
+    return json(200, { ok: true, action: "abandon" });
   }
 
   const clampedMarks = Math.min(marksScored, paper.total_marks);
