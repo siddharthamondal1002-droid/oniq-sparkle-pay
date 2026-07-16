@@ -182,14 +182,18 @@ function StudyScreen() {
   const [editing, setEditing] = useState<LearnerProfile | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
+  const [mode, setMode] = useState<"school" | "govt">("school");
+
+  const schoolProfiles = (profiles ?? []).filter((p) => p.board !== "govt_exam");
+  const govtProfile = (profiles ?? []).find((p) => p.board === "govt_exam") ?? null;
 
   useEffect(() => {
-    if (profiles && profiles.length > 0 && !activeId) {
-      setActiveId(profiles[0].id);
+    if (schoolProfiles.length > 0 && !activeId) {
+      setActiveId(schoolProfiles[0].id);
     }
-  }, [profiles, activeId]);
+  }, [schoolProfiles, activeId]);
 
-  const active = profiles?.find((p) => p.id === activeId) ?? null;
+  const active = schoolProfiles.find((p) => p.id === activeId) ?? null;
 
   if (isLoading) {
     return (
@@ -199,9 +203,16 @@ function StudyScreen() {
     );
   }
 
+  // First-run: no profiles at all → keep the existing school setup as the entry.
   if (!profiles || profiles.length === 0) {
     return <SetupCard onCreated={(p) => setActiveId(p.id)} first />;
   }
+
+  const inGovt = mode === "govt";
+  const headerName = inGovt ? (govtProfile?.name ?? "Govt Exams") : (active?.name ?? "Study Buddy");
+  const headerSub = inGovt
+    ? (govtProfile ? `Govt Exams · ${govtProfile.class_level === "ug" ? "UG" : govtProfile.class_level === "pg" ? "PG" : govtProfile.class_level === "drop" ? "Drop year" : govtProfile.class_level === "aspirant" ? "Aspirant" : `Class ${govtProfile.class_level}`}` : "Competitive / govt exam prep")
+    : (active ? `${BOARD_UPPER[active.board]} · ${active.class_level === "ug" ? "UG" : active.class_level === "pg" ? "PG" : active.class_level === "drop" ? "Drop year" : active.class_level === "aspirant" ? "Aspirant" : `Class ${active.class_level}`}` : null);
 
   return (
     <div className="flex h-screen flex-col">
@@ -209,18 +220,12 @@ function StudyScreen() {
         <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-orange-400 to-pink-500 text-white">
-          <span className="text-base">📚</span>
+        <div className={`grid h-9 w-9 place-items-center rounded-xl text-white ${inGovt ? "bg-gradient-to-br from-amber-500 to-yellow-600" : "bg-gradient-to-br from-orange-400 to-pink-500"}`}>
+          <span className="text-base">{inGovt ? "🏛️" : "📚"}</span>
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-display text-base font-semibold truncate">
-            {active ? active.name : "Study Buddy"}
-          </div>
-          {active && (
-            <div className="text-[10px] text-muted-foreground">
-              {BOARD_UPPER[active.board]} · {active.class_level === "ug" ? "UG" : active.class_level === "pg" ? "PG" : active.class_level === "drop" ? "Drop year" : active.class_level === "aspirant" ? "Aspirant" : `Class ${active.class_level}`}
-            </div>
-          )}
+          <div className="font-display text-base font-semibold truncate">{headerName}</div>
+          {headerSub && <div className="text-[10px] text-muted-foreground">{headerSub}</div>}
         </div>
         <button
           onClick={() => setShowProgress(true)}
@@ -231,14 +236,14 @@ function StudyScreen() {
         </button>
       </header>
 
-      {/* Profile chips */}
+      {/* Profile chips + govt-exam tab */}
       <div className="flex items-center gap-2 overflow-x-auto border-b border-border px-4 py-2 no-scrollbar">
-        {profiles.map((p) => (
+        {schoolProfiles.map((p) => (
           <button
             key={p.id}
-            onClick={() => setActiveId(p.id)}
+            onClick={() => { setMode("school"); setActiveId(p.id); }}
             className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
-              p.id === activeId
+              !inGovt && p.id === activeId
                 ? "border-primary/40 bg-primary/15 text-primary"
                 : "border-border bg-card text-muted-foreground"
             }`}
@@ -246,10 +251,29 @@ function StudyScreen() {
             {p.name}
           </button>
         ))}
-        {active && (
+        <button
+          onClick={() => setMode("govt")}
+          className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition ${
+            inGovt
+              ? "border-amber-500/60 bg-amber-500/20 text-amber-300"
+              : "border-amber-500/30 bg-amber-500/10 text-amber-200/80"
+          }`}
+        >
+          🏛️ govt exams
+        </button>
+        {!inGovt && active && (
           <button
             onClick={() => setEditing(active)}
             aria-label="Edit profile"
+            className="shrink-0 grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground"
+          >
+            <Pencil className="h-3 w-3" />
+          </button>
+        )}
+        {inGovt && govtProfile && (
+          <button
+            onClick={() => setEditing(govtProfile)}
+            aria-label="Edit govt exam profile"
             className="shrink-0 grid h-7 w-7 place-items-center rounded-full border border-border bg-card text-muted-foreground"
           >
             <Pencil className="h-3 w-3" />
@@ -264,13 +288,24 @@ function StudyScreen() {
         </button>
       </div>
 
-      {active && <TutorChat profile={active} />}
+      {inGovt ? (
+        govtProfile ? (
+          <TutorChat profile={govtProfile} />
+        ) : (
+          <div className="flex-1 overflow-y-auto p-4">
+            <GovtSetupCard onCreated={() => { /* profile list will refetch; stay in govt mode */ }} />
+          </div>
+        )
+      ) : (
+        active && <TutorChat profile={active} />
+      )}
 
       {showAdd && (
         <ModalCard onClose={() => setShowAdd(false)}>
           <SetupCard
             onCreated={(p) => {
-              setActiveId(p.id);
+              if (p.board === "govt_exam") setMode("govt");
+              else { setMode("school"); setActiveId(p.id); }
               setShowAdd(false);
             }}
           />
@@ -283,7 +318,7 @@ function StudyScreen() {
             profile={editing}
             onDone={() => setEditing(null)}
             onDeleted={() => {
-              setActiveId(null);
+              if (editing.board !== "govt_exam") setActiveId(null);
               setEditing(null);
             }}
           />
@@ -298,6 +333,81 @@ function StudyScreen() {
     </div>
   );
 }
+
+function GovtSetupCard({ onCreated }: { onCreated: (p: LearnerProfile) => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [classLevel, setClassLevel] = useState<ClassLevel>("aspirant");
+  const options = classLevelsFor("govt_exam");
+
+  const create = useMutation({
+    mutationFn: async () => {
+      const trimmed = name.trim();
+      if (!trimmed) throw new Error("please enter a name");
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) throw new Error("not signed in");
+      const { data, error } = await (supabase as unknown as {
+        from: (t: string) => {
+          insert: (row: unknown) => {
+            select: (c: string) => {
+              single: () => Promise<{ data: LearnerProfile | null; error: Error | null }>;
+            };
+          };
+        };
+      })
+        .from("learner_profiles")
+        .insert({ user_id: u.user.id, name: trimmed, board: "govt_exam", class_level: classLevel })
+        .select("id, name, board, class_level, created_at")
+        .single();
+      if (error || !data) throw error ?? new Error("failed");
+      return data;
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["learner-profiles"] });
+      onCreated(data);
+      toast.success("govt exam prep unlocked 🏛️");
+    },
+    onError: (e) => toast.error((e as Error).message || "couldn't set up"),
+  });
+
+  return (
+    <div className="mx-auto max-w-sm rounded-3xl border border-amber-500/30 bg-card p-6 shadow-2xl">
+      <div className="text-3xl">🏛️</div>
+      <h2 className="mt-2 font-display text-xl font-bold">Govt / competitive exam prep</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        General foundation shared across UPSC, SSC, Banking, Railways, State PSCs — GK, quant, reasoning, English.
+      </p>
+
+      <label className="mt-5 block text-xs font-medium text-muted-foreground">Your name</label>
+      <input
+        value={name}
+        onChange={(e) => setName(e.target.value.slice(0, 40))}
+        placeholder="e.g. Aditya"
+        className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
+      />
+
+      <label className="mt-4 block text-xs font-medium text-muted-foreground">Level</label>
+      <select
+        value={classLevel}
+        onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
+        className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
+      >
+        {options.map((c) => (
+          <option key={c.value} value={c.value}>{c.label}</option>
+        ))}
+      </select>
+
+      <button
+        onClick={() => create.mutate()}
+        disabled={create.isPending || !name.trim()}
+        className="mt-6 w-full rounded-xl bg-amber-500 py-3 text-sm font-semibold text-amber-950 disabled:opacity-50"
+      >
+        {create.isPending ? "Setting up…" : "Start prep"}
+      </button>
+    </div>
+  );
+}
+
 
 function ModalCard({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
