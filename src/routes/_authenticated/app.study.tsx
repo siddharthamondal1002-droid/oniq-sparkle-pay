@@ -1208,8 +1208,32 @@ function PaperModal({
   const [results, setResults] = useState<Record<string, PaperGradeEntry>>({});
   const [totalScored, setTotalScored] = useState(0);
   const [finishing, setFinishing] = useState(false);
+  const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const finishedRef = useRef(false);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const host = document.createElement("div");
+    host.setAttribute("data-paper-modal-host", "true");
+    Object.assign(host.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      right: "0",
+      bottom: "0",
+      width: "100vw",
+      height: "100dvh",
+      zIndex: "999",
+      overflow: "hidden",
+    });
+    document.documentElement.appendChild(host);
+    setPortalHost(host);
+    return () => {
+      host.remove();
+      setPortalHost(null);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1383,9 +1407,13 @@ function PaperModal({
       })).filter((s) => s.items.length > 0)
     : [];
 
-  if (typeof document === "undefined") return null;
+  if (!portalHost) return null;
   return createPortal(
-    <div className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-background text-foreground">
+    <div
+      className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-background text-foreground"
+      data-testid="paper-modal-overlay"
+      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 999 }}
+    >
 
       {/* ---- Sticky top bar ---- */}
       <div
@@ -1715,7 +1743,7 @@ function PaperModal({
         </div>
       )}
     </div>,
-    document.body
+    portalHost
   );
 }
 
