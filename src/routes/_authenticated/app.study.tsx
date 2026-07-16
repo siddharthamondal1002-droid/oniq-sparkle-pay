@@ -366,7 +366,7 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
         {BOARDS.map((b) => (
           <button
             key={b.value}
-            onClick={() => setBoard(b.value)}
+            onClick={() => { setBoard(b.value); const opts = classLevelsFor(b.value); if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value); }}
             className={`rounded-xl border px-3 py-2 text-sm transition ${
               board === b.value ? "border-primary bg-primary/15 text-primary" : "border-border bg-card"
             }`}
@@ -472,7 +472,7 @@ function EditProfile({
         {BOARDS.map((b) => (
           <button
             key={b.value}
-            onClick={() => setBoard(b.value)}
+            onClick={() => { setBoard(b.value); const opts = classLevelsFor(b.value); if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value); }}
             className={`rounded-xl border px-3 py-2 text-sm transition ${
               board === b.value ? "border-primary bg-primary/15 text-primary" : "border-border bg-card"
             }`}
