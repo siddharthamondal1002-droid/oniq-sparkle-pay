@@ -56,7 +56,7 @@ function AppShell() {
             "radial-gradient(ellipse at 20% 0%, color-mix(in oklab, var(--primary) 12%, transparent) 0%, transparent 55%), radial-gradient(ellipse at 80% 100%, color-mix(in oklab, var(--primary) 8%, transparent) 0%, transparent 60%), var(--background)",
         }}
       />
-    <div className={`relative mx-auto flex min-h-screen max-w-md md:max-w-lg lg:max-w-xl flex-col bg-background ${showNav ? "pb-28" : "pb-4"}`}>
+    <div className={`relative mx-auto flex min-h-[100dvh] max-w-md md:max-w-lg lg:max-w-xl flex-col bg-background ${showNav ? "pb-28" : "pb-4"}`}>
       {wallpaper && (
         <div className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-md md:max-w-lg lg:max-w-xl">
           <img
