@@ -526,10 +526,28 @@ function ChatThread() {
 
 
 
-  // Autoscroll on new messages.
+  // Instant jump to latest on conversation open — like WhatsApp/iMessage.
+  // Fires once messages have loaded for the current conversation (or when
+  // switching between conversations) so the user never sees a smooth scroll
+  // past old messages on initial render.
+  const initialScrollDoneRef = useRef<string | null>(null);
   useEffect(() => {
+    if (initialScrollDoneRef.current === conversationId) return;
+    if (messages.length === 0) return;
+    // Double rAF so DOM has laid out the message list before we jump.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "auto", block: "end" });
+        initialScrollDoneRef.current = conversationId;
+      });
+    });
+  }, [conversationId, messages.length]);
+
+  // Autoscroll on new messages (only after the initial jump has happened).
+  useEffect(() => {
+    if (initialScrollDoneRef.current !== conversationId) return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, peerTyping]);
+  }, [conversationId, messages.length, peerTyping]);
 
   useEffect(() => {
     inputRef.current?.focus();
