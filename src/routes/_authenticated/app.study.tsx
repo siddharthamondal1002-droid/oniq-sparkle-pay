@@ -1638,11 +1638,6 @@ function SubjectSheet({
                   <div className="flex shrink-0 gap-1">
                     <SheetActionBtn
                       label="👁️"
-                      title="overview"
-                      onClick={() => onOverviewChapter(subject, c.chapter_title)}
-                    />
-                    <SheetActionBtn
-                      label="📖"
                       title="read chapter"
                       onClick={() => setNotesFor({ chapter: c.chapter_title, number: c.chapter_number })}
                     />
