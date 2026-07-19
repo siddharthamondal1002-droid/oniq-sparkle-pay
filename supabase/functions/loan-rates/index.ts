@@ -2,7 +2,7 @@
 // Uses Claude with web_search grounding (same pattern as market-ticker's rates lookup).
 // Rates vary by CIBIL score, tenure, and bank policy — we return RANGES, not fake single numbers.
 
-import { callClaude, corsHeaders, json } from "../_shared/llm.ts";
+import { corsHeaders, json } from "../_shared/llm.ts";
 
 const RATES_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
