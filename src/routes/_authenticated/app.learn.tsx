@@ -898,7 +898,17 @@ function ScoutPanel() {
             <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4">
               <div className="text-xs font-medium uppercase tracking-wider text-amber-300">🏆 best pick</div>
               <div className="mt-1 font-display text-base font-bold break-words">{data.top_pick.store}</div>
-              {data.top_pick.why && <div className="mt-1 text-xs text-amber-100/90 break-words">{data.top_pick.why}</div>}
+              {data.top_pick.why && <div className="mt-1 text-xs leading-relaxed text-amber-100/90 break-words">{data.top_pick.why}</div>}
+              {Array.isArray(data.top_pick.cross_checked) && data.top_pick.cross_checked.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] uppercase tracking-wider text-emerald-300/90">✓ confirmed via</span>
+                  {data.top_pick.cross_checked.slice(0, 5).map((src, i) => (
+                    <span key={i} className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200 break-words">
+                      {src}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {(() => {
