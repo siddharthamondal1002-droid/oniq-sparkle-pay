@@ -1641,6 +1641,11 @@ function SubjectSheet({
                       onClick={() => onOverviewChapter(subject, c.chapter_title)}
                     />
                     <SheetActionBtn
+                      label="📖"
+                      title="read chapter"
+                      onClick={() => setNotesFor({ chapter: c.chapter_title, number: c.chapter_number })}
+                    />
+                    <SheetActionBtn
                       label="💬"
                       title="chat"
                       active={isScoped}
