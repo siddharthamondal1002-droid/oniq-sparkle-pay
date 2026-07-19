@@ -160,7 +160,28 @@ export function UpiScannerOverlay({
 
       <div className="px-5 pb-8 pt-3 text-center text-xs text-white/70">
         point at any UPI QR — shop counters, PhonePe/GPay/Paytm stickers all work
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={decodingFile}
+            className="press inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+            data-testid="upi-scan-upload"
+          >
+            <ImagePlus className="h-4 w-4" />
+            {decodingFile ? "reading image…" : "upload QR 🖼️"}
+          </button>
+        </div>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onPickFile}
+      />
     </div>
   );
 }
+
