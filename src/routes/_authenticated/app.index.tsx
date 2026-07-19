@@ -978,9 +978,7 @@ function useGlanceCollapsed() {
 
 function GlanceCard() {
   const [collapsed, setCollapsed] = useGlanceCollapsed();
-  const [loanOpen, setLoanOpen] = useState(false);
-  const [loanTab, setLoanTab] = useState<LoanCategory["type"]>("home");
-  const openLoan = (t: LoanCategory["type"]) => { setLoanTab(t); setLoanOpen(true); };
+  const [openTab, setOpenTab] = useState<LoanCategory["type"] | null>(null);
 
   const { data: market } = useQuery<MarketData | null>({
     queryKey: ["market-ticker"],
@@ -993,8 +991,16 @@ function GlanceCard() {
     refetchInterval: 15 * 60 * 1000,
   });
 
-
-
+  const { data: loans, isLoading: loansLoading, isError: loansError } = useQuery<LoanRatesPayload | null>({
+    queryKey: ["loan-rates"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("loan-rates");
+      if (error) throw error;
+      return data as LoanRatesPayload;
+    },
+    enabled: openTab !== null,
+    staleTime: 12 * 60 * 60 * 1000,
+  });
 
   if (collapsed) {
     return (
@@ -1014,6 +1020,14 @@ function GlanceCard() {
   const gold = market?.gold?.pricePerGram ?? null;
   const silver = market?.silver?.pricePerGram ?? null;
 
+  const tabs: { t: LoanCategory["type"]; emoji: string; label: string }[] = [
+    { t: "home", emoji: "🏠", label: "Home" },
+    { t: "gold", emoji: "🪙", label: "Gold" },
+    { t: "car",  emoji: "🚗", label: "Car"  },
+    { t: "fd",   emoji: "🏦", label: "FD"   },
+  ];
+  const active = openTab ? (loans?.categories ?? []).find((c) => c.type === openTab) ?? null : null;
+
   return (
     <div
       className="mt-4 rounded-2xl border border-primary/20 p-3 fade-up"
@@ -1024,12 +1038,7 @@ function GlanceCard() {
       }}
     >
       <div className="flex items-start justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setLoanOpen(true)}
-          className="press grid flex-1 grid-cols-2 gap-2 text-left"
-          aria-label="Open loan & deposit rates"
-        >
+        <div className="grid flex-1 grid-cols-2 gap-2">
           <StatBox
             label="24K Gold"
             value={gold ? `₹${gold.toLocaleString("en-IN")}` : "—"}
@@ -1042,7 +1051,7 @@ function GlanceCard() {
             unit="/g"
             accent="#94A3B8"
           />
-        </button>
+        </div>
         <button
           onClick={() => setCollapsed(true)}
           aria-label="Hide glance card"
@@ -1053,26 +1062,65 @@ function GlanceCard() {
       </div>
 
       <div className="mt-3 grid grid-cols-4 gap-1.5">
-        {([
-          { t: "home", emoji: "🏠", label: "Home" },
-          { t: "gold", emoji: "🪙", label: "Gold" },
-          { t: "car",  emoji: "🚗", label: "Car"  },
-          { t: "fd",   emoji: "🏦", label: "FD"   },
-        ] as const).map((c) => (
-          <button
-            key={c.t}
-            onClick={() => openLoan(c.t)}
-            className="press rounded-lg border border-white/10 bg-black/25 px-2 py-1.5 text-[11px] font-semibold text-foreground hover:border-primary/40 hover:bg-primary/10"
-            aria-label={`Open ${c.label} loan rates`}
-          >
-            <span className="mr-1">{c.emoji}</span>{c.label}
-          </button>
-        ))}
+        {tabs.map((c) => {
+          const isOn = openTab === c.t;
+          return (
+            <button
+              key={c.t}
+              onClick={() => setOpenTab(isOn ? null : c.t)}
+              aria-expanded={isOn}
+              className={`press rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition-colors ${
+                isOn
+                  ? "border-primary bg-primary/20 text-primary"
+                  : "border-white/10 bg-black/25 text-foreground hover:border-primary/40 hover:bg-primary/10"
+              }`}
+            >
+              <span className="mr-1">{c.emoji}</span>{c.label}
+            </button>
+          );
+        })}
       </div>
-      <LoanRatesSheet open={loanOpen} initialTab={loanTab} onClose={() => setLoanOpen(false)} />
+
+      {openTab && (
+        <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-white/5 bg-black/30 p-2">
+          {loansLoading && (
+            <div className="py-6 text-center text-xs text-muted-foreground">loading rates…</div>
+          )}
+          {loansError && !loansLoading && (
+            <div className="py-6 text-center text-xs text-muted-foreground">
+              couldn't load rates right now — try again in a moment.
+            </div>
+          )}
+          {!loansLoading && !loansError && active && (
+            <div className="space-y-1.5">
+              {active.banks.map((b) => (
+                <div
+                  key={b.bank}
+                  className="rounded-lg border border-white/5 bg-black/25 px-3 py-2"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-semibold text-foreground">{b.bank}</div>
+                    <div className="font-display text-sm font-bold text-primary">{b.rateRange}</div>
+                  </div>
+                  {b.note && (
+                    <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{b.note}</div>
+                  )}
+                </div>
+              ))}
+              <div className="pt-1 text-[10px] leading-snug text-muted-foreground">
+                {loans?.disclaimer ?? DEFAULT_LOAN_DISCLAIMER}
+              </div>
+            </div>
+          )}
+          {!loansLoading && !loansError && !active && (
+            <div className="py-6 text-center text-xs text-muted-foreground">rates unavailable.</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
 
 type LoanBank = { bank: string; rateRange: string; note?: string };
 type LoanCategory = { type: "home" | "gold" | "car" | "fd"; label: string; banks: LoanBank[] };
