@@ -83,7 +83,7 @@ function FaithPage() {
               {section === "listen" && <ListenSection religion={religion} />}
               {section === "dates" && <DatesSection religion={religion} />}
               {section === "shop" && <ShopSection religion={religion} />}
-              {section === "watch" && (<><DevotionalLiveSection /><DevotionalRadioSection /></>)}
+              {section === "watch" && (<><DevotionalLiveSection religion={religion} /><DevotionalRadioSection religion={religion} /></>)}
             </div>
           </>
         )}
@@ -115,7 +115,14 @@ const FAITH_META: { id: FaithId; label: string }[] = [
   { id: "christian", label: "✝️ Christian" },
 ];
 
-function DevotionalLiveSection() {
+function religionToFaithId(religion: Religion | null): FaithId | null {
+  if (!religion) return null;
+  if (religion === "islam") return "islamic";
+  if (religion === "hindu" || religion === "sikh" || religion === "christian") return religion;
+  return null;
+}
+
+function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
   const [playing, setPlaying] = useState<LiveVideo | null>(null);
 
   const { data, isLoading } = useQuery({
@@ -173,7 +180,10 @@ function DevotionalLiveSection() {
         </div>
       ) : (
         <div className="space-y-5">
-          {FAITH_META.map((f) => {
+          {FAITH_META.filter((f) => {
+            const only = religionToFaithId(religion);
+            return only ? f.id === only : true;
+          }).map((f) => {
             const items = data.videos.filter((v) => v.faith === f.id);
             if (items.length === 0) return null;
             return (
@@ -219,7 +229,7 @@ function DevotionalLiveSection() {
 
 type RadioStation = { faith: FaithId; name: string; streamUrl: string; favicon: string | null; tags: string[] };
 
-function DevotionalRadioSection() {
+function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
   const [playing, setPlaying] = useState<string | null>(null);
   const audioRef = useMemo(() => ({ current: null as HTMLAudioElement | null }), []);
 
@@ -267,7 +277,10 @@ function DevotionalRadioSection() {
         <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">no reachable stations right now 📡</div>
       ) : (
         <div className="space-y-5">
-          {FAITH_META.map((f) => {
+          {FAITH_META.filter((f) => {
+            const only = religionToFaithId(religion);
+            return only ? f.id === only : true;
+          }).map((f) => {
             const items = stations.filter((s) => s.faith === f.id);
             if (items.length === 0) return null;
             return (
