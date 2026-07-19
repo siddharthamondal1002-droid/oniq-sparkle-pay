@@ -81,6 +81,57 @@ function RidesScreen() {
     if (w.SpeechRecognition || w.webkitSpeechRecognition) setMicSupported(true);
   }, []);
 
+  // Google Places Autocomplete — debounced. Fails silently → user can still
+  // press the search button (Mappls/Nominatim geocode) or type freely.
+  useEffect(() => {
+    const q = pickupQuery.trim();
+    if (q.length < 2 || !pickupEditing) { setPickupSuggests([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const near = pickup ? { lat: pickup.lat, lon: pickup.lon } : undefined;
+        const { suggestions } = await autocompleteFn({ data: { input: q, near } });
+        if (!cancelled) setPickupSuggests(suggestions);
+      } catch (e) {
+        if (!cancelled) setPickupSuggests([]);
+        console.warn("[places] pickup autocomplete failed", (e as Error)?.message);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [pickupQuery, pickupEditing, pickup, autocompleteFn]);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2 || destination) { setDestSuggests([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const near = pickup ? { lat: pickup.lat, lon: pickup.lon } : undefined;
+        const { suggestions } = await autocompleteFn({ data: { input: q, near } });
+        if (!cancelled) setDestSuggests(suggestions);
+      } catch (e) {
+        if (!cancelled) setDestSuggests([]);
+        console.warn("[places] destination autocomplete failed", (e as Error)?.message);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query, destination, pickup, autocompleteFn]);
+
+  async function resolveSuggest(s: PlaceSuggestion): Promise<Point | null> {
+    try {
+      const d = await detailsFn({ data: { placeId: s.placeId } });
+      return { lat: d.lat, lon: d.lon, label: d.label };
+    } catch (e) {
+      console.warn("[places] details failed, falling back to geocode", (e as Error)?.message);
+      const label = [s.label, s.secondary].filter(Boolean).join(", ");
+      const r = await geocode(label);
+      if (r[0]) return { lat: r[0].lat, lon: r[0].lon, label: r[0].label };
+      toast.error("Couldn't resolve that address — try another");
+      return null;
+    }
+  }
+
+
   // Default pickup = current phone location (native GPS on device, browser API on web)
   async function locateMe(fromTap = false) {
     setGeoState("locating");
