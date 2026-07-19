@@ -68,9 +68,12 @@ function ScanTab() {
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [scanning, setScanning] = useState(false);
   const [supported, setSupported] = useState(true);
   const [manual, setManual] = useState("");
+  const [decodingFile, setDecodingFile] = useState(false);
+
 
   useEffect(() => {
     // BarcodeDetector ships in Chromium (Android Chrome/WebView) — our target.
