@@ -137,6 +137,7 @@ Deno.serve(async (req) => {
 
   if (!res.ok) {
     console.warn(`study-chapters: callClaude failed board=${board} class=${classLevel} subject="${subject}" reason=${res.reason}`);
+    await logDebug({ source: "callClaude_failed", reason: res.reason, http_reason: res.reason });
     return json(200, {
       source: "unavailable",
       chapters: [],
