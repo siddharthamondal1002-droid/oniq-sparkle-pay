@@ -142,7 +142,7 @@ function HomeScreen() {
           <div className="mt-4 grid grid-cols-6 gap-3">
             {(() => {
               const primary = [
-                { key: "wallet", to: "/app/wallet", icon: Coins, label: "tap in 💳", color: "#F59E0B", span: 6, showBalance: true },
+                { key: "rides", to: "/app/rides", icon: Car, label: "pull up 🚗", color: "#38BDF8", span: 6 },
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6", span: 3 },
                 { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C", span: 3 },
                 { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185", span: 3 },
