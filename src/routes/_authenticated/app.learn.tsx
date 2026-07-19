@@ -650,6 +650,7 @@ function ScoutPanel() {
   const [query, setQuery] = useState("");
   const [image, setImage] = useState<{ base64: string; mime: string; preview: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState(0);
   const [data, setData] = useState<ScoutResponse | null>(null);
   const [listening, setListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
