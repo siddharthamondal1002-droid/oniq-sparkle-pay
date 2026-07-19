@@ -72,8 +72,6 @@ async function collectForFaith(mirror: string, faith: Faith): Promise<Station[]>
       if (seen.has(key)) continue;
       seen.add(key);
       if (s.stationuuid) seen.add(s.stationuuid);
-      if (seen.has(key)) continue;
-      seen.add(key);
       out.push({
         faith,
         name: (s.name || "Unknown").trim().slice(0, 80),
