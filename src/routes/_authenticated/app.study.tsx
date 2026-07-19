@@ -1245,7 +1245,7 @@ function ChapterPickerPanel({
         </div>
       )}
       {!loading && chapters && chapters.map((c) => {
-        const pct = avgMastery(c.title);
+        const pct = avgMastery(c.chapter_title);
         const badge = pct === null ? null
           : pct >= 75 ? { label: `${pct}% 🟢`, tone: "text-emerald-400" }
           : pct >= 50 ? { label: `${pct}% 🟡`, tone: "text-amber-400" }
@@ -1253,7 +1253,7 @@ function ChapterPickerPanel({
         return (
           <button
             key={c.chapter_number}
-            onClick={() => onPick(c.title)}
+            onClick={() => onPick(c.chapter_title)}
             className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-left text-sm hover:bg-muted"
           >
             <div className="flex items-center justify-between gap-2">
@@ -1261,7 +1261,7 @@ function ChapterPickerPanel({
                 <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
                   ch {c.chapter_number}
                 </div>
-                <div className="truncate font-medium">{c.title}</div>
+                <div className="truncate font-medium">{c.chapter_title}</div>
               </div>
               {badge && (
                 <div className={`shrink-0 text-[11px] font-semibold ${badge.tone}`}>{badge.label}</div>
