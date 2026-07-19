@@ -1461,9 +1461,12 @@ function SubjectSheet({
   onClose: () => void;
 }) {
   const [chapters, setChapters] = useState<ChapterRow[] | null>(null);
+  const [chaptersSource, setChaptersSource] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [paperFor, setPaperFor] = useState<{ chapter?: string } | null>(null);
   const [notesFor, setNotesFor] = useState<{ chapter: string; number: number } | null>(null);
+  const [editingOverride, setEditingOverride] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
   const { data: attempts } = useAttempts();
 
   useEffect(() => {
@@ -1480,12 +1483,14 @@ function SubjectSheet({
             classLevel: profile.class_level,
             subject,
             lang,
+            profileId: profile.id,
           },
         });
         if (cancelled) return;
         if (error) throw error;
-        const d = data as { chapters?: ChapterRow[] };
+        const d = data as { chapters?: ChapterRow[]; source?: string };
         setChapters(Array.isArray(d?.chapters) ? d.chapters : []);
+        setChaptersSource(String(d?.source ?? ""));
       } catch {
         if (!cancelled) setChapters([]);
       } finally {
@@ -1493,7 +1498,7 @@ function SubjectSheet({
       }
     })();
     return () => { cancelled = true; };
-  }, [profile.board, profile.class_level, subject]);
+  }, [profile.board, profile.class_level, profile.id, subject, reloadTick]);
 
   // Mastery per chapter — %score across this profile's attempts for
   // (subject, chapter). Keyed by chapter_title, matching how attempts store it.
