@@ -95,6 +95,15 @@ export const BOARD_CURRICULUM: Record<string, string> = {
   jk_board: "Jammu and Kashmir Board of School Education (JKBOSE) — largely NCERT-aligned.",
   jharkhand_board: "Jharkhand Academic Council (JAC) — largely NCERT-aligned.",
   chhattisgarh_board: "Chhattisgarh Board of Secondary Education (CGBSE) — largely NCERT-aligned.",
+  maharashtra_board: "Maharashtra State Board of Secondary and Higher Secondary Education (MSBSHSE) — distinct state textbooks (Balbharati); transitioning toward NCERT-aligned pattern from 2025-26.",
+  tn_board: "Tamil Nadu State Board (Directorate of Government Examinations) — distinct state textbooks (Tamil Nadu Textbook Corporation), covers both Class 10 (Secondary) and Class 12 (Higher Secondary) under one directorate.",
+  kerala_board: "Kerala state board — Class 10 (SSLC) administered by the Kerala Board of Public Examinations/Pareeksha Bhavan, Class 12 by the Directorate of Higher Secondary Education (DHSE). Distinct state textbooks (Kerala SCERT). When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
+  wb_board: "West Bengal state board — Class 10 (Madhyamik) administered by WBBSE, Class 12 by WBCHSE. Distinct state textbooks. When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
+  gujarat_board: "Gujarat Secondary and Higher Secondary Education Board (GSEB) — distinct state textbooks (GCERT), Gujarati/English medium, NCERT-influenced.",
+  karnataka_board: "Karnataka School Examination and Assessment Board (KSEAB) — administers SSLC (Class 10) and 2nd PUC (Class 12), own textbooks, NCERT-influenced.",
+  ap_board: "Andhra Pradesh state board — Class 10 (SSC) administered by BSEAP, Class 12 by BIEAP (Board of Intermediate Education). Distinct AP SCERT textbooks. When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
+  telangana_board: "Telangana state board — Class 10 (SSC) administered by BSE Telangana, Class 12 by TSBIE (Board of Intermediate Education). Distinct SCERT textbooks for classes 6-10, NCERT for 11-12. When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
+  ib: "International Baccalaureate — MYP (Middle Years Programme, roughly grades 6-10) and DP (Diploma Programme, grades 11-12). Distinct international curriculum, not NCERT-based. Map the requested class level to the appropriate IB programme content.",
 };
 
 export const VALID_CLASS_LEVELS = ["5","6","7","8","9","10","11","12","ug","pg","drop","aspirant"] as const;
