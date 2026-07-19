@@ -12,7 +12,7 @@ import {
   Download,
 } from "lucide-react";
 import { toast } from "sonner";
-import { UPI_APPS, upiLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
+import { upiLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
 import { UpiScannerOverlay } from "@/components/upi/UpiScannerOverlay";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -99,9 +99,11 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
 
   const ready = isValidVpa(vpa) && (!amount || (Number.isFinite(amt) && amt > 0 && amt <= 100000));
 
-  function launchApp(app: (typeof UPI_APPS)[number]) {
+  function payViaUpi() {
     if (!validate()) return;
-    void launchUpiIntent(app.scheme(params));
+    // Generic upi://pay intent — no package/scheme override, so Android
+    // shows its native chooser of every UPI-capable app installed.
+    void launchUpiIntent(upiLink(params));
   }
 
   async function copyLink() {
@@ -184,25 +186,19 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
         />
       </div>
 
-      <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
-        send it with
-      </h2>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        {UPI_APPS.map((app) => (
-          <button
-            key={app.id}
-            type="button"
-            disabled={!ready}
-            data-testid={`upi-${app.id}`}
-            data-upi-ready={ready ? "true" : "false"}
-            onClick={() => launchApp(app)}
-            className="rounded-2xl border border-border bg-card p-4 text-center text-sm font-semibold transition hover:border-primary/40 disabled:opacity-50"
-            style={{ color: app.color }}
-          >
-            {app.name}
-          </button>
-        ))}
-      </div>
+      <button
+        type="button"
+        disabled={!ready}
+        data-testid="upi-pay"
+        data-upi-ready={ready ? "true" : "false"}
+        onClick={payViaUpi}
+        className="press mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground shadow-card disabled:opacity-50"
+      >
+        Pay via UPI
+      </button>
+      <p className="mt-2 text-center text-xs text-muted-foreground">
+        Android shows a chooser of every UPI app you have — GPay, PhonePe, Paytm, BHIM, your bank's app, whatever's installed.
+      </p>
 
       <button
         onClick={copyLink}
