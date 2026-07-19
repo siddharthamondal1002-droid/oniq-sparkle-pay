@@ -12,7 +12,7 @@ import {
   Download,
 } from "lucide-react";
 import { toast } from "sonner";
-import { UPI_APPS, upiLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
+import { upiLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
 import { UpiScannerOverlay } from "@/components/upi/UpiScannerOverlay";
 import { supabase } from "@/integrations/supabase/client";
 
