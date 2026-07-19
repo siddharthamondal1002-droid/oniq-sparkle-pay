@@ -1219,6 +1219,7 @@ function QuizModal({
         topic,
         total_questions: 5,
         correct_count: finalCorrect,
+        chapter: chapter ?? null,
       });
     } catch {
       // best-effort
