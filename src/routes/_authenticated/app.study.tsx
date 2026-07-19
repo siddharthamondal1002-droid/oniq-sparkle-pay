@@ -67,8 +67,29 @@ const GOVT_TRACKS: { value: Board; label: string }[] = [
   { value: "govt_exam", label: "General 🏛️" },
 ];
 
+// State boards + NIOS (revealed after tapping "State Boards"). All use the same
+// class-level set as CBSE/ICSE (5–12); study-chapters is board-agnostic.
+const STATE_BOARDS: { value: Board; label: string }[] = [
+  { value: "nios", label: "NIOS 🏫" },
+  { value: "up_board", label: "UP Board 🗺️" },
+  { value: "bihar_board", label: "Bihar Board 🗺️" },
+  { value: "rajasthan_board", label: "Rajasthan Board 🗺️" },
+  { value: "mp_board", label: "MP Board 🗺️" },
+  { value: "haryana_board", label: "Haryana Board 🗺️" },
+  { value: "punjab_board", label: "Punjab Board 🗺️" },
+  { value: "uttarakhand_board", label: "Uttarakhand Board 🗺️" },
+  { value: "himachal_board", label: "Himachal Board 🗺️" },
+  { value: "jk_board", label: "J&K Board 🗺️" },
+  { value: "jharkhand_board", label: "Jharkhand Board 🗺️" },
+  { value: "chhattisgarh_board", label: "Chhattisgarh Board 🗺️" },
+];
+
 function isGovtBoard(b: Board): boolean {
   return b.startsWith("govt");
+}
+
+function isStateBoard(b: Board): boolean {
+  return b === "nios" || b.endsWith("_board");
 }
 
 const ALL_CLASS_LEVELS: { value: ClassLevel; label: string }[] = [
