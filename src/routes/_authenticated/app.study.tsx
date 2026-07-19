@@ -646,41 +646,44 @@ function EditProfile({
   });
 
   return (
-    <div className="rounded-3xl border border-border bg-card p-6 shadow-2xl">
-      <h2 className="font-display text-lg font-bold">Edit learner</h2>
-
-      <label className="mt-4 block text-xs font-medium text-muted-foreground">Name</label>
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value.slice(0, 40))}
-        className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
-      />
-
-      <label className="mt-4 block text-xs font-medium text-muted-foreground">Board</label>
-      <div className="mt-1">
-        <BoardPicker
-          board={board}
-          onChange={(b) => {
-            setBoard(b);
-            const opts = classLevelsFor(b);
-            if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value);
-          }}
-        />
+    <div className="flex max-h-[85vh] flex-col rounded-3xl border border-border bg-card shadow-2xl">
+      <div className="shrink-0 border-b border-border px-6 pt-6 pb-4">
+        <h2 className="font-display text-lg font-bold">Edit learner</h2>
       </div>
 
+      <div className="flex-1 overflow-y-auto px-6 py-4">
+        <label className="block text-xs font-medium text-muted-foreground">Name</label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value.slice(0, 40))}
+          className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
+        />
 
-      <label className="mt-4 block text-xs font-medium text-muted-foreground">Class</label>
-      <select
-        value={classLevel}
-        onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
-        className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
-      >
-        {classLevelsFor(board).map((c) => (
-          <option key={c.value} value={c.value}>{c.label}</option>
-        ))}
-      </select>
+        <label className="mt-4 block text-xs font-medium text-muted-foreground">Board</label>
+        <div className="mt-1">
+          <BoardPicker
+            board={board}
+            onChange={(b) => {
+              setBoard(b);
+              const opts = classLevelsFor(b);
+              if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value);
+            }}
+          />
+        </div>
 
-      <div className="mt-6 flex gap-2">
+        <label className="mt-4 block text-xs font-medium text-muted-foreground">Class</label>
+        <select
+          value={classLevel}
+          onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
+          className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
+        >
+          {classLevelsFor(board).map((c) => (
+            <option key={c.value} value={c.value}>{c.label}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="shrink-0 flex gap-2 border-t border-border bg-card px-6 py-4 rounded-b-3xl">
         <button
           onClick={() => remove.mutate()}
           disabled={remove.isPending}
