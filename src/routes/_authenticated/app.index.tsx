@@ -1063,10 +1063,10 @@ function useWalletBalance() {
       if (!u.user) return null;
       const { data } = await supabase
         .from("wallets")
-        .select("balance_cents")
+        .select("omiq_balance")
         .eq("user_id", u.user.id)
         .maybeSingle();
-      return data?.balance_cents ?? null;
+      return data?.omiq_balance ?? null;
     },
     staleTime: 60 * 1000,
   });
