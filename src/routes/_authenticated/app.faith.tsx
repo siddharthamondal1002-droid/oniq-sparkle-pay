@@ -115,7 +115,14 @@ const FAITH_META: { id: FaithId; label: string }[] = [
   { id: "christian", label: "✝️ Christian" },
 ];
 
-function DevotionalLiveSection() {
+function religionToFaithId(religion: Religion | null): FaithId | null {
+  if (!religion) return null;
+  if (religion === "islam") return "islamic";
+  if (religion === "hindu" || religion === "sikh" || religion === "christian") return religion;
+  return null;
+}
+
+function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
   const [playing, setPlaying] = useState<LiveVideo | null>(null);
 
   const { data, isLoading } = useQuery({
