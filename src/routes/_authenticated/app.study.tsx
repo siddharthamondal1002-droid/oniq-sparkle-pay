@@ -1155,10 +1155,12 @@ type QuizQ = { question: string; options: string[]; correct_index: number; expla
 function QuizModal({
   profile,
   initialSubject,
+  chapter,
   onClose,
 }: {
   profile: LearnerProfile;
   initialSubject: string;
+  chapter?: string;
   onClose: () => void;
 }) {
   const [subject] = useState(initialSubject);
@@ -1183,6 +1185,7 @@ function QuizModal({
             profile: { board: profile.board, classLevel: profile.class_level },
             subject,
             topic,
+            chapter: chapter ?? undefined,
           },
         });
         if (cancelled) return;
