@@ -1503,6 +1503,7 @@ function PaperModal({
           profileId: profile.id,
           subject,
           totalMarks,
+          chapter: chapter ?? undefined,
         },
       });
       if (error) throw error;
