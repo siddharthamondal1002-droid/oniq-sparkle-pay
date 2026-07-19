@@ -14,7 +14,10 @@ export const Route = createFileRoute("/_authenticated/app/study")({
 type Board =
   | "cbse" | "icse" | "igcse" | "college" | "jee" | "neet" | "clat"
   | "govt_exam" | "govt_railway" | "govt_banking" | "govt_police"
-  | "govt_judiciary" | "govt_ssc" | "govt_psc";
+  | "govt_judiciary" | "govt_ssc" | "govt_psc"
+  | "nios" | "up_board" | "bihar_board" | "rajasthan_board" | "mp_board"
+  | "haryana_board" | "punjab_board" | "uttarakhand_board" | "himachal_board"
+  | "jk_board" | "jharkhand_board" | "chhattisgarh_board";
 type ClassLevel = "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg" | "drop" | "aspirant";
 
 type LearnerProfile = {
@@ -64,8 +67,29 @@ const GOVT_TRACKS: { value: Board; label: string }[] = [
   { value: "govt_exam", label: "General 🏛️" },
 ];
 
+// State boards + NIOS (revealed after tapping "State Boards"). All use the same
+// class-level set as CBSE/ICSE (5–12); study-chapters is board-agnostic.
+const STATE_BOARDS: { value: Board; label: string }[] = [
+  { value: "nios", label: "NIOS 🏫" },
+  { value: "up_board", label: "UP Board 🗺️" },
+  { value: "bihar_board", label: "Bihar Board 🗺️" },
+  { value: "rajasthan_board", label: "Rajasthan Board 🗺️" },
+  { value: "mp_board", label: "MP Board 🗺️" },
+  { value: "haryana_board", label: "Haryana Board 🗺️" },
+  { value: "punjab_board", label: "Punjab Board 🗺️" },
+  { value: "uttarakhand_board", label: "Uttarakhand Board 🗺️" },
+  { value: "himachal_board", label: "Himachal Board 🗺️" },
+  { value: "jk_board", label: "J&K Board 🗺️" },
+  { value: "jharkhand_board", label: "Jharkhand Board 🗺️" },
+  { value: "chhattisgarh_board", label: "Chhattisgarh Board 🗺️" },
+];
+
 function isGovtBoard(b: Board): boolean {
   return b.startsWith("govt");
+}
+
+function isStateBoard(b: Board): boolean {
+  return b === "nios" || b.endsWith("_board");
 }
 
 const ALL_CLASS_LEVELS: { value: ClassLevel; label: string }[] = [
@@ -119,12 +143,27 @@ const BOARD_UPPER: Record<Board, string> = {
   govt_judiciary: "Judiciary",
   govt_ssc: "SSC",
   govt_psc: "PSC",
+  nios: "NIOS",
+  up_board: "UP Board",
+  bihar_board: "Bihar Board",
+  rajasthan_board: "Rajasthan Board",
+  mp_board: "MP Board",
+  haryana_board: "Haryana Board",
+  punjab_board: "Punjab Board",
+  uttarakhand_board: "Uttarakhand Board",
+  himachal_board: "Himachal Board",
+  jk_board: "J&K Board",
+  jharkhand_board: "Jharkhand Board",
+  chhattisgarh_board: "Chhattisgarh Board",
 };
 
 const BOARD_EMOJI: Record<Board, string> = {
   cbse: "", icse: "", igcse: "", college: "", jee: "🎯", neet: "🩺", clat: "📖",
   govt_exam: "🏛️", govt_railway: "🚆", govt_banking: "🏦", govt_police: "👮",
   govt_judiciary: "⚖️", govt_ssc: "📝", govt_psc: "🏛️",
+  nios: "🏫", up_board: "🗺️", bihar_board: "🗺️", rajasthan_board: "🗺️", mp_board: "🗺️",
+  haryana_board: "🗺️", punjab_board: "🗺️", uttarakhand_board: "🗺️", himachal_board: "🗺️",
+  jk_board: "🗺️", jharkhand_board: "🗺️", chhattisgarh_board: "🗺️",
 };
 
 function subjectsFor(board: Board, cls: ClassLevel): string[] {
@@ -355,7 +394,9 @@ function BoardPicker({
   onChange: (b: Board) => void;
 }) {
   const [showGovt, setShowGovt] = useState<boolean>(isGovtBoard(board));
+  const [showState, setShowState] = useState<boolean>(isStateBoard(board));
   const govtActive = isGovtBoard(board);
+  const stateActive = isStateBoard(board);
   return (
     <div>
       <div className="grid grid-cols-2 gap-2">
@@ -363,7 +404,7 @@ function BoardPicker({
           <button
             type="button"
             key={b.value}
-            onClick={() => { setShowGovt(false); onChange(b.value); }}
+            onClick={() => { setShowGovt(false); setShowState(false); onChange(b.value); }}
             className={`rounded-xl border px-3 py-2 text-sm transition ${
               board === b.value ? "border-primary bg-primary/15 text-primary" : "border-border bg-card"
             }`}
@@ -373,12 +414,21 @@ function BoardPicker({
         ))}
         <button
           type="button"
-          onClick={() => setShowGovt((v) => !v || !govtActive)}
+          onClick={() => { setShowState(false); setShowGovt((v) => !v || !govtActive); }}
           className={`col-span-2 rounded-xl border px-3 py-2 text-sm transition ${
             govtActive ? "border-amber-500/60 bg-amber-500/15 text-amber-300" : "border-amber-500/30 bg-amber-500/5 text-amber-200/90"
           }`}
         >
           Govt / Competitive Exams 🏛️
+        </button>
+        <button
+          type="button"
+          onClick={() => { setShowGovt(false); setShowState((v) => !v || !stateActive); }}
+          className={`col-span-2 rounded-xl border px-3 py-2 text-sm transition ${
+            stateActive ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300" : "border-emerald-500/30 bg-emerald-500/5 text-emerald-200/90"
+          }`}
+        >
+          State Boards 🗺️
         </button>
       </div>
       {(showGovt || govtActive) && (
@@ -390,6 +440,22 @@ function BoardPicker({
               onClick={() => onChange(b.value)}
               className={`rounded-lg border px-3 py-1.5 text-xs transition ${
                 board === b.value ? "border-amber-500/70 bg-amber-500/25 text-amber-200" : "border-amber-500/20 bg-card text-muted-foreground"
+              }`}
+            >
+              {b.label}
+            </button>
+          ))}
+        </div>
+      )}
+      {(showState || stateActive) && (
+        <div className="mt-2 grid grid-cols-2 gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-2">
+          {STATE_BOARDS.map((b) => (
+            <button
+              type="button"
+              key={b.value}
+              onClick={() => onChange(b.value)}
+              className={`rounded-lg border px-3 py-1.5 text-xs transition ${
+                board === b.value ? "border-emerald-500/70 bg-emerald-500/25 text-emerald-200" : "border-emerald-500/20 bg-card text-muted-foreground"
               }`}
             >
               {b.label}
