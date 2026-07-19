@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, X } from "lucide-react";
+import { Camera, X, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { parseUpiUri } from "@/routes/_authenticated/app.scan";
+import { decodeQrFromImageFile, qrDecodeSupported } from "@/lib/qrFromImage";
 
 type Prefill = { pa: string; pn?: string; am?: string; tn?: string };
 
