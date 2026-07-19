@@ -1052,24 +1052,24 @@ function GlanceCard() {
         </button>
       </div>
 
-      <button
-        onClick={() => navigate({ to: "/app/news", search: { tab: undefined } })}
-        className="press mt-3 flex w-full items-center gap-2 rounded-xl border border-white/5 bg-black/25 px-3 py-2 text-left"
-        aria-label="Open Pulse news"
-      >
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-red-500/60 bg-red-500/20 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-red-300">
-          <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-80" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
-          </span>
-          LIVE
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
-          {news?.title ?? "loading the tea…"}
-        </span>
-        <ArrowRight className="h-4 w-4 shrink-0 text-primary/70" />
-      </button>
-      <LoanRatesSheet open={loanOpen} onClose={() => setLoanOpen(false)} />
+      <div className="mt-3 grid grid-cols-4 gap-1.5">
+        {([
+          { t: "home", emoji: "🏠", label: "Home" },
+          { t: "gold", emoji: "🪙", label: "Gold" },
+          { t: "car",  emoji: "🚗", label: "Car"  },
+          { t: "fd",   emoji: "🏦", label: "FD"   },
+        ] as const).map((c) => (
+          <button
+            key={c.t}
+            onClick={() => openLoan(c.t)}
+            className="press rounded-lg border border-white/10 bg-black/25 px-2 py-1.5 text-[11px] font-semibold text-foreground hover:border-primary/40 hover:bg-primary/10"
+            aria-label={`Open ${c.label} loan rates`}
+          >
+            <span className="mr-1">{c.emoji}</span>{c.label}
+          </button>
+        ))}
+      </div>
+      <LoanRatesSheet open={loanOpen} initialTab={loanTab} onClose={() => setLoanOpen(false)} />
     </div>
   );
 }
