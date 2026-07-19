@@ -647,6 +647,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
     setMessages([]);
     setInput("");
     setAttachment(null);
+    setTutorScope(null);
     setHydrating(true);
     (async () => {
       try {
