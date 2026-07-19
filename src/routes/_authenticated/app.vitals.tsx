@@ -3,8 +3,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Heart, CheckCircle2, Droplets, Moon, Zap, Flower2, Sparkles, Upload, FileText, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Heart, CheckCircle2, Droplets, Moon, Zap, Flower2, Sparkles, Upload, FileText, Loader2, Trash2, ExternalLink } from "lucide-react";
 import { writeVitalsCache, scoreToColor } from "@/components/vitals/useVitalsTileColor";
+import { launchMiniApp } from "@/lib/miniapps";
 
 export const Route = createFileRoute("/_authenticated/app/vitals")({
   component: VitalsPage,
