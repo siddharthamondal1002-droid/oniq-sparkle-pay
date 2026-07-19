@@ -1635,6 +1635,11 @@ function SubjectSheet({
                   </div>
                   <div className="flex shrink-0 gap-1">
                     <SheetActionBtn
+                      label="👁️"
+                      title="overview"
+                      onClick={() => onOverviewChapter(subject, c.chapter_title)}
+                    />
+                    <SheetActionBtn
                       label="💬"
                       title="chat"
                       active={isScoped}
