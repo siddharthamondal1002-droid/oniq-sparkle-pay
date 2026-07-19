@@ -1698,6 +1698,19 @@ function SubjectSheet({
       />,
       document.body,
     )}
+    {editingOverride && createPortal(
+      <OverrideEditor
+        profile={profile}
+        subject={subject}
+        initial={chapters ?? []}
+        onClose={() => setEditingOverride(false)}
+        onSaved={() => {
+          setEditingOverride(false);
+          setReloadTick((t) => t + 1);
+        }}
+      />,
+      document.body,
+    )}
     </>
   );
 }
