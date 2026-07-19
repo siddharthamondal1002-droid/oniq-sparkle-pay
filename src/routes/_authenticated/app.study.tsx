@@ -85,6 +85,14 @@ const STATE_BOARDS: { value: Board; label: string }[] = [
   { value: "jk_board", label: "J&K Board 🗺️" },
   { value: "jharkhand_board", label: "Jharkhand Board 🗺️" },
   { value: "chhattisgarh_board", label: "Chhattisgarh Board 🗺️" },
+  { value: "maharashtra_board", label: "Maharashtra Board 🗺️" },
+  { value: "tn_board", label: "Tamil Nadu Board 🗺️" },
+  { value: "kerala_board", label: "Kerala Board 🗺️" },
+  { value: "wb_board", label: "West Bengal Board 🗺️" },
+  { value: "gujarat_board", label: "Gujarat Board 🗺️" },
+  { value: "karnataka_board", label: "Karnataka Board 🗺️" },
+  { value: "ap_board", label: "Andhra Pradesh Board 🗺️" },
+  { value: "telangana_board", label: "Telangana Board 🗺️" },
 ];
 
 function isGovtBoard(b: Board): boolean {
