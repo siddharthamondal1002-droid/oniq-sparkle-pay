@@ -622,7 +622,7 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
 /* ================= SCOUT ================= */
 
 type ScoutResult = { store: string; price_inr: number | null; price_range_inr?: string | null; rating: string | null; source_domain?: string | null; verified?: boolean; note: string | null };
-type ScoutTopPick = { store: string; why: string };
+type ScoutTopPick = { store: string; why: string; cross_checked?: string[] };
 type ScoutResponse = { product: string; results: ScoutResult[]; top_pick?: ScoutTopPick | null; disclaimer?: string; sources?: Array<{ url: string; title?: string }> };
 
 const STORE_LAUNCH: Record<string, { pkg?: string; url: (q: string) => string }> = {
@@ -778,11 +778,23 @@ function ScoutPanel() {
     setData(null);
     setScoutError(null);
     try {
+      // PART 1: kick off geolocation IN PARALLEL with the language lookup, and
+      // only wait for it up to ~1500ms before dispatching the scout call. Previously
+      // resolveLocation() blocked the invoke serially for up to ~4s of pure wait.
+      // Now the search starts within ~1.5s regardless; if geo resolves faster it
+      // rides along, otherwise the search is dispatched immediately without it.
+      const locPromise = resolveLocation();
+      const locRaced: { label?: string; pin?: string; lat?: number; lon?: number } | null =
+        await Promise.race([
+          locPromise,
+          new Promise<null>((res) => setTimeout(() => res(null), 1500)),
+        ]);
+
       let lang = "en";
       try { const m = await import("@/lib/userLanguage"); lang = await m.getUserLanguage(); } catch { /* noop */ }
-      const location = await resolveLocation();
+
       const { data: r, error } = await supabase.functions.invoke("smart-scout", {
-        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto", lang, location },
+        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto", lang, location: locRaced },
       });
       // Prefer the function's own { error } body over supabase's generic wrapper.
       const bodyErr = (r as any)?.error;
@@ -886,7 +898,17 @@ function ScoutPanel() {
             <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4">
               <div className="text-xs font-medium uppercase tracking-wider text-amber-300">🏆 best pick</div>
               <div className="mt-1 font-display text-base font-bold break-words">{data.top_pick.store}</div>
-              {data.top_pick.why && <div className="mt-1 text-xs text-amber-100/90 break-words">{data.top_pick.why}</div>}
+              {data.top_pick.why && <div className="mt-1 text-xs leading-relaxed text-amber-100/90 break-words">{data.top_pick.why}</div>}
+              {Array.isArray(data.top_pick.cross_checked) && data.top_pick.cross_checked.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] uppercase tracking-wider text-emerald-300/90">✓ confirmed via</span>
+                  {data.top_pick.cross_checked.slice(0, 5).map((src, i) => (
+                    <span key={i} className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200 break-words">
+                      {src}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {(() => {
