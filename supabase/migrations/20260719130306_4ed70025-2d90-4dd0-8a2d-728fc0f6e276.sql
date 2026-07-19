@@ -1,0 +1,1 @@
+ALTER TABLE public.learner_profiles ADD COLUMN IF NOT EXISTS second_language text;
