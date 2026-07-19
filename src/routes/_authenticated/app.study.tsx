@@ -1426,11 +1426,13 @@ function PaperModal({
   profile,
   subject,
   totalMarks,
+  chapter,
   onClose,
 }: {
   profile: LearnerProfile;
   subject: string;
   totalMarks: 30 | 80 | 100;
+  chapter?: string;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
