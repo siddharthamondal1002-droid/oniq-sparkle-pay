@@ -73,6 +73,7 @@ Deno.serve(async (req) => {
       .eq("subject", subject)
       .order("chapter_number", { ascending: true });
     if (!error && rows && rows.length > 0) {
+      await logDebug({ source: "cache" });
       return json(200, { source: "cache", chapters: rows });
     }
     if (error) console.warn("study-chapters: cache read error", error.message);
