@@ -1044,6 +1044,14 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                 setPaperSpec({ subject, totalMarks, chapter });
                 setSubjectSheet(null);
               }}
+              onOverviewChapter={(subject, chapter) => {
+                setTutorScope({ subject, chapter });
+                setSubjectSheet(null);
+                setPendingAsk(
+                  "Give me a clear overview of this chapter — the main topics and key concepts I should know before we dive in.",
+                );
+                toast.success(`overview coming up 👁️ · ${chapter}`);
+              }}
             />,
             document.body,
           )}
