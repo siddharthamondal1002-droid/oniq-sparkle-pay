@@ -102,6 +102,7 @@ type LiveVideo = {
   channelName: string;
   publishedAt: string;
   thumbnail: string;
+  isLive?: boolean;
 };
 type LiveGenreResp = { id: string; name: string; emoji: string; live: boolean; videos: LiveVideo[] };
 
