@@ -116,6 +116,12 @@ function Landing() {
                   Explore worlds
                 </a>
               </div>
+              <div className="mt-3 text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link to="/auth" className="font-medium text-foreground underline-offset-4 hover:text-primary hover:underline">
+                  Open app →
+                </Link>
+              </div>
               <div className="mt-10 grid grid-cols-3 gap-6 text-sm">
                 <Stat value="12" label="Worlds in one app" />
                 <Stat value="25" label="Languages in Lingo" />
