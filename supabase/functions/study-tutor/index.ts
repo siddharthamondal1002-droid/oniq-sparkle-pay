@@ -6,11 +6,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
-function buildSystem(profile: { name: string; board: string; classLevel: string }): string {
+function buildSystem(profile: { name: string; board: string; classLevel: string; chapter?: string }): string {
   const board = BOARD_LABEL[profile.board] ?? "CBSE";
   const cur = BOARD_CURRICULUM[profile.board] ?? BOARD_CURRICULUM.cbse;
   const name = profile.name.slice(0, 40);
   const gradeStr = gradeString(profile.classLevel);
+  const chapterLine = profile.chapter
+    ? `\n\nThe student is specifically studying: "${profile.chapter}". Keep explanations, examples, and any vault references scoped to this chapter's content — do not drift into other chapters unless the student explicitly asks about their relevance to this one.`
+    : "";
   return [
     `You are Study Buddy, a warm, patient tutor inside the ONIQ app, teaching ${name}, a ${board} student — ${gradeStr} in India.`,
     "",
