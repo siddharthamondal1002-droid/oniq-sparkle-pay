@@ -1330,7 +1330,245 @@ function ChapterPickerPanel({
   );
 }
 
+// ------------------------- Subject sheet -------------------------
+// First-class chapter view: tapping any subject chip opens this sheet with
+// the real chapter TOC (via study-chapters, same fixed flat body). Each
+// chapter offers tutor / quiz / paper actions and shows the private mastery
+// badge. Fetch is per-open (useEffect keyed on subject), no react-query cache
+// — a previous session's "unavailable" cannot linger.
+
+function SubjectSheet({
+  profile,
+  subject,
+  tutorScope,
+  onScopeTutor,
+  onStartQuiz,
+  onStartPaper,
+  onClose,
+}: {
+  profile: LearnerProfile;
+  subject: string;
+  tutorScope: { subject: string; chapter?: string } | null;
+  onScopeTutor: (subject: string, chapter?: string) => void;
+  onStartQuiz: (subject: string, chapter?: string) => void;
+  onStartPaper: (subject: string, chapter: string | undefined, totalMarks: 30 | 80 | 100) => void;
+  onClose: () => void;
+}) {
+  const [chapters, setChapters] = useState<ChapterRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [paperFor, setPaperFor] = useState<{ chapter?: string } | null>(null);
+  const { data: attempts } = useAttempts();
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setChapters(null);
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("study-chapters", {
+          body: {
+            board: profile.board,
+            classLevel: profile.class_level,
+            subject,
+          },
+        });
+        if (cancelled) return;
+        if (error) throw error;
+        const d = data as { chapters?: ChapterRow[] };
+        setChapters(Array.isArray(d?.chapters) ? d.chapters : []);
+      } catch {
+        if (!cancelled) setChapters([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile.board, profile.class_level, subject]);
+
+  // Mastery per chapter — %score across this profile's attempts for
+  // (subject, chapter). Keyed by chapter_title, matching how attempts store it.
+  const mastery = new Map<string, number>();
+  const counts = new Map<string, number>();
+  for (const a of attempts ?? []) {
+    if (a.profile_id !== profile.id) continue;
+    if (a.subject !== subject) continue;
+    const key = a.chapter ?? "";
+    if (!key) continue;
+    const num = a.total_marks && a.total_marks > 0
+      ? Math.max(0, a.marks_scored ?? 0)
+      : Math.max(0, a.correct_count ?? 0);
+    const den = a.total_marks && a.total_marks > 0
+      ? a.total_marks
+      : (a.total_questions ?? 0);
+    if (den <= 0) continue;
+    const pct = Math.round((num / den) * 100);
+    mastery.set(key, (mastery.get(key) ?? 0) + pct);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const avgMastery = (title: string) => {
+    const c = counts.get(title);
+    if (!c) return null;
+    return Math.round((mastery.get(title) ?? 0) / c);
+  };
+  const badgeFor = (pct: number | null) =>
+    pct === null ? null
+    : pct >= 75 ? { label: `${pct}% 🟢`, tone: "text-emerald-400" }
+    : pct >= 50 ? { label: `${pct}% 🟡`, tone: "text-amber-400" }
+    : { label: `${pct}% 🔴`, tone: "text-rose-400" };
+
+  const scopedChapter =
+    tutorScope && tutorScope.subject === subject
+      ? (tutorScope.chapter ?? "__all__")
+      : null;
+
+  return (
+    <ModalCard onClose={onClose}>
+      <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {profile.name} · {subject}
+            </div>
+            <div className="font-display text-lg font-bold">chapters 📚</div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-8 w-8 place-items-center rounded-full border border-border"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {paperFor && (
+          <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3">
+            <div className="mb-2 text-[11px] text-muted-foreground">
+              {paperFor.chapter ? `paper · ${paperFor.chapter}` : "paper · whole subject"}
+            </div>
+            <div className="flex gap-2">
+              {([30, 80, 100] as const).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => {
+                    const ch = paperFor.chapter;
+                    setPaperFor(null);
+                    onStartPaper(subject, ch, m);
+                  }}
+                  className="flex-1 rounded-xl border border-border bg-card px-2 py-2 text-xs font-semibold hover:bg-muted"
+                >
+                  {m} marks
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setPaperFor(null)}
+              className="mt-2 w-full text-[10px] text-muted-foreground"
+            >
+              cancel
+            </button>
+          </div>
+        )}
+
+        {/* Whole-subject option — kept as first-class alongside chapters. */}
+        <div className="mt-3 rounded-xl border border-border bg-card px-3 py-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-sm font-semibold">🎯 whole subject</div>
+              <div className="text-[10px] text-muted-foreground">mixed content across every chapter</div>
+            </div>
+            <div className="flex shrink-0 gap-1">
+              <SheetActionBtn
+                label="💬"
+                title="chat"
+                active={scopedChapter === "__all__"}
+                onClick={() => onScopeTutor(subject, undefined)}
+              />
+              <SheetActionBtn
+                label="📝"
+                title="quick quiz"
+                onClick={() => onStartQuiz(subject, undefined)}
+              />
+              <SheetActionBtn
+                label="📄"
+                title="full paper"
+                onClick={() => setPaperFor({ chapter: undefined })}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-2 space-y-1.5">
+          {loading && (
+            <div className="py-4 text-center text-xs text-muted-foreground">loading chapters…</div>
+          )}
+          {!loading && chapters && chapters.length === 0 && (
+            <div className="py-2 text-center text-[11px] text-muted-foreground">
+              no chapter list available — use whole subject above
+            </div>
+          )}
+          {!loading && chapters && chapters.map((c) => {
+            const b = badgeFor(avgMastery(c.chapter_title));
+            const isScoped = scopedChapter === c.chapter_title;
+            return (
+              <div key={c.chapter_number} className="rounded-xl border border-border bg-card px-3 py-2.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      ch {c.chapter_number}
+                    </div>
+                    <div className="truncate text-sm font-medium">{c.chapter_title}</div>
+                    {b && (
+                      <div className={`mt-0.5 text-[10px] font-semibold ${b.tone}`}>{b.label}</div>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 gap-1">
+                    <SheetActionBtn
+                      label="💬"
+                      title="chat"
+                      active={isScoped}
+                      onClick={() => onScopeTutor(subject, c.chapter_title)}
+                    />
+                    <SheetActionBtn
+                      label="📝"
+                      title="quick quiz"
+                      onClick={() => onStartQuiz(subject, c.chapter_title)}
+                    />
+                    <SheetActionBtn
+                      label="📄"
+                      title="full paper"
+                      onClick={() => setPaperFor({ chapter: c.chapter_title })}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </ModalCard>
+  );
+}
+
+function SheetActionBtn({
+  label, title, onClick, active,
+}: { label: string; title: string; onClick: () => void; active?: boolean }) {
+  return (
+    <button
+      type="button"
+      title={title}
+      onClick={onClick}
+      className={`grid h-8 w-8 place-items-center rounded-full border text-sm ${
+        active ? "border-primary/60 bg-primary/20" : "border-border bg-muted/40 hover:bg-muted"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
+
 // ------------------------- Quiz -------------------------
+
+
 
 
 type QuizQ = { question: string; options: string[]; correct_index: number; explanation: string };
