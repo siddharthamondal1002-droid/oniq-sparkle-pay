@@ -331,7 +331,7 @@ function useLearnerProfiles() {
         };
       })
         .from("learner_profiles")
-        .select("id, name, board, class_level, created_at")
+        .select("id, name, board, class_level, second_language, created_at")
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data ?? [];
