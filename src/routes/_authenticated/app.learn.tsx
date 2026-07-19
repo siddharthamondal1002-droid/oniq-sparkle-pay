@@ -854,7 +854,12 @@ function ScoutPanel() {
           className="press glow-primary mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          {loading ? "scouting the best prices 🕵️…" : "find best price"}
+          {loading
+            ? (loadingPhase === 0 ? "scouting the best prices 🕵️…"
+              : loadingPhase === 1 ? "still searching — checking a few more places 🔎"
+              : loadingPhase === 2 ? "comparing across shops & platforms 🛒"
+              : "almost there — synthesising the best pick ✨")
+            : "find best price"}
         </button>
       </div>
 
