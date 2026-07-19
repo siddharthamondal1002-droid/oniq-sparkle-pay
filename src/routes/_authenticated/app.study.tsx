@@ -1535,6 +1535,7 @@ function SubjectSheet({
       : null;
 
   return (
+    <>
     <ModalCard onClose={onClose}>
       <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
         <div className="flex items-start justify-between">
