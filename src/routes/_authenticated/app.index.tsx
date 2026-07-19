@@ -247,7 +247,7 @@ function Tile({
 }
 
 type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "devotional" | "mytv";
-type FaithId = "islamic" | "sikh" | "hindu" | "christian";
+type FaithId = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jewish";
 type Video = {
   videoId: string;
   title: string;
@@ -258,13 +258,13 @@ type Video = {
 };
 type LiveGenre = { id: GenreId; name: string; emoji: string; live: boolean; videos: Video[] };
 
-// Map app.faith.tsx's Religion → live-channels faith id (buddhist/jewish have no matching devotional feed).
+// Map app.faith.tsx's Religion → live-channels faith id.
 function readDevotionalFaithPref(): FaithId | null {
   if (typeof window === "undefined") return null;
   try {
     const r = localStorage.getItem("oniq.faith.religion.v1");
     if (r === "islam") return "islamic";
-    if (r === "hindu" || r === "sikh" || r === "christian") return r;
+    if (r === "hindu" || r === "sikh" || r === "christian" || r === "buddhist" || r === "jewish") return r;
   } catch { /* noop */ }
   return null;
 }

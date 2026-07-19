@@ -96,7 +96,7 @@ function FaithPage() {
 // DEVOTIONAL LIVE — YouTube streams from official public channels
 // ============================================================
 
-type FaithId = "islamic" | "sikh" | "hindu" | "christian";
+type FaithId = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jewish";
 type LiveVideo = {
   videoId: string;
   title: string;
@@ -113,12 +113,20 @@ const FAITH_META: { id: FaithId; label: string }[] = [
   { id: "sikh", label: "🪯 Sikh" },
   { id: "hindu", label: "🕉️ Hindu" },
   { id: "christian", label: "✝️ Christian" },
+  { id: "buddhist", label: "☸️ Buddhist" },
+  { id: "jewish", label: "✡️ Jewish" },
 ];
 
 function religionToFaithId(religion: Religion | null): FaithId | null {
   if (!religion) return null;
   if (religion === "islam") return "islamic";
-  if (religion === "hindu" || religion === "sikh" || religion === "christian") return religion;
+  if (
+    religion === "hindu" ||
+    religion === "sikh" ||
+    religion === "christian" ||
+    religion === "buddhist" ||
+    religion === "jewish"
+  ) return religion;
   return null;
 }
 
