@@ -247,14 +247,40 @@ function Tile({
 }
 
 type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "devotional" | "mytv";
+type FaithId = "islamic" | "sikh" | "hindu" | "christian";
 type Video = {
   videoId: string;
   title: string;
   channelName: string;
   publishedAt: string;
   thumbnail: string;
+  faith?: FaithId;
 };
 type LiveGenre = { id: GenreId; name: string; emoji: string; live: boolean; videos: Video[] };
+
+// Map app.faith.tsx's Religion → live-channels faith id (buddhist/jewish have no matching devotional feed).
+function readDevotionalFaithPref(): FaithId | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const r = localStorage.getItem("oniq.faith.religion.v1");
+    if (r === "islam") return "islamic";
+    if (r === "hindu" || r === "sikh" || r === "christian") return r;
+  } catch { /* noop */ }
+  return null;
+}
+
+const DEVOTIONAL_LOOP_START_KEY = "oniq.watch.devotionalLoopStartedAt";
+const DEVOTIONAL_LOOP_DUR_KEY = "oniq.watch.devotionalLoopDurationSec";
+const DEVOTIONAL_DURATIONS: { label: string; sec: number }[] = [
+  { label: "10 min", sec: 10 * 60 },
+  { label: "30 min", sec: 30 * 60 },
+  { label: "1 hr", sec: 60 * 60 },
+  { label: "3 hr", sec: 3 * 60 * 60 },
+  { label: "6 hr", sec: 6 * 60 * 60 },
+  { label: "12 hr", sec: 12 * 60 * 60 },
+  { label: "24 hr", sec: 24 * 60 * 60 },
+];
+
 
 function useLiveGenres(enabled: boolean) {
   return useQuery({
@@ -310,8 +336,39 @@ function HeroTile({
   });
   const activeGenre =
     genres.find((g) => g.id === genreId) ?? genres[0] ?? null;
-  const videos = activeGenre?.videos ?? [];
+  const isDevotional = activeGenre?.id === "devotional";
+
+  // Devotional loop state — anchored to real timestamps in localStorage so backgrounding/reopens resume.
+  const [devLoopStart, setDevLoopStart] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { const v = localStorage.getItem(DEVOTIONAL_LOOP_START_KEY); return v ? Number(v) : null; } catch { return null; }
+  });
+  const [devLoopDur, setDevLoopDur] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { const v = localStorage.getItem(DEVOTIONAL_LOOP_DUR_KEY); return v ? Number(v) : null; } catch { return null; }
+  });
+  const [devJustBrowse, setDevJustBrowse] = useState(false);
+  // Ticks once per second while in devotional loop so "elapsed" flips reactively.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isDevotional || devLoopStart == null || devLoopDur == null) return;
+    const t = window.setInterval(() => setNowTs(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [isDevotional, devLoopStart, devLoopDur]);
+  const devLoopActive = isDevotional && devLoopStart != null && devLoopDur != null && (nowTs - devLoopStart) < devLoopDur * 1000;
+  const devLoopEnded = isDevotional && devLoopStart != null && devLoopDur != null && (nowTs - devLoopStart) >= devLoopDur * 1000;
+  const devFaithPref = isDevotional ? readDevotionalFaithPref() : null;
+  // Reset "just browse" whenever we switch away from devotional so re-entering shows the picker again.
+  useEffect(() => { if (!isDevotional) setDevJustBrowse(false); }, [isDevotional]);
+  const showDevPicker = isDevotional && !devLoopActive && !devJustBrowse;
+
+  const rawVideos = activeGenre?.videos ?? [];
+  const videos = isDevotional && devFaithPref
+    ? rawVideos.filter((v) => (v as Video).faith === devFaithPref)
+    : rawVideos;
+
   const isLiveGenre = !!activeGenre?.live;
+
 
 
   const [idx, setIdx] = useState(0);
@@ -335,6 +392,9 @@ function HeroTile({
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const hideTimerRef = useRef<number | null>(null);
+  const stopAdvanceRef = useRef(false);
+  useEffect(() => { stopAdvanceRef.current = devLoopEnded; }, [devLoopEnded]);
+
   const playerHostId = `yt-tile-${useId().replace(/:/g, "")}`;
   const playerCoverClass = "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
 
@@ -360,6 +420,10 @@ function HeroTile({
   useEffect(() => {
     if (!livePreview || showSkin || vLen < 2) return;
     if (paused || controlsVisible) return;
+    // Devotional loop: no 20s auto-tour — let each video play to completion (ENDED handler wraps).
+    if (isDevotional && devLoopActive) return;
+    // Devotional with picker shown or timer ended: don't force-advance either.
+    if (isDevotional && (showDevPicker || devLoopEnded)) return;
     let t: number | null = null;
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) {
@@ -370,7 +434,8 @@ function HeroTile({
     };
     t = window.setTimeout(tick, 20_000);
     return () => { if (t) window.clearTimeout(t); };
-  }, [idx, vLen, livePreview, showSkin, paused, controlsVisible]);
+  }, [idx, vLen, livePreview, showSkin, paused, controlsVisible, isDevotional, devLoopActive, showDevPicker, devLoopEnded]);
+
 
   const bumpHide = () => {
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
@@ -423,11 +488,13 @@ function HeroTile({
             },
             onStateChange: (e: any) => {
               if (e?.data === 0) {
-                // ENDED → next video
+                // ENDED → next video (unless devotional loop timer has elapsed)
+                if (stopAdvanceRef.current) return;
                 const total = vLen;
                 if (total > 0) setIdx((i) => (i + 1) % total);
               }
             },
+
           },
         });
       } catch (err) {
@@ -494,8 +561,32 @@ function HeroTile({
     setGenreId(g);
     setIdx(0);
     setPaused(false);
+    // Entering devotional freshly → force picker to reappear (unless a live loop is still running).
+    if (g === "devotional") setDevJustBrowse(false);
     bumpHide();
   };
+  const startDevLoop = (sec: number) => {
+    const now = Date.now();
+    setDevLoopStart(now);
+    setDevLoopDur(sec);
+    setDevJustBrowse(false);
+    try {
+      localStorage.setItem(DEVOTIONAL_LOOP_START_KEY, String(now));
+      localStorage.setItem(DEVOTIONAL_LOOP_DUR_KEY, String(sec));
+    } catch { /* noop */ }
+    setNowTs(Date.now());
+    bumpHide();
+  };
+  const clearDevLoop = () => {
+    setDevLoopStart(null);
+    setDevLoopDur(null);
+    try {
+      localStorage.removeItem(DEVOTIONAL_LOOP_START_KEY);
+      localStorage.removeItem(DEVOTIONAL_LOOP_DUR_KEY);
+    } catch { /* noop */ }
+  };
+  const skipDevPicker = () => { clearDevLoop(); setDevJustBrowse(true); bumpHide(); };
+
   const pickVideo = (i: number) => {
     setIdx(i);
     setPaused(false);
@@ -520,6 +611,55 @@ function HeroTile({
         />
       </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
+
+      {showDevPicker && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center"
+        >
+          <div className="text-[10px] uppercase tracking-wider text-primary/90">devotional 🙏</div>
+          <div className="text-xs font-semibold text-white">loop for how long?</div>
+          <div className="no-scrollbar flex max-w-full flex-wrap items-center justify-center gap-1 px-2">
+            {DEVOTIONAL_DURATIONS.map((d) => (
+              <button
+                key={d.sec}
+                onClick={(e) => { e.stopPropagation(); startDevLoop(d.sec); }}
+                className="rounded-full border border-primary/60 bg-primary/20 px-2.5 py-0.5 text-[11px] font-semibold text-white"
+              >
+                {d.label}
+              </button>
+            ))}
+            <button
+              onClick={(e) => { e.stopPropagation(); skipDevPicker(); }}
+              className="rounded-full border border-white/25 bg-black/40 px-2.5 py-0.5 text-[11px] font-medium text-white/90"
+            >
+              just browse
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isDevotional && devLoopEnded && !showDevPicker && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-1/2 top-2 z-20 -translate-x-1/2 flex items-center gap-1 rounded-full border border-white/20 bg-black/70 px-2 py-1 text-[10px] text-white/95"
+        >
+          <span>loop ended</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); clearDevLoop(); setDevJustBrowse(false); }}
+            className="rounded-full border border-primary/50 bg-primary/25 px-2 py-0.5 font-semibold"
+          >
+            replay
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); clearDevLoop(); setDevJustBrowse(true); }}
+            className="rounded-full border border-white/25 bg-black/40 px-2 py-0.5"
+          >
+            keep browsing
+          </button>
+        </div>
+      )}
+
 
       <span className={`relative inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/15 text-red-300" : "border-primary/50 bg-primary/15 text-primary"}`}>
         {isLiveGenre ? (
