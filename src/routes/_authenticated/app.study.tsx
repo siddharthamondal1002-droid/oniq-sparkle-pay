@@ -27,8 +27,60 @@ type LearnerProfile = {
   name: string;
   board: Board;
   class_level: ClassLevel;
+  second_language?: string | null;
   created_at: string;
 };
+
+// Regional first-language subject enforced by state boards. For any state
+// board listed here, subjectsFor() replaces the generic "Hindi" slot with
+// the mandated regional language. The Hindi-belt state boards are omitted
+// intentionally — Hindi is correct for them.
+const STATE_REGIONAL_LANG: Partial<Record<Board, string>> = {
+  wb_board: "Bengali",
+  maharashtra_board: "Marathi",
+  tn_board: "Tamil",
+  ap_board: "Telugu",
+  telangana_board: "Telugu",
+  gujarat_board: "Gujarati",
+  karnataka_board: "Kannada",
+  kerala_board: "Malayalam",
+  punjab_board: "Punjabi",
+};
+
+// Boards where the second/vernacular language genuinely varies per student.
+// Only these show the picker; state boards mandate a fixed regional lang and
+// govt/competitive tracks don't have language subjects at all.
+function boardUsesSecondLangPicker(b: Board): boolean {
+  return b === "cbse" || b === "icse" || b === "igcse";
+}
+
+const SECOND_LANG_OPTIONS = [
+  "Hindi", "Bengali", "Sanskrit", "Tamil", "Telugu", "Marathi", "Gujarati",
+  "Kannada", "Malayalam", "Punjabi", "Odia", "Assamese", "Urdu",
+  "French", "German", "Other",
+];
+
+// Tier-3 (school-specific / low-confidence) subject patterns per research.
+// When the active subject matches, we show a proactive "check & correct"
+// banner in the chapter picker. Everything else stays quiet (Tier 1/2 —
+// generic list is reliable).
+function isTier3Subject(board: Board, cls: ClassLevel, subject: string): boolean {
+  const s = subject.toLowerCase();
+  const n = Number(cls);
+  // CBSE English at classes 5–8 (9–12 are NCERT-fixed).
+  if (board === "cbse" && !isNaN(n) && n >= 5 && n <= 8 && s === "english") return true;
+  // ICSE English literature — any class (texts revise year to year).
+  if (board === "icse" && s === "english") return true;
+  // ICSE second-language subjects (any non-English/non-STEM language).
+  if (board === "icse") {
+    const langLike = ["hindi","bengali","sanskrit","tamil","telugu","marathi","gujarati","kannada","malayalam","punjabi","odia","assamese","urdu","french","german"];
+    if (langLike.some((l) => s.includes(l))) return true;
+  }
+  // IB (MYP any subject; DP English/Language A) and IGCSE/IB literature.
+  if (board === "ib") return true;
+  if (board === "igcse" && s === "english") return true;
+  return false;
+}
 
 type Attachment = {
   kind: "image" | "pdf" | "text";
@@ -188,7 +240,7 @@ const BOARD_EMOJI: Record<Board, string> = {
   gujarat_board: "🗺️", karnataka_board: "🗺️", ap_board: "🗺️", telangana_board: "🗺️",
 };
 
-function subjectsFor(board: Board, cls: ClassLevel): string[] {
+function subjectsFor(board: Board, cls: ClassLevel, secondLanguage?: string | null): string[] {
   if (board === "jee") return ["Physics", "Chemistry", "Mathematics"];
   if (board === "neet") return ["Physics", "Chemistry", "Biology"];
   if (board === "clat") {
@@ -224,18 +276,30 @@ function subjectsFor(board: Board, cls: ClassLevel): string[] {
   if (cls === "ug" || cls === "pg" || board === "college") {
     return ["Maths", "Physics", "Chemistry", "Biology", "English", "Economics", "Computer Science", "General"];
   }
+
+  // Second-language subject slot resolves to:
+  //  - state boards with a mandated regional language → that language
+  //  - cbse/icse/igcse → the profile's stored second_language (fallback Hindi)
+  //  - Hindi-belt state boards & everything else → "Hindi"
+  const secondLang =
+    STATE_REGIONAL_LANG[board] ??
+    (boardUsesSecondLangPicker(board) ? (secondLanguage || "Hindi") : "Hindi");
+
   const n = Number(cls);
   if (n >= 5 && n <= 8) {
-    return ["Maths", "Science", "English", "Hindi", "Social Studies", "Computer"];
+    return ["Maths", "Science", "English", secondLang, "Social Studies", "Computer"];
   }
   if (n === 9 || n === 10) {
     if (board === "icse") {
-      return ["Maths", "Physics", "Chemistry", "Biology", "English", "History & Civics", "Geography", "Hindi", "Computer"];
+      return ["Maths", "Physics", "Chemistry", "Biology", "English", "History & Civics", "Geography", secondLang, "Computer"];
     }
     if (board === "igcse") {
-      return ["Maths", "Physics", "Chemistry", "Biology", "English", "Geography", "History", "Computer Science"];
+      // IGCSE international schools rarely mandate an Indian regional lang;
+      // still expose the picked second language when the family added one.
+      const base = ["Maths", "Physics", "Chemistry", "Biology", "English", "Geography", "History", "Computer Science"];
+      return secondLanguage ? [...base, secondLanguage] : base;
     }
-    return ["Maths", "Science", "English", "Hindi", "Social Science", "Computer"];
+    return ["Maths", "Science", "English", secondLang, "Social Science", "Computer"];
   }
   // 11–12
   return ["Physics", "Chemistry", "Maths", "Biology", "English", "Accounts", "Economics", "Business Studies", "Computer Science"];
@@ -267,7 +331,7 @@ function useLearnerProfiles() {
         };
       })
         .from("learner_profiles")
-        .select("id, name, board, class_level, created_at")
+        .select("id, name, board, class_level, second_language, created_at")
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data ?? [];
@@ -505,6 +569,7 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
   const [name, setName] = useState("");
   const [board, setBoard] = useState<Board>("cbse");
   const [classLevel, setClassLevel] = useState<ClassLevel>("8");
+  const [secondLang, setSecondLang] = useState<string>("Hindi");
 
   const create = useMutation({
     mutationFn: async () => {
@@ -522,8 +587,14 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
         };
       })
         .from("learner_profiles")
-        .insert({ user_id: u.user.id, name: trimmed, board, class_level: classLevel })
-        .select("id, name, board, class_level, created_at")
+        .insert({
+          user_id: u.user.id,
+          name: trimmed,
+          board,
+          class_level: classLevel,
+          second_language: boardUsesSecondLangPicker(board) ? secondLang : null,
+        })
+        .select("id, name, board, class_level, second_language, created_at")
         .single();
       if (error || !data) throw error ?? new Error("failed");
       return data;
@@ -576,6 +647,27 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
         ))}
       </select>
 
+      {boardUsesSecondLangPicker(board) && (
+        <>
+          <label className="mt-4 block text-xs font-medium text-muted-foreground">
+            2nd / vernacular language
+          </label>
+          <select
+            value={secondLang}
+            onChange={(e) => setSecondLang(e.target.value)}
+            className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
+          >
+            {SECOND_LANG_OPTIONS.map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            varies by school — edit anytime from the learner profile.
+          </p>
+        </>
+      )}
+
+
       <button
         onClick={() => create.mutate()}
         disabled={create.isPending || !name.trim()}
@@ -600,6 +692,7 @@ function EditProfile({
   const [name, setName] = useState(profile.name);
   const [board, setBoard] = useState<Board>(profile.board);
   const [classLevel, setClassLevel] = useState<ClassLevel>(profile.class_level);
+  const [secondLang, setSecondLang] = useState<string>(profile.second_language || "Hindi");
 
   const save = useMutation({
     mutationFn: async () => {
@@ -613,7 +706,12 @@ function EditProfile({
         };
       })
         .from("learner_profiles")
-        .update({ name: trimmed, board, class_level: classLevel })
+        .update({
+          name: trimmed,
+          board,
+          class_level: classLevel,
+          second_language: boardUsesSecondLangPicker(board) ? secondLang : null,
+        })
         .eq("id", profile.id);
       if (error) throw error;
     },
@@ -681,7 +779,28 @@ function EditProfile({
             <option key={c.value} value={c.value}>{c.label}</option>
           ))}
         </select>
+
+        {boardUsesSecondLangPicker(board) && (
+          <>
+            <label className="mt-4 block text-xs font-medium text-muted-foreground">
+              2nd / vernacular language
+            </label>
+            <select
+              value={secondLang}
+              onChange={(e) => setSecondLang(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
+            >
+              {SECOND_LANG_OPTIONS.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              pre-filled with Hindi — edit to match this learner's actual 2nd language.
+            </p>
+          </>
+        )}
       </div>
+
 
       <div className="shrink-0 flex gap-2 border-t border-border bg-card px-6 py-4 rounded-b-3xl">
         <button
@@ -731,7 +850,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
 
-  const subjects = subjectsFor(profile.board, profile.class_level);
+  const subjects = subjectsFor(profile.board, profile.class_level, profile.second_language);
 
   // Hydrate chat history from study_messages when the active profile changes.
   useEffect(() => {
@@ -1569,6 +1688,20 @@ function SubjectSheet({
             <X className="h-4 w-4" />
           </button>
         </div>
+
+        {isTier3Subject(profile.board, profile.class_level, subject) && chaptersSource !== "override" && (
+          <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-200">
+            📋 syllabi for this subject vary by school — check these chapters match your actual textbook, or{" "}
+            <button
+              type="button"
+              onClick={() => setEditingOverride(true)}
+              className="font-semibold underline underline-offset-2"
+            >
+              correct it below
+            </button>.
+          </div>
+        )}
+
 
         {paperFor && (
           <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3">
