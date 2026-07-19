@@ -1022,7 +1022,6 @@ function GlanceCard() {
 
   const gold = market?.gold?.pricePerGram ?? null;
   const silver = market?.silver?.pricePerGram ?? null;
-  const repo = market?.repoRate?.value ?? null;
 
   return (
     <div
@@ -1037,7 +1036,7 @@ function GlanceCard() {
         <button
           type="button"
           onClick={() => setLoanOpen(true)}
-          className="press grid flex-1 grid-cols-3 gap-2 text-left"
+          className="press grid flex-1 grid-cols-2 gap-2 text-left"
           aria-label="Open loan & deposit rates"
         >
           <StatBox
@@ -1051,12 +1050,6 @@ function GlanceCard() {
             value={silver ? `₹${silver.toLocaleString("en-IN")}` : "—"}
             unit="/g"
             accent="#94A3B8"
-          />
-          <StatBox
-            label="RBI Repo"
-            value={repo != null ? `${repo}%` : "—"}
-            unit=""
-            accent="#00D4B8"
           />
         </button>
         <button
