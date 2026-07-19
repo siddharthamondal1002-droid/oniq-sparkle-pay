@@ -1211,12 +1211,12 @@ const DEFAULT_LOAN_DISCLAIMER =
 function StatBox({ label, value, unit, accent }: { label: string; value: string; unit: string; accent: string }) {
   return (
     <div
-      className="rounded-xl border border-white/5 bg-black/25 px-2 py-1.5"
+      className="min-w-0 rounded-xl border border-white/5 bg-black/25 px-3 py-2"
       style={{ boxShadow: `inset 0 0 0 1px ${accent}18` }}
     >
-      <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="mt-0.5 flex items-baseline gap-0.5">
-        <span className="font-display text-sm font-bold text-foreground" style={{ color: accent }}>{value}</span>
+      <div className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-0.5 flex items-baseline gap-1 whitespace-nowrap">
+        <span className="font-display text-base font-bold tabular-nums" style={{ color: accent }}>{value}</span>
         {unit && <span className="text-[10px] text-muted-foreground">{unit}</span>}
       </div>
     </div>
