@@ -154,6 +154,7 @@ Deno.serve(async (req) => {
   const blocksSnippet = JSON.stringify(blocks).slice(0, 300);
   if (!Array.isArray(rawList) || rawList.length === 0) {
     console.warn(`study-chapters: empty tool_use board=${board} class=${classLevel} subject="${subject}" stop=${stopReason ?? "?"} blocks=${blocksSnippet}`);
+    await logDebug({ source: "empty_tool_use", reason: "no chapters returned", stop_reason: stopReason, blocks_snippet: blocksSnippet });
     return json(200, {
       source: "unavailable",
       chapters: [],
