@@ -277,7 +277,10 @@ function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
         <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">no reachable stations right now 📡</div>
       ) : (
         <div className="space-y-5">
-          {FAITH_META.map((f) => {
+          {FAITH_META.filter((f) => {
+            const only = religionToFaithId(religion);
+            return only ? f.id === only : true;
+          }).map((f) => {
             const items = stations.filter((s) => s.faith === f.id);
             if (items.length === 0) return null;
             return (
