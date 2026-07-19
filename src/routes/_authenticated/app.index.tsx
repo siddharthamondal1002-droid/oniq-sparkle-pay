@@ -934,6 +934,7 @@ function useGlanceCollapsed() {
 function GlanceCard() {
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useGlanceCollapsed();
+  const [loanOpen, setLoanOpen] = useState(false);
 
   const { data: market } = useQuery<MarketData | null>({
     queryKey: ["market-ticker"],
