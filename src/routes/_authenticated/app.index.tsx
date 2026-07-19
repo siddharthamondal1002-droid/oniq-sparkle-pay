@@ -1144,7 +1144,7 @@ function PrimaryTile({
 // ---------- Section row (horizontal scrollable chip row) ----------
 
 type SectionTile = {
-  key: TileKey;
+  key: string;
   to: string;
   icon: typeof Send;
   label: string;
@@ -1162,7 +1162,7 @@ function SectionRow({
   hidden: Set<TileKey>;
   skins: Record<string, string | undefined>;
 }) {
-  const visible = tiles.filter((t) => !hidden.has(t.key));
+  const visible = tiles.filter((t) => !(hidden as Set<string>).has(t.key));
   if (visible.length === 0) return null;
   return (
     <div className="mt-5">
