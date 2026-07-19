@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
     subject?: string;
     totalMarks?: number;
     profileId?: string;
+    chapter?: string;
   } = {};
   try { body = await req.json(); } catch { /* ignore */ }
 
@@ -103,6 +104,7 @@ Deno.serve(async (req) => {
   const subject = String(body.subject ?? "").trim().slice(0, 80);
   const totalMarks = Number(body.totalMarks);
   const profileId = String(body.profileId ?? body.profile?.id ?? "").trim();
+  const chapter = String(body.chapter ?? "").trim().slice(0, 200);
   if (!subject) return json(200, { source: "unavailable", reason: "subject required" });
   if (!profileId) return json(200, { source: "unavailable", reason: "profile id required" });
   if (!(totalMarks === 30 || totalMarks === 80 || totalMarks === 100)) {
