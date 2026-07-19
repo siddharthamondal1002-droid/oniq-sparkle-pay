@@ -56,11 +56,11 @@ export const placesAutocomplete = createServerFn({ method: "POST" })
       }>;
     };
     const suggestions: PlaceSuggestion[] = (j.suggestions ?? [])
-      .map((s) => {
+      .map((s): PlaceSuggestion | null => {
         const p = s.placePrediction;
         if (!p?.placeId) return null;
         const main = p.structuredFormat?.mainText?.text ?? p.text?.text ?? "";
-        const secondary = p.structuredFormat?.secondaryText?.text ?? "";
+        const secondary = p.structuredFormat?.secondaryText?.text ?? undefined;
         if (!main) return null;
         return { placeId: p.placeId, label: main, secondary };
       })
