@@ -1078,7 +1078,7 @@ type LoanBank = { bank: string; rateRange: string; note?: string };
 type LoanCategory = { type: "home" | "gold" | "car" | "fd"; label: string; banks: LoanBank[] };
 type LoanRatesPayload = { asOf: string; categories: LoanCategory[]; disclaimer: string };
 
-function LoanRatesSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+function LoanRatesSheet({ open, onClose, initialTab = "home" }: { open: boolean; onClose: () => void; initialTab?: LoanCategory["type"] }) {
   const { data, isLoading, isError } = useQuery<LoanRatesPayload | null>({
     queryKey: ["loan-rates"],
     queryFn: async () => {
@@ -1089,7 +1089,8 @@ function LoanRatesSheet({ open, onClose }: { open: boolean; onClose: () => void 
     enabled: open,
     staleTime: 12 * 60 * 60 * 1000,
   });
-  const [tab, setTab] = useState<LoanCategory["type"]>("home");
+  const [tab, setTab] = useState<LoanCategory["type"]>(initialTab);
+  useEffect(() => { if (open) setTab(initialTab); }, [open, initialTab]);
 
   useEffect(() => {
     if (!open) return;
