@@ -885,6 +885,16 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
     }
   }
 
+  // Fire an auto-message once the tutor is scoped (e.g. "give me an overview")
+  // from SubjectSheet. Runs after hydration so we don't clobber history.
+  useEffect(() => {
+    if (!pendingAsk || hydrating || loading) return;
+    const text = pendingAsk;
+    setPendingAsk(null);
+    void ask(text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAsk, hydrating]);
+
   const canSend = !loading && (input.trim().length > 0 || !!attachment);
 
   return (
