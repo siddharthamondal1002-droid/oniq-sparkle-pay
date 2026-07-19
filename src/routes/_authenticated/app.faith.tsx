@@ -172,27 +172,38 @@ function DevotionalLiveSection() {
           </div>
         </div>
       ) : (
-        <ul className="grid grid-cols-2 gap-2">
-          {data.videos.map((v) => (
-            <li key={v.videoId}>
-              <button
-                type="button"
-                onClick={() => setPlaying(v)}
-                className="press w-full overflow-hidden rounded-2xl border border-border bg-card text-left"
-              >
-                <div className="relative aspect-video w-full bg-black">
-                  <img src={v.thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-                  {v.isLive ? (
-                    <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">● live</span>
-                  ) : null}
-                </div>
-                <div className="p-2">
-                  <div className="truncate text-xs font-semibold">{v.channelName}</div>
-                </div>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-5">
+          {FAITH_META.map((f) => {
+            const items = data.videos.filter((v) => v.faith === f.id);
+            if (items.length === 0) return null;
+            return (
+              <div key={f.id}>
+                <div className="mb-2 text-sm font-semibold text-foreground/90">{f.label}</div>
+                <ul className="grid grid-cols-2 gap-2">
+                  {items.map((v) => (
+                    <li key={v.videoId}>
+                      <button
+                        type="button"
+                        onClick={() => setPlaying(v)}
+                        className="press w-full overflow-hidden rounded-2xl border border-border bg-card text-left"
+                      >
+                        <div className="relative aspect-video w-full bg-black">
+                          <img src={v.thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+                          {v.isLive ? (
+                            <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">● live</span>
+                          ) : null}
+                        </div>
+                        <div className="p-2">
+                          <div className="truncate text-xs font-semibold">{v.channelName}</div>
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
       )}
 
       <p className="mt-2 text-[11px] text-muted-foreground">
