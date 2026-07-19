@@ -3,8 +3,9 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Heart, CheckCircle2, Droplets, Moon, Zap, Flower2, Sparkles, Upload, FileText, Loader2, Trash2 } from "lucide-react";
+import { ArrowLeft, Heart, CheckCircle2, Droplets, Moon, Zap, Flower2, Sparkles, Upload, FileText, Loader2, Trash2, ExternalLink } from "lucide-react";
 import { writeVitalsCache, scoreToColor } from "@/components/vitals/useVitalsTileColor";
+import { launchMiniApp } from "@/lib/miniapps";
 
 export const Route = createFileRoute("/_authenticated/app/vitals")({
   component: VitalsPage,
@@ -130,6 +131,7 @@ function VitalsPage() {
             <RecentCheckins rows={(checkins ?? []).filter((c) => c.day !== today())} />
             {hp.experience === "women" && <CycleSection />}
             <CareSection experience={hp.experience} />
+            <PartnerShortcuts />
             <ReportsSection />
             <WipeHealthData />
             <p className="text-[11px] text-muted-foreground text-center pt-2">{DISCLAIMER}</p>
@@ -482,6 +484,49 @@ function RecentCheckins({ rows }: { rows: Checkin[] }) {
           </li>
         ))}
       </ul>
+    </section>
+  );
+}
+
+function PartnerShortcuts() {
+  const meds = [
+    { id: "1mg", name: "Tata 1mg", tag: "medicines & tests", url: "https://www.1mg.com", color: "#FF6F61", emoji: "💊" },
+    { id: "pharmeasy", name: "PharmEasy", tag: "medicines & labs", url: "https://pharmeasy.in", color: "#10847E", emoji: "🧪" },
+    { id: "netmeds", name: "Netmeds", tag: "online pharmacy", url: "https://www.netmeds.com", color: "#0F9D58", emoji: "💊" },
+    { id: "apollo-pharmacy", name: "Apollo Pharmacy", tag: "trusted chemist", url: "https://www.apollopharmacy.in", color: "#00A65A", emoji: "🏥" },
+  ];
+  const docs = [
+    { id: "practo", name: "Practo", tag: "find & book doctors", url: "https://www.practo.com", color: "#0093E9", emoji: "🩺" },
+    { id: "apollo247", name: "Apollo 24|7", tag: "consult specialists", url: "https://www.apollo247.com", color: "#00A65A", emoji: "👨‍⚕️" },
+  ];
+  const Card = (p: { name: string; tag: string; url: string; color: string; emoji: string }) => (
+    <button
+      onClick={() => launchMiniApp({ name: p.name, url: p.url })}
+      className="press flex items-center gap-3 rounded-2xl border border-border bg-surface-2 p-3 text-left hover:border-primary/40 transition"
+    >
+      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg" style={{ backgroundColor: p.color + "22", color: p.color }}>
+        <span>{p.emoji}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold truncate">{p.name}</div>
+        <div className="text-[11px] text-muted-foreground truncate">{p.tag}</div>
+      </div>
+      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+    </button>
+  );
+  return (
+    <section className="rounded-3xl border border-border bg-card p-4">
+      <h3 className="font-display text-base font-bold mb-1">💊 order medicine</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+        {meds.map((m) => <Card key={m.id} {...m} />)}
+      </div>
+      <h3 className="font-display text-base font-bold mt-5 mb-1">🩺 book a doctor</h3>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+        {docs.map((d) => <Card key={d.id} {...d} />)}
+      </div>
+      <p className="mt-3 text-[11px] text-muted-foreground">
+        Opens the provider's own app or site — ONIQ doesn't process orders or bookings directly.
+      </p>
     </section>
   );
 }
