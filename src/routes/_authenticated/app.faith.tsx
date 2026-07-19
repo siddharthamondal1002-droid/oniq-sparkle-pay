@@ -180,7 +180,10 @@ function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
         </div>
       ) : (
         <div className="space-y-5">
-          {FAITH_META.map((f) => {
+          {FAITH_META.filter((f) => {
+            const only = religionToFaithId(religion);
+            return only ? f.id === only : true;
+          }).map((f) => {
             const items = data.videos.filter((v) => v.faith === f.id);
             if (items.length === 0) return null;
             return (
