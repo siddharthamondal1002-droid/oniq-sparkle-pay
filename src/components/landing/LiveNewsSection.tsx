@@ -109,15 +109,15 @@ export function CompactLiveNews() {
       </div>
       {tickerText && (
         <div className="relative overflow-hidden border-t border-white/5 bg-black/25 py-1.5">
-          <div className="oniq-ticker-track flex min-w-max whitespace-nowrap text-[11px] font-medium uppercase tracking-wider text-muted-foreground group-hover:[animation-play-state:paused]">
+          <div className="oniq-pulse-ticker flex min-w-max whitespace-nowrap text-[11px] font-medium uppercase tracking-wider text-muted-foreground group-hover:[animation-play-state:paused]">
             <span className="px-4">{tickerText}</span>
             <span className="px-4">{tickerText}</span>
           </div>
         </div>
       )}
       <style>{`
-        @keyframes oniq-ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        .oniq-ticker-track { animation: oniq-ticker 45s linear infinite; }
+        @keyframes oniq-pulse-ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .oniq-pulse-ticker { animation: oniq-pulse-ticker-scroll 45s linear infinite; }
       `}</style>
     </button>
   );
