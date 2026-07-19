@@ -866,6 +866,13 @@ function ScoutPanel() {
             <div className="text-xs uppercase tracking-wider text-primary/80">product</div>
             <div className="mt-1 font-display text-lg font-bold break-words">{data.product}</div>
           </div>
+          {data.top_pick?.store && (
+            <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4">
+              <div className="text-xs font-medium uppercase tracking-wider text-amber-300">🏆 best pick</div>
+              <div className="mt-1 font-display text-base font-bold break-words">{data.top_pick.store}</div>
+              {data.top_pick.why && <div className="mt-1 text-xs text-amber-100/90 break-words">{data.top_pick.why}</div>}
+            </div>
+          )}
           {(() => {
             const all = data.results ?? [];
             const ranked = all.filter((r) => typeof r.price_inr === "number");
@@ -874,7 +881,7 @@ function ScoutPanel() {
               <>
                 {all.length === 0 && (
                   <div className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
-                    no prices found rn — try a more specific name
+                    nothing solid found rn — try a more specific query
                   </div>
                 )}
                 {ranked.map((r, i) => (
@@ -882,8 +889,14 @@ function ScoutPanel() {
                     <div className="flex items-start gap-3">
                       <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">{rankBadge(i)}</div>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-semibold">{r.store}</div>
-                        {r.rating && <div className="text-xs text-muted-foreground truncate">★ {r.rating}</div>}
+                        <div className="flex items-center gap-1.5">
+                          <div className="truncate font-semibold">{r.store}</div>
+                          {r.verified && <span className="shrink-0 text-[10px] font-medium text-emerald-400">✓ verified</span>}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground truncate">
+                          {r.rating && <span>★ {r.rating}</span>}
+                          {r.source_domain && <span className="truncate">· {r.source_domain}</span>}
+                        </div>
                       </div>
                       <div className="shrink-0 font-display text-lg font-bold">
                         ₹{(r.price_inr as number).toLocaleString("en-IN")}
