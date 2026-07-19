@@ -1469,6 +1469,7 @@ function SubjectSheet({
   const [chapters, setChapters] = useState<ChapterRow[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [paperFor, setPaperFor] = useState<{ chapter?: string } | null>(null);
+  const [notesFor, setNotesFor] = useState<{ chapter: string; number: number } | null>(null);
   const { data: attempts } = useAttempts();
 
   useEffect(() => {
