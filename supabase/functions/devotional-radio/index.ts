@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-type Faith = "islamic" | "sikh" | "hindu" | "christian";
+type Faith = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jewish";
 type Station = { faith: Faith; name: string; streamUrl: string; favicon: string | null; tags: string[] };
 
 const FAITH_TAGS: Record<Faith, string[]> = {
@@ -15,6 +15,8 @@ const FAITH_TAGS: Record<Faith, string[]> = {
   sikh: ["gurbani", "kirtan"],
   islamic: ["nasheed", "islamic", "quran"],
   christian: ["gospel", "christian", "worship"],
+  buddhist: ["buddhism", "buddhist", "meditation"],
+  jewish: ["jewish", "judaism", "torah", "hebrew"],
 };
 
 const MIRRORS = ["de1.api.radio-browser.info", "de2.api.radio-browser.info", "at1.api.radio-browser.info"];
@@ -96,7 +98,7 @@ Deno.serve(async (req) => {
     }
 
     const mirror = await pickMirror();
-    const faiths: Faith[] = ["islamic", "sikh", "hindu", "christian"];
+    const faiths: Faith[] = ["islamic", "sikh", "hindu", "christian", "buddhist", "jewish"];
     const results = await Promise.all(faiths.map((f) => collectForFaith(mirror, f)));
     const stations = results.flat();
 

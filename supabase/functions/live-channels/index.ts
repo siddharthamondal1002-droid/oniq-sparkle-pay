@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "devotional";
-type Faith = "islamic" | "sikh" | "hindu" | "christian";
+type Faith = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jewish";
 type Candidate = { name: string; id?: string; handle?: string; faith?: Faith };
 type GenreDef = {
   id: GenreId;
@@ -144,6 +144,18 @@ const GENRES: GenreDef[] = [
       { id: "UCSf-NCzjwcnXErUBW_qeFvA", name: "Elevation Worship", faith: "christian" },
       { id: "UCbertc-gMbkkHuSmg0qwnxw", name: "Bethel Music", faith: "christian" },
       { id: "UCqMof5-AMp88PfI3owykayg", name: "Maranatha Music", faith: "christian" },
+      // Buddhist — teachings & chanting (verified handles → IDs)
+      { id: "UCiPJ_g02LuOgOG0ZNk5j1jA", name: "Dalai Lama", faith: "buddhist" },
+      { id: "UCjHbgWBt9ZUoqZBPEnsqX4A", name: "Tricycle", faith: "buddhist" },
+      { id: "UClUMK5PN0vPSVAq2CDkM26w", name: "FPMT", faith: "buddhist" },
+      { id: "UCTUkNCf8m5jAxzUblftQyBw", name: "Zen Mountain Monastery", faith: "buddhist" },
+      { id: "UCfz9QrY-qz_j0uSygPesAeg", name: "Namgyal Monastery", faith: "buddhist" },
+      // Jewish — Torah teachings & cantorial (verified handles → IDs)
+      { id: "UCfZX3CU_wWgcDyhWkvQ5rSg", name: "Chabad.org", faith: "jewish" },
+      { id: "UCl9IK49EtWMazcVLoHnHdgw", name: "Aleph Beta", faith: "jewish" },
+      { id: "UCq-6cYitNBPy5rttFud4c5w", name: "ArtScroll Mesorah", faith: "jewish" },
+      { id: "UCPS1ETXB86wgo2fF-4OrcnQ", name: "Jewish Music Toronto", faith: "jewish" },
+      { id: "UC-KdXDCCJD2AEAhSWm--O7w", name: "Sameach Music", faith: "jewish" },
     ],
   },
 ];
@@ -292,7 +304,7 @@ async function resolveGenre(g: GenreDef): Promise<ResolvedGenre | null> {
   return { id: g.id, name: g.name, emoji: g.emoji, live: false, videos: merged.slice(0, 12) };
 }
 
-const FAITH_ORDER: Faith[] = ["islamic", "sikh", "hindu", "christian"];
+const FAITH_ORDER: Faith[] = ["islamic", "sikh", "hindu", "christian", "buddhist", "jewish"];
 const PER_FAITH_CAP = 6;
 
 async function resolveFaithGroup(faith: Faith, candidates: Candidate[]): Promise<Video[]> {
