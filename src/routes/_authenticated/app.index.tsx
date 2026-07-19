@@ -884,6 +884,7 @@ function useInstallPrompt() {
     },
     dismiss: () => setDismissed(true),
   };
+}
 
 type MarketData = {
   gold: { pricePerGram: number; currency: string } | null;
