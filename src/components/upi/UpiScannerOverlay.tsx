@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, X } from "lucide-react";
+import { Camera, X, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { parseUpiUri } from "@/routes/_authenticated/app.scan";
+import { decodeQrFromImageFile, qrDecodeSupported } from "@/lib/qrFromImage";
 
 type Prefill = { pa: string; pn?: string; am?: string; tn?: string };
 
@@ -15,9 +16,45 @@ export function UpiScannerOverlay({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const runningRef = useRef(true);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [scanning, setScanning] = useState(false);
   const [supported, setSupported] = useState(true);
   const [permError, setPermError] = useState<string | null>(null);
+  const [decodingFile, setDecodingFile] = useState(false);
+
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // reset immediately so re-picking the same file still fires change
+    e.target.value = "";
+    if (!file) return;
+    if (!qrDecodeSupported()) {
+      toast.error("QR decoding needs Android Chrome / WebView — try the live camera");
+      return;
+    }
+    setDecodingFile(true);
+    try {
+      const raw = await decodeQrFromImageFile(file);
+      if (!raw) {
+        toast.error("couldn't find a QR in that photo 🔍 try another one");
+        return;
+      }
+      // Feed into the exact same pipeline as the live scanner.
+      const parsed = parseUpiUri(raw);
+      if (!parsed) {
+        toast.error("That QR isn't a UPI payment code");
+        return;
+      }
+      stopCamera();
+      toast.success(`Found ${parsed.pn || parsed.pa} ✅`);
+      onDecode(parsed);
+      onClose();
+    } catch {
+      toast.error("couldn't read that image — try another one");
+    } finally {
+      setDecodingFile(false);
+    }
+  }
+
 
   function stopCamera() {
     runningRef.current = false;
@@ -123,7 +160,28 @@ export function UpiScannerOverlay({
 
       <div className="px-5 pb-8 pt-3 text-center text-xs text-white/70">
         point at any UPI QR — shop counters, PhonePe/GPay/Paytm stickers all work
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={decodingFile}
+            className="press inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-white disabled:opacity-60"
+            data-testid="upi-scan-upload"
+          >
+            <ImagePlus className="h-4 w-4" />
+            {decodingFile ? "reading image…" : "upload QR 🖼️"}
+          </button>
+        </div>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={onPickFile}
+      />
     </div>
   );
 }
+

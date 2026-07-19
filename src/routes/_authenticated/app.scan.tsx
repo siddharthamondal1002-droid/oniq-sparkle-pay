@@ -1,10 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ScanLine, QrCode, Camera, ClipboardPaste, AtSign } from "lucide-react";
+import { ArrowLeft, ScanLine, QrCode, Camera, ClipboardPaste, AtSign, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { upiLink, isValidVpa } from "@/lib/miniapps";
+import { decodeQrFromImageFile, qrDecodeSupported } from "@/lib/qrFromImage";
 
 export const Route = createFileRoute("/_authenticated/app/scan")({
   component: ScanScreen,
@@ -67,9 +68,12 @@ function ScanTab() {
   const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [scanning, setScanning] = useState(false);
   const [supported, setSupported] = useState(true);
   const [manual, setManual] = useState("");
+  const [decodingFile, setDecodingFile] = useState(false);
+
 
   useEffect(() => {
     // BarcodeDetector ships in Chromium (Android Chrome/WebView) — our target.
@@ -141,6 +145,31 @@ function ScanTab() {
     navigate({ to: "/app/upi", search: parsed });
   }
 
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!qrDecodeSupported()) {
+      toast.error("QR decoding needs Android Chrome / WebView — try the live camera");
+      return;
+    }
+    setDecodingFile(true);
+    try {
+      const raw = await decodeQrFromImageFile(file);
+      if (!raw) {
+        toast.error("couldn't find a QR in that photo 🔍 try another one");
+        return;
+      }
+      // Feed straight into the same downstream pipeline as the live scanner.
+      handleResult(raw);
+    } catch {
+      toast.error("couldn't read that image — try another one");
+    } finally {
+      setDecodingFile(false);
+    }
+  }
+
+
   return (
     <div className="mt-5 space-y-4">
       <div className="relative overflow-hidden rounded-3xl border border-border bg-black aspect-square">
@@ -183,6 +212,29 @@ function ScanTab() {
           </>
         )}
       </div>
+
+      {/* Upload a saved QR image (screenshot, WhatsApp forward, etc.) */}
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={decodingFile}
+          className="press inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold disabled:opacity-60"
+          data-testid="scan-upload"
+        >
+          <ImagePlus className="h-4 w-4" />
+          {decodingFile ? "reading image…" : "upload QR 🖼️"}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onPickFile}
+        />
+      </div>
+
+
 
       {/* Manual fallback */}
       <div className="rounded-3xl border border-border bg-card p-4">
