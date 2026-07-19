@@ -577,6 +577,32 @@ function RidesScreen() {
 
         {searching && <div className="mt-3 h-10 animate-pulse rounded-xl bg-muted" />}
 
+        {destSuggests.length > 0 && !destination && (
+          <div className="mt-3 space-y-1">
+            {destSuggests.map((s, i) => (
+              <button
+                key={s.placeId}
+                data-testid={`dest-suggest-${i}`}
+                onClick={async () => {
+                  const pt = await resolveSuggest(s);
+                  if (!pt) return;
+                  setDestination(pt);
+                  setDestSuggests([]);
+                  setResults([]);
+                  setQuery(pt.label);
+                }}
+                className="flex w-full items-start gap-2 rounded-xl p-2.5 text-left text-sm hover:bg-muted"
+              >
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
+                  <div className="line-clamp-1 font-medium">{s.label}</div>
+                  {s.secondary && <div className="line-clamp-1 text-xs text-muted-foreground">{s.secondary}</div>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+
         {results.length > 0 && !destination && (
           <div className="mt-3 space-y-1">
             {results.map((r, i) => (
