@@ -180,6 +180,7 @@ async function saveDistilledNote(
       topic,
       content: note.slice(0, 8000),
       source: "tutor",
+      chapter: profile.chapter ?? null,
     });
     if (insErr) console.warn("saveDistilledNote: insert error", insErr.message);
   } catch (e) {
