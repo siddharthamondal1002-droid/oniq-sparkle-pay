@@ -85,8 +85,108 @@ function FaithPage() {
             </div>
           </>
         )}
+
+        <DevotionalLiveSection />
       </div>
     </div>
+  );
+}
+
+// ============================================================
+// DEVOTIONAL LIVE — YouTube streams from official public channels
+// ============================================================
+
+type LiveVideo = {
+  videoId: string;
+  title: string;
+  channelName: string;
+  publishedAt: string;
+  thumbnail: string;
+};
+type LiveGenreResp = { id: string; name: string; emoji: string; live: boolean; videos: LiveVideo[] };
+
+function DevotionalLiveSection() {
+  const [playing, setPlaying] = useState<LiveVideo | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["blessed-devotional-live"],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("live-channels", { body: {} });
+      if (error) throw error;
+      const genres: LiveGenreResp[] = Array.isArray(data?.genres) ? data.genres : [];
+      return genres.find((g) => g.id === "devotional") ?? null;
+    },
+  });
+
+  return (
+    <section className="mt-8">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <div className="text-[11px] uppercase tracking-wider text-primary/80">watch & listen 🙏</div>
+          <h2 className="font-display text-lg font-bold">live darshan · kirtan · bayan</h2>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
+          tuning in…
+        </div>
+      ) : !data || data.videos.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
+          no live streams right now — check back later 🌙
+        </div>
+      ) : playing ? (
+        <div className="overflow-hidden rounded-2xl border border-border bg-black">
+          <div className="relative aspect-video w-full">
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${playing.videoId}?autoplay=1&rel=0`}
+              title={playing.title}
+              allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-3 bg-card p-3">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">{playing.channelName}</div>
+              <div className="truncate text-[11px] text-muted-foreground">{playing.title}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPlaying(null)}
+              className="press rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-medium"
+            >
+              back to list
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ul className="grid grid-cols-2 gap-2">
+          {data.videos.map((v) => (
+            <li key={v.videoId}>
+              <button
+                type="button"
+                onClick={() => setPlaying(v)}
+                className="press w-full overflow-hidden rounded-2xl border border-border bg-card text-left"
+              >
+                <div className="relative aspect-video w-full bg-black">
+                  <img src={v.thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
+                  <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">● live</span>
+                </div>
+                <div className="p-2">
+                  <div className="truncate text-xs font-semibold">{v.channelName}</div>
+                </div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Live streams from official public YouTube channels. ONIQ does not host or own this content 🌐
+      </p>
+    </section>
   );
 }
 

@@ -7,7 +7,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle";
+type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "devotional";
 type Candidate = { name: string; id?: string; handle?: string };
 type GenreDef = {
   id: GenreId;
@@ -109,7 +109,27 @@ const GENRES: GenreDef[] = [
       { id: "UC9SM7V7J1pAhPabOUST01fw", name: "NASA" },
     ],
   },
-
+  {
+    id: "devotional",
+    name: "Devotional",
+    emoji: "🙏",
+    live: true,
+    candidates: [
+      // Islamic — Grand Mosque / Prophet's Mosque live broadcasts
+      { id: "UChMtBGc9nYBGEsRWKrV_uSw", name: "Makkah Live" },
+      { id: "UCCZnJmWUimOYtIkB6GLrG8A", name: "Madinah Live" },
+      { id: "UCyJeX5GaHTheVHBoTUSnQcw", name: "Al Haramain Al Sharifain" },
+      // Sikh — SGPC Amritsar (Sri Harmandir Sahib official)
+      { id: "UCYn6UEtQ771a_OWSiNBoG8w", name: "SGPC, Sri Amritsar" },
+      { id: "UCjSHfIYLQHDAKW9VEO5gRNQ", name: "Daily Hukamnama" },
+      // Hindu — TTD (Tirumala) related, mainstream devotional broadcasters
+      { id: "UCsGVmie9VldduYuWYziIv9Q", name: "TTD Seva Online" },
+      { id: "UCZMmfrbYGqSjKa4MWJHb9sQ", name: "Bageshwar Dham Sarkar" },
+      { id: "UC7ZivIYRB0fMSGh-THcTYbw", name: "Shemaroo Bhakti" },
+      // Christian
+      { id: "UC1_JSuk0BSA_FWzSvMsezGg", name: "GOD TV" },
+    ],
+  },
 ];
 
 const UA =
