@@ -810,7 +810,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             <div className="grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-orange-400 to-pink-500 text-white">
               <span className="text-3xl">📚</span>
             </div>
-            <h2 className="mt-4 font-display text-2xl font-bold">Hi {profile.name} 👋</h2>
+            <h2 className="mt-4 font-display text-2xl font-bold text-white" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}>Hi {profile.name} 👋</h2>
             <p className="mt-2 max-w-xs text-sm text-muted-foreground">
               ask me anything from your syllabus — or snap a photo of the problem 📸
             </p>
