@@ -692,6 +692,7 @@ function EditProfile({
   const [name, setName] = useState(profile.name);
   const [board, setBoard] = useState<Board>(profile.board);
   const [classLevel, setClassLevel] = useState<ClassLevel>(profile.class_level);
+  const [secondLang, setSecondLang] = useState<string>(profile.second_language || "Hindi");
 
   const save = useMutation({
     mutationFn: async () => {
