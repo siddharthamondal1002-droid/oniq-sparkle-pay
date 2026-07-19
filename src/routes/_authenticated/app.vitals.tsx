@@ -131,6 +131,7 @@ function VitalsPage() {
             <RecentCheckins rows={(checkins ?? []).filter((c) => c.day !== today())} />
             {hp.experience === "women" && <CycleSection />}
             <CareSection experience={hp.experience} />
+            <PartnerShortcuts />
             <ReportsSection />
             <WipeHealthData />
             <p className="text-[11px] text-muted-foreground text-center pt-2">{DISCLAIMER}</p>
