@@ -82,7 +82,7 @@ async function fetchLoanRates(): Promise<Payload> {
   if (cache && Date.now() - cache.at < RATES_TTL_MS) return cache.data;
 
   const today = new Date().toISOString().slice(0, 10);
-  const empty: Payload = { asOf: today, categories: [], disclaimer: DISCLAIMER };
+  const fallback = fallbackSnapshot(today);
 
   const system =
     "You look up CURRENT Indian bank loan and deposit interest rates from official/reputable sources via web_search. " +
@@ -93,18 +93,18 @@ async function fetchLoanRates(): Promise<Payload> {
     "(4) If a specific bank/category rate cannot be verified, OMIT that bank from that category rather than guessing. " +
     "Return ONLY strict JSON (no markdown, no prose) matching: " +
     `{"categories":[{"type":"home|gold|car|fd","banks":[{"bank":string,"rateRange":string,"note":string?}]}]}. ` +
-    "Include the same 5-6 banks across categories where possible: SBI, HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank, and one more (Bank of Baroda or PNB). " +
+    "Include 4-5 banks per category: SBI, HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank. " +
     "rateRange should include the % sign (e.g. \"8.50-9.75%\"). " +
-    "note is optional — use it only for genuinely relevant context (e.g. \"women borrowers\", \"salaried\", \"1-year FD\").";
+    "note is optional — use it only for genuinely relevant context (e.g. \"salaried\", \"1-year FD\").";
 
   const userPrompt =
-    "Fetch the CURRENT interest rate RANGES for 5-6 major Indian banks (SBI, HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank, plus one more) across these four categories: home loan, gold loan, new car loan, and general fixed deposit (1-3 year range). Verify each via web_search. Return strict JSON only, RANGES not single numbers.";
+    "Fetch the CURRENT interest rate RANGES for 4-5 major Indian banks (SBI, HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank) across four categories: home loan, gold loan, new car loan, and general fixed deposit (1-3 year range). Verify via web_search. Return strict JSON only, RANGES not single numbers.";
 
   const key = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!key) return empty;
+  if (!key) return fallback;
 
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 90000);
+  const timer = setTimeout(() => ctrl.abort(), 140000);
   try {
     const res = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -115,23 +115,23 @@ async function fetchLoanRates(): Promise<Payload> {
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 2500,
+        model: "claude-sonnet-4-5",
+        max_tokens: 2000,
         system,
-        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 8 }],
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
         messages: [{ role: "user", content: userPrompt }],
       }),
     });
     if (!res.ok) {
       console.warn("loan-rates: http", res.status);
-      return empty;
+      return fallback;
     }
     const data = await res.json();
     const blocks = Array.isArray(data?.content) ? data.content : [];
     const text = blocks.filter((b: any) => b?.type === "text").map((b: any) => b.text ?? "").join("\n").trim();
     const s = text.indexOf("{");
     const e = text.lastIndexOf("}");
-    if (s < 0 || e <= s) return empty;
+    if (s < 0 || e <= s) return fallback;
     const parsed = JSON.parse(text.slice(s, e + 1));
     const rawCats: any[] = Array.isArray(parsed?.categories) ? parsed.categories : [];
     const categories: Category[] = rawCats
@@ -152,6 +152,8 @@ async function fetchLoanRates(): Promise<Payload> {
       }))
       .filter((c) => c.banks.length > 0);
 
+    if (categories.length === 0) return fallback;
+
     const payload: Payload = {
       asOf: today,
       categories,
@@ -162,7 +164,7 @@ async function fetchLoanRates(): Promise<Payload> {
     return payload;
   } catch (e) {
     console.warn("loan-rates: error", (e as Error).message);
-    return empty;
+    return fallback;
   } finally {
     clearTimeout(timer);
   }
