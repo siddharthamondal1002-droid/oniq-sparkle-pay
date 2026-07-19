@@ -23,15 +23,20 @@ import {
   Heart,
   Briefcase,
   BookOpen,
+  Volume2,
+  VolumeX,
+  ArrowRight,
+  ChevronRight,
 } from "lucide-react";
 import { useVitalsTileColor } from "@/components/vitals/useVitalsTileColor";
-import { CompactLiveNews, loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
+import { loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
 import {
   CustomizeButton,
   useHiddenTiles,
   useUserTheme,
   type TileKey,
 } from "@/components/customize/CustomizeSheet";
+import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   component: HomeScreen,
