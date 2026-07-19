@@ -1,7 +1,7 @@
 // study-quiz — generate a 5-question board/class-aware quiz for a learner.
 // JWT-gated; reuses shared callClaude. Returns HTTP 200 always.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json } from "../_shared/llm.ts";
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
 const QUIZ_TOOL = {
   name: "generate_quiz",
@@ -57,6 +57,7 @@ Deno.serve(async (req) => {
     subject?: string;
     topic?: string;
     chapter?: string;
+    lang?: string;
   } = {};
   try { body = await req.json(); } catch { /* keep {} */ }
 
@@ -91,7 +92,7 @@ Deno.serve(async (req) => {
     "- Honesty: never invent facts, dates, or formulas. If uncertain about specifics for this level, stay with safely-known material for the topic.",
     "- Do not include the student's name or any personal info.",
     "- Return ONLY via the generate_quiz tool.",
-  ].filter(Boolean).join("\n");
+  ].filter(Boolean).join("\n") + langInstruction(body.lang);
 
   const res = await callClaude({
     system,

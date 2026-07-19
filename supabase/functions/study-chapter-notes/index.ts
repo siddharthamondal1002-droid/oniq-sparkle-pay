@@ -2,7 +2,7 @@
 // Cache-first from public.chapter_notes; on miss, generate via Claude and
 // service-role upsert. JWT-gated. Mirrors study-chapters' shape.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json } from "../_shared/llm.ts";
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
 const SOURCE_NOTE = "AI-generated study notes — verify against your exact textbook edition";
 
@@ -28,13 +28,15 @@ Deno.serve(async (req) => {
     return json(401, { error: "unauthorized" });
   }
 
-  let body: { board?: string; classLevel?: string; subject?: string; chapter?: string } = {};
+  let body: { board?: string; classLevel?: string; subject?: string; chapter?: string; lang?: string } = {};
   try { body = await req.json(); } catch { /* keep {} */ }
 
   const board = String(body.board ?? "").toLowerCase().trim();
   const classLevel = String(body.classLevel ?? "").trim();
   const subject = norm(String(body.subject ?? ""), 80);
   const chapter = norm(String(body.chapter ?? ""), 200);
+  const langCode = String(body.lang ?? "").toLowerCase().trim();
+  const isLocalised = langCode && langCode !== "en";
 
   if (!BOARD_LABEL[board]) return json(200, { source: "unavailable", content: "", reason: "invalid board" });
   if (!(VALID_CLASS_LEVELS as readonly string[]).includes(classLevel)) {
@@ -50,8 +52,8 @@ Deno.serve(async (req) => {
   }
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
-  // 1) Cache check
-  try {
+  // 1) Cache check — English-only; localised responses bypass cache.
+  if (!isLocalised) try {
     const { data: row, error } = await admin
       .from("chapter_notes")
       .select("content, source_note")
@@ -90,7 +92,7 @@ Deno.serve(async (req) => {
     `- Do NOT invent facts. Do NOT cite fake textbook page numbers or fabricated sources. If the chapter has widely-recognized formulas/theorems/dates, use the standard ones; if you are uncertain about a specific figure, phrase it generally rather than inventing.`,
     `- Length: thorough but not padded. Aim ~400-900 words depending on how content-heavy the chapter is. A dense Physics chapter deserves the upper end; a short English poem the lower end.`,
     `- Output plain markdown text only. No code fences, no preamble like "Here are your notes", no closing sign-off.`,
-  ].join("\n");
+  ].join("\n") + langInstruction(body.lang);
 
   const userMsg = `Write study notes for this chapter:\n- Board: ${boardLabel}\n- Class/Level: ${classLevel}\n- Subject: ${subject}\n- Chapter: ${chapter}\n\nBegin directly with the first "## " section header.`;
 
@@ -113,8 +115,8 @@ Deno.serve(async (req) => {
     return json(200, { source: "unavailable", content: "", reason: "empty generation" });
   }
 
-  // 3) Persist (one-time cache write; safe under races)
-  try {
+  // 3) Persist (one-time cache write; English only to keep cache stable).
+  if (!isLocalised) try {
     const { error: insErr } = await admin
       .from("chapter_notes")
       .upsert(
