@@ -246,7 +246,7 @@ function Tile({
   );
 }
 
-type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "mytv";
+type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "devotional" | "mytv";
 type Video = {
   videoId: string;
   title: string;
