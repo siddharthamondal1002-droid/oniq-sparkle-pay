@@ -50,6 +50,19 @@ Deno.serve(async (req) => {
   }
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
+  const logDebug = async (fields: { source: string; reason?: string | null; stop_reason?: string | null; blocks_snippet?: string | null; http_reason?: string | null }) => {
+    try {
+      await admin.from("study_chapters_debug").insert({
+        board, class_level: classLevel, subject,
+        source: fields.source,
+        reason: fields.reason ?? null,
+        stop_reason: fields.stop_reason ?? null,
+        blocks_snippet: fields.blocks_snippet ?? null,
+        http_reason: fields.http_reason ?? null,
+      });
+    } catch { /* best effort */ }
+  };
+
   // 1) Cache check
   try {
     const { data: rows, error } = await admin
