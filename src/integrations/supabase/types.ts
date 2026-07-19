@@ -229,6 +229,39 @@ export type Database = {
         }
         Relationships: []
       }
+      chapters: {
+        Row: {
+          board: string
+          chapter_number: number
+          chapter_title: string
+          class_level: string
+          created_at: string
+          id: string
+          source_note: string
+          subject: string
+        }
+        Insert: {
+          board: string
+          chapter_number: number
+          chapter_title: string
+          class_level: string
+          created_at?: string
+          id?: string
+          source_note?: string
+          subject: string
+        }
+        Update: {
+          board?: string
+          chapter_number?: number
+          chapter_title?: string
+          class_level?: string
+          created_at?: string
+          id?: string
+          source_note?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       clips: {
         Row: {
           caption: string | null
@@ -1767,6 +1800,7 @@ export type Database = {
       study_notes: {
         Row: {
           board: string
+          chapter: string | null
           class_level: string
           content: string
           created_at: string
@@ -1778,6 +1812,7 @@ export type Database = {
         }
         Insert: {
           board: string
+          chapter?: string | null
           class_level: string
           content: string
           created_at?: string
@@ -1789,6 +1824,7 @@ export type Database = {
         }
         Update: {
           board?: string
+          chapter?: string | null
           class_level?: string
           content?: string
           created_at?: string
