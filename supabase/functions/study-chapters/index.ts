@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     return json(401, { error: "unauthorized" });
   }
 
-  let body: { board?: string; classLevel?: string; subject?: string; lang?: string } = {};
+  let body: { board?: string; classLevel?: string; subject?: string; lang?: string; profileId?: string } = {};
   try { body = await req.json(); } catch { /* keep {} */ }
 
   const board = String(body.board ?? "").toLowerCase().trim();
@@ -38,6 +38,8 @@ Deno.serve(async (req) => {
   const subject = normSubject(String(body.subject ?? ""));
   const langCode = String(body.lang ?? "").toLowerCase().trim();
   const isLocalised = langCode && langCode !== "en";
+  const profileId = String(body.profileId ?? "").trim();
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(profileId);
 
   if (!BOARD_LABEL[board]) return json(200, { source: "unavailable", chapters: [], reason: "invalid board" });
   if (!(VALID_CLASS_LEVELS as readonly string[]).includes(classLevel)) {
