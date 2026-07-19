@@ -879,7 +879,31 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
           }}
           className="border-t border-border bg-card/60 p-3 backdrop-blur"
         >
-          {/* Subject chips + practice quiz */}
+          {/* Tutor-scope chip — visible when a chapter (or whole subject) is
+              scoping this chat. Explicit so the student knows the tutor is
+              focused, and one-tap to clear. */}
+          {tutorScope && (
+            <div className="mb-2 flex items-center gap-2">
+              <div className="inline-flex items-center gap-1.5 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary">
+                <span>🎯</span>
+                <span className="max-w-[220px] truncate">
+                  {tutorScope.subject}
+                  {tutorScope.chapter ? ` · ${tutorScope.chapter}` : " · whole subject"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setTutorScope(null)}
+                  aria-label="Clear tutor scope"
+                  className="grid h-4 w-4 place-items-center rounded-full hover:bg-primary/20"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          )}
+          {/* Subject chips + practice quiz. Tapping a subject opens a
+              SubjectSheet with its chapter list — first-class, not buried in
+              the practice picker. */}
           <div className="mb-2 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             <button
               type="button"
@@ -892,13 +916,35 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               <button
                 key={s}
                 type="button"
-                onClick={() => setInput(`Help me with ${s}: `)}
+                onClick={() => setSubjectSheet(s)}
                 className="shrink-0 rounded-full border border-border bg-card px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-muted"
               >
-                {s}
+                {s} 📚
               </button>
             ))}
           </div>
+          {subjectSheet && createPortal(
+            <SubjectSheet
+              profile={profile}
+              subject={subjectSheet}
+              tutorScope={tutorScope}
+              onClose={() => setSubjectSheet(null)}
+              onScopeTutor={(subject, chapter) => {
+                setTutorScope({ subject, chapter });
+                setSubjectSheet(null);
+                toast.success(chapter ? `tutor scoped to “${chapter}” 🎯` : `tutor scoped to whole ${subject} 🎯`);
+              }}
+              onStartQuiz={(subject, chapter) => {
+                setQuizSubject({ subject, chapter });
+                setSubjectSheet(null);
+              }}
+              onStartPaper={(subject, chapter, totalMarks) => {
+                setPaperSpec({ subject, totalMarks, chapter });
+                setSubjectSheet(null);
+              }}
+            />,
+            document.body,
+          )}
           {showQuizPicker && createPortal(
             <ModalCard
               onClose={() => {
