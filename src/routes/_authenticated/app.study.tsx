@@ -726,6 +726,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const [pickerMode, setPickerMode] = useState<"root" | "mock">("root");
   const [subjectSheet, setSubjectSheet] = useState<string | null>(null);
   const [tutorScope, setTutorScope] = useState<{ subject: string; chapter?: string } | null>(null);
+  const [pendingAsk, setPendingAsk] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
@@ -884,6 +885,16 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
     }
   }
 
+  // Fire an auto-message once the tutor is scoped (e.g. "give me an overview")
+  // from SubjectSheet. Runs after hydration so we don't clobber history.
+  useEffect(() => {
+    if (!pendingAsk || hydrating || loading) return;
+    const text = pendingAsk;
+    setPendingAsk(null);
+    void ask(text);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAsk, hydrating]);
+
   const canSend = !loading && (input.trim().length > 0 || !!attachment);
 
   return (
@@ -1032,6 +1043,14 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onStartPaper={(subject, chapter, totalMarks) => {
                 setPaperSpec({ subject, totalMarks, chapter });
                 setSubjectSheet(null);
+              }}
+              onOverviewChapter={(subject, chapter) => {
+                setTutorScope({ subject, chapter });
+                setSubjectSheet(null);
+                setPendingAsk(
+                  "Give me a clear overview of this chapter — the main topics and key concepts I should know before we dive in.",
+                );
+                toast.success(`overview coming up 👁️ · ${chapter}`);
               }}
             />,
             document.body,
@@ -1433,6 +1452,7 @@ function SubjectSheet({
   subject,
   tutorScope,
   onScopeTutor,
+  onOverviewChapter,
   onStartQuiz,
   onStartPaper,
   onClose,
@@ -1441,6 +1461,7 @@ function SubjectSheet({
   subject: string;
   tutorScope: { subject: string; chapter?: string } | null;
   onScopeTutor: (subject: string, chapter?: string) => void;
+  onOverviewChapter: (subject: string, chapter: string) => void;
   onStartQuiz: (subject: string, chapter?: string) => void;
   onStartPaper: (subject: string, chapter: string | undefined, totalMarks: 30 | 80 | 100) => void;
   onClose: () => void;
@@ -1613,6 +1634,11 @@ function SubjectSheet({
                     )}
                   </div>
                   <div className="flex shrink-0 gap-1">
+                    <SheetActionBtn
+                      label="👁️"
+                      title="overview"
+                      onClick={() => onOverviewChapter(subject, c.chapter_title)}
+                    />
                     <SheetActionBtn
                       label="💬"
                       title="chat"
