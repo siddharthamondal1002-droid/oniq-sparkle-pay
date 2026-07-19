@@ -612,6 +612,55 @@ function HeroTile({
       </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
 
+      {showDevPicker && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center"
+        >
+          <div className="text-[10px] uppercase tracking-wider text-primary/90">devotional 🙏</div>
+          <div className="text-xs font-semibold text-white">loop for how long?</div>
+          <div className="no-scrollbar flex max-w-full flex-wrap items-center justify-center gap-1 px-2">
+            {DEVOTIONAL_DURATIONS.map((d) => (
+              <button
+                key={d.sec}
+                onClick={(e) => { e.stopPropagation(); startDevLoop(d.sec); }}
+                className="rounded-full border border-primary/60 bg-primary/20 px-2.5 py-0.5 text-[11px] font-semibold text-white"
+              >
+                {d.label}
+              </button>
+            ))}
+            <button
+              onClick={(e) => { e.stopPropagation(); skipDevPicker(); }}
+              className="rounded-full border border-white/25 bg-black/40 px-2.5 py-0.5 text-[11px] font-medium text-white/90"
+            >
+              just browse
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isDevotional && devLoopEnded && !showDevPicker && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-1/2 top-2 z-20 -translate-x-1/2 flex items-center gap-1 rounded-full border border-white/20 bg-black/70 px-2 py-1 text-[10px] text-white/95"
+        >
+          <span>loop ended</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); clearDevLoop(); setDevJustBrowse(false); }}
+            className="rounded-full border border-primary/50 bg-primary/25 px-2 py-0.5 font-semibold"
+          >
+            replay
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); clearDevLoop(); setDevJustBrowse(true); }}
+            className="rounded-full border border-white/25 bg-black/40 px-2 py-0.5"
+          >
+            keep browsing
+          </button>
+        </div>
+      )}
+
+
       <span className={`relative inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/15 text-red-300" : "border-primary/50 bg-primary/15 text-primary"}`}>
         {isLiveGenre ? (
           <>
