@@ -68,7 +68,10 @@ async function collectForFaith(mirror: string, faith: Faith): Promise<Station[]>
       const stream = (s.url_resolved || s.url || "").trim();
       if (!stream) continue;
       if (s.lastcheckok !== 1) continue;
-      const key = s.stationuuid || stream;
+      const key = stream;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (s.stationuuid) seen.add(s.stationuuid);
       if (seen.has(key)) continue;
       seen.add(key);
       out.push({
