@@ -1592,6 +1592,13 @@ function SubjectSheet({
             </div>
             <div className="flex shrink-0 gap-1">
               <SheetActionBtn
+                label="👁️"
+                title="read"
+                onClick={() =>
+                  toast.info("reading mode is chapter-specific — pick a chapter below to open its notes 📖")
+                }
+              />
+              <SheetActionBtn
                 label="💬"
                 title="chat"
                 active={scopedChapter === "__all__"}
