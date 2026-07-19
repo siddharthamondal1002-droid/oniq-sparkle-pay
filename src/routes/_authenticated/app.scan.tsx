@@ -145,6 +145,31 @@ function ScanTab() {
     navigate({ to: "/app/upi", search: parsed });
   }
 
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!qrDecodeSupported()) {
+      toast.error("QR decoding needs Android Chrome / WebView — try the live camera");
+      return;
+    }
+    setDecodingFile(true);
+    try {
+      const raw = await decodeQrFromImageFile(file);
+      if (!raw) {
+        toast.error("couldn't find a QR in that photo 🔍 try another one");
+        return;
+      }
+      // Feed straight into the same downstream pipeline as the live scanner.
+      handleResult(raw);
+    } catch {
+      toast.error("couldn't read that image — try another one");
+    } finally {
+      setDecodingFile(false);
+    }
+  }
+
+
   return (
     <div className="mt-5 space-y-4">
       <div className="relative overflow-hidden rounded-3xl border border-border bg-black aspect-square">
