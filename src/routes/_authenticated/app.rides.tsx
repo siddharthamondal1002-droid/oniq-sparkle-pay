@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { placesAutocomplete, placeDetails, type PlaceSuggestion } from "@/lib/places.functions";
 import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles, ChevronDown, ChevronRight, Wallet } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -56,6 +58,11 @@ function RidesScreen() {
   const [pickupQuery, setPickupQuery] = useState("");
   const [pickupResults, setPickupResults] = useState<GeoResult[]>([]);
   const [pickupSearching, setPickupSearching] = useState(false);
+  const [pickupSuggests, setPickupSuggests] = useState<PlaceSuggestion[]>([]);
+  const [destSuggests, setDestSuggests] = useState<PlaceSuggestion[]>([]);
+
+  const autocompleteFn = useServerFn(placesAutocomplete);
+  const detailsFn = useServerFn(placeDetails);
 
 
   const [genie, setGenie] = useState("");
@@ -73,6 +80,57 @@ function RidesScreen() {
     const w = window as any;
     if (w.SpeechRecognition || w.webkitSpeechRecognition) setMicSupported(true);
   }, []);
+
+  // Google Places Autocomplete — debounced. Fails silently → user can still
+  // press the search button (Mappls/Nominatim geocode) or type freely.
+  useEffect(() => {
+    const q = pickupQuery.trim();
+    if (q.length < 2 || !pickupEditing) { setPickupSuggests([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const near = pickup ? { lat: pickup.lat, lon: pickup.lon } : undefined;
+        const { suggestions } = await autocompleteFn({ data: { input: q, near } });
+        if (!cancelled) setPickupSuggests(suggestions);
+      } catch (e) {
+        if (!cancelled) setPickupSuggests([]);
+        console.warn("[places] pickup autocomplete failed", (e as Error)?.message);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [pickupQuery, pickupEditing, pickup, autocompleteFn]);
+
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2 || destination) { setDestSuggests([]); return; }
+    let cancelled = false;
+    const t = setTimeout(async () => {
+      try {
+        const near = pickup ? { lat: pickup.lat, lon: pickup.lon } : undefined;
+        const { suggestions } = await autocompleteFn({ data: { input: q, near } });
+        if (!cancelled) setDestSuggests(suggestions);
+      } catch (e) {
+        if (!cancelled) setDestSuggests([]);
+        console.warn("[places] destination autocomplete failed", (e as Error)?.message);
+      }
+    }, 250);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query, destination, pickup, autocompleteFn]);
+
+  async function resolveSuggest(s: PlaceSuggestion): Promise<Point | null> {
+    try {
+      const d = await detailsFn({ data: { placeId: s.placeId } });
+      return { lat: d.lat, lon: d.lon, label: d.label };
+    } catch (e) {
+      console.warn("[places] details failed, falling back to geocode", (e as Error)?.message);
+      const label = [s.label, s.secondary].filter(Boolean).join(", ");
+      const r = await geocode(label);
+      if (r[0]) return { lat: r[0].lat, lon: r[0].lon, label: r[0].label };
+      toast.error("Couldn't resolve that address — try another");
+      return null;
+    }
+  }
+
 
   // Default pickup = current phone location (native GPS on device, browser API on web)
   async function locateMe(fromTap = false) {
@@ -431,6 +489,35 @@ function RidesScreen() {
 
             {pickupSearching && <div className="h-10 animate-pulse rounded-xl bg-muted" />}
 
+            {pickupSuggests.length > 0 && (
+              <div className="space-y-1">
+                {pickupSuggests.map((s, i) => (
+                  <button
+                    key={s.placeId}
+                    data-testid={`pickup-suggest-${i}`}
+                    onClick={async () => {
+                      const pt = await resolveSuggest(s);
+                      if (!pt) return;
+                      setPickup(pt);
+                      setPickupIsCurrent(false);
+                      setPickupSuggests([]);
+                      setPickupResults([]);
+                      setPickupQuery(pt.label);
+                      setPickupEditing(false);
+                      toast.success("Pickup set 📍 " + pt.label);
+                    }}
+                    className="flex w-full items-start gap-2 rounded-xl p-2.5 text-left text-sm hover:bg-muted"
+                  >
+                    <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <div className="line-clamp-1 font-medium">{s.label}</div>
+                      {s.secondary && <div className="line-clamp-1 text-xs text-muted-foreground">{s.secondary}</div>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
             {pickupResults.length > 0 && (
               <div className="space-y-1">
                 {pickupResults.map((r, i) => (
@@ -489,6 +576,32 @@ function RidesScreen() {
         </div>
 
         {searching && <div className="mt-3 h-10 animate-pulse rounded-xl bg-muted" />}
+
+        {destSuggests.length > 0 && !destination && (
+          <div className="mt-3 space-y-1">
+            {destSuggests.map((s, i) => (
+              <button
+                key={s.placeId}
+                data-testid={`dest-suggest-${i}`}
+                onClick={async () => {
+                  const pt = await resolveSuggest(s);
+                  if (!pt) return;
+                  setDestination(pt);
+                  setDestSuggests([]);
+                  setResults([]);
+                  setQuery(pt.label);
+                }}
+                className="flex w-full items-start gap-2 rounded-xl p-2.5 text-left text-sm hover:bg-muted"
+              >
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                <div className="min-w-0 flex-1">
+                  <div className="line-clamp-1 font-medium">{s.label}</div>
+                  {s.secondary && <div className="line-clamp-1 text-xs text-muted-foreground">{s.secondary}</div>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
 
         {results.length > 0 && !destination && (
           <div className="mt-3 space-y-1">
