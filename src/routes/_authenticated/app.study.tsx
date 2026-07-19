@@ -989,13 +989,25 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                       ))}
                     </div>
                   </div>
+                ) : !pickerChapter ? (
+                  <ChapterPickerPanel
+                    profile={profile}
+                    subject={pickerSubject}
+                    onPick={(c) => setPickerChapter(c)}
+                    onBack={() => setPickerSubject(null)}
+                  />
                 ) : (
                   <div className="mt-4 space-y-2">
+                    <div className="mb-1 text-[11px] text-muted-foreground">
+                      {pickerChapter === "__all__" ? "whole subject" : `chapter: ${pickerChapter}`}
+                    </div>
                     <button
                       onClick={() => {
+                        const ch = pickerChapter === "__all__" ? undefined : pickerChapter;
                         setShowQuizPicker(false);
-                        setQuizSubject(pickerSubject);
+                        setQuizSubject({ subject: pickerSubject, chapter: ch });
                         setPickerSubject(null);
+                        setPickerChapter(null);
                       }}
                       className="w-full rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-left hover:bg-primary/15"
                     >
@@ -1006,9 +1018,11 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                       <button
                         key={m}
                         onClick={() => {
+                          const ch = pickerChapter === "__all__" ? undefined : pickerChapter;
                           setShowQuizPicker(false);
-                          setPaperSpec({ subject: pickerSubject, totalMarks: m });
+                          setPaperSpec({ subject: pickerSubject, totalMarks: m, chapter: ch });
                           setPickerSubject(null);
+                          setPickerChapter(null);
                         }}
                         className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left hover:bg-muted"
                       >
@@ -1021,10 +1035,10 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                       </button>
                     ))}
                     <button
-                      onClick={() => setPickerSubject(null)}
+                      onClick={() => setPickerChapter(null)}
                       className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
                     >
-                      ← change subject
+                      ← change chapter
                     </button>
                   </div>
                 )}
@@ -1035,7 +1049,8 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
           {quizSubject && (
             <QuizModal
               profile={profile}
-              initialSubject={quizSubject}
+              initialSubject={quizSubject.subject}
+              chapter={quizSubject.chapter}
               onClose={() => setQuizSubject(null)}
             />
           )}
@@ -1044,6 +1059,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               profile={profile}
               subject={paperSpec.subject}
               totalMarks={paperSpec.totalMarks}
+              chapter={paperSpec.chapter}
               onClose={() => setPaperSpec(null)}
             />
           )}
