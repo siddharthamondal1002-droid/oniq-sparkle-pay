@@ -8,7 +8,8 @@ const corsHeaders = {
 };
 
 type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "devotional";
-type Candidate = { name: string; id?: string; handle?: string };
+type Faith = "islamic" | "sikh" | "hindu" | "christian";
+type Candidate = { name: string; id?: string; handle?: string; faith?: Faith };
 type GenreDef = {
   id: GenreId;
   name: string;
