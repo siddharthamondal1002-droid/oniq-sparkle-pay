@@ -992,7 +992,7 @@ function GlanceCard() {
   });
 
   const { data: loans, isLoading: loansLoading, isError: loansError } = useQuery<LoanRatesPayload | null>({
-    queryKey: ["loan-rates"],
+    queryKey: ["loan-rates", "v2"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("loan-rates");
       if (error) throw error;
