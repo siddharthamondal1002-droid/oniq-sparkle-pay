@@ -757,6 +757,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
         messages: payload,
         profile: { name: profile.name, board: profile.board, classLevel: profile.class_level },
       };
+      if (tutorScope?.chapter) body.chapter = tutorScope.chapter;
       try {
         const { getUserLanguage } = await import("@/lib/userLanguage");
         body.lang = await getUserLanguage();
