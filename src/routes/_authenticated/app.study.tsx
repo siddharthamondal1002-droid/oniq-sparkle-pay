@@ -240,7 +240,7 @@ const BOARD_EMOJI: Record<Board, string> = {
   gujarat_board: "🗺️", karnataka_board: "🗺️", ap_board: "🗺️", telangana_board: "🗺️",
 };
 
-function subjectsFor(board: Board, cls: ClassLevel): string[] {
+function subjectsFor(board: Board, cls: ClassLevel, secondLanguage?: string | null): string[] {
   if (board === "jee") return ["Physics", "Chemistry", "Mathematics"];
   if (board === "neet") return ["Physics", "Chemistry", "Biology"];
   if (board === "clat") {
@@ -276,18 +276,30 @@ function subjectsFor(board: Board, cls: ClassLevel): string[] {
   if (cls === "ug" || cls === "pg" || board === "college") {
     return ["Maths", "Physics", "Chemistry", "Biology", "English", "Economics", "Computer Science", "General"];
   }
+
+  // Second-language subject slot resolves to:
+  //  - state boards with a mandated regional language → that language
+  //  - cbse/icse/igcse → the profile's stored second_language (fallback Hindi)
+  //  - Hindi-belt state boards & everything else → "Hindi"
+  const secondLang =
+    STATE_REGIONAL_LANG[board] ??
+    (boardUsesSecondLangPicker(board) ? (secondLanguage || "Hindi") : "Hindi");
+
   const n = Number(cls);
   if (n >= 5 && n <= 8) {
-    return ["Maths", "Science", "English", "Hindi", "Social Studies", "Computer"];
+    return ["Maths", "Science", "English", secondLang, "Social Studies", "Computer"];
   }
   if (n === 9 || n === 10) {
     if (board === "icse") {
-      return ["Maths", "Physics", "Chemistry", "Biology", "English", "History & Civics", "Geography", "Hindi", "Computer"];
+      return ["Maths", "Physics", "Chemistry", "Biology", "English", "History & Civics", "Geography", secondLang, "Computer"];
     }
     if (board === "igcse") {
-      return ["Maths", "Physics", "Chemistry", "Biology", "English", "Geography", "History", "Computer Science"];
+      // IGCSE international schools rarely mandate an Indian regional lang;
+      // still expose the picked second language when the family added one.
+      const base = ["Maths", "Physics", "Chemistry", "Biology", "English", "Geography", "History", "Computer Science"];
+      return secondLanguage ? [...base, secondLanguage] : base;
     }
-    return ["Maths", "Science", "English", "Hindi", "Social Science", "Computer"];
+    return ["Maths", "Science", "English", secondLang, "Social Science", "Computer"];
   }
   // 11–12
   return ["Physics", "Chemistry", "Maths", "Biology", "English", "Accounts", "Economics", "Business Studies", "Computer Science"];
