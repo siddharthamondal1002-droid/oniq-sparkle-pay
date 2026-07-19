@@ -1148,7 +1148,131 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   );
 }
 
+// ------------------------- Chapter picker -------------------------
+
+type ChapterRow = { chapter_number: number; title: string };
+
+function ChapterPickerPanel({
+  profile,
+  subject,
+  onPick,
+  onBack,
+}: {
+  profile: LearnerProfile;
+  subject: string;
+  onPick: (chapter: string | "__all__") => void;
+  onBack: () => void;
+}) {
+  const [chapters, setChapters] = useState<ChapterRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { data: attempts } = useAttempts();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("study-chapters", {
+          body: {
+            profile: { board: profile.board, classLevel: profile.class_level },
+            subject,
+          },
+        });
+        if (cancelled) return;
+        if (error) throw error;
+        const d = data as { chapters?: ChapterRow[] };
+        setChapters(Array.isArray(d?.chapters) ? d.chapters : []);
+      } catch {
+        if (!cancelled) setChapters([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile.board, profile.class_level, subject]);
+
+  // Private mastery per chapter — %score across this profile's attempts for
+  // (subject, chapter). Uses attemptScore semantics.
+  const mastery = new Map<string, number>();
+  const counts = new Map<string, number>();
+  for (const a of attempts ?? []) {
+    if (a.profile_id !== profile.id) continue;
+    if (a.subject !== subject) continue;
+    const key = a.chapter ?? "";
+    if (!key) continue;
+    const num = a.total_marks && a.total_marks > 0
+      ? Math.max(0, a.marks_scored ?? 0)
+      : Math.max(0, a.correct_count ?? 0);
+    const den = a.total_marks && a.total_marks > 0
+      ? a.total_marks
+      : (a.total_questions ?? 0);
+    if (den <= 0) continue;
+    const pct = Math.round((num / den) * 100);
+    mastery.set(key, (mastery.get(key) ?? 0) + pct);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const avgMastery = (title: string) => {
+    const c = counts.get(title);
+    if (!c) return null;
+    return Math.round((mastery.get(title) ?? 0) / c);
+  };
+
+  return (
+    <div className="mt-4 space-y-2 max-h-[50vh] overflow-y-auto">
+      <div className="mb-1 text-[11px] text-muted-foreground">{subject} · pick a chapter</div>
+      <button
+        onClick={() => onPick("__all__")}
+        className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-left text-sm hover:bg-muted"
+      >
+        <div className="font-semibold">🎯 whole subject</div>
+        <div className="text-[11px] text-muted-foreground">mixed questions from any chapter</div>
+      </button>
+      {loading && (
+        <div className="py-4 text-center text-xs text-muted-foreground">loading chapters…</div>
+      )}
+      {!loading && chapters && chapters.length === 0 && (
+        <div className="py-2 text-center text-[11px] text-muted-foreground">
+          no chapter list available — use whole subject
+        </div>
+      )}
+      {!loading && chapters && chapters.map((c) => {
+        const pct = avgMastery(c.title);
+        const badge = pct === null ? null
+          : pct >= 75 ? { label: `${pct}% 🟢`, tone: "text-emerald-400" }
+          : pct >= 50 ? { label: `${pct}% 🟡`, tone: "text-amber-400" }
+          : { label: `${pct}% 🔴`, tone: "text-rose-400" };
+        return (
+          <button
+            key={c.chapter_number}
+            onClick={() => onPick(c.title)}
+            className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-left text-sm hover:bg-muted"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  ch {c.chapter_number}
+                </div>
+                <div className="truncate font-medium">{c.title}</div>
+              </div>
+              {badge && (
+                <div className={`shrink-0 text-[11px] font-semibold ${badge.tone}`}>{badge.label}</div>
+              )}
+            </div>
+          </button>
+        );
+      })}
+      <button
+        onClick={onBack}
+        className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
+      >
+        ← change subject
+      </button>
+    </div>
+  );
+}
+
 // ------------------------- Quiz -------------------------
+
 
 type QuizQ = { question: string; options: string[]; correct_index: number; explanation: string };
 
