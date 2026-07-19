@@ -1765,6 +1765,45 @@ export type Database = {
           },
         ]
       }
+      study_chapters_debug: {
+        Row: {
+          blocks_snippet: string | null
+          board: string | null
+          class_level: string | null
+          created_at: string
+          http_reason: string | null
+          id: string
+          reason: string | null
+          source: string | null
+          stop_reason: string | null
+          subject: string | null
+        }
+        Insert: {
+          blocks_snippet?: string | null
+          board?: string | null
+          class_level?: string | null
+          created_at?: string
+          http_reason?: string | null
+          id?: string
+          reason?: string | null
+          source?: string | null
+          stop_reason?: string | null
+          subject?: string | null
+        }
+        Update: {
+          blocks_snippet?: string | null
+          board?: string | null
+          class_level?: string | null
+          created_at?: string
+          http_reason?: string | null
+          id?: string
+          reason?: string | null
+          source?: string | null
+          stop_reason?: string | null
+          subject?: string | null
+        }
+        Relationships: []
+      }
       study_messages: {
         Row: {
           content: string
