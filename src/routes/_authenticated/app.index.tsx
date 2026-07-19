@@ -417,6 +417,39 @@ function HeroTile({
   const stopAdvanceRef = useRef(false);
   useEffect(() => { stopAdvanceRef.current = devLoopEnded; }, [devLoopEnded]);
 
+  // Speaker/mute coordination — start muted (matches autoplay policy),
+  // unmute only on explicit user tap. Registers a controllable wrapper with
+  // MediaProvider so the YouTube player participates in single-audio-source
+  // coordination alongside BrainrotBanner's raw <video>.
+  const media = useMediaCoordinator();
+  const [muted, setMuted] = useState(true);
+  const controllableRef = useRef({
+    pause: () => { try { playerRef.current?.pauseVideo?.(); } catch { /* noop */ } },
+    mute: () => {
+      try { playerRef.current?.mute?.(); } catch { /* noop */ }
+      setMuted(true);
+    },
+  });
+  const toggleMute = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const p = playerRef.current;
+    if (!p) return;
+    try {
+      const isMuted = typeof p.isMuted === "function" ? p.isMuted() : muted;
+      if (isMuted) {
+        // Unmuting is the user gesture — claim active audio slot.
+        media.register(controllableRef.current);
+        p.unMute?.();
+        setMuted(false);
+      } else {
+        p.mute?.();
+        setMuted(true);
+      }
+    } catch { /* noop */ }
+    bumpHide();
+  };
+
   const playerHostId = `yt-tile-${useId().replace(/:/g, "")}`;
   const playerCoverClass = "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
 
