@@ -650,6 +650,7 @@ function ScoutPanel() {
   const [query, setQuery] = useState("");
   const [image, setImage] = useState<{ base64: string; mime: string; preview: string } | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingPhase, setLoadingPhase] = useState(0);
   const [data, setData] = useState<ScoutResponse | null>(null);
   const [listening, setListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
@@ -661,6 +662,16 @@ function ScoutPanel() {
     setSpeechSupported(!!SR);
     return () => { try { recRef.current?.stop?.(); } catch {} };
   }, []);
+
+  // Rotating "still searching" messages so a long exploratory query (restaurants,
+  // salons — multiple platforms to check) doesn't feel like the app is stuck.
+  useEffect(() => {
+    if (!loading) { setLoadingPhase(0); return; }
+    const t1 = setTimeout(() => setLoadingPhase(1), 15000);
+    const t2 = setTimeout(() => setLoadingPhase(2), 35000);
+    const t3 = setTimeout(() => setLoadingPhase(3), 70000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [loading]);
 
   async function toggleMic() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -843,7 +854,12 @@ function ScoutPanel() {
           className="press glow-primary mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-          {loading ? "scouting the best prices 🕵️…" : "find best price"}
+          {loading
+            ? (loadingPhase === 0 ? "scouting the best prices 🕵️…"
+              : loadingPhase === 1 ? "still searching — checking a few more places 🔎"
+              : loadingPhase === 2 ? "comparing across shops & platforms 🛒"
+              : "almost there — synthesising the best pick ✨")
+            : "find best price"}
         </button>
       </div>
 
