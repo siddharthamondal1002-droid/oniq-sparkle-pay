@@ -778,11 +778,23 @@ function ScoutPanel() {
     setData(null);
     setScoutError(null);
     try {
+      // PART 1: kick off geolocation IN PARALLEL with the language lookup, and
+      // only wait for it up to ~1500ms before dispatching the scout call. Previously
+      // resolveLocation() blocked the invoke serially for up to ~4s of pure wait.
+      // Now the search starts within ~1.5s regardless; if geo resolves faster it
+      // rides along, otherwise the search is dispatched immediately without it.
+      const locPromise = resolveLocation();
+      const locRaced: { label?: string; pin?: string; lat?: number; lon?: number } | null =
+        await Promise.race([
+          locPromise,
+          new Promise<null>((res) => setTimeout(() => res(null), 1500)),
+        ]);
+
       let lang = "en";
       try { const m = await import("@/lib/userLanguage"); lang = await m.getUserLanguage(); } catch { /* noop */ }
-      const location = await resolveLocation();
+
       const { data: r, error } = await supabase.functions.invoke("smart-scout", {
-        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto", lang, location },
+        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto", lang, location: locRaced },
       });
       // Prefer the function's own { error } body over supabase's generic wrapper.
       const bodyErr = (r as any)?.error;
