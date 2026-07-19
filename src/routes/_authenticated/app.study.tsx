@@ -1751,7 +1751,7 @@ function PaperModal({
       setFinishing(true);
       try {
         await supabase.functions.invoke("study-paper-finish", {
-          body: { paper_id: paperId, marks_scored: sum, total_marks: totalMarks, subject },
+          body: { paper_id: paperId, marks_scored: sum, total_marks: totalMarks, subject, chapter: chapter ?? undefined },
         });
         qc.invalidateQueries({ queryKey: QUIZ_ATTEMPTS_KEY });
       } catch { /* best-effort */ }
