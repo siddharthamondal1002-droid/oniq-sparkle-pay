@@ -143,6 +143,7 @@ const BOARD_UPPER: Record<Board, string> = {
   cbse: "CBSE",
   icse: "ICSE",
   igcse: "IGCSE",
+  ib: "IB",
   college: "College",
   jee: "JEE",
   neet: "NEET",
@@ -166,15 +167,25 @@ const BOARD_UPPER: Record<Board, string> = {
   jk_board: "J&K Board",
   jharkhand_board: "Jharkhand Board",
   chhattisgarh_board: "Chhattisgarh Board",
+  maharashtra_board: "Maharashtra Board",
+  tn_board: "Tamil Nadu Board",
+  kerala_board: "Kerala Board",
+  wb_board: "West Bengal Board",
+  gujarat_board: "Gujarat Board",
+  karnataka_board: "Karnataka Board",
+  ap_board: "Andhra Pradesh Board",
+  telangana_board: "Telangana Board",
 };
 
 const BOARD_EMOJI: Record<Board, string> = {
-  cbse: "", icse: "", igcse: "", college: "", jee: "🎯", neet: "🩺", clat: "📖",
+  cbse: "", icse: "", igcse: "", ib: "🌐", college: "", jee: "🎯", neet: "🩺", clat: "📖",
   govt_exam: "🏛️", govt_railway: "🚆", govt_banking: "🏦", govt_police: "👮",
   govt_judiciary: "⚖️", govt_ssc: "📝", govt_psc: "🏛️",
   nios: "🏫", up_board: "🗺️", bihar_board: "🗺️", rajasthan_board: "🗺️", mp_board: "🗺️",
   haryana_board: "🗺️", punjab_board: "🗺️", uttarakhand_board: "🗺️", himachal_board: "🗺️",
   jk_board: "🗺️", jharkhand_board: "🗺️", chhattisgarh_board: "🗺️",
+  maharashtra_board: "🗺️", tn_board: "🗺️", kerala_board: "🗺️", wb_board: "🗺️",
+  gujarat_board: "🗺️", karnataka_board: "🗺️", ap_board: "🗺️", telangana_board: "🗺️",
 };
 
 function subjectsFor(board: Board, cls: ClassLevel): string[] {
