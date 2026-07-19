@@ -52,6 +52,7 @@ const SCHOOL_BOARDS: { value: Board; label: string }[] = [
   { value: "cbse", label: "CBSE" },
   { value: "icse", label: "ICSE" },
   { value: "igcse", label: "IGCSE" },
+  { value: "ib", label: "IB 🌐" },
   { value: "college", label: "College+" },
   { value: "jee", label: "JEE 🎯" },
   { value: "neet", label: "NEET 🩺" },
