@@ -621,8 +621,9 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
 
 /* ================= SCOUT ================= */
 
-type ScoutResult = { store: string; price_inr: number | null; rating: string | null; note: string | null };
-type ScoutResponse = { product: string; results: ScoutResult[]; disclaimer?: string; sources?: Array<{ url: string; title?: string }> };
+type ScoutResult = { store: string; price_inr: number | null; price_range_inr?: string | null; rating: string | null; source_domain?: string | null; verified?: boolean; note: string | null };
+type ScoutTopPick = { store: string; why: string };
+type ScoutResponse = { product: string; results: ScoutResult[]; top_pick?: ScoutTopPick | null; disclaimer?: string; sources?: Array<{ url: string; title?: string }> };
 
 const STORE_LAUNCH: Record<string, { pkg?: string; url: (q: string) => string }> = {
   amazon: { pkg: "in.amazon.mShop.android.shopping", url: (q) => `https://www.amazon.in/s?k=${encodeURIComponent(q)}` },
@@ -736,6 +737,30 @@ function ScoutPanel() {
 
   const [scoutError, setScoutError] = useState<string | null>(null);
 
+  async function resolveLocation(): Promise<{ label?: string; pin?: string; lat?: number; lon?: number } | null> {
+    try {
+      if (!("geolocation" in navigator)) return null;
+      const pos = await new Promise<GeolocationPosition | null>((resolve) => {
+        let done = false;
+        const t = setTimeout(() => { if (!done) { done = true; resolve(null); } }, 4000);
+        navigator.geolocation.getCurrentPosition(
+          (p) => { if (!done) { done = true; clearTimeout(t); resolve(p); } },
+          () => { if (!done) { done = true; clearTimeout(t); resolve(null); } },
+          { enableHighAccuracy: false, maximumAge: 5 * 60 * 1000, timeout: 4000 },
+        );
+      });
+      if (!pos) return null;
+      const { latitude: lat, longitude: lon } = pos.coords;
+      let label: string | undefined;
+      try {
+        const m = await import("@/lib/miniapps");
+        label = await m.reverseGeocode(lat, lon);
+      } catch { /* noop */ }
+      const pin = label?.match(/\b(\d{6})\b/)?.[1];
+      return { label, pin, lat, lon };
+    } catch { return null; }
+  }
+
   async function scout() {
     if (!query.trim() && !image) { toast.error("type or snap something first 👀"); return; }
     setLoading(true);
@@ -744,15 +769,18 @@ function ScoutPanel() {
     try {
       let lang = "en";
       try { const m = await import("@/lib/userLanguage"); lang = await m.getUserLanguage(); } catch { /* noop */ }
+      const location = await resolveLocation();
       const { data: r, error } = await supabase.functions.invoke("smart-scout", {
-        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto", lang },
+        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto", lang, location },
       });
+      // Prefer the function's own { error } body over supabase's generic wrapper.
+      const bodyErr = (r as any)?.error;
+      if (bodyErr) throw new Error(bodyErr);
       if (error) throw error;
-      if ((r as any)?.error) throw new Error((r as any).error);
-      // Defensive: guarantee results is an array so .map / .length never crash.
       const safe: ScoutResponse = {
         product: (r as any)?.product ?? "",
         results: Array.isArray((r as any)?.results) ? (r as any).results : [],
+        top_pick: (r as any)?.top_pick ?? null,
         disclaimer: (r as any)?.disclaimer,
         sources: Array.isArray((r as any)?.sources) ? (r as any).sources : [],
       };
@@ -838,6 +866,13 @@ function ScoutPanel() {
             <div className="text-xs uppercase tracking-wider text-primary/80">product</div>
             <div className="mt-1 font-display text-lg font-bold break-words">{data.product}</div>
           </div>
+          {data.top_pick?.store && (
+            <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4">
+              <div className="text-xs font-medium uppercase tracking-wider text-amber-300">🏆 best pick</div>
+              <div className="mt-1 font-display text-base font-bold break-words">{data.top_pick.store}</div>
+              {data.top_pick.why && <div className="mt-1 text-xs text-amber-100/90 break-words">{data.top_pick.why}</div>}
+            </div>
+          )}
           {(() => {
             const all = data.results ?? [];
             const ranked = all.filter((r) => typeof r.price_inr === "number");
@@ -846,7 +881,7 @@ function ScoutPanel() {
               <>
                 {all.length === 0 && (
                   <div className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
-                    no prices found rn — try a more specific name
+                    nothing solid found rn — try a more specific query
                   </div>
                 )}
                 {ranked.map((r, i) => (
@@ -854,8 +889,14 @@ function ScoutPanel() {
                     <div className="flex items-start gap-3">
                       <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">{rankBadge(i)}</div>
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-semibold">{r.store}</div>
-                        {r.rating && <div className="text-xs text-muted-foreground truncate">★ {r.rating}</div>}
+                        <div className="flex items-center gap-1.5">
+                          <div className="truncate font-semibold">{r.store}</div>
+                          {r.verified && <span className="shrink-0 text-[10px] font-medium text-emerald-400">✓ verified</span>}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground truncate">
+                          {r.rating && <span>★ {r.rating}</span>}
+                          {r.source_domain && <span className="truncate">· {r.source_domain}</span>}
+                        </div>
                       </div>
                       <div className="shrink-0 font-display text-lg font-bold">
                         ₹{(r.price_inr as number).toLocaleString("en-IN")}
@@ -883,8 +924,14 @@ function ScoutPanel() {
                           className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-left"
                         >
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-semibold">{r.store}</div>
-                            <div className="truncate text-xs text-muted-foreground">{r.note ?? "couldn't verify live — check in app"}</div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="truncate text-sm font-semibold">{r.store}</div>
+                              {r.verified && <span className="shrink-0 text-[10px] font-medium text-emerald-400">✓</span>}
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {r.price_range_inr ? `${r.price_range_inr}${r.rating ? ` · ★ ${r.rating}` : ""}` : (r.note ?? "couldn't verify live — check in app")}
+                              {r.source_domain ? ` · ${r.source_domain}` : ""}
+                            </div>
                           </div>
                           <div className="shrink-0 text-xs font-semibold text-primary flex items-center gap-1">
                             open {r.store} <ExternalLink className="h-3 w-3" />
