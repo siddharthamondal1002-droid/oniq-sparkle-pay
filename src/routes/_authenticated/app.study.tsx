@@ -1154,7 +1154,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
 
 // ------------------------- Chapter picker -------------------------
 
-type ChapterRow = { chapter_number: number; title: string };
+type ChapterRow = { chapter_number: number; chapter_title: string };
 
 function ChapterPickerPanel({
   profile,
@@ -1176,9 +1176,14 @@ function ChapterPickerPanel({
     (async () => {
       setLoading(true);
       try {
+        // Flat body — the study-chapters function reads board/classLevel/subject
+        // at the top level. Sending them nested under `profile` silently
+        // resolved to `board=""`, tripping the "invalid board" guard and
+        // returning an empty chapter list every time.
         const { data, error } = await supabase.functions.invoke("study-chapters", {
           body: {
-            profile: { board: profile.board, classLevel: profile.class_level },
+            board: profile.board,
+            classLevel: profile.class_level,
             subject,
           },
         });
