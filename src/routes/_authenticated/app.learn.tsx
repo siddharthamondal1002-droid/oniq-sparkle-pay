@@ -737,6 +737,30 @@ function ScoutPanel() {
 
   const [scoutError, setScoutError] = useState<string | null>(null);
 
+  async function resolveLocation(): Promise<{ label?: string; pin?: string; lat?: number; lon?: number } | null> {
+    try {
+      if (!("geolocation" in navigator)) return null;
+      const pos = await new Promise<GeolocationPosition | null>((resolve) => {
+        let done = false;
+        const t = setTimeout(() => { if (!done) { done = true; resolve(null); } }, 4000);
+        navigator.geolocation.getCurrentPosition(
+          (p) => { if (!done) { done = true; clearTimeout(t); resolve(p); } },
+          () => { if (!done) { done = true; clearTimeout(t); resolve(null); } },
+          { enableHighAccuracy: false, maximumAge: 5 * 60 * 1000, timeout: 4000 },
+        );
+      });
+      if (!pos) return null;
+      const { latitude: lat, longitude: lon } = pos.coords;
+      let label: string | undefined;
+      try {
+        const m = await import("@/lib/miniapps");
+        label = await m.reverseGeocode(lat, lon);
+      } catch { /* noop */ }
+      const pin = label?.match(/\b(\d{6})\b/)?.[1];
+      return { label, pin, lat, lon };
+    } catch { return null; }
+  }
+
   async function scout() {
     if (!query.trim() && !image) { toast.error("type or snap something first 👀"); return; }
     setLoading(true);
@@ -745,15 +769,18 @@ function ScoutPanel() {
     try {
       let lang = "en";
       try { const m = await import("@/lib/userLanguage"); lang = await m.getUserLanguage(); } catch { /* noop */ }
+      const location = await resolveLocation();
       const { data: r, error } = await supabase.functions.invoke("smart-scout", {
-        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto", lang },
+        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto", lang, location },
       });
+      // Prefer the function's own { error } body over supabase's generic wrapper.
+      const bodyErr = (r as any)?.error;
+      if (bodyErr) throw new Error(bodyErr);
       if (error) throw error;
-      if ((r as any)?.error) throw new Error((r as any).error);
-      // Defensive: guarantee results is an array so .map / .length never crash.
       const safe: ScoutResponse = {
         product: (r as any)?.product ?? "",
         results: Array.isArray((r as any)?.results) ? (r as any).results : [],
+        top_pick: (r as any)?.top_pick ?? null,
         disclaimer: (r as any)?.disclaimer,
         sources: Array.isArray((r as any)?.sources) ? (r as any).sources : [],
       };
