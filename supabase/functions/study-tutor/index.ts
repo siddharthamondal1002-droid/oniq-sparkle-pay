@@ -215,15 +215,20 @@ Deno.serve(async (req) => {
     attachment?: { kind: "image" | "pdf" | "text"; mime?: string; data?: string; text?: string };
     lang?: string;
     profile?: { name?: string; board?: string; classLevel?: string };
+    chapter?: string;
   } = {};
   try { body = await req.json(); } catch { /* keep {} */ }
 
   const rawProfile = body.profile ?? {};
+  const chapter = typeof body.chapter === "string" && body.chapter.trim()
+    ? body.chapter.trim().slice(0, 200)
+    : undefined;
   const profile = {
     name: typeof rawProfile.name === "string" && rawProfile.name.trim() ? rawProfile.name.trim().slice(0, 40) : "student",
     board: BOARD_LABEL[String(rawProfile.board ?? "").toLowerCase()] ? String(rawProfile.board).toLowerCase() : "cbse",
     classLevel: (VALID_CLASS_LEVELS as readonly string[]).includes(String(rawProfile.classLevel ?? ""))
       ? String(rawProfile.classLevel) : "8",
+    chapter,
   };
 
   const messages = Array.isArray(body.messages) ? body.messages : [];
