@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
           model: "claude-sonnet-4-6",
           max_tokens: 3500,
           system,
-          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 7 }],
+          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 11 }],
           messages: [{ role: "user", content: userContent }],
         }),
       });
