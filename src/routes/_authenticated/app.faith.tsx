@@ -96,6 +96,7 @@ function FaithPage() {
 // DEVOTIONAL LIVE — YouTube streams from official public channels
 // ============================================================
 
+type FaithId = "islamic" | "sikh" | "hindu" | "christian";
 type LiveVideo = {
   videoId: string;
   title: string;
@@ -103,8 +104,16 @@ type LiveVideo = {
   publishedAt: string;
   thumbnail: string;
   isLive?: boolean;
+  faith?: FaithId;
 };
 type LiveGenreResp = { id: string; name: string; emoji: string; live: boolean; videos: LiveVideo[] };
+
+const FAITH_META: { id: FaithId; label: string }[] = [
+  { id: "islamic", label: "🕌 Islamic" },
+  { id: "sikh", label: "🪯 Sikh" },
+  { id: "hindu", label: "🕉️ Hindu" },
+  { id: "christian", label: "✝️ Christian" },
+];
 
 function DevotionalLiveSection() {
   const [playing, setPlaying] = useState<LiveVideo | null>(null);
