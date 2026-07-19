@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { ChevronLeft, ChevronRight, ExternalLink, BookOpen, Headphones, Calendar as CalIcon, ShoppingBag, ArrowLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, BookOpen, Headphones, Calendar as CalIcon, ShoppingBag, ArrowLeft, Video } from "lucide-react";
 
 
 export const Route = createFileRoute("/_authenticated/app/faith")({
@@ -20,7 +20,7 @@ const RELIGIONS: { key: Religion; label: string; emoji: string }[] = [
 ];
 
 const LS_KEY = "oniq.faith.religion.v1";
-type Section = "read" | "listen" | "dates" | "shop";
+type Section = "read" | "listen" | "dates" | "shop" | "watch";
 
 function FaithPage() {
   const [religion, setReligion] = useState<Religion | null>(null);
@@ -70,11 +70,12 @@ function FaithPage() {
           </div>
         ) : (
           <>
-            <div className="mt-5 grid grid-cols-4 gap-2">
+            <div className="mt-5 grid grid-cols-5 gap-2">
               <TabBtn active={section === "read"} onClick={() => setSection("read")} icon={<BookOpen className="h-4 w-4" />} label="read 📖" />
               <TabBtn active={section === "listen"} onClick={() => setSection("listen")} icon={<Headphones className="h-4 w-4" />} label="listen 🎧" />
               <TabBtn active={section === "dates"} onClick={() => setSection("dates")} icon={<CalIcon className="h-4 w-4" />} label="dates 🗓" />
               <TabBtn active={section === "shop"} onClick={() => setSection("shop")} icon={<ShoppingBag className="h-4 w-4" />} label="shop 🛍" />
+              <TabBtn active={section === "watch"} onClick={() => setSection("watch")} icon={<Video className="h-4 w-4" />} label="watch 🎥" />
             </div>
 
             <div className="mt-5">
@@ -82,11 +83,10 @@ function FaithPage() {
               {section === "listen" && <ListenSection religion={religion} />}
               {section === "dates" && <DatesSection religion={religion} />}
               {section === "shop" && <ShopSection religion={religion} />}
+              {section === "watch" && <DevotionalLiveSection />}
             </div>
           </>
         )}
-
-        <DevotionalLiveSection />
       </div>
     </div>
   );
