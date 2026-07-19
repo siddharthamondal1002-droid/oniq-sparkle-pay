@@ -64,22 +64,34 @@ async function vaultLookup(
   board: string,
   classLevel: string,
   query: string,
+  chapter?: string,
 ): Promise<VaultNote[]> {
   if (!query || query.length < 3) return [];
-  try {
-    const { data, error } = await admin.rpc("__noop_never_called__" as never).then(
-      () => ({ data: null, error: null }),
-      () => ({ data: null, error: null }),
-    ).catch(() => ({ data: null, error: null }));
-    void data; void error;
-    // Use textSearch on generated tsvector column
-    const { data: rows, error: err } = await admin
+  const run = async (withChapter: boolean) => {
+    let q = admin
       .from("study_notes")
       .select("subject, topic, content")
       .eq("board", board)
-      .eq("class_level", classLevel)
+      .eq("class_level", classLevel);
+    if (withChapter && chapter) q = q.eq("chapter", chapter);
+    const { data, error } = await q
       .textSearch("search", query, { type: "websearch", config: "english" })
       .limit(3);
+    return { data, error };
+  };
+  try {
+    if (chapter) {
+      const scoped = await run(true);
+      if (!scoped.error && Array.isArray(scoped.data) && scoped.data.length > 0) {
+        return (scoped.data as VaultNote[]).map((r) => ({
+          subject: String(r.subject ?? ""),
+          topic: String(r.topic ?? ""),
+          content: String(r.content ?? "").slice(0, 1500),
+        }));
+      }
+      // Fall through to unscoped search when no chapter-tagged notes exist yet.
+    }
+    const { data: rows, error: err } = await run(false);
     if (err) {
       console.warn("vaultLookup: query error", err.message);
       return [];
