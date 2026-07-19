@@ -900,6 +900,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onClose={() => {
                 setShowQuizPicker(false);
                 setPickerSubject(null);
+                setPickerChapter(null);
                 setPickerMode("root");
               }}
             >
@@ -910,8 +911,10 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                     <div className="font-display text-lg font-bold">
                       {pickerMode === "mock"
                         ? "pick a duration 🕐"
-                        : pickerSubject
+                        : pickerSubject && pickerChapter
                         ? "pick a format 📝"
+                        : pickerSubject
+                        ? "pick a chapter 📚"
                         : "pick a subject 📝"}
                     </div>
                     {pickerSubject && pickerMode === "root" && (
@@ -927,6 +930,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                     onClick={() => {
                       setShowQuizPicker(false);
                       setPickerSubject(null);
+                      setPickerChapter(null);
                       setPickerMode("root");
                     }}
                     aria-label="Close"
