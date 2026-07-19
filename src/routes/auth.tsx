@@ -430,15 +430,16 @@ function AuthPage() {
                 </button>
               </form>
 
-              <button
-                type="button"
-                onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-                className="mt-4 block w-full text-center text-xs text-muted-foreground hover:text-foreground"
-              >
-                {mode === "signin"
-                  ? "New here? Create an account →"
-                  : "Already have an account? Sign in →"}
-              </button>
+              <div className="mt-4 text-center text-sm text-muted-foreground">
+                {mode === "signin" ? "New here? " : "Already have an account? "}
+                <button
+                  type="button"
+                  onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+                  className="font-semibold text-primary underline-offset-4 hover:underline"
+                >
+                  {mode === "signin" ? "Create an account →" : "Log in →"}
+                </button>
+              </div>
             </>
             )
           ) : (
