@@ -993,18 +993,8 @@ function GlanceCard() {
     refetchInterval: 15 * 60 * 1000,
   });
 
-  const { data: news } = useQuery({
-    queryKey: ["home-news-headline"],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("news", { body: { category: "top" } });
-      if (error) return null;
-      const items: NewsItem[] = Array.isArray((data as { items?: NewsItem[] } | null)?.items)
-        ? ((data as { items: NewsItem[] }).items)
-        : [];
-      return items[0] ?? null;
-    },
-    staleTime: 5 * 60 * 1000,
-  });
+
+
 
   if (collapsed) {
     return (
