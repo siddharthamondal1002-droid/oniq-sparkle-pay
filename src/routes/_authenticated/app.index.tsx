@@ -190,7 +190,7 @@ function HomeScreen() {
             title="💼 work"
             tiles={[
               { key: "earn", to: "/app/earn", icon: Briefcase, label: "earn 💼", color: "#00D4B8" },
-              { key: "rides", to: "/app/rides", icon: Car, label: "pull up 🚗", color: "#38BDF8" },
+              { key: "wallet", to: "/app/wallet", icon: Coins, label: "tap in 💳", color: "#F59E0B" },
             ]}
             hidden={hidden}
             skins={skins}
