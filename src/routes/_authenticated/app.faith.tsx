@@ -20,7 +20,7 @@ const RELIGIONS: { key: Religion; label: string; emoji: string }[] = [
 ];
 
 const LS_KEY = "oniq.faith.religion.v1";
-type Section = "read" | "listen" | "dates" | "shop";
+type Section = "read" | "listen" | "dates" | "shop" | "watch";
 
 function FaithPage() {
   const [religion, setReligion] = useState<Religion | null>(null);
