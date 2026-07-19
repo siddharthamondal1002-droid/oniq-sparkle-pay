@@ -205,5 +205,6 @@ Deno.serve(async (req) => {
     console.warn("study-chapters: insert exception", (e as Error).message);
   }
 
+  await logDebug({ source: "generated", stop_reason: stopReason, blocks_snippet: blocksSnippet });
   return json(200, { source: "generated", chapters: cleaned });
 });
