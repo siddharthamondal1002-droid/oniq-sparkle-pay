@@ -1040,9 +1040,135 @@ function GlanceCard() {
         </span>
         <ArrowRight className="h-4 w-4 shrink-0 text-primary/70" />
       </button>
+      <LoanRatesSheet open={loanOpen} onClose={() => setLoanOpen(false)} />
     </div>
   );
 }
+
+type LoanBank = { bank: string; rateRange: string; note?: string };
+type LoanCategory = { type: "home" | "gold" | "car" | "fd"; label: string; banks: LoanBank[] };
+type LoanRatesPayload = { asOf: string; categories: LoanCategory[]; disclaimer: string };
+
+function LoanRatesSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { data, isLoading, isError } = useQuery<LoanRatesPayload | null>({
+    queryKey: ["loan-rates"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("loan-rates");
+      if (error) throw error;
+      return data as LoanRatesPayload;
+    },
+    enabled: open,
+    staleTime: 12 * 60 * 60 * 1000,
+  });
+  const [tab, setTab] = useState<LoanCategory["type"]>("home");
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const cats = data?.categories ?? [];
+  const active = cats.find((c) => c.type === tab) ?? cats[0] ?? null;
+  const tabs: LoanCategory["type"][] = ["home", "gold", "car", "fd"];
+  const tabLabels: Record<LoanCategory["type"], string> = {
+    home: "🏠 Home",
+    gold: "🪙 Gold",
+    car: "🚗 Car",
+    fd: "🏦 FD",
+  };
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onClick={onClose}>
+      <div
+        className="max-h-[90vh] w-full max-w-lg overflow-hidden rounded-t-3xl border border-border bg-card shadow-2xl sm:rounded-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <div>
+            <div className="font-display text-lg font-bold">loan & deposit rates</div>
+            <div className="text-[10px] text-muted-foreground">
+              {data?.asOf ? `as of ${data.asOf}` : "snapshot"} · Indian banks
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="press grid h-8 w-8 place-items-center rounded-full border border-border bg-black/30 text-muted-foreground hover:text-foreground"
+          >
+            <span className="text-base leading-none">×</span>
+          </button>
+        </div>
+
+        {(data?.disclaimer || DEFAULT_LOAN_DISCLAIMER) && (
+          <div className="mx-4 mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-100">
+            {data?.disclaimer ?? DEFAULT_LOAN_DISCLAIMER}
+          </div>
+        )}
+
+        <div className="flex gap-1 overflow-x-auto px-4 pt-3">
+          {tabs.map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`press shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold ${
+                tab === t
+                  ? "border-primary bg-primary/20 text-primary"
+                  : "border-border bg-black/20 text-muted-foreground"
+              }`}
+            >
+              {tabLabels[t]}
+            </button>
+          ))}
+        </div>
+
+        <div className="max-h-[55vh] overflow-y-auto px-4 pb-4 pt-3">
+          {isLoading && (
+            <div className="py-10 text-center text-sm text-muted-foreground">loading rates…</div>
+          )}
+          {isError && !isLoading && (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              couldn't load rates right now — try again in a moment.
+            </div>
+          )}
+          {!isLoading && !isError && cats.length === 0 && (
+            <div className="py-10 text-center text-sm text-muted-foreground">
+              rates unavailable at the moment.
+            </div>
+          )}
+          {active && (
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {active.label}
+              </div>
+              {active.banks.map((b) => (
+                <div
+                  key={b.bank}
+                  className="rounded-xl border border-white/5 bg-black/25 px-3 py-2.5"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-semibold text-foreground">{b.bank}</div>
+                    <div className="font-display text-sm font-bold text-primary">{b.rateRange}</div>
+                  </div>
+                  {b.note && (
+                    <div className="mt-1 text-[11px] leading-snug text-muted-foreground">{b.note}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const DEFAULT_LOAN_DISCLAIMER =
+  "Rates vary by CIBIL score, loan amount, tenure, and individual bank policy. 750+ CIBIL typically qualifies for the lower end of each range. Confirm your exact rate with the bank directly.";
 
 function StatBox({ label, value, unit, accent }: { label: string; value: string; unit: string; accent: string }) {
   return (
