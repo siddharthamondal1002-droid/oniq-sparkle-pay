@@ -143,6 +143,7 @@ type Video = {
   publishedAt: string;
   thumbnail: string;
   isLive?: boolean;
+  faith?: Faith;
 };
 type ResolvedGenre = {
   id: GenreId;
