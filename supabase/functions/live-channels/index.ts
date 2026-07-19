@@ -117,18 +117,18 @@ const GENRES: GenreDef[] = [
     live: true,
     candidates: [
       // Islamic — Grand Mosque / Prophet's Mosque live broadcasts
-      { id: "UChMtBGc9nYBGEsRWKrV_uSw", name: "Makkah Live" },
-      { id: "UCCZnJmWUimOYtIkB6GLrG8A", name: "Madinah Live" },
-      { id: "UCyJeX5GaHTheVHBoTUSnQcw", name: "Al Haramain Al Sharifain" },
+      { id: "UChMtBGc9nYBGEsRWKrV_uSw", name: "Makkah Live", faith: "islamic" },
+      { id: "UCCZnJmWUimOYtIkB6GLrG8A", name: "Madinah Live", faith: "islamic" },
+      { id: "UCyJeX5GaHTheVHBoTUSnQcw", name: "Al Haramain Al Sharifain", faith: "islamic" },
       // Sikh — SGPC Amritsar (Sri Harmandir Sahib official)
-      { id: "UCYn6UEtQ771a_OWSiNBoG8w", name: "SGPC, Sri Amritsar" },
-      { id: "UCjSHfIYLQHDAKW9VEO5gRNQ", name: "Daily Hukamnama" },
+      { id: "UCYn6UEtQ771a_OWSiNBoG8w", name: "SGPC, Sri Amritsar", faith: "sikh" },
+      { id: "UCjSHfIYLQHDAKW9VEO5gRNQ", name: "Daily Hukamnama", faith: "sikh" },
       // Hindu — TTD (Tirumala) related, mainstream devotional broadcasters
-      { id: "UCsGVmie9VldduYuWYziIv9Q", name: "TTD Seva Online" },
-      { id: "UCZMmfrbYGqSjKa4MWJHb9sQ", name: "Bageshwar Dham Sarkar" },
-      { id: "UC7ZivIYRB0fMSGh-THcTYbw", name: "Shemaroo Bhakti" },
+      { id: "UCsGVmie9VldduYuWYziIv9Q", name: "TTD Seva Online", faith: "hindu" },
+      { id: "UCZMmfrbYGqSjKa4MWJHb9sQ", name: "Bageshwar Dham Sarkar", faith: "hindu" },
+      { id: "UC7ZivIYRB0fMSGh-THcTYbw", name: "Shemaroo Bhakti", faith: "hindu" },
       // Christian
-      { id: "UC1_JSuk0BSA_FWzSvMsezGg", name: "GOD TV" },
+      { id: "UC1_JSuk0BSA_FWzSvMsezGg", name: "GOD TV", faith: "christian" },
     ],
   },
 ];
