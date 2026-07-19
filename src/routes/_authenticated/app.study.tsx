@@ -1044,14 +1044,6 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                 setPaperSpec({ subject, totalMarks, chapter });
                 setSubjectSheet(null);
               }}
-              onOverviewChapter={(subject, chapter) => {
-                setTutorScope({ subject, chapter });
-                setSubjectSheet(null);
-                setPendingAsk(
-                  "Give me a clear overview of this chapter — the main topics and key concepts I should know before we dive in.",
-                );
-                toast.success(`overview coming up 👁️ · ${chapter}`);
-              }}
             />,
             document.body,
           )}
@@ -1452,7 +1444,6 @@ function SubjectSheet({
   subject,
   tutorScope,
   onScopeTutor,
-  onOverviewChapter,
   onStartQuiz,
   onStartPaper,
   onClose,
@@ -1461,7 +1452,6 @@ function SubjectSheet({
   subject: string;
   tutorScope: { subject: string; chapter?: string } | null;
   onScopeTutor: (subject: string, chapter?: string) => void;
-  onOverviewChapter: (subject: string, chapter: string) => void;
   onStartQuiz: (subject: string, chapter?: string) => void;
   onStartPaper: (subject: string, chapter: string | undefined, totalMarks: 30 | 80 | 100) => void;
   onClose: () => void;
@@ -1592,6 +1582,13 @@ function SubjectSheet({
             </div>
             <div className="flex shrink-0 gap-1">
               <SheetActionBtn
+                label="👁️"
+                title="read"
+                onClick={() =>
+                  toast.info("reading mode is chapter-specific — pick a chapter below to open its notes 📖")
+                }
+              />
+              <SheetActionBtn
                 label="💬"
                 title="chat"
                 active={scopedChapter === "__all__"}
@@ -1638,11 +1635,6 @@ function SubjectSheet({
                   <div className="flex shrink-0 gap-1">
                     <SheetActionBtn
                       label="👁️"
-                      title="overview"
-                      onClick={() => onOverviewChapter(subject, c.chapter_title)}
-                    />
-                    <SheetActionBtn
-                      label="📖"
                       title="read chapter"
                       onClick={() => setNotesFor({ chapter: c.chapter_title, number: c.chapter_number })}
                     />
