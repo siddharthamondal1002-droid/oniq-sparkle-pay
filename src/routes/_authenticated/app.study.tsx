@@ -779,7 +779,28 @@ function EditProfile({
             <option key={c.value} value={c.value}>{c.label}</option>
           ))}
         </select>
+
+        {boardUsesSecondLangPicker(board) && (
+          <>
+            <label className="mt-4 block text-xs font-medium text-muted-foreground">
+              2nd / vernacular language
+            </label>
+            <select
+              value={secondLang}
+              onChange={(e) => setSecondLang(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
+            >
+              {SECOND_LANG_OPTIONS.map((l) => (
+                <option key={l} value={l}>{l}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              pre-filled with Hindi — edit to match this learner's actual 2nd language.
+            </p>
+          </>
+        )}
       </div>
+
 
       <div className="shrink-0 flex gap-2 border-t border-border bg-card px-6 py-4 rounded-b-3xl">
         <button
