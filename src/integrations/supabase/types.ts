@@ -229,6 +229,39 @@ export type Database = {
         }
         Relationships: []
       }
+      chapter_notes: {
+        Row: {
+          board: string
+          chapter: string
+          class_level: string
+          content: string
+          created_at: string
+          id: string
+          source_note: string
+          subject: string
+        }
+        Insert: {
+          board: string
+          chapter: string
+          class_level: string
+          content: string
+          created_at?: string
+          id?: string
+          source_note?: string
+          subject: string
+        }
+        Update: {
+          board?: string
+          chapter?: string
+          class_level?: string
+          content?: string
+          created_at?: string
+          id?: string
+          source_note?: string
+          subject?: string
+        }
+        Relationships: []
+      }
       chapters: {
         Row: {
           board: string
