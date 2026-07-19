@@ -213,6 +213,29 @@ function ScanTab() {
         )}
       </div>
 
+      {/* Upload a saved QR image (screenshot, WhatsApp forward, etc.) */}
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={decodingFile}
+          className="press inline-flex items-center gap-2 rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold disabled:opacity-60"
+          data-testid="scan-upload"
+        >
+          <ImagePlus className="h-4 w-4" />
+          {decodingFile ? "reading image…" : "upload QR 🖼️"}
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={onPickFile}
+        />
+      </div>
+
+
+
       {/* Manual fallback */}
       <div className="rounded-3xl border border-border bg-card p-4">
         <p className="text-xs text-muted-foreground">No camera? Paste a UPI link or ID</p>
