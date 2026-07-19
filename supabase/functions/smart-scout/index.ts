@@ -1,11 +1,12 @@
-// smart-scout — Claude price scout with web_search tool
+// smart-scout — Claude price/deal scout with web_search tool
+// Purchaser-centric: decisive best-value pick, verified retailer preference,
+// visible source domains, and location-aware (street + PIN, not just city).
 import { langInstruction } from "../_shared/llm.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
-
 
 // --- rate limit (per-isolate; resets on cold start) ---
 const rlBuckets = new Map<string, number[]>();
@@ -23,12 +24,18 @@ function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   arr.push(now); rlBuckets.set(id, arr); return true;
 }
 
+// User-visible errors go back as HTTP 200 with { error } so
+// supabase.functions.invoke doesn't swallow them into a generic non-2xx wrapper.
+function friendly(error: string, extra: Record<string, unknown> = {}) {
+  return json({ error, ...extra }, 200);
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     const authFail = await requireAuth(req);
     if (authFail) return authFail;
-    if (!_rateLimit(_subFromAuth(req), 10)) return json({ error: "slow down bestie 😅" }, 429);
+    if (!_rateLimit(_subFromAuth(req), 10)) return friendly("slow down bestie 😅 — try again in a moment");
 
     const body = await req.json().catch(() => ({}));
     const query = typeof body?.query === "string" ? body.query.trim().slice(0, 300) : "";
@@ -36,20 +43,42 @@ Deno.serve(async (req) => {
     const imageMime = typeof body?.imageMime === "string" ? body.imageMime : "image/jpeg";
     const language = typeof body?.language === "string" ? body.language.slice(0, 20) : "auto";
     const lang = typeof body?.lang === "string" ? body.lang : "";
+    const loc = (body?.location && typeof body.location === "object") ? body.location : null;
+    const locLabel = typeof loc?.label === "string" ? loc.label.slice(0, 200) : "";
+    const locPin = typeof loc?.pin === "string" ? loc.pin.slice(0, 10) : "";
+    const locLat = Number.isFinite(loc?.lat) ? Number(loc.lat) : null;
+    const locLon = Number.isFinite(loc?.lon) ? Number(loc.lon) : null;
 
-    if (!query && !imageBase64) return json({ error: "Give me a product name or a photo 📸" }, 400);
+    // Also try to lift a 6-digit PIN out of the typed query.
+    const pinInQuery = (query.match(/\b(\d{6})\b/) || [])[1] || "";
+
+    if (!query && !imageBase64) return friendly("give me a product name, a place, or a photo 📸");
 
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicKey) return json({ error: "Scout not configured" }, 500);
+    if (!anthropicKey) return friendly("scout isn't configured yet — try again later");
+
+    const locBits: string[] = [];
+    if (locLabel) locBits.push(locLabel);
+    if (locPin) locBits.push(`PIN ${locPin}`);
+    else if (pinInQuery) locBits.push(`PIN ${pinInQuery}`);
+    if (locLat != null && locLon != null) locBits.push(`(${locLat.toFixed(4)}, ${locLon.toFixed(4)})`);
+    const locationLine = locBits.length
+      ? `USER'S CURRENT LOCATION CONTEXT: ${locBits.join(" · ")}. When the query is location-sensitive (restaurants, salons, clinics, local services, groceries with delivery), scope results to THIS neighbourhood / PIN code, not just the city.`
+      : "USER'S LOCATION: not shared — infer from the query text if it mentions a place, otherwise treat as pan-India.";
 
     const system =
-      "You are ONIQ's price scout for India. Search the live web for the product's current prices across these Indian shopping apps: Amazon.in, Flipkart, Meesho, JioMart, Myntra, Croma, Reliance Digital, Blinkit, Zepto. " +
-      "LANGUAGE UNDERSTANDING — Indian users mix languages freely. Parse queries written in Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, Assamese, Urdu, and in Hinglish / Benglish / other Roman-script transliterations, as well as pure English. Handle mixed-script phrases like 'sasta wala phone', 'notun mobile ta koto', 'accha camera under 20k', 'chawal 5kg ka price', 'sabse best headphone', 'ghar ka atta', 'nayi saree'. Understand common Indian colloquial item names and brand nicknames: 'atta' = wheat flour, 'chawal' = rice, 'dal' = lentils, 'tel' = cooking oil, 'chini' = sugar, 'namak' = salt, 'doodh' = milk, 'sabun' = soap, 'jhaadu' = broom, 'kapda' = clothes, 'jhola' = bag, 'chappal' = slippers/sandals, 'kurta', 'saree', 'lehenga', 'dupatta', 'churidar', 'salwar'; brand shorthand like 'MI' → Xiaomi, 'Samsung ka phone', 'Bajaj ka mixer', 'Prestige ka cooker', 'Havells fan', 'Tata Salt', 'Fortune oil', 'Aashirvaad atta', 'Amul butter', 'Parle-G'. Understand vernacular quantity/price phrasing: 'kitne ka', 'koto', 'evalo', 'yenna vela', 'kitna price', 'sasta / mehnga', '5kg wala', 'ek litre', 'do dozen', 'chhota pack', 'bada size', 'under 500', '10k ke andar', 'budget wala', 'premium wala'. NORMALISE the user's colloquial term to the standard product name for web search (e.g. 'atta 5kg' → 'wheat flour 5kg', 'chawal basmati' → 'basmati rice', 'MI ka phone' → 'Xiaomi/Redmi smartphone'), but preserve the user's original phrasing in the response's 'product' field alongside the normalised English name. Never refuse a query for being non-English — always attempt understanding first. " +
-      "IMPORTANT — do NOT rely on a single generic search. Run TARGETED per-store searches BY NAME for each major store before concluding it's unavailable, e.g.: '<product> price Amazon.in', '<product> price Flipkart', '<product> price Meesho', '<product> price JioMart', '<product> price Myntra', '<product> price Croma', '<product> price Reliance Digital', '<product> price Blinkit', '<product> price Zepto'. Use the NORMALISED English product name for searches (search engines don't index vernacular queries well). Prefer product-listing pages over blogs. " +
-      "For every store you tried, INCLUDE a row in results: if you found a live price, set price_inr to the number in INR; if you couldn't verify a live price for that store, INCLUDE the row anyway with price_inr: null and note: \"couldn't verify live — check in app\". Never silently drop a store. " +
-      `Respond ONLY with valid JSON matching: { "product": string, "results": [{ "store": string, "price_inr": number|null, "rating": string|null, "note": string|null }], "disclaimer": string }. ` +
-      "The JSON KEYS (product, results, store, price_inr, rating, note, disclaimer) MUST remain in English exactly as specified. The store field MUST be the retailer name in English (e.g. 'Amazon.in'). price_inr MUST be a raw number. Only the 'disclaimer' and 'note' prose may be localised. " +
-      "Sort results lowest price first; null-price rows go last. When the user's query is in a non-English language or vernacular, set 'product' to combine BOTH the local-language / colloquial name AND the standard English name, e.g. 'आटा 5kg (wheat flour 5kg)' or 'notun mobile / new smartphone'. " +
+      "You are ONIQ's price & deal scout for India — a purchaser-centric buying assistant, not a neutral list-dumper. Search the live web and help the user actually decide. " +
+      "SCOPE — the query can be either (A) a PRODUCT to buy across shopping apps (Amazon.in, Flipkart, Meesho, JioMart, Myntra, Croma, Reliance Digital, Blinkit, Zepto, Tata Neu, Ajio, Nykaa, brand's own site), or (B) a LOCAL SERVICE / place (restaurants, salons, gyms, clinics, tuition, repair, groceries with delivery, etc.). Detect which kind of query it is and adapt: for products, hunt live prices across the shopping apps above; for local services, use Zomato, Swiggy, Google Maps, JustDial, MagicBricks, Urban Company, Practo etc. and surface price-range / rating / distance instead of a single INR number. Never refuse a query for being services-not-products or vice-versa — do the right search for the query. " +
+      locationLine + " " +
+      "LANGUAGE UNDERSTANDING — Indian users mix languages freely. Parse Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, Assamese, Urdu, plus Hinglish / Benglish / other Roman-script transliterations, plus pure English. Understand colloquial item names: atta = wheat flour, chawal = rice, dal = lentils, tel = oil, chini = sugar, doodh = milk, sabun = soap; brand shorthand like MI → Xiaomi, 'Bajaj ka mixer', 'Aashirvaad atta', 'Amul butter'. Understand vernacular price phrasing: 'kitne ka', 'koto', 'sasta', 'mehnga', 'under 500', '10k ke andar'. NORMALISE to standard English for the actual web search, but preserve the user's original phrasing in the 'product' field alongside the normalised name. " +
+      "PER-STORE / PER-VENDOR SEARCHES — for products, run TARGETED searches by name per major shopping app before concluding it's unavailable, e.g. '<product> price Amazon.in', '<product> Flipkart', '<product> JioMart', etc. Prefer product-listing pages over blogs and unverifiable resellers. " +
+      "VERIFIED SOURCE PREFERENCE — strongly prefer results from recognisable, verified retailer/business domains (major e-commerce platforms, official brand sites, well-known local business listing sites). For each result, populate 'source_domain' with the actual retailer domain the price/info came from (e.g. 'amazon.in', 'flipkart.com', 'zomato.com') so the user can judge trust. Set 'verified' to true only when the source domain is a well-known Indian retailer/aggregator; otherwise false. Never hide where a price came from. " +
+      "DECISIVE, HELPFUL TONE — beyond listing, you MUST call out ONE top pick and WHY (not just cheapest — cheapest-for-what-you-get, considering rating, delivery speed, seller reputation, PIN-code coverage). Flag any outlier price that looks like a data error (way below or above the pack) in that row's 'note'. Keep the voice warm, decisive, buyer-first — never a neutral catalog dump. " +
+      "OUTPUT — respond ONLY with valid JSON matching: " +
+      `{ "product": string, "results": [{ "store": string, "price_inr": number|null, "price_range_inr": string|null, "rating": string|null, "source_domain": string|null, "verified": boolean, "note": string|null }], "top_pick": { "store": string, "why": string } | null, "disclaimer": string }. ` +
+      "The JSON KEYS (product, results, store, price_inr, price_range_inr, rating, source_domain, verified, note, top_pick, why, disclaimer) MUST stay in English exactly as specified. 'store' MUST be the retailer/venue name in English (e.g. 'Amazon.in', 'Zomato — Peter Cat'). 'price_inr' MUST be a raw number or null; use 'price_range_inr' (a short string like '₹300–500 for two') for services or when only a range is known. Only prose fields ('disclaimer', 'note', 'why') may be localised. " +
+      "For a services query, DON'T pad results with empty shopping-app rows — return only the actual vendors/venues you found. For a product query, INCLUDE a row per major store you tried (with price_inr null + note if unverified) so the user sees you didn't skip any. Sort results lowest price first; null-price rows go last. " +
+      "When the user's query is in a non-English language or vernacular, set 'product' to BOTH the local-language / colloquial name AND the standard English name, e.g. 'आटा 5kg (wheat flour 5kg)'. " +
       `User's preferred language hint: ${language}. No markdown, no code fences — raw JSON only.` +
       langInstruction(lang);
 
@@ -62,11 +91,11 @@ Deno.serve(async (req) => {
       userContent.push({
         type: "text",
         text: query
-          ? `Identify this product, then search for its prices in India. Extra context: ${query}`
-          : "Identify this product, then search for its current prices in India.",
+          ? `Identify this product, then find the best place to buy it in India. Extra context: ${query}`
+          : "Identify this product, then find the best place to buy it in India.",
       });
     } else {
-      userContent.push({ type: "text", text: `Find current prices in India for: ${query}` });
+      userContent.push({ type: "text", text: `Scout in India for: ${query}` });
     }
 
     const controller = new AbortController();
@@ -84,7 +113,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
-          max_tokens: 3000,
+          max_tokens: 3500,
           system,
           tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 9 }],
           messages: [{ role: "user", content: userContent }],
@@ -92,17 +121,18 @@ Deno.serve(async (req) => {
       });
     } catch (e) {
       clearTimeout(timer);
-      if ((e as any)?.name === "AbortError") return json({ error: "Scout timed out — try again" }, 504);
-      throw e;
+      if ((e as any)?.name === "AbortError") return friendly("scout took too long — try a more specific query 🐢");
+      console.error("smart-scout fetch error", e);
+      return friendly("scout couldn't reach the web rn — try again in a sec");
     }
     clearTimeout(timer);
 
-    if (res.status === 429) return json({ error: "Rate limit — try again in a moment 🐢" }, 429);
-    if (res.status === 402) return json({ error: "AI credits exhausted — top up" }, 402);
+    if (res.status === 429) return friendly("rate limit hit — try again in a moment 🐢");
+    if (res.status === 402) return friendly("AI credits exhausted — top up to keep scouting");
     if (!res.ok) {
       const t = await res.text().catch(() => "");
-      console.error("anthropic error", res.status, t);
-      return json({ error: "Scout glitched — try again" }, 502);
+      console.error("smart-scout anthropic error", res.status, t.slice(0, 500));
+      return friendly(`scout glitched (${res.status}) — try again`);
     }
 
     const data = await res.json();
@@ -126,19 +156,15 @@ Deno.serve(async (req) => {
       .replace(/^```(?:json)?\s*/i, "")
       .replace(/```\s*$/i, "")
       .trim();
-    // find first { ... last }
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
     let parsed: any = null;
     if (start >= 0 && end > start) {
-      try {
-        parsed = JSON.parse(cleaned.slice(start, end + 1));
-      } catch (e) {
-        console.error("parse error", e);
-      }
+      try { parsed = JSON.parse(cleaned.slice(start, end + 1)); }
+      catch (e) { console.error("smart-scout parse error", e, cleaned.slice(0, 400)); }
     }
     if (!parsed || !Array.isArray(parsed.results)) {
-      return json({ error: "Scout couldn't structure the results — try again", raw: textOut.slice(0, 400) }, 502);
+      return friendly("scout couldn't structure the results — try a more specific query", { raw: textOut.slice(0, 400) });
     }
 
     parsed.results.sort((a: any, b: any) => {
@@ -150,7 +176,7 @@ Deno.serve(async (req) => {
     return json({ ...parsed, sources });
   } catch (e) {
     console.error("smart-scout error", e);
-    return json({ error: "Something went sideways — try again" }, 500);
+    return friendly("something went sideways — try again");
   }
 });
 
