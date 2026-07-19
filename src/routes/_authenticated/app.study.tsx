@@ -12,12 +12,14 @@ export const Route = createFileRoute("/_authenticated/app/study")({
 });
 
 type Board =
-  | "cbse" | "icse" | "igcse" | "college" | "jee" | "neet" | "clat"
+  | "cbse" | "icse" | "igcse" | "ib" | "college" | "jee" | "neet" | "clat"
   | "govt_exam" | "govt_railway" | "govt_banking" | "govt_police"
   | "govt_judiciary" | "govt_ssc" | "govt_psc"
   | "nios" | "up_board" | "bihar_board" | "rajasthan_board" | "mp_board"
   | "haryana_board" | "punjab_board" | "uttarakhand_board" | "himachal_board"
-  | "jk_board" | "jharkhand_board" | "chhattisgarh_board";
+  | "jk_board" | "jharkhand_board" | "chhattisgarh_board"
+  | "maharashtra_board" | "tn_board" | "kerala_board" | "wb_board"
+  | "gujarat_board" | "karnataka_board" | "ap_board" | "telangana_board";
 type ClassLevel = "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg" | "drop" | "aspirant";
 
 type LearnerProfile = {
