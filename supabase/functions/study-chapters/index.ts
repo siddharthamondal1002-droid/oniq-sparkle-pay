@@ -3,7 +3,7 @@
 // textbook TOC and writes it once via service role. Never regenerates for the
 // same combo. JWT-gated like study-tutor.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json } from "../_shared/llm.ts";
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
 type ChapterRow = { chapter_number: number; chapter_title: string; source_note?: string };
 
@@ -30,12 +30,14 @@ Deno.serve(async (req) => {
     return json(401, { error: "unauthorized" });
   }
 
-  let body: { board?: string; classLevel?: string; subject?: string } = {};
+  let body: { board?: string; classLevel?: string; subject?: string; lang?: string } = {};
   try { body = await req.json(); } catch { /* keep {} */ }
 
   const board = String(body.board ?? "").toLowerCase().trim();
   const classLevel = String(body.classLevel ?? "").trim();
   const subject = normSubject(String(body.subject ?? ""));
+  const langCode = String(body.lang ?? "").toLowerCase().trim();
+  const isLocalised = langCode && langCode !== "en";
 
   if (!BOARD_LABEL[board]) return json(200, { source: "unavailable", chapters: [], reason: "invalid board" });
   if (!(VALID_CLASS_LEVELS as readonly string[]).includes(classLevel)) {
@@ -63,8 +65,9 @@ Deno.serve(async (req) => {
     } catch { /* best effort */ }
   };
 
-  // 1) Cache check
-  try {
+  // 1) Cache check — English-only. Cache is not keyed by language, so skip
+  // read/write for localised requests to avoid poisoning the shared cache.
+  if (!isLocalised) try {
     const { data: rows, error } = await admin
       .from("chapters")
       .select("chapter_number, chapter_title, source_note")
@@ -98,7 +101,7 @@ Deno.serve(async (req) => {
     `- If genuinely uncertain of exact count/titles, return a conservative best-effort list — do NOT pad with invented chapters.`,
     `- Never return zero chapters unless the combo is truly nonsensical (e.g. "class 3 Judiciary").`,
     `- Use the list_chapters tool ONLY. No prose.`,
-  ].join("\n");
+  ].join("\n") + langInstruction(body.lang);
 
   const tool = {
     name: "list_chapters",
@@ -187,9 +190,9 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 3) Persist (one-time cache write). Use upsert on the unique constraint to
-  // survive races where two callers generate the same combo concurrently.
-  try {
+  // 3) Persist (one-time cache write). Skip for localised responses so the
+  // shared English-keyed cache isn't overwritten with translated titles.
+  if (!isLocalised) try {
     const rows = cleaned.map((c) => ({
       board,
       class_level: classLevel,

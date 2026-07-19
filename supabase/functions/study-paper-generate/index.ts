@@ -2,7 +2,7 @@
 // JWT-gated. Uses service role to store answer key server-side; returns a
 // sanitized paper (no correct_index / model_answer / rubric_points) to client.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json } from "../_shared/llm.ts";
+import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
 type Section = { type: "mcq" | "short" | "long"; marks: number; count: number };
 
@@ -94,6 +94,7 @@ Deno.serve(async (req) => {
     totalMarks?: number;
     profileId?: string;
     chapter?: string;
+    lang?: string;
   } = {};
   try { body = await req.json(); } catch { /* ignore */ }
 
@@ -159,7 +160,7 @@ Deno.serve(async (req) => {
       : "- Spread across the subject's key topics for this class. Don't cluster around one narrow topic.",
     "- Honesty: never invent facts, dates, formulas, chapter references, or past-paper citations. If unsure, use safely-known content.",
     "- No personal data, no politics, no religion, no adult content.",
-  ].filter(Boolean).join("\n");
+  ].filter(Boolean).join("\n") + langInstruction(body.lang);
 
   const userMsg = chapter
     ? `Generate the questions for the ${totalMarks}-mark ${subject} paper — chapter "${chapter}" only — for a ${boardLabel} ${gradeStr}.`

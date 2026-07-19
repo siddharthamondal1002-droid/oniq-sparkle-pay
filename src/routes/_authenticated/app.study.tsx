@@ -1332,11 +1332,14 @@ function ChapterPickerPanel({
         // at the top level. Sending them nested under `profile` silently
         // resolved to `board=""`, tripping the "invalid board" guard and
         // returning an empty chapter list every time.
+        const { getUserLanguage } = await import("@/lib/userLanguage");
+        const lang = await getUserLanguage().catch(() => "en");
         const { data, error } = await supabase.functions.invoke("study-chapters", {
           body: {
             board: profile.board,
             classLevel: profile.class_level,
             subject,
+            lang,
           },
         });
         if (cancelled) return;
@@ -1468,11 +1471,14 @@ function SubjectSheet({
     setChapters(null);
     (async () => {
       try {
+        const { getUserLanguage } = await import("@/lib/userLanguage");
+        const lang = await getUserLanguage().catch(() => "en");
         const { data, error } = await supabase.functions.invoke("study-chapters", {
           body: {
             board: profile.board,
             classLevel: profile.class_level,
             subject,
+            lang,
           },
         });
         if (cancelled) return;
@@ -1720,12 +1726,15 @@ function NotesReader({
     setFailed(false);
     (async () => {
       try {
+        const { getUserLanguage } = await import("@/lib/userLanguage");
+        const lang = await getUserLanguage().catch(() => "en");
         const { data, error } = await supabase.functions.invoke("study-chapter-notes", {
           body: {
             board: profile.board,
             classLevel: profile.class_level,
             subject,
             chapter,
+            lang,
           },
         });
         if (cancelled) return;
@@ -1910,12 +1919,15 @@ function QuizModal({
       setLoading(true);
       setErrorMsg(null);
       try {
+        const { getUserLanguage } = await import("@/lib/userLanguage");
+        const lang = await getUserLanguage().catch(() => "en");
         const { data, error } = await supabase.functions.invoke("study-quiz", {
           body: {
             profile: { board: profile.board, classLevel: profile.class_level },
             subject,
             topic,
             chapter: chapter ?? undefined,
+            lang,
           },
         });
         if (cancelled) return;
@@ -2227,6 +2239,8 @@ function PaperModal({
     setLoading(true);
     setErrorMsg(null);
     try {
+      const { getUserLanguage } = await import("@/lib/userLanguage");
+      const lang = await getUserLanguage().catch(() => "en");
       const { data, error } = await supabase.functions.invoke("study-paper-generate", {
         body: {
           profile: { board: profile.board, classLevel: profile.class_level },
@@ -2234,6 +2248,7 @@ function PaperModal({
           subject,
           totalMarks,
           chapter: chapter ?? undefined,
+          lang,
         },
       });
       if (error) throw error;
