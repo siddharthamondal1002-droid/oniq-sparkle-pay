@@ -924,8 +924,14 @@ function ScoutPanel() {
                           className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-left"
                         >
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-semibold">{r.store}</div>
-                            <div className="truncate text-xs text-muted-foreground">{r.note ?? "couldn't verify live — check in app"}</div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="truncate text-sm font-semibold">{r.store}</div>
+                              {r.verified && <span className="shrink-0 text-[10px] font-medium text-emerald-400">✓</span>}
+                            </div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              {r.price_range_inr ? `${r.price_range_inr}${r.rating ? ` · ★ ${r.rating}` : ""}` : (r.note ?? "couldn't verify live — check in app")}
+                              {r.source_domain ? ` · ${r.source_domain}` : ""}
+                            </div>
                           </div>
                           <div className="shrink-0 text-xs font-semibold text-primary flex items-center gap-1">
                             open {r.store} <ExternalLink className="h-3 w-3" />
