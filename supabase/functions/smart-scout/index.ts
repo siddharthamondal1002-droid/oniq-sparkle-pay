@@ -98,8 +98,14 @@ Deno.serve(async (req) => {
       userContent.push({ type: "text", text: `Scout in India for: ${query}` });
     }
 
+    // Supabase edge functions have a 400s wall-clock ceiling on hosted plans.
+    // Exploratory local-service queries (restaurants across Zomato/Swiggy/Maps/JustDial)
+    // legitimately need multiple sequential web_search calls; 55s was too tight and
+    // was the real root cause of "restaurants in Kolkata Park Street" timing out.
+    // 180s gives Claude room for ~7 tool hops plus response synthesis, and still leaves
+    // >200s margin below the platform ceiling for network jitter.
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 55000);
+    const timer = setTimeout(() => controller.abort(), 180000);
 
     let res: Response;
     try {
