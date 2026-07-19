@@ -95,7 +95,9 @@ Deno.serve(async (req) => {
 
   const res = await callClaude({
     system,
-    messages: [{ role: "user", content: `Please generate the 5-question quiz on ${subject} — ${topic}.` }],
+    messages: [{ role: "user", content: chapter
+      ? `Please generate the 5-question quiz on ${subject} — chapter "${chapter}".`
+      : `Please generate the 5-question quiz on ${subject} — ${topic}.` }],
     tools: [QUIZ_TOOL],
     toolChoice: { type: "tool", name: "generate_quiz" },
     maxTokens: 1400,
