@@ -83,7 +83,7 @@ function FaithPage() {
               {section === "listen" && <ListenSection religion={religion} />}
               {section === "dates" && <DatesSection religion={religion} />}
               {section === "shop" && <ShopSection religion={religion} />}
-              {section === "watch" && <DevotionalLiveSection />}
+              {section === "watch" && (<><DevotionalLiveSection /><DevotionalRadioSection /></>)}
             </div>
           </>
         )}
