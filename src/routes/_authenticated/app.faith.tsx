@@ -229,7 +229,7 @@ function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
 
 type RadioStation = { faith: FaithId; name: string; streamUrl: string; favicon: string | null; tags: string[] };
 
-function DevotionalRadioSection() {
+function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
   const [playing, setPlaying] = useState<string | null>(null);
   const audioRef = useMemo(() => ({ current: null as HTMLAudioElement | null }), []);
 
