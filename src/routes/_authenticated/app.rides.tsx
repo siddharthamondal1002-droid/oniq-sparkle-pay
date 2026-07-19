@@ -58,6 +58,11 @@ function RidesScreen() {
   const [pickupQuery, setPickupQuery] = useState("");
   const [pickupResults, setPickupResults] = useState<GeoResult[]>([]);
   const [pickupSearching, setPickupSearching] = useState(false);
+  const [pickupSuggests, setPickupSuggests] = useState<PlaceSuggestion[]>([]);
+  const [destSuggests, setDestSuggests] = useState<PlaceSuggestion[]>([]);
+
+  const autocompleteFn = useServerFn(placesAutocomplete);
+  const detailsFn = useServerFn(placeDetails);
 
 
   const [genie, setGenie] = useState("");
