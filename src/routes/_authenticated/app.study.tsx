@@ -1669,6 +1669,17 @@ function SubjectSheet({
         </div>
       </div>
     </ModalCard>
+    {notesFor && createPortal(
+      <NotesReader
+        profile={profile}
+        subject={subject}
+        chapter={notesFor.chapter}
+        chapterNumber={notesFor.number}
+        onClose={() => setNotesFor(null)}
+      />,
+      document.body,
+    )}
+    </>
   );
 }
 
