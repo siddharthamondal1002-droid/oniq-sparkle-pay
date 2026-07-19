@@ -123,18 +123,28 @@ Deno.serve(async (req) => {
 
   if (!res.ok) {
     console.warn(`study-chapters: callClaude failed board=${board} class=${classLevel} subject="${subject}" reason=${res.reason}`);
-    return json(200, { source: "unavailable", chapters: [], reason: res.reason });
+    return json(200, {
+      source: "unavailable",
+      chapters: [],
+      reason: res.reason,
+      debug: { httpReason: res.reason, stopReason: null, blocksSnippet: null },
+    });
   }
 
   const blocks = Array.isArray(res.data?.content) ? res.data.content : [];
   const toolUse = blocks.find((b: { type?: string }) => b?.type === "tool_use");
   const input = toolUse?.input;
   const rawList = input && typeof input === "object" ? (input as { chapters?: unknown }).chapters : null;
+  const stopReason = (res.data as { stop_reason?: string })?.stop_reason ?? null;
+  const blocksSnippet = JSON.stringify(blocks).slice(0, 300);
   if (!Array.isArray(rawList) || rawList.length === 0) {
-    const stopReason = (res.data as { stop_reason?: string })?.stop_reason ?? "?";
-    const snippet = JSON.stringify(blocks).slice(0, 400);
-    console.warn(`study-chapters: empty tool_use board=${board} class=${classLevel} subject="${subject}" stop=${stopReason} blocks=${snippet}`);
-    return json(200, { source: "unavailable", chapters: [], reason: "no chapters returned" });
+    console.warn(`study-chapters: empty tool_use board=${board} class=${classLevel} subject="${subject}" stop=${stopReason ?? "?"} blocks=${blocksSnippet}`);
+    return json(200, {
+      source: "unavailable",
+      chapters: [],
+      reason: "no chapters returned",
+      debug: { httpReason: null, stopReason, blocksSnippet },
+    });
   }
 
   const cleaned: ChapterRow[] = [];
@@ -152,7 +162,12 @@ Deno.serve(async (req) => {
   cleaned.sort((a, b) => a.chapter_number - b.chapter_number);
 
   if (cleaned.length === 0) {
-    return json(200, { source: "unavailable", chapters: [], reason: "no valid chapters after cleaning" });
+    return json(200, {
+      source: "unavailable",
+      chapters: [],
+      reason: "no valid chapters after cleaning",
+      debug: { httpReason: null, stopReason, blocksSnippet },
+    });
   }
 
   // 3) Persist (one-time cache write). Use upsert on the unique constraint to
