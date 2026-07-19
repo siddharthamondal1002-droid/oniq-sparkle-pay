@@ -647,6 +647,27 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
         ))}
       </select>
 
+      {boardUsesSecondLangPicker(board) && (
+        <>
+          <label className="mt-4 block text-xs font-medium text-muted-foreground">
+            2nd / vernacular language
+          </label>
+          <select
+            value={secondLang}
+            onChange={(e) => setSecondLang(e.target.value)}
+            className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
+          >
+            {SECOND_LANG_OPTIONS.map((l) => (
+              <option key={l} value={l}>{l}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            varies by school — edit anytime from the learner profile.
+          </p>
+        </>
+      )}
+
+
       <button
         onClick={() => create.mutate()}
         disabled={create.isPending || !name.trim()}
