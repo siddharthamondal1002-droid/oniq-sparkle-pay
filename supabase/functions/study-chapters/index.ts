@@ -50,6 +50,19 @@ Deno.serve(async (req) => {
   }
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 
+  const logDebug = async (fields: { source: string; reason?: string | null; stop_reason?: string | null; blocks_snippet?: string | null; http_reason?: string | null }) => {
+    try {
+      await admin.from("study_chapters_debug").insert({
+        board, class_level: classLevel, subject,
+        source: fields.source,
+        reason: fields.reason ?? null,
+        stop_reason: fields.stop_reason ?? null,
+        blocks_snippet: fields.blocks_snippet ?? null,
+        http_reason: fields.http_reason ?? null,
+      });
+    } catch { /* best effort */ }
+  };
+
   // 1) Cache check
   try {
     const { data: rows, error } = await admin
@@ -60,6 +73,7 @@ Deno.serve(async (req) => {
       .eq("subject", subject)
       .order("chapter_number", { ascending: true });
     if (!error && rows && rows.length > 0) {
+      await logDebug({ source: "cache" });
       return json(200, { source: "cache", chapters: rows });
     }
     if (error) console.warn("study-chapters: cache read error", error.message);
@@ -123,6 +137,7 @@ Deno.serve(async (req) => {
 
   if (!res.ok) {
     console.warn(`study-chapters: callClaude failed board=${board} class=${classLevel} subject="${subject}" reason=${res.reason}`);
+    await logDebug({ source: "callClaude_failed", reason: res.reason, http_reason: res.reason });
     return json(200, {
       source: "unavailable",
       chapters: [],
@@ -139,6 +154,7 @@ Deno.serve(async (req) => {
   const blocksSnippet = JSON.stringify(blocks).slice(0, 300);
   if (!Array.isArray(rawList) || rawList.length === 0) {
     console.warn(`study-chapters: empty tool_use board=${board} class=${classLevel} subject="${subject}" stop=${stopReason ?? "?"} blocks=${blocksSnippet}`);
+    await logDebug({ source: "empty_tool_use", reason: "no chapters returned", stop_reason: stopReason, blocks_snippet: blocksSnippet });
     return json(200, {
       source: "unavailable",
       chapters: [],
@@ -162,6 +178,7 @@ Deno.serve(async (req) => {
   cleaned.sort((a, b) => a.chapter_number - b.chapter_number);
 
   if (cleaned.length === 0) {
+    await logDebug({ source: "cleaned_empty", reason: "no valid chapters after cleaning", stop_reason: stopReason, blocks_snippet: blocksSnippet });
     return json(200, {
       source: "unavailable",
       chapters: [],
@@ -188,5 +205,6 @@ Deno.serve(async (req) => {
     console.warn("study-chapters: insert exception", (e as Error).message);
   }
 
+  await logDebug({ source: "generated", stop_reason: stopReason, blocks_snippet: blocksSnippet });
   return json(200, { source: "generated", chapters: cleaned });
 });
