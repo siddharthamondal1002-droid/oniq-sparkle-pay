@@ -176,11 +176,7 @@ Deno.serve(async (req) => {
     const data = await fetchLoanRates();
     return json(200, data);
   } catch (e) {
-    return json(200, {
-      asOf: new Date().toISOString().slice(0, 10),
-      categories: [],
-      disclaimer: DISCLAIMER,
-      reason: String(e).slice(0, 200),
-    });
+    const today = new Date().toISOString().slice(0, 10);
+    return json(200, { ...fallbackSnapshot(today), reason: String(e).slice(0, 200) });
   }
 });
