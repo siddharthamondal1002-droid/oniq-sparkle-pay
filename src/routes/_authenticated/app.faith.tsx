@@ -70,11 +70,12 @@ function FaithPage() {
           </div>
         ) : (
           <>
-            <div className="mt-5 grid grid-cols-4 gap-2">
+            <div className="mt-5 grid grid-cols-5 gap-2">
               <TabBtn active={section === "read"} onClick={() => setSection("read")} icon={<BookOpen className="h-4 w-4" />} label="read 📖" />
               <TabBtn active={section === "listen"} onClick={() => setSection("listen")} icon={<Headphones className="h-4 w-4" />} label="listen 🎧" />
               <TabBtn active={section === "dates"} onClick={() => setSection("dates")} icon={<CalIcon className="h-4 w-4" />} label="dates 🗓" />
               <TabBtn active={section === "shop"} onClick={() => setSection("shop")} icon={<ShoppingBag className="h-4 w-4" />} label="shop 🛍" />
+              <TabBtn active={section === "watch"} onClick={() => setSection("watch")} icon={<Video className="h-4 w-4" />} label="watch 🎥" />
             </div>
 
             <div className="mt-5">
@@ -82,11 +83,10 @@ function FaithPage() {
               {section === "listen" && <ListenSection religion={religion} />}
               {section === "dates" && <DatesSection religion={religion} />}
               {section === "shop" && <ShopSection religion={religion} />}
+              {section === "watch" && <DevotionalLiveSection />}
             </div>
           </>
         )}
-
-        <DevotionalLiveSection />
       </div>
     </div>
   );
