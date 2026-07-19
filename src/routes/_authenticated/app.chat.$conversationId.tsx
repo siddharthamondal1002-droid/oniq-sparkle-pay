@@ -1063,10 +1063,10 @@ function ChatThread() {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate font-medium">{isChannel ? `📢 ${title}` : title}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="truncate font-medium text-white" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}>{isChannel ? `📢 ${title}` : title}</div>
+            <div className="text-xs text-white/90" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85)" }}>
               {peerTyping && !isChannel ? (
-                <span className="text-[#25D366]">
+                <span className="text-[#25D366]" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85)" }}>
                   {isGroup && peerTypingName ? `${peerTypingName} is typing…` : "typing…"}
                 </span>
               ) : isChannel ? (
@@ -1076,7 +1076,7 @@ function ChatThread() {
               ) : peerOnline ? (
                 <span className="inline-flex items-center gap-1" data-testid="peer-online">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#25D366]" />
-                  <span className="text-[#25D366]">online</span>
+                  <span className="text-[#25D366]" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85)" }}>online</span>
                 </span>
               ) : null}
             </div>
