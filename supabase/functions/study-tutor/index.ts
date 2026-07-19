@@ -40,7 +40,7 @@ function buildSystem(profile: { name: string; board: string; classLevel: string;
     "- Never fabricate quotes from teachers, boards, or people.",
     "",
     "Keep responses focused and not too long. Ask ONE guiding question at a time.",
-  ].join("\n");
+  ].join("\n") + chapterLine;
 }
 
 type VaultNote = { subject: string; topic: string; content: string };
