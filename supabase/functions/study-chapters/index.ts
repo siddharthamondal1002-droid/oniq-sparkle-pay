@@ -75,13 +75,14 @@ Deno.serve(async (req) => {
   const system = [
     `You are a curriculum reference for Indian students. You will output the STANDARD, REAL chapter list (textbook table of contents) for a specific board, class, and subject.`,
     ``,
-    `Context: ${boardLabel} — ${curriculum} The student is ${gradeStr}. Subject: ${subject}.`,
+    `Context: ${boardLabel} — ${curriculum} The student is ${gradeStr}. Subject as requested: "${subject}".`,
     ``,
     `RULES:`,
-    `- Use the actual, widely-recognized textbook structure. For CBSE use the current NCERT textbook table of contents. For ICSE use the CISCE-prescribed structure (Selina/Frank-style). For IGCSE use the Cambridge International syllabus structure. For JEE/NEET/CLAT/Govt tracks use the standard reference syllabus for that exam. For College use standard Indian UG/PG syllabi.`,
-    `- Return chapters in TEXTBOOK ORDER with their real, recognizable titles. Do NOT paraphrase, translate, or reword the titles. Do NOT invent chapters. Do NOT reorder.`,
-    `- If the combo is unusual and you are genuinely uncertain of the exact count/titles, return a conservative best-effort list — do NOT pad with invented chapters.`,
-    `- Never return zero chapters unless the combo is truly nonsensical.`,
+    `- Use the actual, widely-recognized textbook structure. For CBSE use current NCERT TOC. For ICSE use the CISCE-prescribed structure (Selina/Frank-style; note ICSE splits Physics, Chemistry and Biology as SEPARATE subjects from class 9 onwards). For IGCSE use Cambridge International. For JEE/NEET/CLAT/Govt tracks use the standard reference syllabus. For College use standard Indian UG/PG syllabi.`,
+    `- Return chapters in TEXTBOOK ORDER with their real, recognizable titles. Do NOT paraphrase, translate, reword, invent, or reorder.`,
+    `- SUBJECT-NAME MISMATCH: If the requested subject name isn't exactly how this board labels the subject at this class level (different bundling or naming), STILL return the real chapter list for the closest matching real subject grouping this board uses at this class. Do NOT return an empty list because of a naming mismatch — always resolve to the nearest real subject.`,
+    `- If genuinely uncertain of exact count/titles, return a conservative best-effort list — do NOT pad with invented chapters.`,
+    `- Never return zero chapters unless the combo is truly nonsensical (e.g. "class 3 Judiciary").`,
     `- Use the list_chapters tool ONLY. No prose.`,
   ].join("\n");
 
@@ -109,20 +110,19 @@ Deno.serve(async (req) => {
     },
   };
 
+  const userMsg = `List the standard chapters (real textbook TOC, in order) for:\n- Board: ${boardLabel}\n- Class/Level: ${classLevel}\n- Subject: ${subject}\n\nReturn via the list_chapters tool. If "${subject}" is not exactly how ${boardLabel} labels it at class ${classLevel}, resolve to the closest real subject grouping this board uses and return THOSE chapters — never return an empty list for a naming mismatch.`;
+
   const res = await callClaude({
     system,
-    messages: [{
-      role: "user",
-      content: `List the standard chapters (real textbook TOC, in order) for:\n- Board: ${boardLabel}\n- Class/Level: ${classLevel}\n- Subject: ${subject}\n\nReturn via the list_chapters tool.`,
-    }],
+    messages: [{ role: "user", content: userMsg }],
     tools: [tool],
     toolChoice: { type: "tool", name: "list_chapters" },
-    maxTokens: 1500,
-    timeoutMs: 30000,
+    maxTokens: 2000,
+    timeoutMs: 45000,
   });
 
   if (!res.ok) {
-    console.warn("study-chapters: callClaude failed", res.reason);
+    console.warn(`study-chapters: callClaude failed board=${board} class=${classLevel} subject="${subject}" reason=${res.reason}`);
     return json(200, { source: "unavailable", chapters: [], reason: res.reason });
   }
 
@@ -131,7 +131,9 @@ Deno.serve(async (req) => {
   const input = toolUse?.input;
   const rawList = input && typeof input === "object" ? (input as { chapters?: unknown }).chapters : null;
   if (!Array.isArray(rawList) || rawList.length === 0) {
-    console.warn("study-chapters: no tool_use / empty list");
+    const stopReason = (res.data as { stop_reason?: string })?.stop_reason ?? "?";
+    const snippet = JSON.stringify(blocks).slice(0, 400);
+    console.warn(`study-chapters: empty tool_use board=${board} class=${classLevel} subject="${subject}" stop=${stopReason} blocks=${snippet}`);
     return json(200, { source: "unavailable", chapters: [], reason: "no chapters returned" });
   }
 
