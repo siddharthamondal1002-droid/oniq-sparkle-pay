@@ -8,7 +8,8 @@ const corsHeaders = {
 };
 
 type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "devotional";
-type Candidate = { name: string; id?: string; handle?: string };
+type Faith = "islamic" | "sikh" | "hindu" | "christian";
+type Candidate = { name: string; id?: string; handle?: string; faith?: Faith };
 type GenreDef = {
   id: GenreId;
   name: string;
@@ -116,18 +117,18 @@ const GENRES: GenreDef[] = [
     live: true,
     candidates: [
       // Islamic — Grand Mosque / Prophet's Mosque live broadcasts
-      { id: "UChMtBGc9nYBGEsRWKrV_uSw", name: "Makkah Live" },
-      { id: "UCCZnJmWUimOYtIkB6GLrG8A", name: "Madinah Live" },
-      { id: "UCyJeX5GaHTheVHBoTUSnQcw", name: "Al Haramain Al Sharifain" },
+      { id: "UChMtBGc9nYBGEsRWKrV_uSw", name: "Makkah Live", faith: "islamic" },
+      { id: "UCCZnJmWUimOYtIkB6GLrG8A", name: "Madinah Live", faith: "islamic" },
+      { id: "UCyJeX5GaHTheVHBoTUSnQcw", name: "Al Haramain Al Sharifain", faith: "islamic" },
       // Sikh — SGPC Amritsar (Sri Harmandir Sahib official)
-      { id: "UCYn6UEtQ771a_OWSiNBoG8w", name: "SGPC, Sri Amritsar" },
-      { id: "UCjSHfIYLQHDAKW9VEO5gRNQ", name: "Daily Hukamnama" },
+      { id: "UCYn6UEtQ771a_OWSiNBoG8w", name: "SGPC, Sri Amritsar", faith: "sikh" },
+      { id: "UCjSHfIYLQHDAKW9VEO5gRNQ", name: "Daily Hukamnama", faith: "sikh" },
       // Hindu — TTD (Tirumala) related, mainstream devotional broadcasters
-      { id: "UCsGVmie9VldduYuWYziIv9Q", name: "TTD Seva Online" },
-      { id: "UCZMmfrbYGqSjKa4MWJHb9sQ", name: "Bageshwar Dham Sarkar" },
-      { id: "UC7ZivIYRB0fMSGh-THcTYbw", name: "Shemaroo Bhakti" },
+      { id: "UCsGVmie9VldduYuWYziIv9Q", name: "TTD Seva Online", faith: "hindu" },
+      { id: "UCZMmfrbYGqSjKa4MWJHb9sQ", name: "Bageshwar Dham Sarkar", faith: "hindu" },
+      { id: "UC7ZivIYRB0fMSGh-THcTYbw", name: "Shemaroo Bhakti", faith: "hindu" },
       // Christian
-      { id: "UC1_JSuk0BSA_FWzSvMsezGg", name: "GOD TV" },
+      { id: "UC1_JSuk0BSA_FWzSvMsezGg", name: "GOD TV", faith: "christian" },
     ],
   },
 ];
@@ -142,6 +143,7 @@ type Video = {
   publishedAt: string;
   thumbnail: string;
   isLive?: boolean;
+  faith?: Faith;
 };
 type ResolvedGenre = {
   id: GenreId;
@@ -275,23 +277,47 @@ async function resolveGenre(g: GenreDef): Promise<ResolvedGenre | null> {
   return { id: g.id, name: g.name, emoji: g.emoji, live: false, videos: merged.slice(0, 12) };
 }
 
-async function resolveDevotionalGenre(g: GenreDef): Promise<ResolvedGenre | null> {
+const FAITH_ORDER: Faith[] = ["islamic", "sikh", "hindu", "christian"];
+const PER_FAITH_CAP = 4;
+
+async function resolveFaithGroup(faith: Faith, candidates: Candidate[]): Promise<Video[]> {
   const [liveSettled, uploadsSettled] = await Promise.all([
-    Promise.allSettled(g.candidates.map(resolveNewsChannel)),
-    Promise.allSettled(g.candidates.map(resolveUploads)),
+    Promise.allSettled(candidates.map(resolveNewsChannel)),
+    Promise.allSettled(candidates.map(resolveUploads)),
   ]);
   const liveVideos: Video[] = liveSettled
     .map((s) => (s.status === "fulfilled" ? s.value : null))
     .filter((v): v is Video => !!v)
-    .map((v) => ({ ...v, isLive: true }));
+    .map((v) => ({ ...v, isLive: true, faith }));
   const uploadVideos: Video[] = [];
-  for (const s of uploadsSettled) if (s.status === "fulfilled") uploadVideos.push(...s.value.map((v) => ({ ...v, isLive: false })));
+  for (const s of uploadsSettled) {
+    if (s.status === "fulfilled") uploadVideos.push(...s.value.map((v) => ({ ...v, isLive: false, faith })));
+  }
   uploadVideos.sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || ""));
-  // Dedupe: if a live videoId also appeared in uploads, keep the live one.
   const liveIds = new Set(liveVideos.map((v) => v.videoId));
   const merged = [...liveVideos, ...uploadVideos.filter((v) => !liveIds.has(v.videoId))];
-  if (merged.length < 1) return null;
-  return { id: g.id, name: g.name, emoji: g.emoji, live: liveVideos.length > 0, videos: merged.slice(0, 16) };
+  return merged.slice(0, PER_FAITH_CAP);
+}
+
+async function resolveDevotionalGenre(g: GenreDef): Promise<ResolvedGenre | null> {
+  const groups = FAITH_ORDER.map((f) => ({ faith: f, candidates: g.candidates.filter((c) => c.faith === f) }));
+  const settled = await Promise.allSettled(groups.map((grp) => resolveFaithGroup(grp.faith, grp.candidates)));
+  const videos: Video[] = [];
+  let anyLive = false;
+  settled.forEach((s, i) => {
+    if (s.status === "fulfilled") {
+      if (s.value.length === 0) {
+        console.warn("[live-channels] devotional faith empty", groups[i].faith);
+      } else {
+        if (s.value.some((v) => v.isLive)) anyLive = true;
+        videos.push(...s.value);
+      }
+    } else {
+      console.warn("[live-channels] devotional faith failed", groups[i].faith, s.reason);
+    }
+  });
+  if (videos.length < 1) return null;
+  return { id: g.id, name: g.name, emoji: g.emoji, live: anyLive, videos };
 }
 
 Deno.serve(async (req) => {
