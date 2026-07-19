@@ -1540,17 +1540,31 @@ function SubjectSheet({
     <>
     <ModalCard onClose={onClose}>
       <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
             <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {profile.name} · {subject}
             </div>
-            <div className="font-display text-lg font-bold">chapters 📚</div>
+            <div className="font-display text-lg font-bold">
+              chapters 📚
+              {chaptersSource === "override" && (
+                <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 align-middle text-[10px] font-semibold text-emerald-400">
+                  your syllabus
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditingOverride(true)}
+              className="mt-1 text-[11px] font-medium text-primary underline-offset-2 hover:underline"
+            >
+              syllabus different? correct it 📋
+            </button>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-8 w-8 place-items-center rounded-full border border-border"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border"
           >
             <X className="h-4 w-4" />
           </button>
