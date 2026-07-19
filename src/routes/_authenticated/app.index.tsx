@@ -417,6 +417,10 @@ function HeroTile({
   useEffect(() => {
     if (!livePreview || showSkin || vLen < 2) return;
     if (paused || controlsVisible) return;
+    // Devotional loop: no 20s auto-tour — let each video play to completion (ENDED handler wraps).
+    if (isDevotional && devLoopActive) return;
+    // Devotional with picker shown or timer ended: don't force-advance either.
+    if (isDevotional && (showDevPicker || devLoopEnded)) return;
     let t: number | null = null;
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) {
@@ -427,7 +431,8 @@ function HeroTile({
     };
     t = window.setTimeout(tick, 20_000);
     return () => { if (t) window.clearTimeout(t); };
-  }, [idx, vLen, livePreview, showSkin, paused, controlsVisible]);
+  }, [idx, vLen, livePreview, showSkin, paused, controlsVisible, isDevotional, devLoopActive, showDevPicker, devLoopEnded]);
+
 
   const bumpHide = () => {
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
