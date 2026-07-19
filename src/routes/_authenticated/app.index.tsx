@@ -364,8 +364,9 @@ function HeroTile({
 
   const rawVideos = activeGenre?.videos ?? [];
   const videos = isDevotional && devFaithPref
-    ? rawVideos.filter((v) => v.faith === devFaithPref)
+    ? rawVideos.filter((v) => (v as Video).faith === devFaithPref)
     : rawVideos;
+
   const isLiveGenre = !!activeGenre?.live;
 
 
