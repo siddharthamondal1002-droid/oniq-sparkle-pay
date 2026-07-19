@@ -622,7 +622,7 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
 /* ================= SCOUT ================= */
 
 type ScoutResult = { store: string; price_inr: number | null; price_range_inr?: string | null; rating: string | null; source_domain?: string | null; verified?: boolean; note: string | null };
-type ScoutTopPick = { store: string; why: string };
+type ScoutTopPick = { store: string; why: string; cross_checked?: string[] };
 type ScoutResponse = { product: string; results: ScoutResult[]; top_pick?: ScoutTopPick | null; disclaimer?: string; sources?: Array<{ url: string; title?: string }> };
 
 const STORE_LAUNCH: Record<string, { pkg?: string; url: (q: string) => string }> = {
