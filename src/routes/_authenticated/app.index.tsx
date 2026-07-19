@@ -1093,9 +1093,9 @@ function PrimaryTile({
 }) {
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
-  const { data: balanceCents } = useWalletBalance();
-  const balance = showBalance && typeof balanceCents === "number"
-    ? `₹${(balanceCents / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+  const { data: omiqBalance } = useWalletBalance();
+  const balance = showBalance && typeof omiqBalance === "number"
+    ? `${Number(omiqBalance).toFixed(2)} ⭘`
     : null;
 
   const spanClass = span === 6 ? "col-span-6" : span === 3 ? "col-span-3" : "col-span-2";
