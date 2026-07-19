@@ -205,7 +205,7 @@ Deno.serve(async (req) => {
       repoRate: rates.repoRate,
       bankRates: rates.bankRates,
       source: {
-        commodities: "gold-api.com + open.er-api.com",
+        commodities: commodities.source,
         rates: "Claude web_search (RBI + bank sites)",
       },
       lastUpdated: new Date().toISOString(),
