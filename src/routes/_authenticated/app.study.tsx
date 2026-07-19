@@ -1340,6 +1340,7 @@ function ChapterPickerPanel({
             classLevel: profile.class_level,
             subject,
             lang,
+            profileId: profile.id,
           },
         });
         if (cancelled) return;
@@ -1460,9 +1461,12 @@ function SubjectSheet({
   onClose: () => void;
 }) {
   const [chapters, setChapters] = useState<ChapterRow[] | null>(null);
+  const [chaptersSource, setChaptersSource] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [paperFor, setPaperFor] = useState<{ chapter?: string } | null>(null);
   const [notesFor, setNotesFor] = useState<{ chapter: string; number: number } | null>(null);
+  const [editingOverride, setEditingOverride] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
   const { data: attempts } = useAttempts();
 
   useEffect(() => {
@@ -1479,12 +1483,14 @@ function SubjectSheet({
             classLevel: profile.class_level,
             subject,
             lang,
+            profileId: profile.id,
           },
         });
         if (cancelled) return;
         if (error) throw error;
-        const d = data as { chapters?: ChapterRow[] };
+        const d = data as { chapters?: ChapterRow[]; source?: string };
         setChapters(Array.isArray(d?.chapters) ? d.chapters : []);
+        setChaptersSource(String(d?.source ?? ""));
       } catch {
         if (!cancelled) setChapters([]);
       } finally {
@@ -1492,7 +1498,7 @@ function SubjectSheet({
       }
     })();
     return () => { cancelled = true; };
-  }, [profile.board, profile.class_level, subject]);
+  }, [profile.board, profile.class_level, profile.id, subject, reloadTick]);
 
   // Mastery per chapter — %score across this profile's attempts for
   // (subject, chapter). Keyed by chapter_title, matching how attempts store it.
@@ -1534,17 +1540,31 @@ function SubjectSheet({
     <>
     <ModalCard onClose={onClose}>
       <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
             <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
               {profile.name} · {subject}
             </div>
-            <div className="font-display text-lg font-bold">chapters 📚</div>
+            <div className="font-display text-lg font-bold">
+              chapters 📚
+              {chaptersSource === "override" && (
+                <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 align-middle text-[10px] font-semibold text-emerald-400">
+                  your syllabus
+                </span>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setEditingOverride(true)}
+              className="mt-1 text-[11px] font-medium text-primary underline-offset-2 hover:underline"
+            >
+              syllabus different? correct it 📋
+            </button>
           </div>
           <button
             onClick={onClose}
             aria-label="Close"
-            className="grid h-8 w-8 place-items-center rounded-full border border-border"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1678,6 +1698,19 @@ function SubjectSheet({
       />,
       document.body,
     )}
+    {editingOverride && createPortal(
+      <OverrideEditor
+        profile={profile}
+        subject={subject}
+        initial={chapters ?? []}
+        onClose={() => setEditingOverride(false)}
+        onSaved={() => {
+          setEditingOverride(false);
+          setReloadTick((t) => t + 1);
+        }}
+      />,
+      document.body,
+    )}
     </>
   );
 }
@@ -1696,6 +1729,224 @@ function SheetActionBtn({
     >
       {label}
     </button>
+  );
+}
+
+// ------------------------- Chapter override editor -------------------------
+// Lets a family paste/edit their real school syllabus for (profile, subject),
+// upserting rows into chapter_overrides. On save, the sheet reloads and the
+// study-chapters edge function returns source:"override" going forward.
+
+function OverrideEditor({
+  profile,
+  subject,
+  initial,
+  onClose,
+  onSaved,
+}: {
+  profile: LearnerProfile;
+  subject: string;
+  initial: ChapterRow[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [rows, setRows] = useState<string[]>(() => {
+    const seed = initial.map((c) => c.chapter_title);
+    return seed.length > 0 ? seed : [""];
+  });
+  const [saving, setSaving] = useState(false);
+  const [loadedExisting, setLoadedExisting] = useState(false);
+
+  // Load any existing overrides for this profile+subject so editing shows
+  // the current corrections, not the generic AI list.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("chapter_overrides")
+          .select("chapter_number, chapter_title")
+          .eq("learner_profile_id", profile.id)
+          .eq("subject", subject)
+          .order("chapter_number", { ascending: true });
+        if (cancelled) return;
+        if (!error && data && data.length > 0) {
+          setRows(data.map((r) => r.chapter_title));
+        }
+      } finally {
+        if (!cancelled) setLoadedExisting(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile.id, subject]);
+
+  const update = (i: number, v: string) => setRows((rs) => rs.map((r, idx) => idx === i ? v : r));
+  const addRow = () => setRows((rs) => [...rs, ""]);
+  const removeRow = (i: number) => setRows((rs) => rs.length <= 1 ? [""] : rs.filter((_, idx) => idx !== i));
+  const move = (i: number, dir: -1 | 1) => setRows((rs) => {
+    const j = i + dir;
+    if (j < 0 || j >= rs.length) return rs;
+    const copy = rs.slice();
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+    return copy;
+  });
+
+  const save = async () => {
+    const cleaned = rows.map((r) => r.trim()).filter((r) => r.length > 0);
+    if (cleaned.length === 0) {
+      toast.error("add at least one chapter, or use delete to clear");
+      return;
+    }
+    if (cleaned.length > 200) {
+      toast.error("too many chapters (max 200)");
+      return;
+    }
+    setSaving(true);
+    try {
+      // Replace-in-place: delete existing rows for this (profile, subject),
+      // then insert the current list. Simpler than diffing numbers.
+      const { error: delErr } = await supabase
+        .from("chapter_overrides")
+        .delete()
+        .eq("learner_profile_id", profile.id)
+        .eq("subject", subject);
+      if (delErr) throw delErr;
+      const payload = cleaned.map((t, idx) => ({
+        learner_profile_id: profile.id,
+        subject,
+        chapter_number: idx + 1,
+        chapter_title: t.slice(0, 300),
+      }));
+      const { error: insErr } = await supabase.from("chapter_overrides").insert(payload);
+      if (insErr) throw insErr;
+      toast.success("syllabus saved 📋");
+      onSaved();
+    } catch (e) {
+      toast.error((e as Error).message || "couldn't save syllabus");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clearAll = async () => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("chapter_overrides")
+        .delete()
+        .eq("learner_profile_id", profile.id)
+        .eq("subject", subject);
+      if (error) throw error;
+      toast.success("reverted to standard syllabus");
+      onSaved();
+    } catch (e) {
+      toast.error((e as Error).message || "couldn't clear syllabus");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[85] flex items-end justify-center bg-black/60 sm:items-center" role="dialog" aria-modal="true">
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-3xl border border-border bg-card shadow-2xl sm:rounded-3xl">
+        <div className="flex items-start justify-between border-b border-border px-5 py-4">
+          <div className="min-w-0">
+            <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              {profile.name} · {subject}
+            </div>
+            <div className="font-display text-lg font-bold">your school's syllabus 📋</div>
+            <div className="mt-0.5 text-[11px] text-muted-foreground">
+              chapter titles in your school's actual order — replaces the generic list for this subject
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex-1 space-y-2 overflow-y-auto px-5 py-4">
+          {!loadedExisting && (
+            <div className="py-2 text-center text-[11px] text-muted-foreground">loading…</div>
+          )}
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <div className="w-6 shrink-0 text-center text-[11px] text-muted-foreground">{i + 1}.</div>
+              <input
+                type="text"
+                value={r}
+                onChange={(e) => update(i, e.target.value)}
+                placeholder="chapter title"
+                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary/60"
+                maxLength={300}
+              />
+              <div className="flex shrink-0 gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => move(i, -1)}
+                  disabled={i === 0}
+                  className="grid h-8 w-7 place-items-center rounded-md border border-border text-xs disabled:opacity-30"
+                  aria-label="move up"
+                >↑</button>
+                <button
+                  type="button"
+                  onClick={() => move(i, 1)}
+                  disabled={i === rows.length - 1}
+                  className="grid h-8 w-7 place-items-center rounded-md border border-border text-xs disabled:opacity-30"
+                  aria-label="move down"
+                >↓</button>
+                <button
+                  type="button"
+                  onClick={() => removeRow(i)}
+                  className="grid h-8 w-7 place-items-center rounded-md border border-border text-xs text-rose-400"
+                  aria-label="remove"
+                >✕</button>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={addRow}
+            className="mt-2 w-full rounded-lg border border-dashed border-border py-2 text-xs text-muted-foreground hover:bg-muted"
+          >
+            + add chapter
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between gap-2 border-t border-border px-5 py-3">
+          <button
+            type="button"
+            onClick={clearAll}
+            disabled={saving}
+            className="text-[11px] font-medium text-rose-400 hover:underline disabled:opacity-50"
+          >
+            revert to standard
+          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={saving}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              cancel
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving}
+              className="rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground disabled:opacity-50"
+            >
+              {saving ? "saving…" : "save syllabus"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
