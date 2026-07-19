@@ -706,7 +706,12 @@ function EditProfile({
         };
       })
         .from("learner_profiles")
-        .update({ name: trimmed, board, class_level: classLevel })
+        .update({
+          name: trimmed,
+          board,
+          class_level: classLevel,
+          second_language: boardUsesSecondLangPicker(board) ? secondLang : null,
+        })
         .eq("id", profile.id);
       if (error) throw error;
     },
