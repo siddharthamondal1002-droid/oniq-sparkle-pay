@@ -1518,6 +1518,7 @@ export type Database = {
       }
       quiz_attempts: {
         Row: {
+          chapter: string | null
           correct_count: number | null
           created_at: string
           id: string
@@ -1529,6 +1530,7 @@ export type Database = {
           total_questions: number | null
         }
         Insert: {
+          chapter?: string | null
           correct_count?: number | null
           created_at?: string
           id?: string
@@ -1540,6 +1542,7 @@ export type Database = {
           total_questions?: number | null
         }
         Update: {
+          chapter?: string | null
           correct_count?: number | null
           created_at?: string
           id?: string
