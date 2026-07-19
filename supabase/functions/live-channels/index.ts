@@ -120,15 +120,30 @@ const GENRES: GenreDef[] = [
       { id: "UChMtBGc9nYBGEsRWKrV_uSw", name: "Makkah Live", faith: "islamic" },
       { id: "UCCZnJmWUimOYtIkB6GLrG8A", name: "Madinah Live", faith: "islamic" },
       { id: "UCyJeX5GaHTheVHBoTUSnQcw", name: "Al Haramain Al Sharifain", faith: "islamic" },
+      // Islamic — nasheed / vocal hymns (verified handles → IDs)
+      { id: "UCuRjIwyf33-VNeyNxWcstYg", name: "Awakening Music", faith: "islamic" },
+      { id: "UCz4AXmFeSbi-0vPXI102Q5w", name: "Muslim Central", faith: "islamic" },
+      { id: "UCk9wXD940aaTKy8AGjM5H8A", name: "Nasheed Records", faith: "islamic" },
       // Sikh — SGPC Amritsar (Sri Harmandir Sahib official)
       { id: "UCYn6UEtQ771a_OWSiNBoG8w", name: "SGPC, Sri Amritsar", faith: "sikh" },
       { id: "UCjSHfIYLQHDAKW9VEO5gRNQ", name: "Daily Hukamnama", faith: "sikh" },
+      // Sikh — kirtan channels (verified)
+      { id: "UCLMfeT_BVADvx_sTybotSLA", name: "Amritt Saagar Kirtan", faith: "sikh" },
+      { id: "UC4F00emD5EG8OibGo5ixd-Q", name: "SikhNet", faith: "sikh" },
       // Hindu — TTD (Tirumala) related, mainstream devotional broadcasters
       { id: "UCsGVmie9VldduYuWYziIv9Q", name: "TTD Seva Online", faith: "hindu" },
       { id: "UCZMmfrbYGqSjKa4MWJHb9sQ", name: "Bageshwar Dham Sarkar", faith: "hindu" },
       { id: "UC7ZivIYRB0fMSGh-THcTYbw", name: "Shemaroo Bhakti", faith: "hindu" },
-      // Christian
+      // Hindu — bhajan music labels (verified)
+      { id: "UCaayLD9i5x4MmIoVZxXSv_g", name: "T-Series Bhakti Sagar", faith: "hindu" },
+      { id: "UC6vQRTCxutg6fJLUGkDKynQ", name: "Saregama Bhakti", faith: "hindu" },
+      { id: "UCn9WB2Eb1QRSYkFxuPQHkxg", name: "Times Music Spiritual", faith: "hindu" },
+      // Christian — hymns / worship music (verified)
       { id: "UC1_JSuk0BSA_FWzSvMsezGg", name: "GOD TV", faith: "christian" },
+      { id: "UC4q12NoPNySbVqwpw4iO5Vg", name: "Hillsong Worship", faith: "christian" },
+      { id: "UCSf-NCzjwcnXErUBW_qeFvA", name: "Elevation Worship", faith: "christian" },
+      { id: "UCbertc-gMbkkHuSmg0qwnxw", name: "Bethel Music", faith: "christian" },
+      { id: "UCqMof5-AMp88PfI3owykayg", name: "Maranatha Music", faith: "christian" },
     ],
   },
 ];
@@ -278,7 +293,7 @@ async function resolveGenre(g: GenreDef): Promise<ResolvedGenre | null> {
 }
 
 const FAITH_ORDER: Faith[] = ["islamic", "sikh", "hindu", "christian"];
-const PER_FAITH_CAP = 4;
+const PER_FAITH_CAP = 6;
 
 async function resolveFaithGroup(faith: Faith, candidates: Candidate[]): Promise<Video[]> {
   const [liveSettled, uploadsSettled] = await Promise.all([
