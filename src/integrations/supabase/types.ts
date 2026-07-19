@@ -262,6 +262,44 @@ export type Database = {
         }
         Relationships: []
       }
+      chapter_overrides: {
+        Row: {
+          chapter_number: number
+          chapter_title: string
+          created_at: string
+          id: string
+          learner_profile_id: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          chapter_number: number
+          chapter_title: string
+          created_at?: string
+          id?: string
+          learner_profile_id: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          chapter_number?: number
+          chapter_title?: string
+          created_at?: string
+          id?: string
+          learner_profile_id?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chapter_overrides_learner_profile_id_fkey"
+            columns: ["learner_profile_id"]
+            isOneToOne: false
+            referencedRelation: "learner_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chapters: {
         Row: {
           board: string
