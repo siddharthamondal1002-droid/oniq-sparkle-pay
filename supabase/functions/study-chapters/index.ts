@@ -178,6 +178,7 @@ Deno.serve(async (req) => {
   cleaned.sort((a, b) => a.chapter_number - b.chapter_number);
 
   if (cleaned.length === 0) {
+    await logDebug({ source: "cleaned_empty", reason: "no valid chapters after cleaning", stop_reason: stopReason, blocks_snippet: blocksSnippet });
     return json(200, {
       source: "unavailable",
       chapters: [],
