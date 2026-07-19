@@ -83,7 +83,7 @@ function FaithPage() {
               {section === "listen" && <ListenSection religion={religion} />}
               {section === "dates" && <DatesSection religion={religion} />}
               {section === "shop" && <ShopSection religion={religion} />}
-              {section === "watch" && <DevotionalLiveSection />}
+              {section === "watch" && (<><DevotionalLiveSection /><DevotionalRadioSection /></>)}
             </div>
           </>
         )}
@@ -208,6 +208,110 @@ function DevotionalLiveSection() {
 
       <p className="mt-2 text-[11px] text-muted-foreground">
         Live streams from official public YouTube channels. ONIQ does not host or own this content 🌐
+      </p>
+    </section>
+  );
+}
+
+// ============================================================
+// DEVOTIONAL RADIO — real internet radio via Radio Browser
+// ============================================================
+
+type RadioStation = { faith: FaithId; name: string; streamUrl: string; favicon: string | null; tags: string[] };
+
+function DevotionalRadioSection() {
+  const [playing, setPlaying] = useState<string | null>(null);
+  const audioRef = useMemo(() => ({ current: null as HTMLAudioElement | null }), []);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["blessed-devotional-radio"],
+    staleTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("devotional-radio", { body: {} });
+      if (error) throw error;
+      const stations: RadioStation[] = Array.isArray(data?.stations) ? data.stations : [];
+      return stations;
+    },
+  });
+
+  useEffect(() => () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; } }, [audioRef]);
+
+  const toggle = (s: RadioStation) => {
+    if (playing === s.streamUrl) {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      setPlaying(null);
+      return;
+    }
+    audioRef.current?.pause();
+    const audio = new Audio(s.streamUrl);
+    audio.crossOrigin = "anonymous";
+    audio.play().catch(() => { setPlaying(null); });
+    audioRef.current = audio;
+    setPlaying(s.streamUrl);
+  };
+
+  const stations = data ?? [];
+  const hasAny = stations.length > 0;
+
+  return (
+    <section className="mt-10">
+      <div className="mb-3">
+        <div className="text-[11px] uppercase tracking-wider text-primary/80">radio 📻</div>
+        <h2 className="font-display text-lg font-bold">24/7 internet radio</h2>
+      </div>
+
+      {isLoading ? (
+        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">scanning the airwaves…</div>
+      ) : !hasAny ? (
+        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">no reachable stations right now 📡</div>
+      ) : (
+        <div className="space-y-5">
+          {FAITH_META.map((f) => {
+            const items = stations.filter((s) => s.faith === f.id);
+            if (items.length === 0) return null;
+            return (
+              <div key={f.id}>
+                <div className="mb-2 text-sm font-semibold text-foreground/90">{f.label}</div>
+                <ul className="space-y-2">
+                  {items.map((s) => {
+                    const isPlaying = playing === s.streamUrl;
+                    return (
+                      <li key={s.streamUrl}>
+                        <button
+                          type="button"
+                          onClick={() => toggle(s)}
+                          className="press flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left"
+                        >
+                          <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2">
+                            {s.favicon ? (
+                              <img src={s.favicon} alt="" className="h-full w-full object-cover" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                            ) : (
+                              <span className="text-lg">📻</span>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="truncate text-sm font-semibold">{s.name}</div>
+                            {s.tags.length > 0 && (
+                              <div className="truncate text-[11px] text-muted-foreground">{s.tags.slice(0, 3).join(" · ")}</div>
+                            )}
+                          </div>
+                          <div className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${isPlaying ? "bg-primary text-primary-foreground" : "bg-surface-2"}`}>
+                            {isPlaying ? "⏸" : "▶"}
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <p className="mt-2 text-[11px] text-muted-foreground">
+        Live internet radio via Radio Browser (community directory). ONIQ does not host or own these streams 🌐
       </p>
     </section>
   );
