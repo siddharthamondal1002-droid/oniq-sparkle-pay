@@ -114,6 +114,7 @@ function HomeScreen() {
           )}
 
           <CompactLiveNews />
+          <MarketTicker />
 
 
           <div className="mt-7 px-1 flex items-center justify-between">
