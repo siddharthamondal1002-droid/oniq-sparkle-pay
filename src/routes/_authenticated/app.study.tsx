@@ -1701,6 +1701,188 @@ function SheetActionBtn({
   );
 }
 
+// ------------------------- Chapter Notes Reader (white paper aesthetic) -------------------------
+
+function NotesReader({
+  profile,
+  subject,
+  chapter,
+  chapterNumber,
+  onClose,
+}: {
+  profile: LearnerProfile;
+  subject: string;
+  chapter: string;
+  chapterNumber: number;
+  onClose: () => void;
+}) {
+  const [content, setContent] = useState<string>("");
+  const [sourceNote, setSourceNote] = useState<string>("");
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setContent("");
+    setFailed(false);
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke("study-chapter-notes", {
+          body: {
+            board: profile.board,
+            classLevel: profile.class_level,
+            subject,
+            chapter,
+          },
+        });
+        if (cancelled) return;
+        if (error) throw error;
+        const d = data as { source?: string; content?: string; source_note?: string };
+        if (d?.content && d.content.length > 40) {
+          setContent(d.content);
+          setSourceNote(d.source_note ?? "AI-generated study notes — verify against your exact textbook edition");
+        } else {
+          setFailed(true);
+        }
+      } catch {
+        if (!cancelled) setFailed(true);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile.board, profile.class_level, subject, chapter]);
+
+  return (
+    <div className="fixed inset-0 z-[80] overflow-y-auto bg-[#f5f1e8]" role="dialog" aria-modal="true">
+      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-300 bg-[#f5f1e8]/95 px-4 py-3 backdrop-blur">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">
+            Chapter {chapterNumber} · {subject}
+          </div>
+          <div className="truncate font-serif text-base font-semibold text-stone-900">{chapter}</div>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close reader"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-stone-400 bg-white text-stone-700 hover:bg-stone-100"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mx-auto max-w-2xl px-5 py-6 sm:px-8 sm:py-10">
+        <div className="mb-6 border-b border-stone-300 pb-4 text-center">
+          <div className="font-serif text-[11px] uppercase tracking-[0.3em] text-stone-500">Study Notes</div>
+          <h1 className="mt-1 font-serif text-2xl font-bold text-stone-900 sm:text-3xl">{chapter}</h1>
+          <div className="mt-1 font-serif text-xs italic text-stone-600">
+            {subject} · Chapter {chapterNumber}
+          </div>
+        </div>
+
+        {loading && (
+          <div className="py-16 text-center font-serif text-sm italic text-stone-600">
+            preparing your notes… 📖
+          </div>
+        )}
+
+        {!loading && failed && (
+          <div className="rounded-lg border border-stone-300 bg-white/60 p-4 text-center font-serif text-sm text-stone-700">
+            couldn't prepare notes for this chapter right now — please try again in a moment.
+          </div>
+        )}
+
+        {!loading && !failed && content && (
+          <>
+            <article className="font-serif text-[15px] leading-relaxed text-stone-900 sm:text-base">
+              <MarkdownLite text={content} />
+            </article>
+            <div className="mt-8 border-t border-stone-300 pt-4 text-center font-serif text-[11px] italic text-stone-500">
+              {sourceNote}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Minimal markdown renderer — enough for headers (##, ###), bold (**), and
+// bullet lists (- ). Deliberately small; no external library.
+function MarkdownLite({ text }: { text: string }) {
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const out: React.ReactNode[] = [];
+  let listBuf: string[] = [];
+  const flushList = () => {
+    if (listBuf.length === 0) return;
+    out.push(
+      <ul key={`ul-${out.length}`} className="my-3 list-disc space-y-1 pl-6">
+        {listBuf.map((li, i) => (
+          <li key={i}>{renderInline(li)}</li>
+        ))}
+      </ul>,
+    );
+    listBuf = [];
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const line = raw.trimEnd();
+    if (/^\s*-\s+/.test(line)) {
+      listBuf.push(line.replace(/^\s*-\s+/, ""));
+      continue;
+    }
+    flushList();
+    if (/^###\s+/.test(line)) {
+      out.push(
+        <h3 key={`h3-${i}`} className="mt-5 font-serif text-base font-semibold text-stone-900">
+          {renderInline(line.replace(/^###\s+/, ""))}
+        </h3>,
+      );
+    } else if (/^##\s+/.test(line)) {
+      out.push(
+        <h2 key={`h2-${i}`} className="mt-6 border-b border-stone-200 pb-1 font-serif text-lg font-bold text-stone-900">
+          {renderInline(line.replace(/^##\s+/, ""))}
+        </h2>,
+      );
+    } else if (/^#\s+/.test(line)) {
+      out.push(
+        <h2 key={`h1-${i}`} className="mt-6 font-serif text-xl font-bold text-stone-900">
+          {renderInline(line.replace(/^#\s+/, ""))}
+        </h2>,
+      );
+    } else if (line.trim() === "") {
+      out.push(<div key={`sp-${i}`} className="h-2" />);
+    } else {
+      out.push(
+        <p key={`p-${i}`} className="my-2">
+          {renderInline(line)}
+        </p>,
+      );
+    }
+  }
+  flushList();
+  return <>{out}</>;
+}
+
+function renderInline(text: string): React.ReactNode {
+  // Split on **bold** while preserving segments.
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((p, i) => {
+    if (/^\*\*[^*]+\*\*$/.test(p)) {
+      return (
+        <strong key={i} className="font-semibold text-stone-900">
+          {p.slice(2, -2)}
+        </strong>
+      );
+    }
+    return <span key={i}>{p}</span>;
+  });
+}
+
+
+
 // ------------------------- Quiz -------------------------
 
 
