@@ -40,36 +40,40 @@ function fallbackSnapshot(today: string): Payload {
     asOf: today,
     categories: [
       mk("home", [
-        { bank: "SBI", rateRange: "8.25-9.50%", note: "salaried" },
+        { bank: "SBI", rateRange: "8.25-9.50%", note: "PSU, salaried" },
+        { bank: "Bank of Baroda", rateRange: "8.40-10.15%", note: "PSU" },
+        { bank: "Punjab National Bank", rateRange: "8.45-10.25%", note: "PSU" },
+        { bank: "Canara Bank", rateRange: "8.40-10.00%", note: "PSU" },
         { bank: "HDFC Bank", rateRange: "8.50-9.60%" },
         { bank: "ICICI Bank", rateRange: "8.75-9.85%" },
         { bank: "Axis Bank", rateRange: "8.75-9.75%" },
-        { bank: "Kotak Mahindra", rateRange: "8.70-9.65%" },
-        { bank: "Bank of Baroda", rateRange: "8.40-10.15%" },
       ]),
       mk("gold", [
-        { bank: "SBI", rateRange: "8.75-10.75%" },
+        { bank: "SBI", rateRange: "8.75-10.75%", note: "PSU" },
+        { bank: "Bank of Baroda", rateRange: "9.00-11.25%", note: "PSU" },
+        { bank: "Punjab National Bank", rateRange: "9.25-11.50%", note: "PSU" },
+        { bank: "Canara Bank", rateRange: "9.10-11.35%", note: "PSU" },
         { bank: "HDFC Bank", rateRange: "9.10-17.90%" },
         { bank: "ICICI Bank", rateRange: "9.25-18.00%" },
-        { bank: "Axis Bank", rateRange: "9.15-17.50%" },
-        { bank: "Kotak Mahindra", rateRange: "9.00-17.00%" },
         { bank: "Muthoot Finance", rateRange: "10.00-22.00%", note: "NBFC, quick disbursal" },
       ]),
       mk("car", [
-        { bank: "SBI", rateRange: "8.95-10.05%" },
+        { bank: "SBI", rateRange: "8.95-10.05%", note: "PSU" },
+        { bank: "Bank of Baroda", rateRange: "8.85-11.75%", note: "PSU" },
+        { bank: "Punjab National Bank", rateRange: "9.00-11.85%", note: "PSU" },
+        { bank: "Canara Bank", rateRange: "8.90-11.70%", note: "PSU" },
         { bank: "HDFC Bank", rateRange: "9.20-10.50%" },
         { bank: "ICICI Bank", rateRange: "9.10-10.75%" },
         { bank: "Axis Bank", rateRange: "9.15-10.85%" },
-        { bank: "Kotak Mahindra", rateRange: "9.05-10.60%" },
-        { bank: "Bank of Baroda", rateRange: "8.85-11.75%" },
       ]),
       mk("fd", [
-        { bank: "SBI", rateRange: "6.50-7.10%", note: "1-3yr, senior +50bps" },
+        { bank: "SBI", rateRange: "6.50-7.10%", note: "PSU, 1-3yr, senior +50bps" },
+        { bank: "Bank of Baroda", rateRange: "6.85-7.30%", note: "PSU, 1-3yr" },
+        { bank: "Punjab National Bank", rateRange: "6.80-7.25%", note: "PSU, 1-3yr" },
+        { bank: "Canara Bank", rateRange: "6.85-7.30%", note: "PSU, 1-3yr" },
         { bank: "HDFC Bank", rateRange: "6.60-7.25%", note: "1-3yr" },
         { bank: "ICICI Bank", rateRange: "6.70-7.25%", note: "1-3yr" },
-        { bank: "Axis Bank", rateRange: "6.70-7.20%", note: "1-3yr" },
         { bank: "Kotak Mahindra", rateRange: "6.25-6.80%", note: "1-3yr" },
-        { bank: "Bank of Baroda", rateRange: "6.85-7.30%", note: "1-3yr" },
       ]),
     ],
     disclaimer: DISCLAIMER,
@@ -93,12 +97,14 @@ async function fetchLoanRates(): Promise<Payload> {
     "(4) If a specific bank/category rate cannot be verified, OMIT that bank from that category rather than guessing. " +
     "Return ONLY strict JSON (no markdown, no prose) matching: " +
     `{"categories":[{"type":"home|gold|car|fd","banks":[{"bank":string,"rateRange":string,"note":string?}]}]}. ` +
-    "Include 4-5 banks per category: SBI, HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank. " +
+    "Include 6-7 banks per category with a MIX of public sector (PSU) and private banks. " +
+    "REQUIRED PSU banks (include at least 3 of these across every category): SBI, Bank of Baroda, Punjab National Bank, Canara Bank, Union Bank of India. " +
+    "REQUIRED private banks (include at least 3): HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank. " +
     "rateRange should include the % sign (e.g. \"8.50-9.75%\"). " +
-    "note is optional — use it only for genuinely relevant context (e.g. \"salaried\", \"1-year FD\").";
+    "note is optional — use it only for genuinely relevant context (e.g. \"salaried\", \"1-year FD\", \"PSU\").";
 
   const userPrompt =
-    "Fetch the CURRENT interest rate RANGES for 4-5 major Indian banks (SBI, HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank) across four categories: home loan, gold loan, new car loan, and general fixed deposit (1-3 year range). Verify via web_search. Return strict JSON only, RANGES not single numbers.";
+    "Fetch the CURRENT interest rate RANGES for major Indian banks across four categories: home loan, gold loan, new car loan, and general fixed deposit (1-3 year range). Include a proper mix of PSU banks (SBI, Bank of Baroda, Punjab National Bank, Canara Bank) AND private banks (HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank) — at least 2-3 PSU banks and 2-3 private banks in EACH category. Verify via web_search. Return strict JSON only, RANGES not single numbers.";
 
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return fallback;
