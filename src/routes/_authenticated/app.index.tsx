@@ -160,7 +160,7 @@ function HomeScreen() {
                     span={t.span}
                     skin={skins[t.key as TileKey]}
                     delay={40 + i * 40}
-                    showBalance={"showBalance" in t ? t.showBalance : false}
+                    showBalance={false}
                   />
                 ));
             })()}
