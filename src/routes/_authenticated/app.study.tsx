@@ -569,6 +569,7 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
   const [name, setName] = useState("");
   const [board, setBoard] = useState<Board>("cbse");
   const [classLevel, setClassLevel] = useState<ClassLevel>("8");
+  const [secondLang, setSecondLang] = useState<string>("Hindi");
 
   const create = useMutation({
     mutationFn: async () => {
