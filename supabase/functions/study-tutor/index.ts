@@ -116,7 +116,7 @@ function vaultSystemAppendix(notes: VaultNote[]): string {
 // Fire-and-forget: distill the just-taught lesson into an original note.
 async function saveDistilledNote(
   admin: ReturnType<typeof createClient>,
-  profile: { board: string; classLevel: string },
+  profile: { board: string; classLevel: string; chapter?: string },
   userQuery: string,
   assistantReply: string,
 ): Promise<void> {
