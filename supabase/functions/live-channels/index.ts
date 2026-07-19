@@ -141,6 +141,7 @@ type Video = {
   channelName: string;
   publishedAt: string;
   thumbnail: string;
+  isLive?: boolean;
 };
 type ResolvedGenre = {
   id: GenreId;
@@ -274,6 +275,25 @@ async function resolveGenre(g: GenreDef): Promise<ResolvedGenre | null> {
   return { id: g.id, name: g.name, emoji: g.emoji, live: false, videos: merged.slice(0, 12) };
 }
 
+async function resolveDevotionalGenre(g: GenreDef): Promise<ResolvedGenre | null> {
+  const [liveSettled, uploadsSettled] = await Promise.all([
+    Promise.allSettled(g.candidates.map(resolveNewsChannel)),
+    Promise.allSettled(g.candidates.map(resolveUploads)),
+  ]);
+  const liveVideos: Video[] = liveSettled
+    .map((s) => (s.status === "fulfilled" ? s.value : null))
+    .filter((v): v is Video => !!v)
+    .map((v) => ({ ...v, isLive: true }));
+  const uploadVideos: Video[] = [];
+  for (const s of uploadsSettled) if (s.status === "fulfilled") uploadVideos.push(...s.value.map((v) => ({ ...v, isLive: false })));
+  uploadVideos.sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || ""));
+  // Dedupe: if a live videoId also appeared in uploads, keep the live one.
+  const liveIds = new Set(liveVideos.map((v) => v.videoId));
+  const merged = [...liveVideos, ...uploadVideos.filter((v) => !liveIds.has(v.videoId))];
+  if (merged.length < 1) return null;
+  return { id: g.id, name: g.name, emoji: g.emoji, live: liveVideos.length > 0, videos: merged.slice(0, 16) };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -282,7 +302,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const settled = await Promise.allSettled(GENRES.map(resolveGenre));
+    const settled = await Promise.allSettled(GENRES.map((g) => g.id === "devotional" ? resolveDevotionalGenre(g) : resolveGenre(g)));
     const resolved: ResolvedGenre[] = [];
     settled.forEach((s, i) => {
       if (s.status === "fulfilled" && s.value) resolved.push(s.value);

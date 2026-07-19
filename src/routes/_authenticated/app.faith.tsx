@@ -102,6 +102,7 @@ type LiveVideo = {
   channelName: string;
   publishedAt: string;
   thumbnail: string;
+  isLive?: boolean;
 };
 type LiveGenreResp = { id: string; name: string; emoji: string; live: boolean; videos: LiveVideo[] };
 
@@ -172,7 +173,9 @@ function DevotionalLiveSection() {
               >
                 <div className="relative aspect-video w-full bg-black">
                   <img src={v.thumbnail} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
-                  <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">● live</span>
+                  {v.isLive ? (
+                    <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">● live</span>
+                  ) : null}
                 </div>
                 <div className="p-2">
                   <div className="truncate text-xs font-semibold">{v.channelName}</div>
