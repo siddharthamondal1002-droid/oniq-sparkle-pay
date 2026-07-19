@@ -884,5 +884,64 @@ function useInstallPrompt() {
     },
     dismiss: () => setDismissed(true),
   };
+
+type MarketData = {
+  gold: { pricePerGram: number; currency: string } | null;
+  silver: { pricePerGram: number; currency: string } | null;
+  repoRate: { value: number; asOf: string } | null;
+  bankRates: Array<{ bank: string; rate: number; type: string }>;
+};
+
+function MarketTicker() {
+  const { data } = useQuery<MarketData | null>({
+    queryKey: ["market-ticker"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("market-ticker");
+      if (error) return null;
+      return data as MarketData;
+    },
+    staleTime: 15 * 60 * 1000,
+    refetchInterval: 15 * 60 * 1000,
+  });
+
+  if (!data) return null;
+  const parts: string[] = [];
+  if (data.gold?.pricePerGram) parts.push(`💰 24K Gold ₹${data.gold.pricePerGram.toLocaleString("en-IN")}/g`);
+  if (data.silver?.pricePerGram) parts.push(`🥈 Silver ₹${data.silver.pricePerGram.toLocaleString("en-IN")}/g`);
+  const rateAsOf = data.repoRate?.asOf ?? "";
+  if (data.repoRate) parts.push(`🏛️ RBI Repo ${data.repoRate.value}%${rateAsOf ? ` (as of ${rateAsOf})` : ""}`);
+  for (const b of data.bankRates ?? []) parts.push(`🏦 ${b.bank} ${b.type} from ${b.rate}%`);
+  if (parts.length === 0) return null;
+  const text = parts.join("   •   ");
+
+  return (
+    <div
+      className="press group mt-3 block w-full overflow-hidden rounded-2xl border border-amber-400/25 text-left"
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(245,158,11,0.14) 0%, rgba(0,212,184,0.06) 60%, rgba(255,255,255,0.02) 100%), var(--gradient-card)",
+        boxShadow: "0 0 20px rgba(245,158,11,0.15), inset 0 1px 0 rgba(255,255,255,0.06)",
+      }}
+      aria-label="Market ticker"
+    >
+      <div className="flex items-center gap-2 px-4 pt-2">
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">Markets</span>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
+          gold/silver live · rates as of {rateAsOf || "today"}
+        </span>
+      </div>
+      <div className="relative overflow-hidden py-1.5">
+        <div className="oniq-market-ticker flex min-w-max whitespace-nowrap text-[12px] font-medium text-foreground/85 group-hover:[animation-play-state:paused]">
+          <span className="px-4">{text}</span>
+          <span className="px-4">{text}</span>
+        </div>
+      </div>
+      <style>{`
+        @keyframes oniq-market-ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .oniq-market-ticker { animation: oniq-market-ticker-scroll 55s linear infinite; }
+      `}</style>
+    </div>
+  );
 }
+
 
