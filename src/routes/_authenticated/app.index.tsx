@@ -801,6 +801,18 @@ function HeroTile({
           </button>
         </div>
       </div>
+
+      {videoId && (
+        <button
+          type="button"
+          onClick={toggleMute}
+          aria-label="Mute"
+          aria-pressed={muted}
+          className="press absolute bottom-3 right-3 z-30 grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-black/60 text-white backdrop-blur"
+        >
+          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        </button>
+      )}
     </div>
   );
 }
