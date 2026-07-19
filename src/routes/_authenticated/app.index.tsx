@@ -989,7 +989,12 @@ function GlanceCard() {
       }}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="grid flex-1 grid-cols-3 gap-2">
+        <button
+          type="button"
+          onClick={() => setLoanOpen(true)}
+          className="press grid flex-1 grid-cols-3 gap-2 text-left"
+          aria-label="Open loan & deposit rates"
+        >
           <StatBox
             label="24K Gold"
             value={gold ? `₹${gold.toLocaleString("en-IN")}` : "—"}
@@ -1008,7 +1013,7 @@ function GlanceCard() {
             unit=""
             accent="#00D4B8"
           />
-        </div>
+        </button>
         <button
           onClick={() => setCollapsed(true)}
           aria-label="Hide glance card"
