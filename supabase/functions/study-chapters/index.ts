@@ -67,6 +67,26 @@ Deno.serve(async (req) => {
     } catch { /* best effort */ }
   };
 
+  // 0) Profile-specific override check — a family may have replaced the
+  // generic AI-generated chapter list with their real school syllabus for
+  // this learner+subject. Overrides win over cache and generation, and are
+  // returned as-is (any language they were entered in — no translation).
+  if (isUuid) try {
+    const { data: ovr, error: ovrErr } = await admin
+      .from("chapter_overrides")
+      .select("chapter_number, chapter_title")
+      .eq("learner_profile_id", profileId)
+      .eq("subject", subject)
+      .order("chapter_number", { ascending: true });
+    if (!ovrErr && ovr && ovr.length > 0) {
+      await logDebug({ source: "override" });
+      return json(200, { source: "override", chapters: ovr });
+    }
+    if (ovrErr) console.warn("study-chapters: override read error", ovrErr.message);
+  } catch (e) {
+    console.warn("study-chapters: override read exception", (e as Error).message);
+  }
+
   // 1) Cache check — English-only. Cache is not keyed by language, so skip
   // read/write for localised requests to avoid poisoning the shared cache.
   if (!isLocalised) try {
