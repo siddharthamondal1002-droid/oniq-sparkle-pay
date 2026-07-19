@@ -107,6 +107,7 @@ Deno.serve(async (req) => {
       correct_count: null,
       total_marks: paper.total_marks,
       marks_scored: clampedMarks,
+      chapter: chapter || null,
     });
     if (insErr) console.warn("study-paper-finish: attempts insert err", insErr.message);
   } catch (e) {
