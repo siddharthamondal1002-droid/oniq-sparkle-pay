@@ -392,6 +392,9 @@ function HeroTile({
   const mountRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const hideTimerRef = useRef<number | null>(null);
+  const stopAdvanceRef = useRef(false);
+  useEffect(() => { stopAdvanceRef.current = devLoopEnded; }, [devLoopEnded]);
+
   const playerHostId = `yt-tile-${useId().replace(/:/g, "")}`;
   const playerCoverClass = "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
 
