@@ -254,8 +254,11 @@ function ChatList() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search chats"
-            className="w-full rounded-full border border-border bg-input/40 py-2.5 pl-11 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-full border border-border bg-input/40 py-2.5 pl-11 pr-10 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
           />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <SearchClearButton value={query} onClear={() => setQuery("")} />
+          </div>
         </div>
       )}
 
@@ -457,7 +460,10 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
         </div>
         <div className="relative mt-3">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search channels" className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-3 text-sm focus:border-primary focus:outline-none" />
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search channels" className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-10 text-sm focus:border-primary focus:outline-none" />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <SearchClearButton value={q} onClear={() => setQ("")} />
+          </div>
         </div>
         <div className="mt-3 max-h-[55vh] space-y-2 overflow-y-auto">
           {isFetching ? (
@@ -741,8 +747,11 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="Search @username"
-                className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+                className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-10 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
               />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                <SearchClearButton value={q} onClear={() => setQ("")} />
+              </div>
             </div>
             <div className="mt-3 max-h-[42vh] space-y-1 overflow-y-auto">
               {hint ? (
@@ -1061,9 +1070,12 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             value={searchQ}
             onChange={(e) => setSearchQ(e.target.value)}
             placeholder="search @username or name 🔍"
-            className="w-full rounded-full border border-border bg-input/40 py-2.5 pl-11 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            className="w-full rounded-full border border-border bg-input/40 py-2.5 pl-11 pr-10 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             data-testid="moots-search-input"
           />
+          <div className="absolute right-3 top-1/2 -translate-y-1/2">
+            <SearchClearButton value={searchQ} onClear={() => setSearchQ("")} inputRef={searchInputRef} />
+          </div>
         </div>
         {searchDebounced.length >= 1 && (
           <div className="mt-2 max-h-52 overflow-y-auto rounded-2xl border border-border/60">
