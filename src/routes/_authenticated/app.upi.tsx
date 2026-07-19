@@ -99,9 +99,11 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
 
   const ready = isValidVpa(vpa) && (!amount || (Number.isFinite(amt) && amt > 0 && amt <= 100000));
 
-  function launchApp(app: (typeof UPI_APPS)[number]) {
+  function payViaUpi() {
     if (!validate()) return;
-    void launchUpiIntent(app.scheme(params));
+    // Generic upi://pay intent — no package/scheme override, so Android
+    // shows its native chooser of every UPI-capable app installed.
+    void launchUpiIntent(upiLink(params));
   }
 
   async function copyLink() {
