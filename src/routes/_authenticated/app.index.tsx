@@ -118,9 +118,7 @@ function HomeScreen() {
             </div>
           )}
 
-          <CompactLiveNews />
-          <MarketTicker />
-
+          <GlanceCard />
 
           <div className="mt-7 px-1 flex items-center justify-between">
             <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
@@ -128,58 +126,74 @@ function HomeScreen() {
             </h2>
             <CustomizeButton />
           </div>
-          {!hidden.has("watch") && (
-            <div className="mt-3">
-              <HeroTile
-                tileKey="watch"
-                skin={skins.watch}
-                to="/app/news"
-                search={{ tab: "watch" as const }}
-                icon={Tv}
-                label="Watch"
-                tagline="brainrot on tap 📺"
-                gradient="from-primary/30 via-primary/10 to-accent/30"
-                delay={0}
-                livePreview
-              />
-            </div>
-          )}
-          <div className="mt-3 grid grid-cols-4 auto-rows-[5.25rem] gap-3">
-            {!hidden.has("clips") && (
-              <ClipsHeroTile
-                skin={skins.clips}
-                gradient="from-accent/30 via-fuchsia-500/20 to-pink-500/30"
-                delay={60}
-              />
-            )}
-            
-            {(
-              [
-                { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6" },
-                { key: "wallet", to: "/app/wallet", icon: Coins, label: "the bag 💰", color: "#F59E0B" },
-                { key: "rides", to: "/app/rides", icon: Car, label: "pull up 🚗", color: "#38BDF8" },
-                { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "the plug 🔌", color: "#A3E635" },
-                { key: "wander", to: "/app/travel", icon: Plane, label: "touch grass ✈️", color: "#22D3EE" },
-                { key: "pulse", to: "/app/news", icon: Newspaper, label: "the tea ☕", color: "#F472B6" },
-                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C" },
-                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "tap in 💳", color: "#22C55E" },
-                { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
-                { key: "vitals", to: "/app/vitals", icon: Heart, label: "vitals 🫀", color: vitalsColor },
-                { key: "earn", to: "/app/earn", icon: Briefcase, label: "earn 💼", color: "#00D4B8" },
-                { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185" },
-              ] as const
-            ).filter((t) => !hidden.has(t.key as TileKey)).map((t, i) => (
-              <Tile
-                key={t.label}
-                to={t.to}
-                icon={t.icon}
-                label={t.label}
-                color={t.color}
-                skin={skins[t.key as TileKey]}
-                delay={120 + i * 40}
-              />
-            ))}
+
+          {/* Media banner — replaces old Watch + Brainrot tiles */}
+          <div className="mt-3">
+            <MediaBanner
+              watchHidden={hidden.has("watch")}
+              clipsHidden={hidden.has("clips")}
+              watchSkin={skins.watch}
+              clipsSkin={skins.clips}
+            />
           </div>
+
+          {/* Primary row — 5 large tiles */}
+          <div className="mt-4 grid grid-cols-6 gap-3">
+            {(() => {
+              const primary = [
+                { key: "wallet", to: "/app/wallet", icon: Coins, label: "tap in 💳", color: "#F59E0B", span: 6, showBalance: true },
+                { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6", span: 3 },
+                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C", span: 3 },
+                { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185", span: 3 },
+                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "the bag 💰", color: "#22C55E", span: 3 },
+              ] as const;
+              return primary
+                .filter((t) => !hidden.has(t.key as TileKey))
+                .map((t, i) => (
+                  <PrimaryTile
+                    key={t.key}
+                    to={t.to}
+                    icon={t.icon}
+                    label={t.label}
+                    color={t.color}
+                    span={t.span}
+                    skin={skins[t.key as TileKey]}
+                    delay={40 + i * 40}
+                    showBalance={"showBalance" in t ? t.showBalance : false}
+                  />
+                ));
+            })()}
+          </div>
+
+          {/* Grouped sections */}
+          <SectionRow
+            title="📺 media"
+            tiles={[
+              { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "the plug 🔌", color: "#A3E635" },
+              { key: "pulse", to: "/app/news", icon: Newspaper, label: "the tea ☕", color: "#F472B6" },
+            ]}
+            hidden={hidden}
+            skins={skins}
+          />
+          <SectionRow
+            title="🌱 life"
+            tiles={[
+              { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
+              { key: "vitals", to: "/app/vitals", icon: Heart, label: "vitals 🫀", color: vitalsColor },
+              { key: "wander", to: "/app/travel", icon: Plane, label: "touch grass ✈️", color: "#22D3EE" },
+            ]}
+            hidden={hidden}
+            skins={skins}
+          />
+          <SectionRow
+            title="💼 work"
+            tiles={[
+              { key: "earn", to: "/app/earn", icon: Briefcase, label: "earn 💼", color: "#00D4B8" },
+              { key: "rides", to: "/app/rides", icon: Car, label: "pull up 🚗", color: "#38BDF8" },
+            ]}
+            hidden={hidden}
+            skins={skins}
+          />
         </div>
       </div>
     </div>
