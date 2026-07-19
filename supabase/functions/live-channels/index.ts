@@ -293,7 +293,7 @@ async function resolveGenre(g: GenreDef): Promise<ResolvedGenre | null> {
 }
 
 const FAITH_ORDER: Faith[] = ["islamic", "sikh", "hindu", "christian"];
-const PER_FAITH_CAP = 4;
+const PER_FAITH_CAP = 6;
 
 async function resolveFaithGroup(faith: Faith, candidates: Candidate[]): Promise<Video[]> {
   const [liveSettled, uploadsSettled] = await Promise.all([
