@@ -16,9 +16,45 @@ export function UpiScannerOverlay({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const runningRef = useRef(true);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [scanning, setScanning] = useState(false);
   const [supported, setSupported] = useState(true);
   const [permError, setPermError] = useState<string | null>(null);
+  const [decodingFile, setDecodingFile] = useState(false);
+
+  async function onPickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    // reset immediately so re-picking the same file still fires change
+    e.target.value = "";
+    if (!file) return;
+    if (!qrDecodeSupported()) {
+      toast.error("QR decoding needs Android Chrome / WebView — try the live camera");
+      return;
+    }
+    setDecodingFile(true);
+    try {
+      const raw = await decodeQrFromImageFile(file);
+      if (!raw) {
+        toast.error("couldn't find a QR in that photo 🔍 try another one");
+        return;
+      }
+      // Feed into the exact same pipeline as the live scanner.
+      const parsed = parseUpiUri(raw);
+      if (!parsed) {
+        toast.error("That QR isn't a UPI payment code");
+        return;
+      }
+      stopCamera();
+      toast.success(`Found ${parsed.pn || parsed.pa} ✅`);
+      onDecode(parsed);
+      onClose();
+    } catch {
+      toast.error("couldn't read that image — try another one");
+    } finally {
+      setDecodingFile(false);
+    }
+  }
+
 
   function stopCamera() {
     runningRef.current = false;
