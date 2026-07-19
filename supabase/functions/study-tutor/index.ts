@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
   const userQuery = latestUserQuery(messages);
   let vaultNotes: VaultNote[] = [];
   if (admin && userQuery) {
-    vaultNotes = await vaultLookup(admin, profile.board, profile.classLevel, userQuery);
+    vaultNotes = await vaultLookup(admin, profile.board, profile.classLevel, userQuery, profile.chapter);
   }
 
   const system = buildSystem(profile) + vaultSystemAppendix(vaultNotes) + langInstruction(body.lang);
