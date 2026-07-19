@@ -27,8 +27,60 @@ type LearnerProfile = {
   name: string;
   board: Board;
   class_level: ClassLevel;
+  second_language?: string | null;
   created_at: string;
 };
+
+// Regional first-language subject enforced by state boards. For any state
+// board listed here, subjectsFor() replaces the generic "Hindi" slot with
+// the mandated regional language. The Hindi-belt state boards are omitted
+// intentionally — Hindi is correct for them.
+const STATE_REGIONAL_LANG: Partial<Record<Board, string>> = {
+  wb_board: "Bengali",
+  maharashtra_board: "Marathi",
+  tn_board: "Tamil",
+  ap_board: "Telugu",
+  telangana_board: "Telugu",
+  gujarat_board: "Gujarati",
+  karnataka_board: "Kannada",
+  kerala_board: "Malayalam",
+  punjab_board: "Punjabi",
+};
+
+// Boards where the second/vernacular language genuinely varies per student.
+// Only these show the picker; state boards mandate a fixed regional lang and
+// govt/competitive tracks don't have language subjects at all.
+function boardUsesSecondLangPicker(b: Board): boolean {
+  return b === "cbse" || b === "icse" || b === "igcse";
+}
+
+const SECOND_LANG_OPTIONS = [
+  "Hindi", "Bengali", "Sanskrit", "Tamil", "Telugu", "Marathi", "Gujarati",
+  "Kannada", "Malayalam", "Punjabi", "Odia", "Assamese", "Urdu",
+  "French", "German", "Other",
+];
+
+// Tier-3 (school-specific / low-confidence) subject patterns per research.
+// When the active subject matches, we show a proactive "check & correct"
+// banner in the chapter picker. Everything else stays quiet (Tier 1/2 —
+// generic list is reliable).
+function isTier3Subject(board: Board, cls: ClassLevel, subject: string): boolean {
+  const s = subject.toLowerCase();
+  const n = Number(cls);
+  // CBSE English at classes 5–8 (9–12 are NCERT-fixed).
+  if (board === "cbse" && !isNaN(n) && n >= 5 && n <= 8 && s === "english") return true;
+  // ICSE English literature — any class (texts revise year to year).
+  if (board === "icse" && s === "english") return true;
+  // ICSE second-language subjects (any non-English/non-STEM language).
+  if (board === "icse") {
+    const langLike = ["hindi","bengali","sanskrit","tamil","telugu","marathi","gujarati","kannada","malayalam","punjabi","odia","assamese","urdu","french","german"];
+    if (langLike.some((l) => s.includes(l))) return true;
+  }
+  // IB (MYP any subject; DP English/Language A) and IGCSE/IB literature.
+  if (board === "ib") return true;
+  if (board === "igcse" && s === "english") return true;
+  return false;
+}
 
 type Attachment = {
   kind: "image" | "pdf" | "text";
