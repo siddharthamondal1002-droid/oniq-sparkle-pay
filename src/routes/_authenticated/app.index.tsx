@@ -1126,7 +1126,10 @@ function LoanRatesSheet({ open, onClose }: { open: boolean; onClose: () => void 
         className="max-h-[90vh] w-full max-w-lg overflow-hidden rounded-t-3xl border border-border bg-card shadow-2xl sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div
+          className="flex items-center justify-between border-b border-border px-4 pb-3"
+          style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
+        >
           <div>
             <div className="font-display text-lg font-bold">loan & deposit rates</div>
             <div className="text-[10px] text-muted-foreground">
