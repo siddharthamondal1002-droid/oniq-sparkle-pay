@@ -663,6 +663,16 @@ function ScoutPanel() {
     return () => { try { recRef.current?.stop?.(); } catch {} };
   }, []);
 
+  // Rotating "still searching" messages so a long exploratory query (restaurants,
+  // salons — multiple platforms to check) doesn't feel like the app is stuck.
+  useEffect(() => {
+    if (!loading) { setLoadingPhase(0); return; }
+    const t1 = setTimeout(() => setLoadingPhase(1), 15000);
+    const t2 = setTimeout(() => setLoadingPhase(2), 35000);
+    const t3 = setTimeout(() => setLoadingPhase(3), 70000);
+    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+  }, [loading]);
+
   async function toggleMic() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
