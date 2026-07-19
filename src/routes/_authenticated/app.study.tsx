@@ -795,7 +795,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
 
-  const subjects = subjectsFor(profile.board, profile.class_level);
+  const subjects = subjectsFor(profile.board, profile.class_level, profile.second_language);
 
   // Hydrate chat history from study_messages when the active profile changes.
   useEffect(() => {
