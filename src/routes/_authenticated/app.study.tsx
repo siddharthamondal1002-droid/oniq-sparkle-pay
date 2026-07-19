@@ -143,12 +143,27 @@ const BOARD_UPPER: Record<Board, string> = {
   govt_judiciary: "Judiciary",
   govt_ssc: "SSC",
   govt_psc: "PSC",
+  nios: "NIOS",
+  up_board: "UP Board",
+  bihar_board: "Bihar Board",
+  rajasthan_board: "Rajasthan Board",
+  mp_board: "MP Board",
+  haryana_board: "Haryana Board",
+  punjab_board: "Punjab Board",
+  uttarakhand_board: "Uttarakhand Board",
+  himachal_board: "Himachal Board",
+  jk_board: "J&K Board",
+  jharkhand_board: "Jharkhand Board",
+  chhattisgarh_board: "Chhattisgarh Board",
 };
 
 const BOARD_EMOJI: Record<Board, string> = {
   cbse: "", icse: "", igcse: "", college: "", jee: "🎯", neet: "🩺", clat: "📖",
   govt_exam: "🏛️", govt_railway: "🚆", govt_banking: "🏦", govt_police: "👮",
   govt_judiciary: "⚖️", govt_ssc: "📝", govt_psc: "🏛️",
+  nios: "🏫", up_board: "🗺️", bihar_board: "🗺️", rajasthan_board: "🗺️", mp_board: "🗺️",
+  haryana_board: "🗺️", punjab_board: "🗺️", uttarakhand_board: "🗺️", himachal_board: "🗺️",
+  jk_board: "🗺️", jharkhand_board: "🗺️", chhattisgarh_board: "🗺️",
 };
 
 function subjectsFor(board: Board, cls: ClassLevel): string[] {
