@@ -122,7 +122,7 @@ async function fetchLoanRates(): Promise<Payload> {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-5",
-        max_tokens: 2000,
+        max_tokens: 4000,
         system,
         tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
         messages: [{ role: "user", content: userPrompt }],
@@ -160,11 +160,31 @@ async function fetchLoanRates(): Promise<Payload> {
 
     if (categories.length === 0) return fallback;
 
+    // Per-category backfill: if Claude's response was truncated or a category
+    // came back with too few banks, top up JUST that category from fallback
+    // rather than discarding the entire live response.
+    const REQUIRED: Category["type"][] = ["home", "gold", "car", "fd"];
+    const liveByType = new Map(categories.map((c) => [c.type, c] as const));
+    const fallbackByType = new Map(fallback.categories.map((c) => [c.type, c] as const));
+    const backfilled: Category["type"][] = [];
+    const merged: Category[] = REQUIRED.map((t) => {
+      const live = liveByType.get(t);
+      if (live && live.banks.length >= 3) return live;
+      backfilled.push(t);
+      return fallbackByType.get(t)!;
+    });
+    if (backfilled.length > 0) {
+      console.warn("loan-rates: backfilled categories from fallback:", backfilled.join(","));
+    }
+
     const payload: Payload = {
       asOf: today,
-      categories,
+      categories: merged,
       disclaimer: DISCLAIMER,
-      source: "Claude web_search (bank websites + reputable finance sources)",
+      source:
+        backfilled.length === 0
+          ? "Claude web_search (bank websites + reputable finance sources)"
+          : `Claude web_search (partial — backfilled: ${backfilled.join(", ")})`,
     };
     cache = { at: Date.now(), data: payload };
     return payload;
