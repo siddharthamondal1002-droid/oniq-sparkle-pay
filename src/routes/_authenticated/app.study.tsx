@@ -2483,6 +2483,7 @@ type Attempt = {
   correct_count: number | null;
   total_marks: number | null;
   marks_scored: number | null;
+  chapter: string | null;
   created_at: string;
 };
 
@@ -2503,7 +2504,7 @@ function useAttempts() {
         };
       })
         .from("quiz_attempts")
-        .select("id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, created_at")
+        .select("id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, chapter, created_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
