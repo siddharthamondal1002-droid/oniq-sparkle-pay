@@ -726,6 +726,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const [pickerMode, setPickerMode] = useState<"root" | "mock">("root");
   const [subjectSheet, setSubjectSheet] = useState<string | null>(null);
   const [tutorScope, setTutorScope] = useState<{ subject: string; chapter?: string } | null>(null);
+  const [pendingAsk, setPendingAsk] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
