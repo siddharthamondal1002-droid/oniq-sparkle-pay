@@ -485,11 +485,13 @@ function HeroTile({
             },
             onStateChange: (e: any) => {
               if (e?.data === 0) {
-                // ENDED → next video
+                // ENDED → next video (unless devotional loop timer has elapsed)
+                if (stopAdvanceRef.current) return;
                 const total = vLen;
                 if (total > 0) setIdx((i) => (i + 1) % total);
               }
             },
+
           },
         });
       } catch (err) {
