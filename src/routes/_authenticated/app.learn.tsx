@@ -778,9 +778,10 @@ function ScoutPanel() {
             value={query}
             onChange={(e) => setQuery(e.target.value.slice(0, 300))}
             placeholder="parker jotter pen, iphone 15, atta 5kg…"
-            className="w-full min-w-0 rounded-xl border border-border bg-background p-3 pr-24 text-sm focus:border-primary focus:outline-none"
+            className="w-full min-w-0 rounded-xl border border-border bg-background p-3 pr-32 text-sm focus:border-primary focus:outline-none"
           />
           <div className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+            <SearchClearButton value={query} onClear={() => setQuery("")} />
             {speechSupported && (
               <button
                 onClick={toggleMic}
