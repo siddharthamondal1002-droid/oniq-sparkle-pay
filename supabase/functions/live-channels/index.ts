@@ -141,6 +141,7 @@ type Video = {
   channelName: string;
   publishedAt: string;
   thumbnail: string;
+  isLive?: boolean;
 };
 type ResolvedGenre = {
   id: GenreId;
