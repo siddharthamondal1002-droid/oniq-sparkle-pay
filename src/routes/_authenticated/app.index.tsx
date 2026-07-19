@@ -914,8 +914,28 @@ type MarketData = {
   bankRates: Array<{ bank: string; rate: number; type: string }>;
 };
 
-function MarketTicker() {
-  const { data } = useQuery<MarketData | null>({
+type NewsItem = { title: string; link: string; source: string; publishedAt: string; image?: string };
+
+const GLANCE_COLLAPSE_KEY = "oniq.home.glance.collapsed";
+const MEDIA_TILE_KEY = "oniq.home.mediaTile";
+
+function useGlanceCollapsed() {
+  const [collapsed, setCollapsed] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    try { return localStorage.getItem(GLANCE_COLLAPSE_KEY) === "1"; } catch { return false; }
+  });
+  const set = (v: boolean) => {
+    setCollapsed(v);
+    try { localStorage.setItem(GLANCE_COLLAPSE_KEY, v ? "1" : "0"); } catch { /* noop */ }
+  };
+  return [collapsed, set] as const;
+}
+
+function GlanceCard() {
+  const navigate = useNavigate();
+  const [collapsed, setCollapsed] = useGlanceCollapsed();
+
+  const { data: market } = useQuery<MarketData | null>({
     queryKey: ["market-ticker"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("market-ticker");
@@ -926,44 +946,480 @@ function MarketTicker() {
     refetchInterval: 15 * 60 * 1000,
   });
 
-  if (!data) return null;
-  const parts: string[] = [];
-  if (data.gold?.pricePerGram) parts.push(`💰 24K Gold ₹${data.gold.pricePerGram.toLocaleString("en-IN")}/g`);
-  if (data.silver?.pricePerGram) parts.push(`🥈 Silver ₹${data.silver.pricePerGram.toLocaleString("en-IN")}/g`);
-  const rateAsOf = data.repoRate?.asOf ?? "";
-  if (data.repoRate) parts.push(`🏛️ RBI Repo ${data.repoRate.value}%${rateAsOf ? ` (as of ${rateAsOf})` : ""}`);
-  for (const b of data.bankRates ?? []) parts.push(`🏦 ${b.bank} ${b.type} from ${b.rate}%`);
-  if (parts.length === 0) return null;
-  const text = parts.join("   •   ");
+  const { data: news } = useQuery({
+    queryKey: ["home-news-headline"],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("news", { body: { category: "top" } });
+      if (error) return null;
+      const items: NewsItem[] = Array.isArray((data as { items?: NewsItem[] } | null)?.items)
+        ? ((data as { items: NewsItem[] }).items)
+        : [];
+      return items[0] ?? null;
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  if (collapsed) {
+    return (
+      <div className="mt-4 flex items-center justify-between rounded-full border border-border bg-card/60 px-3 py-1.5 text-[11px] text-muted-foreground">
+        <span>glance card hidden</span>
+        <button
+          onClick={() => setCollapsed(false)}
+          className="press rounded-full bg-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary"
+          aria-label="Show glance card"
+        >
+          show
+        </button>
+      </div>
+    );
+  }
+
+  const gold = market?.gold?.pricePerGram ?? null;
+  const silver = market?.silver?.pricePerGram ?? null;
+  const repo = market?.repoRate?.value ?? null;
 
   return (
     <div
-      className="press group mt-3 block w-full overflow-hidden rounded-2xl border border-amber-400/25 text-left"
+      className="mt-4 rounded-2xl border border-primary/20 p-3 fade-up"
       style={{
         background:
-          "linear-gradient(135deg, rgba(245,158,11,0.14) 0%, rgba(0,212,184,0.06) 60%, rgba(255,255,255,0.02) 100%), var(--gradient-card)",
-        boxShadow: "0 0 20px rgba(245,158,11,0.15), inset 0 1px 0 rgba(255,255,255,0.06)",
+          "linear-gradient(135deg, rgba(0,212,184,0.10) 0%, rgba(245,158,11,0.06) 60%, rgba(255,255,255,0.02) 100%), var(--gradient-card)",
+        boxShadow: "0 0 18px rgba(0,212,184,0.12), inset 0 1px 0 rgba(255,255,255,0.05)",
       }}
-      aria-label="Market ticker"
     >
-      <div className="flex items-center gap-2 px-4 pt-2">
-        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300">Markets</span>
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-          gold/silver live · rates as of {rateAsOf || "today"}
-        </span>
-      </div>
-      <div className="relative overflow-hidden py-1.5">
-        <div className="oniq-market-ticker flex min-w-max whitespace-nowrap text-[12px] font-medium text-foreground/85 group-hover:[animation-play-state:paused]">
-          <span className="px-4">{text}</span>
-          <span className="px-4">{text}</span>
+      <div className="flex items-start justify-between gap-2">
+        <div className="grid flex-1 grid-cols-3 gap-2">
+          <StatBox
+            label="24K Gold"
+            value={gold ? `₹${gold.toLocaleString("en-IN")}` : "—"}
+            unit="/g"
+            accent="#F59E0B"
+          />
+          <StatBox
+            label="Silver"
+            value={silver ? `₹${silver.toLocaleString("en-IN")}` : "—"}
+            unit="/g"
+            accent="#94A3B8"
+          />
+          <StatBox
+            label="RBI Repo"
+            value={repo != null ? `${repo}%` : "—"}
+            unit=""
+            accent="#00D4B8"
+          />
         </div>
+        <button
+          onClick={() => setCollapsed(true)}
+          aria-label="Hide glance card"
+          className="press grid h-7 w-7 shrink-0 place-items-center rounded-full border border-border bg-black/30 text-muted-foreground hover:text-foreground"
+        >
+          <span className="text-[13px] leading-none">×</span>
+        </button>
       </div>
-      <style>{`
-        @keyframes oniq-market-ticker-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-        .oniq-market-ticker { animation: oniq-market-ticker-scroll 55s linear infinite; }
-      `}</style>
+
+      <button
+        onClick={() => navigate({ to: "/app/news", search: { tab: undefined } })}
+        className="press mt-3 flex w-full items-center gap-2 rounded-xl border border-white/5 bg-black/25 px-3 py-2 text-left"
+        aria-label="Open Pulse news"
+      >
+        <span className="inline-flex shrink-0 items-center gap-1 rounded-md border border-red-500/60 bg-red-500/20 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest text-red-300">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-80" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+          </span>
+          LIVE
+        </span>
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-foreground">
+          {news?.title ?? "loading the tea…"}
+        </span>
+        <ArrowRight className="h-4 w-4 shrink-0 text-primary/70" />
+      </button>
     </div>
   );
 }
+
+function StatBox({ label, value, unit, accent }: { label: string; value: string; unit: string; accent: string }) {
+  return (
+    <div
+      className="rounded-xl border border-white/5 bg-black/25 px-2 py-1.5"
+      style={{ boxShadow: `inset 0 0 0 1px ${accent}18` }}
+    >
+      <div className="text-[9px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-0.5 flex items-baseline gap-0.5">
+        <span className="font-display text-sm font-bold text-foreground" style={{ color: accent }}>{value}</span>
+        {unit && <span className="text-[10px] text-muted-foreground">{unit}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Primary tiles ----------
+
+function useWalletBalance() {
+  return useQuery({
+    queryKey: ["home-wallet-balance"],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return null;
+      const { data } = await supabase
+        .from("wallets")
+        .select("balance_cents")
+        .eq("user_id", u.user.id)
+        .maybeSingle();
+      return data?.balance_cents ?? null;
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+function PrimaryTile({
+  to,
+  icon: Icon,
+  label,
+  color,
+  span,
+  skin,
+  delay = 0,
+  showBalance = false,
+}: {
+  to: string;
+  icon: typeof Send;
+  label: string;
+  color: string;
+  span: number;
+  skin?: string;
+  delay?: number;
+  showBalance?: boolean;
+}) {
+  const [skinError, setSkinError] = useState(false);
+  const showSkin = skin && !skinError;
+  const { data: balanceCents } = useWalletBalance();
+  const balance = showBalance && typeof balanceCents === "number"
+    ? `₹${(balanceCents / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+    : null;
+
+  const spanClass = span === 6 ? "col-span-6" : span === 3 ? "col-span-3" : "col-span-2";
+  const height = span === 6 ? "h-28" : "h-24";
+
+  return (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    <Link
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      to={to as any}
+      style={{
+        animationDelay: `${delay}ms`,
+        background: showSkin
+          ? undefined
+          : `radial-gradient(120% 90% at 0% 0%, ${color}40 0%, ${color}10 40%, transparent 70%), hsl(var(--card))`,
+      }}
+      className={`press fade-up relative overflow-hidden rounded-3xl border border-border bg-card p-4 ${spanClass} ${height} flex flex-col justify-between transition-colors hover:brightness-110`}
+    >
+      {showSkin && (
+        <>
+          <img
+            src={skin!}
+            alt=""
+            onError={() => setSkinError(true)}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+        </>
+      )}
+      <div
+        className="relative grid h-10 w-10 place-items-center rounded-2xl overflow-hidden"
+        style={{ color, background: `${color}26`, boxShadow: `0 0 18px ${color}40, inset 0 0 0 1px ${color}33` }}
+      >
+        <Icon className="h-5 w-5" />
+      </div>
+      <div className="relative">
+        <div className={`font-display text-sm font-semibold ${showSkin ? "text-white drop-shadow" : "text-foreground"}`}>{label}</div>
+        {balance && (
+          <div className="mt-0.5 font-display text-xl font-bold text-gradient-primary">{balance}</div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
+// ---------- Section row (horizontal scrollable chip row) ----------
+
+type SectionTile = {
+  key: TileKey;
+  to: string;
+  icon: typeof Send;
+  label: string;
+  color: string;
+};
+
+function SectionRow({
+  title,
+  tiles,
+  hidden,
+  skins,
+}: {
+  title: string;
+  tiles: SectionTile[];
+  hidden: Set<TileKey>;
+  skins: Record<string, string | undefined>;
+}) {
+  const visible = tiles.filter((t) => !hidden.has(t.key));
+  if (visible.length === 0) return null;
+  return (
+    <div className="mt-5">
+      <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
+      <div className="no-scrollbar mt-2 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+        {visible.map((t) => {
+          const skin = skins[t.key];
+          const Icon = t.icon;
+          return (
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            <Link
+              key={t.key}
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              to={t.to as any}
+              className="press fade-up relative flex min-w-[7.5rem] shrink-0 items-center gap-2 overflow-hidden rounded-2xl border border-border bg-card px-3 py-2.5"
+              style={{
+                background: skin
+                  ? undefined
+                  : `radial-gradient(120% 90% at 0% 0%, ${t.color}33 0%, ${t.color}0d 45%, transparent 75%), hsl(var(--card))`,
+              }}
+            >
+              {skin && (
+                <>
+                  <img src={skin} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-black/70 via-black/30 to-transparent" />
+                </>
+              )}
+              <div
+                className="relative grid h-8 w-8 shrink-0 place-items-center rounded-xl"
+                style={{ color: t.color, background: `${t.color}26`, boxShadow: `inset 0 0 0 1px ${t.color}33` }}
+              >
+                <Icon className="h-4 w-4" />
+              </div>
+              <span className={`relative text-xs font-medium ${skin ? "text-white drop-shadow" : "text-foreground"}`}>{t.label}</span>
+              <ChevronRight className="relative ml-auto h-3.5 w-3.5 text-muted-foreground" />
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Media banner ----------
+
+type MediaMode = "watch" | "brainrot";
+
+function useMediaMode(): [MediaMode, (m: MediaMode) => void] {
+  const [mode, setMode] = useState<MediaMode>(() => {
+    if (typeof window === "undefined") return "watch";
+    try {
+      const v = localStorage.getItem(MEDIA_TILE_KEY);
+      return v === "brainrot" ? "brainrot" : "watch";
+    } catch { return "watch"; }
+  });
+  const set = (m: MediaMode) => {
+    setMode(m);
+    try { localStorage.setItem(MEDIA_TILE_KEY, m); } catch { /* noop */ }
+  };
+  return [mode, set];
+}
+
+function MediaBanner({
+  watchHidden,
+  clipsHidden,
+  watchSkin,
+  clipsSkin,
+}: {
+  watchHidden: boolean;
+  clipsHidden: boolean;
+  watchSkin?: string;
+  clipsSkin?: string;
+}) {
+  const [savedMode, setMode] = useMediaMode();
+  // If a mode is hidden via customize, fall back to the other.
+  const effective: MediaMode | null = (() => {
+    if (savedMode === "brainrot" && !clipsHidden) return "brainrot";
+    if (savedMode === "watch" && !watchHidden) return "watch";
+    if (!watchHidden) return "watch";
+    if (!clipsHidden) return "brainrot";
+    return null;
+  })();
+
+  if (!effective) return null;
+
+  return (
+    <div className="relative">
+      {effective === "watch" ? (
+        <HeroTile
+          tileKey="watch"
+          skin={watchSkin}
+          to="/app/news"
+          search={{ tab: "watch" as const }}
+          icon={Tv}
+          label="Watch"
+          tagline="brainrot on tap 📺"
+          gradient="from-primary/30 via-primary/10 to-accent/30"
+          delay={0}
+          livePreview
+        />
+      ) : (
+        <BrainrotBanner skin={clipsSkin} />
+      )}
+
+      {/* Mode switcher — only visible when both modes are available */}
+      {!watchHidden && !clipsHidden && (
+        <div
+          onClick={(e) => e.stopPropagation()}
+          className="absolute right-2 top-2 z-40 flex items-center gap-1 rounded-full border border-white/15 bg-black/60 p-0.5 backdrop-blur"
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setMode("watch"); }}
+            aria-pressed={effective === "watch"}
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+              effective === "watch" ? "bg-primary text-primary-foreground" : "text-white/80"
+            }`}
+          >
+            watch
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); setMode("brainrot"); }}
+            aria-pressed={effective === "brainrot"}
+            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
+              effective === "brainrot" ? "bg-primary text-primary-foreground" : "text-white/80"
+            }`}
+          >
+            brainrot
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BrainrotBanner({ skin }: { skin?: string }) {
+  const [skinError, setSkinError] = useState(false);
+  const [errored, setErrored] = useState<Record<string, boolean>>({});
+  const [idx, setIdx] = useState(0);
+  const [muted, setMuted] = useState(true);
+  const videoElRef = useRef<HTMLVideoElement | null>(null);
+  const media = useMediaCoordinator();
+  const showSkin = skin && !skinError;
+
+  const { data: clips } = useQuery({
+    queryKey: ["latest-clips", 10],
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("clips")
+        .select("id, video_url")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return data ?? [];
+    },
+  });
+
+  const validClips = (clips ?? []).filter((c) => !errored[c.id]);
+  const total = validClips.length;
+  const current = !showSkin && total > 0 ? validClips[idx % total] : null;
+
+  useEffect(() => {
+    if (showSkin || total < 2) return;
+    let t: number | null = null;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) {
+        t = window.setTimeout(tick, 20_000);
+        return;
+      }
+      setIdx((i) => (i + 1) % total);
+    };
+    t = window.setTimeout(tick, 20_000);
+    return () => { if (t) window.clearTimeout(t); };
+  }, [idx, total, showSkin]);
+
+  const videoUrl = current?.video_url ?? null;
+
+  const onVideoPlay = () => {
+    if (videoElRef.current) media.register(videoElRef.current);
+  };
+  const toggleMute = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = videoElRef.current;
+    if (!el) return;
+    if (el.muted) {
+      // Unmuting: this click is the user gesture, register as active player.
+      media.register(el);
+      el.muted = false;
+      setMuted(false);
+      // Ensure playback survives autoplay-with-sound restrictions.
+      void el.play().catch(() => {
+        el.muted = true;
+        setMuted(true);
+      });
+    } else {
+      el.muted = true;
+      setMuted(true);
+    }
+  };
+
+  return (
+    <Link
+      to="/app/clips"
+      className="press fade-up relative block aspect-video w-full overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br from-accent/30 via-fuchsia-500/20 to-pink-500/30 p-4"
+    >
+      {videoUrl && current && (
+        <video
+          key={current.id}
+          ref={videoElRef}
+          src={videoUrl}
+          autoPlay
+          muted={muted}
+          loop
+          playsInline
+          onPlay={onVideoPlay}
+          onError={() => {
+            setErrored((e) => ({ ...e, [current.id]: true }));
+            setIdx((i) => (total > 1 ? (i + 1) % total : i));
+          }}
+          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      {videoUrl && (
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
+      )}
+      {showSkin ? (
+        <>
+          <img
+            src={skin!}
+            alt=""
+            onError={() => setSkinError(true)}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/78 via-black/22 to-transparent" />
+        </>
+      ) : !videoUrl ? (
+        <Clapperboard className="relative h-10 w-10 text-foreground/90" strokeWidth={1.6} />
+      ) : null}
+      <div className="relative flex h-full flex-col justify-end">
+        <div className="text-[10px] uppercase tracking-wider text-white/80">doomscroll era</div>
+        <div className="font-display text-2xl font-bold text-white drop-shadow">brainrot 🎬</div>
+      </div>
+
+      {videoUrl && (
+        <button
+          type="button"
+          onClick={toggleMute}
+          aria-label="Mute"
+          aria-pressed={muted}
+          className="press absolute bottom-3 right-3 z-30 grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-black/60 text-white backdrop-blur"
+        >
+          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+        </button>
+      )}
+    </Link>
+  );
+}
+
 
 
