@@ -336,8 +336,38 @@ function HeroTile({
   });
   const activeGenre =
     genres.find((g) => g.id === genreId) ?? genres[0] ?? null;
-  const videos = activeGenre?.videos ?? [];
+  const isDevotional = activeGenre?.id === "devotional";
+
+  // Devotional loop state — anchored to real timestamps in localStorage so backgrounding/reopens resume.
+  const [devLoopStart, setDevLoopStart] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { const v = localStorage.getItem(DEVOTIONAL_LOOP_START_KEY); return v ? Number(v) : null; } catch { return null; }
+  });
+  const [devLoopDur, setDevLoopDur] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    try { const v = localStorage.getItem(DEVOTIONAL_LOOP_DUR_KEY); return v ? Number(v) : null; } catch { return null; }
+  });
+  const [devJustBrowse, setDevJustBrowse] = useState(false);
+  // Ticks once per second while in devotional loop so "elapsed" flips reactively.
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    if (!isDevotional || devLoopStart == null || devLoopDur == null) return;
+    const t = window.setInterval(() => setNowTs(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [isDevotional, devLoopStart, devLoopDur]);
+  const devLoopActive = isDevotional && devLoopStart != null && devLoopDur != null && (nowTs - devLoopStart) < devLoopDur * 1000;
+  const devLoopEnded = isDevotional && devLoopStart != null && devLoopDur != null && (nowTs - devLoopStart) >= devLoopDur * 1000;
+  const devFaithPref = isDevotional ? readDevotionalFaithPref() : null;
+  // Reset "just browse" whenever we switch away from devotional so re-entering shows the picker again.
+  useEffect(() => { if (!isDevotional) setDevJustBrowse(false); }, [isDevotional]);
+  const showDevPicker = isDevotional && !devLoopActive && !devJustBrowse;
+
+  const rawVideos = activeGenre?.videos ?? [];
+  const videos = isDevotional && devFaithPref
+    ? rawVideos.filter((v) => v.faith === devFaithPref)
+    : rawVideos;
   const isLiveGenre = !!activeGenre?.live;
+
 
 
   const [idx, setIdx] = useState(0);
