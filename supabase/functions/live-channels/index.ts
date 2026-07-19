@@ -302,7 +302,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    const settled = await Promise.allSettled(GENRES.map(resolveGenre));
+    const settled = await Promise.allSettled(GENRES.map((g) => g.id === "devotional" ? resolveDevotionalGenre(g) : resolveGenre(g)));
     const resolved: ResolvedGenre[] = [];
     settled.forEach((s, i) => {
       if (s.status === "fulfilled" && s.value) resolved.push(s.value);
