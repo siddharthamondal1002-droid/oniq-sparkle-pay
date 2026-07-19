@@ -56,6 +56,7 @@ Deno.serve(async (req) => {
     profile?: { board?: string; classLevel?: string };
     subject?: string;
     topic?: string;
+    chapter?: string;
   } = {};
   try { body = await req.json(); } catch { /* keep {} */ }
 
@@ -65,15 +66,21 @@ Deno.serve(async (req) => {
     ? String(body.profile?.classLevel) : "8";
   const subject = String(body.subject ?? "").trim().slice(0, 80);
   const topic = String(body.topic ?? "").trim().slice(0, 120) || subject;
+  const chapter = String(body.chapter ?? "").trim().slice(0, 200);
   if (!subject) return json(200, { source: "unavailable", reason: "subject required" });
 
   const boardLabel = BOARD_LABEL[board];
   const cur = BOARD_CURRICULUM[board];
   const gradeStr = gradeString(classLevel);
 
+  const chapterLine = chapter
+    ? `Chapter scope: "${chapter}". Every question MUST come from this chapter's content only — do not draw from other chapters.`
+    : "";
+
   const system = [
     `You write short practice quizzes for ${gradeStr} studying under ${boardLabel} in India. ${cur}`,
     `Subject: ${subject}. Topic: ${topic}.`,
+    chapterLine,
     "",
     "Rules:",
     "- Produce exactly 5 multiple-choice questions with 4 options each and exactly one correct answer.",
@@ -84,11 +91,13 @@ Deno.serve(async (req) => {
     "- Honesty: never invent facts, dates, or formulas. If uncertain about specifics for this level, stay with safely-known material for the topic.",
     "- Do not include the student's name or any personal info.",
     "- Return ONLY via the generate_quiz tool.",
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
   const res = await callClaude({
     system,
-    messages: [{ role: "user", content: `Please generate the 5-question quiz on ${subject} — ${topic}.` }],
+    messages: [{ role: "user", content: chapter
+      ? `Please generate the 5-question quiz on ${subject} — chapter "${chapter}".`
+      : `Please generate the 5-question quiz on ${subject} — ${topic}.` }],
     tools: [QUIZ_TOOL],
     toolChoice: { type: "tool", name: "generate_quiz" },
     maxTokens: 1400,

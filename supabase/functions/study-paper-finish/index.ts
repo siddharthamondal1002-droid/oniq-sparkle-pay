@@ -24,13 +24,14 @@ Deno.serve(async (req) => {
     return json(401, { error: "unauthorized" });
   }
 
-  let body: { paper_id?: string; marks_scored?: number; total_marks?: number; subject?: string; action?: string } = {};
+  let body: { paper_id?: string; marks_scored?: number; total_marks?: number; subject?: string; action?: string; chapter?: string } = {};
   try { body = await req.json(); } catch { /* ignore */ }
   const paperId = String(body.paper_id ?? "").trim();
   const action = String(body.action ?? "complete").trim();
   const marksScored = Math.max(0, Math.round(Number(body.marks_scored ?? 0)));
   const totalMarks = Math.round(Number(body.total_marks ?? 0));
   const subject = String(body.subject ?? "").trim().slice(0, 80);
+  const chapter = String(body.chapter ?? "").trim().slice(0, 200);
   if (!paperId) return json(200, { source: "unavailable", reason: "missing fields" });
   if (action === "complete" && (!totalMarks || !subject)) {
     return json(200, { source: "unavailable", reason: "missing fields" });
@@ -106,6 +107,7 @@ Deno.serve(async (req) => {
       correct_count: null,
       total_marks: paper.total_marks,
       marks_scored: clampedMarks,
+      chapter: chapter || null,
     });
     if (insErr) console.warn("study-paper-finish: attempts insert err", insErr.message);
   } catch (e) {

@@ -626,11 +626,12 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const [hydrating, setHydrating] = useState(true);
   const [notConfigured, setNotConfigured] = useState(false);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
-  const [quizSubject, setQuizSubject] = useState<string | null>(null);
-  const [paperSpec, setPaperSpec] = useState<{ subject: string; totalMarks: 30 | 80 | 100 } | null>(null);
+  const [quizSubject, setQuizSubject] = useState<{ subject: string; chapter?: string } | null>(null);
+  const [paperSpec, setPaperSpec] = useState<{ subject: string; totalMarks: 30 | 80 | 100; chapter?: string } | null>(null);
   const [mockSpec, setMockSpec] = useState<{ durationMinutes: 30 | 60 | 90 } | null>(null);
   const [showQuizPicker, setShowQuizPicker] = useState(false);
   const [pickerSubject, setPickerSubject] = useState<string | null>(null);
+  const [pickerChapter, setPickerChapter] = useState<string | "__all__" | null>(null);
   const [pickerMode, setPickerMode] = useState<"root" | "mock">("root");
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
@@ -899,6 +900,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onClose={() => {
                 setShowQuizPicker(false);
                 setPickerSubject(null);
+                setPickerChapter(null);
                 setPickerMode("root");
               }}
             >
@@ -909,8 +911,10 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                     <div className="font-display text-lg font-bold">
                       {pickerMode === "mock"
                         ? "pick a duration 🕐"
-                        : pickerSubject
+                        : pickerSubject && pickerChapter
                         ? "pick a format 📝"
+                        : pickerSubject
+                        ? "pick a chapter 📚"
                         : "pick a subject 📝"}
                     </div>
                     {pickerSubject && pickerMode === "root" && (
@@ -926,6 +930,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                     onClick={() => {
                       setShowQuizPicker(false);
                       setPickerSubject(null);
+                      setPickerChapter(null);
                       setPickerMode("root");
                     }}
                     aria-label="Close"
@@ -988,13 +993,25 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                       ))}
                     </div>
                   </div>
+                ) : !pickerChapter ? (
+                  <ChapterPickerPanel
+                    profile={profile}
+                    subject={pickerSubject}
+                    onPick={(c) => setPickerChapter(c)}
+                    onBack={() => setPickerSubject(null)}
+                  />
                 ) : (
                   <div className="mt-4 space-y-2">
+                    <div className="mb-1 text-[11px] text-muted-foreground">
+                      {pickerChapter === "__all__" ? "whole subject" : `chapter: ${pickerChapter}`}
+                    </div>
                     <button
                       onClick={() => {
+                        const ch = pickerChapter === "__all__" ? undefined : pickerChapter;
                         setShowQuizPicker(false);
-                        setQuizSubject(pickerSubject);
+                        setQuizSubject({ subject: pickerSubject, chapter: ch });
                         setPickerSubject(null);
+                        setPickerChapter(null);
                       }}
                       className="w-full rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-left hover:bg-primary/15"
                     >
@@ -1005,9 +1022,11 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                       <button
                         key={m}
                         onClick={() => {
+                          const ch = pickerChapter === "__all__" ? undefined : pickerChapter;
                           setShowQuizPicker(false);
-                          setPaperSpec({ subject: pickerSubject, totalMarks: m });
+                          setPaperSpec({ subject: pickerSubject, totalMarks: m, chapter: ch });
                           setPickerSubject(null);
+                          setPickerChapter(null);
                         }}
                         className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left hover:bg-muted"
                       >
@@ -1020,10 +1039,10 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                       </button>
                     ))}
                     <button
-                      onClick={() => setPickerSubject(null)}
+                      onClick={() => setPickerChapter(null)}
                       className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
                     >
-                      ← change subject
+                      ← change chapter
                     </button>
                   </div>
                 )}
@@ -1034,7 +1053,8 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
           {quizSubject && (
             <QuizModal
               profile={profile}
-              initialSubject={quizSubject}
+              initialSubject={quizSubject.subject}
+              chapter={quizSubject.chapter}
               onClose={() => setQuizSubject(null)}
             />
           )}
@@ -1043,6 +1063,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               profile={profile}
               subject={paperSpec.subject}
               totalMarks={paperSpec.totalMarks}
+              chapter={paperSpec.chapter}
               onClose={() => setPaperSpec(null)}
             />
           )}
@@ -1131,17 +1152,143 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   );
 }
 
+// ------------------------- Chapter picker -------------------------
+
+type ChapterRow = { chapter_number: number; title: string };
+
+function ChapterPickerPanel({
+  profile,
+  subject,
+  onPick,
+  onBack,
+}: {
+  profile: LearnerProfile;
+  subject: string;
+  onPick: (chapter: string | "__all__") => void;
+  onBack: () => void;
+}) {
+  const [chapters, setChapters] = useState<ChapterRow[] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { data: attempts } = useAttempts();
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.functions.invoke("study-chapters", {
+          body: {
+            profile: { board: profile.board, classLevel: profile.class_level },
+            subject,
+          },
+        });
+        if (cancelled) return;
+        if (error) throw error;
+        const d = data as { chapters?: ChapterRow[] };
+        setChapters(Array.isArray(d?.chapters) ? d.chapters : []);
+      } catch {
+        if (!cancelled) setChapters([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [profile.board, profile.class_level, subject]);
+
+  // Private mastery per chapter — %score across this profile's attempts for
+  // (subject, chapter). Uses attemptScore semantics.
+  const mastery = new Map<string, number>();
+  const counts = new Map<string, number>();
+  for (const a of attempts ?? []) {
+    if (a.profile_id !== profile.id) continue;
+    if (a.subject !== subject) continue;
+    const key = a.chapter ?? "";
+    if (!key) continue;
+    const num = a.total_marks && a.total_marks > 0
+      ? Math.max(0, a.marks_scored ?? 0)
+      : Math.max(0, a.correct_count ?? 0);
+    const den = a.total_marks && a.total_marks > 0
+      ? a.total_marks
+      : (a.total_questions ?? 0);
+    if (den <= 0) continue;
+    const pct = Math.round((num / den) * 100);
+    mastery.set(key, (mastery.get(key) ?? 0) + pct);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const avgMastery = (title: string) => {
+    const c = counts.get(title);
+    if (!c) return null;
+    return Math.round((mastery.get(title) ?? 0) / c);
+  };
+
+  return (
+    <div className="mt-4 space-y-2 max-h-[50vh] overflow-y-auto">
+      <div className="mb-1 text-[11px] text-muted-foreground">{subject} · pick a chapter</div>
+      <button
+        onClick={() => onPick("__all__")}
+        className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-left text-sm hover:bg-muted"
+      >
+        <div className="font-semibold">🎯 whole subject</div>
+        <div className="text-[11px] text-muted-foreground">mixed questions from any chapter</div>
+      </button>
+      {loading && (
+        <div className="py-4 text-center text-xs text-muted-foreground">loading chapters…</div>
+      )}
+      {!loading && chapters && chapters.length === 0 && (
+        <div className="py-2 text-center text-[11px] text-muted-foreground">
+          no chapter list available — use whole subject
+        </div>
+      )}
+      {!loading && chapters && chapters.map((c) => {
+        const pct = avgMastery(c.title);
+        const badge = pct === null ? null
+          : pct >= 75 ? { label: `${pct}% 🟢`, tone: "text-emerald-400" }
+          : pct >= 50 ? { label: `${pct}% 🟡`, tone: "text-amber-400" }
+          : { label: `${pct}% 🔴`, tone: "text-rose-400" };
+        return (
+          <button
+            key={c.chapter_number}
+            onClick={() => onPick(c.title)}
+            className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-left text-sm hover:bg-muted"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                  ch {c.chapter_number}
+                </div>
+                <div className="truncate font-medium">{c.title}</div>
+              </div>
+              {badge && (
+                <div className={`shrink-0 text-[11px] font-semibold ${badge.tone}`}>{badge.label}</div>
+              )}
+            </div>
+          </button>
+        );
+      })}
+      <button
+        onClick={onBack}
+        className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
+      >
+        ← change subject
+      </button>
+    </div>
+  );
+}
+
 // ------------------------- Quiz -------------------------
+
 
 type QuizQ = { question: string; options: string[]; correct_index: number; explanation: string };
 
 function QuizModal({
   profile,
   initialSubject,
+  chapter,
   onClose,
 }: {
   profile: LearnerProfile;
   initialSubject: string;
+  chapter?: string;
   onClose: () => void;
 }) {
   const [subject] = useState(initialSubject);
@@ -1166,6 +1313,7 @@ function QuizModal({
             profile: { board: profile.board, classLevel: profile.class_level },
             subject,
             topic,
+            chapter: chapter ?? undefined,
           },
         });
         if (cancelled) return;
@@ -1199,6 +1347,7 @@ function QuizModal({
         topic,
         total_questions: 5,
         correct_count: finalCorrect,
+        chapter: chapter ?? null,
       });
     } catch {
       // best-effort
@@ -1405,11 +1554,13 @@ function PaperModal({
   profile,
   subject,
   totalMarks,
+  chapter,
   onClose,
 }: {
   profile: LearnerProfile;
   subject: string;
   totalMarks: 30 | 80 | 100;
+  chapter?: string;
   onClose: () => void;
 }) {
   const qc = useQueryClient();
@@ -1480,6 +1631,7 @@ function PaperModal({
           profileId: profile.id,
           subject,
           totalMarks,
+          chapter: chapter ?? undefined,
         },
       });
       if (error) throw error;
@@ -1727,7 +1879,7 @@ function PaperModal({
       setFinishing(true);
       try {
         await supabase.functions.invoke("study-paper-finish", {
-          body: { paper_id: paperId, marks_scored: sum, total_marks: totalMarks, subject },
+          body: { paper_id: paperId, marks_scored: sum, total_marks: totalMarks, subject, chapter: chapter ?? undefined },
         });
         qc.invalidateQueries({ queryKey: QUIZ_ATTEMPTS_KEY });
       } catch { /* best-effort */ }
@@ -2459,6 +2611,7 @@ type Attempt = {
   correct_count: number | null;
   total_marks: number | null;
   marks_scored: number | null;
+  chapter: string | null;
   created_at: string;
 };
 
@@ -2479,7 +2632,7 @@ function useAttempts() {
         };
       })
         .from("quiz_attempts")
-        .select("id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, created_at")
+        .select("id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, chapter, created_at")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];

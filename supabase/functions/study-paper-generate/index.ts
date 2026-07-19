@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
     subject?: string;
     totalMarks?: number;
     profileId?: string;
+    chapter?: string;
   } = {};
   try { body = await req.json(); } catch { /* ignore */ }
 
@@ -103,6 +104,7 @@ Deno.serve(async (req) => {
   const subject = String(body.subject ?? "").trim().slice(0, 80);
   const totalMarks = Number(body.totalMarks);
   const profileId = String(body.profileId ?? body.profile?.id ?? "").trim();
+  const chapter = String(body.chapter ?? "").trim().slice(0, 200);
   if (!subject) return json(200, { source: "unavailable", reason: "subject required" });
   if (!profileId) return json(200, { source: "unavailable", reason: "profile id required" });
   if (!(totalMarks === 30 || totalMarks === 80 || totalMarks === 100)) {
@@ -146,15 +148,22 @@ Deno.serve(async (req) => {
   const baseSystem = [
     `You are writing a real ${totalMarks}-mark practice examination paper for ${gradeStr} studying under ${boardLabel} in India. ${cur}`,
     `Subject: ${subject}.`,
+    chapter
+      ? `Chapter scope: "${chapter}". EVERY question — MCQ, short, and long — must come from this chapter's content only. Do NOT draw from other chapters. Spread across sub-topics WITHIN this chapter for variety.`
+      : "",
     "",
     "Rules:",
     "- Age-appropriate, syllabus-aligned, non-trivial but fair. Test understanding, not tricks.",
-    "- Spread across the subject's key topics for this class. Don't cluster around one narrow topic.",
+    chapter
+      ? `- Stay strictly within the "${chapter}" chapter — no cross-chapter integration questions.`
+      : "- Spread across the subject's key topics for this class. Don't cluster around one narrow topic.",
     "- Honesty: never invent facts, dates, formulas, chapter references, or past-paper citations. If unsure, use safely-known content.",
     "- No personal data, no politics, no religion, no adult content.",
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 
-  const userMsg = `Generate the questions for the ${totalMarks}-mark ${subject} paper for a ${boardLabel} ${gradeStr}.`;
+  const userMsg = chapter
+    ? `Generate the questions for the ${totalMarks}-mark ${subject} paper — chapter "${chapter}" only — for a ${boardLabel} ${gradeStr}.`
+    : `Generate the questions for the ${totalMarks}-mark ${subject} paper for a ${boardLabel} ${gradeStr}.`;
 
   async function genSection(
     kind: "mcq" | "short" | "long",

@@ -6,11 +6,14 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 
-function buildSystem(profile: { name: string; board: string; classLevel: string }): string {
+function buildSystem(profile: { name: string; board: string; classLevel: string; chapter?: string }): string {
   const board = BOARD_LABEL[profile.board] ?? "CBSE";
   const cur = BOARD_CURRICULUM[profile.board] ?? BOARD_CURRICULUM.cbse;
   const name = profile.name.slice(0, 40);
   const gradeStr = gradeString(profile.classLevel);
+  const chapterLine = profile.chapter
+    ? `\n\nThe student is specifically studying: "${profile.chapter}". Keep explanations, examples, and any vault references scoped to this chapter's content — do not drift into other chapters unless the student explicitly asks about their relevance to this one.`
+    : "";
   return [
     `You are Study Buddy, a warm, patient tutor inside the ONIQ app, teaching ${name}, a ${board} student — ${gradeStr} in India.`,
     "",
@@ -37,7 +40,7 @@ function buildSystem(profile: { name: string; board: string; classLevel: string 
     "- Never fabricate quotes from teachers, boards, or people.",
     "",
     "Keep responses focused and not too long. Ask ONE guiding question at a time.",
-  ].join("\n");
+  ].join("\n") + chapterLine;
 }
 
 type VaultNote = { subject: string; topic: string; content: string };
@@ -61,22 +64,34 @@ async function vaultLookup(
   board: string,
   classLevel: string,
   query: string,
+  chapter?: string,
 ): Promise<VaultNote[]> {
   if (!query || query.length < 3) return [];
-  try {
-    const { data, error } = await admin.rpc("__noop_never_called__" as never).then(
-      () => ({ data: null, error: null }),
-      () => ({ data: null, error: null }),
-    ).catch(() => ({ data: null, error: null }));
-    void data; void error;
-    // Use textSearch on generated tsvector column
-    const { data: rows, error: err } = await admin
+  const run = async (withChapter: boolean) => {
+    let q = admin
       .from("study_notes")
       .select("subject, topic, content")
       .eq("board", board)
-      .eq("class_level", classLevel)
+      .eq("class_level", classLevel);
+    if (withChapter && chapter) q = q.eq("chapter", chapter);
+    const { data, error } = await q
       .textSearch("search", query, { type: "websearch", config: "english" })
       .limit(3);
+    return { data, error };
+  };
+  try {
+    if (chapter) {
+      const scoped = await run(true);
+      if (!scoped.error && Array.isArray(scoped.data) && scoped.data.length > 0) {
+        return (scoped.data as VaultNote[]).map((r) => ({
+          subject: String(r.subject ?? ""),
+          topic: String(r.topic ?? ""),
+          content: String(r.content ?? "").slice(0, 1500),
+        }));
+      }
+      // Fall through to unscoped search when no chapter-tagged notes exist yet.
+    }
+    const { data: rows, error: err } = await run(false);
     if (err) {
       console.warn("vaultLookup: query error", err.message);
       return [];
@@ -101,7 +116,7 @@ function vaultSystemAppendix(notes: VaultNote[]): string {
 // Fire-and-forget: distill the just-taught lesson into an original note.
 async function saveDistilledNote(
   admin: ReturnType<typeof createClient>,
-  profile: { board: string; classLevel: string },
+  profile: { board: string; classLevel: string; chapter?: string },
   userQuery: string,
   assistantReply: string,
 ): Promise<void> {
@@ -165,6 +180,7 @@ async function saveDistilledNote(
       topic,
       content: note.slice(0, 8000),
       source: "tutor",
+      chapter: profile.chapter ?? null,
     });
     if (insErr) console.warn("saveDistilledNote: insert error", insErr.message);
   } catch (e) {
@@ -199,15 +215,20 @@ Deno.serve(async (req) => {
     attachment?: { kind: "image" | "pdf" | "text"; mime?: string; data?: string; text?: string };
     lang?: string;
     profile?: { name?: string; board?: string; classLevel?: string };
+    chapter?: string;
   } = {};
   try { body = await req.json(); } catch { /* keep {} */ }
 
   const rawProfile = body.profile ?? {};
+  const chapter = typeof body.chapter === "string" && body.chapter.trim()
+    ? body.chapter.trim().slice(0, 200)
+    : undefined;
   const profile = {
     name: typeof rawProfile.name === "string" && rawProfile.name.trim() ? rawProfile.name.trim().slice(0, 40) : "student",
     board: BOARD_LABEL[String(rawProfile.board ?? "").toLowerCase()] ? String(rawProfile.board).toLowerCase() : "cbse",
     classLevel: (VALID_CLASS_LEVELS as readonly string[]).includes(String(rawProfile.classLevel ?? ""))
       ? String(rawProfile.classLevel) : "8",
+    chapter,
   };
 
   const messages = Array.isArray(body.messages) ? body.messages : [];
@@ -261,7 +282,7 @@ Deno.serve(async (req) => {
   const userQuery = latestUserQuery(messages);
   let vaultNotes: VaultNote[] = [];
   if (admin && userQuery) {
-    vaultNotes = await vaultLookup(admin, profile.board, profile.classLevel, userQuery);
+    vaultNotes = await vaultLookup(admin, profile.board, profile.classLevel, userQuery, profile.chapter);
   }
 
   const system = buildSystem(profile) + vaultSystemAppendix(vaultNotes) + langInstruction(body.lang);
