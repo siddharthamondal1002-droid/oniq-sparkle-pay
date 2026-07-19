@@ -247,14 +247,40 @@ function Tile({
 }
 
 type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "devotional" | "mytv";
+type FaithId = "islamic" | "sikh" | "hindu" | "christian";
 type Video = {
   videoId: string;
   title: string;
   channelName: string;
   publishedAt: string;
   thumbnail: string;
+  faith?: FaithId;
 };
 type LiveGenre = { id: GenreId; name: string; emoji: string; live: boolean; videos: Video[] };
+
+// Map app.faith.tsx's Religion → live-channels faith id (buddhist/jewish have no matching devotional feed).
+function readDevotionalFaithPref(): FaithId | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const r = localStorage.getItem("oniq.faith.religion.v1");
+    if (r === "islam") return "islamic";
+    if (r === "hindu" || r === "sikh" || r === "christian") return r;
+  } catch { /* noop */ }
+  return null;
+}
+
+const DEVOTIONAL_LOOP_START_KEY = "oniq.watch.devotionalLoopStartedAt";
+const DEVOTIONAL_LOOP_DUR_KEY = "oniq.watch.devotionalLoopDurationSec";
+const DEVOTIONAL_DURATIONS: { label: string; sec: number }[] = [
+  { label: "10 min", sec: 10 * 60 },
+  { label: "30 min", sec: 30 * 60 },
+  { label: "1 hr", sec: 60 * 60 },
+  { label: "3 hr", sec: 3 * 60 * 60 },
+  { label: "6 hr", sec: 6 * 60 * 60 },
+  { label: "12 hr", sec: 12 * 60 * 60 },
+  { label: "24 hr", sec: 24 * 60 * 60 },
+];
+
 
 function useLiveGenres(enabled: boolean) {
   return useQuery({
