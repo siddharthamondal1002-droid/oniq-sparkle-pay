@@ -561,8 +561,32 @@ function HeroTile({
     setGenreId(g);
     setIdx(0);
     setPaused(false);
+    // Entering devotional freshly → force picker to reappear (unless a live loop is still running).
+    if (g === "devotional") setDevJustBrowse(false);
     bumpHide();
   };
+  const startDevLoop = (sec: number) => {
+    const now = Date.now();
+    setDevLoopStart(now);
+    setDevLoopDur(sec);
+    setDevJustBrowse(false);
+    try {
+      localStorage.setItem(DEVOTIONAL_LOOP_START_KEY, String(now));
+      localStorage.setItem(DEVOTIONAL_LOOP_DUR_KEY, String(sec));
+    } catch { /* noop */ }
+    setNowTs(Date.now());
+    bumpHide();
+  };
+  const clearDevLoop = () => {
+    setDevLoopStart(null);
+    setDevLoopDur(null);
+    try {
+      localStorage.removeItem(DEVOTIONAL_LOOP_START_KEY);
+      localStorage.removeItem(DEVOTIONAL_LOOP_DUR_KEY);
+    } catch { /* noop */ }
+  };
+  const skipDevPicker = () => { clearDevLoop(); setDevJustBrowse(true); bumpHide(); };
+
   const pickVideo = (i: number) => {
     setIdx(i);
     setPaused(false);
