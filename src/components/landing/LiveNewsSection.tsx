@@ -64,33 +64,61 @@ export function CompactLiveNews() {
   const navigate = useNavigate();
   if (failed) return null;
   const current = items?.[idx];
+  const others = useMemo(
+    () => (items ? items.filter((_, i) => i !== idx) : []),
+    [items, idx],
+  );
+  const tickerText = useMemo(
+    () => others.map((it) => `${it.title}  ·  ${it.source}`).join("   •   "),
+    [others],
+  );
   return (
     <button
       onClick={() => navigate({ to: "/app/news", search: { tab: undefined } })}
-      className="press glass fade-up mt-5 flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-colors"
+      className="press fade-up group mt-5 block w-full overflow-hidden rounded-2xl border border-primary/25 text-left transition-colors"
       aria-label="Open Pulse news"
+      style={{
+        background:
+          "linear-gradient(135deg, rgba(0,212,184,0.14) 0%, rgba(0,168,232,0.08) 55%, rgba(255,255,255,0.02) 100%), var(--gradient-card)",
+        boxShadow:
+          "0 0 24px rgba(0,212,184,0.18), inset 0 1px 0 rgba(255,255,255,0.06)",
+      }}
     >
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400">
-        <span className="relative flex h-1.5 w-1.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
+      <div className="flex items-center gap-3 px-4 pt-3">
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-red-500/60 bg-red-500/20 px-2 py-1 text-[11px] font-black uppercase tracking-widest text-red-300 shadow-[0_0_12px_rgba(239,68,68,0.55)]">
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-80" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-red-500" />
+          </span>
+          LIVE
         </span>
-        LIVE
-      </span>
-      <span className="text-xs font-semibold text-primary">Pulse</span>
-      <div className="min-w-0 flex-1">
+        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-primary">Pulse</span>
+        <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-primary/70" />
+      </div>
+      <div className="min-w-0 px-4 pb-2 pt-1.5">
         {!current ? (
-          <div className="h-3 w-3/4 animate-pulse rounded bg-muted" />
+          <div className="h-5 w-3/4 animate-pulse rounded bg-muted" />
         ) : (
-          <>
-            <div className="truncate text-sm font-medium text-foreground">{current.title}</div>
-            <div className="mt-0.5 truncate text-xs text-muted-foreground">
-              {current.source} · {relTime(current.publishedAt)}
-            </div>
-          </>
+          <div
+            className="truncate font-display text-[17px] font-bold leading-tight tracking-tight text-foreground"
+            style={{ textShadow: "0 0 18px rgba(0,212,184,0.25)" }}
+          >
+            {current.title}
+          </div>
         )}
       </div>
-      <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+      {tickerText && (
+        <div className="relative overflow-hidden border-t border-white/5 bg-black/25 py-1.5">
+          <div className="oniq-ticker-track flex min-w-max whitespace-nowrap text-[11px] font-medium uppercase tracking-wider text-muted-foreground group-hover:[animation-play-state:paused]">
+            <span className="px-4">{tickerText}</span>
+            <span className="px-4">{tickerText}</span>
+          </div>
+        </div>
+      )}
+      <style>{`
+        @keyframes oniq-ticker { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        .oniq-ticker-track { animation: oniq-ticker 45s linear infinite; }
+      `}</style>
     </button>
   );
 }
