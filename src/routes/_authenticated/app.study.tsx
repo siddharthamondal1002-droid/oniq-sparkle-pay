@@ -1340,6 +1340,7 @@ function ChapterPickerPanel({
             classLevel: profile.class_level,
             subject,
             lang,
+            profileId: profile.id,
           },
         });
         if (cancelled) return;
