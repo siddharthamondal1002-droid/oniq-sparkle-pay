@@ -57,10 +57,57 @@ Deno.serve(async (req) => {
     const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!anthropicKey) return friendly("scout isn't configured yet — try again later");
 
+    // Optional enrichment: Google Address Descriptors (GA in India, free tier of
+    // Geocoding Essentials). Adds ranked nearby landmarks + spatial relationships
+    // ("across the road from X", "within Y area") — how Indians actually describe
+    // locations. Additive only: on missing key, HTTP error, timeout, or empty
+    // response we silently fall back to Mappls/GPS label + PIN behavior unchanged.
+    let landmarkContext = "";
+    const googleKey = Deno.env.get("GOOGLE_MAPS_API_KEY");
+    if (googleKey && locLat != null && locLon != null) {
+      try {
+        const ac = new AbortController();
+        const gt = setTimeout(() => ac.abort(), 2500);
+        const gRes = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${locLat},${locLon}` +
+          `&extra_computations=ADDRESS_DESCRIPTORS&key=${encodeURIComponent(googleKey)}`,
+          { signal: ac.signal },
+        );
+        clearTimeout(gt);
+        if (gRes.ok) {
+          const gJson = await gRes.json();
+          const desc = gJson?.address_descriptor
+            ?? gJson?.results?.[0]?.address_descriptor;
+          const landmarks: any[] = Array.isArray(desc?.landmarks) ? desc.landmarks : [];
+          const areas: any[] = Array.isArray(desc?.areas) ? desc.areas : [];
+          const lmBits = landmarks.slice(0, 3).map((l) => {
+            const name = l?.display_name?.text ?? l?.name ?? "";
+            const rel = l?.spatial_relationship ?? "";
+            return name ? (rel ? `${rel.toLowerCase().replace(/_/g, " ")} ${name}` : name) : "";
+          }).filter(Boolean);
+          const areaBits = areas.slice(0, 2).map((a) => {
+            const name = a?.display_name?.text ?? a?.name ?? "";
+            const cont = a?.containment ?? "";
+            return name ? (cont === "WITHIN" ? `within ${name}` : name) : "";
+          }).filter(Boolean);
+          const parts = [...lmBits, ...areaBits];
+          if (parts.length) landmarkContext = parts.join("; ");
+          else console.log("smart-scout: address_descriptors returned no landmarks/areas");
+        } else {
+          console.log("smart-scout: google geocode http", gRes.status);
+        }
+      } catch (e) {
+        console.log("smart-scout: address_descriptors skipped:", (e as Error)?.message ?? e);
+      }
+    } else if (!googleKey) {
+      console.log("smart-scout: GOOGLE_MAPS_API_KEY not set — skipping Address Descriptors enrichment");
+    }
+
     const locBits: string[] = [];
     if (locLabel) locBits.push(locLabel);
     if (locPin) locBits.push(`PIN ${locPin}`);
     else if (pinInQuery) locBits.push(`PIN ${pinInQuery}`);
+    if (landmarkContext) locBits.push(`nearby: ${landmarkContext}`);
     if (locLat != null && locLon != null) locBits.push(`(${locLat.toFixed(4)}, ${locLon.toFixed(4)})`);
     const locationLine = locBits.length
       ? `USER'S CURRENT LOCATION CONTEXT: ${locBits.join(" · ")}. When the query is location-sensitive (restaurants, salons, clinics, local services, groceries with delivery), scope results to THIS neighbourhood / PIN code, not just the city.`
