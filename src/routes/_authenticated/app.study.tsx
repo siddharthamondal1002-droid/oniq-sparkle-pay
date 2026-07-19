@@ -587,8 +587,14 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
         };
       })
         .from("learner_profiles")
-        .insert({ user_id: u.user.id, name: trimmed, board, class_level: classLevel })
-        .select("id, name, board, class_level, created_at")
+        .insert({
+          user_id: u.user.id,
+          name: trimmed,
+          board,
+          class_level: classLevel,
+          second_language: boardUsesSecondLangPicker(board) ? secondLang : null,
+        })
+        .select("id, name, board, class_level, second_language, created_at")
         .single();
       if (error || !data) throw error ?? new Error("failed");
       return data;
