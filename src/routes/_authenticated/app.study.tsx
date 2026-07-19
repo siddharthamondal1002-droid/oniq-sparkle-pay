@@ -1689,6 +1689,20 @@ function SubjectSheet({
           </button>
         </div>
 
+        {isTier3Subject(profile.board, profile.class_level, subject) && chaptersSource !== "override" && (
+          <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-200">
+            📋 syllabi for this subject vary by school — check these chapters match your actual textbook, or{" "}
+            <button
+              type="button"
+              onClick={() => setEditingOverride(true)}
+              className="font-semibold underline underline-offset-2"
+            >
+              correct it below
+            </button>.
+          </div>
+        )}
+
+
         {paperFor && (
           <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3">
             <div className="mb-2 text-[11px] text-muted-foreground">
