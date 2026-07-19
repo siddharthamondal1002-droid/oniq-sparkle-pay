@@ -57,6 +57,15 @@ export const BOARD_LABEL: Record<string, string> = {
   jk_board: "J&K Board 🗺️",
   jharkhand_board: "Jharkhand Board 🗺️",
   chhattisgarh_board: "Chhattisgarh Board 🗺️",
+  maharashtra_board: "Maharashtra Board 🗺️",
+  tn_board: "Tamil Nadu Board 🗺️",
+  kerala_board: "Kerala Board 🗺️",
+  wb_board: "West Bengal Board 🗺️",
+  gujarat_board: "Gujarat Board 🗺️",
+  karnataka_board: "Karnataka Board 🗺️",
+  ap_board: "Andhra Pradesh Board 🗺️",
+  telangana_board: "Telangana Board 🗺️",
+  ib: "IB 🌐",
 };
 
 export const BOARD_CURRICULUM: Record<string, string> = {
