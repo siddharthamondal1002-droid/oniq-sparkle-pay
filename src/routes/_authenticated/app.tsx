@@ -13,6 +13,7 @@ import { usePresenceTracker } from "@/hooks/usePresence";
 import { useEffect } from "react";
 import { initPush } from "@/lib/push";
 import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
+import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -46,6 +47,7 @@ function AppShell() {
   const showNav = TOP_LEVEL.has(normalized);
 
   return (
+    <LanguageProvider>
     <>
       {/* Desktop/tablet backdrop — subtle branded gradient behind the mobile frame */}
       <div
@@ -112,6 +114,7 @@ function AppShell() {
       )}
     </div>
     </>
+    </LanguageProvider>
   );
 }
 
