@@ -151,6 +151,198 @@ export type CallClaudeResult =
   | { ok: true; data: any }
   | { ok: false; reason: string };
 
+// ---------------------------------------------------------------------------
+// Gemini fallback — used ONLY when Anthropic returns a specific billing/credit
+// exhaustion error (HTTP 400, error.type "invalid_request_error", message
+// mentioning "credit balance"). Every other Anthropic failure keeps its
+// existing behavior so genuine bugs stay visible.
+//
+// The fallback translates the request into Gemini's generateContent format
+// and translates the response back into Anthropic's shape so every caller
+// (ting, smart-scout, study-*, ride-genie, loan-rates, market-ticker, ...)
+// keeps working with zero changes.
+// ---------------------------------------------------------------------------
+
+const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash";
+
+function isAnthropicBillingExhaustion(status: number, body: any): boolean {
+  if (status !== 400) return false;
+  const err = body?.error;
+  if (!err || typeof err !== "object") return false;
+  if (err.type !== "invalid_request_error") return false;
+  const msg = typeof err.message === "string" ? err.message : "";
+  return /credit balance/i.test(msg);
+}
+
+// Anthropic tool → Gemini functionDeclaration. Skips Anthropic-native
+// server tools (web_search, computer_use, etc.) which have no Gemini
+// equivalent in this bridged path.
+function translateToolsToGemini(tools: unknown[] | undefined): {
+  tools?: unknown[];
+  allowedFunctionNames?: string[];
+} {
+  if (!Array.isArray(tools) || tools.length === 0) return {};
+  const decls: Array<{ name: string; description?: string; parameters?: unknown }> = [];
+  for (const t of tools) {
+    if (!t || typeof t !== "object") continue;
+    const tt = t as Record<string, unknown>;
+    // Anthropic-native server tools (e.g. type "web_search_20250305") have no
+    // direct Gemini equivalent while also using functionDeclarations. Skip.
+    if (typeof tt.type === "string" && tt.type !== "custom") continue;
+    if (typeof tt.name !== "string") continue;
+    const params = (tt.input_schema ?? tt.parameters) as unknown;
+    decls.push({
+      name: tt.name,
+      description: typeof tt.description === "string" ? tt.description : undefined,
+      parameters: sanitizeJsonSchemaForGemini(params),
+    });
+  }
+  if (decls.length === 0) return {};
+  return {
+    tools: [{ functionDeclarations: decls }],
+    allowedFunctionNames: decls.map((d) => d.name),
+  };
+}
+
+// Gemini rejects some JSON-Schema fields Anthropic accepts. Strip conservatively.
+function sanitizeJsonSchemaForGemini(schema: unknown): unknown {
+  if (!schema || typeof schema !== "object") return schema;
+  if (Array.isArray(schema)) return schema.map(sanitizeJsonSchemaForGemini);
+  const out: Record<string, unknown> = {};
+  const skip = new Set([
+    "$schema", "$id", "$ref", "$defs", "definitions",
+    "additionalProperties", "additionalItems", "patternProperties",
+    "exclusiveMinimum", "exclusiveMaximum",
+  ]);
+  for (const [k, v] of Object.entries(schema as Record<string, unknown>)) {
+    if (skip.has(k)) continue;
+    out[k] = sanitizeJsonSchemaForGemini(v);
+  }
+  return out;
+}
+
+function translateToolChoiceToGemini(
+  toolChoice: unknown,
+  allowedFunctionNames: string[] | undefined,
+): unknown | undefined {
+  if (!toolChoice || typeof toolChoice !== "object") return undefined;
+  const tc = toolChoice as Record<string, unknown>;
+  const type = typeof tc.type === "string" ? tc.type : "";
+  if (type === "any") {
+    return { functionCallingConfig: { mode: "ANY", allowedFunctionNames } };
+  }
+  if (type === "tool" && typeof tc.name === "string") {
+    return { functionCallingConfig: { mode: "ANY", allowedFunctionNames: [tc.name] } };
+  }
+  if (type === "none") {
+    return { functionCallingConfig: { mode: "NONE" } };
+  }
+  return { functionCallingConfig: { mode: "AUTO" } };
+}
+
+function translateMessagesToGemini(msgs: ClaudeMessage[]): unknown[] {
+  return msgs.map((m) => ({
+    role: m.role === "assistant" ? "model" : "user",
+    parts: [{ text: m.content }],
+  }));
+}
+
+// Gemini candidates → Anthropic-shaped response body.
+function translateGeminiResponseToAnthropic(gem: any): any {
+  const cand = Array.isArray(gem?.candidates) ? gem.candidates[0] : null;
+  const parts = Array.isArray(cand?.content?.parts) ? cand.content.parts : [];
+  const content: any[] = [];
+  let sawToolUse = false;
+  for (const p of parts) {
+    if (p && typeof p === "object" && p.functionCall && typeof p.functionCall.name === "string") {
+      sawToolUse = true;
+      content.push({
+        type: "tool_use",
+        id: `toolu_gemini_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
+        name: p.functionCall.name,
+        input: (p.functionCall.args && typeof p.functionCall.args === "object") ? p.functionCall.args : {},
+      });
+    } else if (p && typeof p.text === "string" && p.text.length > 0) {
+      content.push({ type: "text", text: p.text });
+    }
+  }
+  if (content.length === 0) content.push({ type: "text", text: "" });
+
+  const finish = typeof cand?.finishReason === "string" ? cand.finishReason : "";
+  let stop_reason: string;
+  if (sawToolUse) stop_reason = "tool_use";
+  else if (finish === "MAX_TOKENS") stop_reason = "max_tokens";
+  else stop_reason = "end_turn";
+
+  const usage = gem?.usageMetadata ?? {};
+  return {
+    id: `msg_gemini_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
+    type: "message",
+    role: "assistant",
+    model: `gemini-fallback/${GEMINI_FALLBACK_MODEL}`,
+    content,
+    stop_reason,
+    stop_sequence: null,
+    usage: {
+      input_tokens: usage.promptTokenCount ?? 0,
+      output_tokens: usage.candidatesTokenCount ?? 0,
+    },
+  };
+}
+
+async function callGeminiFallback(
+  opts: CallClaudeOpts,
+  timeoutMs: number,
+): Promise<CallClaudeResult> {
+  const key = Deno.env.get("GOOGLE_AI_API_KEY");
+  if (!key) {
+    console.warn("callClaude: Gemini fallback unavailable — GOOGLE_AI_API_KEY not set");
+    return { ok: false, reason: "http 400" };
+  }
+
+  const { tools, allowedFunctionNames } = translateToolsToGemini(opts.tools);
+  const toolConfig = translateToolChoiceToGemini(opts.toolChoice, allowedFunctionNames);
+
+  const body: Record<string, unknown> = {
+    systemInstruction: { parts: [{ text: opts.system }] },
+    contents: translateMessagesToGemini(opts.messages),
+    generationConfig: { maxOutputTokens: opts.maxTokens ?? 1024 },
+  };
+  if (tools) body.tools = tools;
+  if (toolConfig) body.toolConfig = toolConfig;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_FALLBACK_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ctrl.signal,
+    });
+    const text = await res.text().catch(() => "");
+    let parsed: any = null;
+    try { parsed = text ? JSON.parse(text) : null; } catch { /* keep null */ }
+    if (!res.ok || !parsed) {
+      console.warn(`callClaude: Gemini fallback http ${res.status} body=${text.slice(0, 200)}`);
+      return { ok: false, reason: `gemini http ${res.status}` };
+    }
+    const translated = translateGeminiResponseToAnthropic(parsed);
+    console.info(
+      `callClaude: fell back to Gemini due to Anthropic billing exhaustion — model=${GEMINI_FALLBACK_MODEL} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
+    );
+    return { ok: true, data: translated };
+  } catch (e) {
+    const reason = (e as Error)?.name === "AbortError" ? "timeout" : String(e).slice(0, 120);
+    console.warn(`callClaude: Gemini fallback fetch failed (${reason})`);
+    return { ok: false, reason };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult> {
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) {
@@ -212,6 +404,16 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
   if ("status" in r) {
     if (r.status >= 200 && r.status < 300 && r.body) {
       return { ok: true, data: r.body };
+    }
+    // Specific, detectable billing-exhaustion → Gemini fallback.
+    if (isAnthropicBillingExhaustion(r.status, r.body)) {
+      console.warn(
+        `callClaude: Anthropic billing exhausted (http 400 credit_balance) — falling back to Gemini key=${mask(key)}`,
+      );
+      const fb = await callGeminiFallback(opts, timeoutMs);
+      if (fb.ok) return fb;
+      // Fallback itself failed — surface the original Anthropic failure shape.
+      return { ok: false, reason: `http ${r.status}` };
     }
     const snippet = (r.text ?? "").slice(0, 200);
     console.warn(`callClaude: http ${r.status} key=${mask(key)} body=${snippet}`);
