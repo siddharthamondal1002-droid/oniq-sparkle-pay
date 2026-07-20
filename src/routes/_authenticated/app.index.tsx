@@ -147,7 +147,7 @@ function HomeScreen() {
           <div className="grid grid-cols-6 gap-3">
             {(() => {
               const primary = [
-                { key: "rides", to: "/app/rides", icon: Car, label: t("home.tile.rides"), color: "#38BDF8", span: 6 },
+                { key: "rides", to: "/app/rides", icon: Car, label: t("home.tile.rides"), sub: "Ride Genie", color: "#38BDF8", span: 6 },
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6", span: 3 },
                 { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C", span: 3 },
                 { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185", span: 3 },
@@ -161,6 +161,7 @@ function HomeScreen() {
                     to={tile.to}
                     icon={tile.icon}
                     label={tile.label}
+                    sub={"sub" in tile ? (tile as { sub?: string }).sub : undefined}
                     color={tile.color}
                     span={tile.span}
                     skin={skins[tile.key as TileKey]}
@@ -1172,6 +1173,7 @@ function PrimaryTile({
   to,
   icon: Icon,
   label,
+  sub,
   color,
   span,
   skin,
@@ -1181,6 +1183,7 @@ function PrimaryTile({
   to: string;
   icon: typeof Send;
   label: string;
+  sub?: string;
   color: string;
   span: number;
   skin?: string;
@@ -1229,6 +1232,9 @@ function PrimaryTile({
       </div>
       <div className="relative">
         <div className={`font-display text-sm font-semibold ${showSkin ? "text-white drop-shadow" : "text-foreground"}`}>{label}</div>
+        {sub && (
+          <div className={`mt-0.5 font-sans text-[11px] normal-case tracking-normal font-normal ${showSkin ? "text-white/80 drop-shadow" : "text-muted-foreground"}`}>{sub}</div>
+        )}
         {balance && (
           <div className="mt-0.5 font-display text-xl font-bold text-gradient-primary">{balance}</div>
         )}
