@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { upiLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
-import { UpiScannerOverlay } from "@/components/upi/UpiScannerOverlay";
+
 import { supabase } from "@/integrations/supabase/client";
 
 type UpiSearch = { pa?: string; pn?: string; am?: string; tn?: string; tab?: string };
