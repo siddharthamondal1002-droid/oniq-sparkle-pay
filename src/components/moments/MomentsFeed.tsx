@@ -1,4 +1,3 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
@@ -7,11 +6,7 @@ import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { formatDistanceToNow } from "date-fns";
 
-export const Route = createFileRoute("/_authenticated/app/discover")({
-  component: DiscoverScreen,
-});
-
-function DiscoverScreen() {
+export function MomentsFeed() {
   const qc = useQueryClient();
   const [content, setContent] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -26,7 +21,6 @@ function DiscoverScreen() {
     if (typeof sessionStorage === "undefined") return "public";
     return (sessionStorage.getItem("oniq_post_visibility") as "public" | "moots") ?? "public";
   });
-
 
   async function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -50,7 +44,6 @@ function DiscoverScreen() {
         .from("moments")
         .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
       if (upErr) throw upErr;
-      // 100 years — effectively permanent while bucket exists
       const { data: signed, error: sErr } = await supabase.storage
         .from("moments")
         .createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
@@ -115,7 +108,6 @@ function DiscoverScreen() {
 
   async function toggleLike(postId: string) {
     const wasLiked = likedIds.has(postId);
-    // optimistic
     setLikedIds(prev => {
       const n = new Set(prev);
       if (wasLiked) n.delete(postId); else n.add(postId);
@@ -147,11 +139,6 @@ function DiscoverScreen() {
 
   return (
     <div className="pb-6">
-      <div className="bg-hero px-5 pt-12">
-        <h1 className="font-display text-3xl font-bold">Discover</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Moments from your worlds</p>
-      </div>
-
       <div className="mt-5 px-5">
         <div className="rounded-3xl border border-border bg-card p-4">
           <textarea
@@ -228,7 +215,6 @@ function DiscoverScreen() {
               {posting ? "Posting…" : "Post"}
             </button>
           </div>
-
         </div>
 
         <div className="mt-5 space-y-3">
@@ -321,8 +307,6 @@ function DiscoverScreen() {
   );
 }
 
-
-
 function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => void }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -348,7 +332,7 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
     });
     if (error) toast.error(error.message);
     else {
-      await supabase.rpc as any; // no-op safety
+      await supabase.rpc as any;
       setText("");
       refetch();
     }

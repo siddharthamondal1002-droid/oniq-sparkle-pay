@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Home, MessageCircle, Compass, User } from "lucide-react";
+import { Home, MessageCircle, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { GlobalIncomingCall } from "@/components/chat/GlobalIncomingCall";
@@ -24,11 +24,10 @@ type Tab = { to: string; label: string; icon: typeof Home };
 const tabs: Tab[] = [
   { to: "/app", label: "Home", icon: Home },
   { to: "/app/chat", label: "Chat", icon: MessageCircle },
-  { to: "/app/discover", label: "Discover", icon: Compass },
   { to: "/app/profile", label: "Profile", icon: User },
 ];
 
-const TOP_LEVEL = new Set(["/app", "/app/discover", "/app/profile"]);
+const TOP_LEVEL = new Set(["/app", "/app/profile"]);
 
 function AppShell() {
   const { pathname } = useLocation();
@@ -87,7 +86,7 @@ function AppShell() {
         <>
           <div className="pointer-events-none fixed bottom-0 left-1/2 z-30 h-28 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 bg-gradient-to-t from-background via-background/85 to-transparent" />
           <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            <div className="grid grid-cols-4 rounded-3xl border border-border glass p-1.5 shadow-card">
+            <div className="grid grid-cols-3 rounded-3xl border border-border glass p-1.5 shadow-card">
               {tabs.map((t) => {
                 const active = t.to === "/app" ? normalized === "/app" : normalized.startsWith(t.to);
                 const Icon = t.icon;
