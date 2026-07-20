@@ -63,6 +63,7 @@ function HomeScreen() {
   const [hidden] = useHiddenTiles();
   const installPrompt = useInstallPrompt();
   const vitalsColor = useVitalsTileColor();
+  const { t } = useT();
 
 
 
