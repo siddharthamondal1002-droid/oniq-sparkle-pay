@@ -69,6 +69,7 @@ function HomeScreen() {
   const first = profile?.display_name?.split(" ")[0] ?? profile?.username ?? "there";
 
   return (
+    <LanguageProvider>
     <MediaProvider>
     <div className="relative pb-6 min-h-screen">
       {/* Wallpaper is now rendered by the app shell (_authenticated/app.tsx)
