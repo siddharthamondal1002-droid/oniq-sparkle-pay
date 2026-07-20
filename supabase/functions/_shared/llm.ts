@@ -145,6 +145,12 @@ export type CallClaudeOpts = {
   toolChoice?: unknown;
   maxTokens?: number;
   timeoutMs?: number;
+  // When true, send `system` as a cache_control:ephemeral block so Anthropic
+  // caches the system prompt across calls. Only enable on callers whose
+  // system prompt genuinely exceeds ~1024 tokens (Claude Sonnet minimum) and
+  // gets reused — caching a shorter prompt is silently ignored. The Gemini
+  // fallback path ignores this flag (caching is Anthropic-specific).
+  cacheSystem?: boolean;
 };
 
 export type CallClaudeResult =
@@ -365,7 +371,9 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
   const payload: Record<string, unknown> = {
     model: "claude-sonnet-4-6",
     max_tokens: opts.maxTokens ?? 1024,
-    system: opts.system,
+    system: opts.cacheSystem
+      ? [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }]
+      : opts.system,
     messages: opts.messages,
   };
   if (opts.tools) payload.tools = opts.tools;
@@ -415,6 +423,18 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
 
   if ("status" in r) {
     if (r.status >= 200 && r.status < 300 && r.body) {
+      // Log prompt-cache hit/miss when Anthropic reports it. Present only
+      // when a cache_control block was sent and the prompt was large enough
+      // to be genuinely cached — otherwise these fields are absent and we
+      // stay silent.
+      const usage = (r.body as { usage?: Record<string, unknown> })?.usage;
+      const cw = usage?.cache_creation_input_tokens;
+      const cr = usage?.cache_read_input_tokens;
+      if (typeof cw === "number" || typeof cr === "number") {
+        console.info(
+          `callClaude: prompt-cache usage cache_creation=${cw ?? 0} cache_read=${cr ?? 0} input=${usage?.input_tokens ?? 0} output=${usage?.output_tokens ?? 0}`,
+        );
+      }
       return { ok: true, data: r.body };
     }
     // Specific, detectable billing-exhaustion → Gemini fallback.
