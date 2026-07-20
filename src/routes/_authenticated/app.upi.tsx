@@ -75,7 +75,6 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
   const [name, setName] = useState(prefill.pn ?? "");
   const [amount, setAmount] = useState(prefill.am ?? "");
   const [note, setNote] = useState(prefill.tn ?? "");
-  const [scannerOpen, setScannerOpen] = useState(false);
 
   const amt = parseFloat(amount);
   const params = {
@@ -121,27 +120,6 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
       <p className="mt-4 text-sm text-muted-foreground">
         Real money moves through your own UPI apps. ONIQ never touches the bag — your bank handles everything, no cap.
       </p>
-
-      <button
-        type="button"
-        data-testid="upi-scan"
-        onClick={() => setScannerOpen(true)}
-        className="press mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-card"
-      >
-        <ScanLine className="h-5 w-5" /> Scan any QR 📷
-      </button>
-
-      {scannerOpen && (
-        <UpiScannerOverlay
-          onDecode={(p) => {
-            setVpa(p.pa);
-            if (p.pn) setName(p.pn);
-            if (p.am) setAmount(p.am);
-            if (p.tn) setNote(p.tn);
-          }}
-          onClose={() => setScannerOpen(false)}
-        />
-      )}
 
       <div className="mt-5 rounded-3xl border border-border bg-card p-5">
         <label className="text-xs text-muted-foreground">Recipient UPI ID</label>
@@ -436,18 +414,8 @@ function ReceiveTab() {
         </div>
         <h3 className="mt-4 font-display text-lg font-semibold">set up your receive QR ✨</h3>
         <p className="mt-2 text-sm text-muted-foreground">
-          Add your UPI ID once — ONIQ turns it into a scannable QR. Money lands straight in your bank.
+          Add your UPI ID from Profile — ONIQ turns it into a scannable QR. Money lands straight in your bank.
         </p>
-        <Link
-          to="/app/scan"
-          onClick={() => {
-            // Prime the ScanScreen to open on the My QR setup form
-            qc.invalidateQueries({ queryKey: ["profile-vpa"] });
-          }}
-          className="mt-5 inline-flex items-center justify-center rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground"
-        >
-          Add your UPI ID
-        </Link>
       </div>
     );
   }
