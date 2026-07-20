@@ -290,14 +290,14 @@ function translateGeminiResponseToAnthropic(gem: any): any {
   };
 }
 
-async function callGeminiFallback(
+export async function callGemini(
   opts: CallClaudeOpts,
-  timeoutMs: number,
 ): Promise<CallClaudeResult> {
+  const timeoutMs = opts.timeoutMs ?? 12000;
   const key = Deno.env.get("GOOGLE_AI_API_KEY");
   if (!key) {
-    console.warn("callClaude: Gemini fallback unavailable — GOOGLE_AI_API_KEY not set");
-    return { ok: false, reason: "http 400" };
+    console.warn("callGemini: GOOGLE_AI_API_KEY not set");
+    return { ok: false, reason: "gemini not configured" };
   }
 
   const { tools, allowedFunctionNames } = translateToolsToGemini(opts.tools);
@@ -326,21 +326,33 @@ async function callGeminiFallback(
     let parsed: any = null;
     try { parsed = text ? JSON.parse(text) : null; } catch { /* keep null */ }
     if (!res.ok || !parsed) {
-      console.warn(`callClaude: Gemini fallback http ${res.status} body=${text.slice(0, 200)}`);
+      console.warn(`callGemini: http ${res.status} body=${text.slice(0, 200)}`);
       return { ok: false, reason: `gemini http ${res.status}` };
     }
     const translated = translateGeminiResponseToAnthropic(parsed);
     console.info(
-      `callClaude: fell back to Gemini due to Anthropic billing exhaustion — model=${GEMINI_FALLBACK_MODEL} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
+      `callGemini: ok model=${GEMINI_FALLBACK_MODEL} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
     );
     return { ok: true, data: translated };
   } catch (e) {
     const reason = (e as Error)?.name === "AbortError" ? "timeout" : String(e).slice(0, 120);
-    console.warn(`callClaude: Gemini fallback fetch failed (${reason})`);
+    console.warn(`callGemini: fetch failed (${reason})`);
     return { ok: false, reason };
   } finally {
     clearTimeout(t);
   }
+}
+
+async function callGeminiFallback(
+  opts: CallClaudeOpts,
+  timeoutMs: number,
+): Promise<CallClaudeResult> {
+  const r = await callGemini({ ...opts, timeoutMs });
+  if (r.ok) {
+    console.info("callClaude: fell back to Gemini due to Anthropic billing exhaustion");
+    return r;
+  }
+  return { ok: false, reason: "http 400" };
 }
 
 export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult> {
