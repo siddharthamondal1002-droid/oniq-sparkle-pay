@@ -423,6 +423,18 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
 
   if ("status" in r) {
     if (r.status >= 200 && r.status < 300 && r.body) {
+      // Log prompt-cache hit/miss when Anthropic reports it. Present only
+      // when a cache_control block was sent and the prompt was large enough
+      // to be genuinely cached — otherwise these fields are absent and we
+      // stay silent.
+      const usage = (r.body as { usage?: Record<string, unknown> })?.usage;
+      const cw = usage?.cache_creation_input_tokens;
+      const cr = usage?.cache_read_input_tokens;
+      if (typeof cw === "number" || typeof cr === "number") {
+        console.info(
+          `callClaude: prompt-cache usage cache_creation=${cw ?? 0} cache_read=${cr ?? 0} input=${usage?.input_tokens ?? 0} output=${usage?.output_tokens ?? 0}`,
+        );
+      }
       return { ok: true, data: r.body };
     }
     // Specific, detectable billing-exhaustion → Gemini fallback.
