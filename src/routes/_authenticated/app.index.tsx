@@ -203,7 +203,6 @@ function HomeScreen() {
       </div>
     </div>
     </MediaProvider>
-    </LanguageProvider>
   );
 }
 
