@@ -83,7 +83,7 @@ function HomeScreen() {
               {profileLoading ? (
                 <div className="mt-1 h-8 w-40 animate-pulse rounded-lg bg-surface" />
               ) : (
-                <p className="font-display text-3xl font-bold text-gradient-primary">yo, {first} 👋</p>
+                <p className="font-display text-3xl font-bold text-gradient-primary">{t("home.greeting", "Hey")}, {first} 👋</p>
               )}
             </div>
 
