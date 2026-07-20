@@ -967,7 +967,7 @@ type MarketData = {
 type NewsItem = { title: string; link: string; source: string; publishedAt: string; image?: string };
 
 const GLANCE_COLLAPSE_KEY = "oniq.home.glance.collapsed";
-const MEDIA_TILE_KEY = "oniq.home.mediaTile";
+
 
 function useGlanceCollapsed() {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
