@@ -1380,7 +1380,7 @@ function MediaBanner({
               effective === "brainrot" ? "bg-primary text-primary-foreground" : "text-white/80"
             }`}
           >
-            brainrot
+            mast
           </button>
         </div>
       )}
