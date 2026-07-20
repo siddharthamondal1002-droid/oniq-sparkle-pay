@@ -151,7 +151,7 @@ function HomeScreen() {
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6", span: 3 },
                 { key: "learn", to: "/app/learn", icon: GraduationCap, label: "bachat बचत", color: "#FB923C", span: 3 },
                 { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185", span: 3 },
-                { key: "upi", to: "/app/upi", icon: IndianRupee, label: t("home.tile.upi"), color: "#22C55E", span: 3 },
+                
               ] as const;
               return primary
                 .filter((tile) => !hidden.has(tile.key as TileKey))
