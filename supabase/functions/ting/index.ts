@@ -99,35 +99,62 @@ Deno.serve(async (req) => {
       }
     }
 
-    const payload: Record<string, unknown> = {
-      model: "claude-sonnet-4-6",
-      max_tokens: 1024,
-      system: SYSTEM + langInstruction(lang),
-      messages: outMessages,
-    };
-    if (search) {
-      payload.tools = [{ type: "web_search_20250305", name: "web_search" }];
+    const systemPrompt = SYSTEM + langInstruction(lang);
+
+    // --- Gemini primary path (only for plain-text messages; attachments need
+    // Anthropic's vision/document schema) ---
+    const hasAttachment = outMessages.some((m) => typeof m.content !== "string");
+    let data: any = null;
+    let servedBy: "gemini" | "anthropic" = "anthropic";
+
+    if (!hasAttachment) {
+      const geminiMsgs: ClaudeMessage[] = outMessages.map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: typeof m.content === "string" ? m.content : "",
+      }));
+      const g = await callGemini({ system: systemPrompt, messages: geminiMsgs, maxTokens: 1024 });
+      if (g.ok) {
+        console.info("Ting answered via Gemini (primary)");
+        data = g.data;
+        servedBy = "gemini";
+      } else {
+        console.warn(`Ting: Gemini primary failed (${g.reason}) — falling back to Anthropic`);
+      }
     }
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify(payload),
-    });
+    if (!data) {
+      const payload: Record<string, unknown> = {
+        model: "claude-sonnet-4-6",
+        max_tokens: 1024,
+        system: systemPrompt,
+        messages: outMessages,
+      };
+      if (search) {
+        payload.tools = [{ type: "web_search_20250305", name: "web_search" }];
+      }
 
-    if (res.status === 401) return json({ configured: false }, 200);
-    if (res.status === 429) return json({ error: "Ting is a bit busy — try again in a moment 🐢" }, 429);
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      console.error("anthropic error", res.status, t);
-      return json({ error: "Ting glitched — try again" }, 502);
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": key,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.status === 401) return json({ configured: false }, 200);
+      if (res.status === 429) return json({ error: "Ting is a bit busy — try again in a moment 🐢" }, 429);
+      if (!res.ok) {
+        const t = await res.text().catch(() => "");
+        console.error("anthropic error", res.status, t);
+        return json({ error: "Ting glitched — try again" }, 502);
+      }
+      data = await res.json();
+      console.info("Ting answered via Anthropic (fallback)");
+      void servedBy;
     }
 
-    const data = await res.json();
     const blocks: any[] = Array.isArray(data?.content) ? data.content : [];
     let reply = "";
     const sources: string[] = [];
