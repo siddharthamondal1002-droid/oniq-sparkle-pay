@@ -170,8 +170,8 @@ function HomeScreen() {
           <SectionRow
             title="📺 media"
             tiles={[
-              { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "the plug 🔌", color: "#A3E635" },
-              { key: "pulse", to: "/app/news", icon: Newspaper, label: "the tea ☕", color: "#F472B6" },
+              { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "jugaad 🔌", color: "#A3E635" },
+              { key: "pulse", to: "/app/news", icon: Newspaper, label: "khabar ☕", color: "#F472B6" },
             ]}
             hidden={hidden}
             skins={skins}
