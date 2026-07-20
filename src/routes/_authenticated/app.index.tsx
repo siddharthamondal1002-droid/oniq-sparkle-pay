@@ -1349,7 +1349,7 @@ function MediaBanner({
           search={{ tab: "watch" as const }}
           icon={Tv}
           label="Watch"
-          tagline="brainrot on tap 📺"
+          tagline="mast on tap 📺"
           gradient="from-primary/30 via-primary/10 to-accent/30"
           delay={0}
           livePreview
