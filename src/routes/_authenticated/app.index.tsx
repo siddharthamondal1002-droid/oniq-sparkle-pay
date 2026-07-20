@@ -181,7 +181,7 @@ function HomeScreen() {
             tiles={[
               { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
               { key: "vitals", to: "/app/vitals", icon: Heart, label: "vitals 🫀", color: vitalsColor },
-              { key: "wander", to: "/app/travel", icon: Plane, label: "touch grass ✈️", color: "#22D3EE" },
+              { key: "wander", to: "/app/travel", icon: Plane, label: "safar ✈️", color: "#22D3EE" },
             ]}
             hidden={hidden}
             skins={skins}
