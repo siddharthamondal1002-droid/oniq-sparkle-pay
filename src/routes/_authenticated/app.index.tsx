@@ -253,7 +253,7 @@ function Tile({
           <Lock className="h-2.5 w-2.5 text-muted-foreground" />
         </div>
       )}
-      <span className={`relative z-10 text-xs font-medium ${showSkin ? "text-white drop-shadow" : ""} ${locked ? "text-muted-foreground" : ""}`}>{label}</span>
+      <span className={`font-display relative z-10 text-xs font-medium ${showSkin ? "text-white drop-shadow" : ""} ${locked ? "text-muted-foreground" : ""}`}>{label}</span>
     </>
   );
   const base =
@@ -1292,7 +1292,7 @@ function SectionRow({
               >
                 <Icon className="h-4 w-4" />
               </div>
-              <span className={`relative text-xs font-medium ${skin ? "text-white drop-shadow" : "text-foreground"}`}>{t.label}</span>
+              <span className={`font-display relative text-xs font-medium ${skin ? "text-white drop-shadow" : "text-foreground"}`}>{t.label}</span>
               <ChevronRight className="relative ml-auto h-3.5 w-3.5 text-muted-foreground" />
             </Link>
           );
