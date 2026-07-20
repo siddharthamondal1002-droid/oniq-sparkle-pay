@@ -25,35 +25,35 @@ const en: Dict = {
 
 const hi: Dict = {
   ...en,
-  "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "khazana 💰",
-  "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "khabar ☕",
-  "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "batua 💳",
-  "home.tile.clips": "mast 🎬",
+  "home.tile.rides": "चलो",
+  "home.tile.upi": "ख़ज़ाना",
+  "home.tile.miniapps": "जुगाड़",
+  "home.tile.pulse": "ख़बर",
+  "home.tile.wander": "सफ़र",
+  "home.tile.wallet": "बटुआ",
+  "home.tile.clips": "मस्त",
 };
 
 const ta: Dict = {
   ...en,
-  "home.tile.rides": "vaa 🚗",
-  "home.tile.upi": "kaasu 💰",
-  "home.tile.miniapps": "gethu 🔌",
-  "home.tile.pulse": "seithi ☕",
-  "home.tile.wander": "payanam ✈️",
-  "home.tile.wallet": "panam 💳",
-  "home.tile.clips": "semma 🎬",
+  "home.tile.rides": "வா",
+  "home.tile.upi": "காசு",
+  "home.tile.miniapps": "கெத்து",
+  "home.tile.pulse": "செய்தி",
+  "home.tile.wander": "பயணம்",
+  "home.tile.wallet": "பணம்",
+  "home.tile.clips": "செம்ம",
 };
 
 const te: Dict = {
   ...en,
-  "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "kaasu 💰",
-  "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "vaarta ☕",
-  "home.tile.wander": "prayanam ✈️",
-  "home.tile.wallet": "kaasu 💳",
-  "home.tile.clips": "keka 🎬",
+  "home.tile.rides": "చలో",
+  "home.tile.upi": "కాసు",
+  "home.tile.miniapps": "జుగాడ్",
+  "home.tile.pulse": "వార్త",
+  "home.tile.wander": "ప్రయాణం",
+  "home.tile.wallet": "కాసు",
+  "home.tile.clips": "కేక",
 };
 
 
@@ -70,24 +70,24 @@ const bn: Dict = {
 
 const mr: Dict = {
   ...en,
-  "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "khazana 💰",
-  "home.tile.miniapps": "katta 🔌",
-  "home.tile.pulse": "khabar ☕",
-  "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "batua 💳",
-  "home.tile.clips": "bhari 🎬",
+  "home.tile.rides": "चला",
+  "home.tile.upi": "खजिना",
+  "home.tile.miniapps": "कट्टा",
+  "home.tile.pulse": "खबर",
+  "home.tile.wander": "सफर",
+  "home.tile.wallet": "बटवा",
+  "home.tile.clips": "भारी",
 };
 
 const kn: Dict = {
   ...en,
-  "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "kaasu 💰",
-  "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "suddi ☕",
-  "home.tile.wander": "prayana ✈️",
-  "home.tile.wallet": "kaasu 💳",
-  "home.tile.clips": "sakkath 🎬",
+  "home.tile.rides": "ಚಲೋ",
+  "home.tile.upi": "ಕಾಸು",
+  "home.tile.miniapps": "ಜುಗಾಡ್",
+  "home.tile.pulse": "ಸುದ್ದಿ",
+  "home.tile.wander": "ಪ್ರಯಾಣ",
+  "home.tile.wallet": "ಕಾಸು",
+  "home.tile.clips": "ಸಕ್ಕತ್",
 };
 
 const ml: Dict = {
