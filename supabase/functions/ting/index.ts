@@ -1,5 +1,5 @@
-// Ting edge function — Claude (Anthropic) with optional web search
-import { langInstruction } from "../_shared/llm.ts";
+// Ting edge function — Gemini primary, Anthropic (Claude) fallback + web search
+import { langInstruction, callGemini, type ClaudeMessage } from "../_shared/llm.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
