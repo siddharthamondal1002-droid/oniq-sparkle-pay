@@ -39,7 +39,6 @@ import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppLearnRouteImport } from './routes/_authenticated/app.learn'
 import { Route as AuthenticatedAppFaithRouteImport } from './routes/_authenticated/app.faith'
 import { Route as AuthenticatedAppEarnRouteImport } from './routes/_authenticated/app.earn'
-import { Route as AuthenticatedAppDiscoverRouteImport } from './routes/_authenticated/app.discover'
 import { Route as AuthenticatedAppClipsRouteImport } from './routes/_authenticated/app.clips'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
 import { Route as AuthenticatedAppBanksRouteImport } from './routes/_authenticated/app.banks'
@@ -52,6 +51,7 @@ import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authent
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as AuthenticatedAppFoodIdRouteImport } from './routes/_authenticated/app.food.$id'
 import { Route as AuthenticatedAppChatUpdatesRouteImport } from './routes/_authenticated/app.chat.updates'
+import { Route as AuthenticatedAppChatReelsRouteImport } from './routes/_authenticated/app.chat.reels'
 import { Route as AuthenticatedAppChatMomentsRouteImport } from './routes/_authenticated/app.chat.moments'
 import { Route as AuthenticatedAppChatCallsRouteImport } from './routes/_authenticated/app.chat.calls'
 import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
@@ -208,12 +208,6 @@ const AuthenticatedAppEarnRoute = AuthenticatedAppEarnRouteImport.update({
   path: '/earn',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppDiscoverRoute =
-  AuthenticatedAppDiscoverRouteImport.update({
-    id: '/discover',
-    path: '/discover',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
 const AuthenticatedAppClipsRoute = AuthenticatedAppClipsRouteImport.update({
   id: '/clips',
   path: '/clips',
@@ -279,6 +273,12 @@ const AuthenticatedAppChatUpdatesRoute =
     path: '/updates',
     getParentRoute: () => AuthenticatedAppChatRoute,
   } as any)
+const AuthenticatedAppChatReelsRoute =
+  AuthenticatedAppChatReelsRouteImport.update({
+    id: '/reels',
+    path: '/reels',
+    getParentRoute: () => AuthenticatedAppChatRoute,
+  } as any)
 const AuthenticatedAppChatMomentsRoute =
   AuthenticatedAppChatMomentsRouteImport.update({
     id: '/moments',
@@ -320,7 +320,6 @@ export interface FileRoutesByFullPath {
   '/app/banks': typeof AuthenticatedAppBanksRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/clips': typeof AuthenticatedAppClipsRoute
-  '/app/discover': typeof AuthenticatedAppDiscoverRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
   '/app/faith': typeof AuthenticatedAppFaithRoute
   '/app/learn': typeof AuthenticatedAppLearnRoute
@@ -339,6 +338,7 @@ export interface FileRoutesByFullPath {
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
   '/app/chat/moments': typeof AuthenticatedAppChatMomentsRoute
+  '/app/chat/reels': typeof AuthenticatedAppChatReelsRoute
   '/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -365,7 +365,6 @@ export interface FileRoutesByTo {
   '/app/ai': typeof AuthenticatedAppAiRoute
   '/app/banks': typeof AuthenticatedAppBanksRoute
   '/app/clips': typeof AuthenticatedAppClipsRoute
-  '/app/discover': typeof AuthenticatedAppDiscoverRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
   '/app/faith': typeof AuthenticatedAppFaithRoute
   '/app/learn': typeof AuthenticatedAppLearnRoute
@@ -384,6 +383,7 @@ export interface FileRoutesByTo {
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
   '/app/chat/moments': typeof AuthenticatedAppChatMomentsRoute
+  '/app/chat/reels': typeof AuthenticatedAppChatReelsRoute
   '/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -414,7 +414,6 @@ export interface FileRoutesById {
   '/_authenticated/app/banks': typeof AuthenticatedAppBanksRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/_authenticated/app/clips': typeof AuthenticatedAppClipsRoute
-  '/_authenticated/app/discover': typeof AuthenticatedAppDiscoverRoute
   '/_authenticated/app/earn': typeof AuthenticatedAppEarnRoute
   '/_authenticated/app/faith': typeof AuthenticatedAppFaithRoute
   '/_authenticated/app/learn': typeof AuthenticatedAppLearnRoute
@@ -433,6 +432,7 @@ export interface FileRoutesById {
   '/_authenticated/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/_authenticated/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
   '/_authenticated/app/chat/moments': typeof AuthenticatedAppChatMomentsRoute
+  '/_authenticated/app/chat/reels': typeof AuthenticatedAppChatReelsRoute
   '/_authenticated/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/_authenticated/app/food/$id': typeof AuthenticatedAppFoodIdRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
@@ -463,7 +463,6 @@ export interface FileRouteTypes {
     | '/app/banks'
     | '/app/chat'
     | '/app/clips'
-    | '/app/discover'
     | '/app/earn'
     | '/app/faith'
     | '/app/learn'
@@ -482,6 +481,7 @@ export interface FileRouteTypes {
     | '/app/chat/$conversationId'
     | '/app/chat/calls'
     | '/app/chat/moments'
+    | '/app/chat/reels'
     | '/app/chat/updates'
     | '/app/food/$id'
     | '/lovable/email/queue/process'
@@ -508,7 +508,6 @@ export interface FileRouteTypes {
     | '/app/ai'
     | '/app/banks'
     | '/app/clips'
-    | '/app/discover'
     | '/app/earn'
     | '/app/faith'
     | '/app/learn'
@@ -527,6 +526,7 @@ export interface FileRouteTypes {
     | '/app/chat/$conversationId'
     | '/app/chat/calls'
     | '/app/chat/moments'
+    | '/app/chat/reels'
     | '/app/chat/updates'
     | '/app/food/$id'
     | '/lovable/email/queue/process'
@@ -556,7 +556,6 @@ export interface FileRouteTypes {
     | '/_authenticated/app/banks'
     | '/_authenticated/app/chat'
     | '/_authenticated/app/clips'
-    | '/_authenticated/app/discover'
     | '/_authenticated/app/earn'
     | '/_authenticated/app/faith'
     | '/_authenticated/app/learn'
@@ -575,6 +574,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/chat/$conversationId'
     | '/_authenticated/app/chat/calls'
     | '/_authenticated/app/chat/moments'
+    | '/_authenticated/app/chat/reels'
     | '/_authenticated/app/chat/updates'
     | '/_authenticated/app/food/$id'
     | '/lovable/email/queue/process'
@@ -814,13 +814,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppEarnRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/discover': {
-      id: '/_authenticated/app/discover'
-      path: '/discover'
-      fullPath: '/app/discover'
-      preLoaderRoute: typeof AuthenticatedAppDiscoverRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
     '/_authenticated/app/clips': {
       id: '/_authenticated/app/clips'
       path: '/clips'
@@ -905,6 +898,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppChatUpdatesRouteImport
       parentRoute: typeof AuthenticatedAppChatRoute
     }
+    '/_authenticated/app/chat/reels': {
+      id: '/_authenticated/app/chat/reels'
+      path: '/reels'
+      fullPath: '/app/chat/reels'
+      preLoaderRoute: typeof AuthenticatedAppChatReelsRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
+    }
     '/_authenticated/app/chat/moments': {
       id: '/_authenticated/app/chat/moments'
       path: '/moments'
@@ -933,6 +933,7 @@ interface AuthenticatedAppChatRouteChildren {
   AuthenticatedAppChatConversationIdRoute: typeof AuthenticatedAppChatConversationIdRoute
   AuthenticatedAppChatCallsRoute: typeof AuthenticatedAppChatCallsRoute
   AuthenticatedAppChatMomentsRoute: typeof AuthenticatedAppChatMomentsRoute
+  AuthenticatedAppChatReelsRoute: typeof AuthenticatedAppChatReelsRoute
   AuthenticatedAppChatUpdatesRoute: typeof AuthenticatedAppChatUpdatesRoute
   AuthenticatedAppChatIndexRoute: typeof AuthenticatedAppChatIndexRoute
 }
@@ -942,6 +943,7 @@ const AuthenticatedAppChatRouteChildren: AuthenticatedAppChatRouteChildren = {
     AuthenticatedAppChatConversationIdRoute,
   AuthenticatedAppChatCallsRoute: AuthenticatedAppChatCallsRoute,
   AuthenticatedAppChatMomentsRoute: AuthenticatedAppChatMomentsRoute,
+  AuthenticatedAppChatReelsRoute: AuthenticatedAppChatReelsRoute,
   AuthenticatedAppChatUpdatesRoute: AuthenticatedAppChatUpdatesRoute,
   AuthenticatedAppChatIndexRoute: AuthenticatedAppChatIndexRoute,
 }
@@ -955,7 +957,6 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppBanksRoute: typeof AuthenticatedAppBanksRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
   AuthenticatedAppClipsRoute: typeof AuthenticatedAppClipsRoute
-  AuthenticatedAppDiscoverRoute: typeof AuthenticatedAppDiscoverRoute
   AuthenticatedAppEarnRoute: typeof AuthenticatedAppEarnRoute
   AuthenticatedAppFaithRoute: typeof AuthenticatedAppFaithRoute
   AuthenticatedAppLearnRoute: typeof AuthenticatedAppLearnRoute
@@ -981,7 +982,6 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppBanksRoute: AuthenticatedAppBanksRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
   AuthenticatedAppClipsRoute: AuthenticatedAppClipsRoute,
-  AuthenticatedAppDiscoverRoute: AuthenticatedAppDiscoverRoute,
   AuthenticatedAppEarnRoute: AuthenticatedAppEarnRoute,
   AuthenticatedAppFaithRoute: AuthenticatedAppFaithRoute,
   AuthenticatedAppLearnRoute: AuthenticatedAppLearnRoute,
