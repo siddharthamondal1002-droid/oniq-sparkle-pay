@@ -149,7 +149,7 @@ function HomeScreen() {
               const primary = [
                 { key: "rides", to: "/app/rides", icon: Car, label: t("home.tile.rides"), sub: "Ride Genie", color: "#38BDF8", span: 6 },
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6", span: 3 },
-                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C", span: 3 },
+                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "bachat बचत", color: "#FB923C", span: 3 },
                 { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185", span: 3 },
                 { key: "upi", to: "/app/upi", icon: IndianRupee, label: t("home.tile.upi"), color: "#22C55E", span: 3 },
               ] as const;
