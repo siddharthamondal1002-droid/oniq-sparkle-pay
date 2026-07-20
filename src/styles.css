@@ -163,6 +163,18 @@
     font-family: var(--font-display);
     letter-spacing: -0.02em;
   }
+
+  /* App-wide: UI labels (tile names, headers, button text) are uppercase + bold.
+     Scoped to .font-display (display type only — Space Grotesk), h1–h4, and
+     <button> elements. Long-form body text, chat bubbles, and article paragraphs
+     use font-sans (Inter) and are intentionally excluded. */
+  .font-display,
+  h1, h2, h3, h4,
+  button {
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+  }
 }
 
 @utility text-gradient-primary {
