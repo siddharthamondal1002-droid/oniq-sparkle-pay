@@ -142,11 +142,11 @@ function HomeScreen() {
           <div className="mt-4 grid grid-cols-6 gap-3">
             {(() => {
               const primary = [
-                { key: "rides", to: "/app/rides", icon: Car, label: "pull up 🚗", color: "#38BDF8", span: 6 },
+                { key: "rides", to: "/app/rides", icon: Car, label: "chalo 🚗", color: "#38BDF8", span: 6 },
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6", span: 3 },
                 { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C", span: 3 },
                 { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185", span: 3 },
-                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "the bag 💰", color: "#22C55E", span: 3 },
+                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "khazana 💰", color: "#22C55E", span: 3 },
               ] as const;
               return primary
                 .filter((t) => !hidden.has(t.key as TileKey))
