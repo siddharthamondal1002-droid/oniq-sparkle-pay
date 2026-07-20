@@ -47,6 +47,7 @@ function AppShell() {
   const showNav = TOP_LEVEL.has(normalized);
 
   return (
+    <LanguageProvider>
     <>
       {/* Desktop/tablet backdrop — subtle branded gradient behind the mobile frame */}
       <div
