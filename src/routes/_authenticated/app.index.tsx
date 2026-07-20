@@ -139,14 +139,17 @@ function HomeScreen() {
           </div>
 
           {/* Primary row — 5 large tiles */}
-          <div className="mt-4 grid grid-cols-6 gap-3">
+          <div className="mt-4 mb-1.5 px-0.5 text-[11px] text-muted-foreground">
+            words from across India, not just English slang 🇮🇳
+          </div>
+          <div className="grid grid-cols-6 gap-3">
             {(() => {
               const primary = [
-                { key: "rides", to: "/app/rides", icon: Car, label: "pull up 🚗", color: "#38BDF8", span: 6 },
+                { key: "rides", to: "/app/rides", icon: Car, label: "chalo 🚗", color: "#38BDF8", span: 6 },
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6", span: 3 },
                 { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C", span: 3 },
                 { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185", span: 3 },
-                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "the bag 💰", color: "#22C55E", span: 3 },
+                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "khazana 💰", color: "#22C55E", span: 3 },
               ] as const;
               return primary
                 .filter((t) => !hidden.has(t.key as TileKey))
@@ -170,8 +173,8 @@ function HomeScreen() {
           <SectionRow
             title="📺 media"
             tiles={[
-              { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "the plug 🔌", color: "#A3E635" },
-              { key: "pulse", to: "/app/news", icon: Newspaper, label: "the tea ☕", color: "#F472B6" },
+              { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "jugaad 🔌", color: "#A3E635" },
+              { key: "pulse", to: "/app/news", icon: Newspaper, label: "khabar ☕", color: "#F472B6" },
             ]}
             hidden={hidden}
             skins={skins}
@@ -181,7 +184,7 @@ function HomeScreen() {
             tiles={[
               { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
               { key: "vitals", to: "/app/vitals", icon: Heart, label: "vitals 🫀", color: vitalsColor },
-              { key: "wander", to: "/app/travel", icon: Plane, label: "touch grass ✈️", color: "#22D3EE" },
+              { key: "wander", to: "/app/travel", icon: Plane, label: "safar ✈️", color: "#22D3EE" },
             ]}
             hidden={hidden}
             skins={skins}
@@ -190,7 +193,7 @@ function HomeScreen() {
             title="💼 work"
             tiles={[
               { key: "earn", to: "/app/earn", icon: Briefcase, label: "earn 💼", color: "#00D4B8" },
-              { key: "wallet", to: "/app/wallet", icon: Coins, label: "tap in 💳", color: "#F59E0B" },
+              { key: "wallet", to: "/app/wallet", icon: Coins, label: "batua 💳", color: "#F59E0B" },
             ]}
             hidden={hidden}
             skins={skins}
@@ -903,7 +906,7 @@ function ClipsHeroTile({
       )}
       <div className="relative">
         <div className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}>doomscroll era</div>
-        <div className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}>brainrot 🎬</div>
+        <div className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}>mast 🎬</div>
       </div>
     </Link>
   );
@@ -1349,7 +1352,7 @@ function MediaBanner({
           search={{ tab: "watch" as const }}
           icon={Tv}
           label="Watch"
-          tagline="brainrot on tap 📺"
+          tagline="mast on tap 📺"
           gradient="from-primary/30 via-primary/10 to-accent/30"
           delay={0}
           livePreview
@@ -1380,7 +1383,7 @@ function MediaBanner({
               effective === "brainrot" ? "bg-primary text-primary-foreground" : "text-white/80"
             }`}
           >
-            brainrot
+            mast
           </button>
         </div>
       )}
@@ -1494,7 +1497,7 @@ function BrainrotBanner({ skin }: { skin?: string }) {
       ) : null}
       <div className="relative flex h-full flex-col justify-end">
         <div className="text-[10px] uppercase tracking-wider text-white/80">doomscroll era</div>
-        <div className="font-display text-2xl font-bold text-white drop-shadow">brainrot 🎬</div>
+        <div className="font-display text-2xl font-bold text-white drop-shadow">mast 🎬</div>
       </div>
 
       {videoUrl && (
