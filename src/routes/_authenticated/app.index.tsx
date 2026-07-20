@@ -1307,220 +1307,36 @@ function SectionRow({
   );
 }
 
-// ---------- Media banner ----------
-
-type MediaMode = "watch" | "brainrot";
-
-function useMediaMode(): [MediaMode, (m: MediaMode) => void] {
-  const [mode, setMode] = useState<MediaMode>(() => {
-    if (typeof window === "undefined") return "watch";
-    try {
-      const v = localStorage.getItem(MEDIA_TILE_KEY);
-      return v === "brainrot" ? "brainrot" : "watch";
-    } catch { return "watch"; }
-  });
-  const set = (m: MediaMode) => {
-    setMode(m);
-    try { localStorage.setItem(MEDIA_TILE_KEY, m); } catch { /* noop */ }
-  };
-  return [mode, set];
-}
+// ---------- Media banner (Watch-only) ----------
 
 function MediaBanner({
   watchHidden,
-  clipsHidden,
   watchSkin,
-  clipsSkin,
 }: {
   watchHidden: boolean;
-  clipsHidden: boolean;
+  clipsHidden?: boolean;
   watchSkin?: string;
   clipsSkin?: string;
 }) {
-  const [savedMode, setMode] = useMediaMode();
-  // If a mode is hidden via customize, fall back to the other.
-  const effective: MediaMode | null = (() => {
-    if (savedMode === "brainrot" && !clipsHidden) return "brainrot";
-    if (savedMode === "watch" && !watchHidden) return "watch";
-    if (!watchHidden) return "watch";
-    if (!clipsHidden) return "brainrot";
-    return null;
-  })();
-
-  if (!effective) return null;
-
+  if (watchHidden) return null;
   return (
     <div className="relative">
-      {effective === "watch" ? (
-        <HeroTile
-          tileKey="watch"
-          skin={watchSkin}
-          to="/app/news"
-          search={{ tab: "watch" as const }}
-          icon={Tv}
-          label="Watch"
-          tagline="mast on tap 📺"
-          gradient="from-primary/30 via-primary/10 to-accent/30"
-          delay={0}
-          livePreview
-        />
-      ) : (
-        <BrainrotBanner skin={clipsSkin} />
-      )}
-
-      {/* Mode switcher — only visible when both modes are available */}
-      {!watchHidden && !clipsHidden && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="absolute right-2 top-2 z-40 flex items-center gap-1 rounded-full border border-white/15 bg-black/60 p-0.5 backdrop-blur"
-        >
-          <button
-            onClick={(e) => { e.stopPropagation(); setMode("watch"); }}
-            aria-pressed={effective === "watch"}
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
-              effective === "watch" ? "bg-primary text-primary-foreground" : "text-white/80"
-            }`}
-          >
-            watch
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); setMode("brainrot"); }}
-            aria-pressed={effective === "brainrot"}
-            className={`rounded-full px-2 py-0.5 text-[10px] font-semibold transition-colors ${
-              effective === "brainrot" ? "bg-primary text-primary-foreground" : "text-white/80"
-            }`}
-          >
-            mast
-          </button>
-        </div>
-      )}
+      <HeroTile
+        tileKey="watch"
+        skin={watchSkin}
+        to="/app/news"
+        search={{ tab: "watch" as const }}
+        icon={Tv}
+        label="Watch"
+        tagline="mast on tap 📺"
+        gradient="from-primary/30 via-primary/10 to-accent/30"
+        delay={0}
+        livePreview
+      />
     </div>
   );
 }
 
-function BrainrotBanner({ skin }: { skin?: string }) {
-  const [skinError, setSkinError] = useState(false);
-  const [errored, setErrored] = useState<Record<string, boolean>>({});
-  const [idx, setIdx] = useState(0);
-  const [muted, setMuted] = useState(true);
-  const videoElRef = useRef<HTMLVideoElement | null>(null);
-  const media = useMediaCoordinator();
-  const showSkin = skin && !skinError;
-
-  const { data: clips } = useQuery({
-    queryKey: ["latest-clips", 10],
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("clips")
-        .select("id, video_url")
-        .order("created_at", { ascending: false })
-        .limit(10);
-      return data ?? [];
-    },
-  });
-
-  const validClips = (clips ?? []).filter((c) => !errored[c.id]);
-  const total = validClips.length;
-  const current = !showSkin && total > 0 ? validClips[idx % total] : null;
-
-  useEffect(() => {
-    if (showSkin || total < 2) return;
-    let t: number | null = null;
-    const tick = () => {
-      if (typeof document !== "undefined" && document.hidden) {
-        t = window.setTimeout(tick, 20_000);
-        return;
-      }
-      setIdx((i) => (i + 1) % total);
-    };
-    t = window.setTimeout(tick, 20_000);
-    return () => { if (t) window.clearTimeout(t); };
-  }, [idx, total, showSkin]);
-
-  const videoUrl = current?.video_url ?? null;
-
-  const onVideoPlay = () => {
-    if (videoElRef.current) media.register(videoElRef.current);
-  };
-  const toggleMute = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const el = videoElRef.current;
-    if (!el) return;
-    if (el.muted) {
-      // Unmuting: this click is the user gesture, register as active player.
-      media.register(el);
-      el.muted = false;
-      setMuted(false);
-      // Ensure playback survives autoplay-with-sound restrictions.
-      void el.play().catch(() => {
-        el.muted = true;
-        setMuted(true);
-      });
-    } else {
-      el.muted = true;
-      setMuted(true);
-    }
-  };
-
-  return (
-    <Link
-      to="/app/clips"
-      className="press fade-up relative block aspect-video w-full overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br from-accent/30 via-fuchsia-500/20 to-pink-500/30 p-4"
-    >
-      {videoUrl && current && (
-        <video
-          key={current.id}
-          ref={videoElRef}
-          src={videoUrl}
-          autoPlay
-          muted={muted}
-          loop
-          playsInline
-          onPlay={onVideoPlay}
-          onError={() => {
-            setErrored((e) => ({ ...e, [current.id]: true }));
-            setIdx((i) => (total > 1 ? (i + 1) % total : i));
-          }}
-          className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-        />
-      )}
-      {videoUrl && (
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
-      )}
-      {showSkin ? (
-        <>
-          <img
-            src={skin!}
-            alt=""
-            onError={() => setSkinError(true)}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/78 via-black/22 to-transparent" />
-        </>
-      ) : !videoUrl ? (
-        <Clapperboard className="relative h-10 w-10 text-foreground/90" strokeWidth={1.6} />
-      ) : null}
-      <div className="relative flex h-full flex-col justify-end">
-        <div className="text-[10px] uppercase tracking-wider text-white/80">doomscroll era</div>
-        <div className="font-display text-2xl font-bold text-white drop-shadow">mast 🎬</div>
-      </div>
-
-      {videoUrl && (
-        <button
-          type="button"
-          onClick={toggleMute}
-          aria-label="Mute"
-          aria-pressed={muted}
-          className="press absolute bottom-3 right-3 z-30 grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-black/60 text-white backdrop-blur"
-        >
-          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </button>
-      )}
-    </Link>
-  );
-}
 
 
 
