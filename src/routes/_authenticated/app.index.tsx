@@ -37,7 +37,7 @@ import {
   type TileKey,
 } from "@/components/customize/CustomizeSheet";
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
-import { LanguageProvider, useT } from "@/lib/i18n/LanguageProvider";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   component: HomeScreen,
