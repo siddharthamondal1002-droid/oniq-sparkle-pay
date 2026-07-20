@@ -253,7 +253,7 @@ function Tile({
           <Lock className="h-2.5 w-2.5 text-muted-foreground" />
         </div>
       )}
-      <span className={`relative z-10 text-xs font-medium ${showSkin ? "text-white drop-shadow" : ""} ${locked ? "text-muted-foreground" : ""}`}>{label}</span>
+      <span className={`font-display relative z-10 text-xs font-medium ${showSkin ? "text-white drop-shadow" : ""} ${locked ? "text-muted-foreground" : ""}`}>{label}</span>
     </>
   );
   const base =
