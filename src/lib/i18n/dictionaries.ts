@@ -59,13 +59,13 @@ const te: Dict = {
 
 const bn: Dict = {
   ...en,
-  "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "khazana 💰",
-  "home.tile.miniapps": "adda 🔌",
-  "home.tile.pulse": "khabar ☕",
-  "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "batua 💳",
-  "home.tile.clips": "fatafati 🎬",
+  "home.tile.rides": "চলো",
+  "home.tile.upi": "খাজানা",
+  "home.tile.miniapps": "আড্ডা",
+  "home.tile.pulse": "খবর",
+  "home.tile.wander": "সফর",
+  "home.tile.wallet": "মানিব্যাগ",
+  "home.tile.clips": "ফটাফাটি",
 };
 
 const mr: Dict = {
