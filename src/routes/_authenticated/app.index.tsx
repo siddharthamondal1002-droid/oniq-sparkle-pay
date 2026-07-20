@@ -142,28 +142,28 @@ function HomeScreen() {
 
           {/* Primary row — 5 large tiles */}
           <div className="mt-4 mb-1.5 px-0.5 text-[11px] text-muted-foreground">
-            words from across India, not just English slang 🇮🇳
+            {t("home.transparency")}
           </div>
           <div className="grid grid-cols-6 gap-3">
             {(() => {
               const primary = [
-                { key: "rides", to: "/app/rides", icon: Car, label: "chalo 🚗", color: "#38BDF8", span: 6 },
+                { key: "rides", to: "/app/rides", icon: Car, label: t("home.tile.rides"), color: "#38BDF8", span: 6 },
                 { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6", span: 3 },
                 { key: "learn", to: "/app/learn", icon: GraduationCap, label: "smart 🧠", color: "#FB923C", span: 3 },
                 { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185", span: 3 },
-                { key: "upi", to: "/app/upi", icon: IndianRupee, label: "khazana 💰", color: "#22C55E", span: 3 },
+                { key: "upi", to: "/app/upi", icon: IndianRupee, label: t("home.tile.upi"), color: "#22C55E", span: 3 },
               ] as const;
               return primary
-                .filter((t) => !hidden.has(t.key as TileKey))
-                .map((t, i) => (
+                .filter((tile) => !hidden.has(tile.key as TileKey))
+                .map((tile, i) => (
                   <PrimaryTile
-                    key={t.key}
-                    to={t.to}
-                    icon={t.icon}
-                    label={t.label}
-                    color={t.color}
-                    span={t.span}
-                    skin={skins[t.key as TileKey]}
+                    key={tile.key}
+                    to={tile.to}
+                    icon={tile.icon}
+                    label={tile.label}
+                    color={tile.color}
+                    span={tile.span}
+                    skin={skins[tile.key as TileKey]}
                     delay={40 + i * 40}
                     showBalance={false}
                   />
@@ -175,8 +175,8 @@ function HomeScreen() {
           <SectionRow
             title="📺 media"
             tiles={[
-              { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: "jugaad 🔌", color: "#A3E635" },
-              { key: "pulse", to: "/app/news", icon: Newspaper, label: "khabar ☕", color: "#F472B6" },
+              { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: t("home.tile.miniapps"), color: "#A3E635" },
+              { key: "pulse", to: "/app/news", icon: Newspaper, label: t("home.tile.pulse"), color: "#F472B6" },
             ]}
             hidden={hidden}
             skins={skins}
@@ -186,7 +186,7 @@ function HomeScreen() {
             tiles={[
               { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
               { key: "vitals", to: "/app/vitals", icon: Heart, label: "vitals 🫀", color: vitalsColor },
-              { key: "wander", to: "/app/travel", icon: Plane, label: "safar ✈️", color: "#22D3EE" },
+              { key: "wander", to: "/app/travel", icon: Plane, label: t("home.tile.wander"), color: "#22D3EE" },
             ]}
             hidden={hidden}
             skins={skins}
@@ -195,7 +195,7 @@ function HomeScreen() {
             title="💼 work"
             tiles={[
               { key: "earn", to: "/app/earn", icon: Briefcase, label: "earn 💼", color: "#00D4B8" },
-              { key: "wallet", to: "/app/wallet", icon: Coins, label: "batua 💳", color: "#F59E0B" },
+              { key: "wallet", to: "/app/wallet", icon: Coins, label: t("home.tile.wallet"), color: "#F59E0B" },
             ]}
             hidden={hidden}
             skins={skins}
