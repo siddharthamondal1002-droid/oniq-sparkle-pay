@@ -26,6 +26,7 @@ const en: Dict = {
 
 const hi: Dict = {
   ...en,
+  "home.greeting": "नमस्ते",
   "home.tile.rides": "चलो",
   "home.tile.upi": "ख़ज़ाना",
   "home.tile.miniapps": "जुगाड़",
@@ -37,6 +38,7 @@ const hi: Dict = {
 
 const ta: Dict = {
   ...en,
+  "home.greeting": "வணக்கம்",
   "home.tile.rides": "வா",
   "home.tile.upi": "காசு",
   "home.tile.miniapps": "கெத்து",
@@ -48,6 +50,7 @@ const ta: Dict = {
 
 const te: Dict = {
   ...en,
+  "home.greeting": "నమస్కారం",
   "home.tile.rides": "చలో",
   "home.tile.upi": "కాసు",
   "home.tile.miniapps": "జుగాడ్",
@@ -60,6 +63,7 @@ const te: Dict = {
 
 const bn: Dict = {
   ...en,
+  "home.greeting": "নমস্কার",
   "home.tile.rides": "চলো",
   "home.tile.upi": "খাজানা",
   "home.tile.miniapps": "আড্ডা",
@@ -71,6 +75,7 @@ const bn: Dict = {
 
 const mr: Dict = {
   ...en,
+  "home.greeting": "नमस्कार",
   "home.tile.rides": "चला",
   "home.tile.upi": "खजिना",
   "home.tile.miniapps": "कट्टा",
@@ -82,6 +87,7 @@ const mr: Dict = {
 
 const kn: Dict = {
   ...en,
+  "home.greeting": "ನಮಸ್ಕಾರ",
   "home.tile.rides": "ಚಲೋ",
   "home.tile.upi": "ಕಾಸು",
   "home.tile.miniapps": "ಜುಗಾಡ್",
@@ -93,6 +99,7 @@ const kn: Dict = {
 
 const ml: Dict = {
   ...en,
+  "home.greeting": "നമസ്കാരം",
   "home.tile.rides": "ചലോ",
   "home.tile.upi": "പണം",
   "home.tile.miniapps": "ജുഗാഡ്",
@@ -105,6 +112,7 @@ const ml: Dict = {
 
 const pa: Dict = {
   ...en,
+  "home.greeting": "ਸਤ ਸ੍ਰੀ ਅਕਾਲ",
   "home.tile.rides": "ਗੇੜੀ",
   "home.tile.upi": "ਖਜ਼ਾਨਾ",
   "home.tile.miniapps": "ਜੁਗਾੜ",
@@ -116,6 +124,7 @@ const pa: Dict = {
 
 const gu: Dict = {
   ...en,
+  "home.greeting": "નમસ્તે",
   "home.tile.rides": "ચલો",
   "home.tile.upi": "ખજાનો",
   "home.tile.miniapps": "જુગાડ",
@@ -127,11 +136,12 @@ const gu: Dict = {
 
 // Odia & Assamese — pan-Indian Tier-0 fallback (honest: no verified
 // regional equivalents for these exact 7 concepts in tonight's research).
-const or: Dict = { ...en };
-const as: Dict = { ...en };
+const or: Dict = { ...en, "home.greeting": "ନମସ୍କାର" };
+const as: Dict = { ...en, "home.greeting": "নমস্কাৰ" };
 
 const ur: Dict = {
   ...en,
+  "home.greeting": "آداب",
   "home.tile.rides": "چلو",
   "home.tile.upi": "خزانہ",
   "home.tile.miniapps": "جگاڑ",
