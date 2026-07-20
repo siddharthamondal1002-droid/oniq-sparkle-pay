@@ -1494,7 +1494,7 @@ function BrainrotBanner({ skin }: { skin?: string }) {
       ) : null}
       <div className="relative flex h-full flex-col justify-end">
         <div className="text-[10px] uppercase tracking-wider text-white/80">doomscroll era</div>
-        <div className="font-display text-2xl font-bold text-white drop-shadow">brainrot 🎬</div>
+        <div className="font-display text-2xl font-bold text-white drop-shadow">mast 🎬</div>
       </div>
 
       {videoUrl && (
