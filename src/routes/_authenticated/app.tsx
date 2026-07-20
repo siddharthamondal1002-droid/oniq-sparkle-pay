@@ -1,6 +1,6 @@
 import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Home, MessageCircle, Compass, User } from "lucide-react";
+import { Home, MessageCircle, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { GlobalIncomingCall } from "@/components/chat/GlobalIncomingCall";
@@ -24,11 +24,10 @@ type Tab = { to: string; label: string; icon: typeof Home };
 const tabs: Tab[] = [
   { to: "/app", label: "Home", icon: Home },
   { to: "/app/chat", label: "Chat", icon: MessageCircle },
-  { to: "/app/discover", label: "Discover", icon: Compass },
   { to: "/app/profile", label: "Profile", icon: User },
 ];
 
-const TOP_LEVEL = new Set(["/app", "/app/discover", "/app/profile"]);
+const TOP_LEVEL = new Set(["/app", "/app/profile"]);
 
 function AppShell() {
   const { pathname } = useLocation();
