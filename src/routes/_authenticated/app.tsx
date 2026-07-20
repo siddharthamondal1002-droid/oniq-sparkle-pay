@@ -13,6 +13,7 @@ import { usePresenceTracker } from "@/hooks/usePresence";
 import { useEffect } from "react";
 import { initPush } from "@/lib/push";
 import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
+import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
