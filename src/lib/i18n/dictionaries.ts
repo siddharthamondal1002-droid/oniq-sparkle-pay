@@ -13,6 +13,7 @@ export type Dict = Record<string, string>;
 // English baseline — same pan-Indian curated words as Hindi (per spec:
 // English speakers get the same flavour, not translated-back English).
 const en: Dict = {
+  "home.greeting": "Hey",
   "home.transparency": "words from across India, not just English slang 🇮🇳",
   "home.tile.rides": "chalo 🚗",
   "home.tile.upi": "khazana 💰",
