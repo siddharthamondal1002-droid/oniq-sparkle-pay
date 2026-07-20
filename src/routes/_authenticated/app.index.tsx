@@ -139,7 +139,10 @@ function HomeScreen() {
           </div>
 
           {/* Primary row — 5 large tiles */}
-          <div className="mt-4 grid grid-cols-6 gap-3">
+          <div className="mt-4 mb-1.5 px-0.5 text-[11px] text-muted-foreground">
+            words from across India, not just English slang 🇮🇳
+          </div>
+          <div className="grid grid-cols-6 gap-3">
             {(() => {
               const primary = [
                 { key: "rides", to: "/app/rides", icon: Car, label: "chalo 🚗", color: "#38BDF8", span: 6 },
