@@ -114,6 +114,7 @@ function AppShell() {
       )}
     </div>
     </>
+    </LanguageProvider>
   );
 }
 
