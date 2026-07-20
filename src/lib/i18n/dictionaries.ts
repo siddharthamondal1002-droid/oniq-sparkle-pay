@@ -92,36 +92,36 @@ const kn: Dict = {
 
 const ml: Dict = {
   ...en,
-  "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "panam 💰",
-  "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "vartha ☕",
-  "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "panam 💳",
-  "home.tile.clips": "adipoli 🎬",
+  "home.tile.rides": "ചലോ",
+  "home.tile.upi": "പണം",
+  "home.tile.miniapps": "ജുഗാഡ്",
+  "home.tile.pulse": "വാർത്ത",
+  "home.tile.wander": "സഫർ",
+  "home.tile.wallet": "പണം",
+  "home.tile.clips": "അടിപൊളി",
 };
 
 
 const pa: Dict = {
   ...en,
-  "home.tile.rides": "gedi 🚗",
-  "home.tile.upi": "khazana 💰",
-  "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "khabar ☕",
-  "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "batua 💳",
-  "home.tile.clips": "tashan 🎬",
+  "home.tile.rides": "ਗੇੜੀ",
+  "home.tile.upi": "ਖਜ਼ਾਨਾ",
+  "home.tile.miniapps": "ਜੁਗਾੜ",
+  "home.tile.pulse": "ਖ਼ਬਰ",
+  "home.tile.wander": "ਸਫ਼ਰ",
+  "home.tile.wallet": "ਬਟੂਆ",
+  "home.tile.clips": "ਤਸ਼ਨ",
 };
 
 const gu: Dict = {
   ...en,
-  "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "khazana 💰",
-  "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "khabar ☕",
-  "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "batua 💳",
-  "home.tile.clips": "majja 🎬",
+  "home.tile.rides": "ચલો",
+  "home.tile.upi": "ખજાનો",
+  "home.tile.miniapps": "જુગાડ",
+  "home.tile.pulse": "ખબર",
+  "home.tile.wander": "સફર",
+  "home.tile.wallet": "બટવો",
+  "home.tile.clips": "મજા",
 };
 
 // Odia & Assamese — pan-Indian Tier-0 fallback (honest: no verified
@@ -131,13 +131,13 @@ const as: Dict = { ...en };
 
 const ur: Dict = {
   ...en,
-  "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "khazana 💰",
-  "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "khabar ☕",
-  "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "batua 💳",
-  "home.tile.clips": "zabardast 🎬",
+  "home.tile.rides": "چلو",
+  "home.tile.upi": "خزانہ",
+  "home.tile.miniapps": "جگاڑ",
+  "home.tile.pulse": "خبر",
+  "home.tile.wander": "سفر",
+  "home.tile.wallet": "بٹوا",
+  "home.tile.clips": "زبردست",
 };
 
 export const DICTIONARIES: Record<string, Dict> = {
