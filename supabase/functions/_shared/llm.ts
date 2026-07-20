@@ -145,6 +145,12 @@ export type CallClaudeOpts = {
   toolChoice?: unknown;
   maxTokens?: number;
   timeoutMs?: number;
+  // When true, send `system` as a cache_control:ephemeral block so Anthropic
+  // caches the system prompt across calls. Only enable on callers whose
+  // system prompt genuinely exceeds ~1024 tokens (Claude Sonnet minimum) and
+  // gets reused — caching a shorter prompt is silently ignored. The Gemini
+  // fallback path ignores this flag (caching is Anthropic-specific).
+  cacheSystem?: boolean;
 };
 
 export type CallClaudeResult =
