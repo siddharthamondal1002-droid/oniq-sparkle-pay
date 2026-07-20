@@ -36,25 +36,26 @@ const hi: Dict = {
 
 const ta: Dict = {
   ...en,
-  "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "khazana 💰",
-  "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "scene ☕",
-  "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "batua 💳",
+  "home.tile.rides": "vaa 🚗",
+  "home.tile.upi": "kaasu 💰",
+  "home.tile.miniapps": "gethu 🔌",
+  "home.tile.pulse": "seithi ☕",
+  "home.tile.wander": "payanam ✈️",
+  "home.tile.wallet": "panam 💳",
   "home.tile.clips": "semma 🎬",
 };
 
 const te: Dict = {
   ...en,
   "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "khazana 💰",
+  "home.tile.upi": "kaasu 💰",
   "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "khabar ☕",
-  "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "batua 💳",
+  "home.tile.pulse": "vaarta ☕",
+  "home.tile.wander": "prayanam ✈️",
+  "home.tile.wallet": "kaasu 💳",
   "home.tile.clips": "keka 🎬",
 };
+
 
 const bn: Dict = {
   ...en,
@@ -81,24 +82,25 @@ const mr: Dict = {
 const kn: Dict = {
   ...en,
   "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "khazana 💰",
+  "home.tile.upi": "kaasu 💰",
   "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "khabar ☕",
-  "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "batua 💳",
+  "home.tile.pulse": "suddi ☕",
+  "home.tile.wander": "prayana ✈️",
+  "home.tile.wallet": "kaasu 💳",
   "home.tile.clips": "sakkath 🎬",
 };
 
 const ml: Dict = {
   ...en,
   "home.tile.rides": "chalo 🚗",
-  "home.tile.upi": "khazana 💰",
+  "home.tile.upi": "panam 💰",
   "home.tile.miniapps": "jugaad 🔌",
-  "home.tile.pulse": "khabar ☕",
+  "home.tile.pulse": "vartha ☕",
   "home.tile.wander": "safar ✈️",
-  "home.tile.wallet": "batua 💳",
+  "home.tile.wallet": "panam 💳",
   "home.tile.clips": "adipoli 🎬",
 };
+
 
 const pa: Dict = {
   ...en,
