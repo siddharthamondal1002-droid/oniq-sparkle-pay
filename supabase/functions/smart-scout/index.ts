@@ -1,7 +1,7 @@
 // smart-scout — Claude price/deal scout with web_search tool
 // Purchaser-centric: decisive best-value pick, verified retailer preference,
 // visible source domains, and location-aware (street + PIN, not just city).
-import { langInstruction } from "../_shared/llm.ts";
+import { langInstruction, callClaude, type ClaudeMessage } from "../_shared/llm.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -54,8 +54,7 @@ Deno.serve(async (req) => {
 
     if (!query && !imageBase64) return friendly("give me a product name, a place, or a photo 📸");
 
-    const anthropicKey = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!anthropicKey) return friendly("scout isn't configured yet — try again later");
+    if (!Deno.env.get("ANTHROPIC_API_KEY")) return friendly("scout isn't configured yet — try again later");
 
     // Optional enrichment: Google Address Descriptors (GA in India, free tier of
     // Geocoding Essentials). Adds ranked nearby landmarks + spatial relationships
@@ -147,49 +146,36 @@ Deno.serve(async (req) => {
     }
 
     // Supabase edge functions have a 400s wall-clock ceiling on hosted plans.
-    // Exploratory local-service queries (restaurants across Zomato/Swiggy/Maps/JustDial)
-    // legitimately need multiple sequential web_search calls; 55s was too tight and
-    // was the real root cause of "restaurants in Kolkata Park Street" timing out.
-    // 180s gives Claude room for ~7 tool hops plus response synthesis, and still leaves
-    // >200s margin below the platform ceiling for network jitter.
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 180000);
+    // Exploratory local-service queries legitimately need multiple sequential
+    // web_search hops; 180s gives room for ~7 tool hops plus synthesis while
+    // staying well below the platform ceiling.
+    // Migrated onto the shared callClaude helper so smart-scout inherits the
+    // Gemini billing-exhaustion fallback and system-prompt caching (system
+    // is ~1.5k tokens and reused identically across every search).
+    const messages = [
+      { role: "user", content: userContent as unknown as string },
+    ] as ClaudeMessage[];
 
-    let res: Response;
-    try {
-      res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        signal: controller.signal,
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": anthropicKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-6",
-          max_tokens: 3500,
-          system,
-          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 11 }],
-          messages: [{ role: "user", content: userContent }],
-        }),
-      });
-    } catch (e) {
-      clearTimeout(timer);
-      if ((e as any)?.name === "AbortError") return friendly("scout took too long — try a more specific query 🐢");
-      console.error("smart-scout fetch error", e);
-      return friendly("scout couldn't reach the web rn — try again in a sec");
-    }
-    clearTimeout(timer);
+    const claudeRes = await callClaude({
+      system,
+      messages,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 11 }],
+      maxTokens: 3500,
+      timeoutMs: 180000,
+      cacheSystem: true,
+    });
 
-    if (res.status === 429) return friendly("rate limit hit — try again in a moment 🐢");
-    if (res.status === 402) return friendly("AI credits exhausted — top up to keep scouting");
-    if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      console.error("smart-scout anthropic error", res.status, t.slice(0, 500));
-      return friendly(`scout glitched (${res.status}) — try again`);
+    if (!claudeRes.ok) {
+      const reason = claudeRes.reason ?? "";
+      console.error("smart-scout callClaude failed:", reason);
+      if (/timeout/i.test(reason)) return friendly("scout took too long — try a more specific query 🐢");
+      if (/http 429/.test(reason)) return friendly("rate limit hit — try again in a moment 🐢");
+      if (/http 402/.test(reason)) return friendly("AI credits exhausted — top up to keep scouting");
+      if (/http 400/.test(reason)) return friendly("AI credits exhausted — top up to keep scouting");
+      return friendly(`scout glitched — try again`);
     }
 
-    const data = await res.json();
+    const data = claudeRes.data;
     const blocks = Array.isArray(data?.content) ? data.content : [];
     const textOut = blocks
       .filter((b: any) => b?.type === "text")
