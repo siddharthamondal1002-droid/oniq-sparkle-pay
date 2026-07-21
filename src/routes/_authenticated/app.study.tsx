@@ -3951,9 +3951,10 @@ function MockPaperModal({
           started_at?: string | null;
           duration_seconds?: number | null;
         };
+        const expectedDurSec = durationMinutes * 60;
         if (
           r?.found && r.paper_id && Array.isArray(r.questions) && r.questions.length > 0 &&
-          r.started_at && r.duration_seconds
+          r.started_at && r.duration_seconds && r.duration_seconds === expectedDurSec
         ) {
           const startedMs = new Date(r.started_at).getTime();
           const durSec = r.duration_seconds;
