@@ -150,11 +150,9 @@ export function MomentsFeed() {
       toast.error(error.message);
     } else {
       toast.success("Post deleted");
-      if (openPostId === postId) setOpenPostId(null);
     }
   }
 
-  const openPost = openPostId ? posts?.find((p) => p.id === openPostId) ?? null : null;
 
   return (
     <div className="pb-6">
