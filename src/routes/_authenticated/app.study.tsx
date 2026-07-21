@@ -6,6 +6,7 @@ import { ArrowLeft, Send, Paperclip, X, Camera, Plus, Trash2, Pencil, Check, Bar
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { compressToJpeg } from "@/lib/imageCompress";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 export const Route = createFileRoute("/_authenticated/app/study")({
   component: StudyScreen,
@@ -369,7 +370,8 @@ function StudyScreen() {
   }
 
   const activeIsGovt = active ? isGovtBoard(active.board) : false;
-  const headerName = active?.name ?? "Study Buddy";
+  const { t } = useT();
+  const headerName = active?.name ?? t("study.header.default", "Study Buddy");
   const headerSub = active
     ? `${BOARD_UPPER[active.board]} · ${active.class_level === "ug" ? "UG" : active.class_level === "pg" ? "PG" : active.class_level === "drop" ? "Drop year" : active.class_level === "aspirant" ? "Aspirant" : `Class ${active.class_level}`}`
     : null;
@@ -610,12 +612,12 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
   return (
     <div className={first ? "mx-auto mt-24 max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl" : "rounded-3xl border border-border bg-card p-6 shadow-2xl"}>
       <div className="text-3xl">🎒</div>
-      <h2 className="mt-2 font-display text-xl font-bold">who's studying today?</h2>
+      <h2 className="mt-2 font-display text-xl font-bold">{tSetup("study.setup.title", "who's studying today?")}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Set up a learner profile so Study Buddy teaches at the right level.
       </p>
 
-      <label className="mt-5 block text-xs font-medium text-muted-foreground">Learner name</label>
+      <label className="mt-5 block text-xs font-medium text-muted-foreground">{tSetup("study.setup.name", "Learner name")}</label>
       <input
         value={name}
         onChange={(e) => setName(e.target.value.slice(0, 40))}
@@ -623,7 +625,7 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
         className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
       />
 
-      <label className="mt-4 block text-xs font-medium text-muted-foreground">Board</label>
+      <label className="mt-4 block text-xs font-medium text-muted-foreground">{tSetup("study.setup.board", "Board")}</label>
       <div className="mt-1">
         <BoardPicker
           board={board}
@@ -636,7 +638,7 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
       </div>
 
 
-      <label className="mt-4 block text-xs font-medium text-muted-foreground">Class</label>
+      <label className="mt-4 block text-xs font-medium text-muted-foreground">{tSetup("study.setup.class", "Class")}</label>
       <select
         value={classLevel}
         onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
@@ -1134,7 +1136,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onClick={() => setShowQuizPicker(true)}
               className="shrink-0 rounded-full border border-primary/40 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary hover:bg-primary/20"
             >
-              practice quiz 📝
+              {tTutor("study.chip.practice", "practice quiz 📝")}
             </button>
             {subjects.map((s) => (
               <button
@@ -1408,7 +1410,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="ask about your lesson…"
+              placeholder={tTutor("study.input.placeholder", "ask about your lesson…")}
               disabled={loading}
               className="flex-1 bg-transparent py-3 text-sm placeholder:text-muted-foreground focus:outline-none"
             />
@@ -3710,7 +3712,7 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
       <div className="flex items-start justify-between">
         <div>
           <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">progress</div>
-          <h2 className="font-display text-lg font-bold">learning journey 📊</h2>
+          <h2 className="font-display text-lg font-bold">{tProgress("study.progress.title", "learning journey 📊")}</h2>
         </div>
         <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full border border-border">
           <X className="h-4 w-4" />

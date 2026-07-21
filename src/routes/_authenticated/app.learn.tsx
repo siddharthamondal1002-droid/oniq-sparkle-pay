@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchClearButton } from "@/components/ui/SearchClearButton";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 
 export const Route = createFileRoute("/_authenticated/app/learn")({
@@ -79,6 +80,7 @@ function localeFor(code: string): string {
 
 function LearnScreen() {
   const [tab, setTab] = useState<Tab>("scout");
+  const { t } = useT();
   return (
     <div className="min-h-screen overflow-x-hidden px-5 pt-12 pb-10">
       <div className="flex items-center gap-3">
@@ -86,20 +88,20 @@ function LearnScreen() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h1 className="font-display text-2xl font-bold flex items-center gap-2 min-w-0 truncate">
-          <span>🧠</span> smart
+          <span>🧠</span> {t("smart.header", "smart")}
         </h1>
       </div>
-      <div className="mt-1 text-xs text-muted-foreground">shop & speak any language</div>
+      <div className="mt-1 text-xs text-muted-foreground">{t("smart.subtitle", "shop & speak any language")}</div>
 
       <div className="mt-4 grid grid-cols-3 rounded-2xl border border-border bg-card p-1 text-xs">
         {([
-          ["scout", "price scout 🛒"],
-          ["translate", "translate 🌐"],
-          ["lessons", "learn 📚"],
+          ["scout", t("smart.tab.scout", "price scout 🛒")],
+          ["translate", t("smart.tab.translate", "translate 🌐")],
+          ["lessons", t("smart.tab.lessons", "learn 📚")],
         ] as const).map(([k, label]) => (
           <button
             key={k}
-            onClick={() => setTab(k)}
+            onClick={() => setTab(k as Tab)}
             className={`min-h-11 rounded-xl py-2 font-semibold truncate ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
           >
             {label}
@@ -116,6 +118,7 @@ function LearnScreen() {
 /* ================= TRANSLATE ================= */
 
 function TranslatePanel() {
+  const { t: tr } = useT();
   const [text, setText] = useState("");
   const [from, setFrom] = useState<Lang>("auto");
   const [to, setTo] = useState<Lang>("bn");
@@ -306,7 +309,7 @@ function TranslatePanel() {
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
-          {loading ? "Translating…" : "Translate"}
+          {loading ? "Translating…" : tr("smart.translate.cta", "Translate")}
         </button>
       </div>
 
@@ -320,7 +323,7 @@ function TranslatePanel() {
               onClick={copy}
               className="flex items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs"
             >
-              <Copy className="h-3 w-3" /> copy
+              <Copy className="h-3 w-3" /> {tr("smart.translate.copy", "copy")}
             </button>
           </div>
           <p className="whitespace-pre-wrap text-base leading-relaxed">{result}</p>
@@ -647,6 +650,7 @@ function launchStore(store: string, query: string) {
 }
 
 function ScoutPanel() {
+  const { t: tr } = useT();
   const [query, setQuery] = useState("");
   const [image, setImage] = useState<{ base64: string; mime: string; preview: string } | null>(null);
   const [loading, setLoading] = useState(false);
@@ -871,7 +875,7 @@ function ScoutPanel() {
               : loadingPhase === 1 ? "still searching — checking a few more places 🔎"
               : loadingPhase === 2 ? "comparing across shops & platforms 🛒"
               : "almost there — synthesising the best pick ✨")
-            : "find best price"}
+            : tr("smart.scout.cta", "find best price")}
         </button>
       </div>
 
