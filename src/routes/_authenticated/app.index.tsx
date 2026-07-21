@@ -978,10 +978,11 @@ function GlanceCard() {
   const silver = market?.silver?.pricePerGram ?? null;
 
   const tabs: { t: LoanCategory["type"]; emoji: string; label: string }[] = [
-    { t: "home", emoji: "🏠", label: "Home" },
-    { t: "gold", emoji: "🪙", label: "Gold" },
-    { t: "car",  emoji: "🚗", label: "Car"  },
-    { t: "fd",   emoji: "🏦", label: "FD"   },
+    { t: "home",     emoji: "🏠", label: "Home" },
+    { t: "gold",     emoji: "🪙", label: "Gold" },
+    { t: "car",      emoji: "🚗", label: "Car"  },
+    { t: "fd",       emoji: "🏦", label: "FD"   },
+    { t: "personal", emoji: "🏦", label: "Personal" },
   ];
   const active = openTab ? (loans?.categories ?? []).find((c) => c.type === openTab) ?? null : null;
 
