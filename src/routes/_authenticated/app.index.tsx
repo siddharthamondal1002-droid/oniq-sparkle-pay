@@ -1081,7 +1081,7 @@ function GlanceCard() {
 
 
 type LoanBank = { bank: string; rateRange: string; note?: string };
-type LoanCategory = { type: "home" | "gold" | "car" | "fd"; label: string; banks: LoanBank[] };
+type LoanCategory = { type: "home" | "gold" | "car" | "fd" | "personal"; label: string; banks: LoanBank[] };
 type LoanRatesPayload = { asOf: string; categories: LoanCategory[]; disclaimer: string };
 
 const DEFAULT_LOAN_DISCLAIMER =
