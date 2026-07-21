@@ -25,6 +25,7 @@ const CATEGORY_LABELS: Record<Category["type"], string> = {
   gold: "🪙 Gold Loan",
   car: "🚗 Car Loan (New)",
   fd: "🏦 Fixed Deposit",
+  personal: "🏦 Personal Loan",
 };
 
 // Realistic fallback snapshot (mid-2026 typical ranges). Used ONLY when the
