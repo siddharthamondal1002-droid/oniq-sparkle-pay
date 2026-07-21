@@ -11,6 +11,7 @@ import {
   IndianRupee,
   Lock,
   Clapperboard,
+  Film,
   GraduationCap,
   Plane,
   Newspaper,
