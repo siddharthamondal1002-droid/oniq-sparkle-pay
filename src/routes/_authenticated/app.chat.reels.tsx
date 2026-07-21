@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Play } from "lucide-react";
@@ -7,6 +7,20 @@ import { Loader2, Play } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/app/chat/reels")({
   component: ReelsTab,
 });
+
+function useMinorFlag(): boolean | undefined {
+  const { data } = useQuery({
+    queryKey: ["is-minor"],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return false;
+      const { data: p } = await supabase.from("profiles").select("is_minor").eq("id", u.user.id).maybeSingle();
+      return !!p?.is_minor;
+    },
+    staleTime: 5 * 60_000,
+  });
+  return data;
+}
 
 type ClipRow = {
   id: string;
@@ -22,17 +36,22 @@ type ClipRow = {
 const PAGE = 8;
 
 function ReelsTab() {
+  // DPDP Stage 0: minors get a non-personalized (chronological) feed.
+  const minorFlag = useMinorFlag();
+
   const query = useInfiniteQuery({
-    queryKey: ["clips-feed"],
+    queryKey: ["clips-feed", minorFlag ? "chrono" : "ranked"],
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
-      const { data, error } = await supabase.rpc("clips_feed", {
+      const rpc = minorFlag ? "clips_feed_chrono" : "clips_feed";
+      const { data, error } = await supabase.rpc(rpc, {
         _limit: PAGE,
         _offset: pageParam as number,
       });
       if (error) throw error;
       return (data ?? []) as ClipRow[];
     },
+    enabled: minorFlag !== undefined,
     getNextPageParam: (last, all) =>
       last.length === PAGE ? all.reduce((n, p) => n + p.length, 0) : undefined,
   });

@@ -49,6 +49,8 @@ import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.
 import { Route as AuthenticatedAppFoodIndexRouteImport } from './routes/_authenticated/app.food.index'
 import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
+import { Route as AuthenticatedAppPrivacyGrievanceRouteImport } from './routes/_authenticated/app.privacy.grievance'
+import { Route as AuthenticatedAppPrivacyDataRightsRouteImport } from './routes/_authenticated/app.privacy.data-rights'
 import { Route as AuthenticatedAppFoodIdRouteImport } from './routes/_authenticated/app.food.$id'
 import { Route as AuthenticatedAppChatUpdatesRouteImport } from './routes/_authenticated/app.chat.updates'
 import { Route as AuthenticatedAppChatReelsRouteImport } from './routes/_authenticated/app.chat.reels'
@@ -262,6 +264,18 @@ const LovableEmailQueueProcessRoute =
     path: '/lovable/email/queue/process',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AuthenticatedAppPrivacyGrievanceRoute =
+  AuthenticatedAppPrivacyGrievanceRouteImport.update({
+    id: '/privacy/grievance',
+    path: '/privacy/grievance',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppPrivacyDataRightsRoute =
+  AuthenticatedAppPrivacyDataRightsRouteImport.update({
+    id: '/privacy/data-rights',
+    path: '/privacy/data-rights',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppFoodIdRoute = AuthenticatedAppFoodIdRouteImport.update({
   id: '/food/$id',
   path: '/food/$id',
@@ -341,6 +355,8 @@ export interface FileRoutesByFullPath {
   '/app/chat/reels': typeof AuthenticatedAppChatReelsRoute
   '/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
+  '/app/privacy/data-rights': typeof AuthenticatedAppPrivacyDataRightsRoute
+  '/app/privacy/grievance': typeof AuthenticatedAppPrivacyGrievanceRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat/': typeof AuthenticatedAppChatIndexRoute
   '/app/food/': typeof AuthenticatedAppFoodIndexRoute
@@ -386,6 +402,8 @@ export interface FileRoutesByTo {
   '/app/chat/reels': typeof AuthenticatedAppChatReelsRoute
   '/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/app/food/$id': typeof AuthenticatedAppFoodIdRoute
+  '/app/privacy/data-rights': typeof AuthenticatedAppPrivacyDataRightsRoute
+  '/app/privacy/grievance': typeof AuthenticatedAppPrivacyGrievanceRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat': typeof AuthenticatedAppChatIndexRoute
   '/app/food': typeof AuthenticatedAppFoodIndexRoute
@@ -435,6 +453,8 @@ export interface FileRoutesById {
   '/_authenticated/app/chat/reels': typeof AuthenticatedAppChatReelsRoute
   '/_authenticated/app/chat/updates': typeof AuthenticatedAppChatUpdatesRoute
   '/_authenticated/app/food/$id': typeof AuthenticatedAppFoodIdRoute
+  '/_authenticated/app/privacy/data-rights': typeof AuthenticatedAppPrivacyDataRightsRoute
+  '/_authenticated/app/privacy/grievance': typeof AuthenticatedAppPrivacyGrievanceRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/_authenticated/app/chat/': typeof AuthenticatedAppChatIndexRoute
   '/_authenticated/app/food/': typeof AuthenticatedAppFoodIndexRoute
@@ -484,6 +504,8 @@ export interface FileRouteTypes {
     | '/app/chat/reels'
     | '/app/chat/updates'
     | '/app/food/$id'
+    | '/app/privacy/data-rights'
+    | '/app/privacy/grievance'
     | '/lovable/email/queue/process'
     | '/app/chat/'
     | '/app/food/'
@@ -529,6 +551,8 @@ export interface FileRouteTypes {
     | '/app/chat/reels'
     | '/app/chat/updates'
     | '/app/food/$id'
+    | '/app/privacy/data-rights'
+    | '/app/privacy/grievance'
     | '/lovable/email/queue/process'
     | '/app/chat'
     | '/app/food'
@@ -577,6 +601,8 @@ export interface FileRouteTypes {
     | '/_authenticated/app/chat/reels'
     | '/_authenticated/app/chat/updates'
     | '/_authenticated/app/food/$id'
+    | '/_authenticated/app/privacy/data-rights'
+    | '/_authenticated/app/privacy/grievance'
     | '/lovable/email/queue/process'
     | '/_authenticated/app/chat/'
     | '/_authenticated/app/food/'
@@ -884,6 +910,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/app/privacy/grievance': {
+      id: '/_authenticated/app/privacy/grievance'
+      path: '/privacy/grievance'
+      fullPath: '/app/privacy/grievance'
+      preLoaderRoute: typeof AuthenticatedAppPrivacyGrievanceRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/privacy/data-rights': {
+      id: '/_authenticated/app/privacy/data-rights'
+      path: '/privacy/data-rights'
+      fullPath: '/app/privacy/data-rights'
+      preLoaderRoute: typeof AuthenticatedAppPrivacyDataRightsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/food/$id': {
       id: '/_authenticated/app/food/$id'
       path: '/food/$id'
@@ -973,6 +1013,8 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppWeatherRoute: typeof AuthenticatedAppWeatherRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppFoodIdRoute: typeof AuthenticatedAppFoodIdRoute
+  AuthenticatedAppPrivacyDataRightsRoute: typeof AuthenticatedAppPrivacyDataRightsRoute
+  AuthenticatedAppPrivacyGrievanceRoute: typeof AuthenticatedAppPrivacyGrievanceRoute
   AuthenticatedAppFoodIndexRoute: typeof AuthenticatedAppFoodIndexRoute
 }
 
@@ -998,6 +1040,9 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppWeatherRoute: AuthenticatedAppWeatherRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppFoodIdRoute: AuthenticatedAppFoodIdRoute,
+  AuthenticatedAppPrivacyDataRightsRoute:
+    AuthenticatedAppPrivacyDataRightsRoute,
+  AuthenticatedAppPrivacyGrievanceRoute: AuthenticatedAppPrivacyGrievanceRoute,
   AuthenticatedAppFoodIndexRoute: AuthenticatedAppFoodIndexRoute,
 }
 
