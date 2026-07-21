@@ -125,80 +125,32 @@ function HomeScreen() {
 
           <div className="mt-7 px-1 flex items-center justify-between">
             <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
-              the lineup
+              study first
             </h2>
             <CustomizeButton />
           </div>
 
-          {/* Media banner — replaces old Watch + Brainrot tiles */}
           <div className="mt-3">
-            <MediaBanner
-              watchHidden={hidden.has("watch")}
-              clipsHidden={hidden.has("clips")}
-              watchSkin={skins.watch}
-              clipsSkin={skins.clips}
-            />
+            <StudyHero />
           </div>
 
-          {/* Primary row — 5 large tiles */}
-          <div className="mt-4 mb-1.5 px-0.5 text-[11px] text-muted-foreground">
-            {t("home.transparency")}
+          <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            also in ONIQ
           </div>
-          <div className="grid grid-cols-6 gap-3">
-            {(() => {
-              const primary = [
-                { key: "rides", to: "/app/rides", icon: Car, label: t("home.tile.rides"), sub: "Ride Genie", color: "#38BDF8", span: 6 },
-                { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6", span: 3 },
-                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "bachat बचत", color: "#FB923C", span: 3 },
-                { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185", span: 3 },
-                
-              ] as const;
-              return primary
-                .filter((tile) => !hidden.has(tile.key as TileKey))
-                .map((tile, i) => (
-                  <PrimaryTile
-                    key={tile.key}
-                    to={tile.to}
-                    icon={tile.icon}
-                    label={tile.label}
-                    sub={"sub" in tile ? (tile as { sub?: string }).sub : undefined}
-                    color={tile.color}
-                    span={tile.span}
-                    skin={skins[tile.key as TileKey]}
-                    delay={40 + i * 40}
-                    showBalance={false}
-                  />
-                ));
-            })()}
-          </div>
-
-          {/* Grouped sections */}
-          <SectionRow
-            title="📺 media"
+          <AlsoInOniqRow
             tiles={[
-              { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: t("home.tile.miniapps"), color: "#A3E635" },
-              { key: "pulse", to: "/app/news", icon: Newspaper, label: t("home.tile.pulse"), color: "#F472B6" },
+              { key: "ting", to: "/app/ai", label: "Ting" },
+              { key: "learn", to: "/app/learn", label: "bachat" },
+              { key: "rides", to: "/app/rides", label: t("home.tile.rides") },
+              { key: "miniapps", to: "/app/miniapps", label: t("home.tile.miniapps") },
+              { key: "pulse", to: "/app/news", label: t("home.tile.pulse") },
+              { key: "watch", to: "/app/news", label: "Watch" },
+              { key: "faith", to: "/app/faith", label: "blessed" },
+              { key: "vitals", to: "/app/vitals", label: "vitals", color: vitalsColor },
+              { key: "wander", to: "/app/travel", label: t("home.tile.wander") },
+              { key: "earn", to: "/app/earn", label: "earn" },
             ]}
             hidden={hidden}
-            skins={skins}
-          />
-          <SectionRow
-            title="🌱 life"
-            tiles={[
-              { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
-              { key: "vitals", to: "/app/vitals", icon: Heart, label: "vitals 🫀", color: vitalsColor },
-              { key: "wander", to: "/app/travel", icon: Plane, label: t("home.tile.wander"), color: "#22D3EE" },
-            ]}
-            hidden={hidden}
-            skins={skins}
-          />
-          <SectionRow
-            title="💼 work"
-            tiles={[
-              { key: "earn", to: "/app/earn", icon: Briefcase, label: "earn 💼", color: "#00D4B8" },
-            ]}
-            hidden={hidden}
-            skins={skins}
           />
         </div>
       </div>
@@ -1336,6 +1288,160 @@ function MediaBanner({
     </div>
   );
 }
+
+// ---------- Study hero (Study-first home) ----------
+
+type LearnerProfileLite = { id: string; name: string; board: string; class_level: string };
+type RecentAttempt = { profile_id: string; subject: string; chapter: string | null; created_at: string };
+
+function classLabel(c: string): string {
+  if (c === "ug") return "UG";
+  if (c === "pg") return "PG";
+  if (c === "drop") return "Drop year";
+  if (c === "aspirant") return "Aspirant";
+  return `Class ${c}`;
+}
+
+function StudyHero() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["study-hero"],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const [profilesRes, attemptsRes] = await Promise.all([
+        (supabase as unknown as {
+          from: (t: string) => { select: (c: string) => { order: (col: string, opts: { ascending: boolean }) => Promise<{ data: LearnerProfileLite[] | null; error: Error | null }> } };
+        })
+          .from("learner_profiles")
+          .select("id, name, board, class_level")
+          .order("created_at", { ascending: true }),
+        (supabase as unknown as {
+          from: (t: string) => {
+            select: (c: string) => {
+              order: (col: string, opts: { ascending: boolean }) => {
+                limit: (n: number) => Promise<{ data: RecentAttempt[] | null; error: Error | null }>;
+              };
+            };
+          };
+        })
+          .from("quiz_attempts")
+          .select("profile_id, subject, chapter, created_at")
+          .order("created_at", { ascending: false })
+          .limit(1),
+      ]);
+      return {
+        profiles: profilesRes.data ?? [],
+        recent: (attemptsRes.data ?? [])[0] ?? null,
+      };
+    },
+  });
+
+  const profiles = data?.profiles ?? [];
+  const recent = data?.recent ?? null;
+  const activeProfile =
+    (recent && profiles.find((p) => p.id === recent.profile_id)) || profiles[0] || null;
+
+  const hasProfile = profiles.length > 0;
+  const hasRecent = !!recent && !!activeProfile;
+
+  return (
+    <Link
+      to="/app/study"
+      className="press fade-up relative block overflow-hidden rounded-3xl border border-border p-5"
+      style={{
+        background:
+          "radial-gradient(120% 90% at 0% 0%, #FB718540 0%, #FB718510 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #FB923C33 0%, #FB923C0d 45%, transparent 75%), hsl(var(--card))",
+      }}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div
+          className="grid h-12 w-12 place-items-center rounded-2xl"
+          style={{ color: "#FB7185", background: "#FB718526", boxShadow: "0 0 22px #FB718540, inset 0 0 0 1px #FB718533" }}
+        >
+          <BookOpen className="h-6 w-6" />
+        </div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          study 📚
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="mt-4 space-y-2">
+          <div className="h-4 w-32 animate-pulse rounded bg-surface" />
+          <div className="h-6 w-56 animate-pulse rounded bg-surface" />
+        </div>
+      ) : hasRecent ? (
+        <div className="mt-4">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            continue · {activeProfile!.name} · {activeProfile!.board.toUpperCase()} {classLabel(activeProfile!.class_level)}
+          </div>
+          <div className="mt-1 font-display text-xl font-bold text-foreground">
+            {recent!.subject}
+            {recent!.chapter ? <span className="text-muted-foreground"> · {recent!.chapter}</span> : null}
+          </div>
+        </div>
+      ) : hasProfile ? (
+        <div className="mt-4">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            {activeProfile!.name} · {activeProfile!.board.toUpperCase()} {classLabel(activeProfile!.class_level)}
+          </div>
+          <div className="mt-1 font-display text-xl font-bold text-foreground">
+            pick a chapter to begin
+          </div>
+        </div>
+      ) : (
+        <div className="mt-4">
+          <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            no learner profile yet
+          </div>
+          <div className="mt-1 font-display text-xl font-bold text-foreground">
+            set up your syllabus
+          </div>
+        </div>
+      )}
+
+      <div className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-foreground px-4 py-2 text-xs font-bold uppercase tracking-wider text-background">
+        {hasRecent ? "Resume studying" : hasProfile ? "Open study" : "Start studying"}
+        <ArrowRight className="h-3.5 w-3.5" />
+      </div>
+    </Link>
+  );
+}
+
+// ---------- "also in ONIQ" chip row ----------
+
+function AlsoInOniqRow({
+  tiles,
+  hidden,
+}: {
+  tiles: { key: string; to: string; label: string; color?: string }[];
+  hidden: Set<TileKey>;
+}) {
+  const visible = tiles.filter((t) => !(hidden as Set<string>).has(t.key));
+  if (visible.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {visible.map((t) => (
+        <Link
+          key={t.key}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          to={t.to as any}
+          className="press fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+          style={t.color ? { boxShadow: `inset 0 0 0 1px ${t.color}22` } : undefined}
+        >
+          {t.color && (
+            <span
+              aria-hidden
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: t.color }}
+            />
+          )}
+          {t.label}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 
 
 
