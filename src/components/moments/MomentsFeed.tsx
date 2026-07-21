@@ -266,7 +266,7 @@ export function MomentsFeed() {
 
                   {p.content && <p className="mt-3 text-sm">{p.content}</p>}
                   {p.media_urls?.[0] && (
-                    <img src={p.media_urls[0]} alt="" className="mt-3 max-h-96 w-full rounded-2xl object-cover" />
+                    <img src={p.media_urls[0]} alt="" loading="lazy" decoding="async" className="mt-3 max-h-96 w-full rounded-2xl object-cover" />
                   )}
                   <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
                     <button
