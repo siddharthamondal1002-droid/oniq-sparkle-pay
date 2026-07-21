@@ -225,7 +225,7 @@ export function MomentsFeed() {
                 <article key={p.id} className="rounded-3xl border border-border bg-card p-4">
                   <div className="flex items-center gap-3">
                     {p.profiles?.avatar_url ? (
-                      <img src={p.profiles.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+                      <img src={p.profiles.avatar_url} alt="" loading="lazy" decoding="async" className="h-10 w-10 rounded-full object-cover" />
                     ) : (
                       <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground font-bold">
                         {(p.profiles?.display_name ?? "U").charAt(0).toUpperCase()}
