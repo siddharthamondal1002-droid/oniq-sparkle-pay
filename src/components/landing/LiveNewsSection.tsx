@@ -294,8 +294,12 @@ function channelsToVideos(rows: UserChannelRowFull[]): Video[] {
 
 export function WatchLive() {
   const [baseGenres, setBaseGenres] = useState<LiveGenre[] | null>(null);
-  const [genreId, setGenreId] = useState<string>("news");
+  const [genreId, setGenreId] = useState<string>(() => {
+    if (typeof window === "undefined") return "news";
+    try { return localStorage.getItem("oniq.watch.lastGenre") || "news"; } catch { return "news"; }
+  });
   const [idx, setIdx] = useState(0);
+  const resumedRef = useRef(false);
   const [allDead, setAllDead] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [addGenreOpen, setAddGenreOpen] = useState(false);
