@@ -356,7 +356,7 @@ function ClipCard({
       <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">
         <div className="flex items-center gap-2">
           {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" />
+            <img src={profile.avatar_url} alt="" loading="lazy" decoding="async" className="h-9 w-9 rounded-full object-cover" />
           ) : (
             <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold">
               {name.charAt(0).toUpperCase()}
