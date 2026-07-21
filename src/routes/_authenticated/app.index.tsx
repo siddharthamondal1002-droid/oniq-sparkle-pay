@@ -1703,7 +1703,7 @@ function MastPreview() {
       {isLoading ? (
         <div className="mt-3 grid grid-cols-4 gap-2">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="aspect-[9/14] animate-pulse rounded-xl bg-surface" />
+            <div key={i} className="aspect-[9/16] animate-pulse rounded-xl bg-surface" />
           ))}
         </div>
       ) : clips.length === 0 ? (
@@ -1718,28 +1718,37 @@ function MastPreview() {
       ) : (
         <>
           <div className="mt-3 grid grid-cols-4 gap-2">
-            {clips.map((c) => (
-              <div
-                key={c.id}
-                className="relative aspect-[9/14] overflow-hidden rounded-xl bg-black border border-border/60"
-              >
-                <video
-                  src={c.video_url}
-                  muted
-                  playsInline
-                  preload="metadata"
-                  className="absolute inset-0 h-full w-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                <div className="absolute inset-x-1 bottom-1 flex items-center justify-between text-[10px] text-white">
-                  <span className="inline-flex items-center gap-0.5">
-                    <Heart className="h-2.5 w-2.5" />
-                    {c.like_count}
-                  </span>
-                  <Play className="h-3 w-3 opacity-90" />
+            {clips.map((c) => {
+              // Media fragment (#t=0.5) forces the browser to seek to a
+              // representative frame ~0.5s in and paint it as the poster,
+              // instead of leaving the tile black until buffering completes.
+              const posterSrc = `${c.video_url}${c.video_url.includes("#") ? "&" : "#"}t=0.5`;
+              return (
+                <div
+                  key={c.id}
+                  className="relative aspect-[9/16] overflow-hidden rounded-xl bg-black border border-border/60"
+                >
+                  <video
+                    src={posterSrc}
+                    muted
+                    playsInline
+                    preload="auto"
+                    disablePictureInPicture
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    {...({ "disableremoteplayback": "" } as any)}
+                    className="absolute inset-0 h-full w-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                  <div className="absolute inset-x-1 bottom-1 flex items-center justify-between text-[10px] text-white">
+                    <span className="inline-flex items-center gap-0.5">
+                      <Heart className="h-2.5 w-2.5" />
+                      {c.like_count}
+                    </span>
+                    <Play className="h-3 w-3 opacity-90" />
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
           {clips[0]?.caption && (
             <div className="mt-3 text-xs text-foreground line-clamp-1">
