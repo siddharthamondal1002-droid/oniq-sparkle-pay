@@ -235,39 +235,81 @@ export function MomentsFeed() {
         </div>
 
         {posts && posts.length > 0 ? (
-          <div className="mt-5 grid grid-cols-3 gap-1">
+          <div className="mt-5 space-y-4">
             {posts.map((p) => {
-              const img = p.media_urls?.[0];
+              const liked = likedIds.has(p.id);
+              const isMine = p.user_id === me;
               return (
-                <button
+                <article
                   key={p.id}
-                  type="button"
-                  onClick={() => setOpenPostId(p.id)}
-                  className="relative aspect-square overflow-hidden rounded-md bg-muted"
-                  aria-label="Open post"
+                  className="rounded-3xl border border-border bg-card p-4"
                 >
-                  {img ? (
+                  <div className="flex items-center gap-3">
+                    {p.profiles?.avatar_url ? (
+                      <img src={p.profiles.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+                    ) : (
+                      <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
+                        {(p.profiles?.display_name ?? p.profiles?.username ?? "U").charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate text-sm font-medium">
+                        {p.profiles?.display_name ?? p.profiles?.username ?? "User"}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {formatDistanceToNow(new Date(p.created_at ?? Date.now()), { addSuffix: true })}
+                      </div>
+                    </div>
+                    {isMine && p.visibility === "moots" && (
+                      <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>
+                    )}
+                    {isMine ? (
+                      <button
+                        type="button"
+                        onClick={() => deletePost(p.id)}
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+                        aria-label="Delete post"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setReportTarget({ type: "moment", id: p.id })}
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-500"
+                        aria-label="Report post"
+                      >
+                        <Flag className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {p.content && <p className="mt-3 whitespace-pre-wrap text-sm">{p.content}</p>}
+                  {p.media_urls?.[0] && (
                     <img
-                      src={img}
+                      src={p.media_urls[0]}
                       alt=""
                       loading="lazy"
                       decoding="async"
-                      className="absolute inset-0 h-full w-full object-cover"
+                      className="mt-3 max-h-[70vh] w-full rounded-2xl object-cover"
                     />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/20 to-accent/10 p-2 text-center">
-                      <p className="text-[11px] leading-tight text-foreground line-clamp-4">
-                        {p.content ?? "…"}
-                      </p>
-                    </div>
                   )}
-                  {(p.like_count ?? 0) > 0 && (
-                    <div className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                      <Heart className="h-3 w-3 fill-current" />
-                      {p.like_count}
-                    </div>
-                  )}
-                </button>
+
+                  <div className="mt-3 flex gap-5 text-xs text-muted-foreground">
+                    <button
+                      onClick={() => toggleLike(p.id)}
+                      className={`flex items-center gap-1 transition ${liked ? "text-accent" : "hover:text-accent"}`}
+                    >
+                      <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} /> {p.like_count ?? 0}
+                    </button>
+                    <button
+                      onClick={() => setOpenComments(p.id)}
+                      className="flex items-center gap-1 hover:text-primary"
+                    >
+                      <MessageCircle className="h-4 w-4" /> {p.comment_count ?? 0}
+                    </button>
+                  </div>
+                </article>
               );
             })}
           </div>
@@ -282,18 +324,7 @@ export function MomentsFeed() {
         )}
       </div>
 
-      {openPost && (
-        <PostDetailModal
-          post={openPost}
-          me={me}
-          liked={likedIds.has(openPost.id)}
-          onClose={() => setOpenPostId(null)}
-          onToggleLike={() => toggleLike(openPost.id)}
-          onOpenComments={() => setOpenComments(openPost.id)}
-          onDelete={() => deletePost(openPost.id)}
-          onReport={() => setReportTarget({ type: "moment", id: openPost.id })}
-        />
-      )}
+
       {openComments && (
         <CommentsSheet postId={openComments} onClose={() => { setOpenComments(null); refetch(); }} />
       )}
