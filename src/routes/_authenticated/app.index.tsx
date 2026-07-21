@@ -125,80 +125,32 @@ function HomeScreen() {
 
           <div className="mt-7 px-1 flex items-center justify-between">
             <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
-              the lineup
+              study first
             </h2>
             <CustomizeButton />
           </div>
 
-          {/* Media banner — replaces old Watch + Brainrot tiles */}
           <div className="mt-3">
-            <MediaBanner
-              watchHidden={hidden.has("watch")}
-              clipsHidden={hidden.has("clips")}
-              watchSkin={skins.watch}
-              clipsSkin={skins.clips}
-            />
+            <StudyHero />
           </div>
 
-          {/* Primary row — 5 large tiles */}
-          <div className="mt-4 mb-1.5 px-0.5 text-[11px] text-muted-foreground">
-            {t("home.transparency")}
+          <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            also in ONIQ
           </div>
-          <div className="grid grid-cols-6 gap-3">
-            {(() => {
-              const primary = [
-                { key: "rides", to: "/app/rides", icon: Car, label: t("home.tile.rides"), sub: "Ride Genie", color: "#38BDF8", span: 6 },
-                { key: "ting", to: "/app/ai", icon: Sparkles, label: "Ting ✨", color: "#8B5CF6", span: 3 },
-                { key: "learn", to: "/app/learn", icon: GraduationCap, label: "bachat बचत", color: "#FB923C", span: 3 },
-                { key: "study", to: "/app/study", icon: BookOpen, label: "study 📚", color: "#FB7185", span: 3 },
-                
-              ] as const;
-              return primary
-                .filter((tile) => !hidden.has(tile.key as TileKey))
-                .map((tile, i) => (
-                  <PrimaryTile
-                    key={tile.key}
-                    to={tile.to}
-                    icon={tile.icon}
-                    label={tile.label}
-                    sub={"sub" in tile ? (tile as { sub?: string }).sub : undefined}
-                    color={tile.color}
-                    span={tile.span}
-                    skin={skins[tile.key as TileKey]}
-                    delay={40 + i * 40}
-                    showBalance={false}
-                  />
-                ));
-            })()}
-          </div>
-
-          {/* Grouped sections */}
-          <SectionRow
-            title="📺 media"
+          <AlsoInOniqRow
             tiles={[
-              { key: "miniapps", to: "/app/miniapps", icon: LayoutGrid, label: t("home.tile.miniapps"), color: "#A3E635" },
-              { key: "pulse", to: "/app/news", icon: Newspaper, label: t("home.tile.pulse"), color: "#F472B6" },
+              { key: "ting", to: "/app/ai", label: "Ting" },
+              { key: "learn", to: "/app/learn", label: "bachat" },
+              { key: "rides", to: "/app/rides", label: t("home.tile.rides") },
+              { key: "miniapps", to: "/app/miniapps", label: t("home.tile.miniapps") },
+              { key: "pulse", to: "/app/news", label: t("home.tile.pulse") },
+              { key: "watch", to: "/app/news", label: "Watch" },
+              { key: "faith", to: "/app/faith", label: "blessed" },
+              { key: "vitals", to: "/app/vitals", label: "vitals", color: vitalsColor },
+              { key: "wander", to: "/app/travel", label: t("home.tile.wander") },
+              { key: "earn", to: "/app/earn", label: "earn" },
             ]}
             hidden={hidden}
-            skins={skins}
-          />
-          <SectionRow
-            title="🌱 life"
-            tiles={[
-              { key: "faith", to: "/app/faith", icon: Sparkles, label: "blessed 🙏", color: "#FCD34D" },
-              { key: "vitals", to: "/app/vitals", icon: Heart, label: "vitals 🫀", color: vitalsColor },
-              { key: "wander", to: "/app/travel", icon: Plane, label: t("home.tile.wander"), color: "#22D3EE" },
-            ]}
-            hidden={hidden}
-            skins={skins}
-          />
-          <SectionRow
-            title="💼 work"
-            tiles={[
-              { key: "earn", to: "/app/earn", icon: Briefcase, label: "earn 💼", color: "#00D4B8" },
-            ]}
-            hidden={hidden}
-            skins={skins}
           />
         </div>
       </div>
