@@ -777,6 +777,17 @@ function HeroTile({
           {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
         </button>
       )}
+      {livePreview && !showSkin && (
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); navigate({ to: "/app/news", search: { tab: "watch" as const } }); }}
+          aria-label="Open full Watch"
+          className="press absolute top-3 right-3 z-30 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/60 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur"
+        >
+          <Maximize2 className="h-3.5 w-3.5" />
+          <span>full</span>
+        </button>
+      )}
     </div>
   );
 }
