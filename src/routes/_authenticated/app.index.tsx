@@ -351,6 +351,9 @@ function HeroTile({
 
 
   const [idx, setIdx] = useState(0);
+  // Bumped on every manual channel/genre pick so the auto-tour timer restarts
+  // even when the picked idx equals the current idx (React bails on identical state).
+  const [pickNonce, setPickNonce] = useState(0);
   const resumedRef = useRef(false);
   // On first non-empty load, resume last watched video (if we can find it in current genre)
   useEffect(() => {
@@ -446,7 +449,7 @@ function HeroTile({
     };
     t = window.setTimeout(tick, 120_000);
     return () => { if (t) window.clearTimeout(t); };
-  }, [idx, vLen, livePreview, showSkin, paused, controlsVisible, isDevotional, devLoopActive, showDevPicker, devLoopEnded]);
+  }, [idx, pickNonce, vLen, livePreview, showSkin, paused, controlsVisible, isDevotional, devLoopActive, showDevPicker, devLoopEnded]);
 
 
   const bumpHide = () => {
@@ -567,12 +570,14 @@ function HeroTile({
     if (total === 0) return;
     setIdx(((next % total) + total) % total);
     setPaused(false);
+    setPickNonce((n) => n + 1);
   };
   const pickGenre = (g: GenreId) => {
     if (g === genreId) return;
     setGenreId(g);
     setIdx(0);
     setPaused(false);
+    setPickNonce((n) => n + 1);
     // Entering devotional freshly → force picker to reappear (unless a live loop is still running).
     if (g === "devotional") setDevJustBrowse(false);
     bumpHide();
@@ -602,6 +607,7 @@ function HeroTile({
   const pickVideo = (i: number) => {
     setIdx(i);
     setPaused(false);
+    setPickNonce((n) => n + 1);
     bumpHide();
   };
 
