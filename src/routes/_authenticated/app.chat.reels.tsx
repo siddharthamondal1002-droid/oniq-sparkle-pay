@@ -1,8 +1,10 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
+import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
-import { Loader2, Play } from "lucide-react";
+import { Heart, MessageCircle, Volume2, VolumeX, Loader2, Play } from "lucide-react";
+import { toast } from "sonner";
+import { useMediaCoordinator } from "@/lib/MediaProvider";
 
 export const Route = createFileRoute("/_authenticated/app/chat/reels")({
   component: ReelsTab,
@@ -33,11 +35,16 @@ type ClipRow = {
   created_at: string;
 };
 
-const PAGE = 8;
+const PAGE = 5;
 
 function ReelsTab() {
-  // DPDP Stage 0: minors get a non-personalized (chronological) feed.
   const minorFlag = useMinorFlag();
+  const [muted, setMuted] = useState(true);
+  const [me, setMe] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
+  }, []);
 
   const query = useInfiniteQuery({
     queryKey: ["clips-feed", minorFlag ? "chrono" : "ranked"],
@@ -58,98 +65,206 @@ function ReelsTab() {
 
   const clips = query.data?.pages.flat() ?? [];
 
-  return (
-    <div className="pt-[max(1rem,env(safe-area-inset-top))]">
-      <div className="px-5 pt-6">
-        <h1 className="font-display text-3xl font-bold">Reels</h1>
-        <p className="mt-1 text-sm text-muted-foreground">mast on tap 🎬</p>
+  // Full viewport minus the chat sub-tab bar (~5.5rem including safe-area).
+  const containerStyle = { height: "calc(100dvh - 5.5rem)" };
+
+  if (clips.length === 0 && !query.isLoading) {
+    return (
+      <div
+        style={containerStyle}
+        className="flex flex-col items-center justify-center gap-3 bg-black px-8 text-center text-white"
+      >
+        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white/10">
+          <Play className="h-6 w-6" />
+        </div>
+        <div className="font-display text-base font-semibold">No clips yet</div>
+        <p className="max-w-xs text-xs text-white/70">Be the first to post one.</p>
       </div>
+    );
+  }
 
-      {clips.length === 0 && !query.isLoading ? (
-        <div className="mx-5 mt-8 flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border p-10 text-center">
-          <div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent/10 text-accent">
-            <Play className="h-5 w-5" />
-          </div>
-          <div className="font-display text-base font-semibold">No clips yet</div>
-          <p className="text-xs text-muted-foreground">Be the first to post one.</p>
-          <Link
-            to="/app/clips"
-            className="mt-2 rounded-full bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground"
-          >
-            Open Clips
-          </Link>
-        </div>
-      ) : (
-        <div className="mt-4 grid grid-cols-2 gap-2 px-3">
-          {clips.map((clip) => (
-            <ClipThumb key={clip.id} clip={clip} />
-          ))}
-          {query.isLoading && (
-            <div className="col-span-2 flex h-24 items-center justify-center">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          )}
-        </div>
-      )}
-
-      {query.hasNextPage && (
-        <div className="mt-4 flex justify-center px-5">
-          <button
-            type="button"
-            onClick={() => query.fetchNextPage()}
-            disabled={query.isFetchingNextPage}
-            className="rounded-full border border-border bg-card px-4 py-2 text-xs font-medium text-muted-foreground disabled:opacity-50"
-          >
-            {query.isFetchingNextPage ? "loading…" : "load more"}
-          </button>
+  return (
+    <div
+      style={containerStyle}
+      className="relative w-full snap-y snap-mandatory overflow-y-scroll overscroll-contain bg-black text-white"
+    >
+      {clips.map((clip, idx) => (
+        <ReelCard
+          key={clip.id}
+          clip={clip}
+          muted={muted}
+          onToggleMute={() => setMuted((m) => !m)}
+          me={me}
+          isLast={idx === clips.length - 1}
+          onLoadMore={() => {
+            if (query.hasNextPage && !query.isFetchingNextPage) query.fetchNextPage();
+          }}
+        />
+      ))}
+      {query.isFetchingNextPage && (
+        <div className="flex h-24 items-center justify-center">
+          <Loader2 className="h-5 w-5 animate-spin text-white/60" />
         </div>
       )}
     </div>
   );
 }
 
-function ClipThumb({ clip }: { clip: ClipRow }) {
-  const ref = useRef<HTMLVideoElement | null>(null);
+function ReelCard({
+  clip,
+  muted,
+  onToggleMute,
+  me,
+  isLast,
+  onLoadMore,
+}: {
+  clip: ClipRow;
+  muted: boolean;
+  onToggleMute: () => void;
+  me: string | null;
+  isLast: boolean;
+  onLoadMore: () => void;
+}) {
+  const qc = useQueryClient();
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const { register } = useMediaCoordinator();
   const [visible, setVisible] = useState(false);
+  const [liked, setLiked] = useState(false);
+  const [likeCount, setLikeCount] = useState(clip.like_count);
+
+  const { data: profile } = useQuery({
+    queryKey: ["clip-author", clip.user_id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("username, display_name, avatar_url")
+        .eq("id", clip.user_id)
+        .maybeSingle();
+      return data;
+    },
+  });
 
   useEffect(() => {
-    const el = ref.current;
+    if (!me) return;
+    supabase
+      .from("clips_likes")
+      .select("clip_id")
+      .eq("clip_id", clip.id)
+      .eq("user_id", me)
+      .maybeSingle()
+      .then(({ data }) => setLiked(!!data));
+  }, [me, clip.id]);
+
+  useEffect(() => {
+    const el = sectionRef.current;
     if (!el) return;
     const io = new IntersectionObserver(
-      ([entry]) => setVisible(entry.isIntersecting && entry.intersectionRatio > 0.4),
-      { threshold: [0, 0.4, 0.9] },
+      ([e]) => setVisible(e.isIntersecting && e.intersectionRatio > 0.6),
+      { threshold: [0, 0.6, 0.9] },
     );
     io.observe(el);
     return () => io.disconnect();
   }, []);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    if (visible) void el.play().catch(() => {});
-    else el.pause();
-  }, [visible]);
+    const v = videoRef.current;
+    if (!v) return;
+    if (visible) {
+      register(v);
+      v.muted = muted;
+      v.play().catch(() => {});
+      if (isLast) onLoadMore();
+    } else {
+      v.pause();
+    }
+  }, [visible, muted, register, isLast, onLoadMore]);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted]);
+
+  async function toggleLike() {
+    const prevLiked = liked;
+    const prevCount = likeCount;
+    setLiked(!prevLiked);
+    setLikeCount(prevCount + (prevLiked ? -1 : 1));
+    const { error } = await supabase.rpc("toggle_clip_like", { _clip_id: clip.id });
+    if (error) {
+      setLiked(prevLiked);
+      setLikeCount(prevCount);
+      toast.error(error.message);
+    } else {
+      qc.invalidateQueries({ queryKey: ["clips-feed"] });
+    }
+  }
+
+  function tapVideo() {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) v.play().catch(() => {});
+    else v.pause();
+  }
+
+  const name = profile?.display_name ?? profile?.username ?? "user";
+  const handle = profile?.username ?? "user";
 
   return (
-    <Link
-      to="/app/clips"
-      hash={clip.id}
-      className="press relative block aspect-[9/16] overflow-hidden rounded-2xl border border-border bg-black"
-    >
+    <div ref={sectionRef} className="relative h-full w-full snap-start snap-always">
       <video
-        ref={ref}
-        src={visible ? clip.video_url : undefined}
-        muted
+        ref={videoRef}
+        src={clip.video_url}
         loop
         playsInline
-        preload={visible ? "metadata" : "none"}
-        className="absolute inset-0 h-full w-full object-cover"
+        muted={muted}
+        preload={visible ? "auto" : "metadata"}
+        onClick={tapVideo}
+        className="absolute inset-0 h-full w-full object-contain bg-black"
       />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-      <div className="pointer-events-none absolute bottom-2 left-2 right-2 flex items-center justify-between text-[10px] font-semibold text-white">
-        <span className="drop-shadow">▶ {clip.view_count ?? 0}</span>
-        <span className="drop-shadow">♥ {clip.like_count ?? 0}</span>
+
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
+
+      <button
+        type="button"
+        onClick={onToggleMute}
+        className="absolute right-3 top-4 z-30 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"
+        aria-label={muted ? "Unmute" : "Mute"}
+      >
+        {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+      </button>
+
+      <div className="absolute bottom-6 right-3 z-20 flex flex-col items-center gap-5">
+        <button onClick={toggleLike} className="flex flex-col items-center gap-1" aria-label="Like">
+          <Heart className={`h-7 w-7 ${liked ? "fill-red-500 text-red-500" : "text-white"}`} />
+          <span className="text-xs">{likeCount}</span>
+        </button>
+        <div className="flex flex-col items-center gap-1 text-white/90">
+          <MessageCircle className="h-7 w-7" />
+          <span className="text-xs">{clip.comment_count}</span>
+        </div>
       </div>
-    </Link>
+
+      <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">
+        <div className="flex items-center gap-2">
+          {profile?.avatar_url ? (
+            <img
+              src={profile.avatar_url}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-9 w-9 rounded-full object-cover"
+            />
+          ) : (
+            <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold">
+              {name.charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="text-sm font-semibold">@{handle}</div>
+        </div>
+        {clip.caption && (
+          <p className="mt-2 text-sm text-white/95 line-clamp-2">{clip.caption}</p>
+        )}
+      </div>
+    </div>
   );
 }
