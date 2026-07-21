@@ -7,7 +7,7 @@ import { corsHeaders, json } from "../_shared/llm.ts";
 const RATES_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 type BankRate = { bank: string; rateRange: string; note?: string };
-type Category = { type: "home" | "gold" | "car" | "fd"; label: string; banks: BankRate[] };
+type Category = { type: "home" | "gold" | "car" | "fd" | "personal"; label: string; banks: BankRate[] };
 type Payload = {
   asOf: string;
   categories: Category[];
@@ -25,6 +25,7 @@ const CATEGORY_LABELS: Record<Category["type"], string> = {
   gold: "🪙 Gold Loan",
   car: "🚗 Car Loan (New)",
   fd: "🏦 Fixed Deposit",
+  personal: "🏦 Personal Loan",
 };
 
 // Realistic fallback snapshot (mid-2026 typical ranges). Used ONLY when the
@@ -75,6 +76,15 @@ function fallbackSnapshot(today: string): Payload {
         { bank: "ICICI Bank", rateRange: "6.70-7.25%", note: "1-3yr" },
         { bank: "Kotak Mahindra", rateRange: "6.25-6.80%", note: "1-3yr" },
       ]),
+      mk("personal", [
+        { bank: "SBI", rateRange: "10.30-15.30%", note: "PSU, salaried" },
+        { bank: "Bank of Baroda", rateRange: "10.90-18.25%", note: "PSU" },
+        { bank: "Punjab National Bank", rateRange: "10.40-17.95%", note: "PSU" },
+        { bank: "HDFC Bank", rateRange: "10.50-24.00%" },
+        { bank: "ICICI Bank", rateRange: "10.85-16.65%" },
+        { bank: "Axis Bank", rateRange: "10.99-22.00%" },
+        { bank: "Kotak Mahindra", rateRange: "10.99-24.00%" },
+      ]),
     ],
     disclaimer: DISCLAIMER,
     source: "Indicative snapshot — verify with the bank directly.",
@@ -96,7 +106,7 @@ async function fetchLoanRates(): Promise<Payload> {
     "(3) Use only real bank names and rates you actually verified via web_search — do not invent. " +
     "(4) If a specific bank/category rate cannot be verified, OMIT that bank from that category rather than guessing. " +
     "Return ONLY strict JSON (no markdown, no prose) matching: " +
-    `{"categories":[{"type":"home|gold|car|fd","banks":[{"bank":string,"rateRange":string,"note":string?}]}]}. ` +
+    `{"categories":[{"type":"home|gold|car|fd|personal","banks":[{"bank":string,"rateRange":string,"note":string?}]}]}. ` +
     "Include 6-7 banks per category with a MIX of public sector (PSU) and private banks. " +
     "REQUIRED PSU banks (include at least 3 of these across every category): SBI, Bank of Baroda, Punjab National Bank, Canara Bank, Union Bank of India. " +
     "REQUIRED private banks (include at least 3): HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank. " +
@@ -104,7 +114,7 @@ async function fetchLoanRates(): Promise<Payload> {
     "note is optional — use it only for genuinely relevant context (e.g. \"salaried\", \"1-year FD\", \"PSU\").";
 
   const userPrompt =
-    "Fetch the CURRENT interest rate RANGES for major Indian banks across four categories: home loan, gold loan, new car loan, and general fixed deposit (1-3 year range). Include a proper mix of PSU banks (SBI, Bank of Baroda, Punjab National Bank, Canara Bank) AND private banks (HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank) — at least 2-3 PSU banks and 2-3 private banks in EACH category. Verify via web_search. Return strict JSON only, RANGES not single numbers.";
+    "Fetch the CURRENT interest rate RANGES for major Indian banks across FIVE categories: home loan, gold loan, new car loan, general fixed deposit (1-3 year range), and unsecured personal loan (salaried, 3-5yr tenure). Include a proper mix of PSU banks (SBI, Bank of Baroda, Punjab National Bank, Canara Bank) AND private banks (HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank) — at least 2-3 PSU banks and 2-3 private banks in EACH category. Personal loan ranges are typically wider (10-24%) because they're unsecured and CIBIL-sensitive — reflect that honestly. Verify via web_search. Return strict JSON only, RANGES not single numbers.";
 
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return fallback;
@@ -141,7 +151,7 @@ async function fetchLoanRates(): Promise<Payload> {
     const parsed = JSON.parse(text.slice(s, e + 1));
     const rawCats: any[] = Array.isArray(parsed?.categories) ? parsed.categories : [];
     const categories: Category[] = rawCats
-      .filter((c) => c && typeof c.type === "string" && ["home", "gold", "car", "fd"].includes(c.type))
+      .filter((c) => c && typeof c.type === "string" && ["home", "gold", "car", "fd", "personal"].includes(c.type))
       .map((c) => ({
         type: c.type as Category["type"],
         label: CATEGORY_LABELS[c.type as Category["type"]],
@@ -163,7 +173,7 @@ async function fetchLoanRates(): Promise<Payload> {
     // Per-category backfill: if Claude's response was truncated or a category
     // came back with too few banks, top up JUST that category from fallback
     // rather than discarding the entire live response.
-    const REQUIRED: Category["type"][] = ["home", "gold", "car", "fd"];
+    const REQUIRED: Category["type"][] = ["home", "gold", "car", "fd", "personal"];
     const liveByType = new Map(categories.map((c) => [c.type, c] as const));
     const fallbackByType = new Map(fallback.categories.map((c) => [c.type, c] as const));
     const backfilled: Category["type"][] = [];
