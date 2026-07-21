@@ -362,6 +362,28 @@ export function WatchLive() {
   const activeUserGenreDbId = isUserGenre ? (activeGenre!.id as string).slice(3) : null;
   const current = videos.length ? videos[idx % videos.length] : null;
 
+  // Resume last-watched video from shared home key on first non-empty load.
+  useEffect(() => {
+    if (resumedRef.current) return;
+    if (videos.length === 0) return;
+    try {
+      const last = localStorage.getItem("oniq.watch.last");
+      if (last) {
+        const foundIdx = videos.findIndex((v) => v.videoId === last);
+        if (foundIdx >= 0) setIdx(foundIdx);
+      }
+    } catch { /* noop */ }
+    resumedRef.current = true;
+  }, [videos]);
+
+  // Persist last-watched genre + video so the home banner restores the same state.
+  useEffect(() => {
+    try {
+      if (current?.videoId) localStorage.setItem("oniq.watch.last", current.videoId);
+      if (activeGenre?.id) localStorage.setItem("oniq.watch.lastGenre", String(activeGenre.id));
+    } catch { /* noop */ }
+  }, [current?.videoId, activeGenre?.id]);
+
   const advance = (reason: "error" | "ended") => {
     const total = videos.length;
     if (total === 0) { setAllDead(true); return; }
