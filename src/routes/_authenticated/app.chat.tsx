@@ -1,6 +1,7 @@
 import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
 import { MessageCircle, Radio, Phone, Sparkles, Film } from "lucide-react";
 import { CALLS_ENABLED } from "@/lib/flags";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 export const Route = createFileRoute("/_authenticated/app/chat")({
   component: ChatWorldLayout,
@@ -9,11 +10,11 @@ export const Route = createFileRoute("/_authenticated/app/chat")({
 // Calls tab is intentionally hidden from the visible tab bar (route still resolves at /app/chat/calls).
 // To restore, add it back to VISIBLE_TABS below.
 const ALL_TABS = [
-  { to: "/app/chat", label: "Chats", icon: MessageCircle, exact: true },
-  { to: "/app/chat/moments", label: "Moments", icon: Sparkles, exact: false },
-  { to: "/app/chat/reels", label: "Reels", icon: Film, exact: false },
-  { to: "/app/chat/updates", label: "Updates", icon: Radio, exact: false },
-  { to: "/app/chat/calls", label: "Calls", icon: Phone, exact: false },
+  { to: "/app/chat", labelKey: "chat.tab.chats", fallback: "Chats", icon: MessageCircle, exact: true },
+  { to: "/app/chat/moments", labelKey: "chat.tab.moments", fallback: "Moments", icon: Sparkles, exact: false },
+  { to: "/app/chat/reels", labelKey: "chat.tab.reels", fallback: "Reels", icon: Film, exact: false },
+  { to: "/app/chat/updates", labelKey: "chat.tab.updates", fallback: "Updates", icon: Radio, exact: false },
+  { to: "/app/chat/calls", labelKey: "chat.tab.calls", fallback: "Calls", icon: Phone, exact: false },
 ] as const;
 
 const HIDDEN = new Set<string>(["/app/chat/calls"]);
@@ -22,6 +23,7 @@ const VISIBLE_TABS = ALL_TABS.filter((t) => !HIDDEN.has(t.to));
 void CALLS_ENABLED;
 
 function ChatWorldLayout() {
+  const { t: tr } = useT();
   const { pathname } = useLocation();
   const normalized = pathname.length > 1 && pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
   const showTabs = VISIBLE_TABS.some((t) =>
@@ -54,7 +56,7 @@ function ChatWorldLayout() {
                   }`}
                 >
                   <Icon className={`h-5 w-5 transition-transform duration-200 ${active ? "scale-110" : ""}`} />
-                  <span className="leading-none">{t.label}</span>
+                  <span className="leading-none">{tr(t.labelKey, t.fallback)}</span>
                 </Link>
               );
             })}

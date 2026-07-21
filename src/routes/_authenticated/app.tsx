@@ -13,18 +13,18 @@ import { usePresenceTracker } from "@/hooks/usePresence";
 import { useEffect } from "react";
 import { initPush } from "@/lib/push";
 import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
-import { LanguageProvider } from "@/lib/i18n/LanguageProvider";
+import { LanguageProvider, useT } from "@/lib/i18n/LanguageProvider";
 
 
 export const Route = createFileRoute("/_authenticated/app")({
   component: AppShell,
 });
 
-type Tab = { to: string; label: string; icon: typeof Home };
+type Tab = { to: string; labelKey: string; fallback: string; icon: typeof Home };
 const tabs: Tab[] = [
-  { to: "/app", label: "Home", icon: Home },
-  { to: "/app/chat", label: "Chat", icon: MessageCircle },
-  { to: "/app/profile", label: "Profile", icon: User },
+  { to: "/app", labelKey: "nav.home", fallback: "Home", icon: Home },
+  { to: "/app/chat", labelKey: "nav.chat", fallback: "Chat", icon: MessageCircle },
+  { to: "/app/profile", labelKey: "nav.profile", fallback: "Profile", icon: User },
 ];
 
 const TOP_LEVEL = new Set(["/app", "/app/profile"]);
@@ -103,7 +103,7 @@ function AppShell() {
                     }`}
                   >
                     <Icon className={`h-5 w-5 transition-transform duration-200 ${active ? "scale-110" : ""}`} />
-                    {t.label}
+                    <NavLabel labelKey={t.labelKey} fallback={t.fallback} />
                   </Link>
                 );
               })}
@@ -116,4 +116,10 @@ function AppShell() {
     </LanguageProvider>
   );
 }
+
+function NavLabel({ labelKey, fallback }: { labelKey: string; fallback: string }) {
+  const { t } = useT();
+  return <>{t(labelKey, fallback)}</>;
+}
+
 

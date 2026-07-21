@@ -4,14 +4,12 @@
 // Design: any screen can register keys under its own namespace (e.g.
 // "home.tile.rides"). Missing keys fall back to English, then to the raw
 // key. Add new keys anywhere in this file — no registration ceremony.
-//
-// Pan-Indian Tier-0 defaults (mast/khabar/safar/khazana/jugaad/batua/chalo)
-// are used wherever a language-specific curated word wasn't researched.
 
 export type Dict = Record<string, string>;
 
-// English baseline — same pan-Indian curated words as Hindi (per spec:
-// English speakers get the same flavour, not translated-back English).
+// English baseline. Where a per-language equivalent isn't confidently
+// known, other dictionaries spread from `en` so keys fall back to English
+// automatically.
 const en: Dict = {
   "home.greeting": "Hey",
   "home.transparency": "words from across India, not just English slang 🇮🇳",
@@ -22,6 +20,25 @@ const en: Dict = {
   "home.tile.wander": "safar ✈️",
   "home.tile.wallet": "batua 💳",
   "home.tile.clips": "mast 🎬",
+  // Stage-2 additions
+  "home.tile.ting": "Ting",
+  "home.tile.smart": "bachat",
+  "home.tile.study": "Study",
+  "home.tile.blessed": "Blessed",
+  "home.tile.vitals": "Vitals",
+  "home.tile.earn": "Earn",
+  "home.tile.watch": "Watch",
+  "nav.home": "Home",
+  "nav.chat": "Chat",
+  "nav.profile": "Profile",
+  "chat.tab.chats": "Chats",
+  "chat.tab.moments": "Moments",
+  "chat.tab.reels": "Reels",
+  "chat.tab.updates": "Updates",
+  "banner.tab.watch": "Watch",
+  "banner.tab.study": "Study",
+  "banner.tab.moments": "Moments",
+  "banner.tab.mast": "Mast 🎬",
 };
 
 const hi: Dict = {
@@ -34,6 +51,24 @@ const hi: Dict = {
   "home.tile.wander": "सफ़र",
   "home.tile.wallet": "बटुआ",
   "home.tile.clips": "मस्त",
+  "home.tile.ting": "टिंग",
+  "home.tile.smart": "बचत",
+  "home.tile.study": "पढ़ाई",
+  "home.tile.blessed": "भक्ति",
+  "home.tile.vitals": "सेहत",
+  "home.tile.earn": "कमाई",
+  "home.tile.watch": "देखो",
+  "nav.home": "होम",
+  "nav.chat": "चैट",
+  "nav.profile": "प्रोफ़ाइल",
+  "chat.tab.chats": "चैट",
+  "chat.tab.moments": "पल",
+  "chat.tab.reels": "रील्स",
+  "chat.tab.updates": "अपडेट",
+  "banner.tab.watch": "देखो",
+  "banner.tab.study": "पढ़ाई",
+  "banner.tab.moments": "पल",
+  "banner.tab.mast": "मस्त 🎬",
 };
 
 const ta: Dict = {
@@ -46,6 +81,24 @@ const ta: Dict = {
   "home.tile.wander": "பயணம்",
   "home.tile.wallet": "பணம்",
   "home.tile.clips": "செம்ம",
+  "home.tile.ting": "டிங்",
+  "home.tile.smart": "சேமிப்பு",
+  "home.tile.study": "படிப்பு",
+  "home.tile.blessed": "பக்தி",
+  "home.tile.vitals": "ஆரோக்கியம்",
+  "home.tile.earn": "வருமானம்",
+  "home.tile.watch": "பாரு",
+  "nav.home": "முகப்பு",
+  "nav.chat": "அரட்டை",
+  "nav.profile": "சுயவிவரம்",
+  "chat.tab.chats": "அரட்டை",
+  "chat.tab.moments": "தருணங்கள்",
+  "chat.tab.reels": "ரீல்ஸ்",
+  "chat.tab.updates": "புதுப்பிப்புகள்",
+  "banner.tab.watch": "பாரு",
+  "banner.tab.study": "படிப்பு",
+  "banner.tab.moments": "தருணங்கள்",
+  "banner.tab.mast": "செம்ம 🎬",
 };
 
 const te: Dict = {
@@ -58,8 +111,25 @@ const te: Dict = {
   "home.tile.wander": "ప్రయాణం",
   "home.tile.wallet": "కాసు",
   "home.tile.clips": "కేక",
+  "home.tile.ting": "టింగ్",
+  "home.tile.smart": "పొదుపు",
+  "home.tile.study": "చదువు",
+  "home.tile.blessed": "భక్తి",
+  "home.tile.vitals": "ఆరోగ్యం",
+  "home.tile.earn": "సంపాదన",
+  "home.tile.watch": "చూడు",
+  "nav.home": "హోమ్",
+  "nav.chat": "చాట్",
+  "nav.profile": "ప్రొఫైల్",
+  "chat.tab.chats": "చాట్‌లు",
+  "chat.tab.moments": "క్షణాలు",
+  "chat.tab.reels": "రీల్స్",
+  "chat.tab.updates": "అప్‌డేట్‌లు",
+  "banner.tab.watch": "చూడు",
+  "banner.tab.study": "చదువు",
+  "banner.tab.moments": "క్షణాలు",
+  "banner.tab.mast": "కేక 🎬",
 };
-
 
 const bn: Dict = {
   ...en,
@@ -71,6 +141,24 @@ const bn: Dict = {
   "home.tile.wander": "সফর",
   "home.tile.wallet": "মানিব্যাগ",
   "home.tile.clips": "ফটাফাটি",
+  "home.tile.ting": "টিং",
+  "home.tile.smart": "সঞ্চয়",
+  "home.tile.study": "পড়াশোনা",
+  "home.tile.blessed": "ভক্তি",
+  "home.tile.vitals": "স্বাস্থ্য",
+  "home.tile.earn": "আয়",
+  "home.tile.watch": "দেখো",
+  "nav.home": "হোম",
+  "nav.chat": "চ্যাট",
+  "nav.profile": "প্রোফাইল",
+  "chat.tab.chats": "চ্যাট",
+  "chat.tab.moments": "মুহূর্ত",
+  "chat.tab.reels": "রিলস",
+  "chat.tab.updates": "আপডেট",
+  "banner.tab.watch": "দেখো",
+  "banner.tab.study": "পড়াশোনা",
+  "banner.tab.moments": "মুহূর্ত",
+  "banner.tab.mast": "ফটাফাটি 🎬",
 };
 
 const mr: Dict = {
@@ -83,6 +171,24 @@ const mr: Dict = {
   "home.tile.wander": "सफर",
   "home.tile.wallet": "बटवा",
   "home.tile.clips": "भारी",
+  "home.tile.ting": "टिंग",
+  "home.tile.smart": "बचत",
+  "home.tile.study": "अभ्यास",
+  "home.tile.blessed": "भक्ती",
+  "home.tile.vitals": "आरोग्य",
+  "home.tile.earn": "कमाई",
+  "home.tile.watch": "बघा",
+  "nav.home": "होम",
+  "nav.chat": "चॅट",
+  "nav.profile": "प्रोफाइल",
+  "chat.tab.chats": "चॅट",
+  "chat.tab.moments": "क्षण",
+  "chat.tab.reels": "रील्स",
+  "chat.tab.updates": "अपडेट",
+  "banner.tab.watch": "बघा",
+  "banner.tab.study": "अभ्यास",
+  "banner.tab.moments": "क्षण",
+  "banner.tab.mast": "भारी 🎬",
 };
 
 const kn: Dict = {
@@ -95,6 +201,24 @@ const kn: Dict = {
   "home.tile.wander": "ಪ್ರಯಾಣ",
   "home.tile.wallet": "ಕಾಸು",
   "home.tile.clips": "ಸಕ್ಕತ್",
+  "home.tile.ting": "ಟಿಂಗ್",
+  "home.tile.smart": "ಉಳಿತಾಯ",
+  "home.tile.study": "ಓದು",
+  "home.tile.blessed": "ಭಕ್ತಿ",
+  "home.tile.vitals": "ಆರೋಗ್ಯ",
+  "home.tile.earn": "ಗಳಿಕೆ",
+  "home.tile.watch": "ನೋಡು",
+  "nav.home": "ಮುಖಪುಟ",
+  "nav.chat": "ಚಾಟ್",
+  "nav.profile": "ಪ್ರೊಫೈಲ್",
+  "chat.tab.chats": "ಚಾಟ್‌ಗಳು",
+  "chat.tab.moments": "ಕ್ಷಣಗಳು",
+  "chat.tab.reels": "ರೀಲ್ಸ್",
+  "chat.tab.updates": "ಅಪ್‌ಡೇಟ್‌ಗಳು",
+  "banner.tab.watch": "ನೋಡು",
+  "banner.tab.study": "ಓದು",
+  "banner.tab.moments": "ಕ್ಷಣಗಳು",
+  "banner.tab.mast": "ಸಕ್ಕತ್ 🎬",
 };
 
 const ml: Dict = {
@@ -107,8 +231,25 @@ const ml: Dict = {
   "home.tile.wander": "സഫർ",
   "home.tile.wallet": "പണം",
   "home.tile.clips": "അടിപൊളി",
+  "home.tile.ting": "ടിംഗ്",
+  "home.tile.smart": "സമ്പാദ്യം",
+  "home.tile.study": "പഠനം",
+  "home.tile.blessed": "ഭക്തി",
+  "home.tile.vitals": "ആരോഗ്യം",
+  "home.tile.earn": "വരുമാനം",
+  "home.tile.watch": "കാണൂ",
+  "nav.home": "ഹോം",
+  "nav.chat": "ചാറ്റ്",
+  "nav.profile": "പ്രൊഫൈൽ",
+  "chat.tab.chats": "ചാറ്റുകൾ",
+  "chat.tab.moments": "നിമിഷങ്ങൾ",
+  "chat.tab.reels": "റീൽസ്",
+  "chat.tab.updates": "അപ്ഡേറ്റുകൾ",
+  "banner.tab.watch": "കാണൂ",
+  "banner.tab.study": "പഠനം",
+  "banner.tab.moments": "നിമിഷങ്ങൾ",
+  "banner.tab.mast": "അടിപൊളി 🎬",
 };
-
 
 const pa: Dict = {
   ...en,
@@ -120,6 +261,24 @@ const pa: Dict = {
   "home.tile.wander": "ਸਫ਼ਰ",
   "home.tile.wallet": "ਬਟੂਆ",
   "home.tile.clips": "ਤਸ਼ਨ",
+  "home.tile.ting": "ਟਿੰਗ",
+  "home.tile.smart": "ਬੱਚਤ",
+  "home.tile.study": "ਪੜ੍ਹਾਈ",
+  "home.tile.blessed": "ਭਗਤੀ",
+  "home.tile.vitals": "ਸਿਹਤ",
+  "home.tile.earn": "ਕਮਾਈ",
+  "home.tile.watch": "ਦੇਖੋ",
+  "nav.home": "ਹੋਮ",
+  "nav.chat": "ਚੈਟ",
+  "nav.profile": "ਪ੍ਰੋਫਾਈਲ",
+  "chat.tab.chats": "ਚੈਟਾਂ",
+  "chat.tab.moments": "ਪਲ",
+  "chat.tab.reels": "ਰੀਲਾਂ",
+  "chat.tab.updates": "ਅੱਪਡੇਟ",
+  "banner.tab.watch": "ਦੇਖੋ",
+  "banner.tab.study": "ਪੜ੍ਹਾਈ",
+  "banner.tab.moments": "ਪਲ",
+  "banner.tab.mast": "ਤਸ਼ਨ 🎬",
 };
 
 const gu: Dict = {
@@ -132,12 +291,72 @@ const gu: Dict = {
   "home.tile.wander": "સફર",
   "home.tile.wallet": "બટવો",
   "home.tile.clips": "મજા",
+  "home.tile.ting": "ટિંગ",
+  "home.tile.smart": "બચત",
+  "home.tile.study": "અભ્યાસ",
+  "home.tile.blessed": "ભક્તિ",
+  "home.tile.vitals": "આરોગ્ય",
+  "home.tile.earn": "કમાણી",
+  "home.tile.watch": "જુઓ",
+  "nav.home": "હોમ",
+  "nav.chat": "ચેટ",
+  "nav.profile": "પ્રોફાઇલ",
+  "chat.tab.chats": "ચેટ",
+  "chat.tab.moments": "ક્ષણો",
+  "chat.tab.reels": "રીલ્સ",
+  "chat.tab.updates": "અપડેટ",
+  "banner.tab.watch": "જુઓ",
+  "banner.tab.study": "અભ્યાસ",
+  "banner.tab.moments": "ક્ષણો",
+  "banner.tab.mast": "મજા 🎬",
 };
 
-// Odia & Assamese — pan-Indian Tier-0 fallback (honest: no verified
-// regional equivalents for these exact 7 concepts in tonight's research).
-const or: Dict = { ...en, "home.greeting": "ନମସ୍କାର" };
-const as: Dict = { ...en, "home.greeting": "নমস্কাৰ" };
+// Odia — most keys fall back to en; standard nav/tile words filled where confident.
+const or: Dict = {
+  ...en,
+  "home.greeting": "ନମସ୍କାର",
+  "home.tile.ting": "ଟିଙ୍ଗ",
+  "home.tile.smart": "ସଞ୍ଚୟ",
+  "home.tile.study": "ପଢ଼ାଇ",
+  "home.tile.blessed": "ଭକ୍ତି",
+  "home.tile.vitals": "ସ୍ୱାସ୍ଥ୍ୟ",
+  "home.tile.earn": "ରୋଜଗାର",
+  "home.tile.watch": "ଦେଖ",
+  "nav.home": "ହୋମ",
+  "nav.chat": "ଚାଟ୍",
+  "nav.profile": "ପ୍ରୋଫାଇଲ୍",
+  "chat.tab.chats": "ଚାଟ୍",
+  "chat.tab.moments": "ମୁହୂର୍ତ୍ତ",
+  "chat.tab.reels": "ରିଲ୍ସ",
+  "chat.tab.updates": "ଅପଡେଟ୍",
+  "banner.tab.watch": "ଦେଖ",
+  "banner.tab.study": "ପଢ଼ାଇ",
+  "banner.tab.moments": "ମୁହୂର୍ତ୍ତ",
+  "banner.tab.mast": "ମସ୍ତ 🎬",
+};
+
+const as: Dict = {
+  ...en,
+  "home.greeting": "নমস্কাৰ",
+  "home.tile.ting": "টিং",
+  "home.tile.smart": "সঞ্চয়",
+  "home.tile.study": "পঢ়া",
+  "home.tile.blessed": "ভক্তি",
+  "home.tile.vitals": "স্বাস্থ্য",
+  "home.tile.earn": "উপাৰ্জন",
+  "home.tile.watch": "চোৱা",
+  "nav.home": "হোম",
+  "nav.chat": "চেট",
+  "nav.profile": "প্ৰ'ফাইল",
+  "chat.tab.chats": "চেট",
+  "chat.tab.moments": "মুহূৰ্ত",
+  "chat.tab.reels": "ৰীল্‌ছ",
+  "chat.tab.updates": "আপডেট",
+  "banner.tab.watch": "চোৱা",
+  "banner.tab.study": "পঢ়া",
+  "banner.tab.moments": "মুহূৰ্ত",
+  "banner.tab.mast": "মস্ত 🎬",
+};
 
 const ur: Dict = {
   ...en,
@@ -149,6 +368,24 @@ const ur: Dict = {
   "home.tile.wander": "سفر",
   "home.tile.wallet": "بٹوا",
   "home.tile.clips": "زبردست",
+  "home.tile.ting": "ٹنگ",
+  "home.tile.smart": "بچت",
+  "home.tile.study": "پڑھائی",
+  "home.tile.blessed": "عقیدت",
+  "home.tile.vitals": "صحت",
+  "home.tile.earn": "کمائی",
+  "home.tile.watch": "دیکھو",
+  "nav.home": "ہوم",
+  "nav.chat": "چیٹ",
+  "nav.profile": "پروفائل",
+  "chat.tab.chats": "چیٹس",
+  "chat.tab.moments": "لمحات",
+  "chat.tab.reels": "ریلز",
+  "chat.tab.updates": "اپڈیٹس",
+  "banner.tab.watch": "دیکھو",
+  "banner.tab.study": "پڑھائی",
+  "banner.tab.moments": "لمحات",
+  "banner.tab.mast": "زبردست 🎬",
 };
 
 export const DICTIONARIES: Record<string, Dict> = {

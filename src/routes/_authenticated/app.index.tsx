@@ -140,16 +140,16 @@ function HomeScreen() {
           </div>
           <AlsoInOniqRow
             tiles={[
-              { key: "ting", to: "/app/ai", label: "Ting" },
-              { key: "learn", to: "/app/learn", label: "bachat" },
+              { key: "ting", to: "/app/ai", label: t("home.tile.ting", "Ting") },
+              { key: "learn", to: "/app/learn", label: t("home.tile.smart", "bachat") },
               { key: "rides", to: "/app/rides", label: t("home.tile.rides") },
               { key: "miniapps", to: "/app/miniapps", label: t("home.tile.miniapps") },
               { key: "pulse", to: "/app/news", label: t("home.tile.pulse") },
-              { key: "watch", to: "/app/news", label: "Watch" },
-              { key: "faith", to: "/app/faith", label: "blessed" },
-              { key: "vitals", to: "/app/vitals", label: "vitals", color: vitalsColor },
+              { key: "watch", to: "/app/news", label: t("home.tile.watch", "Watch") },
+              { key: "faith", to: "/app/faith", label: t("home.tile.blessed", "blessed") },
+              { key: "vitals", to: "/app/vitals", label: t("home.tile.vitals", "vitals"), color: vitalsColor },
               { key: "wander", to: "/app/travel", label: t("home.tile.wander") },
-              { key: "earn", to: "/app/earn", label: "earn" },
+              { key: "earn", to: "/app/earn", label: t("home.tile.earn", "earn") },
             ]}
             hidden={hidden}
           />
