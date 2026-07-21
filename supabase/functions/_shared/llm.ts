@@ -151,6 +151,10 @@ export type CallClaudeOpts = {
   // gets reused — caching a shorter prompt is silently ignored. The Gemini
   // fallback path ignores this flag (caching is Anthropic-specific).
   cacheSystem?: boolean;
+  // Optional Anthropic model override. When absent, defaults to the shared
+  // "claude-sonnet-4-6" baseline every existing caller has relied on. The
+  // Gemini fallback path ignores this (fallback model is Gemini-specific).
+  model?: string;
 };
 
 export type CallClaudeResult =
