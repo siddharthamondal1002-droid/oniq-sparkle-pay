@@ -1669,6 +1669,12 @@ type ClipPreview = {
 };
 
 function MastPreview() {
+  const navigate = useNavigate();
+  const media = useMediaCoordinator();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const [idx, setIdx] = useState(0);
+  const [pickNonce, setPickNonce] = useState(0);
+
   const { data, isLoading } = useQuery({
     queryKey: ["clips-preview"],
     staleTime: 60_000,
@@ -1680,12 +1686,38 @@ function MastPreview() {
     },
   });
 
-  const clips = (data ?? []).slice(0, 4);
+  const clips = data ?? [];
+  const active = clips[idx];
+
+  // Auto-advance every 30s; resets whenever idx or pickNonce changes so a
+  // manual tap gets a fresh 30s countdown rather than a stale timer firing.
+  useEffect(() => {
+    if (clips.length <= 1) return;
+    const t = setTimeout(() => {
+      setIdx((i) => (i + 1) % clips.length);
+    }, 30_000);
+    return () => clearTimeout(t);
+  }, [idx, pickNonce, clips.length]);
+
+  // Register the current video with the single-audio-source coordinator so
+  // Watch and Mast never play audio simultaneously. Mast previews are muted
+  // by design (they act as a silent teaser), but registering still lets any
+  // future unmute participate correctly.
+  useEffect(() => {
+    if (videoRef.current) media.register(videoRef.current);
+  }, [idx, media]);
+
+  const openReels = () => navigate({ to: "/app/chat/reels" });
 
   return (
-    <Link
-      to="/app/chat/reels"
-      className="press fade-up relative block overflow-hidden rounded-3xl border border-border p-4"
+    <div
+      onClick={openReels}
+      role="link"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") openReels();
+      }}
+      className="press fade-up relative block cursor-pointer overflow-hidden rounded-3xl border border-border p-4"
       style={{
         background:
           "radial-gradient(120% 90% at 0% 0%, #F59E0B40 0%, #F59E0B10 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #EC489933 0%, #EC48990d 45%, transparent 75%), hsl(var(--card))",
@@ -1701,12 +1733,8 @@ function MastPreview() {
       </div>
 
       {isLoading ? (
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="aspect-[9/16] animate-pulse rounded-xl bg-surface" />
-          ))}
-        </div>
-      ) : clips.length === 0 ? (
+        <div className="mt-3 aspect-video animate-pulse rounded-xl bg-surface" />
+      ) : clips.length === 0 || !active ? (
         <div className="mt-4">
           <div className="font-display text-xl font-bold text-foreground">
             no clips yet
@@ -1717,47 +1745,56 @@ function MastPreview() {
         </div>
       ) : (
         <>
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            {clips.map((c) => {
-              // Media fragment (#t=0.5) forces the browser to seek to a
-              // representative frame ~0.5s in and paint it as the poster,
-              // instead of leaving the tile black until buffering completes.
-              const posterSrc = `${c.video_url}${c.video_url.includes("#") ? "&" : "#"}t=0.5`;
-              return (
-                <div
-                  key={c.id}
-                  className="relative aspect-[9/16] overflow-hidden rounded-xl bg-black border border-border/60"
-                >
-                  <video
-                    src={posterSrc}
-                    muted
-                    playsInline
-                    preload="auto"
-                    disablePictureInPicture
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    {...({ "disableremoteplayback": "" } as any)}
-                    className="absolute inset-0 h-full w-full object-cover"
+          <div className="mt-3 relative aspect-video overflow-hidden rounded-xl bg-black border border-border/60">
+            <video
+              ref={videoRef}
+              key={active.id}
+              src={`${active.video_url}${active.video_url.includes("#") ? "&" : "#"}t=0.5`}
+              muted
+              playsInline
+              autoPlay
+              loop
+              preload="auto"
+              disablePictureInPicture
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              {...({ "disableremoteplayback": "" } as any)}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+            <div className="absolute inset-x-2 bottom-2 flex items-center justify-between text-[11px] text-white">
+              <span className="inline-flex items-center gap-1">
+                <Heart className="h-3 w-3" />
+                {active.like_count}
+              </span>
+              <Play className="h-3.5 w-3.5 opacity-90" />
+            </div>
+            {clips.length > 1 && (
+              <div className="absolute inset-x-0 bottom-1 flex justify-center gap-1.5">
+                {clips.map((c, i) => (
+                  <button
+                    key={c.id}
+                    aria-label={`clip ${i + 1}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIdx(i);
+                      setPickNonce((n) => n + 1);
+                    }}
+                    className={`h-1.5 rounded-full transition-all ${
+                      i === idx ? "w-4 bg-white" : "w-1.5 bg-white/40"
+                    }`}
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                  <div className="absolute inset-x-1 bottom-1 flex items-center justify-between text-[10px] text-white">
-                    <span className="inline-flex items-center gap-0.5">
-                      <Heart className="h-2.5 w-2.5" />
-                      {c.like_count}
-                    </span>
-                    <Play className="h-3 w-3 opacity-90" />
-                  </div>
-                </div>
-              );
-            })}
+                ))}
+              </div>
+            )}
           </div>
-          {clips[0]?.caption && (
+          {active.caption && (
             <div className="mt-3 text-xs text-foreground line-clamp-1">
-              {clips[0].caption}
+              {active.caption}
             </div>
           )}
         </>
       )}
-    </Link>
+    </div>
   );
 }
 
