@@ -780,10 +780,8 @@ function EditProfile({
           ))}
         </select>
 
-        {/* TEMP DEBUG MARKER — remove once picker visibility confirmed */}
-        <div className="mt-4 rounded-xl border-2 border-fuchsia-500 bg-fuchsia-500/20 px-3 py-2 text-xs font-mono text-fuchsia-100">
-          DEBUG · board=<b>{String(board)}</b> · picker={String(boardUsesSecondLangPicker(board))} · len={SECOND_LANG_OPTIONS.length}
-        </div>
+
+
 
         {boardUsesSecondLangPicker(board) && (
           <>
@@ -3953,9 +3951,10 @@ function MockPaperModal({
           started_at?: string | null;
           duration_seconds?: number | null;
         };
+        const expectedDurSec = durationMinutes * 60;
         if (
           r?.found && r.paper_id && Array.isArray(r.questions) && r.questions.length > 0 &&
-          r.started_at && r.duration_seconds
+          r.started_at && r.duration_seconds && r.duration_seconds === expectedDurSec
         ) {
           const startedMs = new Date(r.started_at).getTime();
           const durSec = r.duration_seconds;

@@ -107,7 +107,10 @@ Deno.serve(async (req) => {
     let data: any = null;
     let servedBy: "gemini" | "anthropic" = "anthropic";
 
-    if (!hasAttachment) {
+    // When web search is requested (default), skip Gemini primary — Gemini
+    // has no web_search tool wired up here, so we'd lose live sources.
+    // Anthropic's web_search branch below handles it.
+    if (!hasAttachment && !search) {
       const geminiMsgs: ClaudeMessage[] = outMessages.map((m) => ({
         role: m.role as "user" | "assistant",
         content: typeof m.content === "string" ? m.content : "",
