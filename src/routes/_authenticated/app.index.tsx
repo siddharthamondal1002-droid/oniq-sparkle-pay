@@ -1749,7 +1749,7 @@ function MastPreview() {
       ) : (
         <>
           <div
-            className="mt-3 relative aspect-video overflow-hidden rounded-xl bg-black border border-border/60 touch-pan-y"
+            className="mt-3 relative mx-auto aspect-[9/16] w-full max-w-[240px] overflow-hidden rounded-xl bg-black border border-border/60 touch-pan-y"
             onTouchStart={(e) => {
               const t = e.touches[0];
               (e.currentTarget as HTMLDivElement).dataset.sx = String(t.clientX);
@@ -1776,7 +1776,7 @@ function MastPreview() {
               ref={videoRef}
               key={active.id}
               src={`${active.video_url}${active.video_url.includes("#") ? "&" : "#"}t=0.5`}
-              muted
+              muted={muted}
               playsInline
               autoPlay
               loop
@@ -1786,6 +1786,18 @@ function MastPreview() {
               {...({ "disableremoteplayback": "" } as any)}
               className="absolute inset-0 h-full w-full object-cover"
             />
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMuted((m) => !m);
+              }}
+              aria-label={muted ? "Unmute" : "Mute"}
+              aria-pressed={muted}
+              className="absolute right-2 top-2 z-10 grid h-8 w-8 place-items-center rounded-full bg-black/55 text-white backdrop-blur"
+            >
+              {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+            </button>
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
             <div className="absolute inset-x-2 bottom-2 flex items-center justify-between text-[11px] text-white">
               <span className="inline-flex items-center gap-1">
