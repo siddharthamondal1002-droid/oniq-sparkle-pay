@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Play } from "lucide-react";
@@ -7,6 +7,20 @@ import { Loader2, Play } from "lucide-react";
 export const Route = createFileRoute("/_authenticated/app/chat/reels")({
   component: ReelsTab,
 });
+
+function useMinorFlag(): boolean | undefined {
+  const { data } = useQuery({
+    queryKey: ["is-minor"],
+    queryFn: async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return false;
+      const { data: p } = await supabase.from("profiles").select("is_minor").eq("id", u.user.id).maybeSingle();
+      return !!p?.is_minor;
+    },
+    staleTime: 5 * 60_000,
+  });
+  return data;
+}
 
 type ClipRow = {
   id: string;
