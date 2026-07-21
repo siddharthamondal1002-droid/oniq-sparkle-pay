@@ -567,6 +567,7 @@ function ModalCard({ children, onClose }: { children: React.ReactNode; onClose: 
 
 
 function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile) => void; first?: boolean }) {
+  const { t: tSetup } = useT();
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [board, setBoard] = useState<Board>("cbse");
@@ -835,6 +836,7 @@ function EditProfile({
 }
 
 function TutorChat({ profile }: { profile: LearnerProfile }) {
+  const { t: tTutor } = useT();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -3660,6 +3662,7 @@ function attemptScore(r: Attempt): { num: number; den: number } {
 }
 
 function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; onClose: () => void }) {
+  const { t: tProgress } = useT();
   const { data: attempts, isLoading } = useAttempts();
 
   function statsFor(profileId: string) {
