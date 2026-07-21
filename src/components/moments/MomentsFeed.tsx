@@ -225,7 +225,7 @@ export function MomentsFeed() {
                 <article key={p.id} className="rounded-3xl border border-border bg-card p-4">
                   <div className="flex items-center gap-3">
                     {p.profiles?.avatar_url ? (
-                      <img src={p.profiles.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+                      <img src={p.profiles.avatar_url} alt="" loading="lazy" decoding="async" className="h-10 w-10 rounded-full object-cover" />
                     ) : (
                       <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground font-bold">
                         {(p.profiles?.display_name ?? "U").charAt(0).toUpperCase()}
@@ -266,7 +266,7 @@ export function MomentsFeed() {
 
                   {p.content && <p className="mt-3 text-sm">{p.content}</p>}
                   {p.media_urls?.[0] && (
-                    <img src={p.media_urls[0]} alt="" className="mt-3 max-h-96 w-full rounded-2xl object-cover" />
+                    <img src={p.media_urls[0]} alt="" loading="lazy" decoding="async" className="mt-3 max-h-96 w-full rounded-2xl object-cover" />
                   )}
                   <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
                     <button
