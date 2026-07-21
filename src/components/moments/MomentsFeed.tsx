@@ -6,6 +6,22 @@ import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { formatDistanceToNow } from "date-fns";
 
+type Post = {
+  id: string;
+  content: string | null;
+  media_urls: string[] | null;
+  like_count: number | null;
+  comment_count: number | null;
+  created_at: string | null;
+  user_id: string;
+  visibility: string | null;
+  profiles: {
+    display_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+  } | null;
+};
+
 export function MomentsFeed() {
   const qc = useQueryClient();
   const [content, setContent] = useState("");
@@ -16,6 +32,7 @@ export function MomentsFeed() {
   const [me, setMe] = useState<string | null>(null);
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [openComments, setOpenComments] = useState<string | null>(null);
+  const [openPostId, setOpenPostId] = useState<string | null>(null);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
   const [visibility, setVisibility] = useState<"public" | "moots">(() => {
     if (typeof sessionStorage === "undefined") return "public";
@@ -69,7 +86,7 @@ export function MomentsFeed() {
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(50);
-      return data ?? [];
+      return (data ?? []) as unknown as Post[];
     },
   });
 
@@ -134,8 +151,11 @@ export function MomentsFeed() {
       toast.error(error.message);
     } else {
       toast.success("Post deleted");
+      if (openPostId === postId) setOpenPostId(null);
     }
   }
+
+  const openPost = openPostId ? posts?.find((p) => p.id === openPostId) ?? null : null;
 
   return (
     <div className="pb-6">
@@ -217,92 +237,171 @@ export function MomentsFeed() {
           </div>
         </div>
 
-        <div className="mt-5 space-y-3">
-          {posts && posts.length > 0 ? (
-            posts.map((p) => {
-              const liked = likedIds.has(p.id);
+        {posts && posts.length > 0 ? (
+          <div className="mt-5 grid grid-cols-3 gap-1">
+            {posts.map((p) => {
+              const img = p.media_urls?.[0];
               return (
-                <article key={p.id} className="rounded-3xl border border-border bg-card p-4">
-                  <div className="flex items-center gap-3">
-                    {p.profiles?.avatar_url ? (
-                      <img src={p.profiles.avatar_url} alt="" loading="lazy" decoding="async" className="h-10 w-10 rounded-full object-cover" />
-                    ) : (
-                      <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-primary-foreground font-bold">
-                        {(p.profiles?.display_name ?? "U").charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <div className="text-sm font-medium">
-                        {p.profiles?.display_name ?? p.profiles?.username ?? "User"}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(p.created_at ?? Date.now()), { addSuffix: true })}
-                      </div>
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setOpenPostId(p.id)}
+                  className="relative aspect-square overflow-hidden rounded-md bg-muted"
+                  aria-label="Open post"
+                >
+                  {img ? (
+                    <img
+                      src={img}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      className="absolute inset-0 h-full w-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/20 to-accent/10 p-2 text-center">
+                      <p className="text-[11px] leading-tight text-foreground line-clamp-4">
+                        {p.content ?? "…"}
+                      </p>
                     </div>
-                    {p.user_id === me && p.visibility === "moots" && (
-                      <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>
-                    )}
-                    {p.user_id === me ? (
-                      <button
-                        type="button"
-                        onClick={() => deletePost(p.id)}
-                        className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
-                        aria-label="Delete post"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setReportTarget({ type: "moment", id: p.id })}
-                        className="shrink-0 grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-500"
-                        aria-label="Report post"
-                        title="Report post"
-                      >
-                        <Flag className="h-4 w-4" />
-                      </button>
-                    )}
-                  </div>
-
-                  {p.content && <p className="mt-3 text-sm">{p.content}</p>}
-                  {p.media_urls?.[0] && (
-                    <img src={p.media_urls[0]} alt="" loading="lazy" decoding="async" className="mt-3 max-h-96 w-full rounded-2xl object-cover" />
                   )}
-                  <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
-                    <button
-                      onClick={() => toggleLike(p.id)}
-                      className={`flex items-center gap-1 transition ${liked ? "text-accent" : "hover:text-accent"}`}
-                    >
-                      <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} /> {p.like_count ?? 0}
-                    </button>
-                    <button
-                      onClick={() => setOpenComments(p.id)}
-                      className="flex items-center gap-1 hover:text-primary"
-                    >
-                      <MessageCircle className="h-4 w-4" /> {p.comment_count ?? 0}
-                    </button>
-                  </div>
-                </article>
+                  {(p.like_count ?? 0) > 0 && (
+                    <div className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                      <Heart className="h-3 w-3 fill-current" />
+                      {p.like_count}
+                    </div>
+                  )}
+                </button>
               );
-            })
-          ) : (
-            <div className="mt-8 flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border p-10 text-center">
-              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent/10 text-accent">
-                <Plus className="h-5 w-5" />
-              </div>
-              <div className="font-display text-base font-semibold">No moments yet</div>
-              <p className="text-xs text-muted-foreground">Be the first to share something.</p>
+            })}
+          </div>
+        ) : (
+          <div className="mt-8 flex flex-col items-center gap-3 rounded-3xl border border-dashed border-border p-10 text-center">
+            <div className="grid h-12 w-12 place-items-center rounded-2xl bg-accent/10 text-accent">
+              <Plus className="h-5 w-5" />
             </div>
-          )}
-        </div>
+            <div className="font-display text-base font-semibold">No moments yet</div>
+            <p className="text-xs text-muted-foreground">Be the first to share something.</p>
+          </div>
+        )}
       </div>
 
+      {openPost && (
+        <PostDetailModal
+          post={openPost}
+          me={me}
+          liked={likedIds.has(openPost.id)}
+          onClose={() => setOpenPostId(null)}
+          onToggleLike={() => toggleLike(openPost.id)}
+          onOpenComments={() => setOpenComments(openPost.id)}
+          onDelete={() => deletePost(openPost.id)}
+          onReport={() => setReportTarget({ type: "moment", id: openPost.id })}
+        />
+      )}
       {openComments && (
         <CommentsSheet postId={openComments} onClose={() => { setOpenComments(null); refetch(); }} />
       )}
       {reportTarget && (
         <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
       )}
+    </div>
+  );
+}
+
+function PostDetailModal({
+  post: p,
+  me,
+  liked,
+  onClose,
+  onToggleLike,
+  onOpenComments,
+  onDelete,
+  onReport,
+}: {
+  post: Post;
+  me: string | null;
+  liked: boolean;
+  onClose: () => void;
+  onToggleLike: () => void;
+  onOpenComments: () => void;
+  onDelete: () => void;
+  onReport: () => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center"
+      onClick={onClose}
+    >
+      <article
+        className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-border bg-card p-4 sm:rounded-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-3">
+          {p.profiles?.avatar_url ? (
+            <img src={p.profiles.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+          ) : (
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-bold text-primary-foreground">
+              {(p.profiles?.display_name ?? "U").charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="flex-1">
+            <div className="text-sm font-medium">
+              {p.profiles?.display_name ?? p.profiles?.username ?? "User"}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {formatDistanceToNow(new Date(p.created_at ?? Date.now()), { addSuffix: true })}
+            </div>
+          </div>
+          {p.user_id === me && p.visibility === "moots" && (
+            <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>
+          )}
+          {p.user_id === me ? (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+              aria-label="Delete post"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onReport}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-red-500"
+              aria-label="Report post"
+            >
+              <Flag className="h-4 w-4" />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-muted"
+            aria-label="Close"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {p.content && <p className="mt-3 text-sm">{p.content}</p>}
+        {p.media_urls?.[0] && (
+          <img src={p.media_urls[0]} alt="" className="mt-3 max-h-[60vh] w-full rounded-2xl object-cover" />
+        )}
+        <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
+          <button
+            onClick={onToggleLike}
+            className={`flex items-center gap-1 transition ${liked ? "text-accent" : "hover:text-accent"}`}
+          >
+            <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} /> {p.like_count ?? 0}
+          </button>
+          <button
+            onClick={onOpenComments}
+            className="flex items-center gap-1 hover:text-primary"
+          >
+            <MessageCircle className="h-4 w-4" /> {p.comment_count ?? 0}
+          </button>
+        </div>
+      </article>
     </div>
   );
 }
@@ -340,7 +439,7 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60" onClick={onClose}>
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/60" onClick={onClose}>
       <div
         className="max-h-[75vh] rounded-t-3xl border-t border-border bg-card p-5"
         onClick={(e) => e.stopPropagation()}

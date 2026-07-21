@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, Volume2, VolumeX, Loader2, Play } from "lucide-react";
+import { Heart, MessageCircle, Volume2, VolumeX, Loader2, Play, X, Film } from "lucide-react";
 import { toast } from "sonner";
 import { useMediaCoordinator } from "@/lib/MediaProvider";
 
@@ -35,12 +35,12 @@ type ClipRow = {
   created_at: string;
 };
 
-const PAGE = 5;
+const PAGE = 12;
 
 function ReelsTab() {
   const minorFlag = useMinorFlag();
-  const [muted, setMuted] = useState(true);
   const [me, setMe] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
@@ -64,72 +64,87 @@ function ReelsTab() {
   });
 
   const clips = query.data?.pages.flat() ?? [];
-
-  // Full viewport minus the chat sub-tab bar (~5.5rem including safe-area).
-  const containerStyle = { height: "calc(100dvh - 5.5rem)" };
+  const openClip = openId ? clips.find((c) => c.id === openId) ?? null : null;
 
   if (clips.length === 0 && !query.isLoading) {
     return (
-      <div
-        style={containerStyle}
-        className="flex flex-col items-center justify-center gap-3 bg-black px-8 text-center text-white"
-      >
-        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-white/10">
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 px-8 text-center">
+        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-muted">
           <Play className="h-6 w-6" />
         </div>
         <div className="font-display text-base font-semibold">No clips yet</div>
-        <p className="max-w-xs text-xs text-white/70">Be the first to post one.</p>
+        <p className="max-w-xs text-xs text-muted-foreground">Be the first to post one.</p>
       </div>
     );
   }
 
   return (
-    <div
-      style={containerStyle}
-      className="relative w-full snap-y snap-mandatory overflow-y-scroll overscroll-contain bg-black text-white"
-    >
-      {clips.map((clip, idx) => (
-        <ReelCard
-          key={clip.id}
-          clip={clip}
-          muted={muted}
-          onToggleMute={() => setMuted((m) => !m)}
-          me={me}
-          isLast={idx === clips.length - 1}
-          onLoadMore={() => {
-            if (query.hasNextPage && !query.isFetchingNextPage) query.fetchNextPage();
-          }}
-        />
-      ))}
-      {query.isFetchingNextPage && (
-        <div className="flex h-24 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-white/60" />
-        </div>
+    <div className="px-1 pb-6 pt-2">
+      <div className="grid grid-cols-3 gap-1">
+        {clips.map((clip) => (
+          <button
+            key={clip.id}
+            type="button"
+            onClick={() => setOpenId(clip.id)}
+            className="relative aspect-square overflow-hidden rounded-md bg-black"
+            aria-label="Open clip"
+          >
+            <video
+              src={clip.video_url}
+              muted
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div className="absolute inset-0 bg-black/10" />
+            <Film className="absolute right-1 top-1 h-3.5 w-3.5 text-white drop-shadow" />
+            {clip.like_count > 0 && (
+              <div className="absolute bottom-1 right-1 flex items-center gap-0.5 rounded-full bg-black/50 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                <Heart className="h-3 w-3 fill-current" />
+                {clip.like_count}
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-3 flex items-center justify-center">
+        {query.hasNextPage && (
+          <button
+            type="button"
+            onClick={() => query.fetchNextPage()}
+            disabled={query.isFetchingNextPage}
+            className="rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground"
+          >
+            {query.isFetchingNextPage ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Load more"
+            )}
+          </button>
+        )}
+      </div>
+
+      {openClip && (
+        <ClipViewer clip={openClip} me={me} onClose={() => setOpenId(null)} />
       )}
     </div>
   );
 }
 
-function ReelCard({
+function ClipViewer({
   clip,
-  muted,
-  onToggleMute,
   me,
-  isLast,
-  onLoadMore,
+  onClose,
 }: {
   clip: ClipRow;
-  muted: boolean;
-  onToggleMute: () => void;
   me: string | null;
-  isLast: boolean;
-  onLoadMore: () => void;
+  onClose: () => void;
 }) {
   const qc = useQueryClient();
-  const sectionRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { register } = useMediaCoordinator();
-  const [visible, setVisible] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(clip.like_count);
 
@@ -157,32 +172,12 @@ function ReelCard({
   }, [me, clip.id]);
 
   useEffect(() => {
-    const el = sectionRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      ([e]) => setVisible(e.isIntersecting && e.intersectionRatio > 0.6),
-      { threshold: [0, 0.6, 0.9] },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (visible) {
-      register(v);
-      v.muted = muted;
-      v.play().catch(() => {});
-      if (isLast) onLoadMore();
-    } else {
-      v.pause();
-    }
-  }, [visible, muted, register, isLast, onLoadMore]);
-
-  useEffect(() => {
-    if (videoRef.current) videoRef.current.muted = muted;
-  }, [muted]);
+    register(v);
+    v.muted = muted;
+    v.play().catch(() => {});
+  }, [register, muted]);
 
   async function toggleLike() {
     const prevLiked = liked;
@@ -210,30 +205,42 @@ function ReelCard({
   const handle = profile?.username ?? "user";
 
   return (
-    <div ref={sectionRef} className="relative h-full w-full snap-start snap-always">
+    <div
+      className="fixed inset-0 z-[60] bg-black text-white"
+      onClick={onClose}
+    >
       <video
         ref={videoRef}
         src={clip.video_url}
         loop
         playsInline
         muted={muted}
-        preload={visible ? "auto" : "metadata"}
-        onClick={tapVideo}
-        className="absolute inset-0 h-full w-full object-contain bg-black"
+        preload="auto"
+        onClick={(e) => { e.stopPropagation(); tapVideo(); }}
+        className="absolute inset-0 h-full w-full object-contain"
       />
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
 
       <button
         type="button"
-        onClick={onToggleMute}
-        className="absolute right-3 top-4 z-30 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"
+        onClick={(e) => { e.stopPropagation(); onClose(); }}
+        className="absolute left-3 top-[max(1rem,env(safe-area-inset-top))] z-30 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"
+        aria-label="Close"
+      >
+        <X className="h-5 w-5" />
+      </button>
+
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setMuted((m) => !m); }}
+        className="absolute right-3 top-[max(1rem,env(safe-area-inset-top))] z-30 grid h-10 w-10 place-items-center rounded-full bg-black/50 backdrop-blur"
         aria-label={muted ? "Unmute" : "Mute"}
       >
         {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
       </button>
 
-      <div className="absolute bottom-6 right-3 z-20 flex flex-col items-center gap-5">
+      <div className="absolute bottom-6 right-3 z-20 flex flex-col items-center gap-5" onClick={(e) => e.stopPropagation()}>
         <button onClick={toggleLike} className="flex flex-col items-center gap-1" aria-label="Like">
           <Heart className={`h-7 w-7 ${liked ? "fill-red-500 text-red-500" : "text-white"}`} />
           <span className="text-xs">{likeCount}</span>
@@ -244,7 +251,7 @@ function ReelCard({
         </div>
       </div>
 
-      <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">
+      <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center gap-2">
           {profile?.avatar_url ? (
             <img
