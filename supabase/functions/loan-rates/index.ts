@@ -106,7 +106,7 @@ async function fetchLoanRates(): Promise<Payload> {
     "(3) Use only real bank names and rates you actually verified via web_search — do not invent. " +
     "(4) If a specific bank/category rate cannot be verified, OMIT that bank from that category rather than guessing. " +
     "Return ONLY strict JSON (no markdown, no prose) matching: " +
-    `{"categories":[{"type":"home|gold|car|fd","banks":[{"bank":string,"rateRange":string,"note":string?}]}]}. ` +
+    `{"categories":[{"type":"home|gold|car|fd|personal","banks":[{"bank":string,"rateRange":string,"note":string?}]}]}. ` +
     "Include 6-7 banks per category with a MIX of public sector (PSU) and private banks. " +
     "REQUIRED PSU banks (include at least 3 of these across every category): SBI, Bank of Baroda, Punjab National Bank, Canara Bank, Union Bank of India. " +
     "REQUIRED private banks (include at least 3): HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank. " +
@@ -114,7 +114,7 @@ async function fetchLoanRates(): Promise<Payload> {
     "note is optional — use it only for genuinely relevant context (e.g. \"salaried\", \"1-year FD\", \"PSU\").";
 
   const userPrompt =
-    "Fetch the CURRENT interest rate RANGES for major Indian banks across four categories: home loan, gold loan, new car loan, and general fixed deposit (1-3 year range). Include a proper mix of PSU banks (SBI, Bank of Baroda, Punjab National Bank, Canara Bank) AND private banks (HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank) — at least 2-3 PSU banks and 2-3 private banks in EACH category. Verify via web_search. Return strict JSON only, RANGES not single numbers.";
+    "Fetch the CURRENT interest rate RANGES for major Indian banks across FIVE categories: home loan, gold loan, new car loan, general fixed deposit (1-3 year range), and unsecured personal loan (salaried, 3-5yr tenure). Include a proper mix of PSU banks (SBI, Bank of Baroda, Punjab National Bank, Canara Bank) AND private banks (HDFC Bank, ICICI Bank, Axis Bank, Kotak Mahindra Bank) — at least 2-3 PSU banks and 2-3 private banks in EACH category. Personal loan ranges are typically wider (10-24%) because they're unsecured and CIBIL-sensitive — reflect that honestly. Verify via web_search. Return strict JSON only, RANGES not single numbers.";
 
   const key = Deno.env.get("ANTHROPIC_API_KEY");
   if (!key) return fallback;
