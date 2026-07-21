@@ -119,9 +119,9 @@ async function persistSignupCompliance(
   }
   const { error: sErr } = await supabase.rpc("set_signup_profile", {
     _dob: dob,
-    _parent_name: parentName || null,
-    _parent_email: parentEmail || null,
-    _parent_phone: parentPhone || null,
+    _parent_name: parentName || undefined,
+    _parent_email: parentEmail || undefined,
+    _parent_phone: parentPhone || undefined,
   });
   if (sErr) throw sErr;
   await Promise.all(
