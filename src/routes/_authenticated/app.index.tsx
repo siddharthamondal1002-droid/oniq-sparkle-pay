@@ -1745,7 +1745,30 @@ function MastPreview() {
         </div>
       ) : (
         <>
-          <div className="mt-3 relative aspect-video overflow-hidden rounded-xl bg-black border border-border/60">
+          <div
+            className="mt-3 relative aspect-video overflow-hidden rounded-xl bg-black border border-border/60 touch-pan-y"
+            onTouchStart={(e) => {
+              const t = e.touches[0];
+              (e.currentTarget as HTMLDivElement).dataset.sx = String(t.clientX);
+              (e.currentTarget as HTMLDivElement).dataset.sy = String(t.clientY);
+            }}
+            onTouchEnd={(e) => {
+              const el = e.currentTarget as HTMLDivElement;
+              const sx = Number(el.dataset.sx ?? 0);
+              const sy = Number(el.dataset.sy ?? 0);
+              const t = e.changedTouches[0];
+              const dx = t.clientX - sx;
+              const dy = t.clientY - sy;
+              const absX = Math.abs(dx);
+              const absY = Math.abs(dy);
+              // Swipe threshold — dominant axis must exceed 40px.
+              if (Math.max(absX, absY) < 40) return;
+              e.stopPropagation();
+              const forward = (absY > absX ? dy < 0 : dx < 0); // up or left → next
+              setIdx((i) => (forward ? (i + 1) % clips.length : (i - 1 + clips.length) % clips.length));
+              setPickNonce((n) => n + 1);
+            }}
+          >
             <video
               ref={videoRef}
               key={active.id}
