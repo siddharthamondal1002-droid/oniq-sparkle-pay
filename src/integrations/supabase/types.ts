@@ -788,6 +788,39 @@ export type Database = {
         }
         Relationships: []
       }
+      grievances: {
+        Row: {
+          complaint_type: string
+          created_at: string
+          email: string
+          id: string
+          message: string
+          name: string
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          complaint_type: string
+          created_at?: string
+          email: string
+          id?: string
+          message: string
+          name: string
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          complaint_type?: string
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string
+          name?: string
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       health_checkins: {
         Row: {
           created_at: string
@@ -1545,13 +1578,18 @@ export type Database = {
           bio: string | null
           country_code: string | null
           created_at: string | null
+          date_of_birth: string | null
           display_name: string
           id: string
           is_admin: boolean
+          is_minor: boolean
           language: string | null
           last_policy_notice_at: string | null
           omiq_wallet_address: string | null
           oniq_pay_enabled: boolean | null
+          parent_email: string | null
+          parent_name: string | null
+          parent_phone: string | null
           updated_at: string | null
           upi_vpa: string | null
           username: string
@@ -1561,13 +1599,18 @@ export type Database = {
           bio?: string | null
           country_code?: string | null
           created_at?: string | null
+          date_of_birth?: string | null
           display_name: string
           id: string
           is_admin?: boolean
+          is_minor?: boolean
           language?: string | null
           last_policy_notice_at?: string | null
           omiq_wallet_address?: string | null
           oniq_pay_enabled?: boolean | null
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
           updated_at?: string | null
           upi_vpa?: string | null
           username: string
@@ -1577,13 +1620,18 @@ export type Database = {
           bio?: string | null
           country_code?: string | null
           created_at?: string | null
+          date_of_birth?: string | null
           display_name?: string
           id?: string
           is_admin?: boolean
+          is_minor?: boolean
           language?: string | null
           last_policy_notice_at?: string | null
           omiq_wallet_address?: string | null
           oniq_pay_enabled?: boolean | null
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
           updated_at?: string | null
           upi_vpa?: string | null
           username?: string
@@ -2115,6 +2163,33 @@ export type Database = {
           },
         ]
       }
+      user_consents: {
+        Row: {
+          granted: boolean
+          id: string
+          purpose: string
+          recorded_at: string
+          source: string | null
+          user_id: string
+        }
+        Insert: {
+          granted: boolean
+          id?: string
+          purpose: string
+          recorded_at?: string
+          source?: string | null
+          user_id: string
+        }
+        Update: {
+          granted?: boolean
+          id?: string
+          purpose?: string
+          recorded_at?: string
+          source?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_theme: {
         Row: {
           tile_skins: Json
@@ -2310,6 +2385,28 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      clips_feed_chrono: {
+        Args: { _limit?: number; _offset?: number }
+        Returns: {
+          caption: string | null
+          comment_count: number
+          created_at: string | null
+          hashtags: string[] | null
+          id: string
+          is_deleted: boolean
+          like_count: number
+          user_id: string
+          video_url: string
+          view_count: number
+          visibility: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "clips"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       complete_lesson: {
         Args: { _lesson_id: string; _score: number }
         Returns: Json
@@ -2338,6 +2435,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      export_my_data: { Args: never; Returns: Json }
       find_or_create_direct_conversation: {
         Args: { other_user_id: string }
         Returns: string
@@ -2427,6 +2525,10 @@ export type Database = {
       }
       reclaim_red_packet: { Args: { _packet_id: string }; Returns: number }
       record_clip_view: { Args: { _clip_id: string }; Returns: undefined }
+      record_consent: {
+        Args: { _granted: boolean; _purpose: string; _source?: string }
+        Returns: undefined
+      }
       remove_group_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: undefined
@@ -2449,6 +2551,15 @@ export type Database = {
         Returns: string
       }
       set_primary_bank: { Args: { _bank_id: string }; Returns: undefined }
+      set_signup_profile: {
+        Args: {
+          _dob: string
+          _parent_email?: string
+          _parent_name?: string
+          _parent_phone?: string
+        }
+        Returns: Json
+      }
       toggle_clip_like: { Args: { _clip_id: string }; Returns: boolean }
       toggle_message_star: { Args: { _message_id: string }; Returns: boolean }
       toggle_moment_like: { Args: { _post_id: string }; Returns: boolean }
