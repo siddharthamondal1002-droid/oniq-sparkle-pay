@@ -427,24 +427,24 @@ function HeroTile({
     } catch { /* noop */ }
   }, [videoId, activeGenre?.id, livePreview, showSkin]);
 
-  // 120s auto-tour cap (per video), also honored across uploads (natural ENDED advance handles it too)
+  // 2-minute auto-tour cap (per video); ENDED handler also advances naturally on shorter clips.
   const vLen = videos.length;
   useEffect(() => {
     if (!livePreview || showSkin || vLen < 2) return;
     if (paused || controlsVisible) return;
-    // Devotional loop: no 20s auto-tour — let each video play to completion (ENDED handler wraps).
+    // Devotional loop: no auto-tour — let each video play to completion (ENDED handler wraps).
     if (isDevotional && devLoopActive) return;
     // Devotional with picker shown or timer ended: don't force-advance either.
     if (isDevotional && (showDevPicker || devLoopEnded)) return;
     let t: number | null = null;
     const tick = () => {
       if (typeof document !== "undefined" && document.hidden) {
-        t = window.setTimeout(tick, 20_000);
+        t = window.setTimeout(tick, 30_000);
         return;
       }
       setIdx((i) => (i + 1) % vLen);
     };
-    t = window.setTimeout(tick, 20_000);
+    t = window.setTimeout(tick, 120_000);
     return () => { if (t) window.clearTimeout(t); };
   }, [idx, vLen, livePreview, showSkin, paused, controlsVisible, isDevotional, devLoopActive, showDevPicker, devLoopEnded]);
 
@@ -1576,7 +1576,7 @@ function MomentsPreview() {
             return (
               <div key={p.id} className="flex items-center gap-3 rounded-xl bg-card/60 p-2 border border-border/60">
                 {img ? (
-                  <img src={img} alt="" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
+                  <img src={img} alt="" width={48} height={48} loading="lazy" decoding="async" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
                 ) : (
                   <div className="h-12 w-12 rounded-lg bg-surface grid place-items-center flex-shrink-0">
                     <Sparkles className="h-5 w-5 text-muted-foreground" />
