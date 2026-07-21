@@ -138,11 +138,11 @@ function ClipThumb({ clip }: { clip: ClipRow }) {
     >
       <video
         ref={ref}
-        src={clip.video_url}
+        src={visible ? clip.video_url : undefined}
         muted
         loop
         playsInline
-        preload="metadata"
+        preload={visible ? "metadata" : "none"}
         className="absolute inset-0 h-full w-full object-cover"
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
