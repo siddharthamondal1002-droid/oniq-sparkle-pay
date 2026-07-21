@@ -125,13 +125,13 @@ function HomeScreen() {
 
           <div className="mt-7 px-1 flex items-center justify-between">
             <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
-              study first
+              your feed
             </h2>
             <CustomizeButton />
           </div>
 
           <div className="mt-3">
-            <StudyHero />
+            <HomeMediaBanner />
           </div>
 
           <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -1441,6 +1441,169 @@ function AlsoInOniqRow({
     </div>
   );
 }
+
+// ---------- Home media banner: 3-way Watch / Study / Moments ----------
+
+type BannerMode = "watch" | "study" | "moments";
+const BANNER_MODE_KEY = "oniq.home.banner.mode";
+
+function HomeMediaBanner() {
+  const [hidden] = useHiddenTiles();
+  const { data: theme } = useUserTheme();
+  const skins = theme?.tile_skins ?? {};
+  const watchHidden = (hidden as Set<string>).has("watch");
+
+  const [mode, setMode] = useState<BannerMode>(() => {
+    if (typeof window === "undefined") return "study";
+    try {
+      const v = localStorage.getItem(BANNER_MODE_KEY);
+      if (v === "watch" || v === "study" || v === "moments") return v;
+    } catch { /* noop */ }
+    return "study";
+  });
+  useEffect(() => {
+    try { localStorage.setItem(BANNER_MODE_KEY, mode); } catch { /* noop */ }
+  }, [mode]);
+
+  // If watch is hidden but was persisted, fall back to study.
+  useEffect(() => {
+    if (mode === "watch" && watchHidden) setMode("study");
+  }, [mode, watchHidden]);
+
+  const tabs: { id: BannerMode; label: string; hidden?: boolean }[] = [
+    { id: "watch", label: "Watch", hidden: watchHidden },
+    { id: "study", label: "Study" },
+    { id: "moments", label: "Moments" },
+  ];
+
+  return (
+    <div>
+      <div
+        role="tablist"
+        aria-label="Home feed"
+        className="mb-3 inline-flex rounded-full border border-border bg-card/70 p-1 text-[11px] font-semibold uppercase tracking-wider"
+      >
+        {tabs.filter((t) => !t.hidden).map((t) => {
+          const active = mode === t.id;
+          return (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={active}
+              onClick={() => setMode(t.id)}
+              className={`press rounded-full px-3 py-1.5 transition-colors ${active ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {mode === "watch" && !watchHidden && (
+        <MediaBanner watchHidden={false} watchSkin={skins.watch} />
+      )}
+      {mode === "study" && <StudyHero />}
+      {mode === "moments" && <MomentsPreview />}
+    </div>
+  );
+}
+
+type MomentPost = {
+  id: string;
+  content: string | null;
+  media_urls: string[] | null;
+  like_count: number | null;
+  created_at: string;
+  profiles: { display_name: string | null; username: string | null; avatar_url: string | null } | null;
+};
+
+function MomentsPreview() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["moments"],
+    staleTime: 30_000,
+    queryFn: async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("moments_posts")
+        .select("id, content, media_urls, like_count, created_at, user_id, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)")
+        .eq("is_deleted", false)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      return (data ?? []) as MomentPost[];
+    },
+  });
+
+  const posts = (data ?? []).slice(0, 3);
+
+  return (
+    <Link
+      to="/app/chat/moments"
+      className="press fade-up relative block overflow-hidden rounded-3xl border border-border p-4"
+      style={{
+        background:
+          "radial-gradient(120% 90% at 0% 0%, #A78BFA40 0%, #A78BFA10 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #F472B633 0%, #F472B60d 45%, transparent 75%), hsl(var(--card))",
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          moments ✨
+        </div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
+          Open all <ChevronRight className="h-3 w-3" />
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="mt-3 space-y-2">
+          <div className="h-14 animate-pulse rounded-xl bg-surface" />
+          <div className="h-14 animate-pulse rounded-xl bg-surface" />
+        </div>
+      ) : posts.length === 0 ? (
+        <div className="mt-4">
+          <div className="font-display text-xl font-bold text-foreground">
+            no moments yet
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            be the first to post ✨
+          </div>
+        </div>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {posts.map((p) => {
+            const who = p.profiles?.display_name || p.profiles?.username || "someone";
+            const img = p.media_urls?.[0];
+            const snippet = (p.content ?? "").trim();
+            return (
+              <div key={p.id} className="flex items-center gap-3 rounded-xl bg-card/60 p-2 border border-border/60">
+                {img ? (
+                  <img src={img} alt="" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
+                ) : (
+                  <div className="h-12 w-12 rounded-lg bg-surface grid place-items-center flex-shrink-0">
+                    <Sparkles className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground truncate">
+                    {who}
+                  </div>
+                  <div className="text-sm text-foreground truncate">
+                    {snippet || "shared a photo"}
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Heart className="h-3.5 w-3.5" />
+                  {p.like_count ?? 0}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Link>
+  );
+}
+
+
 
 
 
