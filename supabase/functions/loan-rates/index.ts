@@ -7,7 +7,7 @@ import { corsHeaders, json } from "../_shared/llm.ts";
 const RATES_TTL_MS = 24 * 60 * 60 * 1000; // 24h
 
 type BankRate = { bank: string; rateRange: string; note?: string };
-type Category = { type: "home" | "gold" | "car" | "fd"; label: string; banks: BankRate[] };
+type Category = { type: "home" | "gold" | "car" | "fd" | "personal"; label: string; banks: BankRate[] };
 type Payload = {
   asOf: string;
   categories: Category[];
