@@ -72,6 +72,65 @@ const COUNTRIES: { flag: string; code: string; label: string }[] = [
   { flag: "🇸🇬", code: "+65", label: "Singapore" },
 ];
 
+// DPDP Stage 0: itemized consent purposes
+type ConsentKey = "location" | "health" | "ai" | "general";
+const CONSENT_ITEMS: { key: ConsentKey; label: string; desc: string; required: boolean }[] = [
+  {
+    key: "general",
+    label: "Account & chat data",
+    desc: "Your profile, messages, and login info — needed to run your ONIQ account.",
+    required: true,
+  },
+  {
+    key: "location",
+    label: "Location data",
+    desc: "Used only when you open near-me features like Ride Genie or price scout.",
+    required: false,
+  },
+  {
+    key: "health",
+    label: "Health & wellness data",
+    desc: "Used only when you log cycle or check-ins in the Vitals screen.",
+    required: false,
+  },
+  {
+    key: "ai",
+    label: "AI processing",
+    desc: "Your messages to the tutor/search/chat features are processed by third-party AI (Anthropic/Google).",
+    required: true,
+  },
+];
+
+async function persistSignupCompliance(
+  dob: string,
+  parentName: string,
+  parentEmail: string,
+  parentPhone: string,
+  consents: Record<ConsentKey, boolean>,
+) {
+  // Poll for the profile row (created by handle_new_user trigger) up to ~4s.
+  for (let i = 0; i < 8; i++) {
+    const { data } = await supabase.auth.getUser();
+    if (data.user) {
+      const { data: prof } = await supabase.from("profiles").select("id").eq("id", data.user.id).maybeSingle();
+      if (prof) break;
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  const { error: sErr } = await supabase.rpc("set_signup_profile", {
+    _dob: dob,
+    _parent_name: parentName || null,
+    _parent_email: parentEmail || null,
+    _parent_phone: parentPhone || null,
+  });
+  if (sErr) throw sErr;
+  await Promise.all(
+    (Object.keys(consents) as ConsentKey[]).map((k) =>
+      supabase.rpc("record_consent", { _purpose: k, _granted: consents[k], _source: "signup" }),
+    ),
+  );
+}
+
 function AuthPage() {
   const navigate = useNavigate();
   const [method, setMethod] = useState<"email" | "phone">("email");
@@ -87,6 +146,22 @@ function AuthPage() {
   const [resendIn, setResendIn] = useState(0);
   const [widgetReady, setWidgetReady] = useState(false);
 
+  // DPDP Stage 0 signup fields
+  const [dob, setDob] = useState("");
+  const [parentName, setParentName] = useState("");
+  const [parentEmail, setParentEmail] = useState("");
+  const [parentPhone, setParentPhone] = useState("");
+  const [consents, setConsents] = useState<Record<ConsentKey, boolean>>({
+    general: true,
+    location: false,
+    health: false,
+    ai: true,
+  });
+
+  const isMinor = dob
+    ? (Date.now() - new Date(dob).getTime()) / (365.25 * 864e5) < 18
+    : false;
+
   useEffect(() => {
     if (resendIn <= 0) return;
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
@@ -100,9 +175,29 @@ function AuthPage() {
     });
   }, [navigate]);
 
+  function validateSignup(): string | null {
+    if (!dob) return "Please enter your date of birth";
+    const d = new Date(dob);
+    if (isNaN(d.getTime()) || d > new Date() || d.getFullYear() < 1900) return "Invalid date of birth";
+    if (isMinor) {
+      if (!parentName.trim()) return "Parent/guardian name required for users under 18";
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(parentEmail.trim())) return "Valid parent/guardian email required";
+    }
+    for (const item of CONSENT_ITEMS) {
+      if (item.required && !consents[item.key]) {
+        return `You need to accept "${item.label}" to create an account`;
+      }
+    }
+    return null;
+  }
+
   async function handleEmail(e: React.FormEvent) {
     e.preventDefault();
     if (loading) return;
+    if (mode === "signup") {
+      const err = validateSignup();
+      if (err) { toast.error(err); return; }
+    }
     setLoading(true);
     try {
       if (mode === "signup") {
@@ -112,15 +207,37 @@ function AuthPage() {
           options: { emailRedirectTo: window.location.origin + "/app" },
         });
         if (error) throw error;
+        // If we have a session immediately, persist DPDP compliance now.
         if (data.session) {
+          try {
+            await persistSignupCompliance(dob, parentName, parentEmail, parentPhone, consents);
+          } catch (persistErr) {
+            console.warn("compliance persistence failed", persistErr);
+          }
           toast.success("Account created — welcome to ONIQ ✨");
           navigate({ to: "/app" });
         } else {
+          // Email-confirm flow: stash so we can persist on first sign-in.
+          try {
+            sessionStorage.setItem(
+              "oniq_pending_compliance",
+              JSON.stringify({ dob, parentName, parentEmail, parentPhone, consents }),
+            );
+          } catch { /* ignore */ }
           setConfirmationSentTo(email);
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
+        // Flush any pending compliance from email-confirm signup.
+        try {
+          const raw = sessionStorage.getItem("oniq_pending_compliance");
+          if (raw) {
+            const p = JSON.parse(raw);
+            await persistSignupCompliance(p.dob, p.parentName, p.parentEmail, p.parentPhone, p.consents);
+            sessionStorage.removeItem("oniq_pending_compliance");
+          }
+        } catch { /* ignore */ }
         navigate({ to: "/app" });
       }
     } catch (err) {
