@@ -1450,9 +1450,9 @@ function AlsoInOniqRow({
   );
 }
 
-// ---------- Home media banner: 3-way Watch / Study / Moments ----------
+// ---------- Home media banner: 4-way Watch / Study / Moments / Mast ----------
 
-type BannerMode = "watch" | "study" | "moments";
+type BannerMode = "watch" | "study" | "moments" | "mast";
 const BANNER_MODE_KEY = "oniq.home.banner.mode";
 
 function HomeMediaBanner() {
@@ -1465,7 +1465,7 @@ function HomeMediaBanner() {
     if (typeof window === "undefined") return "study";
     try {
       const v = localStorage.getItem(BANNER_MODE_KEY);
-      if (v === "watch" || v === "study" || v === "moments") return v;
+      if (v === "watch" || v === "study" || v === "moments" || v === "mast") return v;
     } catch { /* noop */ }
     return "study";
   });
@@ -1482,6 +1482,7 @@ function HomeMediaBanner() {
     { id: "watch", label: "Watch", hidden: watchHidden },
     { id: "study", label: "Study" },
     { id: "moments", label: "Moments" },
+    { id: "mast", label: "Mast 🎬" },
   ];
 
   return (
@@ -1512,9 +1513,11 @@ function HomeMediaBanner() {
       )}
       {mode === "study" && <StudyHero />}
       {mode === "moments" && <MomentsPreview />}
+      {mode === "mast" && <MastPreview />}
     </div>
   );
 }
+
 
 type MomentPost = {
   id: string;
