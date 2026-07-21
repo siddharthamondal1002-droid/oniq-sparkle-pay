@@ -1674,6 +1674,7 @@ function MastPreview() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [idx, setIdx] = useState(0);
   const [pickNonce, setPickNonce] = useState(0);
+  const [muted, setMuted] = useState(true);
 
   const { data, isLoading } = useQuery({
     queryKey: ["clips-preview"],
@@ -1700,12 +1701,14 @@ function MastPreview() {
   }, [idx, pickNonce, clips.length]);
 
   // Register the current video with the single-audio-source coordinator so
-  // Watch and Mast never play audio simultaneously. Mast previews are muted
-  // by design (they act as a silent teaser), but registering still lets any
-  // future unmute participate correctly.
+  // Watch and Mast never play audio simultaneously.
   useEffect(() => {
     if (videoRef.current) media.register(videoRef.current);
   }, [idx, media]);
+
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.muted = muted;
+  }, [muted, idx]);
 
   const openReels = () => navigate({ to: "/app/chat/reels" });
 
