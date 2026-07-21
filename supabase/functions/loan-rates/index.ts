@@ -151,7 +151,7 @@ async function fetchLoanRates(): Promise<Payload> {
     const parsed = JSON.parse(text.slice(s, e + 1));
     const rawCats: any[] = Array.isArray(parsed?.categories) ? parsed.categories : [];
     const categories: Category[] = rawCats
-      .filter((c) => c && typeof c.type === "string" && ["home", "gold", "car", "fd"].includes(c.type))
+      .filter((c) => c && typeof c.type === "string" && ["home", "gold", "car", "fd", "personal"].includes(c.type))
       .map((c) => ({
         type: c.type as Category["type"],
         label: CATEGORY_LABELS[c.type as Category["type"]],
@@ -173,7 +173,7 @@ async function fetchLoanRates(): Promise<Payload> {
     // Per-category backfill: if Claude's response was truncated or a category
     // came back with too few banks, top up JUST that category from fallback
     // rather than discarding the entire live response.
-    const REQUIRED: Category["type"][] = ["home", "gold", "car", "fd"];
+    const REQUIRED: Category["type"][] = ["home", "gold", "car", "fd", "personal"];
     const liveByType = new Map(categories.map((c) => [c.type, c] as const));
     const fallbackByType = new Map(fallback.categories.map((c) => [c.type, c] as const));
     const backfilled: Category["type"][] = [];
