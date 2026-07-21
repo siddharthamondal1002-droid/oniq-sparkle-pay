@@ -11,6 +11,7 @@ import {
   IndianRupee,
   Lock,
   Clapperboard,
+  Film,
   GraduationCap,
   Plane,
   Newspaper,
@@ -1449,9 +1450,9 @@ function AlsoInOniqRow({
   );
 }
 
-// ---------- Home media banner: 3-way Watch / Study / Moments ----------
+// ---------- Home media banner: 4-way Watch / Study / Moments / Mast ----------
 
-type BannerMode = "watch" | "study" | "moments";
+type BannerMode = "watch" | "study" | "moments" | "mast";
 const BANNER_MODE_KEY = "oniq.home.banner.mode";
 
 function HomeMediaBanner() {
@@ -1464,7 +1465,7 @@ function HomeMediaBanner() {
     if (typeof window === "undefined") return "study";
     try {
       const v = localStorage.getItem(BANNER_MODE_KEY);
-      if (v === "watch" || v === "study" || v === "moments") return v;
+      if (v === "watch" || v === "study" || v === "moments" || v === "mast") return v;
     } catch { /* noop */ }
     return "study";
   });
@@ -1481,6 +1482,7 @@ function HomeMediaBanner() {
     { id: "watch", label: "Watch", hidden: watchHidden },
     { id: "study", label: "Study" },
     { id: "moments", label: "Moments" },
+    { id: "mast", label: "Mast 🎬" },
   ];
 
   return (
@@ -1511,9 +1513,11 @@ function HomeMediaBanner() {
       )}
       {mode === "study" && <StudyHero />}
       {mode === "moments" && <MomentsPreview />}
+      {mode === "mast" && <MastPreview />}
     </div>
   );
 }
+
 
 type MomentPost = {
   id: string;
@@ -1540,11 +1544,32 @@ function MomentsPreview() {
     },
   });
 
-  const posts = (data ?? []).slice(0, 3);
+  const all = data ?? [];
+  const PAGE = 3;
+  const pages = Math.max(1, Math.ceil(all.length / PAGE));
+  const [pageIdx, setPageIdx] = useState(0);
+  const [pickNonce, setPickNonce] = useState(0);
+
+  useEffect(() => { if (pageIdx >= pages) setPageIdx(0); }, [pages, pageIdx]);
+
+  // Auto-rotate every 2 minutes; resets whenever user manually picks a page.
+  useEffect(() => {
+    if (pages <= 1) return;
+    const id = window.setTimeout(() => {
+      setPageIdx((i) => (i + 1) % pages);
+    }, 120_000);
+    return () => window.clearTimeout(id);
+  }, [pageIdx, pages, pickNonce]);
+
+  const pickPage = (i: number) => {
+    setPageIdx(i);
+    setPickNonce((n) => n + 1);
+  };
+
+  const posts = all.slice(pageIdx * PAGE, pageIdx * PAGE + PAGE);
 
   return (
-    <Link
-      to="/app/chat/moments"
+    <div
       className="press fade-up relative block overflow-hidden rounded-3xl border border-border p-4"
       style={{
         background:
@@ -1555,9 +1580,12 @@ function MomentsPreview() {
         <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
           moments ✨
         </div>
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
+        <Link
+          to="/app/chat/moments"
+          className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1 hover:text-foreground"
+        >
           Open all <ChevronRight className="h-3 w-3" />
-        </div>
+        </Link>
       </div>
 
       {isLoading ? (
@@ -1566,14 +1594,14 @@ function MomentsPreview() {
           <div className="h-14 animate-pulse rounded-xl bg-surface" />
         </div>
       ) : posts.length === 0 ? (
-        <div className="mt-4">
+        <Link to="/app/chat/moments" className="mt-4 block">
           <div className="font-display text-xl font-bold text-foreground">
             no moments yet
           </div>
           <div className="mt-1 text-xs text-muted-foreground">
             be the first to post ✨
           </div>
-        </div>
+        </Link>
       ) : (
         <div className="mt-3 space-y-2">
           {posts.map((p) => {
@@ -1581,7 +1609,12 @@ function MomentsPreview() {
             const img = p.media_urls?.[0];
             const snippet = (p.content ?? "").trim();
             return (
-              <div key={p.id} className="flex items-center gap-3 rounded-xl bg-card/60 p-2 border border-border/60">
+              <Link
+                key={p.id}
+                to="/app/chat/moments"
+                onClick={() => setPickNonce((n) => n + 1)}
+                className="flex items-center gap-3 rounded-xl bg-card/60 p-2 border border-border/60"
+              >
                 {img ? (
                   <img src={img} alt="" width={48} height={48} loading="lazy" decoding="async" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
                 ) : (
@@ -1601,14 +1634,123 @@ function MomentsPreview() {
                   <Heart className="h-3.5 w-3.5" />
                   {p.like_count ?? 0}
                 </div>
-              </div>
+              </Link>
             );
           })}
+          {pages > 1 && (
+            <div className="mt-2 flex items-center justify-center gap-1.5">
+              {Array.from({ length: pages }).map((_, i) => (
+                <button
+                  key={i}
+                  aria-label={`Show moments page ${i + 1}`}
+                  onClick={() => pickPage(i)}
+                  className={`h-1.5 rounded-full transition-all ${i === pageIdx ? "w-5 bg-foreground" : "w-1.5 bg-muted-foreground/40"}`}
+                />
+              ))}
+            </div>
+          )}
         </div>
+      )}
+    </div>
+  );
+}
+
+// ---------- Mast preview (clips teaser) ----------
+
+type ClipPreview = {
+  id: string;
+  video_url: string;
+  caption: string | null;
+  like_count: number;
+  comment_count: number;
+  user_id: string;
+  created_at: string;
+};
+
+function MastPreview() {
+  const { data, isLoading } = useQuery({
+    queryKey: ["clips-preview"],
+    staleTime: 60_000,
+    queryFn: async () => {
+      // Reuse the same feed RPC used by Chat's Reels tab.
+      const { data, error } = await supabase.rpc("clips_feed", { _limit: 6, _offset: 0 });
+      if (error) throw error;
+      return (data ?? []) as ClipPreview[];
+    },
+  });
+
+  const clips = (data ?? []).slice(0, 4);
+
+  return (
+    <Link
+      to="/app/chat/reels"
+      className="press fade-up relative block overflow-hidden rounded-3xl border border-border p-4"
+      style={{
+        background:
+          "radial-gradient(120% 90% at 0% 0%, #F59E0B40 0%, #F59E0B10 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #EC489933 0%, #EC48990d 45%, transparent 75%), hsl(var(--card))",
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
+          <Film className="h-3 w-3" /> mast 🎬
+        </div>
+        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
+          Open all <ChevronRight className="h-3 w-3" />
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="mt-3 grid grid-cols-4 gap-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="aspect-[9/14] animate-pulse rounded-xl bg-surface" />
+          ))}
+        </div>
+      ) : clips.length === 0 ? (
+        <div className="mt-4">
+          <div className="font-display text-xl font-bold text-foreground">
+            no clips yet
+          </div>
+          <div className="mt-1 text-xs text-muted-foreground">
+            be the first to post 🎬
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            {clips.map((c) => (
+              <div
+                key={c.id}
+                className="relative aspect-[9/14] overflow-hidden rounded-xl bg-black border border-border/60"
+              >
+                <video
+                  src={c.video_url}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                <div className="absolute inset-x-1 bottom-1 flex items-center justify-between text-[10px] text-white">
+                  <span className="inline-flex items-center gap-0.5">
+                    <Heart className="h-2.5 w-2.5" />
+                    {c.like_count}
+                  </span>
+                  <Play className="h-3 w-3 opacity-90" />
+                </div>
+              </div>
+            ))}
+          </div>
+          {clips[0]?.caption && (
+            <div className="mt-3 text-xs text-foreground line-clamp-1">
+              {clips[0].caption}
+            </div>
+          )}
+        </>
       )}
     </Link>
   );
 }
+
 
 
 
