@@ -185,6 +185,10 @@ function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
               back to list
             </button>
           </div>
+          <p className="mt-2 text-[10px] leading-snug text-muted-foreground/70">
+            Video content is hosted by YouTube and owned by the respective creators/channels — played via YouTube's official embedded player. Rights-holders can report a specific video or channel via{" "}
+            <Link to="/app/privacy/grievance" className="underline">Privacy → Grievance</Link> (category: Content takedown).
+          </p>
         </div>
       ) : (
         <div className="space-y-5">
