@@ -780,10 +780,8 @@ function EditProfile({
           ))}
         </select>
 
-        {/* TEMP DEBUG MARKER — remove once picker visibility confirmed */}
-        <div className="mt-4 rounded-xl border-2 border-fuchsia-500 bg-fuchsia-500/20 px-3 py-2 text-xs font-mono text-fuchsia-100">
-          DEBUG · board=<b>{String(board)}</b> · picker={String(boardUsesSecondLangPicker(board))} · len={SECOND_LANG_OPTIONS.length}
-        </div>
+
+
 
         {boardUsesSecondLangPicker(board) && (
           <>
