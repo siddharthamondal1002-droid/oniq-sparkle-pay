@@ -1460,6 +1460,7 @@ function HomeMediaBanner() {
   const { data: theme } = useUserTheme();
   const skins = theme?.tile_skins ?? {};
   const watchHidden = (hidden as Set<string>).has("watch");
+  const { t } = useT();
 
   const [mode, setMode] = useState<BannerMode>(() => {
     if (typeof window === "undefined") return "study";
@@ -1479,10 +1480,10 @@ function HomeMediaBanner() {
   }, [mode, watchHidden]);
 
   const tabs: { id: BannerMode; label: string; hidden?: boolean }[] = [
-    { id: "watch", label: "Watch", hidden: watchHidden },
-    { id: "study", label: "Study" },
-    { id: "moments", label: "Moments" },
-    { id: "mast", label: "Mast 🎬" },
+    { id: "watch", label: t("banner.tab.watch", "Watch"), hidden: watchHidden },
+    { id: "study", label: t("banner.tab.study", "Study") },
+    { id: "moments", label: t("banner.tab.moments", "Moments") },
+    { id: "mast", label: t("banner.tab.mast", "Mast 🎬") },
   ];
 
   return (
