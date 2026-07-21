@@ -125,13 +125,13 @@ function HomeScreen() {
 
           <div className="mt-7 px-1 flex items-center justify-between">
             <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
-              study first
+              your feed
             </h2>
             <CustomizeButton />
           </div>
 
           <div className="mt-3">
-            <StudyHero />
+            <HomeMediaBanner />
           </div>
 
           <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
