@@ -570,12 +570,14 @@ function HeroTile({
     if (total === 0) return;
     setIdx(((next % total) + total) % total);
     setPaused(false);
+    setPickNonce((n) => n + 1);
   };
   const pickGenre = (g: GenreId) => {
     if (g === genreId) return;
     setGenreId(g);
     setIdx(0);
     setPaused(false);
+    setPickNonce((n) => n + 1);
     // Entering devotional freshly → force picker to reappear (unless a live loop is still running).
     if (g === "devotional") setDevJustBrowse(false);
     bumpHide();
@@ -605,6 +607,7 @@ function HeroTile({
   const pickVideo = (i: number) => {
     setIdx(i);
     setPaused(false);
+    setPickNonce((n) => n + 1);
     bumpHide();
   };
 
