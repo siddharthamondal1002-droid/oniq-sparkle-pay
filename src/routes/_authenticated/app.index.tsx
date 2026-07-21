@@ -351,6 +351,9 @@ function HeroTile({
 
 
   const [idx, setIdx] = useState(0);
+  // Bumped on every manual channel/genre pick so the auto-tour timer restarts
+  // even when the picked idx equals the current idx (React bails on identical state).
+  const [pickNonce, setPickNonce] = useState(0);
   const resumedRef = useRef(false);
   // On first non-empty load, resume last watched video (if we can find it in current genre)
   useEffect(() => {
