@@ -538,6 +538,89 @@ function AuthPage() {
                     Common passwords get rejected for your safety — mix words, numbers & symbols.
                   </p>
                 )}
+                {mode === "signup" && (
+                  <div className="space-y-3 rounded-2xl border border-border bg-card/40 p-3">
+                    <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                      Age check (DPDP Act, 2023)
+                    </div>
+                    <input
+                      type="date"
+                      value={dob}
+                      onChange={(e) => setDob(e.target.value)}
+                      max={new Date().toISOString().slice(0, 10)}
+                      min="1900-01-01"
+                      required
+                      className="w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                    />
+                    {isMinor && (
+                      <div className="space-y-2 rounded-xl border border-primary/40 bg-primary/5 p-3">
+                        <div className="text-[11px] font-semibold uppercase tracking-wider text-primary">
+                          Parent/guardian contact required
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Under 18s need a verified parent/guardian on file. We'll email them a notice.
+                        </p>
+                        <input
+                          value={parentName}
+                          onChange={(e) => setParentName(e.target.value)}
+                          placeholder="Parent/guardian full name"
+                          maxLength={120}
+                          className="w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                        />
+                        <input
+                          type="email"
+                          value={parentEmail}
+                          onChange={(e) => setParentEmail(e.target.value)}
+                          placeholder="Parent/guardian email"
+                          maxLength={254}
+                          className="w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                        />
+                        <input
+                          type="tel"
+                          value={parentPhone}
+                          onChange={(e) => setParentPhone(e.target.value)}
+                          placeholder="Parent phone (optional)"
+                          maxLength={20}
+                          className="w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm outline-none focus:border-primary"
+                        />
+                      </div>
+                    )}
+                    <div className="pt-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                      Consent — you choose what ONIQ can use
+                    </div>
+                    <div className="space-y-1.5">
+                      {CONSENT_ITEMS.map((item) => (
+                        <label
+                          key={item.key}
+                          className="flex cursor-pointer items-start gap-2.5 rounded-xl border border-border bg-input/30 p-2.5"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={consents[item.key]}
+                            onChange={(e) =>
+                              setConsents((c) => ({ ...c, [item.key]: e.target.checked }))
+                            }
+                            className="mt-0.5 h-4 w-4 accent-primary"
+                          />
+                          <div className="flex-1">
+                            <div className="text-[12px] font-semibold">
+                              {item.label}
+                              {item.required && (
+                                <span className="ml-1 text-[10px] font-normal text-muted-foreground">
+                                  · required
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">{item.desc}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="px-1 text-[10px] text-muted-foreground">
+                      Each choice is stored with a timestamp. You can change these later in Profile → Data rights.
+                    </p>
+                  </div>
+                )}
                 <button
                   type="submit"
                   disabled={loading}
