@@ -57,12 +57,12 @@ function Landing() {
     <div className="min-h-screen bg-background text-foreground">
       {/* Nav */}
       <header className="sticky top-0 z-50 border-b border-border/60 bg-background">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-          <Link to="/" className="flex items-center gap-2">
-            <div className="grid h-9 w-9 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent glow text-primary-foreground font-bold">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-4 sm:px-5">
+          <Link to="/" className="flex min-w-0 items-center gap-2">
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-primary to-accent glow text-primary-foreground font-bold">
               O
             </div>
-            <span className="font-display text-lg font-semibold tracking-tight">ONIQ</span>
+            <span className="truncate font-display text-lg font-semibold tracking-tight">ONIQ</span>
           </Link>
           <nav className="hidden items-center gap-7 text-sm text-muted-foreground md:flex">
             <a href="#features" className="hover:text-foreground">Features</a>
@@ -71,11 +71,13 @@ function Landing() {
           </nav>
           <Link
             to="/auth"
-            className="inline-flex items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:opacity-90 sm:px-4"
           >
-            Open app <ArrowRight className="h-4 w-4" />
+            <span className="whitespace-nowrap">Open app</span>
+            <ArrowRight className="h-4 w-4 shrink-0" />
           </Link>
         </div>
+
       </header>
 
       <main>

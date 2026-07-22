@@ -99,7 +99,7 @@
   --destructive: #F87171;
   --destructive-foreground: #0E0F13;
 
-  --border: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.14);
   --input: #1B1E26;
   --ring: #00D4B8;
 
@@ -175,6 +175,22 @@
     font-weight: 700;
     letter-spacing: 0.02em;
   }
+
+  /* Non-Latin scripts (Bengali, Devanagari, Tamil, Telugu, Kannada, Malayalam,
+     Gujarati, Punjabi, Odia, Assamese, Marathi, Urdu, Sinhala, Chinese, Arabic,
+     Japanese, Korean, Thai) need larger sizing than uppercase Latin caps to read
+     with equal confidence. Bump display / heading / button sizing modestly. */
+  :lang(bn), :lang(hi), :lang(ta), :lang(te), :lang(kn), :lang(ml),
+  :lang(gu), :lang(pa), :lang(or), :lang(as), :lang(mr), :lang(ur),
+  :lang(si), :lang(zh), :lang(ar), :lang(ja), :lang(ko), :lang(th) {
+    & .font-display,
+    & h1, & h2, & h3, & h4,
+    & button {
+      font-size: 1.08em;
+      letter-spacing: 0;
+      text-transform: none;
+    }
+
 }
 
 @utility text-gradient-primary {

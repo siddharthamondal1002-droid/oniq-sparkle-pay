@@ -36,6 +36,15 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Reflect selected language on <html lang> so :lang() CSS selectors and
+  // assistive tech can adapt (e.g. larger sizing for non-Latin scripts).
+  useEffect(() => {
+    if (typeof document !== "undefined" && lang) {
+      document.documentElement.lang = lang;
+    }
+  }, [lang]);
+
+
   const value = useMemo<Ctx>(
     () => ({
       lang,
