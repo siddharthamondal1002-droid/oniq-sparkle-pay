@@ -108,6 +108,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/icon-192.png" },
       { rel: "canonical", href: "https://oniqhub.com" },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Baloo+Bhai+2:wght@400;600;700&family=Baloo+Bhaijaan+2:wght@400;600;700&family=Baloo+Bhaina+2:wght@400;600;700&family=Baloo+Chettan+2:wght@400;600;700&family=Baloo+Da+2:wght@400;600;700&family=Baloo+Paaji+2:wght@400;600;700&family=Baloo+Tamma+2:wght@400;600;700&family=Baloo+Tammudu+2:wght@400;600;700&family=Baloo+Thambi+2:wght@400;600;700&family=Noto+Nastaliq+Urdu:wght@400;700&family=Noto+Sans+Sinhala:wght@400;600;700&family=Noto+Sans+SC:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;600;700&family=Noto+Sans+JP:wght@400;600;700&family=Noto+Sans+KR:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap",
+      },
     ],
     scripts: [
       {

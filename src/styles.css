@@ -176,10 +176,11 @@
     letter-spacing: 0.02em;
   }
 
-  /* Non-Latin scripts (Bengali, Devanagari, Tamil, Telugu, Kannada, Malayalam,
-     Gujarati, Punjabi, Odia, Assamese, Marathi, Urdu, Sinhala, Chinese, Arabic,
-     Japanese, Korean, Thai) need larger sizing than uppercase Latin caps to read
-     with equal confidence. Bump display / heading / button sizing modestly. */
+  /* Non-Latin scripts need larger sizing than uppercase Latin caps to read with
+     equal confidence, and deserve a distinctive typeface rather than the OS
+     fallback. Per-script Baloo variants (Google Fonts) — friendly, rounded,
+     modern — for Indic scripts; Noto for the rest. Loaded via <link> in
+     src/routes/__root.tsx. */
   :lang(bn), :lang(hi), :lang(ta), :lang(te), :lang(kn), :lang(ml),
   :lang(gu), :lang(pa), :lang(or), :lang(as), :lang(mr), :lang(ur),
   :lang(si), :lang(zh), :lang(ar), :lang(ja), :lang(ko), :lang(th) {
@@ -190,8 +191,26 @@
       letter-spacing: 0;
       text-transform: none;
     }
+  }
 
+  :lang(hi), :lang(mr) { font-family: "Baloo 2", system-ui, sans-serif; }
+  :lang(bn), :lang(as) { font-family: "Baloo Da 2", system-ui, sans-serif; }
+  :lang(ta) { font-family: "Baloo Thambi 2", system-ui, sans-serif; }
+  :lang(kn) { font-family: "Baloo Tamma 2", system-ui, sans-serif; }
+  :lang(te) { font-family: "Baloo Tammudu 2", system-ui, sans-serif; }
+  :lang(ml) { font-family: "Baloo Chettan 2", system-ui, sans-serif; }
+  :lang(gu) { font-family: "Baloo Bhai 2", system-ui, sans-serif; }
+  :lang(pa) { font-family: "Baloo Paaji 2", system-ui, sans-serif; }
+  :lang(or) { font-family: "Baloo Bhaina 2", system-ui, sans-serif; }
+  :lang(ar) { font-family: "Baloo Bhaijaan 2", system-ui, sans-serif; }
+  :lang(ur) { font-family: "Noto Nastaliq Urdu", system-ui, serif; }
+  :lang(si) { font-family: "Noto Sans Sinhala", system-ui, sans-serif; }
+  :lang(zh) { font-family: "Noto Sans SC", system-ui, sans-serif; }
+  :lang(ja) { font-family: "Noto Sans JP", system-ui, sans-serif; }
+  :lang(ko) { font-family: "Noto Sans KR", system-ui, sans-serif; }
+  :lang(th) { font-family: "Noto Sans Thai", system-ui, sans-serif; }
 }
+
 
 @utility text-gradient-primary {
   background: var(--gradient-primary);
