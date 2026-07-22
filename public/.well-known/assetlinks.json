@@ -1,1 +1,16 @@
-[{"relation":["delegate_permission/common.handle_all_urls"],"target":{"namespace":"android_app","package_name":"com.oniqhub.app","sha256_cert_fingerprints":["5A:E9:9B:1D:E6:95:23:BE:2C:BF:AE:6D:9E:CD:18:F3:9B:BB:A4:BD:D9:83:C1:6B:79:36:FE:EC:80:6F:2E:6F"]}}]
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls",
+      "delegate_permission/common.get_login_creds"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.oniqhub.app",
+      "sha256_cert_fingerprints": [
+        "5A:E9:9B:1D:E6:95:23:BE:2C:BF:AE:6D:9E:CD:18:F3:9B:BB:A4:BD:D9:83:C1:6B:79:36:FE:EC:80:6F:2E:6F",
+        "96:11:64:4F:29:08:47:AF:3A:53:31:EC:0F:FC:23:EC:17:53:56:94:F3:18:E5:4A:06:67:61:98:31:DE:02:24"
+      ]
+    }
+  }
+]
