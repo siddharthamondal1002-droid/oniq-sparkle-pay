@@ -2461,8 +2461,13 @@ export type Database = {
       get_my_profile_private: {
         Args: never
         Returns: {
+          date_of_birth: string
+          is_minor: boolean
           omiq_wallet_address: string
           oniq_pay_enabled: boolean
+          parent_email: string
+          parent_name: string
+          parent_phone: string
           upi_vpa: string
         }[]
       }
