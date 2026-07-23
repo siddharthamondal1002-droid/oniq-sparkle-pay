@@ -16,8 +16,9 @@ function useMinorFlag(): boolean | undefined {
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return false;
-      const { data: p } = await supabase.from("profiles").select("is_minor").eq("id", u.user.id).maybeSingle();
-      return !!p?.is_minor;
+      const { data: priv } = await supabase.rpc("get_my_profile_private");
+      const row = Array.isArray(priv) ? priv[0] : priv;
+      return !!row?.is_minor;
     },
     staleTime: 5 * 60_000,
   });
