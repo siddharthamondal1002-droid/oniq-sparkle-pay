@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "@tanstack/react-router";
 
 import { supabase } from "@/integrations/supabase/client";
-import { Phone, PhoneOff, Video } from "lucide-react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   ensureNotificationPermission,
@@ -10,6 +9,14 @@ import {
   showIncomingNotification,
   stopAllCallSounds,
 } from "@/lib/callSounds";
+import {
+  IncomingCallScreen,
+  scheduleReminder,
+  sendQuickReply,
+  type IncomingCallInfo,
+} from "./IncomingCallScreen";
+import { bumpMissedCallCount } from "@/components/onboarding/FullScreenIntentPrompt";
+
 
 type CallType = "audio" | "video";
 
