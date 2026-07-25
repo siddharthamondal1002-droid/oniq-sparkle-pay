@@ -105,11 +105,13 @@
   "overrides": {
     "brace-expansion": "^2.0.2",
     "js-yaml": "^4.2.0",
-    "@tanstack/router-core": "1.171.14"
+    "@tanstack/router-core": "1.171.14",
+    "tar": "^7.5.19"
   },
   "resolutions": {
     "brace-expansion": "^2.0.2",
     "js-yaml": "^4.2.0",
-    "@tanstack/router-core": "1.171.14"
+    "@tanstack/router-core": "1.171.14",
+    "tar": "^7.5.19"
   }
 }
