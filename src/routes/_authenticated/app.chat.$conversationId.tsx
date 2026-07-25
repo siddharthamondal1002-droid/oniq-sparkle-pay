@@ -219,12 +219,25 @@ function ChatThread() {
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     queryFn: async (): Promise<Message[]> => {
-      const { data } = await supabase
+      // If I "deleted" this chat, history before cleared_at stays hidden for me.
+      const uid = (await supabase.auth.getUser()).data.user?.id;
+      let clearedAt: string | null = null;
+      if (uid) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: mem } = await (supabase as any)
+          .from("conversation_members")
+          .select("cleared_at")
+          .eq("conversation_id", conversationId)
+          .eq("user_id", uid)
+          .maybeSingle();
+        clearedAt = mem?.cleared_at ?? null;
+      }
+      let q = supabase
         .from("messages")
         .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai, file_name, file_size, edited_at, starred_by")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true })
-        .limit(200);
+        .eq("conversation_id", conversationId);
+      if (clearedAt) q = q.gt("created_at", clearedAt);
+      const { data } = await q.order("created_at", { ascending: true }).limit(200);
       return (data ?? []) as Message[];
     },
   });
