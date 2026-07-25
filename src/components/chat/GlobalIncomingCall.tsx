@@ -139,7 +139,9 @@ export function GlobalIncomingCall() {
         fromName: p.fromName || "Someone",
         fromId: p.fromId,
         lastRing: Date.now(),
+        firstRing: Date.now(),
       });
+
     });
     ch.subscribe();
     return () => {
