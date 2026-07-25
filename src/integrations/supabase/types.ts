@@ -229,6 +229,44 @@ export type Database = {
         }
         Relationships: []
       }
+      call_reminders: {
+        Row: {
+          conversation_id: string
+          created_at: string
+          dismissed_at: string | null
+          id: string
+          peer_name: string | null
+          remind_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          peer_name?: string | null
+          remind_at: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string
+          created_at?: string
+          dismissed_at?: string | null
+          id?: string
+          peer_name?: string | null
+          remind_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "call_reminders_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chapter_notes: {
         Row: {
           board: string
