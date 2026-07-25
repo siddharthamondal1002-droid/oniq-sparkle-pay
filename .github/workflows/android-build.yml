@@ -120,8 +120,10 @@ jobs:
         env:
           ORG_GRADLE_PROJECT_ONIQ_KEYSTORE: ${{ github.workspace }}/android/app/oniq.keystore
           ORG_GRADLE_PROJECT_ONIQ_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # Generator always uses alias "oniq" and keyPassword == storePassword,
+          # so fall back to those when the optional secrets are missing/empty.
+          ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'oniq' }}
+          ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.KEYSTORE_PASSWORD }}
         run: |
           chmod +x ./gradlew
           ./gradlew bundleRelease
@@ -140,8 +142,10 @@ jobs:
         env:
           ORG_GRADLE_PROJECT_ONIQ_KEYSTORE: ${{ github.workspace }}/android/app/oniq.keystore
           ORG_GRADLE_PROJECT_ONIQ_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          # Generator always uses alias "oniq" and keyPassword == storePassword,
+          # so fall back to those when the optional secrets are missing/empty.
+          ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'oniq' }}
+          ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.KEYSTORE_PASSWORD }}
         run: ./gradlew assembleRelease
 
       - name: Upload release APK
