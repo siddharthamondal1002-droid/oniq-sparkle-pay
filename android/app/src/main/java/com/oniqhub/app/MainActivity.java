@@ -4,10 +4,12 @@ import android.os.Bundle;
 
 
 import android.Manifest;
+import android.app.KeyguardManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 
 import android.os.Build;
+import android.view.WindowManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
@@ -35,6 +37,31 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CallSettingsPlugin.class);
 
         super.onCreate(savedInstanceState);
+        applyCallWindowFlags(getIntent());
+    }
+
+    /**
+     * When launched by the incoming-call full-screen intent (the tap intent
+     * from OniqMessagingService carries "oniq_call_id"), present over the
+     * lockscreen and wake the screen so the callee can answer without
+     * unlocking. Without these flags the notification fires but the activity
+     * stays hidden behind the keyguard.
+     */
+    private void applyCallWindowFlags(Intent intent) {
+        if (intent == null) return;
+        String callId = intent.getStringExtra("oniq_call_id");
+        if (callId == null || callId.isEmpty()) return;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true);
+            setTurnScreenOn(true);
+            KeyguardManager km = getSystemService(KeyguardManager.class);
+            if (km != null) km.requestDismissKeyguard(this, null);
+        } else {
+            getWindow().addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                    | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                    | WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD);
+        }
     }
 
 
@@ -196,6 +223,7 @@ public class MainActivity extends BridgeActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        applyCallWindowFlags(intent);
         forwardIntentUrl(intent);
     }
 
