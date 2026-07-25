@@ -13,7 +13,10 @@ import { usePresenceTracker } from "@/hooks/usePresence";
 import { useEffect } from "react";
 import { initPush } from "@/lib/push";
 import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
+import { FullScreenIntentPrompt } from "@/components/onboarding/FullScreenIntentPrompt";
+import { CallReminderWatcher } from "@/components/chat/CallReminderWatcher";
 import { LanguageProvider, useT } from "@/lib/i18n/LanguageProvider";
+
 
 
 export const Route = createFileRoute("/_authenticated/app")({
@@ -80,6 +83,9 @@ function AppShell() {
       <MiniAppReturnWatcher />
       <MessageNotifier />
       <PermissionsOnboarding />
+      <FullScreenIntentPrompt />
+      <CallReminderWatcher />
+
 
 
       {showNav && (
