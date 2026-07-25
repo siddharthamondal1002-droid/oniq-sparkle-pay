@@ -1,0 +1,1 @@
+REVOKE UPDATE (is_admin) ON public.profiles FROM authenticated, anon, public;
