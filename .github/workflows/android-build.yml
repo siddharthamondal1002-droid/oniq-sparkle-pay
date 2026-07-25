@@ -130,46 +130,76 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           KS=android/app/oniq.keystore
-          if ! keytool -list -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1; then
-            echo "::error::KEYSTORE_PASSWORD does not open the keystore. Re-copy it from credentials.txt (no spaces/newlines), and make sure ANDROID_KEYSTORE_BASE64 and KEYSTORE_PASSWORD come from the SAME keystore artifact."
+
+          # --- Safe diagnostics (never prints secret values) -------------
+          SIZE=$(stat -c%s "$KS")
+          MAGIC=$(xxd -p -l4 "$KS" 2>/dev/null || echo "????")
+          case "$MAGIC" in
+            feedfeed) KIND="JKS keystore" ;;
+            3082*)    KIND="PKCS12 keystore" ;;
+            *)        KIND="NOT a keystore" ;;
+          esac
+          echo "Decoded keystore: $SIZE bytes, magic=$MAGIC ($KIND)"
+          echo "Secret lengths: KEYSTORE_PASSWORD=${#KEYSTORE_PASSWORD} KEY_ALIAS=${#KEY_ALIAS} KEY_PASSWORD=${#KEY_PASSWORD} (generated password is 24 chars)"
+          if [ "$KIND" = "NOT a keystore" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 decodes to something that is not a keystore (magic=$MAGIC). The wrong content was pasted — copy the contents of keystore.jks.base64 (the .base64 TEXT file, not the .jks binary) from the newest keystore artifact."
             exit 1
           fi
+
+          # Users sometimes paste the whole 'KEYSTORE_PASSWORD=xxx' line, add
+          # whitespace, or swap the two password fields — try sane variants.
+          strip() { printf '%s' "$1" | tr -d ' \t\r\n' | sed 's/^KEYSTORE_PASSWORD=//;s/^KEY_PASSWORD=//'; }
+          STOREPASS=""
+          for C in "$KEYSTORE_PASSWORD" "$(strip "$KEYSTORE_PASSWORD")" "$KEY_PASSWORD" "$(strip "$KEY_PASSWORD")"; do
+            [ -z "$C" ] && continue
+            if keytool -list -keystore "$KS" -storepass "$C" >/dev/null 2>&1; then
+              STOREPASS="$C"
+              break
+            fi
+          done
+          if [ -z "$STOREPASS" ]; then
+            echo "::error::No provided password opens this keystore. The keystore file and KEYSTORE_PASSWORD do not belong together. Fix: open credentials.txt from the SAME keystore artifact your ANDROID_KEYSTORE_BASE64 came from, and set KEYSTORE_PASSWORD to only the characters AFTER 'KEYSTORE_PASSWORD=' (24 characters, no spaces)."
+            exit 1
+          fi
+          [ "$STOREPASS" != "$KEYSTORE_PASSWORD" ] && echo "::warning::KEYSTORE_PASSWORD as pasted did not work; a cleaned/alternate variant opened the keystore and will be used."
+
           ALIAS="${KEY_ALIAS:-oniq}"
-          if ! keytool -list -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" -alias "$ALIAS" >/dev/null 2>&1; then
-            ALIAS=$(keytool -list -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" 2>/dev/null | awk -F, '/PrivateKeyEntry/{print $1; exit}')
+          if ! keytool -list -keystore "$KS" -storepass "$STOREPASS" -alias "$ALIAS" >/dev/null 2>&1; then
+            ALIAS=$(keytool -list -keystore "$KS" -storepass "$STOREPASS" 2>/dev/null | awk -F, '/PrivateKeyEntry/{print $1; exit}')
             if [ -z "$ALIAS" ]; then
               echo "::error::No private key entry found in the keystore."
               exit 1
             fi
             echo "::warning::KEY_ALIAS secret did not match any key; using the alias found in the keystore instead."
           fi
+
           RESOLVED=""
-          for CANDIDATE in "$KEY_PASSWORD" "$KEYSTORE_PASSWORD"; do
-            [ -z "$CANDIDATE" ] && continue
-            if keytool -certreq -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" -alias "$ALIAS" -keypass "$CANDIDATE" -file /dev/null >/dev/null 2>&1; then
-              RESOLVED="$CANDIDATE"
+          for C in "$KEY_PASSWORD" "$(strip "$KEY_PASSWORD")" "$STOREPASS"; do
+            [ -z "$C" ] && continue
+            if keytool -certreq -keystore "$KS" -storepass "$STOREPASS" -alias "$ALIAS" -keypass "$C" -file /dev/null >/dev/null 2>&1; then
+              RESOLVED="$C"
               break
             fi
           done
           if [ -z "$RESOLVED" ]; then
-            echo "::error::Neither KEY_PASSWORD nor KEYSTORE_PASSWORD unlocks the signing key. Set the KEY_PASSWORD repo secret to the KEY_PASSWORD value from credentials.txt."
+            echo "::error::No provided password unlocks the signing key '$ALIAS'."
             exit 1
           fi
-          if [ "$RESOLVED" != "$KEY_PASSWORD" ]; then
-            echo "::warning::KEY_PASSWORD secret did not unlock the key; using KEYSTORE_PASSWORD (generator sets them equal)."
-          fi
+
           {
+            echo "ONIQ_STORE_PASSWORD=$STOREPASS"
             echo "ONIQ_KEY_ALIAS=$ALIAS"
             echo "ONIQ_KEY_PASSWORD=$RESOLVED"
           } >> "$GITHUB_ENV"
+          echo "Signing credentials verified OK."
 
       - name: Build signed AAB
         if: steps.keystore_check.outputs.has_keystore == 'true'
         working-directory: android
         env:
           ORG_GRADLE_PROJECT_ONIQ_KEYSTORE: ${{ github.workspace }}/android/app/oniq.keystore
-          ORG_GRADLE_PROJECT_ONIQ_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           # Verified values from the "Resolve signing credentials" step.
+          ORG_GRADLE_PROJECT_ONIQ_KEYSTORE_PASSWORD: ${{ env.ONIQ_STORE_PASSWORD }}
           ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ env.ONIQ_KEY_ALIAS }}
           ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ env.ONIQ_KEY_PASSWORD }}
         run: |
@@ -189,8 +219,8 @@ jobs:
         working-directory: android
         env:
           ORG_GRADLE_PROJECT_ONIQ_KEYSTORE: ${{ github.workspace }}/android/app/oniq.keystore
-          ORG_GRADLE_PROJECT_ONIQ_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           # Verified values from the "Resolve signing credentials" step.
+          ORG_GRADLE_PROJECT_ONIQ_KEYSTORE_PASSWORD: ${{ env.ONIQ_STORE_PASSWORD }}
           ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ env.ONIQ_KEY_ALIAS }}
           ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ env.ONIQ_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
