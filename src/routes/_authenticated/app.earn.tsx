@@ -81,17 +81,111 @@ const CATEGORIES: Category[] = [
   { id: "lawyer_corporate", label: "Lawyer — Corporate", emoji: "⚖️", providers: [VAKILSEARCH, INDIAFILINGS] },
 ];
 
-const CITIES = [
-  "Kolkata",
-  "Bengaluru",
-  "Mumbai",
-  "Delhi",
-  "Hyderabad",
-  "Chennai",
-  "Pune",
-  "Ahmedabad",
-  "Gurugram",
-  "Noida",
+const CITY_GROUPS = [
+  {
+    label: "Metro",
+    cities: [
+      "Kolkata",
+      "Bengaluru",
+      "Mumbai",
+      "Delhi",
+      "Hyderabad",
+      "Chennai",
+      "Pune",
+      "Ahmedabad",
+      "Gurugram",
+      "Noida",
+    ],
+  },
+  {
+    label: "Tier 2",
+    cities: [
+      "Agra",
+      "Amritsar",
+      "Bhopal",
+      "Bhubaneswar",
+      "Chandigarh",
+      "Coimbatore",
+      "Dehradun",
+      "Faridabad",
+      "Ghaziabad",
+      "Guwahati",
+      "Indore",
+      "Jaipur",
+      "Kanpur",
+      "Kochi",
+      "Lucknow",
+      "Ludhiana",
+      "Madurai",
+      "Mysuru",
+      "Nagpur",
+      "Nashik",
+      "Patna",
+      "Raipur",
+      "Rajkot",
+      "Ranchi",
+      "Surat",
+      "Thiruvananthapuram",
+      "Vadodara",
+      "Varanasi",
+      "Vijayawada",
+      "Visakhapatnam",
+    ],
+  },
+  {
+    label: "Tier 3",
+    cities: [
+      "Ajmer",
+      "Aligarh",
+      "Amravati",
+      "Asansol",
+      "Aurangabad",
+      "Bareilly",
+      "Belagavi",
+      "Bhagalpur",
+      "Bikaner",
+      "Bilaspur",
+      "Cuttack",
+      "Dhanbad",
+      "Durgapur",
+      "Gaya",
+      "Gorakhpur",
+      "Guntur",
+      "Gwalior",
+      "Haridwar",
+      "Hubballi",
+      "Jabalpur",
+      "Jalandhar",
+      "Jammu",
+      "Jamshedpur",
+      "Jhansi",
+      "Jodhpur",
+      "Kolhapur",
+      "Kota",
+      "Kozhikode",
+      "Mangaluru",
+      "Moradabad",
+      "Muzaffarpur",
+      "Nellore",
+      "Panaji",
+      "Patiala",
+      "Prayagraj",
+      "Puducherry",
+      "Rourkela",
+      "Salem",
+      "Shimla",
+      "Siliguri",
+      "Solapur",
+      "Srinagar",
+      "Thrissur",
+      "Tiruchirappalli",
+      "Tirupati",
+      "Udaipur",
+      "Ujjain",
+      "Vellore",
+      "Warangal",
+    ],
+  },
 ];
 
 const AVAILABILITY = ["Mornings", "Afternoons", "Evenings", "Weekends", "Full-time"];
@@ -411,10 +505,14 @@ function PartnerPanel() {
             onChange={(e) => setCity(e.target.value)}
             className="input-base"
           >
-            {CITIES.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
+            {CITY_GROUPS.map((g) => (
+              <optgroup key={g.label} label={g.label}>
+                {g.cities.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </Field>
