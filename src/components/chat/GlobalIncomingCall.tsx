@@ -89,12 +89,16 @@ export function GlobalIncomingCall() {
     dismissTimerRef.current = setInterval(() => {
       const cur = incomingRef.current;
       if (!cur) return;
-      if (Date.now() - cur.lastRing > 6000) {
-        // Missed: caller stopped ringing before we picked up.
+      const now = Date.now();
+      const idleTooLong = now - cur.lastRing > 6000;
+      const hardTimeout = now - cur.firstRing > 45_000;
+      if (idleTooLong || hardTimeout) {
+        // Missed: caller stopped ringing or 45s cap reached.
         try { bumpMissedCallCount(); } catch {}
         setIncoming(null);
       }
     }, 1000);
+
 
     return () => {
       if (dismissTimerRef.current) {
