@@ -490,7 +490,6 @@ export type Database = {
       }
       conversation_members: {
         Row: {
-          cleared_at: string | null
           conversation_id: string
           id: string
           joined_at: string | null
@@ -499,7 +498,6 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          cleared_at?: string | null
           conversation_id: string
           id?: string
           joined_at?: string | null
@@ -508,7 +506,6 @@ export type Database = {
           user_id: string
         }
         Update: {
-          cleared_at?: string | null
           conversation_id?: string
           id?: string
           joined_at?: string | null
