@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
 import { ArrowLeft, Mail, Lock, Phone } from "lucide-react";
 import { OTP_LOGIN_ENABLED } from "@/lib/flags";
+import { COUNTRIES, toWidgetFormat, nextResendDelay, MAX_RESENDS, OTP_EXPIRY_MINUTES } from "@/lib/phoneAuth";
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -57,20 +58,6 @@ function friendlyAuthError(err: unknown): string {
   return msg || "Something went wrong — try again";
 }
 
-function normalizePhone(raw: string): string | null {
-  const trimmed = raw.trim().replace(/\s|-/g, "");
-  if (/^[6-9][0-9]{9}$/.test(trimmed)) return "+91" + trimmed;
-  if (/^\+?[0-9]{8,15}$/.test(trimmed)) return trimmed.startsWith("+") ? trimmed : "+" + trimmed;
-  return null;
-}
-
-const COUNTRIES: { flag: string; code: string; label: string }[] = [
-  { flag: "🇮🇳", code: "+91", label: "India" },
-  { flag: "🇺🇸", code: "+1", label: "USA" },
-  { flag: "🇬🇧", code: "+44", label: "UK" },
-  { flag: "🇦🇪", code: "+971", label: "UAE" },
-  { flag: "🇸🇬", code: "+65", label: "Singapore" },
-];
 
 // DPDP Stage 0: itemized consent purposes
 type ConsentKey = "location" | "health" | "ai" | "general";
@@ -144,7 +131,11 @@ function AuthPage() {
   const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  const [sendCount, setSendCount] = useState(0);
   const [widgetReady, setWidgetReady] = useState(false);
+  // Phone sign-in is offered only when the OTP provider is actually ready —
+  // never a dead-end tab, never a client-side bypass.
+  const phoneAvailable = OTP_LOGIN_ENABLED && widgetReady;
 
   // DPDP Stage 0 signup fields
   const [dob, setDob] = useState("");
@@ -253,10 +244,8 @@ function AuthPage() {
     return dialCode + digits;
   }
   function phoneForWidget(): string | null {
-    const digits = phone.replace(/\D/g, "");
-    if (digits.length < 8 || digits.length > 15) return null;
-    // MSG91 widget expects dialCode+number, digits only (no leading +).
-    return dialCode.replace(/\D/g, "") + digits;
+    // Strict per-country validation (E.164) — see src/lib/phoneAuth.ts.
+    return toWidgetFormat(dialCode, phone);
   }
 
   // MSG91 widget bootstrap: load /otp-provider.js once, call initSendOTP with
@@ -318,13 +307,23 @@ function AuthPage() {
       toast.error("otp service loading — try again in a sec ⏳");
       return;
     }
+    const attempt = sendCount + 1;
+    const delay = nextResendDelay(attempt);
+    if (delay === null) {
+      toast.error(`too many codes requested — start over with your number (max ${MAX_RESENDS + 1} sends)`);
+      setOtpSent(false);
+      setOtp("");
+      setSendCount(0);
+      return;
+    }
     setLoading(true);
     try {
       await new Promise<void>((resolve, reject) => {
         w.sendOTP!(mobile, () => resolve(), (err) => reject(err));
       });
       setOtpSent(true);
-      setResendIn(30);
+      setSendCount(attempt);
+      setResendIn(delay);
       toast.success("otp sent ✉️ check your messages");
     } catch (err) {
       toast.error(friendlyAuthError(err));
@@ -476,8 +475,9 @@ function AuthPage() {
             <div className="h-px flex-1 bg-border" />
           </div>
 
-          {/* Method pill selector: email | phone (phone gated behind flag) */}
-          {OTP_LOGIN_ENABLED && (
+          {/* Method pill selector: email | phone (phone appears only when the
+              OTP provider reports ready — no dead-end auth UI) */}
+          {phoneAvailable && (
             <div className="mb-4 grid grid-cols-2 gap-1 rounded-full border border-border bg-card/40 p-1 text-xs">
               <button
                 type="button"
@@ -497,7 +497,7 @@ function AuthPage() {
           )}
 
 
-          {(!OTP_LOGIN_ENABLED || method === "email") ? (
+          {(!phoneAvailable || method === "email") ? (
             confirmationSentTo ? (
               <div className="space-y-3 text-center">
                 <div className="text-2xl">📬</div>
@@ -646,11 +646,6 @@ function AuthPage() {
             <>
               {!otpSent ? (
                 <form onSubmit={handleSendOtp} className="space-y-3">
-                  {!widgetReady && (
-                    <div className="rounded-xl border border-border bg-input/30 px-3 py-2 text-center text-[11px] text-muted-foreground">
-                      phone sign-in warming up 🔧 — use Google/email for now
-                    </div>
-                  )}
                   <div className="flex gap-2">
                     <select
                       aria-label="Country code"
@@ -659,8 +654,8 @@ function AuthPage() {
                       className="rounded-2xl border border-border bg-input/40 px-3 py-3 text-sm focus:border-primary focus:outline-none"
                     >
                       {COUNTRIES.map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.flag} {c.code}
+                        <option key={c.dial} value={c.dial}>
+                          {c.flag} {c.dial}
                         </option>
                       ))}
                     </select>
@@ -692,7 +687,7 @@ function AuthPage() {
               ) : (
                 <div className="space-y-3">
                   <p className="px-1 text-center text-xs text-muted-foreground">
-                    code sent to <span className="text-foreground">{dialCode} {phone}</span>
+                    code sent to <span className="text-foreground">{dialCode} {phone}</span> · expires in ~{OTP_EXPIRY_MINUTES} min
                   </p>
                   <OtpBoxes
                     value={otp}
@@ -714,7 +709,7 @@ function AuthPage() {
                   <div className="flex items-center justify-between px-1 text-xs">
                     <button
                       type="button"
-                      onClick={() => { setOtpSent(false); setOtp(""); }}
+                      onClick={() => { setOtpSent(false); setOtp(""); setSendCount(0); setResendIn(0); }}
                       className="text-muted-foreground hover:text-foreground"
                     >
                       ← different number

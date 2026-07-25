@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, Check, Upload, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { launchMiniApp } from "@/lib/miniapps";
+import { InviteNotification } from "@/components/earn/InviteNotification";
 
 export const Route = createFileRoute("/_authenticated/app/earn")({
   component: EarnScreen,
@@ -325,7 +326,7 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
         booking handled by our partner services — opens their app/site
       </p>
 
-      <OniqPartnersSection goPartner={goPartner} />
+      <OniqPartnersSection goPartner={goPartner} withInviteCard />
 
       <button
         onClick={goPartner}
@@ -394,7 +395,7 @@ type MyBooking = {
   created_at: string;
 };
 
-function OniqPartnersSection({ goPartner }: { goPartner: () => void }) {
+function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner: () => void; withInviteCard?: boolean }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [city, setCity] = useState(() => {
@@ -478,6 +479,10 @@ function OniqPartnersSection({ goPartner }: { goPartner: () => void }) {
   };
 
   return (
+    <>
+    {withInviteCard && !enabled && (
+      <InviteNotification regionLabel={label} regionKey={region} providerCount={status?.provider_count} />
+    )}
     <div className="rounded-2xl border border-border bg-card p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="text-sm font-semibold">ONIQ partners near you</div>
@@ -571,6 +576,7 @@ function OniqPartnersSection({ goPartner }: { goPartner: () => void }) {
         </div>
       )}
     </div>
+    </>
   );
 }
 
