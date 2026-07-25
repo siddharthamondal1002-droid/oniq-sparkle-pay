@@ -1484,46 +1484,64 @@ export type Database = {
       }
       partner_applications: {
         Row: {
+          aadhaar_path: string | null
           area: string | null
           availability: string[]
           city: string
           created_at: string
           experience_years: number
+          extra_doc_path: string | null
           full_name: string
           id: string
           note: string | null
+          pan_path: string | null
           phone: string
+          region: string | null
           skills: string[]
           status: string
           user_id: string | null
+          verification_status: string
+          village: string | null
         }
         Insert: {
+          aadhaar_path?: string | null
           area?: string | null
           availability?: string[]
           city: string
           created_at?: string
           experience_years?: number
+          extra_doc_path?: string | null
           full_name: string
           id?: string
           note?: string | null
+          pan_path?: string | null
           phone: string
+          region?: string | null
           skills?: string[]
           status?: string
           user_id?: string | null
+          verification_status?: string
+          village?: string | null
         }
         Update: {
+          aadhaar_path?: string | null
           area?: string | null
           availability?: string[]
           city?: string
           created_at?: string
           experience_years?: number
+          extra_doc_path?: string | null
           full_name?: string
           id?: string
           note?: string | null
+          pan_path?: string | null
           phone?: string
+          region?: string | null
           skills?: string[]
           status?: string
           user_id?: string | null
+          verification_status?: string
+          village?: string | null
         }
         Relationships: []
       }
@@ -1830,6 +1848,44 @@ export type Database = {
           review_count?: number | null
         }
         Relationships: []
+      }
+      service_bookings: {
+        Row: {
+          application_id: string
+          created_at: string
+          customer_id: string
+          id: string
+          note: string | null
+          region: string
+          status: string
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          customer_id: string
+          id?: string
+          note?: string | null
+          region: string
+          status?: string
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          customer_id?: string
+          id?: string
+          note?: string | null
+          region?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_bookings_application_id_fkey"
+            columns: ["application_id"]
+            isOneToOne: false
+            referencedRelation: "partner_applications"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       status_updates: {
         Row: {
@@ -2366,6 +2422,10 @@ export type Database = {
         Args: { _note?: string; _target_id: string; _target_type: string }
         Returns: undefined
       }
+      book_service: {
+        Args: { _application_id: string; _note?: string }
+        Returns: Json
+      }
       clips_feed: {
         Args: { _limit?: number; _offset?: number }
         Returns: {
@@ -2475,6 +2535,13 @@ export type Database = {
           upi_vpa: string
         }[]
       }
+      get_region_status: {
+        Args: { _region: string }
+        Returns: {
+          enabled: boolean
+          provider_count: number
+        }[]
+      }
       is_admin: { Args: { _uid: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }
@@ -2490,6 +2557,17 @@ export type Database = {
           id: string
           name: string
           subscriber_count: number
+        }[]
+      }
+      list_region_providers: {
+        Args: { _region: string }
+        Returns: {
+          area: string
+          experience_years: number
+          full_name: string
+          id: string
+          skills: string[]
+          village: string
         }[]
       }
       mark_conversation_read: {
@@ -2514,6 +2592,28 @@ export type Database = {
           source_queue: string
         }
         Returns: number
+      }
+      my_partner_bookings: {
+        Args: never
+        Returns: {
+          created_at: string
+          customer_id: string
+          customer_name: string
+          id: string
+          note: string
+          status: string
+        }[]
+      }
+      my_service_bookings: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          note: string
+          provider_name: string
+          provider_user_id: string
+          status: string
+        }[]
       }
       open_red_packet: { Args: { _packet_id: string }; Returns: number }
       place_order: {
@@ -2540,6 +2640,10 @@ export type Database = {
       }
       remove_group_member: {
         Args: { _conversation_id: string; _user_id: string }
+        Returns: undefined
+      }
+      respond_booking: {
+        Args: { _booking_id: string; _status: string }
         Returns: undefined
       }
       respond_friend_request: {
