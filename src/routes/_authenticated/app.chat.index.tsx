@@ -58,6 +58,43 @@ function ChatList() {
   const [query, setQuery] = useState("");
   const [chip, setChip] = useState<"all" | "unread" | "groups">("all");
   const [mounted, setMounted] = useState(false);
+  const [actionConv, setActionConv] = useState<EnrichedConv | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const longPressTimer = useRef<number | null>(null);
+  const longPressFired = useRef(false);
+
+  const startLongPress = (c: EnrichedConv) => {
+    longPressFired.current = false;
+    longPressTimer.current = window.setTimeout(() => {
+      longPressFired.current = true;
+      setActionConv(c);
+    }, 500);
+  };
+  const cancelLongPress = () => {
+    if (longPressTimer.current !== null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+  const deleteChat = async () => {
+    if (!actionConv || deleting) return;
+    setDeleting(true);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("delete_chat", { _conversation_id: actionConv.id });
+    setDeleting(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    const deletedId = actionConv.id;
+    qc.setQueriesData<EnrichedConv[] | undefined>({ queryKey: ["conversations"] }, (prev) =>
+      prev ? prev.filter((x) => x.id !== deletedId) : prev,
+    );
+    qc.removeQueries({ queryKey: ["messages", deletedId] });
+    toast(actionConv.type === "direct" ? "Chat deleted" : "Left and removed");
+    setActionConv(null);
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -306,6 +343,20 @@ function ChatList() {
                     to="/app/chat/$conversationId"
                     params={{ conversationId: c.id }}
                     className="flex items-center gap-3 px-1 py-3 active:bg-muted/60"
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setActionConv(c);
+                    }}
+                    onTouchStart={() => startLongPress(c)}
+                    onTouchEnd={cancelLongPress}
+                    onTouchMove={cancelLongPress}
+                    onTouchCancel={cancelLongPress}
+                    onClick={(e) => {
+                      if (longPressFired.current) {
+                        e.preventDefault();
+                        longPressFired.current = false;
+                      }
+                    }}
                   >
                     <div className="relative">
                       <Avatar name={c.title} url={c.avatar_url} size={52} group={c.type === "group"} channel={isChannel} />
@@ -377,6 +428,44 @@ function ChatList() {
 
       {showNew && me && <NewChatSheet meId={me.id} onClose={() => setShowNew(false)} />}
       {showRequests && me && <FriendRequestsSheet meId={me.id} onClose={() => setShowRequests(false)} />}
+
+      {actionConv && (
+        <div className="fixed inset-0 z-[80] flex items-end bg-black/60" onClick={() => setActionConv(null)}>
+          <div
+            className="w-full rounded-t-3xl border-t border-border bg-background p-5 pb-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3">
+              <Avatar name={actionConv.title} url={actionConv.avatar_url} size={40} group={actionConv.type === "group"} channel={actionConv.type === "channel"} />
+              <div className="min-w-0">
+                <div className="truncate font-display text-lg font-semibold">{actionConv.title}</div>
+                <div className="text-xs text-muted-foreground">
+                  {actionConv.type === "direct"
+                    ? "Deletes this chat for you only — they keep their copy. If they message you again, the chat comes back empty."
+                    : actionConv.type === "channel"
+                      ? "Leaves this channel and removes it from your list."
+                      : "Leaves this group and removes it from your list."}
+                </div>
+              </div>
+            </div>
+            <button
+              onClick={deleteChat}
+              disabled={deleting}
+              data-testid="delete-chat-confirm"
+              className="press mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500/10 px-4 py-3 font-semibold text-red-500 disabled:opacity-50"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deleting ? "Deleting…" : actionConv.type === "direct" ? "Delete chat" : "Leave & remove"}
+            </button>
+            <button
+              onClick={() => setActionConv(null)}
+              className="mt-2 w-full rounded-2xl border border-border px-4 py-3 text-sm text-muted-foreground"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );
@@ -823,7 +912,6 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
 
 // Silence unused-warning for icons kept for future use.
 export const _iconRef = Check;
-export const _trashRef = Trash2;
 export const _plusRef = Plus;
 
 function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => void }) {
