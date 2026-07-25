@@ -1,0 +1,1 @@
+REVOKE SELECT (date_of_birth, is_minor, parent_name, parent_email, parent_phone, upi_vpa, omiq_wallet_address) ON public.profiles FROM authenticated, anon;
