@@ -114,16 +114,60 @@ jobs:
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/oniq.keystore
 
+      # Verify the secrets actually unlock the keystore BEFORE the 3-minute
+      # Gradle build, and self-heal the common mistakes: wrong/empty KEY_ALIAS
+      # (fall back to the store's real private-key alias) and wrong/empty
+      # KEY_PASSWORD (the generator always sets it equal to KEYSTORE_PASSWORD).
+      - name: Resolve signing credentials
+        if: steps.keystore_check.outputs.has_keystore == 'true'
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          KS=android/app/oniq.keystore
+          if ! keytool -list -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" >/dev/null 2>&1; then
+            echo "::error::KEYSTORE_PASSWORD does not open the keystore. Re-copy it from credentials.txt (no spaces/newlines), and make sure ANDROID_KEYSTORE_BASE64 and KEYSTORE_PASSWORD come from the SAME keystore artifact."
+            exit 1
+          fi
+          ALIAS="${KEY_ALIAS:-oniq}"
+          if ! keytool -list -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" -alias "$ALIAS" >/dev/null 2>&1; then
+            ALIAS=$(keytool -list -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" 2>/dev/null | awk -F, '/PrivateKeyEntry/{print $1; exit}')
+            if [ -z "$ALIAS" ]; then
+              echo "::error::No private key entry found in the keystore."
+              exit 1
+            fi
+            echo "::warning::KEY_ALIAS secret did not match any key; using the alias found in the keystore instead."
+          fi
+          RESOLVED=""
+          for CANDIDATE in "$KEY_PASSWORD" "$KEYSTORE_PASSWORD"; do
+            [ -z "$CANDIDATE" ] && continue
+            if keytool -certreq -keystore "$KS" -storepass "$KEYSTORE_PASSWORD" -alias "$ALIAS" -keypass "$CANDIDATE" -file /dev/null >/dev/null 2>&1; then
+              RESOLVED="$CANDIDATE"
+              break
+            fi
+          done
+          if [ -z "$RESOLVED" ]; then
+            echo "::error::Neither KEY_PASSWORD nor KEYSTORE_PASSWORD unlocks the signing key. Set the KEY_PASSWORD repo secret to the KEY_PASSWORD value from credentials.txt."
+            exit 1
+          fi
+          if [ "$RESOLVED" != "$KEY_PASSWORD" ]; then
+            echo "::warning::KEY_PASSWORD secret did not unlock the key; using KEYSTORE_PASSWORD (generator sets them equal)."
+          fi
+          {
+            echo "ONIQ_KEY_ALIAS=$ALIAS"
+            echo "ONIQ_KEY_PASSWORD=$RESOLVED"
+          } >> "$GITHUB_ENV"
+
       - name: Build signed AAB
         if: steps.keystore_check.outputs.has_keystore == 'true'
         working-directory: android
         env:
           ORG_GRADLE_PROJECT_ONIQ_KEYSTORE: ${{ github.workspace }}/android/app/oniq.keystore
           ORG_GRADLE_PROJECT_ONIQ_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          # Generator always uses alias "oniq" and keyPassword == storePassword,
-          # so fall back to those when the optional secrets are missing/empty.
-          ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'oniq' }}
-          ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          # Verified values from the "Resolve signing credentials" step.
+          ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ env.ONIQ_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ env.ONIQ_KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
           ./gradlew bundleRelease
@@ -142,10 +186,9 @@ jobs:
         env:
           ORG_GRADLE_PROJECT_ONIQ_KEYSTORE: ${{ github.workspace }}/android/app/oniq.keystore
           ORG_GRADLE_PROJECT_ONIQ_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          # Generator always uses alias "oniq" and keyPassword == storePassword,
-          # so fall back to those when the optional secrets are missing/empty.
-          ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ secrets.KEY_ALIAS || 'oniq' }}
-          ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD || secrets.KEYSTORE_PASSWORD }}
+          # Verified values from the "Resolve signing credentials" step.
+          ORG_GRADLE_PROJECT_ONIQ_KEY_ALIAS: ${{ env.ONIQ_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_ONIQ_KEY_PASSWORD: ${{ env.ONIQ_KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
       - name: Upload release APK
