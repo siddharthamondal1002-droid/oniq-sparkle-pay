@@ -490,6 +490,7 @@ export type Database = {
       }
       conversation_members: {
         Row: {
+          cleared_at: string | null
           conversation_id: string
           id: string
           joined_at: string | null
@@ -498,6 +499,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cleared_at?: string | null
           conversation_id: string
           id?: string
           joined_at?: string | null
@@ -506,6 +508,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cleared_at?: string | null
           conversation_id?: string
           id?: string
           joined_at?: string | null
@@ -2424,6 +2427,7 @@ export type Database = {
         Returns: string
       }
       delete_bank_account: { Args: { _bank_id: string }; Returns: undefined }
+      delete_chat: { Args: { _conversation_id: string }; Returns: undefined }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
