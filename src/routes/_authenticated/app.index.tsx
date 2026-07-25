@@ -145,7 +145,7 @@ function HomeScreen() {
               { key: "rides", to: "/app/rides", label: t("home.tile.rides") },
               { key: "miniapps", to: "/app/miniapps", label: t("home.tile.miniapps") },
               { key: "pulse", to: "/app/news", label: t("home.tile.pulse") },
-              { key: "watch", to: "/app/news", label: t("home.tile.watch", "Watch") },
+              { key: "watch", to: "/app/news", search: { tab: "watch" as const }, label: t("home.tile.watch", "Watch") },
               { key: "faith", to: "/app/faith", label: t("home.tile.blessed", "blessed") },
               { key: "vitals", to: "/app/vitals", label: t("home.tile.vitals", "vitals"), color: vitalsColor },
               { key: "wander", to: "/app/travel", label: t("home.tile.wander") },
@@ -1432,7 +1432,7 @@ function AlsoInOniqRow({
   tiles,
   hidden,
 }: {
-  tiles: { key: string; to: string; label: string; color?: string }[];
+  tiles: { key: string; to: string; label: string; color?: string; search?: Record<string, unknown> }[];
   hidden: Set<TileKey>;
 }) {
   const visible = tiles.filter((t) => !(hidden as Set<string>).has(t.key));
@@ -1444,6 +1444,8 @@ function AlsoInOniqRow({
           key={t.key}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           to={t.to as any}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          search={t.search as any}
           className="press fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
           style={t.color ? { boxShadow: `inset 0 0 0 1px ${t.color}22` } : undefined}
         >
