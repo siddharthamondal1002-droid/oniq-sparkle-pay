@@ -2677,6 +2677,7 @@ export type Database = {
       toggle_message_star: { Args: { _message_id: string }; Returns: boolean }
       toggle_moment_like: { Args: { _post_id: string }; Returns: boolean }
       unread_count: { Args: { _conversation_id: string }; Returns: number }
+      user_exists: { Args: { _identifier: string }; Returns: boolean }
       wipe_my_chat_media: { Args: never; Returns: number }
       wipe_my_clips: { Args: never; Returns: number }
       wipe_my_moments: { Args: never; Returns: number }
