@@ -27,7 +27,9 @@ type Incoming = {
   fromName: string;
   fromId: string;
   lastRing: number;
+  firstRing: number;
 };
+
 
 /**
  * Global incoming-call UI. Subscribes to `user-calls:{myUserId}` and shows a
