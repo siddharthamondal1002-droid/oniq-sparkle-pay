@@ -2,7 +2,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Plus, Image as ImageIcon, Globe, Send, X, Loader2, Trash2, Flag } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  Plus,
+  Image as ImageIcon,
+  Globe,
+  Send,
+  X,
+  Loader2,
+  Trash2,
+  Flag,
+} from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { formatDistanceToNow } from "date-fns";
 
@@ -42,12 +53,20 @@ export function MomentsFeed() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please choose an image");
+    const kind = file.type.startsWith("image/")
+      ? "image"
+      : file.type.startsWith("video/")
+        ? "video"
+        : file.type.startsWith("audio/")
+          ? "audio"
+          : null;
+    if (!kind) {
+      toast.error("Choose a photo, video, or audio file");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("Image must be under 10MB");
+    // Storage platform caps a single upload at 50MB on the current plan.
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Keep it under 50MB for now — longer videos coming soon 🎬");
       return;
     }
     setUploading(true);
@@ -81,7 +100,9 @@ export function MomentsFeed() {
     queryFn: async () => {
       const { data } = await supabase
         .from("moments_posts")
-        .select("id, content, media_urls, like_count, comment_count, created_at, user_id, visibility, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)")
+        .select(
+          "id, content, media_urls, like_count, comment_count, created_at, user_id, visibility, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)",
+        )
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -91,16 +112,27 @@ export function MomentsFeed() {
 
   useEffect(() => {
     if (!me || !posts?.length) return;
-    supabase.from("moments_likes").select("post_id").eq("user_id", me)
-      .in("post_id", posts.map(p => p.id))
-      .then(({ data }) => setLikedIds(new Set((data ?? []).map(r => r.post_id))));
+    supabase
+      .from("moments_likes")
+      .select("post_id")
+      .eq("user_id", me)
+      .in(
+        "post_id",
+        posts.map((p) => p.id),
+      )
+      .then(({ data }) => setLikedIds(new Set((data ?? []).map((r) => r.post_id))));
   }, [me, posts]);
 
   useEffect(() => {
-    const ch = supabase.channel("moments-feed")
-      .on("postgres_changes", { event: "*", schema: "public", table: "moments_posts" }, () => refetch())
+    const ch = supabase
+      .channel("moments-feed")
+      .on("postgres_changes", { event: "*", schema: "public", table: "moments_posts" }, () =>
+        refetch(),
+      )
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      supabase.removeChannel(ch);
+    };
   }, [refetch]);
 
   async function post() {
@@ -116,7 +148,8 @@ export function MomentsFeed() {
     if (error) toast.error(error.message);
     else {
       toast.success("Posted to Moments");
-      setContent(""); setImageUrl("");
+      setContent("");
+      setImageUrl("");
       refetch();
     }
     setPosting(false);
@@ -124,17 +157,24 @@ export function MomentsFeed() {
 
   async function toggleLike(postId: string) {
     const wasLiked = likedIds.has(postId);
-    setLikedIds(prev => {
+    setLikedIds((prev) => {
       const n = new Set(prev);
-      if (wasLiked) n.delete(postId); else n.add(postId);
+      if (wasLiked) n.delete(postId);
+      else n.add(postId);
       return n;
     });
     qc.setQueryData(["moments"], (old: any) =>
-      old?.map((p: any) => p.id === postId
-        ? { ...p, like_count: Math.max(0, (p.like_count ?? 0) + (wasLiked ? -1 : 1)) }
-        : p));
+      old?.map((p: any) =>
+        p.id === postId
+          ? { ...p, like_count: Math.max(0, (p.like_count ?? 0) + (wasLiked ? -1 : 1)) }
+          : p,
+      ),
+    );
     const { error } = await supabase.rpc("toggle_moment_like", { _post_id: postId });
-    if (error) { toast.error(error.message); refetch(); }
+    if (error) {
+      toast.error(error.message);
+      refetch();
+    }
   }
 
   async function deletePost(postId: string) {
@@ -153,7 +193,6 @@ export function MomentsFeed() {
     }
   }
 
-
   return (
     <div className="pb-6">
       <div className="mt-5 px-5">
@@ -167,7 +206,7 @@ export function MomentsFeed() {
           />
           {imageUrl && (
             <div className="relative mt-2">
-              <img src={imageUrl} alt="" className="max-h-64 w-full rounded-2xl object-cover" />
+              <MomentMedia url={imageUrl} className="max-h-64 w-full rounded-2xl object-cover" />
               <button
                 type="button"
                 onClick={() => setImageUrl("")}
@@ -180,7 +219,7 @@ export function MomentsFeed() {
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/*,video/*,audio/*"
             className="hidden"
             onChange={handlePickFile}
           />
@@ -197,10 +236,13 @@ export function MomentsFeed() {
                     data-testid={`moment-visibility-${v}`}
                     onClick={() => {
                       setVisibility(v);
-                      if (typeof sessionStorage !== "undefined") sessionStorage.setItem("oniq_post_visibility", v);
+                      if (typeof sessionStorage !== "undefined")
+                        sessionStorage.setItem("oniq_post_visibility", v);
                     }}
                     className={`flex-1 min-h-11 rounded-full border px-3 py-2 text-xs font-semibold transition ${
-                      active ? "border-primary bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted"
+                      active
+                        ? "border-primary bg-primary/15 text-primary"
+                        : "border-border bg-card text-muted-foreground hover:bg-muted"
                     }`}
                   >
                     {label}
@@ -218,9 +260,16 @@ export function MomentsFeed() {
                 className={`grid h-8 w-8 place-items-center rounded-full hover:bg-muted ${uploading ? "opacity-50" : ""}`}
                 aria-label="Add photo from gallery"
               >
-                {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageIcon className="h-4 w-4" />}
+                {uploading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ImageIcon className="h-4 w-4" />
+                )}
               </button>
-              <button type="button" className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted">
+              <button
+                type="button"
+                className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted"
+              >
                 <Globe className="h-4 w-4" />
               </button>
             </div>
@@ -240,16 +289,19 @@ export function MomentsFeed() {
               const liked = likedIds.has(p.id);
               const isMine = p.user_id === me;
               return (
-                <article
-                  key={p.id}
-                  className="rounded-3xl border border-border bg-card p-4"
-                >
+                <article key={p.id} className="rounded-3xl border border-border bg-card p-4">
                   <div className="flex items-center gap-3">
                     {p.profiles?.avatar_url ? (
-                      <img src={p.profiles.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+                      <img
+                        src={p.profiles.avatar_url}
+                        alt=""
+                        className="h-10 w-10 rounded-full object-cover"
+                      />
                     ) : (
                       <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
-                        {(p.profiles?.display_name ?? p.profiles?.username ?? "U").charAt(0).toUpperCase()}
+                        {(p.profiles?.display_name ?? p.profiles?.username ?? "U")
+                          .charAt(0)
+                          .toUpperCase()}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -257,11 +309,15 @@ export function MomentsFeed() {
                         {p.profiles?.display_name ?? p.profiles?.username ?? "User"}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(p.created_at ?? Date.now()), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(p.created_at ?? Date.now()), {
+                          addSuffix: true,
+                        })}
                       </div>
                     </div>
                     {isMine && p.visibility === "moots" && (
-                      <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>
+                      <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                        moots only 🤝
+                      </span>
                     )}
                     {isMine ? (
                       <button
@@ -286,11 +342,8 @@ export function MomentsFeed() {
 
                   {p.content && <p className="mt-3 whitespace-pre-wrap text-sm">{p.content}</p>}
                   {p.media_urls?.[0] && (
-                    <img
-                      src={p.media_urls[0]}
-                      alt=""
-                      loading="lazy"
-                      decoding="async"
+                    <MomentMedia
+                      url={p.media_urls[0]}
                       className="mt-3 max-h-[70vh] w-full rounded-2xl object-cover"
                     />
                   )}
@@ -300,7 +353,8 @@ export function MomentsFeed() {
                       onClick={() => toggleLike(p.id)}
                       className={`flex items-center gap-1 transition ${liked ? "text-accent" : "hover:text-accent"}`}
                     >
-                      <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} /> {p.like_count ?? 0}
+                      <Heart className={`h-4 w-4 ${liked ? "fill-current" : ""}`} />{" "}
+                      {p.like_count ?? 0}
                     </button>
                     <button
                       onClick={() => setOpenComments(p.id)}
@@ -324,17 +378,19 @@ export function MomentsFeed() {
         )}
       </div>
 
-
       {openComments && (
-        <CommentsSheet postId={openComments} onClose={() => { setOpenComments(null); refetch(); }} />
+        <CommentsSheet
+          postId={openComments}
+          onClose={() => {
+            setOpenComments(null);
+            refetch();
+          }}
+        />
       )}
-      {reportTarget && (
-        <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />
-      )}
+      {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
     </div>
   );
 }
-
 
 function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => void }) {
   const [text, setText] = useState("");
@@ -344,7 +400,9 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
     queryFn: async () => {
       const { data } = await supabase
         .from("moments_comments")
-        .select("id, content, created_at, user_id, profiles:profiles!moments_comments_user_id_fkey(display_name, username, avatar_url)")
+        .select(
+          "id, content, created_at, user_id, profiles:profiles!moments_comments_user_id_fkey(display_name, username, avatar_url)",
+        )
         .eq("post_id", postId)
         .order("created_at", { ascending: true });
       return data ?? [];
@@ -357,11 +415,13 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     const { error } = await supabase.from("moments_comments").insert({
-      post_id: postId, user_id: u.user.id, content: text.trim(),
+      post_id: postId,
+      user_id: u.user.id,
+      content: text.trim(),
     });
     if (error) toast.error(error.message);
     else {
-      await supabase.rpc as any;
+      (await supabase.rpc) as any;
       setText("");
       refetch();
     }
@@ -376,30 +436,41 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
       >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-display text-base font-semibold">Comments</h3>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-muted">
+          <button
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="max-h-[50vh] space-y-3 overflow-y-auto">
-          {comments?.length ? comments.map(c => (
-            <div key={c.id} className="flex gap-3">
-              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-primary-foreground">
-                {(c.profiles?.display_name ?? "U").charAt(0).toUpperCase()}
+          {comments?.length ? (
+            comments.map((c) => (
+              <div key={c.id} className="flex gap-3">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-primary-foreground">
+                  {(c.profiles?.display_name ?? "U").charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 rounded-2xl bg-muted px-3 py-2">
+                  <div className="text-xs font-medium">
+                    {c.profiles?.display_name ?? c.profiles?.username ?? "User"}
+                  </div>
+                  <div className="text-sm">{c.content}</div>
+                </div>
               </div>
-              <div className="flex-1 rounded-2xl bg-muted px-3 py-2">
-                <div className="text-xs font-medium">{c.profiles?.display_name ?? c.profiles?.username ?? "User"}</div>
-                <div className="text-sm">{c.content}</div>
-              </div>
-            </div>
-          )) : (
-            <p className="py-6 text-center text-xs text-muted-foreground">No comments yet. Be the first.</p>
+            ))
+          ) : (
+            <p className="py-6 text-center text-xs text-muted-foreground">
+              No comments yet. Be the first.
+            </p>
           )}
         </div>
         <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") send();
+            }}
             placeholder="Add a comment…"
             className="flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
@@ -414,4 +485,17 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
       </div>
     </div>
   );
+}
+
+/** Render a moment attachment by sniffing the file extension in the URL:
+ *  video and audio get native players, everything else renders as an image. */
+function MomentMedia({ url, className }: { url: string; className?: string }) {
+  const path = url.split("?")[0].toLowerCase();
+  if (/\.(mp4|webm|mov|m4v|3gp|mkv)$/.test(path)) {
+    return <video src={url} controls playsInline preload="metadata" className={className} />;
+  }
+  if (/\.(mp3|m4a|aac|ogg|opus|wav|flac)$/.test(path)) {
+    return <audio src={url} controls preload="metadata" className="mt-3 w-full" />;
+  }
+  return <img src={url} alt="" loading="lazy" decoding="async" className={className} />;
 }
