@@ -217,46 +217,28 @@ export function GlobalIncomingCall() {
   if (!incoming) return null;
   if (isThreadOpen(incoming.conversationId)) return null;
 
-
-  const Icon = incoming.callType === "video" ? Video : Phone;
-  const monogram = (incoming.fromName || "?").charAt(0).toUpperCase();
+  const info: IncomingCallInfo = {
+    conversationId: incoming.conversationId,
+    callId: incoming.callId,
+    callType: incoming.callType,
+    fromName: incoming.fromName,
+    fromId: incoming.fromId,
+  };
 
   return (
-    <div
-      data-testid="global-incoming-call"
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-6 bg-black/80 px-6 text-center text-white backdrop-blur-xl"
-    >
-      <div className="relative">
-        <span className="absolute inset-0 -m-4 animate-ping rounded-full bg-primary/30" />
-        <div className="grid h-28 w-28 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-4xl font-bold">
-          {monogram}
-        </div>
-      </div>
-      <div>
-        <div className="text-2xl font-semibold">{incoming.fromName}</div>
-        <div className="mt-1 flex items-center justify-center gap-1.5 text-sm text-white/70">
-          <Icon className="h-4 w-4" />
-          Incoming {incoming.callType} call…
-        </div>
-      </div>
-      <div className="mt-4 flex items-center gap-10">
-        <button
-          data-testid="global-incoming-decline"
-          onClick={decline}
-          className="grid h-16 w-16 place-items-center rounded-full bg-red-600 hover:bg-red-500"
-          aria-label="Decline call"
-        >
-          <PhoneOff className="h-6 w-6" />
-        </button>
-        <button
-          data-testid="global-incoming-accept"
-          onClick={accept}
-          className="grid h-16 w-16 place-items-center rounded-full bg-green-600 hover:bg-green-500"
-          aria-label="Accept call"
-        >
-          <Phone className="h-6 w-6" />
-        </button>
-      </div>
-    </div>
+    <IncomingCallScreen
+      info={info}
+      onAccept={accept}
+      onDecline={decline}
+      onMessageInstead={async (text) => {
+        try { await sendQuickReply(incoming.conversationId, text); } catch {}
+        decline();
+      }}
+      onRemindMe={async (mins) => {
+        try { await scheduleReminder(incoming.conversationId, incoming.fromName, mins); } catch {}
+        decline();
+      }}
+    />
   );
 }
+
