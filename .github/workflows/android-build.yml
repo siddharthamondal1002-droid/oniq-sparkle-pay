@@ -112,7 +112,11 @@ jobs:
       - name: Decode keystore
         if: steps.keystore_check.outputs.has_keystore == 'true'
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > android/app/oniq.keystore
+          # Tolerate line-wrapped / whitespace-padded pastes of the base64 secret.
+          if ! printf '%s' "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | tr -d ' \t\r\n"' | base64 -d > android/app/oniq.keystore 2>/dev/null; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not valid base64. Re-copy the ENTIRE contents of keystore.jks.base64 from the keystore artifact into the secret (it may have been truncated or altered when pasting)."
+            exit 1
+          fi
 
       # Verify the secrets actually unlock the keystore BEFORE the 3-minute
       # Gradle build, and self-heal the common mistakes: wrong/empty KEY_ALIAS
