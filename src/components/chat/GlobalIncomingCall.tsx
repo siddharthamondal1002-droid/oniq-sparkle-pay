@@ -88,9 +88,12 @@ export function GlobalIncomingCall() {
       const cur = incomingRef.current;
       if (!cur) return;
       if (Date.now() - cur.lastRing > 6000) {
+        // Missed: caller stopped ringing before we picked up.
+        try { bumpMissedCallCount(); } catch {}
         setIncoming(null);
       }
     }, 1000);
+
     return () => {
       if (dismissTimerRef.current) {
         clearInterval(dismissTimerRef.current);
