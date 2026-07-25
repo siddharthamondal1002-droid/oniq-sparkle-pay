@@ -32,6 +32,8 @@ public class MainActivity extends BridgeActivity {
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SpeakerRouterPlugin.class);
         registerPlugin(ContactsBridgePlugin.class);
+        registerPlugin(CallSettingsPlugin.class);
+
         super.onCreate(savedInstanceState);
     }
 

@@ -83,6 +83,9 @@ function AppShell() {
       <MiniAppReturnWatcher />
       <MessageNotifier />
       <PermissionsOnboarding />
+      <FullScreenIntentPrompt />
+      <CallReminderWatcher />
+
 
 
       {showNav && (
