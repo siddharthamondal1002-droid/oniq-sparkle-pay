@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { isConversationMuted } from "@/lib/chatMute";
 import { Bell, X } from "lucide-react";
 
 type Msg = {
@@ -31,7 +32,8 @@ async function showNativeNotif(title: string, body: string, conversationId: stri
   if (!("Notification" in window) || Notification.permission !== "granted") return;
   const url = `/app/chat/${conversationId}`;
   try {
-    const reg = "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
+    const reg =
+      "serviceWorker" in navigator ? await navigator.serviceWorker.getRegistration() : null;
     if (reg && "showNotification" in reg) {
       await reg.showNotification(title, {
         body,
@@ -53,7 +55,9 @@ export function MessageNotifier() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const pathRef = useRef(pathname);
-  useEffect(() => { pathRef.current = pathname; }, [pathname]);
+  useEffect(() => {
+    pathRef.current = pathname;
+  }, [pathname]);
 
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(() => {
     if (typeof window === "undefined" || !("Notification" in window)) return "unsupported";
@@ -113,6 +117,7 @@ export function MessageNotifier() {
           const m = payload.new as Msg;
           if (!m || m.sender_id === me.id) return;
           if (!convSet.has(m.conversation_id)) return;
+          if (isConversationMuted(m.conversation_id)) return;
           const inThread = pathRef.current === `/app/chat/${m.conversation_id}`;
           const active = !document.hidden && inThread;
           if (active) return;
@@ -137,7 +142,9 @@ export function MessageNotifier() {
         },
       )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [me, convSet]);
 
   // Contextual permission banner — chat list only, once per session.

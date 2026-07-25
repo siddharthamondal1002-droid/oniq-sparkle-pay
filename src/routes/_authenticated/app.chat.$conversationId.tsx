@@ -2,7 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info, BellOff, Bell, Link2, FileText, Image as ImageIcon } from "lucide-react";
+import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 // CallOverlay is mounted globally by GlobalCallHost — see src/components/chat/GlobalCallHost.tsx.
@@ -106,6 +107,12 @@ function ChatThread() {
   const swipedRef = useRef(false);
   const navigate = useNavigate();
   const [showMembersSheet, setShowMembersSheet] = useState(false);
+  const [showMediaSheet, setShowMediaSheet] = useState(false);
+  const [showContactSheet, setShowContactSheet] = useState(false);
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    setMuted(isConversationMuted(conversationId));
+  }, [conversationId]);
 
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -1160,13 +1167,82 @@ function ChatThread() {
           </button>
           {showHeaderMenu && (
             <>
+              {/* Tap anywhere outside the list to dismiss and carry on. */}
               <div className="fixed inset-0 z-30" onClick={() => setShowHeaderMenu(false)} />
-              <div className="absolute right-0 top-11 z-40 w-52 overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+              <div className="absolute right-0 top-11 z-40 w-60 overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+                {peerId ? (
+                  <button
+                    type="button"
+                    data-testid="menu-view-contact"
+                    onClick={() => { setShowHeaderMenu(false); setShowContactSheet(true); }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <Info className="h-4 w-4" /> View contact
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    data-testid="menu-group-info"
+                    onClick={() => { setShowHeaderMenu(false); setShowMembersSheet(true); }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <Users className="h-4 w-4" /> {isChannel ? "Channel info" : "Group info"}
+                  </button>
+                )}
+                <button
+                  type="button"
+                  data-testid="menu-search"
+                  onClick={() => { setShowHeaderMenu(false); setShowSearch(true); }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted"
+                >
+                  <Search className="h-4 w-4" /> Search
+                </button>
+                <button
+                  type="button"
+                  data-testid="menu-media"
+                  onClick={() => { setShowHeaderMenu(false); setShowMediaSheet(true); }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted"
+                >
+                  <ImageIcon className="h-4 w-4" /> Media, links, and docs
+                </button>
+                <button
+                  type="button"
+                  data-testid="menu-mute"
+                  onClick={() => {
+                    const next = toggleConversationMute(conversationId);
+                    setMuted(next);
+                    setShowHeaderMenu(false);
+                    toast(next ? "notifications muted on this device 🔕" : "notifications back on 🔔");
+                  }}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted"
+                >
+                  {muted ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+                  {muted ? "Unmute notifications" : "Mute notifications"}
+                </button>
+                {peerId && (
+                  <button
+                    type="button"
+                    data-testid="menu-delete-chat"
+                    onClick={async () => {
+                      setShowHeaderMenu(false);
+                      if (!confirm("Delete this chat for you? They keep their copy; if they message again the chat comes back empty.")) return;
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const { error } = await (supabase as any).rpc("delete_chat", { _conversation_id: conversationId });
+                      if (error) { toast.error(error.message); return; }
+                      toast("Chat deleted");
+                      navigate({ to: "/app/chat" });
+                    }}
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <Trash2 className="h-4 w-4" /> Delete chat
+                  </button>
+                )}
+                <div className="h-px bg-border" />
                 {peerId && (
                   <button
                     type="button"
                     onClick={() => { setShowHeaderMenu(false); setReportTarget({ type: "user", id: peerId, conversationId }); }}
-                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted"
                   >
                     <Flag className="h-4 w-4" /> Report user
                   </button>
@@ -1175,7 +1251,7 @@ function ChatThread() {
                   <button
                     type="button"
                     onClick={toggleBlock}
-                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-500 hover:bg-muted"
+                    className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm text-red-500 hover:bg-muted"
                   >
                     <Ban className="h-4 w-4" /> {isBlocked ? "Unblock user" : "Block user 🚫"}
                   </button>
@@ -1618,6 +1694,14 @@ function ChatThread() {
       )}
 
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
+
+      {showContactSheet && peerId && (
+        <ContactSheet peerId={peerId} onClose={() => setShowContactSheet(false)} />
+      )}
+
+      {showMediaSheet && (
+        <MediaLinksDocsSheet messages={messages} onClose={() => setShowMediaSheet(false)} />
+      )}
 
       {showMembersSheet && (isGroup || isChannel) && (
         <GroupMembersSheet
@@ -2196,4 +2280,166 @@ function GroupMembersSheet({
       </div>
     </div>
   );
+}
+
+/* ---------------- Contact sheet (three-dot → View contact) ---------------- */
+
+function ContactSheet({ peerId, onClose }: { peerId: string; onClose: () => void }) {
+  const { data: peer } = useQuery({
+    queryKey: ["contact-sheet", peerId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("display_name, username, avatar_url, created_at")
+        .eq("id", peerId)
+        .maybeSingle();
+      return data;
+    },
+  });
+  const name = peer?.display_name || peer?.username || "ONIQ user";
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
+      <div
+        className="w-full rounded-t-3xl border-t border-border bg-background p-6 pb-8 text-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mx-auto h-20 w-20 overflow-hidden rounded-full bg-muted">
+          {peer?.avatar_url ? (
+            <img src={peer.avatar_url} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <div className="grid h-full w-full place-items-center text-3xl font-bold text-muted-foreground">
+              {name.charAt(0).toUpperCase()}
+            </div>
+          )}
+        </div>
+        <div className="mt-3 font-display text-lg font-bold">{name}</div>
+        {peer?.username && <div className="text-sm text-muted-foreground">@{peer.username}</div>}
+        {peer?.created_at && (
+          <div className="mt-1 text-[11px] text-muted-foreground">
+            on ONIQ since {new Date(peer.created_at).toLocaleDateString()}
+          </div>
+        )}
+        <button
+          onClick={onClose}
+          className="press mt-5 w-full rounded-2xl border border-border py-3 text-sm text-muted-foreground"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ------------- Media, links & docs sheet (three-dot menu) ------------- */
+
+function MediaLinksDocsSheet({ messages, onClose }: { messages: Message[]; onClose: () => void }) {
+  const [tab, setTab] = useState<"media" | "links" | "docs">("media");
+  const live = messages.filter((m) => !m.is_deleted);
+  const media = live.filter((m) => (m.type === "image" || m.type === "video") && m.media_url);
+  const docs = live.filter((m) => (m.type === "file" || m.type === "voice") && m.media_url);
+  const links = live.flatMap((m) => {
+    if (m.type !== "text" || !m.content) return [];
+    const found = m.content.match(/https?:\/\/[^\s]+/g);
+    return (found ?? []).map((url) => ({ id: m.id + url, url, at: m.created_at }));
+  });
+  const TABS = [
+    ["media", `Media ${media.length}`],
+    ["links", `Links ${links.length}`],
+    ["docs", `Docs ${docs.length}`],
+  ] as const;
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/60" onClick={onClose}>
+      <div
+        className="max-h-[80vh] w-full overflow-y-auto rounded-t-3xl border-t border-border bg-background p-5 pb-8"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <div className="font-display text-lg font-semibold">Media, links, and docs</div>
+          <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="grid grid-cols-3 rounded-xl border border-border bg-card p-1 text-xs">
+          {TABS.map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setTab(k)}
+              className={`rounded-lg py-2 font-semibold ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3">
+          {tab === "media" &&
+            (media.length === 0 ? (
+              <Empty label="no photos or videos here yet 📷" />
+            ) : (
+              <div className="grid grid-cols-3 gap-1.5">
+                {media.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => window.open(m.media_url!, "_blank")}
+                    className="aspect-square overflow-hidden rounded-lg bg-muted"
+                  >
+                    {m.type === "image" ? (
+                      <img src={m.media_url!} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    ) : (
+                      <video src={m.media_url!} muted className="h-full w-full object-cover" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            ))}
+          {tab === "links" &&
+            (links.length === 0 ? (
+              <Empty label="no links shared yet 🔗" />
+            ) : (
+              <div className="space-y-2">
+                {links.map((l) => (
+                  <a
+                    key={l.id}
+                    href={l.url}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="flex items-center gap-3 rounded-xl border border-border p-3"
+                  >
+                    <Link2 className="h-4 w-4 shrink-0 text-primary" />
+                    <span className="min-w-0 flex-1 truncate text-sm text-primary">{l.url}</span>
+                  </a>
+                ))}
+              </div>
+            ))}
+          {tab === "docs" &&
+            (docs.length === 0 ? (
+              <Empty label="no files or voice notes yet 📎" />
+            ) : (
+              <div className="space-y-2">
+                {docs.map((m) => (
+                  <button
+                    key={m.id}
+                    onClick={() => window.open(m.media_url!, "_blank")}
+                    className="flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left"
+                  >
+                    {m.type === "voice" ? (
+                      <Mic className="h-4 w-4 shrink-0 text-primary" />
+                    ) : (
+                      <FileText className="h-4 w-4 shrink-0 text-primary" />
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm">{m.file_name || (m.type === "voice" ? "Voice note" : "File")}</span>
+                      {m.file_size ? <span className="text-[11px] text-muted-foreground">{humanSize(m.file_size)}</span> : null}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Empty({ label }: { label: string }) {
+  return <div className="py-10 text-center text-sm text-muted-foreground">{label}</div>;
 }
