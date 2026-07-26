@@ -356,12 +356,47 @@ function AuthPage() {
     }
   }
 
+  // Re-deliver the code over a specific channel (MSG91 channel codes:
+  // 11 = SMS, 12 = WhatsApp, 4 = voice, 3 = email). Uses the widget's
+  // retryOTP so it counts against the same OTP session.
+  async function handleRetryVia(channel: number) {
+    if (loading) return;
+    const w = window as unknown as { retryOTP?: (c: string, s: (d: unknown) => void, f: (e: unknown) => void) => void };
+    if (typeof w.retryOTP !== "function") {
+      toast.error("otp service not ready — use resend otp instead");
+      return;
+    }
+    const attempt = sendCount + 1;
+    const delay = nextResendDelay(attempt);
+    if (delay === null) {
+      toast.error(`too many codes requested — start over with your number (max ${MAX_RESENDS + 1} sends)`);
+      setOtpSent(false);
+      setOtp("");
+      setSendCount(0);
+      return;
+    }
+    setLoading(true);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        w.retryOTP!(String(channel), () => resolve(), (err) => reject(err));
+      });
+      setSendCount(attempt);
+      setResendIn(delay);
+      toast.success(channel === 12 ? "code sent on WhatsApp 💬" : "otp re-sent 🔁");
+    } catch (err) {
+      toast.error(friendlyAuthError(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleVerifyOtp(e?: React.FormEvent, codeOverride?: string) {
     if (e) e.preventDefault();
     if (loading) return;
     const code = (codeOverride ?? otp).trim();
-    if (!/^[0-9]{6}$/.test(code)) {
-      toast.error("that code should be 6 digits 🔢");
+    // MSG91 widgets can be configured for 4- or 6-digit codes.
+    if (!/^[0-9]{4,6}$/.test(code)) {
+      toast.error("that code should be 4–6 digits 🔢");
       return;
     }
     const w = window as unknown as { verifyOTP?: (c: string, s: (d: { message?: string; ["access-token"]?: string; access_token?: string }) => void, f: (e: unknown) => void) => void };
@@ -710,7 +745,7 @@ function AuthPage() {
                     {loading ? "sending…" : "get otp 📲"}
                   </button>
                   <p className="px-1 text-center text-[11px] text-muted-foreground">
-                    we'll send a 6-digit code by SMS or WhatsApp 💬
+                    we'll send a login code by SMS or WhatsApp 💬
                   </p>
                 </form>
               ) : (
@@ -730,7 +765,7 @@ function AuthPage() {
                   <button
                     type="button"
                     onClick={() => handleVerifyOtp()}
-                    disabled={loading || otp.length !== 6}
+                    disabled={loading || otp.length < 4}
                     className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:opacity-50"
                   >
                     {loading ? "verifying…" : "verify ✅"}
@@ -746,14 +781,24 @@ function AuthPage() {
                     {resendIn > 0 ? (
                       <span className="text-muted-foreground">resend in {resendIn}s</span>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleSendOtp()}
-                        disabled={loading}
-                        className="font-semibold text-primary hover:opacity-80"
-                      >
-                        resend otp 🔁
-                      </button>
+                      <span className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleSendOtp()}
+                          disabled={loading}
+                          className="font-semibold text-primary hover:opacity-80"
+                        >
+                          resend 🔁
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRetryVia(12)}
+                          disabled={loading}
+                          className="font-semibold text-[#25D366] hover:opacity-80"
+                        >
+                          WhatsApp 💬
+                        </button>
+                      </span>
                     )}
                   </div>
                 </div>
