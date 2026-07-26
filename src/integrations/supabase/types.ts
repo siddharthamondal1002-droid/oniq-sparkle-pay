@@ -2456,8 +2456,30 @@ export type Database = {
         Args: { _conversation_id: string; _member_ids: string[] }
         Returns: undefined
       }
+      admin_list_partner_verifications: {
+        Args: never
+        Returns: {
+          aadhaar_path: string
+          city: string
+          created_at: string
+          extra_doc_path: string
+          full_name: string
+          id: string
+          pan_path: string
+          phone: string
+          region: string
+          skills: string[]
+          user_id: string
+          verification_status: string
+          village: string
+        }[]
+      }
       admin_remove_content: {
         Args: { _note?: string; _target_id: string; _target_type: string }
+        Returns: undefined
+      }
+      admin_set_partner_verification: {
+        Args: { _application_id: string; _status: string }
         Returns: undefined
       }
       book_service: {
