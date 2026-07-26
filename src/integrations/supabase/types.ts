@@ -1890,12 +1890,15 @@ export type Database = {
       service_bookings: {
         Row: {
           address: string | null
+          agreed_price: number | null
           application_id: string
           category: string | null
+          counter_price: number | null
           created_at: string
           customer_id: string
           id: string
           note: string | null
+          offered_price: number | null
           rated_at: string | null
           rating: number | null
           region: string
@@ -1906,12 +1909,15 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          agreed_price?: number | null
           application_id: string
           category?: string | null
+          counter_price?: number | null
           created_at?: string
           customer_id: string
           id?: string
           note?: string | null
+          offered_price?: number | null
           rated_at?: string | null
           rating?: number | null
           region: string
@@ -1922,12 +1928,15 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          agreed_price?: number | null
           application_id?: string
           category?: string | null
+          counter_price?: number | null
           created_at?: string
           customer_id?: string
           id?: string
           note?: string | null
+          offered_price?: number | null
           rated_at?: string | null
           rating?: number | null
           region?: string
@@ -2463,6 +2472,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_booking_price: {
+        Args: { _booking_id: string }
+        Returns: undefined
+      }
       add_bank_account: {
         Args: {
           _account_number: string
@@ -2509,6 +2522,7 @@ export type Database = {
           _application_id: string
           _category?: string
           _note?: string
+          _offered_price?: number
           _scheduled_date?: string
           _time_slot?: string
         }
@@ -2687,12 +2701,15 @@ export type Database = {
         Args: never
         Returns: {
           address: string
+          agreed_price: number
           category: string
+          counter_price: number
           created_at: string
           customer_id: string
           customer_name: string
           id: string
           note: string
+          offered_price: number
           rating: number
           review: string
           scheduled_date: string
@@ -2703,10 +2720,13 @@ export type Database = {
       my_service_bookings: {
         Args: never
         Returns: {
+          agreed_price: number
           category: string
+          counter_price: number
           created_at: string
           id: string
           note: string
+          offered_price: number
           provider_name: string
           provider_user_id: string
           rating: number
@@ -2714,6 +2734,10 @@ export type Database = {
           status: string
           time_slot: string
         }[]
+      }
+      offer_booking_price: {
+        Args: { _booking_id: string; _price: number }
+        Returns: undefined
       }
       open_red_packet: { Args: { _packet_id: string }; Returns: number }
       place_order: {
