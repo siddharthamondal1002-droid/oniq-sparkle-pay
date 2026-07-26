@@ -397,9 +397,64 @@ type MyBooking = {
   time_slot: string | null;
   note: string | null;
   status: string;
+  offered_price: number | null;
+  counter_price: number | null;
+  agreed_price: number | null;
   rating: number | null;
   created_at: string;
 };
+
+/* inDrive-style price entry, reused by book/counter/re-offer flows. */
+function PriceOfferSheet({
+  title,
+  hint,
+  initial,
+  onClose,
+  onSubmit,
+}: {
+  title: string;
+  hint: string;
+  initial: number | null;
+  onClose: () => void;
+  onSubmit: (price: number) => Promise<void>;
+}) {
+  const [price, setPrice] = useState(initial ? String(initial) : "");
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    const n = Math.round(Number(price));
+    if (!Number.isFinite(n) || n < 10) { toast.error("enter at least ₹10"); return; }
+    setBusy(true);
+    try { await onSubmit(n); } finally { setBusy(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end bg-black/60" onClick={onClose}>
+      <div className="w-full rounded-t-3xl border-t border-border bg-background p-5 pb-8" onClick={(e) => e.stopPropagation()}>
+        <div className="font-display text-lg font-bold">{title}</div>
+        <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
+        <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3">
+          <span className="text-lg font-bold">₹</span>
+          <input
+            type="number"
+            inputMode="numeric"
+            min={10}
+            autoFocus
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            className="w-full bg-transparent text-lg font-semibold focus:outline-none"
+            placeholder="300"
+          />
+        </div>
+        <button
+          onClick={submit}
+          disabled={busy}
+          className="press mt-4 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          {busy ? "sending…" : "send offer"}
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const TIME_SLOTS = ["8–10 am", "10–12", "12–2 pm", "2–4 pm", "4–6 pm", "6–8 pm"];
 
@@ -423,6 +478,15 @@ function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner:
   });
   const [bookTarget, setBookTarget] = useState<RegionProvider | null>(null);
   const [rateTarget, setRateTarget] = useState<MyBooking | null>(null);
+  const [reofferTarget, setReofferTarget] = useState<MyBooking | null>(null);
+
+  const acceptCounter = async (id: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("accept_booking_price", { _booking_id: id });
+    if (error) return toast.error(error.message);
+    toast.success("deal 🤝 booking confirmed");
+    qc.invalidateQueries({ queryKey: ["my-service-bookings"] });
+  };
 
   useEffect(() => {
     try {
@@ -564,9 +628,34 @@ function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner:
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">{b.provider_name}</div>
                   {slotLine(b) && <div className="truncate text-[11px] text-muted-foreground">{slotLine(b)}</div>}
+                  <div className="text-[11px] font-semibold">
+                    {b.agreed_price
+                      ? `₹${b.agreed_price} agreed 🤝`
+                      : b.status === "countered" && b.counter_price
+                        ? `they ask ₹${b.counter_price} (you offered ₹${b.offered_price})`
+                        : b.offered_price
+                          ? `your offer: ₹${b.offered_price}`
+                          : ""}
+                  </div>
                   <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
                     {b.status}{b.rating ? ` · you rated ⭐${b.rating}` : ""}
                   </div>
+                  {b.status === "countered" && b.counter_price && (
+                    <div className="mt-1.5 flex gap-2">
+                      <button
+                        onClick={() => acceptCounter(b.id)}
+                        className="press rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground"
+                      >
+                        accept ₹{b.counter_price}
+                      </button>
+                      <button
+                        onClick={() => setReofferTarget(b)}
+                        className="press rounded-full border border-border px-3 py-1 text-[11px] text-muted-foreground"
+                      >
+                        offer again
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <button
                   onClick={() => openChat(b.provider_user_id)}
@@ -619,6 +708,25 @@ function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner:
         }}
       />
     )}
+    {reofferTarget && (
+      <PriceOfferSheet
+        title={`new offer to ${reofferTarget.provider_name}`}
+        hint={`they asked ₹${reofferTarget.counter_price ?? "—"} · you pay them directly, ONIQ takes ₹0`}
+        initial={reofferTarget.counter_price}
+        onClose={() => setReofferTarget(null)}
+        onSubmit={async (price) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error } = await (supabase as any).rpc("offer_booking_price", {
+            _booking_id: reofferTarget.id,
+            _price: price,
+          });
+          if (error) { toast.error(error.message); return; }
+          toast.success("offer sent 📨");
+          setReofferTarget(null);
+          qc.invalidateQueries({ queryKey: ["my-service-bookings"] });
+        }}
+      />
+    )}
     </>
   );
 }
@@ -642,12 +750,15 @@ function BookServiceSheet({
     try { return localStorage.getItem("oniq.earn.address") || ""; } catch { return ""; }
   });
   const [note, setNote] = useState("");
+  const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
 
   const confirm = async () => {
     if (!category) { toast.error("pick a service"); return; }
     if (!date || date < today) { toast.error("pick today or a future date"); return; }
     if (address.trim().length < 8) { toast.error("add your address so they can find you"); return; }
+    const offer = Math.round(Number(price));
+    if (!Number.isFinite(offer) || offer < 10) { toast.error("name your price — at least ₹10"); return; }
     setBusy(true);
     try {
       try { localStorage.setItem("oniq.earn.address", address.trim()); } catch { /* ignore */ }
@@ -659,6 +770,7 @@ function BookServiceSheet({
         _time_slot: slot,
         _address: address.trim(),
         _note: note.trim() || null,
+        _offered_price: offer,
       });
       if (error) throw error;
       toast.success("booked 🎉 they'll confirm shortly — ₹0 booking fee");
@@ -734,6 +846,24 @@ function BookServiceSheet({
             className="input-base resize-none"
             placeholder="house, street, landmark…"
           />
+        </Field>
+
+        <Field label="Your price offer (₹)">
+          <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
+            <span className="font-bold">₹</span>
+            <input
+              type="number"
+              inputMode="numeric"
+              min={10}
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+              className="w-full bg-transparent text-sm font-semibold focus:outline-none"
+              placeholder="name your price — they can accept or counter"
+            />
+          </div>
+          <div className="mt-1 text-[10px] text-muted-foreground">
+            you pay the partner directly · ONIQ takes ₹0 commission
+          </div>
         </Field>
 
         <Field label="Note (optional)">
@@ -1288,6 +1418,9 @@ type PartnerBooking = {
   address: string | null;
   note: string | null;
   status: string;
+  offered_price: number | null;
+  counter_price: number | null;
+  agreed_price: number | null;
   rating: number | null;
   review: string | null;
   created_at: string;
@@ -1296,6 +1429,7 @@ type PartnerBooking = {
 function PartnerRequests() {
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [counterTarget, setCounterTarget] = useState<PartnerBooking | null>(null);
   const { data: bookings = [] } = useQuery({
     queryKey: ["my-partner-bookings"],
     queryFn: async (): Promise<PartnerBooking[]> => {
@@ -1310,6 +1444,27 @@ function PartnerRequests() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any).rpc("respond_booking", { _booking_id: id, _status: status });
     if (error) return toast.error(error.message);
+    await qc.invalidateQueries({ queryKey: ["my-partner-bookings"] });
+  };
+
+  const acceptPrice = async (id: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("accept_booking_price", { _booking_id: id });
+    if (error) return toast.error(error.message);
+    toast.success("deal! job confirmed 🤝");
+    await qc.invalidateQueries({ queryKey: ["my-partner-bookings"] });
+  };
+
+  const sendCounter = async (price: number) => {
+    if (!counterTarget) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("offer_booking_price", {
+      _booking_id: counterTarget.id,
+      _price: price,
+    });
+    if (error) return toast.error(error.message);
+    setCounterTarget(null);
+    toast.success("counter offer sent 💬");
     await qc.invalidateQueries({ queryKey: ["my-partner-bookings"] });
   };
 
@@ -1340,6 +1495,18 @@ function PartnerRequests() {
               </button>
             </div>
             {slotLine(b) && <div className="mt-1 text-xs font-medium">{slotLine(b)}</div>}
+            {b.agreed_price != null ? (
+              <div className="mt-1 text-xs font-semibold text-[#25D366]">₹{b.agreed_price} agreed 🤝</div>
+            ) : b.status === "countered" && b.counter_price != null ? (
+              <div className="mt-1 text-xs text-muted-foreground">
+                you asked <span className="font-semibold text-foreground">₹{b.counter_price}</span> — waiting
+                {b.offered_price != null ? ` (they offered ₹${b.offered_price})` : ""}
+              </div>
+            ) : b.offered_price != null ? (
+              <div className="mt-1 text-xs">
+                their offer: <span className="font-semibold">₹{b.offered_price}</span>
+              </div>
+            ) : null}
             {b.address && (b.status === "accepted" || b.status === "in_progress") && (
               <div className="mt-1 text-xs text-muted-foreground">📍 {b.address}</div>
             )}
@@ -1352,10 +1519,32 @@ function PartnerRequests() {
             {b.status === "requested" && (
               <div className="mt-2 flex gap-2">
                 <button
-                  onClick={() => respond(b.id, "accepted")}
+                  onClick={() => (b.offered_price != null ? acceptPrice(b.id) : respond(b.id, "accepted"))}
                   className="press flex-1 rounded-full bg-primary py-1.5 text-xs font-semibold text-primary-foreground"
                 >
-                  accept
+                  {b.offered_price != null ? `accept ₹${b.offered_price}` : "accept"}
+                </button>
+                <button
+                  onClick={() => setCounterTarget(b)}
+                  className="press flex-1 rounded-full border border-primary/50 py-1.5 text-xs font-semibold text-primary"
+                >
+                  counter 💬
+                </button>
+                <button
+                  onClick={() => respond(b.id, "declined")}
+                  className="press flex-1 rounded-full border border-border py-1.5 text-xs text-muted-foreground"
+                >
+                  decline
+                </button>
+              </div>
+            )}
+            {b.status === "countered" && (
+              <div className="mt-2 flex gap-2">
+                <button
+                  onClick={() => setCounterTarget(b)}
+                  className="press flex-1 rounded-full border border-primary/50 py-1.5 text-xs font-semibold text-primary"
+                >
+                  change price
                 </button>
                 <button
                   onClick={() => respond(b.id, "declined")}
@@ -1384,6 +1573,19 @@ function PartnerRequests() {
           </div>
         ))}
       </div>
+      {counterTarget && (
+        <PriceOfferSheet
+          title="your counter price"
+          hint={
+            counterTarget.offered_price != null
+              ? `they offered ₹${counterTarget.offered_price} — name your price`
+              : "name your price for this job"
+          }
+          initial={counterTarget.counter_price ?? counterTarget.offered_price}
+          onClose={() => setCounterTarget(null)}
+          onSubmit={sendCounter}
+        />
+      )}
     </div>
   );
 }
