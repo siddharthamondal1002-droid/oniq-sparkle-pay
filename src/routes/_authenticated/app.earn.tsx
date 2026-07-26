@@ -1138,6 +1138,28 @@ function PartnerPanel() {
   if (existing && me) {
     const region = (existing.region || existing.city || "").trim().toLowerCase();
     const regionName = existing.village || existing.city;
+
+    // Verified partners get their booking page, not the waitlist panel.
+    if (existing.verification_status === "verified") {
+      return (
+        <div className="mt-6 space-y-4">
+          <div className="flex items-center gap-3 rounded-2xl border border-[#25D366]/40 bg-[#25D366]/10 p-4">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#25D366] text-white">
+              <Check className="h-5 w-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="text-sm font-bold">verified ONIQ partner 🎖️</div>
+              <div className="truncate text-xs text-muted-foreground">
+                {existing.full_name} · {regionName}
+              </div>
+            </div>
+          </div>
+          <PartnerRequests showEmpty />
+          <PartnerRegionProgress region={region} regionName={regionName} />
+        </div>
+      );
+    }
+
     return (
       <div className="mt-6 space-y-4">
         <div className="rounded-2xl border border-primary/40 bg-primary/10 p-5 text-center">
@@ -1426,7 +1448,7 @@ type PartnerBooking = {
   created_at: string;
 };
 
-function PartnerRequests() {
+function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [counterTarget, setCounterTarget] = useState<PartnerBooking | null>(null);
@@ -1477,10 +1499,21 @@ function PartnerRequests() {
     navigate({ to: "/app/chat/$conversationId", params: { conversationId: id as string } });
   };
 
-  if (bookings.length === 0) return null;
+  if (bookings.length === 0) {
+    if (!showEmpty) return null;
+    return (
+      <div className="rounded-2xl border border-border bg-card p-6 text-center">
+        <div className="text-3xl">📋</div>
+        <div className="mt-2 text-sm font-semibold">your bookings</div>
+        <div className="mt-1 text-xs text-muted-foreground">
+          no booking requests yet — when a customer books you, the job shows up here with their price offer.
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="text-sm font-semibold">booking requests</div>
+      <div className="text-sm font-semibold">{showEmpty ? "your bookings" : "booking requests"}</div>
       <div className="mt-2 space-y-2">
         {bookings.map((b) => (
           <div key={b.id} className="rounded-xl border border-border p-3">
