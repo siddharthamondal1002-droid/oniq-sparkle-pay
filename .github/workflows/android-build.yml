@@ -199,6 +199,28 @@ jobs:
           } >> "$GITHUB_ENV"
           echo "Signing credentials verified OK."
 
+      # The upload certificate is PUBLIC key material — safe to print and
+      # publish as an artifact. Play's "request upload key reset" form wants
+      # exactly this PEM; the SHA1 line lets us match Play's fingerprints.
+      - name: Export upload certificate (PEM)
+        run: |
+          keytool -exportcert -rfc \
+            -keystore android/app/oniq.keystore \
+            -alias "$ONIQ_KEY_ALIAS" \
+            -storepass "$ONIQ_STORE_PASSWORD" \
+            -file upload_certificate.pem
+          echo "Current signing certificate fingerprints:"
+          keytool -list -v -keystore android/app/oniq.keystore \
+            -alias "$ONIQ_KEY_ALIAS" -storepass "$ONIQ_STORE_PASSWORD" \
+            | grep -E "SHA1:|SHA256:" || true
+
+      - name: Upload certificate artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: upload-certificate-pem
+          path: upload_certificate.pem
+          retention-days: 90
+
       - name: Build signed AAB
         working-directory: android
         env:
