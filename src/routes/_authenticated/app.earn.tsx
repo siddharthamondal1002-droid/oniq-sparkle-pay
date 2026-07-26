@@ -1462,7 +1462,10 @@ function PartnerRequests() {
       _booking_id: counterTarget.id,
       _price: price,
     });
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     setCounterTarget(null);
     toast.success("counter offer sent 💬");
     await qc.invalidateQueries({ queryKey: ["my-partner-bookings"] });
