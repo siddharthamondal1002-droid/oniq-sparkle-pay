@@ -131,6 +131,9 @@ function AuthPage() {
   const [confirmationSentTo, setConfirmationSentTo] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [resendIn, setResendIn] = useState(0);
+  // WhatsApp re-delivery unlocks after a short beat (widget retry window is
+  // ~10s) — much sooner than the full SMS resend cooldown.
+  const [waIn, setWaIn] = useState(0);
   const [sendCount, setSendCount] = useState(0);
   const [widgetReady, setWidgetReady] = useState(false);
   // Phone sign-in is offered only when the OTP provider is actually ready —
@@ -158,6 +161,12 @@ function AuthPage() {
     const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendIn]);
+
+  useEffect(() => {
+    if (waIn <= 0) return;
+    const t = setTimeout(() => setWaIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [waIn]);
 
 
   useEffect(() => {
@@ -348,6 +357,7 @@ function AuthPage() {
       setOtpSent(true);
       setSendCount(attempt);
       setResendIn(delay);
+      setWaIn(10);
       toast.success("otp sent ✉️ check SMS & WhatsApp");
     } catch (err) {
       toast.error(friendlyAuthError(err));
@@ -382,6 +392,7 @@ function AuthPage() {
       });
       setSendCount(attempt);
       setResendIn(delay);
+      setWaIn(15);
       toast.success(channel === 12 ? "code sent on WhatsApp 💬" : "otp re-sent 🔁");
     } catch (err) {
       toast.error(friendlyAuthError(err));
@@ -778,10 +789,10 @@ function AuthPage() {
                     >
                       ← different number
                     </button>
-                    {resendIn > 0 ? (
-                      <span className="text-muted-foreground">resend in {resendIn}s</span>
-                    ) : (
-                      <span className="flex gap-3">
+                    <span className="flex items-center gap-3">
+                      {resendIn > 0 ? (
+                        <span className="text-muted-foreground">resend in {resendIn}s</span>
+                      ) : (
                         <button
                           type="button"
                           onClick={() => handleSendOtp()}
@@ -790,16 +801,18 @@ function AuthPage() {
                         >
                           resend 🔁
                         </button>
+                      )}
+                      {waIn <= 0 && (
                         <button
                           type="button"
                           onClick={() => handleRetryVia(12)}
                           disabled={loading}
                           className="font-semibold text-[#25D366] hover:opacity-80"
                         >
-                          WhatsApp 💬
+                          get it on WhatsApp 💬
                         </button>
-                      </span>
-                    )}
+                      )}
+                    </span>
                   </div>
                 </div>
               )}
