@@ -272,17 +272,30 @@ function AuthPage() {
         if (cancelled) return;
         setWidgetReady(!!cfg.ready);
         if (!cfg.ready || !cfg.widgetId || !cfg.tokenAuth) return;
-        // Inject the widget script exactly once.
+        // Inject the widget script exactly once, with MSG91's official
+        // fallback host (verify.phone91.com) if the primary fails to load.
         const existing = document.getElementById("msg91-otp-provider");
         const ensureScript = () => new Promise<void>((resolve, reject) => {
           if (existing) return resolve();
-          const s = document.createElement("script");
-          s.id = "msg91-otp-provider";
-          s.src = "https://verify.msg91.com/otp-provider.js";
-          s.async = true;
-          s.onload = () => resolve();
-          s.onerror = () => reject(new Error("widget load failed"));
-          document.head.appendChild(s);
+          const urls = [
+            "https://verify.msg91.com/otp-provider.js",
+            "https://verify.phone91.com/otp-provider.js",
+          ];
+          let i = 0;
+          const attempt = () => {
+            const s = document.createElement("script");
+            s.id = i === 0 ? "msg91-otp-provider" : "msg91-otp-provider-alt";
+            s.src = urls[i];
+            s.async = true;
+            s.onload = () => resolve();
+            s.onerror = () => {
+              i += 1;
+              if (i < urls.length) attempt();
+              else reject(new Error("widget load failed"));
+            };
+            document.head.appendChild(s);
+          };
+          attempt();
         });
         await ensureScript();
         const w = window as unknown as { initSendOTP?: (c: unknown) => void };
