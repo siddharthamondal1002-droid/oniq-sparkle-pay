@@ -27,6 +27,7 @@ type ReporterMap = Record<string, { username: string | null; display_name: strin
 
 function AdminInbox() {
   const qc = useQueryClient();
+  const [section, setSection] = useState<"reports" | "kyc">("reports");
   const [statusFilter, setStatusFilter] = useState<"open" | "resolved" | "dismissed" | "all">("open");
   const [me, setMe] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -109,6 +110,27 @@ function AdminInbox() {
         <h1 className="font-display text-2xl font-bold">Moderation inbox</h1>
       </div>
 
+      <div className="mt-4 grid grid-cols-2 rounded-2xl border border-border bg-card p-1 text-xs">
+        {(
+          [
+            ["reports", "reports 🚩"],
+            ["kyc", "partner KYC 🪪"],
+          ] as const
+        ).map(([k, label]) => (
+          <button
+            key={k}
+            onClick={() => setSection(k)}
+            className={`rounded-xl py-2 font-semibold ${section === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {section === "kyc" && <PartnerKycPanel />}
+
+      {section === "reports" && (
+      <>
       <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
         {(["open", "resolved", "dismissed", "all"] as const).map((s) => (
           <button
@@ -185,6 +207,166 @@ function AdminInbox() {
           })
         )}
       </div>
+      </>
+      )}
+    </div>
+  );
+}
+
+/* ---------------- Partner KYC review ---------------- */
+
+type PartnerApp = {
+  id: string;
+  user_id: string;
+  full_name: string;
+  phone: string;
+  city: string;
+  village: string | null;
+  region: string | null;
+  skills: string[];
+  verification_status: string;
+  aadhaar_path: string | null;
+  pan_path: string | null;
+  extra_doc_path: string | null;
+  created_at: string;
+};
+
+function PartnerKycPanel() {
+  const qc = useQueryClient();
+  const [busyId, setBusyId] = useState<string | null>(null);
+
+  const { data: apps = [], isLoading } = useQuery({
+    queryKey: ["admin-partner-kyc"],
+    queryFn: async (): Promise<PartnerApp[]> => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("admin_list_partner_verifications");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const openDoc = async (path: string) => {
+    const { data, error } = await supabase.storage
+      .from("verification-docs")
+      .createSignedUrl(path, 600);
+    if (error || !data?.signedUrl) {
+      toast.error(error?.message ?? "couldn't open document");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener");
+  };
+
+  const setStatus = async (app: PartnerApp, status: "verified" | "rejected" | "pending") => {
+    setBusyId(app.id);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any).rpc("admin_set_partner_verification", {
+      _application_id: app.id,
+      _status: status,
+    });
+    setBusyId(null);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(status === "verified" ? `${app.full_name} verified ✅` : status === "rejected" ? "marked rejected" : "moved back to pending");
+    qc.invalidateQueries({ queryKey: ["admin-partner-kyc"] });
+  };
+
+  const statusChip = (s: string) =>
+    s === "verified"
+      ? "bg-emerald-500/20 text-emerald-400"
+      : s === "submitted"
+        ? "bg-amber-500/20 text-amber-400"
+        : s === "rejected"
+          ? "bg-red-500/20 text-red-400"
+          : "bg-muted text-muted-foreground";
+
+  return (
+    <div className="mt-4 space-y-3">
+      <p className="text-xs text-muted-foreground">
+        review each partner's Aadhaar/PAN and verify or reject. verified & submitted partners count
+        toward a region's 20-partner unlock; rejected ones don't.
+      </p>
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground">Loading…</div>
+      ) : apps.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          no partner applications yet
+        </div>
+      ) : (
+        apps.map((a) => (
+          <div key={a.id} className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold">{a.full_name}</div>
+                <div className="text-xs text-muted-foreground">
+                  {a.phone} · {a.village || a.city} · {a.skills.length} skill{a.skills.length === 1 ? "" : "s"}
+                </div>
+              </div>
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${statusChip(a.verification_status)}`}>
+                {a.verification_status}
+              </span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {(
+                [
+                  ["Aadhaar", a.aadhaar_path],
+                  ["PAN", a.pan_path],
+                  ["Extra", a.extra_doc_path],
+                ] as const
+              ).map(([label, path]) =>
+                path ? (
+                  <button
+                    key={label}
+                    onClick={() => openDoc(path)}
+                    className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary"
+                  >
+                    📄 {label}
+                  </button>
+                ) : (
+                  <span key={label} className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground/60">
+                    {label}: not uploaded
+                  </span>
+                ),
+              )}
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {a.verification_status !== "verified" && (
+                <button
+                  onClick={() => setStatus(a, "verified")}
+                  disabled={busyId === a.id || (!a.aadhaar_path && !a.pan_path)}
+                  className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
+                >
+                  Verify ✅
+                </button>
+              )}
+              {a.verification_status !== "rejected" && (
+                <button
+                  onClick={() => setStatus(a, "rejected")}
+                  disabled={busyId === a.id}
+                  className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+                >
+                  Reject
+                </button>
+              )}
+              {(a.verification_status === "verified" || a.verification_status === "rejected") && (
+                <button
+                  onClick={() => setStatus(a, "pending")}
+                  disabled={busyId === a.id}
+                  className="rounded-full border border-border px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted disabled:opacity-50"
+                >
+                  Undo
+                </button>
+              )}
+            </div>
+            <div className="mt-2 text-[10px] text-muted-foreground">
+              applied {new Date(a.created_at).toLocaleString()}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }
