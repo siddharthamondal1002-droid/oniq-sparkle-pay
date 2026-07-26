@@ -348,7 +348,7 @@ function AuthPage() {
       setOtpSent(true);
       setSendCount(attempt);
       setResendIn(delay);
-      toast.success("otp sent ✉️ check your messages");
+      toast.success("otp sent ✉️ check SMS & WhatsApp");
     } catch (err) {
       toast.error(friendlyAuthError(err));
     } finally {
@@ -710,7 +710,7 @@ function AuthPage() {
                     {loading ? "sending…" : "get otp 📲"}
                   </button>
                   <p className="px-1 text-center text-[11px] text-muted-foreground">
-                    we'll text you a 6-digit code — standard rates apply
+                    we'll send a 6-digit code by SMS or WhatsApp 💬
                   </p>
                 </form>
               ) : (
