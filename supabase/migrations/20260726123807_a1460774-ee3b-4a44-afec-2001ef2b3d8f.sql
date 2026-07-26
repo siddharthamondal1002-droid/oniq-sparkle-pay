@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.prevent_is_admin_escalation() FROM PUBLIC, anon, authenticated;
