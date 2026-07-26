@@ -277,6 +277,13 @@ function AuthPage() {
         });
         await ensureScript();
         const w = window as unknown as { initSendOTP?: (c: unknown) => void };
+        // The provider script wires up initSendOTP a beat after onload
+        // (and if the tag was already in the DOM we may land here early).
+        const until = Date.now() + 10000;
+        while (!cancelled && typeof w.initSendOTP !== "function" && Date.now() < until) {
+          await new Promise((r) => setTimeout(r, 200));
+        }
+        if (cancelled) return;
         if (typeof w.initSendOTP === "function") {
           w.initSendOTP({
             widgetId: cfg.widgetId,
@@ -294,6 +301,18 @@ function AuthPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // MSG91 exposes its methods on window a few seconds after the page loads;
+  // poll instead of failing so an eager first tap still goes through.
+  async function waitForWidgetFn(name: "sendOTP" | "verifyOTP", timeoutMs = 8000): Promise<boolean> {
+    const w = window as unknown as Record<string, unknown>;
+    const until = Date.now() + timeoutMs;
+    while (Date.now() < until) {
+      if (typeof w[name] === "function") return true;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return typeof w[name] === "function";
+  }
+
   async function handleSendOtp(e?: React.FormEvent) {
     if (e) e.preventDefault();
     if (loading) return;
@@ -303,9 +322,14 @@ function AuthPage() {
       return;
     }
     const w = window as unknown as { sendOTP?: (m: string, s: (d: unknown) => void, f: (e: unknown) => void) => void };
-    if (!widgetReady || typeof w.sendOTP !== "function") {
-      toast.error("otp service loading — try again in a sec ⏳");
-      return;
+    if (typeof w.sendOTP !== "function") {
+      setLoading(true);
+      const ok = await waitForWidgetFn("sendOTP");
+      setLoading(false);
+      if (!ok) {
+        toast.error("otp service couldn't start — check your internet and tap GET OTP again 🔄");
+        return;
+      }
     }
     const attempt = sendCount + 1;
     const delay = nextResendDelay(attempt);
@@ -342,8 +366,13 @@ function AuthPage() {
     }
     const w = window as unknown as { verifyOTP?: (c: string, s: (d: { message?: string; ["access-token"]?: string; access_token?: string }) => void, f: (e: unknown) => void) => void };
     if (typeof w.verifyOTP !== "function") {
-      toast.error("otp service not ready — refresh and try again");
-      return;
+      setLoading(true);
+      const ok = await waitForWidgetFn("verifyOTP");
+      setLoading(false);
+      if (!ok) {
+        toast.error("otp service not ready — refresh and try again");
+        return;
+      }
     }
     setLoading(true);
     try {
