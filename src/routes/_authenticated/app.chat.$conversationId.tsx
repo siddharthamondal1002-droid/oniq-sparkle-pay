@@ -1059,7 +1059,11 @@ function ChatThread() {
 
   return (
     <div className="flex h-[100dvh] flex-col">
-      <header className="flex items-center gap-2 border-b border-border/60 bg-background/80 px-2 pb-3 pt-12 backdrop-blur">
+      {/* relative z-40: backdrop-blur makes the header its own stacking
+          context at z-auto, which let animated message bubbles paint OVER the
+          three-dot dropdown. Lifting the header keeps the menu above the
+          thread while sheets/viewers (z-50+) still cover everything. */}
+      <header className="relative z-40 flex items-center gap-2 border-b border-border/60 bg-background/80 px-2 pb-3 pt-12 backdrop-blur">
         <Link to="/app/chat" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
           <ArrowLeft className="h-5 w-5" />
         </Link>
