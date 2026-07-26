@@ -1889,31 +1889,52 @@ export type Database = {
       }
       service_bookings: {
         Row: {
+          address: string | null
           application_id: string
+          category: string | null
           created_at: string
           customer_id: string
           id: string
           note: string | null
+          rated_at: string | null
+          rating: number | null
           region: string
+          review: string | null
+          scheduled_date: string | null
           status: string
+          time_slot: string | null
         }
         Insert: {
+          address?: string | null
           application_id: string
+          category?: string | null
           created_at?: string
           customer_id: string
           id?: string
           note?: string | null
+          rated_at?: string | null
+          rating?: number | null
           region: string
+          review?: string | null
+          scheduled_date?: string | null
           status?: string
+          time_slot?: string | null
         }
         Update: {
+          address?: string | null
           application_id?: string
+          category?: string | null
           created_at?: string
           customer_id?: string
           id?: string
           note?: string | null
+          rated_at?: string | null
+          rating?: number | null
           region?: string
+          review?: string | null
+          scheduled_date?: string | null
           status?: string
+          time_slot?: string | null
         }
         Relationships: [
           {
@@ -2483,7 +2504,14 @@ export type Database = {
         Returns: undefined
       }
       book_service: {
-        Args: { _application_id: string; _note?: string }
+        Args: {
+          _address?: string
+          _application_id: string
+          _category?: string
+          _note?: string
+          _scheduled_date?: string
+          _time_slot?: string
+        }
         Returns: Json
       }
       clips_feed: {
@@ -2623,9 +2651,11 @@ export type Database = {
         Args: { _region: string }
         Returns: {
           area: string
+          avg_rating: number
           experience_years: number
           full_name: string
           id: string
+          jobs_done: number
           skills: string[]
           village: string
         }[]
@@ -2656,23 +2686,33 @@ export type Database = {
       my_partner_bookings: {
         Args: never
         Returns: {
+          address: string
+          category: string
           created_at: string
           customer_id: string
           customer_name: string
           id: string
           note: string
+          rating: number
+          review: string
+          scheduled_date: string
           status: string
+          time_slot: string
         }[]
       }
       my_service_bookings: {
         Args: never
         Returns: {
+          category: string
           created_at: string
           id: string
           note: string
           provider_name: string
           provider_user_id: string
+          rating: number
+          scheduled_date: string
           status: string
+          time_slot: string
         }[]
       }
       open_red_packet: { Args: { _packet_id: string }; Returns: number }
@@ -2683,6 +2723,10 @@ export type Database = {
           _restaurant_id: string
         }
         Returns: string
+      }
+      rate_booking: {
+        Args: { _booking_id: string; _rating: number; _review?: string }
+        Returns: undefined
       }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
