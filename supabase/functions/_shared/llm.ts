@@ -373,7 +373,7 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
   }
 
   const payload: Record<string, unknown> = {
-    model: opts.model ?? "claude-sonnet-4-6",
+    model: opts.model ?? "claude-opus-5",
     max_tokens: opts.maxTokens ?? 1024,
     system: opts.cacheSystem
       ? [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }]

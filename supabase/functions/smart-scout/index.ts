@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
       maxTokens: 3500,
       timeoutMs: 180000,
       cacheSystem: true,
-      model: "claude-haiku-4-5-20251001",
+      model: "claude-opus-5",
     });
 
     if (!claudeRes.ok) {

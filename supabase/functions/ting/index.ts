@@ -101,33 +101,17 @@ Deno.serve(async (req) => {
 
     const systemPrompt = SYSTEM + langInstruction(lang);
 
-    // --- Gemini primary path (only for plain-text messages; attachments need
-    // Anthropic's vision/document schema) ---
+    // --- Claude Opus 5 is Ting's primary engine. Gemini remains a
+    // text-only fallback when the Anthropic call fails (attachments need
+    // Anthropic's vision/document schema, and Gemini has no web_search
+    // wired up here — fallback answers just lose live sources). ---
     const hasAttachment = outMessages.some((m) => typeof m.content !== "string");
     let data: any = null;
     let servedBy: "gemini" | "anthropic" = "anthropic";
 
-    // When web search is requested (default), skip Gemini primary — Gemini
-    // has no web_search tool wired up here, so we'd lose live sources.
-    // Anthropic's web_search branch below handles it.
-    if (!hasAttachment && !search) {
-      const geminiMsgs: ClaudeMessage[] = outMessages.map((m) => ({
-        role: m.role as "user" | "assistant",
-        content: typeof m.content === "string" ? m.content : "",
-      }));
-      const g = await callGemini({ system: systemPrompt, messages: geminiMsgs, maxTokens: 1024 });
-      if (g.ok) {
-        console.info("Ting answered via Gemini (primary)");
-        data = g.data;
-        servedBy = "gemini";
-      } else {
-        console.warn(`Ting: Gemini primary failed (${g.reason}) — falling back to Anthropic`);
-      }
-    }
-
-    if (!data) {
+    {
       const payload: Record<string, unknown> = {
-        model: "claude-sonnet-4-6",
+        model: "claude-opus-5",
         max_tokens: 1024,
         system: systemPrompt,
         messages: outMessages,
@@ -147,14 +131,31 @@ Deno.serve(async (req) => {
       });
 
       if (res.status === 401) return json({ configured: false }, 200);
-      if (res.status === 429) return json({ error: "Ting is a bit busy — try again in a moment 🐢" }, 429);
-      if (!res.ok) {
+      if (res.ok) {
+        data = await res.json();
+        console.info("Ting answered via Claude Opus 5 (primary)");
+      } else {
         const t = await res.text().catch(() => "");
         console.error("anthropic error", res.status, t);
-        return json({ error: "Ting glitched — try again" }, 502);
+        if (!hasAttachment) {
+          const geminiMsgs: ClaudeMessage[] = outMessages.map((m) => ({
+            role: m.role as "user" | "assistant",
+            content: typeof m.content === "string" ? m.content : "",
+          }));
+          const g = await callGemini({ system: systemPrompt, messages: geminiMsgs, maxTokens: 1024 });
+          if (g.ok) {
+            console.info("Ting answered via Gemini (fallback)");
+            data = g.data;
+            servedBy = "gemini";
+          } else {
+            console.warn(`Ting: Gemini fallback also failed (${g.reason})`);
+          }
+        }
+        if (!data) {
+          if (res.status === 429) return json({ error: "Ting is a bit busy — try again in a moment 🐢" }, 429);
+          return json({ error: "Ting glitched — try again" }, 502);
+        }
       }
-      data = await res.json();
-      console.info("Ting answered via Anthropic (fallback)");
       void servedBy;
     }
 
