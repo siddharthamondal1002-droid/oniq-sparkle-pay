@@ -2602,6 +2602,7 @@ function PaperModal({
       }
   >(null);
   const [downloadSheet, setDownloadSheet] = useState(false);
+  const [answerSheetOpen, setAnswerSheetOpen] = useState(false);
 
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -2881,15 +2882,32 @@ function PaperModal({
     setResults(perQ);
     setTotalScored(sum);
 
-    // Persist.
+    // Persist, including the full answer sheet so the learner can reopen
+    // this paper later and study their mistakes against the model answers.
     if (!finishedRef.current && paperId) {
       finishedRef.current = true;
       setFinishing(true);
+      const sheet: Record<string, unknown> = {};
+      for (const qq of questions) {
+        const d = drafts[qq.id];
+        const r = perQ[qq.id];
+        sheet[qq.id] = {
+          kind: qq.type,
+          picked: d && d.kind === "mcq" ? d.pick : null,
+          answer: d && d.kind === "text" ? d.value.trim().slice(0, 4000) : null,
+          transcript: r?.transcript ? r.transcript.slice(0, 4000) : null,
+          used_photo: !!(d && d.kind === "photo"),
+          awarded: r?.awarded ?? 0,
+          max: r?.max ?? qq.marks,
+          feedback: (r?.feedback ?? "").slice(0, 600),
+        };
+      }
       try {
         await supabase.functions.invoke("study-paper-finish", {
-          body: { paper_id: paperId, marks_scored: sum, total_marks: totalMarks, subject, chapter: chapter ?? undefined },
+          body: { paper_id: paperId, marks_scored: sum, total_marks: totalMarks, subject, chapter: chapter ?? undefined, answers: sheet },
         });
         qc.invalidateQueries({ queryKey: QUIZ_ATTEMPTS_KEY });
+        qc.invalidateQueries({ queryKey: ["paper-sheets"] });
       } catch { /* best-effort */ }
       finally { setFinishing(false); }
     }
@@ -3171,12 +3189,22 @@ function PaperModal({
             </div>
 
             <button
+              onClick={() => setAnswerSheetOpen(true)}
+              disabled={finishing}
+              className="w-full rounded-xl border border-primary/50 py-3 text-sm font-semibold text-primary disabled:opacity-50"
+            >
+              open answer sheet 📖 — see the correct answers
+            </button>
+            <button
               onClick={onClose}
               disabled={finishing}
-              className="mb-6 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              className="mb-6 mt-2 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
               done
             </button>
+            {answerSheetOpen && paperId && (
+              <AnswerSheetModal paperId={paperId} onClose={() => setAnswerSheetOpen(false)} />
+            )}
           </div>
         )}
 
@@ -3661,9 +3689,187 @@ function attemptScore(r: Attempt): { num: number; den: number } {
   return { num: 0, den: 0 };
 }
 
+// ------------------------- Answer sheets (past papers) -------------------------
+
+type SheetListRow = {
+  id: string;
+  profile_id: string;
+  subject: string;
+  total_marks: number;
+  marks_scored: number | null;
+  created_at: string;
+};
+
+type ReviewStudent = {
+  picked?: number | null;
+  answer?: string | null;
+  transcript?: string | null;
+  used_photo?: boolean;
+  awarded?: number;
+  max?: number;
+  feedback?: string;
+};
+
+type ReviewQ = {
+  id: string;
+  type: "mcq" | "short" | "long";
+  marks: number;
+  question: string;
+  subject: string | null;
+  options: string[] | null;
+  correct_index: number | null;
+  model_answer: string | null;
+  rubric_points: string[] | null;
+  student: ReviewStudent | null;
+};
+
+function usePaperSheets() {
+  return useQuery({
+    queryKey: ["paper-sheets"],
+    staleTime: 30_000,
+    queryFn: async (): Promise<SheetListRow[]> => {
+      const { data, error } = await supabase.functions.invoke("study-paper-review", { body: { action: "list" } });
+      if (error) throw error;
+      return ((data as { papers?: SheetListRow[] })?.papers ?? []);
+    },
+  });
+}
+
+function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () => void }) {
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["paper-review", paperId],
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("study-paper-review", {
+        body: { action: "get", paper_id: paperId },
+      });
+      if (error) throw error;
+      const d = data as { paper?: { id: string; subject: string; total_marks: number; marks_scored: number | null; created_at: string }; questions?: ReviewQ[]; reason?: string };
+      if (!d?.paper) throw new Error(d?.reason ?? "couldn't load this answer sheet");
+      return d as { paper: NonNullable<typeof d.paper>; questions: ReviewQ[] };
+    },
+  });
+
+  const when = data ? new Date(data.paper.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+
+  return (
+    <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/70 sm:items-center" onClick={onClose}>
+      <div
+        className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-border bg-background p-4 sm:rounded-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">answer sheet 📖</div>
+            {data && (
+              <>
+                <h2 className="font-display text-lg font-bold">{data.paper.subject}</h2>
+                <div className="text-xs text-muted-foreground">
+                  {when} · scored <span className="font-semibold text-foreground">{data.paper.marks_scored ?? 0}/{data.paper.total_marks}</span>
+                </div>
+              </>
+            )}
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {isLoading && <div className="py-10 text-center text-sm text-muted-foreground">opening your answer sheet…</div>}
+        {!!error && <div className="py-10 text-center text-sm text-muted-foreground">{(error as Error).message}</div>}
+
+        {data && (
+          <div className="mt-4 space-y-3 pb-4">
+            {data.questions.map((qq, i) => {
+              const st = qq.student ?? {};
+              const awarded = st.awarded ?? 0;
+              const max = st.max ?? qq.marks;
+              const full = awarded === max && max > 0;
+              const partial = awarded > 0 && !full;
+              const yourMcq =
+                qq.type === "mcq"
+                  ? typeof st.picked === "number" && st.picked >= 0 && qq.options?.[st.picked] != null
+                    ? qq.options[st.picked]
+                    : null
+                  : null;
+              const yourText = st.answer || st.transcript || null;
+              const correctMcq =
+                qq.type === "mcq" && typeof qq.correct_index === "number" && qq.options?.[qq.correct_index] != null
+                  ? qq.options[qq.correct_index]
+                  : null;
+              return (
+                <div
+                  key={qq.id}
+                  className={`rounded-2xl border p-3 text-xs ${
+                    full ? "border-green-500/30 bg-green-500/5"
+                    : partial ? "border-yellow-500/30 bg-yellow-500/5"
+                    : "border-red-500/25 bg-red-500/5"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-semibold">
+                      Q{i + 1} · {qq.type === "mcq" ? "MCQ" : qq.type === "short" ? "Short" : "Long"}
+                      {qq.subject ? <span className="ml-1 text-[9px] font-normal text-muted-foreground">· {qq.subject}</span> : null}
+                    </div>
+                    <div className={`font-mono text-[11px] ${full ? "text-green-300" : partial ? "text-yellow-200" : "text-red-300"}`}>
+                      {awarded}/{max}
+                    </div>
+                  </div>
+                  <div className="mt-1.5 whitespace-pre-wrap font-medium text-foreground/95">{qq.question}</div>
+
+                  <div className="mt-2 rounded-xl border border-border bg-background/60 px-2.5 py-2">
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">your answer</div>
+                    {qq.type === "mcq" ? (
+                      <div className={`mt-0.5 ${full ? "text-green-300" : "text-foreground/90"}`}>
+                        {yourMcq ?? <span className="italic text-muted-foreground">not answered</span>}
+                        {yourMcq && !full && " ✗"}
+                        {yourMcq && full && " ✓"}
+                      </div>
+                    ) : (
+                      <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">
+                        {st.used_photo && <span className="mr-1 text-[10px] text-muted-foreground">(from your photo 📷)</span>}
+                        {yourText ?? <span className="italic text-muted-foreground">not answered</span>}
+                      </div>
+                    )}
+                  </div>
+
+                  {(correctMcq || qq.model_answer) && !full && (
+                    <div className="mt-2 rounded-xl border border-green-500/30 bg-green-500/10 px-2.5 py-2">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-green-300">correct answer</div>
+                      <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">{correctMcq ?? qq.model_answer}</div>
+                    </div>
+                  )}
+                  {qq.model_answer && full && (
+                    <div className="mt-2 rounded-xl border border-border bg-background/40 px-2.5 py-2">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">model answer</div>
+                      <div className="mt-0.5 whitespace-pre-wrap text-foreground/80">{qq.model_answer}</div>
+                    </div>
+                  )}
+
+                  {qq.rubric_points && qq.rubric_points.length > 0 && (
+                    <div className="mt-2">
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">marks were given for</div>
+                      <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-foreground/80">
+                        {qq.rubric_points.map((rp, j) => <li key={j}>{rp}</li>)}
+                      </ul>
+                    </div>
+                  )}
+
+                  {st.feedback && <div className="mt-2 italic text-foreground/85">💬 {st.feedback}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; onClose: () => void }) {
   const { t: tProgress } = useT();
   const { data: attempts, isLoading } = useAttempts();
+  const { data: sheets } = usePaperSheets();
+  const [openSheet, setOpenSheet] = useState<string | null>(null);
 
   function statsFor(profileId: string) {
     const rows = (attempts ?? []).filter((a) => a.profile_id === profileId);
@@ -3806,11 +4012,36 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
                     </div>
                   </div>
                 )}
+
+                {(sheets ?? []).some((sh) => sh.profile_id === p.id) && (
+                  <div className="mt-4">
+                    <div className="text-[11px] font-medium text-muted-foreground">answer sheets 📖 <span className="font-normal">— tap to review mistakes</span></div>
+                    <div className="mt-1 space-y-1">
+                      {(sheets ?? []).filter((sh) => sh.profile_id === p.id).slice(0, 8).map((sh) => {
+                        const when = new Date(sh.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+                        return (
+                          <button
+                            key={sh.id}
+                            onClick={() => setOpenSheet(sh.id)}
+                            className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-2.5 py-2 text-left text-xs hover:border-primary/50"
+                          >
+                            <span className="truncate">{sh.subject}</span>
+                            <span className="ml-2 shrink-0 text-muted-foreground">
+                              {when} · {sh.marks_scored ?? 0}/{sh.total_marks} →
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
         </div>
       )}
+
+      {openSheet && <AnswerSheetModal paperId={openSheet} onClose={() => setOpenSheet(null)} />}
     </div>
   );
 }
@@ -3863,6 +4094,7 @@ function MockPaperModal({
   const [results, setResults] = useState<Record<string, PaperGradeEntry>>({});
   const [totalScored, setTotalScored] = useState(0);
   const [finishing, setFinishing] = useState(false);
+  const [answerSheetOpen, setAnswerSheetOpen] = useState(false);
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const finishedRef = useRef(false);
   const autoSubmittedRef = useRef(false);
@@ -4056,6 +4288,20 @@ function MockPaperModal({
     if (!finishedRef.current && paperId && questions) {
       finishedRef.current = true;
       setFinishing(true);
+      const sheet: Record<string, unknown> = {};
+      for (const qq of questions) {
+        const r = perQ[qq.id];
+        sheet[qq.id] = {
+          kind: "mcq",
+          picked: typeof picks[qq.id] === "number" ? picks[qq.id] : null,
+          answer: null,
+          transcript: null,
+          used_photo: false,
+          awarded: r?.awarded ?? 0,
+          max: r?.max ?? qq.marks,
+          feedback: (r?.feedback ?? "").slice(0, 600),
+        };
+      }
       try {
         await supabase.functions.invoke("study-paper-finish", {
           body: {
@@ -4063,9 +4309,11 @@ function MockPaperModal({
             marks_scored: sum,
             total_marks: questions.length,
             subject: `Mock Test (${durationMinutes}m)`,
+            answers: sheet,
           },
         });
         qc.invalidateQueries({ queryKey: QUIZ_ATTEMPTS_KEY });
+        qc.invalidateQueries({ queryKey: ["paper-sheets"] });
       } catch { /* best-effort */ }
       finally { setFinishing(false); }
     }
@@ -4230,12 +4478,22 @@ function MockPaperModal({
             </div>
 
             <button
+              onClick={() => setAnswerSheetOpen(true)}
+              disabled={finishing}
+              className="w-full rounded-xl border border-primary/50 py-3 text-sm font-semibold text-primary disabled:opacity-50"
+            >
+              open answer sheet 📖 — see the correct answers
+            </button>
+            <button
               onClick={onClose}
               disabled={finishing}
-              className="mb-6 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+              className="mb-6 mt-2 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             >
               done
             </button>
+            {answerSheetOpen && paperId && (
+              <AnswerSheetModal paperId={paperId} onClose={() => setAnswerSheetOpen(false)} />
+            )}
           </div>
         )}
 

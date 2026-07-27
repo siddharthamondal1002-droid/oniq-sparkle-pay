@@ -24,8 +24,17 @@ Deno.serve(async (req) => {
     return json(401, { error: "unauthorized" });
   }
 
-  let body: { paper_id?: string; marks_scored?: number; total_marks?: number; subject?: string; action?: string; chapter?: string } = {};
+  let body: { paper_id?: string; marks_scored?: number; total_marks?: number; subject?: string; action?: string; chapter?: string; answers?: unknown } = {};
   try { body = await req.json(); } catch { /* ignore */ }
+  // Per-question answer sheet (student answers + grading), stored for the
+  // review screen. Bounded so a hostile client can't bloat the row.
+  let answerSheet: Record<string, unknown> | null = null;
+  if (body.answers && typeof body.answers === "object" && !Array.isArray(body.answers)) {
+    try {
+      const raw = JSON.stringify(body.answers);
+      if (raw.length <= 300_000) answerSheet = body.answers as Record<string, unknown>;
+    } catch { /* ignore */ }
+  }
   const paperId = String(body.paper_id ?? "").trim();
   const action = String(body.action ?? "complete").trim();
   const marksScored = Math.max(0, Math.round(Number(body.marks_scored ?? 0)));
@@ -89,9 +98,11 @@ Deno.serve(async (req) => {
   const clampedMarks = Math.min(marksScored, paper.total_marks);
 
   try {
+    const update: Record<string, unknown> = { status: "completed", marks_scored: clampedMarks };
+    if (answerSheet) update.answer_sheet = answerSheet;
     const { error: upErr } = await admin
       .from("study_papers")
-      .update({ status: "completed", marks_scored: clampedMarks })
+      .update(update)
       .eq("id", paperId);
     if (upErr) console.warn("study-paper-finish: update err", upErr.message);
   } catch (e) {
