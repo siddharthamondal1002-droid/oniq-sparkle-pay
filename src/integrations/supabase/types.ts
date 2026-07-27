@@ -2129,6 +2129,7 @@ export type Database = {
       }
       study_papers: {
         Row: {
+          answer_sheet: Json | null
           created_at: string
           draft_answers: Json
           duration_seconds: number | null
@@ -2144,6 +2145,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          answer_sheet?: Json | null
           created_at?: string
           draft_answers?: Json
           duration_seconds?: number | null
@@ -2159,6 +2161,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          answer_sheet?: Json | null
           created_at?: string
           draft_answers?: Json
           duration_seconds?: number | null
