@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, MessageCircle, Wallet, QrCode, Sparkles, ShieldCheck, Globe2 } from "lucide-react";
+import { ArrowRight, MessageCircle, QrCode, Sparkles, ShieldCheck, Globe2 } from "lucide-react";
 
 const TITLE = "What is a Super App? The Future of Unified Digital Living";
 const DESCRIPTION =
@@ -70,7 +70,7 @@ export const Route = createFileRoute("/blog/what-is-a-super-app")({
               name: "Is ONIQ a super app?",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "Yes. ONIQ combines chat, a funded wallet, UPI-style scan-and-pay, food ordering, rides, travel, live TV, an AI assistant, and a mini apps hub under one account.",
+                text: "Yes. ONIQ combines chat, UPI link and QR tools that open your own payment apps, food ordering, rides, travel, live TV, an AI assistant, and a mini apps hub under one account.",
               },
             },
           ],
@@ -195,8 +195,7 @@ function SuperAppGuide() {
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Pillar icon={<MessageCircle className="h-5 w-5" />} title="Chat" body="Real-time messaging with voice and video calls." />
-              <Pillar icon={<Wallet className="h-5 w-5" />} title="Wallet" body="A funded demo wallet, send and request money, red packets." />
-              <Pillar icon={<QrCode className="h-5 w-5" />} title="Scan & pay" body="UPI-style QR payments, My QR, and merchant intents." />
+              <Pillar icon={<QrCode className="h-5 w-5" />} title="UPI tools" body="UPI links, My QR, and scan-to-pay that open your own payment apps — ONIQ never holds funds." />
               <Pillar icon={<Sparkles className="h-5 w-5" />} title="AI + mini apps" body="An AI assistant plus a hub of partner mini apps for rides, food, travel, and live TV." />
             </div>
             <p className="mt-4">
