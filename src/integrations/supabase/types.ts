@@ -14,42 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      _archive_bank_accounts: {
-        Row: {
-          account_last4: string | null
-          bank_name: string | null
-          created_at: string | null
-          holder_name: string | null
-          id: string | null
-          ifsc: string | null
-          is_primary: boolean | null
-          nickname: string | null
-          user_id: string | null
-        }
-        Insert: {
-          account_last4?: string | null
-          bank_name?: string | null
-          created_at?: string | null
-          holder_name?: string | null
-          id?: string | null
-          ifsc?: string | null
-          is_primary?: boolean | null
-          nickname?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          account_last4?: string | null
-          bank_name?: string | null
-          created_at?: string | null
-          holder_name?: string | null
-          id?: string | null
-          ifsc?: string | null
-          is_primary?: boolean | null
-          nickname?: string | null
-          user_id?: string | null
-        }
-        Relationships: []
-      }
       _archive_payment_requests: {
         Row: {
           amount: number | null
@@ -2415,16 +2379,6 @@ export type Database = {
         Args: { _booking_id: string }
         Returns: undefined
       }
-      add_bank_account: {
-        Args: {
-          _account_number: string
-          _bank_name: string
-          _holder_name: string
-          _ifsc: string
-          _nickname?: string
-        }
-        Returns: string
-      }
       add_group_members: {
         Args: { _conversation_id: string; _member_ids: string[] }
         Returns: undefined
@@ -2523,7 +2477,6 @@ export type Database = {
         Args: { _member_ids: string[]; _name: string }
         Returns: string
       }
-      delete_bank_account: { Args: { _bank_id: string }; Returns: undefined }
       delete_chat: { Args: { _conversation_id: string }; Returns: undefined }
       delete_email: {
         Args: { message_id: number; queue_name: string }
