@@ -192,10 +192,21 @@ function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
         </div>
       ) : (
         <div className="space-y-5">
-          {FAITH_META.filter((f) => {
+          {/* Prefer the user's own faith, but never render an empty section:
+              if their faith's channels have nothing right now, fall back to
+              showing every faith that does have streams. */}
+          {(() => {
             const only = religionToFaithId(religion);
-            return only ? f.id === only : true;
-          }).map((f) => {
+            const hasOwn = only ? data.videos.some((v) => v.faith === only) : false;
+            const metas = only && hasOwn ? FAITH_META.filter((f) => f.id === only) : FAITH_META;
+            return (
+              <>
+                {only && !hasOwn && (
+                  <div className="rounded-xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
+                    your faith's channels are quiet right now — here's what's playing across faiths 🌙
+                  </div>
+                )}
+                {metas.map((f) => {
             const items = data.videos.filter((v) => v.faith === f.id);
             if (items.length === 0) return null;
             return (
@@ -224,7 +235,10 @@ function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
                 </ul>
               </div>
             );
-          })}
+                })}
+              </>
+            );
+          })()}
         </div>
       )}
 

@@ -13,6 +13,8 @@ import {
   Loader2,
   Trash2,
   Flag,
+  Pencil,
+  RotateCw,
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { formatDistanceToNow } from "date-fns";
@@ -33,6 +35,47 @@ type Post = {
   } | null;
 };
 
+function isImageUrl(url: string): boolean {
+  const path = url.split("?")[0].toLowerCase();
+  return !/\.(mp4|webm|mov|m4v|3gp|mkv|mp3|m4a|aac|ogg|opus|wav|flac)$/.test(path);
+}
+
+// Upload a moment attachment to storage and return a long-lived signed URL.
+async function uploadMomentBlob(blob: Blob, ext: string, contentType: string): Promise<string> {
+  const { data: u } = await supabase.auth.getUser();
+  if (!u.user) throw new Error("Not signed in");
+  const path = `${u.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+  const { error: upErr } = await supabase.storage
+    .from("moments")
+    .upload(path, blob, { cacheControl: "3600", upsert: false, contentType });
+  if (upErr) throw upErr;
+  const { data: signed, error: sErr } = await supabase.storage
+    .from("moments")
+    .createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
+  if (sErr || !signed) throw sErr ?? new Error("Failed to sign URL");
+  return signed.signedUrl;
+}
+
+// Rotate an already-uploaded image 90° clockwise and re-upload it.
+async function rotateUploadedImage(url: string): Promise<string> {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("couldn't load the photo");
+  const blob = await res.blob();
+  const bmp = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bmp.height;
+  canvas.height = bmp.width;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("no canvas");
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate(Math.PI / 2);
+  ctx.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
+  const out: Blob = await new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("rotate failed"))), "image/jpeg", 0.92),
+  );
+  return uploadMomentBlob(out, "jpg", "image/jpeg");
+}
+
 export function MomentsFeed() {
   const qc = useQueryClient();
   const [content, setContent] = useState("");
@@ -44,6 +87,7 @@ export function MomentsFeed() {
   const [likedIds, setLikedIds] = useState<Set<string>>(new Set());
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [reportTarget, setReportTarget] = useState<ReportTarget | null>(null);
+  const [editTarget, setEditTarget] = useState<Post | null>(null);
   const [visibility, setVisibility] = useState<"public" | "moots">(() => {
     if (typeof sessionStorage === "undefined") return "public";
     return (sessionStorage.getItem("oniq_post_visibility") as "public" | "moots") ?? "public";
@@ -71,21 +115,22 @@ export function MomentsFeed() {
     }
     setUploading(true);
     try {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) throw new Error("Not signed in");
       const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const path = `${u.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-      const { error: upErr } = await supabase.storage
-        .from("moments")
-        .upload(path, file, { cacheControl: "3600", upsert: false, contentType: file.type });
-      if (upErr) throw upErr;
-      const { data: signed, error: sErr } = await supabase.storage
-        .from("moments")
-        .createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
-      if (sErr || !signed) throw sErr ?? new Error("Failed to sign URL");
-      setImageUrl(signed.signedUrl);
+      setImageUrl(await uploadMomentBlob(file, ext, file.type));
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function rotatePreview() {
+    if (!imageUrl || uploading) return;
+    setUploading(true);
+    try {
+      setImageUrl(await rotateUploadedImage(imageUrl));
+    } catch (err: any) {
+      toast.error(err.message ?? "couldn't rotate — try re-uploading");
     } finally {
       setUploading(false);
     }
@@ -214,6 +259,17 @@ export function MomentsFeed() {
               >
                 <X className="h-3.5 w-3.5" />
               </button>
+              {isImageUrl(imageUrl) && (
+                <button
+                  type="button"
+                  onClick={rotatePreview}
+                  disabled={uploading}
+                  aria-label="Rotate photo"
+                  className="absolute right-2 top-11 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white disabled:opacity-50"
+                >
+                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />}
+                </button>
+              )}
             </div>
           )}
           <input
@@ -268,9 +324,19 @@ export function MomentsFeed() {
               </button>
               <button
                 type="button"
-                className="grid h-8 w-8 place-items-center rounded-full hover:bg-muted"
+                onClick={() => {
+                  const next = visibility === "public" ? "moots" : "public";
+                  setVisibility(next);
+                  if (typeof sessionStorage !== "undefined")
+                    sessionStorage.setItem("oniq_post_visibility", next);
+                }}
+                aria-label="Toggle post visibility"
+                className={`flex h-8 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-semibold transition hover:bg-muted ${
+                  visibility === "public" ? "text-primary" : "text-muted-foreground"
+                }`}
               >
-                <Globe className="h-4 w-4" />
+                {visibility === "public" ? <Globe className="h-4 w-4" /> : <span aria-hidden>🤝</span>}
+                {visibility === "public" ? "public" : "moots"}
               </button>
             </div>
             <button
@@ -320,14 +386,24 @@ export function MomentsFeed() {
                       </span>
                     )}
                     {isMine ? (
-                      <button
-                        type="button"
-                        onClick={() => deletePost(p.id)}
-                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
-                        aria-label="Delete post"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <span className="flex shrink-0 items-center">
+                        <button
+                          type="button"
+                          onClick={() => setEditTarget(p)}
+                          className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-primary"
+                          aria-label="Edit post"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deletePost(p.id)}
+                          className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-destructive"
+                          aria-label="Delete post"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </span>
                     ) : (
                       <button
                         type="button"
@@ -388,6 +464,142 @@ export function MomentsFeed() {
         />
       )}
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
+      {editTarget && (
+        <EditPostSheet
+          post={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => {
+            setEditTarget(null);
+            refetch();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditPostSheet({ post, onClose, onSaved }: { post: Post; onClose: () => void; onSaved: () => void }) {
+  const [text, setText] = useState(post.content ?? "");
+  const [media, setMedia] = useState<string | null>(post.media_urls?.[0] ?? null);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  async function pickReplacement(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/") && !file.type.startsWith("video/") && !file.type.startsWith("audio/")) {
+      toast.error("Choose a photo, video, or audio file");
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Keep it under 50MB for now 🎬");
+      return;
+    }
+    setBusy(true);
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      setMedia(await uploadMomentBlob(file, ext, file.type));
+    } catch (err: any) {
+      toast.error(err.message ?? "Upload failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function rotate() {
+    if (!media || busy) return;
+    setBusy(true);
+    try {
+      setMedia(await rotateUploadedImage(media));
+    } catch (err: any) {
+      toast.error(err.message ?? "couldn't rotate — try replacing the photo");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function save() {
+    if (!text.trim() && !media) {
+      toast.error("post can't be empty — add text or a photo");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase
+      .from("moments_posts")
+      .update({ content: text.trim(), media_urls: media ? [media] : [] })
+      .eq("id", post.id);
+    setBusy(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("post updated ✏️");
+    onSaved();
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/60" onClick={onClose}>
+      <div
+        className="max-h-[85vh] overflow-y-auto rounded-t-3xl border-t border-border bg-card p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="font-display text-base font-semibold">edit post ✏️</h3>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          placeholder="What's happening in your world?"
+          className="w-full resize-none rounded-2xl border border-border bg-background p-3 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+        {media && (
+          <div className="relative mt-3">
+            <MomentMedia url={media} className="max-h-64 w-full rounded-2xl object-cover" />
+            <button
+              type="button"
+              onClick={() => setMedia(null)}
+              aria-label="Remove media"
+              className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+            {isImageUrl(media) && (
+              <button
+                type="button"
+                onClick={rotate}
+                disabled={busy}
+                aria-label="Rotate photo"
+                className="absolute right-2 top-11 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />}
+              </button>
+            )}
+          </div>
+        )}
+        <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" className="hidden" onChange={pickReplacement} />
+        <div className="mt-3 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={busy}
+            className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted disabled:opacity-50"
+          >
+            <ImageIcon className="h-3.5 w-3.5" /> {media ? "replace photo" : "add photo"}
+          </button>
+        </div>
+        <button
+          onClick={save}
+          disabled={busy}
+          className="mt-4 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          {busy ? "saving…" : "save changes"}
+        </button>
+      </div>
     </div>
   );
 }
