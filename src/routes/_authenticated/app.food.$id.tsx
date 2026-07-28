@@ -232,8 +232,6 @@ function CheckoutSheet({
       return;
     }
     toast.success("Order locked in 🔥 chef is cooking fr");
-    qc.invalidateQueries({ queryKey: ["wallet"] });
-    qc.invalidateQueries({ queryKey: ["transactions"] });
     onDone();
     void data;
   }

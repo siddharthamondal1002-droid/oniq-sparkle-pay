@@ -51,7 +51,6 @@ export type TileKey =
   | "watch"
   | "pulse"
   | "clips"
-  | "wallet"
   | "ting"
   | "rides"
   | "miniapps"
@@ -65,7 +64,6 @@ export const TILE_LABELS: Record<TileKey, string> = {
   watch: "Watch",
   pulse: "the tea ☕",
   clips: "brainrot 🎬",
-  wallet: "the bag 💰",
   ting: "Ting ✨",
   rides: "pull up 🚗",
   miniapps: "the plug 🔌",
