@@ -99,7 +99,7 @@ function Consent() {
         )}
 
         <p className="text-sm text-white/80">
-          {clientName} will be able to call ONIQ's enabled tools while you're signed in — read your profile, wallet balance, transactions, and conversation list.
+          {clientName} will be able to call ONIQ's enabled tools while you're signed in — read your profile and conversation list.
         </p>
 
         <p className="text-xs text-white/50">

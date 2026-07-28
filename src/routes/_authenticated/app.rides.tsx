@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { placesAutocomplete, placeDetails, type PlaceSuggestion } from "@/lib/places.functions";
-import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles, ChevronDown, ChevronRight, Wallet } from "lucide-react";
+import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles, ChevronDown, ChevronRight, IndianRupee } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -645,7 +645,7 @@ function RidesScreen() {
             disabled={comparing}
             className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            <Wallet className="h-4 w-4" />
+            <IndianRupee className="h-4 w-4" />
             {comparing ? "Crunching fares…" : "get best fare 💰"}
           </button>
         )}

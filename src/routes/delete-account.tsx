@@ -189,8 +189,8 @@ function DeleteAccountPage() {
 
           <h2 className="font-display text-2xl font-semibold">What may be retained</h2>
           <p>
-            A minimal set of records may be retained where required by law — primarily anonymised
-            transaction records and grievance/safety-report correspondence under India's
+            A minimal set of records may be retained where required by law — primarily
+            grievance/safety-report correspondence under India's
             Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules,
             2021. These are retained for up to <strong>90 days</strong> and then purged. Messages
             you sent inside group chats remain visible to other participants as part of their own
@@ -222,8 +222,8 @@ function DeleteAccountPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Permanently delete your ONIQ account?</AlertDialogTitle>
             <AlertDialogDescription>
-              This removes your profile, messages, moments, clips, health data, call logs, wallet
-              & bank records, and all other personal data. This cannot be undone.
+              This removes your profile, messages, moments, clips, health data, call logs,
+              and all other personal data. This cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
