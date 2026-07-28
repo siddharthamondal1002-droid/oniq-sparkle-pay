@@ -14,6 +14,141 @@ export type Database = {
   }
   public: {
     Tables: {
+      _archive_payment_requests: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          id: string | null
+          note: string | null
+          payer_id: string | null
+          requester_id: string | null
+          resolved_at: string | null
+          status: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          id?: string | null
+          note?: string | null
+          payer_id?: string | null
+          requester_id?: string | null
+          resolved_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          id?: string | null
+          note?: string | null
+          payer_id?: string | null
+          requester_id?: string | null
+          resolved_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      _archive_red_packets: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          greeting: string | null
+          id: string | null
+          recipient_id: string | null
+          resolved_at: string | null
+          sender_id: string | null
+          status: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          greeting?: string | null
+          id?: string | null
+          recipient_id?: string | null
+          resolved_at?: string | null
+          sender_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          greeting?: string | null
+          id?: string | null
+          recipient_id?: string | null
+          resolved_at?: string | null
+          sender_id?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      _archive_transactions: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          currency: string | null
+          id: string | null
+          metadata: Json | null
+          note: string | null
+          recipient_id: string | null
+          sender_id: string | null
+          status: string | null
+          type: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string | null
+          metadata?: Json | null
+          note?: string | null
+          recipient_id?: string | null
+          sender_id?: string | null
+          status?: string | null
+          type?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string | null
+          metadata?: Json | null
+          note?: string | null
+          recipient_id?: string | null
+          sender_id?: string | null
+          status?: string | null
+          type?: string | null
+        }
+        Relationships: []
+      }
+      _archive_wallets: {
+        Row: {
+          created_at: string | null
+          fiat_balance: number | null
+          id: string | null
+          is_frozen: boolean | null
+          omiq_balance: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fiat_balance?: number | null
+          id?: string | null
+          is_frozen?: boolean | null
+          omiq_balance?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fiat_balance?: number | null
+          id?: string | null
+          is_frozen?: boolean | null
+          omiq_balance?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       admin_actions: {
         Row: {
           action: string
