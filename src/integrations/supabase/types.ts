@@ -14,6 +14,177 @@ export type Database = {
   }
   public: {
     Tables: {
+      _archive_bank_accounts: {
+        Row: {
+          account_last4: string | null
+          bank_name: string | null
+          created_at: string | null
+          holder_name: string | null
+          id: string | null
+          ifsc: string | null
+          is_primary: boolean | null
+          nickname: string | null
+          user_id: string | null
+        }
+        Insert: {
+          account_last4?: string | null
+          bank_name?: string | null
+          created_at?: string | null
+          holder_name?: string | null
+          id?: string | null
+          ifsc?: string | null
+          is_primary?: boolean | null
+          nickname?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          account_last4?: string | null
+          bank_name?: string | null
+          created_at?: string | null
+          holder_name?: string | null
+          id?: string | null
+          ifsc?: string | null
+          is_primary?: boolean | null
+          nickname?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      _archive_payment_requests: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          id: string | null
+          note: string | null
+          payer_id: string | null
+          requester_id: string | null
+          resolved_at: string | null
+          status: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          id?: string | null
+          note?: string | null
+          payer_id?: string | null
+          requester_id?: string | null
+          resolved_at?: string | null
+          status?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          id?: string | null
+          note?: string | null
+          payer_id?: string | null
+          requester_id?: string | null
+          resolved_at?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      _archive_red_packets: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          greeting: string | null
+          id: string | null
+          recipient_id: string | null
+          resolved_at: string | null
+          sender_id: string | null
+          status: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          greeting?: string | null
+          id?: string | null
+          recipient_id?: string | null
+          resolved_at?: string | null
+          sender_id?: string | null
+          status?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          greeting?: string | null
+          id?: string | null
+          recipient_id?: string | null
+          resolved_at?: string | null
+          sender_id?: string | null
+          status?: string | null
+        }
+        Relationships: []
+      }
+      _archive_transactions: {
+        Row: {
+          amount: number | null
+          created_at: string | null
+          currency: string | null
+          id: string | null
+          metadata: Json | null
+          note: string | null
+          recipient_id: string | null
+          sender_id: string | null
+          status: string | null
+          type: string | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string | null
+          metadata?: Json | null
+          note?: string | null
+          recipient_id?: string | null
+          sender_id?: string | null
+          status?: string | null
+          type?: string | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string | null
+          currency?: string | null
+          id?: string | null
+          metadata?: Json | null
+          note?: string | null
+          recipient_id?: string | null
+          sender_id?: string | null
+          status?: string | null
+          type?: string | null
+        }
+        Relationships: []
+      }
+      _archive_wallets: {
+        Row: {
+          created_at: string | null
+          fiat_balance: number | null
+          id: string | null
+          is_frozen: boolean | null
+          omiq_balance: number | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          fiat_balance?: number | null
+          id?: string | null
+          is_frozen?: boolean | null
+          omiq_balance?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          fiat_balance?: number | null
+          id?: string | null
+          is_frozen?: boolean | null
+          omiq_balance?: number | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       admin_actions: {
         Row: {
           action: string
@@ -112,50 +283,6 @@ export type Database = {
             columns: ["chat_id"]
             isOneToOne: false
             referencedRelation: "ai_chats"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      bank_accounts: {
-        Row: {
-          account_last4: string
-          bank_name: string
-          created_at: string | null
-          holder_name: string
-          id: string
-          ifsc: string
-          is_primary: boolean
-          nickname: string | null
-          user_id: string
-        }
-        Insert: {
-          account_last4: string
-          bank_name: string
-          created_at?: string | null
-          holder_name: string
-          id?: string
-          ifsc: string
-          is_primary?: boolean
-          nickname?: string | null
-          user_id: string
-        }
-        Update: {
-          account_last4?: string
-          bank_name?: string
-          created_at?: string | null
-          holder_name?: string
-          id?: string
-          ifsc?: string
-          is_primary?: boolean
-          nickname?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "bank_accounts_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -1583,54 +1710,6 @@ export type Database = {
         }
         Relationships: []
       }
-      payment_requests: {
-        Row: {
-          amount: number
-          created_at: string | null
-          id: string
-          note: string | null
-          payer_id: string
-          requester_id: string
-          resolved_at: string | null
-          status: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string | null
-          id?: string
-          note?: string | null
-          payer_id: string
-          requester_id: string
-          resolved_at?: string | null
-          status?: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string | null
-          id?: string
-          note?: string | null
-          payer_id?: string
-          requester_id?: string
-          resolved_at?: string | null
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "payment_requests_payer_id_fkey"
-            columns: ["payer_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "payment_requests_requester_id_fkey"
-            columns: ["requester_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1644,7 +1723,6 @@ export type Database = {
           is_minor: boolean
           language: string | null
           last_policy_notice_at: string | null
-          omiq_wallet_address: string | null
           oniq_pay_enabled: boolean | null
           parent_email: string | null
           parent_name: string | null
@@ -1665,7 +1743,6 @@ export type Database = {
           is_minor?: boolean
           language?: string | null
           last_policy_notice_at?: string | null
-          omiq_wallet_address?: string | null
           oniq_pay_enabled?: boolean | null
           parent_email?: string | null
           parent_name?: string | null
@@ -1686,7 +1763,6 @@ export type Database = {
           is_minor?: boolean
           language?: string | null
           last_policy_notice_at?: string | null
-          omiq_wallet_address?: string | null
           oniq_pay_enabled?: boolean | null
           parent_email?: string | null
           parent_name?: string | null
@@ -1740,54 +1816,6 @@ export type Database = {
             columns: ["profile_id"]
             isOneToOne: false
             referencedRelation: "learner_profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      red_packets: {
-        Row: {
-          amount: number
-          created_at: string | null
-          greeting: string
-          id: string
-          recipient_id: string
-          resolved_at: string | null
-          sender_id: string
-          status: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string | null
-          greeting?: string
-          id?: string
-          recipient_id: string
-          resolved_at?: string | null
-          sender_id: string
-          status?: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string | null
-          greeting?: string
-          id?: string
-          recipient_id?: string
-          resolved_at?: string | null
-          sender_id?: string
-          status?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "red_packets_recipient_id_fkey"
-            columns: ["recipient_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "red_packets_sender_id_fkey"
-            columns: ["sender_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2210,60 +2238,6 @@ export type Database = {
         }
         Relationships: []
       }
-      transactions: {
-        Row: {
-          amount: number
-          created_at: string | null
-          currency: string
-          id: string
-          metadata: Json | null
-          note: string | null
-          recipient_id: string | null
-          sender_id: string | null
-          status: string
-          type: string
-        }
-        Insert: {
-          amount: number
-          created_at?: string | null
-          currency?: string
-          id?: string
-          metadata?: Json | null
-          note?: string | null
-          recipient_id?: string | null
-          sender_id?: string | null
-          status?: string
-          type: string
-        }
-        Update: {
-          amount?: number
-          created_at?: string | null
-          currency?: string
-          id?: string
-          metadata?: Json | null
-          note?: string | null
-          recipient_id?: string | null
-          sender_id?: string | null
-          status?: string
-          type?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "transactions_recipient_id_fkey"
-            columns: ["recipient_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "transactions_sender_id_fkey"
-            columns: ["sender_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       user_channels: {
         Row: {
           channel_id: string
@@ -2432,44 +2406,6 @@ export type Database = {
           },
         ]
       }
-      wallets: {
-        Row: {
-          created_at: string | null
-          fiat_balance: number | null
-          id: string
-          is_frozen: boolean | null
-          omiq_balance: number | null
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string | null
-          fiat_balance?: number | null
-          id?: string
-          is_frozen?: boolean | null
-          omiq_balance?: number | null
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string | null
-          fiat_balance?: number | null
-          id?: string
-          is_frozen?: boolean | null
-          omiq_balance?: number | null
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "wallets_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: true
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
     }
     Views: {
       [_ in never]: never
@@ -2587,10 +2523,6 @@ export type Database = {
         Args: { _member_ids: string[]; _name: string }
         Returns: string
       }
-      create_payment_request: {
-        Args: { _amount: number; _from_username: string; _note?: string }
-        Returns: string
-      }
       delete_bank_account: { Args: { _bank_id: string }; Returns: undefined }
       delete_chat: { Args: { _conversation_id: string }; Returns: undefined }
       delete_email: {
@@ -2598,7 +2530,6 @@ export type Database = {
         Returns: boolean
       }
       delete_my_account: { Args: never; Returns: undefined }
-      demo_top_up: { Args: { _amount: number }; Returns: number }
       email_queue_dispatch: { Args: never; Returns: undefined }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
@@ -2632,7 +2563,6 @@ export type Database = {
         Returns: {
           date_of_birth: string
           is_minor: boolean
-          omiq_wallet_address: string
           oniq_pay_enabled: boolean
           parent_email: string
           parent_name: string
@@ -2742,7 +2672,6 @@ export type Database = {
         Args: { _booking_id: string; _price: number }
         Returns: undefined
       }
-      open_red_packet: { Args: { _packet_id: string }; Returns: number }
       place_order: {
         Args: {
           _delivery_address: string
@@ -2763,7 +2692,6 @@ export type Database = {
           read_ct: number
         }[]
       }
-      reclaim_red_packet: { Args: { _packet_id: string }; Returns: number }
       record_clip_view: { Args: { _clip_id: string }; Returns: undefined }
       record_consent: {
         Args: { _granted: boolean; _purpose: string; _source?: string }
@@ -2781,17 +2709,9 @@ export type Database = {
         Args: { _accept: boolean; _other: string }
         Returns: string
       }
-      respond_payment_request: {
-        Args: { _accept: boolean; _request_id: string }
-        Returns: string
-      }
       send_friend_request: { Args: { _to: string }; Returns: undefined }
       send_payment: {
         Args: { _amount: number; _note?: string; _recipient_username: string }
-        Returns: string
-      }
-      send_red_packet: {
-        Args: { _amount: number; _greeting?: string; _to_username: string }
         Returns: string
       }
       set_primary_bank: { Args: { _bank_id: string }; Returns: undefined }
@@ -2812,10 +2732,6 @@ export type Database = {
       wipe_my_chat_media: { Args: never; Returns: number }
       wipe_my_clips: { Args: never; Returns: number }
       wipe_my_moments: { Args: never; Returns: number }
-      withdraw_to_bank: {
-        Args: { _amount: number; _bank_id: string }
-        Returns: string
-      }
     }
     Enums: {
       [_ in never]: never
