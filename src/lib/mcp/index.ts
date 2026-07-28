@@ -1,7 +1,5 @@
 import { auth, defineMcp } from "@lovable.dev/mcp-js";
 import whoamiTool from "./tools/whoami";
-import walletBalanceTool from "./tools/get-wallet-balance";
-import listTransactionsTool from "./tools/list-transactions";
 import listConversationsTool from "./tools/list-conversations";
 
 // The OAuth issuer must be the direct Supabase host (see ai-sdk-mcp-client guidance).
@@ -13,10 +11,10 @@ export default defineMcp({
   title: "ONIQ",
   version: "0.1.0",
   instructions:
-    "ONIQ super-app tools. Callers must sign in with their ONIQ account. Tools act as that user under Supabase RLS: check balance, list transactions, list chat conversations, and read the user's profile.",
+    "ONIQ super-app tools. Callers must sign in with their ONIQ account. Tools act as that user under Supabase RLS: list chat conversations and read the user's profile.",
   auth: auth.oauth.issuer({
     issuer: `https://${projectRef}.supabase.co/auth/v1`,
     acceptedAudiences: "authenticated",
   }),
-  tools: [whoamiTool, walletBalanceTool, listTransactionsTool, listConversationsTool],
+  tools: [whoamiTool, listConversationsTool],
 });

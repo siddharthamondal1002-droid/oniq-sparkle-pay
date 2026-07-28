@@ -1122,23 +1122,6 @@ function StatBox({ label, value, unit, accent }: { label: string; value: string;
 
 // ---------- Primary tiles ----------
 
-function useWalletBalance() {
-  return useQuery({
-    queryKey: ["home-wallet-balance"],
-    queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user) return null;
-      const { data } = await supabase
-        .from("wallets")
-        .select("omiq_balance")
-        .eq("user_id", u.user.id)
-        .maybeSingle();
-      return data?.omiq_balance ?? null;
-    },
-    staleTime: 60 * 1000,
-  });
-}
-
 function PrimaryTile({
   to,
   icon: Icon,
@@ -1148,7 +1131,6 @@ function PrimaryTile({
   span,
   skin,
   delay = 0,
-  showBalance = false,
 }: {
   to: string;
   icon: typeof Send;
@@ -1158,14 +1140,9 @@ function PrimaryTile({
   span: number;
   skin?: string;
   delay?: number;
-  showBalance?: boolean;
 }) {
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
-  const { data: omiqBalance } = useWalletBalance();
-  const balance = showBalance && typeof omiqBalance === "number"
-    ? `${Number(omiqBalance).toFixed(2)} ⭘`
-    : null;
 
   const spanClass = span === 6 ? "col-span-6" : span === 3 ? "col-span-3" : "col-span-2";
   const height = span === 6 ? "h-28" : "h-24";
@@ -1204,9 +1181,6 @@ function PrimaryTile({
         <div className={`font-display text-sm font-semibold ${showSkin ? "text-white drop-shadow" : "text-foreground"}`}>{label}</div>
         {sub && (
           <div className={`mt-0.5 font-sans text-[11px] normal-case tracking-normal font-normal ${showSkin ? "text-white/80 drop-shadow" : "text-muted-foreground"}`}>{sub}</div>
-        )}
-        {balance && (
-          <div className="mt-0.5 font-display text-xl font-bold text-gradient-primary">{balance}</div>
         )}
       </div>
     </Link>

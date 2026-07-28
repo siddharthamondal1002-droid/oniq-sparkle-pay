@@ -90,7 +90,7 @@ function DataRightsPage() {
           <RightsCard
             icon={<Download className="h-5 w-5" />}
             title="Export my data"
-            desc="Download a JSON file with your profile, consents, wallet, learner profile, grievances, and transactions summary."
+            desc="Download a JSON file with your profile, consents, learner profile, and grievances."
           >
             <button
               onClick={exportData}

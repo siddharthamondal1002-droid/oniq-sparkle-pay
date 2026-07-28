@@ -26,7 +26,6 @@ import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } fr
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
 import { Route as AuthenticatedAppWeatherRouteImport } from './routes/_authenticated/app.weather'
-import { Route as AuthenticatedAppWalletRouteImport } from './routes/_authenticated/app.wallet'
 import { Route as AuthenticatedAppVitalsRouteImport } from './routes/_authenticated/app.vitals'
 import { Route as AuthenticatedAppUpiRouteImport } from './routes/_authenticated/app.upi'
 import { Route as AuthenticatedAppTravelRouteImport } from './routes/_authenticated/app.travel'
@@ -41,7 +40,6 @@ import { Route as AuthenticatedAppFaithRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppEarnRouteImport } from './routes/_authenticated/app.earn'
 import { Route as AuthenticatedAppClipsRouteImport } from './routes/_authenticated/app.clips'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
-import { Route as AuthenticatedAppBanksRouteImport } from './routes/_authenticated/app.banks'
 import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/app.ai'
 import { Route as AuthenticatedAppAdminRouteImport } from './routes/_authenticated/app.admin'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -144,11 +142,6 @@ const AuthenticatedAppWeatherRoute = AuthenticatedAppWeatherRouteImport.update({
   path: '/weather',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppWalletRoute = AuthenticatedAppWalletRouteImport.update({
-  id: '/wallet',
-  path: '/wallet',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
 const AuthenticatedAppVitalsRoute = AuthenticatedAppVitalsRouteImport.update({
   id: '/vitals',
   path: '/vitals',
@@ -218,11 +211,6 @@ const AuthenticatedAppClipsRoute = AuthenticatedAppClipsRouteImport.update({
 const AuthenticatedAppChatRoute = AuthenticatedAppChatRouteImport.update({
   id: '/chat',
   path: '/chat',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppBanksRoute = AuthenticatedAppBanksRouteImport.update({
-  id: '/banks',
-  path: '/banks',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const AuthenticatedAppAiRoute = AuthenticatedAppAiRouteImport.update({
@@ -331,7 +319,6 @@ export interface FileRoutesByFullPath {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/app/admin': typeof AuthenticatedAppAdminRoute
   '/app/ai': typeof AuthenticatedAppAiRoute
-  '/app/banks': typeof AuthenticatedAppBanksRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/clips': typeof AuthenticatedAppClipsRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
@@ -346,7 +333,6 @@ export interface FileRoutesByFullPath {
   '/app/travel': typeof AuthenticatedAppTravelRoute
   '/app/upi': typeof AuthenticatedAppUpiRoute
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
-  '/app/wallet': typeof AuthenticatedAppWalletRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
@@ -379,7 +365,6 @@ export interface FileRoutesByTo {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/app/admin': typeof AuthenticatedAppAdminRoute
   '/app/ai': typeof AuthenticatedAppAiRoute
-  '/app/banks': typeof AuthenticatedAppBanksRoute
   '/app/clips': typeof AuthenticatedAppClipsRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
   '/app/faith': typeof AuthenticatedAppFaithRoute
@@ -393,7 +378,6 @@ export interface FileRoutesByTo {
   '/app/travel': typeof AuthenticatedAppTravelRoute
   '/app/upi': typeof AuthenticatedAppUpiRoute
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
-  '/app/wallet': typeof AuthenticatedAppWalletRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
@@ -429,7 +413,6 @@ export interface FileRoutesById {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/_authenticated/app/admin': typeof AuthenticatedAppAdminRoute
   '/_authenticated/app/ai': typeof AuthenticatedAppAiRoute
-  '/_authenticated/app/banks': typeof AuthenticatedAppBanksRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/_authenticated/app/clips': typeof AuthenticatedAppClipsRoute
   '/_authenticated/app/earn': typeof AuthenticatedAppEarnRoute
@@ -444,7 +427,6 @@ export interface FileRoutesById {
   '/_authenticated/app/travel': typeof AuthenticatedAppTravelRoute
   '/_authenticated/app/upi': typeof AuthenticatedAppUpiRoute
   '/_authenticated/app/vitals': typeof AuthenticatedAppVitalsRoute
-  '/_authenticated/app/wallet': typeof AuthenticatedAppWalletRoute
   '/_authenticated/app/weather': typeof AuthenticatedAppWeatherRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
@@ -480,7 +462,6 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/app/admin'
     | '/app/ai'
-    | '/app/banks'
     | '/app/chat'
     | '/app/clips'
     | '/app/earn'
@@ -495,7 +476,6 @@ export interface FileRouteTypes {
     | '/app/travel'
     | '/app/upi'
     | '/app/vitals'
-    | '/app/wallet'
     | '/app/weather'
     | '/app/'
     | '/app/chat/$conversationId'
@@ -528,7 +508,6 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/app/admin'
     | '/app/ai'
-    | '/app/banks'
     | '/app/clips'
     | '/app/earn'
     | '/app/faith'
@@ -542,7 +521,6 @@ export interface FileRouteTypes {
     | '/app/travel'
     | '/app/upi'
     | '/app/vitals'
-    | '/app/wallet'
     | '/app/weather'
     | '/app'
     | '/app/chat/$conversationId'
@@ -577,7 +555,6 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/_authenticated/app/admin'
     | '/_authenticated/app/ai'
-    | '/_authenticated/app/banks'
     | '/_authenticated/app/chat'
     | '/_authenticated/app/clips'
     | '/_authenticated/app/earn'
@@ -592,7 +569,6 @@ export interface FileRouteTypes {
     | '/_authenticated/app/travel'
     | '/_authenticated/app/upi'
     | '/_authenticated/app/vitals'
-    | '/_authenticated/app/wallet'
     | '/_authenticated/app/weather'
     | '/_authenticated/app/'
     | '/_authenticated/app/chat/$conversationId'
@@ -749,13 +725,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppWeatherRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/wallet': {
-      id: '/_authenticated/app/wallet'
-      path: '/wallet'
-      fullPath: '/app/wallet'
-      preLoaderRoute: typeof AuthenticatedAppWalletRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
     '/_authenticated/app/vitals': {
       id: '/_authenticated/app/vitals'
       path: '/vitals'
@@ -852,13 +821,6 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/app/chat'
       preLoaderRoute: typeof AuthenticatedAppChatRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/banks': {
-      id: '/_authenticated/app/banks'
-      path: '/banks'
-      fullPath: '/app/banks'
-      preLoaderRoute: typeof AuthenticatedAppBanksRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/ai': {
@@ -994,7 +956,6 @@ const AuthenticatedAppChatRouteWithChildren =
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAdminRoute: typeof AuthenticatedAppAdminRoute
   AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
-  AuthenticatedAppBanksRoute: typeof AuthenticatedAppBanksRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
   AuthenticatedAppClipsRoute: typeof AuthenticatedAppClipsRoute
   AuthenticatedAppEarnRoute: typeof AuthenticatedAppEarnRoute
@@ -1009,7 +970,6 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppTravelRoute: typeof AuthenticatedAppTravelRoute
   AuthenticatedAppUpiRoute: typeof AuthenticatedAppUpiRoute
   AuthenticatedAppVitalsRoute: typeof AuthenticatedAppVitalsRoute
-  AuthenticatedAppWalletRoute: typeof AuthenticatedAppWalletRoute
   AuthenticatedAppWeatherRoute: typeof AuthenticatedAppWeatherRoute
   AuthenticatedAppIndexRoute: typeof AuthenticatedAppIndexRoute
   AuthenticatedAppFoodIdRoute: typeof AuthenticatedAppFoodIdRoute
@@ -1021,7 +981,6 @@ interface AuthenticatedAppRouteChildren {
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAdminRoute: AuthenticatedAppAdminRoute,
   AuthenticatedAppAiRoute: AuthenticatedAppAiRoute,
-  AuthenticatedAppBanksRoute: AuthenticatedAppBanksRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
   AuthenticatedAppClipsRoute: AuthenticatedAppClipsRoute,
   AuthenticatedAppEarnRoute: AuthenticatedAppEarnRoute,
@@ -1036,7 +995,6 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppTravelRoute: AuthenticatedAppTravelRoute,
   AuthenticatedAppUpiRoute: AuthenticatedAppUpiRoute,
   AuthenticatedAppVitalsRoute: AuthenticatedAppVitalsRoute,
-  AuthenticatedAppWalletRoute: AuthenticatedAppWalletRoute,
   AuthenticatedAppWeatherRoute: AuthenticatedAppWeatherRoute,
   AuthenticatedAppIndexRoute: AuthenticatedAppIndexRoute,
   AuthenticatedAppFoodIdRoute: AuthenticatedAppFoodIdRoute,
