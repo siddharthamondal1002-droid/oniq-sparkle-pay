@@ -181,7 +181,7 @@ function DeleteAccountPage() {
             <li>Status updates and status views</li>
             <li>Health & wellness data — cycle logs, daily check-ins, health profile</li>
             <li>Call log entries where you were the caller</li>
-            <li>Wallet balance, bank-account records (last-4 only), pending payment requests, red packets, and food orders</li>
+            <li>Food orders and any archived account records</li>
             <li>Social graph — friendships, follows, blocks, channel subscriptions</li>
             <li>Learn progress and stats, AI chat history, device push tokens, theme settings</li>
             <li>Reports you filed</li>

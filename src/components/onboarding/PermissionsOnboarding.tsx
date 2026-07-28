@@ -134,7 +134,7 @@ export function PermissionsOnboarding() {
           <PermCard
             icon={<Bell className="h-5 w-5 text-primary" />}
             title="notifications 🔔"
-            desc="chats, calls, red packets"
+            desc="chats, calls, moments"
             state={notif}
             busy={busy === "notif"}
             onAsk={askNotifications}
