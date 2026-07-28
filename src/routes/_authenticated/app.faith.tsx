@@ -80,10 +80,10 @@ function FaithPage() {
 
             <div className="mt-5">
               {section === "read" && <ReadSection religion={religion} />}
-              {section === "listen" && <ListenSection religion={religion} />}
+              {section === "listen" && (<><ListenSection religion={religion} /><DevotionalRadioSection religion={religion} /></>)}
               {section === "dates" && <DatesSection religion={religion} />}
               {section === "shop" && <ShopSection religion={religion} />}
-              {section === "watch" && (<><DevotionalLiveSection religion={religion} /><DevotionalRadioSection religion={religion} /></>)}
+              {section === "watch" && <DevotionalLiveSection religion={religion} />}
             </div>
           </>
         )}
@@ -148,7 +148,7 @@ function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
     <section className="mt-8">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <div className="text-[11px] uppercase tracking-wider text-primary/80">watch & listen 🙏</div>
+          <div className="text-[11px] uppercase tracking-wider text-primary/80">watch 🙏</div>
           <h2 className="font-display text-lg font-bold">live darshan · kirtan · bayan</h2>
         </div>
       </div>
@@ -293,7 +293,7 @@ function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
   return (
     <section className="mt-10">
       <div className="mb-3">
-        <div className="text-[11px] uppercase tracking-wider text-primary/80">radio 📻</div>
+        <div className="text-[11px] uppercase tracking-wider text-primary/80">live radio 📻</div>
         <h2 className="font-display text-lg font-bold">24/7 internet radio</h2>
       </div>
 
