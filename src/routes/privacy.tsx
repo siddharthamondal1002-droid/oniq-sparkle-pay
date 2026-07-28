@@ -33,7 +33,7 @@ function PrivacyPage() {
 
           <h2 className="font-display text-2xl font-semibold">2. Why we use it</h2>
           <ul className="list-disc space-y-1 pl-6">
-            <li>Provide messaging, calls, wallet, clips, and other in-app features you request.</li>
+            <li>Provide messaging, calls, clips, and other in-app features you request.</li>
             <li>Keep the service safe: detect abuse, respond to reports, honour lawful takedown orders.</li>
             <li>Comply with applicable law.</li>
           </ul>
@@ -52,7 +52,7 @@ function PrivacyPage() {
 
           <ul className="list-disc space-y-1 pl-6">
             <li><strong>Access & correction</strong> — view and edit your profile fields from Profile.</li>
-            <li><strong>Erasure</strong> — delete your account from Profile → Delete account. This removes your profile, wallet, messages you sent, and uploads.</li>
+            <li><strong>Erasure</strong> — delete your account from Profile → Delete account. This removes your profile, messages you sent, and uploads.</li>
             <li><strong>Grievance redressal</strong> — contact our Grievance Officer (below) for privacy complaints.</li>
           </ul>
 
@@ -63,7 +63,7 @@ function PrivacyPage() {
           <p>If we become aware of a personal-data breach that is likely to result in risk to your rights, we will notify affected users and the Data Protection Board of India within the timelines required by DPDP.</p>
 
           <h2 className="font-display text-2xl font-semibold">7. Retention</h2>
-          <p>We keep your data while your account is active. When you delete your account, personal content is removed; minimal transaction and safety-log records may be retained where required by law.</p>
+          <p>We keep your data while your account is active. When you delete your account, personal content is removed; minimal safety-log records may be retained where required by law.</p>
 
           <h2 className="font-display text-2xl font-semibold">8. Contact</h2>
 

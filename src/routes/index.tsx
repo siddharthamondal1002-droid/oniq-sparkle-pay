@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   MessageCircle,
   Sparkles,
-  Wallet,
+
   QrCode,
   Car,
   Plane,
@@ -15,7 +15,6 @@ import {
   ArrowRight,
   Zap,
 } from "lucide-react";
-
 
 const LANDING_DESCRIPTION =
   "Chat, pay, watch live TV, ride, travel, learn — ONIQ is one app for every world.";
@@ -36,13 +35,11 @@ export const Route = createFileRoute("/")({
   component: Landing,
 });
 
-
 const features = [
   { icon: MessageCircle, title: "Chat", desc: "Real-time messaging with voice & video calls." },
   { icon: Sparkles, title: "Moments", desc: "A private social feed for you and your circle." },
   { icon: Film, title: "Clips", desc: "Endless short videos in a swipeable feed." },
-  { icon: Wallet, title: "Wallet & Red Packets", desc: "Instant send/request plus 🧧 red packets with escrow." },
-  { icon: QrCode, title: "Scan & Pay (UPI)", desc: "Scan any UPI QR, show your own, pay in a tap." },
+  { icon: QrCode, title: "Scan & Pay (UPI)", desc: "Scan any UPI QR, show your own — payments run through your own UPI apps." },
   { icon: Car, title: "Ride Genie", desc: "Compare ride prices across providers before you book." },
   { icon: Plane, title: "Wander", desc: "Compare buses, trains, flights and hotels in one hub." },
   { icon: Sparkles, title: "Ting AI", desc: "Live-web AI assistant that actually answers what's happening now." },
@@ -100,7 +97,7 @@ function Landing() {
                 <span className="bg-gradient-to-r from-[#00D4B8] via-[#8B5CF6] to-[#F59E0B] bg-clip-text text-transparent">Every world.</span>
               </h1>
               <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-                Chat with voice &amp; video, send money, scan any UPI QR, compare rides
+                Chat with voice &amp; video, scan &amp; pay any UPI QR, compare rides
                 and travel, watch live TV, learn a language and ask an AI — all in one
                 beautifully fast app.
               </p>
@@ -135,7 +132,6 @@ function Landing() {
           </div>
         </div>
       </section>
-
 
       {/* Features */}
       <section id="features" style={{ scrollMarginTop: "5rem" }} className="mx-auto max-w-6xl px-5 py-24">
@@ -178,19 +174,19 @@ function Landing() {
             </h2>
             <p className="mt-5 text-muted-foreground">
               Multi-language, multi-provider, multi-everything. Whether you're sending a
-              voice note across timezones or splitting a red packet with friends — ONIQ
+              voice note across timezones or paying a friend over UPI — ONIQ
               just works.
             </p>
             <ul className="mt-6 space-y-3 text-sm">
               <Check>Real-time voice &amp; video calls in chat</Check>
-              <Check>RLS-enforced data — every wallet write server-signed</Check>
+              <Check>RLS-enforced data — every write checked server-side</Check>
               <Check>Installable as a PWA with custom wallpapers &amp; skins</Check>
               <Check>25+ mini apps, one login, no re-auth</Check>
             </ul>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <WorldCard icon={MessageCircle} label="Chat" tint="from-primary to-blue-500" />
-            <WorldCard icon={Wallet} label="Pay" tint="from-neon to-primary" />
+            <WorldCard icon={QrCode} label="Pay (UPI)" tint="from-neon to-primary" />
             <WorldCard icon={Tv} label="Watch" tint="from-magenta to-primary" />
             <WorldCard icon={Sparkles} label="Ting AI" tint="from-primary to-magenta" />
             <WorldCard icon={Plane} label="Wander" tint="from-amber to-magenta" />
@@ -274,9 +270,9 @@ function PhoneMockup() {
           <div className="text-xs text-muted-foreground">Good morning</div>
           <div className="font-display text-2xl font-bold">Alex</div>
           <div className="mt-4 rounded-2xl border border-border bg-card/70 p-4 backdrop-blur">
-            <div className="text-xs text-muted-foreground">Wallet balance</div>
-            <div className="mt-1 font-display text-2xl font-semibold">$1,284.50</div>
-            <div className="mt-2 text-xs text-neon">Send · Request · 🧧 Red Packet</div>
+            <div className="text-xs text-muted-foreground">Scan &amp; Pay</div>
+            <div className="mt-1 font-display text-2xl font-semibold">UPI ready 💳</div>
+            <div className="mt-2 text-xs text-neon">Scan QR · My QR · Pay a friend</div>
           </div>
           <div className="mt-4 grid grid-cols-4 gap-2 text-center">
             {["Chat", "Pay", "Watch", "Ride"].map((t) => (

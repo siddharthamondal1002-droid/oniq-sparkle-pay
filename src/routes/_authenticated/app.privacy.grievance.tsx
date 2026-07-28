@@ -30,7 +30,7 @@ const OFFICER = {
 const COMPLAINT_TYPES = [
   "Data access / correction / deletion",
   "Account safety or harassment",
-  "Payments or wallet issue",
+  "Payments issue (UPI)",
   "Content takedown",
   "Consent withdrawal",
   "Other",

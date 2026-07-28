@@ -217,8 +217,8 @@ function SuperAppGuide() {
             <div className="mt-4 flex items-start gap-3 rounded-2xl border border-border/60 bg-card/50 p-4">
               <ShieldCheck className="mt-1 h-5 w-5 text-primary" />
               <p className="text-sm text-muted-foreground">
-                Every transfer is signed server-side. The client never sets the amount that leaves
-                your wallet.
+                ONIQ never holds your money — payments run through your own UPI apps, and every
+                data write is checked server-side.
               </p>
             </div>
           </section>
@@ -238,7 +238,7 @@ function SuperAppGuide() {
             <dl className="mt-4 space-y-4">
               <Faq q="What is a super app in simple terms?" a="An app that bundles chat, payments, and everyday services — food, rides, ticketing, mini apps — behind one login and one wallet." />
               <Faq q="Is WhatsApp a super app?" a="Not yet. WhatsApp has added payments and business tools in some markets, but it lacks the mini apps platform and broad service catalog that define a true super app." />
-              <Faq q="Is ONIQ free to use?" a="Yes. Sign up with email, get a funded demo wallet, and try chat, payments, food, rides, and mini apps at no cost." />
+              <Faq q="Is ONIQ free to use?" a="Yes. Sign up with email and try chat, UPI tools, food, rides, and mini apps at no cost." />
             </dl>
           </section>
 
@@ -246,7 +246,7 @@ function SuperAppGuide() {
             <Globe2 className="h-6 w-6 text-primary" />
             <div className="flex-1">
               <p className="font-display text-lg font-bold">Ready to try a super app?</p>
-              <p className="text-sm text-muted-foreground">One app. Every world. Get your funded wallet in seconds.</p>
+              <p className="text-sm text-muted-foreground">One app. Every world. Set up in seconds.</p>
             </div>
             <Link
               to="/auth"
