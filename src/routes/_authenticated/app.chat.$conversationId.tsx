@@ -1970,7 +1970,7 @@ function ChatThread() {
               </>
             )}
           </div>
-          <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
+          <div className="relative flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
             <button
               type="button"
               aria-label="Emoji"
