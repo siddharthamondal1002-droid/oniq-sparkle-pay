@@ -27,7 +27,7 @@ type ReporterMap = Record<string, { username: string | null; display_name: strin
 
 function AdminInbox() {
   const qc = useQueryClient();
-  const [section, setSection] = useState<"reports" | "kyc" | "takedowns">("reports");
+  const [section, setSection] = useState<"reports" | "kyc" | "takedowns" | "proofs">("reports");
   const [statusFilter, setStatusFilter] = useState<"open" | "resolved" | "dismissed" | "all">("open");
   const [me, setMe] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -116,6 +116,7 @@ function AdminInbox() {
             ["reports", "reports 🚩"],
             ["kyc", "partner KYC 🪪"],
             ["takedowns", "takedowns ⚖️"],
+            ["proofs", "proofs ✅"],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -131,6 +132,8 @@ function AdminInbox() {
       {section === "kyc" && <PartnerKycPanel />}
 
       {section === "takedowns" && <TakedownPanel />}
+
+      {section === "proofs" && <DeletionProofPanel />}
 
       {section === "reports" && (
       <>
@@ -496,6 +499,95 @@ function TakedownPanel() {
         })}
         {orders.length === 0 && <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">no takedown orders logged</div>}
       </div>
+    </div>
+  );
+}
+
+/* ---------------- Deletion proofs (B2) ----------------
+   One tap runs the deletion-proof edge function: it creates a throwaway
+   account, seeds fixture data, deletes it through the production path,
+   and stores a dated zero-row/zero-object report. No keys ever touch
+   the client — the service role lives only inside the edge function. */
+function DeletionProofPanel() {
+  const qc = useQueryClient();
+  const [running, setRunning] = useState(false);
+
+  const { data: proofs = [] } = useQuery({
+    queryKey: ["admin-deletion-proofs"],
+    queryFn: async () => {
+      const { data } = await (supabase as any)
+        .from("deletion_proofs")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      return data ?? [];
+    },
+  });
+
+  async function runProof() {
+    setRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("deletion-proof", { body: {} });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || "Proof run failed");
+      } else if (data?.pass) {
+        toast.success("PASS — zero rows, zero objects left behind ✅");
+      } else {
+        toast.error("FAIL — residue found, see the report below");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Proof run failed");
+    } finally {
+      setRunning(false);
+      qc.invalidateQueries({ queryKey: ["admin-deletion-proofs"] });
+    }
+  }
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="rounded-2xl border border-border bg-card p-4 text-xs">
+        <div className="font-semibold">Account-deletion proof</div>
+        <p className="mt-1 text-muted-foreground">
+          Creates a temporary test account, deletes it through the real
+          deletion flow, then checks 15 tables + 4 storage areas for anything
+          left behind. Takes ~10 seconds. Run it twice before applying for
+          Play production.
+        </p>
+        <button
+          onClick={runProof}
+          disabled={running}
+          className="press mt-3 w-full rounded-xl bg-primary py-2.5 font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          {running ? "Running proof…" : "Run deletion proof ▶️"}
+        </button>
+      </div>
+
+      {proofs.map((p: any) => (
+        <div key={p.id} className={`rounded-2xl border p-3 text-xs ${p.pass ? "border-emerald-500/40" : "border-red-500/50"}`}>
+          <div className="flex items-center justify-between">
+            <span className={`font-semibold ${p.pass ? "text-emerald-400" : "text-red-400"}`}>
+              {p.pass ? "PASS ✅" : "FAIL ❌"}
+            </span>
+            <span className="text-muted-foreground">{new Date(p.created_at).toLocaleString()}</span>
+          </div>
+          <div className="mt-1 text-muted-foreground">
+            {p.tables_checked} tables · {p.buckets_checked} buckets · test {p.test_email}
+          </div>
+          {Array.isArray(p.residues) && p.residues.length > 0 && (
+            <div className="mt-1 font-mono text-[10px] text-red-400">
+              {p.residues.map((r: any, i: number) => (
+                <div key={i}>{r.where}: {r.count}</div>
+              ))}
+            </div>
+          )}
+          <div className="mt-1 break-all font-mono text-[9px] text-muted-foreground">sha256 {p.report_sha256}</div>
+        </div>
+      ))}
+      {proofs.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+          no proof runs yet
+        </div>
+      )}
     </div>
   );
 }
