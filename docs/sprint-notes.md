@@ -306,16 +306,23 @@ multi-year signed URLs. Full closure = refactor those call sites to store
 bare paths + data-migrate stored URLs → paths + verify a captured URL 403s
 after expiry. Takedown "path rotation" also lands with that refactor.
 
-## B2 deletion-proof harness — TOOL DONE, live green-run founder-gated
+## B2 deletion-proof harness — DONE, TWO LIVE GREEN RUNS
 `scripts/deletion-proof.ts`: creates delete-proof+<ts>@oniqhub.com, seeds
 user tables + one object in each of 4 buckets, runs the production order
 (storage purge BEFORE auth.admin.deleteUser), asserts zero rows across 15
 user tables + zero objects across 4 buckets + auth user gone, writes
 `docs/deletion-proofs/<ts>.json` with report SHA-256, exits non-zero on any
-residue. NOT RUN LIVE from this environment — by hard constraint the AI
-holds no production write credentials (service-role key). Founder runbook:
-`SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… npx tsx scripts/deletion-proof.ts`
-twice; commit the two reports.
+residue.
+UPDATE (same day): the founder is phone-only and the DB is Lovable-Cloud
+managed (no service-role key obtainable by them), so PR #39 added the same
+harness as an admin-gated `deletion-proof` edge function + a one-tap
+"proofs" tab in the admin panel; reports persist in `deletion_proofs`
+(admin-only read, function-write only). The AI still holds no production
+write credentials — the founder triggers runs from their own admin session.
+LIVE RESULTS (founder-run, 2026-07-29): two consecutive PASS runs, zero
+residue across 15 tables + 4 buckets + auth row; reports committed at
+`docs/deletion-proofs/2026-07-29T20-53-13-140Z.json` and
+`docs/deletion-proofs/2026-07-29T20-53-49-299Z.json` (SHA-256 in each).
 
 ## B3 sharpen + free-drag crop — DONE
 PhotoStudio: sharpen 0–100 (unsharp mask at export: base + 0.8·k·(base −
@@ -440,7 +447,7 @@ protected stack).
 - [x] Zero unauthorised new dependencies
 - [x] R1–R12 exit gates (v1/v2 deliveries re-verified; R4/R6/R7/R8 rolled into B-phases)
 - [~] B1 foundation shipped + lint fence active; legacy call-site/data migration = logged blocker
-- [~] B2 harness complete + exits non-zero on residue; live dated report is founder-run (AI holds no prod credentials)
+- [x] B2 harness complete + exits non-zero on residue; two live founder-run PASS reports committed (2026-07-29)
 - [x] B3 sharpen + free-drag crop on touch
 - [~] B4 SGI label + provenance SHA-256 + content-free takedown UI (server-signed provenance + path rotation deferred)
 - [ ] B5 DigiLocker consent / erasure jobs / 22-language notices — blocked on external prerequisites (logged)

@@ -1,0 +1,12 @@
+{
+  "ts": "2026-07-29T20-53-13-140Z",
+  "run_at": "2026-07-29T20:53:23.305854+00:00",
+  "uid": "b8e44416-4e5e-4029-b93c-1a74a569f08c",
+  "email": "delete-proof+2026-07-29T20-53-13-140Z@oniqhub.com",
+  "tables_checked": 15,
+  "buckets_checked": 4,
+  "residues": [],
+  "pass": true,
+  "report_sha256": "73510e82df668ec0fe9697cae55a57d3fe8c68fdd5fcf4c0589f663ccecfa919",
+  "method": "admin-triggered deletion-proof edge function; production deletion order (storage purge before auth.admin.deleteUser); report row stored in public.deletion_proofs (admin-only read)"
+}
