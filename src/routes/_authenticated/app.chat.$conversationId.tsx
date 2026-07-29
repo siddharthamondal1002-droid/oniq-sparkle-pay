@@ -683,6 +683,7 @@ function ChatThread() {
     };
     qc.setQueryData<Message[]>(["messages", conversationId], (prev) => [...(prev ?? []), optimistic]);
     setText("");
+    setShowEmojiPicker(false);
     setReplyTo(null);
     emitTyping("stop");
     lastTypingSentRef.current = 0;
