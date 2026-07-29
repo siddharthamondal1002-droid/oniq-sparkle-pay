@@ -7,8 +7,10 @@ import android.Manifest;
 import android.app.KeyguardManager;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 
 import android.os.Build;
+import android.view.View;
 import android.view.WindowManager;
 import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
@@ -17,6 +19,9 @@ import android.webkit.WebChromeClient;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebChromeClient;
@@ -38,6 +43,28 @@ public class MainActivity extends BridgeActivity {
 
         super.onCreate(savedInstanceState);
         applyCallWindowFlags(getIntent());
+        applyEdgeToEdgeInsets();
+    }
+
+    /**
+     * Android 15+ (SDK 35) draws apps edge-to-edge by default. Pad the content
+     * view by the system-bar/cutout insets so the WebView never renders under
+     * the status or navigation bars, and keep the keyboard (IME) inset so
+     * inputs still lift above it. The padded strips are painted in the app's
+     * dark theme color. No-op on older Android where the window already fits
+     * system bars (insets arrive as zero).
+     */
+    private void applyEdgeToEdgeInsets() {
+        View content = findViewById(android.R.id.content);
+        if (content == null) return;
+        content.setBackgroundColor(Color.parseColor("#1a1230"));
+        ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
+            Insets bars = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+            return WindowInsetsCompat.CONSUMED;
+        });
     }
 
     /**
