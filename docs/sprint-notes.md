@@ -1,3 +1,10 @@
+> **COUNSEL DISCLAIMER (applies to this entire file):** all statements below
+> about BNS, BNSS, BSA, DPDP Act/Rules, IT Act, IT Rules, CERT-In directions
+> and POCSO are practical engineering implementation notes, NOT legal advice.
+> Every obligation, date, SLA and statutory reading must be verified by
+> qualified Indian counsel before being relied upon. Where counsel disagrees
+> with anything here, counsel wins.
+
 # Sprint notes — Reels repair · Photo filters · Privacy lockdown
 
 Mission run started 2026-07-29. Loop: INVESTIGATE → PLAN → IMPLEMENT → VERIFY → SELF-REVIEW → COMMIT per phase.
@@ -268,3 +275,181 @@ tsc clean · build ×3 clean · 30/30 tests · call stack + FCM untouched ·
 no new dependencies (0 of the 4-dep budget used) · `service_role` grep of
 build output: pending in CI note below — grep of `src/` shows the string
 only in edge functions (server-side), never in client code.
+
+---
+
+# Mission v3 (2026-07-29) — status log
+
+Branch `claude/app-build-4rwenh` on top of PR #37. One commit per phase,
+`feat(phaseN):` format. Counsel disclaimer for this section: see the top of
+this file (moved there per the v3 mission requirement).
+
+## Retained phases R1–R12 — carried, no regressions
+All twelve retained phases were delivered in missions v1/v2 (see the two
+sections above). This run re-verified: tsc clean, build clean, 30/30 tests,
+call stack + FCM untouched (diff vs origin/main shows no edits under the
+protected files), `service_role` appears only in edge functions and the two
+new server-side scripts — never in `src/` client code or the built bundle.
+R4 is superseded by B1 below; R6 by B2; R7 by B3; R8 by B4; R9 by B5 (open).
+
+## B1 media resolver — FOUNDATION DONE, migration = blocker
+DONE: `supabase/functions/sign-media` (caller-JWT-scoped client — storage
+RLS decides access, NO service-role use in this function; TTL hard-capped
+300s, bucket allow-list, path traversal rejected) +
+`src/lib/media/resolveMedia.ts` (legacy full URLs pass through; bare paths
+signed via sign-media; in-memory cache, re-sign ~30s before expiry; never
+persisted) + ESLint `no-restricted-syntax` fence blocking direct
+`createSignedUrl`/`createSignedUrls`/`getPublicUrl` in `src/`.
+BLOCKER (logged, top security follow-up): 7 legacy files still sign
+directly (listed + exempted in eslint.config.js) and existing rows store
+multi-year signed URLs. Full closure = refactor those call sites to store
+bare paths + data-migrate stored URLs → paths + verify a captured URL 403s
+after expiry. Takedown "path rotation" also lands with that refactor.
+
+## B2 deletion-proof harness — TOOL DONE, live green-run founder-gated
+`scripts/deletion-proof.ts`: creates delete-proof+<ts>@oniqhub.com, seeds
+user tables + one object in each of 4 buckets, runs the production order
+(storage purge BEFORE auth.admin.deleteUser), asserts zero rows across 15
+user tables + zero objects across 4 buckets + auth user gone, writes
+`docs/deletion-proofs/<ts>.json` with report SHA-256, exits non-zero on any
+residue. NOT RUN LIVE from this environment — by hard constraint the AI
+holds no production write credentials (service-role key). Founder runbook:
+`SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… npx tsx scripts/deletion-proof.ts`
+twice; commit the two reports.
+
+## B3 sharpen + free-drag crop — DONE
+PhotoStudio: sharpen 0–100 (unsharp mask at export: base + 0.8·k·(base −
+box-blur), radius scales with image size; CSS preview untouched for 60fps)
+and free-drag crop pan (drag repositions the crop window in locked and
+aspect-free modes; export offsets are rotation-aware). Output still goes
+through the WebP re-encode (EXIF/GPS stripped by construction), 512px cap
+for avatars, full-res elsewhere.
+
+## B4 provenance + takedown admin UI — DONE (2 sub-items deferred)
+`media_provenance` table (uploader, content type/id, SHA-256 of original
+bytes, origin, declared_synthetic; insert-own + own-or-admin read; NO
+update/delete policies = tamper-evident at the policy layer) +
+`src/lib/provenance.ts` (crypto.subtle SHA-256) wired into clips upload and
+moments photos. Takedown admin UI in `app.admin.tsx`: order logging
+(source/authority/order_ref), SLA countdown with breach state, execute =
+`admin_takedown_content` RPC (soft-delete moment/clip) + audit row via
+`log_moderation_action` — ids only, no content preview anywhere.
+DEFERRED: (a) server-side signing of provenance records (needs an edge
+function + key custody decision); (b) C2PA marker detection (no library
+within the zero-dep budget; self-declaration + label shipped in v2);
+(c) storage object deletion + path rotation on takedown (lands with B1
+closure — soft-delete + short-TTL expiry is the interim).
+
+## B5 DigiLocker consent / erasure jobs / 22-language notices — NOT BUILT (blocker)
+Requires: DigiLocker partner onboarding (government approval process, org
+credentials — cannot be created by engineering), pg_cron (or external
+scheduler) enabled on production for retention/erasure jobs, and
+professionally translated legal notices in 22 scheduled languages (machine
+translation of consent notices is a legal-risk decision for counsel, not
+engineering). DPDP Rules core obligations phase in ~May 2027 — runway
+exists. Logged as the top compliance follow-up. Groundwork already live:
+DOB/is_minor capture, parent contact fields, granular consent checkboxes,
+non-profiled minor feeds, delete-account flow, and L2 holds that erasure
+jobs must respect (`has_active_legal_hold`).
+
+## B6 → native track (see N1/N2 below).
+
+## L1 lawful-request intake — DONE
+`legal_requests` table: issuer/order_ref/target/records_sought/window
+capture, state machine received→validated→flagged_overbroad→approved→
+fulfilled→closed/rejected, admin-only RLS, `distinct_approvers` CHECK +
+`legal_request_guard` trigger (no approval without two distinct approvers;
+no fulfilment unless approved; flagged_overbroad can never be approved or
+fulfilled). Intake checklist + overbroad flags + conservative
+user-notification rule in `docs/legal-ops.md`. Audit: every disclosure goes
+through the L3 tool which marks the row fulfilled; moderation actions write
+to the append-only `audit.moderation_log` (v2).
+
+## L2 legal holds — DONE
+`legal_holds`: scoped, time-bounded (`expires_at` NOT NULL), mandatory
+`override_reason` (DPDP s.17 basis recorded), admin-only RLS, zero new read
+paths (retention layer only). `has_active_legal_hold()` SECURITY DEFINER;
+`delete-account` now returns 409 with a user-facing preservation notice
+while a hold is active (fail-open if the check itself errors, protecting
+the erasure right). Future B5 erasure jobs must call the same function.
+
+## L3 BSA s.63 evidence export — DONE
+`scripts/evidence-export.ts <legal_request_id>`: refuses unless status =
+approved AND two distinct approvers (defence in depth with the DB trigger).
+Emits records.json (scope-limited, empty scaffold by default — no fishing),
+hash-report.txt (SHA-256, BSA-Schedule algorithm), certificate-63.md
+(Part A populated for ONIQ; Part B expert scaffold, 2026 Pune Bar Assn
+clarification noted as counsel-reviewed), custody-note.md (re-hash on every
+transfer). Signatures left to humans. Exports must be moved off-repo to
+sealed storage — never committed.
+
+## L4 self-harm care-first — DONE
+On-device regex detection (en/hi/bn) in `src/lib/selfHarm.ts`; nothing sent
+to any server or external AI; fires AFTER the post publishes normally (no
+blocking, no flagging, no auto-deletion — preservation is the default since
+nothing is removed). `CrisisSupportSheet`: Tele-MANAS 14416 /
+1-800-891-4416 primary, KIRAN 1800-599-0019 (consolidation noted),
+tap-to-call, explicit "this is not a moderation action" copy, easy dismiss.
+Escalation remains human-gated (none is automated).
+
+## L5 NCII / voyeurism / impersonation — DONE (flow), timers configurable
+ReportSheet now carries NCII, voyeurism/hidden-camera, child-safety and
+(already present) impersonation categories; in-app copy commits to the
+IT Rules 3(2)(b) 24h NCII takedown and 24h ack / 15-day disposal.
+`takedown_orders` SLA timers (v2 trigger): 2h for `ncii_csam` source, 3h
+otherwise — the stricter 2026-amendment windows, applied as self-imposed
+config since the 2h tier is contested. Takedown execution + audit row via
+the B4 admin panel. Operational steps in `docs/legal-ops.md` §L5.
+Interim limitation: report → takedown is admin-manual (single-founder
+moderation), and object deletion/path rotation lands with B1 closure.
+
+## L6 CSAM escalation — RUNBOOK DONE, automation deferred
+`docs/legal-ops.md` §L6: mandatory-reporting duty (POCSO ss.19–21, 2024
+INSC 716 — NCMEC alone insufficient, Indian authorities required), same-day
+report to SJPU/local police + National Cyber Crime Reporting Portal,
+immediate removal via takedown, evidence preserved under an L2 hold (never
+purge the object), no tip-off, audit logging. DEFERRED: automated
+"report-not-filed" alerting (needs a scheduler; pairs with B5 jobs).
+
+## N1/N2 Play Integrity + freeRASP — DEFERRED (independent native sprint, by design)
+The v3 mission itself scopes these out of the web loop: they need the
+Android release keystore SHA-256, Google Cloud project linking in Play
+Console, a native build, and the only two authorised dependencies
+(`@capacitor-community/play-integrity`, `freerasp-react-native`, pinned).
+None of that is reachable from this web workflow. Design constraints for
+that sprint were recorded in v2 §P11 (signals-not-proof, server-side
+verdicts, never gate the call stack, opt-in Lockdown Mode around the
+protected stack).
+
+## Verification (this run)
+- tsc clean; build ×3 "✓ built"; 30/30 tests green.
+- `service_role` grep: absent from `src/` and from `dist/` client bundle
+  (present only in supabase/functions/* and scripts/* — server-side only).
+- Protected stack: `git diff origin/main` touches no CallOverlay/signaling/
+  TURN/get-turn-credentials/FCM files.
+- New runtime dependencies: 0.
+- New migrations awaiting production apply (Lovable flow, human-approved):
+  `20260729210000_media_provenance.sql`, `20260729211000_takedown_actions.sql`,
+  `20260729212000_legal_requests_holds.sql`. Edge functions to deploy:
+  `sign-media` (new), `delete-account` (updated with hold guard).
+
+## Final acceptance checklist
+- [x] tsc clean; build passing; tests green (30/30)
+- [x] service_role absent from client bundle (grep run this window)
+- [x] Protected call stack + FCM untouched (diff proof)
+- [x] Zero unauthorised new dependencies
+- [x] R1–R12 exit gates (v1/v2 deliveries re-verified; R4/R6/R7/R8 rolled into B-phases)
+- [~] B1 foundation shipped + lint fence active; legacy call-site/data migration = logged blocker
+- [~] B2 harness complete + exits non-zero on residue; live dated report is founder-run (AI holds no prod credentials)
+- [x] B3 sharpen + free-drag crop on touch
+- [~] B4 SGI label + provenance SHA-256 + content-free takedown UI (server-signed provenance + path rotation deferred)
+- [ ] B5 DigiLocker consent / erasure jobs / 22-language notices — blocked on external prerequisites (logged)
+- [x] L1 dual-control export; overbroad blocked; audit trail
+- [x] L2 hold suspends erasure, no read access, time-bounded, reason recorded
+- [x] L3 s.63 export: hash report + Part A/B scaffold + custody note
+- [x] L4 crisis surface with correct Tele-MANAS/KIRAN numbers; zero auto-deletion
+- [~] L5 categories + 24h/3h/2h SLA timers + audit row (execution admin-manual; rotation with B1)
+- [~] L6 escalation path + preservation + Indian-authority reporting (runbook; report-not-filed alert deferred)
+- [ ] N1/N2 — separate native sprint (mission-sanctioned deferral)
+
+Legend: [x] pass · [~] delivered with a logged, bounded deferral · [ ] blocked, logged above.
