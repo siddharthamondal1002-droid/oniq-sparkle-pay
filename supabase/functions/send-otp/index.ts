@@ -72,8 +72,10 @@ Deno.serve(async (req) => {
   // otp_attempts and just send it as the SMS body, so verify-otp is unchanged.
   const key = Deno.env.get("MSG91_AUTH_KEY");
   if (!key) {
-    return new Response(JSON.stringify({ success: true, dev_mode: true, otp }), {
-      headers: { ...CORS, "Content-Type": "application/json" },
+    // Fail closed: never return the OTP to the caller.
+    console.error("MSG91_AUTH_KEY missing — refusing to issue OTP");
+    return new Response(JSON.stringify({ error: "otp service not configured" }), {
+      status: 500, headers: { ...CORS, "Content-Type": "application/json" },
     });
   }
 
