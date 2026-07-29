@@ -13,6 +13,9 @@ const REASONS: { value: string; label: string }[] = [
   { value: "spam", label: "Spam or scam" },
   { value: "harassment", label: "Harassment or bullying" },
   { value: "impersonation", label: "Impersonation / identity theft" },
+  { value: "ncii", label: "My/someone's intimate image shared without consent" },
+  { value: "voyeurism", label: "Hidden camera / voyeurism / private act" },
+  { value: "child_safety", label: "Child sexual abuse or endangerment" },
   { value: "sexual_content", label: "Sexual or exploitative content" },
   { value: "violence", label: "Violence or threats" },
   { value: "ai_deepfake", label: "AI-generated / deepfake misuse" },
@@ -108,7 +111,7 @@ export function ReportSheet({
           {submitting ? "Submitting…" : "Submit report"}
         </button>
         <p className="mt-3 text-center text-xs text-muted-foreground">
-          Reports are reviewed by our Grievance Officer. Acknowledged within 7 days; serious complaints (identity theft, non-consensual imagery) resolved within 36 hours.
+          Reports are reviewed by our Grievance Officer. Acknowledged within 7 days; serious complaints (identity theft, non-consensual imagery) resolved within 36 hours. Non-consensual intimate imagery is prioritised for removal within 24 hours of a valid complaint.
         </p>
       </div>
     </div>
