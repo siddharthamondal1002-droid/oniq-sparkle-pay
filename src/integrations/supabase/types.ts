@@ -750,6 +750,45 @@ export type Database = {
           },
         ]
       }
+      deletion_proofs: {
+        Row: {
+          buckets_checked: number
+          created_at: string
+          id: string
+          pass: boolean
+          report_sha256: string
+          residues: Json
+          run_by: string
+          tables_checked: number
+          test_email: string
+          test_uid: string
+        }
+        Insert: {
+          buckets_checked: number
+          created_at?: string
+          id?: string
+          pass: boolean
+          report_sha256: string
+          residues?: Json
+          run_by: string
+          tables_checked: number
+          test_email: string
+          test_uid: string
+        }
+        Update: {
+          buckets_checked?: number
+          created_at?: string
+          id?: string
+          pass?: boolean
+          report_sha256?: string
+          residues?: Json
+          run_by?: string
+          tables_checked?: number
+          test_email?: string
+          test_uid?: string
+        }
+        Relationships: []
+      }
       device_tokens: {
         Row: {
           platform: string
