@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { PhotoStudio } from "@/components/photo/PhotoStudio";
+import { detectSelfHarmSignal } from "@/lib/selfHarm";
+import { sha256Hex, recordProvenance } from "@/lib/provenance";
+import { CrisisSupportSheet } from "@/components/safety/CrisisSupportSheet";
 import { formatDistanceToNow } from "date-fns";
 
 type Post = {
@@ -100,12 +103,16 @@ export function MomentsFeed() {
   const [studioFile, setStudioFile] = useState<File | null>(null);
   // IT Rules 2026: mandatory synthetic-content declaration at upload.
   const [isSynthetic, setIsSynthetic] = useState(false);
+  // L4 care-first: on-device signal only; never blocks or reports.
+  const [showCrisis, setShowCrisis] = useState(false);
 
   async function uploadPicked(file: File) {
     setUploading(true);
     try {
       const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
       setImageUrl(await uploadMomentBlob(file, ext, file.type));
+      // B4 provenance: hash of uploaded bytes (content_id linked on post).
+      void sha256Hex(file).then((hash) => recordProvenance({ contentType: "moment", hash }));
     } catch (err: any) {
       toast.error(err.message ?? "Upload failed");
     } finally {
@@ -211,6 +218,7 @@ export function MomentsFeed() {
     if (error) toast.error(error.message);
     else {
       toast.success("Posted to Moments");
+      if (detectSelfHarmSignal(content)) setShowCrisis(true);
       setContent("");
       setImageUrl("");
       setIsSynthetic(false);
@@ -509,6 +517,7 @@ export function MomentsFeed() {
         />
       )}
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
+      {showCrisis && <CrisisSupportSheet onClose={() => setShowCrisis(false)} />}
       {studioFile && (
         <PhotoStudio
           file={studioFile}

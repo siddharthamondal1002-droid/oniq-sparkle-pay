@@ -27,7 +27,7 @@ type ReporterMap = Record<string, { username: string | null; display_name: strin
 
 function AdminInbox() {
   const qc = useQueryClient();
-  const [section, setSection] = useState<"reports" | "kyc">("reports");
+  const [section, setSection] = useState<"reports" | "kyc" | "takedowns">("reports");
   const [statusFilter, setStatusFilter] = useState<"open" | "resolved" | "dismissed" | "all">("open");
   const [me, setMe] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
@@ -115,6 +115,7 @@ function AdminInbox() {
           [
             ["reports", "reports 🚩"],
             ["kyc", "partner KYC 🪪"],
+            ["takedowns", "takedowns ⚖️"],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -128,6 +129,8 @@ function AdminInbox() {
       </div>
 
       {section === "kyc" && <PartnerKycPanel />}
+
+      {section === "takedowns" && <TakedownPanel />}
 
       {section === "reports" && (
       <>
@@ -367,6 +370,132 @@ function PartnerKycPanel() {
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+
+/* ---------------- Takedown queue (B4 / IT Rules 2026) ----------------
+   Ids and references only — never content previews. SLA clock is set by a
+   DB trigger (2h NCII/CSAM, 3h court/govt). Actions write the audit log. */
+function TakedownPanel() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ source: "government", authority: "", order_ref: "", content_type: "moment", content_id: "", reason: "" });
+  const [busy, setBusy] = useState(false);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: orders = [], refetch } = useQuery({
+    queryKey: ["admin-takedowns"],
+    queryFn: async () => {
+      const { data, error } = await sb
+        .from("takedown_orders")
+        .select("*")
+        .order("received_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  async function addOrder() {
+    if (!form.content_id.trim()) { toast.error("content id required"); return; }
+    setBusy(true);
+    const { error } = await sb.from("takedown_orders").insert({
+      source: form.source,
+      authority: form.authority.trim() || null,
+      order_ref: form.order_ref.trim() || null,
+      content_type: form.content_type,
+      content_id: form.content_id.trim(),
+      reason: form.reason.trim() || null,
+    });
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("order logged — SLA clock started ⏱️");
+    setForm({ ...form, order_ref: "", content_id: "", reason: "" });
+    qc.invalidateQueries({ queryKey: ["admin-takedowns"] });
+    void refetch();
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function executeTakedown(o: any) {
+    if (!window.confirm(`Remove ${o.content_type} ${o.content_id}?`)) return;
+    setBusy(true);
+    try {
+      if (o.content_type === "moment" || o.content_type === "clip") {
+        const { error } = await sb.rpc("admin_takedown_content", {
+          _content_type: o.content_type, _content_id: o.content_id, _reason: o.order_ref ?? o.source,
+        });
+        if (error) throw error;
+      }
+      const { data: u } = await supabase.auth.getUser();
+      const { error: upErr } = await sb.from("takedown_orders")
+        .update({ status: "removed", removed_at: new Date().toISOString(), handled_by: u.user?.id ?? null })
+        .eq("id", o.id);
+      if (upErr) throw upErr;
+      await sb.rpc("log_moderation_action", {
+        _action: "takedown_order_fulfilled", _target_type: o.content_type, _target_id: String(o.content_id), _reason: o.order_ref ?? o.source,
+      });
+      toast.success("taken down + audited ✅");
+      qc.invalidateQueries({ queryKey: ["admin-takedowns"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "takedown failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="text-sm font-semibold">log an incoming order</div>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          Rule 3(1)(d): record the issuing authority (Joint Secretary+ / DIG+). SLA: 3h court/govt · 2h NCII/CSAM.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+          <select value={form.source} onChange={(e) => setForm({ ...form, source: e.target.value })} className="input-base">
+            {["court", "government", "grievance", "ncii_csam", "internal"].map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+          <select value={form.content_type} onChange={(e) => setForm({ ...form, content_type: e.target.value })} className="input-base">
+            {["moment", "clip", "message", "profile", "other"].map((v) => <option key={v} value={v}>{v}</option>)}
+          </select>
+          <input value={form.authority} onChange={(e) => setForm({ ...form, authority: e.target.value })} placeholder="issuing authority" className="input-base col-span-2" />
+          <input value={form.order_ref} onChange={(e) => setForm({ ...form, order_ref: e.target.value })} placeholder="order reference no." className="input-base col-span-2" />
+          <input value={form.content_id} onChange={(e) => setForm({ ...form, content_id: e.target.value })} placeholder="content id (uuid)" className="input-base col-span-2" />
+          <input value={form.reason} onChange={(e) => setForm({ ...form, reason: e.target.value })} placeholder="reason / provision cited" className="input-base col-span-2" />
+        </div>
+        <button onClick={addOrder} disabled={busy} className="press mt-3 w-full rounded-xl bg-primary py-2.5 text-xs font-semibold text-primary-foreground disabled:opacity-50">
+          log order ⏱️
+        </button>
+      </div>
+
+      <div className="space-y-2">
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        {orders.map((o: any) => {
+          const overdue = o.status === "received" && o.sla_deadline && new Date(o.sla_deadline) < new Date();
+          return (
+            <div key={o.id} className={`rounded-2xl border p-3 text-xs ${overdue ? "border-red-500/50 bg-red-500/5" : "border-border bg-card"}`}>
+              <div className="flex items-center justify-between">
+                <span className="font-semibold uppercase tracking-wider">{o.source} · {o.content_type}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${o.status === "removed" ? "bg-green-500/15 text-green-400" : overdue ? "bg-red-500/20 text-red-300" : "bg-amber-400/15 text-amber-300"}`}>
+                  {o.status}{overdue ? " · SLA BREACHED" : ""}
+                </span>
+              </div>
+              <div className="mt-1 font-mono text-[10px] text-muted-foreground">id {o.content_id}</div>
+              {o.authority && <div className="mt-0.5 text-muted-foreground">authority: {o.authority} {o.order_ref ? `· ref ${o.order_ref}` : ""}</div>}
+              <div className="mt-0.5 text-muted-foreground">
+                received {new Date(o.received_at).toLocaleString()} · SLA {o.sla_deadline ? new Date(o.sla_deadline).toLocaleString() : "—"}
+              </div>
+              {o.status === "received" && (
+                <button onClick={() => executeTakedown(o)} disabled={busy} className="press mt-2 w-full rounded-xl border border-red-500/50 py-2 text-[11px] font-semibold text-red-400 disabled:opacity-50">
+                  execute takedown (soft-delete + audit) 🗑️
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {orders.length === 0 && <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">no takedown orders logged</div>}
+      </div>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { captureFrameFromFile, uploadClipThumb } from "@/lib/clipThumbs";
+import { sha256Hex, recordProvenance } from "@/lib/provenance";
 
 export const Route = createFileRoute("/_authenticated/app/clips")({
   component: ClipsScreen,
@@ -586,7 +587,7 @@ function UploadSheet({
       const cleaned = caption.replace(HASHTAG_STRIP_RE, "").trim().slice(0, 300);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { error: insErr } = await (supabase as any).from("clips").insert({
+      const { data: insRow, error: insErr } = await (supabase as any).from("clips").insert({
         user_id: me,
         video_url: signed.signedUrl,
         thumbnail_url: thumbUrl,
@@ -594,9 +595,14 @@ function UploadSheet({
         hashtags: tags,
         visibility,
         is_synthetic: isSynthetic,
-      });
+      }).select("id").single();
 
       if (insErr) throw insErr;
+
+      // B4 provenance: SHA-256 of the uploaded bytes, append-only record.
+      void sha256Hex(file).then((hash) =>
+        recordProvenance({ contentType: "clip", contentId: insRow?.id ?? null, hash, declaredSynthetic: isSynthetic }),
+      );
 
       toast.success("Clip posted 🎬 it's giving content creator");
       onDone();

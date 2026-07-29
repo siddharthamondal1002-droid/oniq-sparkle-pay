@@ -39,6 +39,18 @@ Deno.serve(async (req) => {
   }
   const uid = userRes.user.id;
 
+  // L2 legal hold: a preservation obligation overrides erasure (DPDP s.17)
+  // for the held scope. Deletion is refused while a hold is active.
+  try {
+    const { data: held } = await admin.rpc("has_active_legal_hold", { _user_id: uid });
+    if (held === true) {
+      return new Response(
+        JSON.stringify({ error: "Account deletion is temporarily unavailable due to a legal preservation requirement. Contact grievance@oniqhub.com." }),
+        { status: 409, headers: { ...corsHeaders, "content-type": "application/json" } },
+      );
+    }
+  } catch { /* if the check itself fails, proceed with deletion (fail-open for the user's erasure right) */ }
+
   // Purge the user's storage objects (media, thumbnails, documents).
   // DB rows cascade off auth.users; storage objects do not — do it here.
   const purgeFolder = async (bucket: string, prefix: string, depth = 0): Promise<void> => {
