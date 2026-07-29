@@ -27,6 +27,10 @@ Deno.serve(async (req) => {
   if (req.method !== "GET") return json({ error: "method not allowed" }, 405);
 
   const url = new URL(req.url);
+  if (!URL_KEY) {
+    console.error("check-user-exists: CHECK_USER_KEY is not configured");
+    return json({ error: "unauthorized" }, 401);
+  }
   if (url.searchParams.get("key") !== URL_KEY) {
     return json({ error: "unauthorized" }, 401);
   }
