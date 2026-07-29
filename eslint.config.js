@@ -36,5 +36,39 @@ export default tseslint.config(
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
+  // B1 media-URL fence: all NEW code must resolve media via
+  // src/lib/media/resolveMedia.ts (short-lived signed URLs). The listed
+  // legacy files still sign directly (some with multi-year TTLs stored in
+  // rows) — migrating them + their stored URLs is tracked B1 debt.
+  {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/lib/media/resolveMedia.ts",
+      "src/routes/_authenticated/app.clips.tsx",
+      "src/components/customize/CustomizeSheet.tsx",
+      "src/routes/_authenticated/app.admin.tsx",
+      "src/routes/_authenticated/app.chat.updates.tsx",
+      "src/components/moments/MomentsFeed.tsx",
+      "src/lib/clipThumbs.ts",
+      "src/routes/_authenticated/app.chat.$conversationId.tsx",
+    ],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.property.name='createSignedUrl']",
+          message: "Sign media through src/lib/media/resolveMedia.ts (TTL-capped, cached), not directly.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='createSignedUrls']",
+          message: "Sign media through src/lib/media/resolveMedia.ts (TTL-capped, cached), not directly.",
+        },
+        {
+          selector: "CallExpression[callee.property.name='getPublicUrl']",
+          message: "No public media URLs — resolve via src/lib/media/resolveMedia.ts.",
+        },
+      ],
+    },
+  },
   eslintPluginPrettier,
 );
