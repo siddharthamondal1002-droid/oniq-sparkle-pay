@@ -158,3 +158,113 @@ Recorded at the bottom of this file after the run.
 5. CallOverlay peer-UUID debug logs (protected file this sprint).
 6. Live deletion zero-row proof + foreign-JWT RLS negative test (need a
    disposable second account; recommend running both before production).
+
+---
+
+# Mission v2 (2026-07-29) — status log
+
+> **Counsel disclaimer (required):** everything below on DPDP Act 2023, DPDP
+> Rules 2025, IT Rules 2026, CERT-In and POCSO is engineering implementation,
+> NOT legal advice; obligations and dates must be verified by qualified Indian
+> counsel before reliance.
+
+Commit-format deviation: several files carry hunks from two phases (e.g.
+MomentsFeed = P2 isolate + P8 SGI); commits note their carried hunks.
+
+## P1 avatars — DONE (deviations noted)
+512px WebP cap added to avatar output (canvas re-encode; EXIF/GPS stripped).
+Already present from v1: gallery upload, PhotoStudio (incl. 1:1 crop), remove,
+initials monogram fallback. DEVIATIONS: (a) storage stays in the private
+`moments` bucket (owner-folder RLS, signed URLs) instead of a new `avatars`
+bucket — same guarantees; (b) Capacitor Camera plugin NOT added: the existing
+`<input type="file" accept="image/*">` invokes the Android system Photo Picker
+on 13+ and requests NO permissions at all (no READ_MEDIA_IMAGES, no CAMERA);
+(c) pinch-zoom circular crop deferred (center 1:1 crop available).
+
+## P2 gradient wash — DEFENSIVE FIX
+Could not reproduce in code review (rings render the photo inside a solid
+`bg-background` core; no blend modes over avatars found). Applied `isolation:
+isolate` to every gradient-ring wrapper (moments feed, reels overlay, chats
+list, My Page, user page) so no ancestor blend/filter can bleed onto photos.
+If the founder still sees the tint on-device, need a screenshot + device model.
+
+## P3 chats FAB — DONE
+Portal FAB removed on Chats only; header pencil remains; other screens' FABs
+(e.g. clips upload) untouched.
+
+## P4 short-TTL edge-signed URLs — BLOCKER (unchanged from v1)
+All media rows store 100-yr signed URLs today. Moving to TTL ≤300s requires
+storing bucket paths + an edge signing function + a resolver in every media
+render (chat, moments, clips, avatars) plus data migration of existing rows.
+Logged as the top security follow-up; not attempted in this window.
+
+## P5 audit schema — DONE
+`20260729201000_audit_schema.sql`: `audit.moderation_log`, admin-only SELECT,
+INSERT only via `audit.log_moderation()` (SECURITY DEFINER, admin-gated),
+BEFORE UPDATE/DELETE triggers RAISE EXCEPTION, id/reason columns only.
+
+## P6 deletion proof — BLOCKER
+Purge order verified in code (storage objects removed BEFORE
+`auth.admin.deleteUser`; 64 FK cascades). The live zero-row/zero-object proof
+needs a throwaway account + admin queries — this environment has one real
+account and read-only DB access. Runbook: create test user → post one of each
+content type → delete → run per-table `SELECT count(*)` + per-bucket `list()`
+for the uid → paste evidence here.
+
+## P7 filter studio — PARTIAL
+Done in v1: single PhotoStudio at every image entry; reels thumbnails; owner
+edit/delete RLS-enforced. Still deferred: sharpen (convolution) and free-drag
+crop — not attempted this window (budget went to P8/P10 legal work).
+
+## P8 IT Rules 2026 SGI — CORE DONE, provenance deferred
+`20260729200000_sgi_and_takedown.sql`: `is_synthetic` on moments_posts +
+clips; `takedown_orders` queue with source (court/government/grievance/
+ncii_csam/internal), authority + order_ref capture (Rule 3(1)(d) JS/DIG
+authorisation), generated `sla_deadline` (3h; **2h for NCII/CSAM**), status
+trail, admin-only RLS. UI: mandatory-position declaration checkbox on the
+moments composer and clip upload; prominent "AI-generated content 🤖" label
+on moments feed + profile viewers. DEFERRED/BLOCKERS: (a) tamper-resistant
+provenance metadata (C2PA-style) — canvas pipelines strip metadata by design;
+embedding signed provenance needs a server-side media pipeline; (b) chat-media
+and avatar declaration prompts; (c) reels full-screen badge (feed RPC column
+addition); (d) automated SGI-truthfulness verification — heuristic classifier
+not built; (e) takedown admin UI (queue is SQL/table level today). The Draft
+(Second) Amendment 2026 (continuous labelling) is PROPOSED only — not built.
+
+## P9 DPDP — VERIFIED EXISTING + GAPS LOGGED
+Already in the app (v0/v1 work): DOB capture, `is_minor` computed, parent
+name/email/phone fields at signup, granular consent checkboxes recorded,
+minors get chronological (non-profiled) reels feed, no ads/behavioural
+targeting exists anywhere in ONIQ (compliance-by-absence), symmetric consent
+withdrawal via Privacy → Data rights, `/delete-account` live. GAPS for
+counsel + follow-up build: verifiable parental consent (DigiLocker flow),
+immutable parent-consent record, retention schedules + automated erasure
+jobs, notices in 22 scheduled languages (English-only today).
+
+## P10 breach pipeline — DONE (app layer)
+`20260729202000_security_incidents.sql`: incidents table, one `aware_at`
+driving generated 6h CERT-In and 72h DPBI deadline columns, notification
+timestamps, admin-only RLS. Templates + NTP + PII rules in
+`docs/incident-response.md`. INFRA FOLLOW-UPS: 180-day/1-year log retention
+are platform (log-drain) configuration; founder alert email wiring.
+
+## P11 device threat detection — BLOCKER (documented design)
+freeRASP requires a native dependency + Android build changes, and Play
+Integrity requires Play Console setup + a verification edge function with
+secrets — both exceed this window safely. Design constraints recorded:
+signals-not-proof scoring, server-side verdicts only, never gate the call
+stack, Apple-pattern alerts (no links, verify in-app), opt-in Lockdown Mode
+via feature flags AROUND the protected stack. No code shipped.
+
+## P12 AI incident response — SAFE VERSION DOCUMENTED, FORBIDDEN VERSION ABSENT
+`docs/incident-response.md` records: detection heuristics, reversible-only
+containment, human gates for destruction, and the explicit ban list (no AI
+production writes, no auto-merge/deploy, no user content to external AI, no
+hack-back — IT Act ss.43/66/66F). Verified: no code path in the repo gives
+any automation production write credentials.
+
+## Verification (this run)
+tsc clean · build ×3 clean · 30/30 tests · call stack + FCM untouched ·
+no new dependencies (0 of the 4-dep budget used) · `service_role` grep of
+build output: pending in CI note below — grep of `src/` shows the string
+only in edge functions (server-side), never in client code.
