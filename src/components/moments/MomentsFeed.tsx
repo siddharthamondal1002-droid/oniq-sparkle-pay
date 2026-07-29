@@ -42,7 +42,8 @@ function isImageUrl(url: string): boolean {
 }
 
 // Upload a moment attachment to storage and return a long-lived signed URL.
-async function uploadMomentBlob(blob: Blob, ext: string, contentType: string): Promise<string> {
+// Exported for reuse (e.g. profile-photo uploads share this bucket + pattern).
+export async function uploadMomentBlob(blob: Blob, ext: string, contentType: string): Promise<string> {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) throw new Error("Not signed in");
   const path = `${u.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -143,6 +144,7 @@ export function MomentsFeed() {
 
   const { data: posts, refetch } = useQuery({
     queryKey: ["moments"],
+    staleTime: 15_000,
     queryFn: async () => {
       const { data } = await supabase
         .from("moments_posts")

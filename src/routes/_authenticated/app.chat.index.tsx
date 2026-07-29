@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -119,6 +119,9 @@ function ChatList() {
     queryKey: ["conversations", me?.id, blockedIds.join(",")],
     enabled: !!me,
     staleTime: 30_000,
+    // The key changes as auth/blocked-list resolve — keep showing the last
+    // list instead of flashing "Loading…" on every landing.
+    placeholderData: keepPreviousData,
     queryFn: async (): Promise<EnrichedConv[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc("get_chat_list");
@@ -328,7 +331,17 @@ function ChatList() {
 
       <div className="mt-3">
         {isLoading ? (
-          <div className="p-4 text-sm text-muted-foreground">Loading…</div>
+          <ul aria-hidden className="animate-pulse">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <li key={i} className="flex items-center gap-3 px-1 py-3">
+                <div className="h-12 w-12 shrink-0 rounded-full bg-muted" />
+                <div className="min-w-0 flex-1">
+                  <div className="h-3.5 w-2/5 rounded bg-muted" />
+                  <div className="mt-2 h-3 w-4/5 rounded bg-muted/70" />
+                </div>
+              </li>
+            ))}
+          </ul>
         ) : filtered.length > 0 ? (
           <ul className="divide-y divide-border/50">
             {filtered.map((c) => {

@@ -2,8 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Play, Eye, Pencil, X, Check, Film, Sparkles } from "lucide-react";
+import { Heart, MessageCircle, Play, Eye, Pencil, X, Check, Film, Sparkles, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
 
 export const Route = createFileRoute("/_authenticated/app/chat/me")({
   component: MyPageTab,
@@ -52,6 +53,7 @@ function MyPageTab() {
   const [savingBio, setSavingBio] = useState(false);
   const [viewMoment, setViewMoment] = useState<MyMoment | null>(null);
   const [viewClip, setViewClip] = useState<MyClip | null>(null);
+  const [editAvatar, setEditAvatar] = useState(false);
 
   const { data: me } = useQuery({
     queryKey: ["my-page-profile"],
@@ -131,18 +133,26 @@ function MyPageTab() {
       {/* IG-style header */}
       <div className="px-5">
         <div className="-mt-12 flex items-end justify-between">
-          {/* story-ring avatar */}
-          <div className="rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[3px]">
-            <div className="rounded-full bg-background p-[3px]">
+          {/* story-ring avatar — tap to change/remove the photo */}
+          <button
+            type="button"
+            onClick={() => setEditAvatar(true)}
+            aria-label="Edit profile photo"
+            className="relative rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[3px]"
+          >
+            <span className="block rounded-full bg-background p-[3px]">
               {me?.avatar_url ? (
                 <img src={me.avatar_url} alt="" className="h-20 w-20 rounded-full object-cover" />
               ) : (
-                <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display text-2xl font-bold text-primary-foreground">
+                <span className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display text-2xl font-bold text-primary-foreground">
                   {initial}
-                </div>
+                </span>
               )}
-            </div>
-          </div>
+            </span>
+            <span className="absolute bottom-0 right-0 grid h-7 w-7 place-items-center rounded-full border-2 border-background bg-primary text-primary-foreground">
+              <Camera className="h-3.5 w-3.5" />
+            </span>
+          </button>
           {/* IG-style stats */}
           <div className="mb-1 flex flex-1 items-center justify-evenly pl-2 text-center">
             <div>
@@ -291,6 +301,19 @@ function MyPageTab() {
           </div>
         )}
       </div>
+
+      {editAvatar && (
+        <AvatarEditorSheet
+          currentUrl={me?.avatar_url ?? null}
+          onClose={() => setEditAvatar(false)}
+          onChanged={() => {
+            setEditAvatar(false);
+            qc.invalidateQueries({ queryKey: ["my-page-profile"] });
+            qc.invalidateQueries({ queryKey: ["moments"] });
+            qc.invalidateQueries({ queryKey: ["conversations"] });
+          }}
+        />
+      )}
 
       {/* viewers */}
       {viewMoment && (
