@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS public.takedown_orders (
   content_id text NOT NULL,
   reason text,
   -- 3h for court/govt orders; 2h for NCII/CSAM per the 2026 amendment.
-  sla_deadline timestamptz GENERATED ALWAYS AS (
-    received_at + CASE WHEN source = 'ncii_csam' THEN interval '2 hours' ELSE interval '3 hours' END
-  ) STORED,
+  -- timestamptz + interval is not immutable, so a trigger (below) maintains
+  -- this instead of a GENERATED column.
+  sla_deadline timestamptz,
   status text NOT NULL DEFAULT 'received' CHECK (status IN ('received','removed','rejected')),
   removed_at timestamptz,
   handled_by uuid
@@ -34,3 +34,15 @@ CREATE POLICY takedown_admin_all ON public.takedown_orders
   WITH CHECK (public.is_admin(auth.uid()));
 GRANT SELECT, INSERT, UPDATE ON public.takedown_orders TO authenticated;
 GRANT ALL ON public.takedown_orders TO service_role;
+
+CREATE OR REPLACE FUNCTION public.takedown_set_sla() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.sla_deadline := NEW.received_at +
+    CASE WHEN NEW.source = 'ncii_csam' THEN interval '2 hours' ELSE interval '3 hours' END;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS takedown_sla ON public.takedown_orders;
+CREATE TRIGGER takedown_sla BEFORE INSERT OR UPDATE OF received_at, source
+  ON public.takedown_orders FOR EACH ROW EXECUTE FUNCTION public.takedown_set_sla();
