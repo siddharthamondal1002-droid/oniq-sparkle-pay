@@ -18,6 +18,7 @@ import {
   RotateCw,
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
+import { PhotoStudio } from "@/components/photo/PhotoStudio";
 import { formatDistanceToNow } from "date-fns";
 
 type Post = {
@@ -95,6 +96,20 @@ export function MomentsFeed() {
     return (sessionStorage.getItem("oniq_post_visibility") as "public" | "moots") ?? "public";
   });
 
+  const [studioFile, setStudioFile] = useState<File | null>(null);
+
+  async function uploadPicked(file: File) {
+    setUploading(true);
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      setImageUrl(await uploadMomentBlob(file, ext, file.type));
+    } catch (err: any) {
+      toast.error(err.message ?? "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function handlePickFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -115,15 +130,12 @@ export function MomentsFeed() {
       toast.error("Keep it under 50MB for now — longer videos coming soon 🎬");
       return;
     }
-    setUploading(true);
-    try {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      setImageUrl(await uploadMomentBlob(file, ext, file.type));
-    } catch (err: any) {
-      toast.error(err.message ?? "Upload failed");
-    } finally {
-      setUploading(false);
+    // Photos pass through PhotoStudio; video/audio upload directly.
+    if (kind === "image") {
+      setStudioFile(file);
+      return;
     }
+    await uploadPicked(file);
   }
 
   async function rotatePreview() {
@@ -479,6 +491,16 @@ export function MomentsFeed() {
         />
       )}
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
+      {studioFile && (
+        <PhotoStudio
+          file={studioFile}
+          onCancel={() => setStudioFile(null)}
+          onDone={(edited) => {
+            setStudioFile(null);
+            void uploadPicked(edited);
+          }}
+        />
+      )}
       {editTarget && (
         <EditPostSheet
           post={editTarget}
@@ -499,6 +521,20 @@ function EditPostSheet({ post, onClose, onSaved }: { post: Post; onClose: () => 
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  const [studioFile, setStudioFile] = useState<File | null>(null);
+
+  async function uploadReplacement(file: File) {
+    setBusy(true);
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
+      setMedia(await uploadMomentBlob(file, ext, file.type));
+    } catch (err: any) {
+      toast.error(err.message ?? "Upload failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function pickReplacement(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -511,15 +547,11 @@ function EditPostSheet({ post, onClose, onSaved }: { post: Post; onClose: () => 
       toast.error("Keep it under 50MB for now 🎬");
       return;
     }
-    setBusy(true);
-    try {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      setMedia(await uploadMomentBlob(file, ext, file.type));
-    } catch (err: any) {
-      toast.error(err.message ?? "Upload failed");
-    } finally {
-      setBusy(false);
+    if (file.type.startsWith("image/")) {
+      setStudioFile(file);
+      return;
     }
+    await uploadReplacement(file);
   }
 
   async function rotate() {
@@ -615,6 +647,16 @@ function EditPostSheet({ post, onClose, onSaved }: { post: Post; onClose: () => 
           {busy ? "saving…" : "save changes"}
         </button>
       </div>
+      {studioFile && (
+        <PhotoStudio
+          file={studioFile}
+          onCancel={() => setStudioFile(null)}
+          onDone={(edited) => {
+            setStudioFile(null);
+            void uploadReplacement(edited);
+          }}
+        />
+      )}
     </div>
   );
 }
