@@ -1915,7 +1915,7 @@ function ChatThread() {
           <div className="relative">
             <button
               type="button"
-              onClick={() => setShowAttachSheet((v) => !v)}
+              onClick={() => { setShowEmojiPicker(false); setShowAttachSheet((v) => !v); }}
               disabled={isBlocked || uploading}
               aria-label="Attach"
               data-testid="chat-attach"
