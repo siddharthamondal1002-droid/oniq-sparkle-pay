@@ -1224,6 +1224,39 @@ export type Database = {
         }
         Relationships: []
       }
+      media_provenance: {
+        Row: {
+          content_id: string | null
+          content_type: string
+          created_at: string
+          declared_synthetic: boolean
+          id: string
+          origin: string
+          sha256: string
+          uploader_id: string
+        }
+        Insert: {
+          content_id?: string | null
+          content_type: string
+          created_at?: string
+          declared_synthetic?: boolean
+          id?: string
+          origin?: string
+          sha256: string
+          uploader_id: string
+        }
+        Update: {
+          content_id?: string | null
+          content_type?: string
+          created_at?: string
+          declared_synthetic?: boolean
+          id?: string
+          origin?: string
+          sha256?: string
+          uploader_id?: string
+        }
+        Relationships: []
+      }
       menu_items: {
         Row: {
           category: string
