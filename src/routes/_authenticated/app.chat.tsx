@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
-import { MessageCircle, Radio, Phone, Sparkles, Film } from "lucide-react";
+import { MessageCircle, Radio, Phone, Sparkles, Film, CircleUser } from "lucide-react";
 import { CALLS_ENABLED } from "@/lib/flags";
 import { useT } from "@/lib/i18n/LanguageProvider";
 
@@ -14,6 +14,7 @@ const ALL_TABS = [
   { to: "/app/chat/moments", labelKey: "chat.tab.moments", fallback: "Moments", icon: Sparkles, exact: false },
   { to: "/app/chat/reels", labelKey: "chat.tab.reels", fallback: "Reels", icon: Film, exact: false },
   { to: "/app/chat/updates", labelKey: "chat.tab.updates", fallback: "Updates", icon: Radio, exact: false },
+  { to: "/app/chat/me", labelKey: "chat.tab.me", fallback: "My Page", icon: CircleUser, exact: false },
   { to: "/app/chat/calls", labelKey: "chat.tab.calls", fallback: "Calls", icon: Phone, exact: false },
 ] as const;
 
