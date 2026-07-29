@@ -149,6 +149,8 @@ function ChatThread() {
   const [recSeconds, setRecSeconds] = useState(0);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [showAttachSheet, setShowAttachSheet] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [recentReactions, setRecentReactions] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const anyFileInputRef = useRef<HTMLInputElement | null>(null);
