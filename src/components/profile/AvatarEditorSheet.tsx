@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Camera, Trash2, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadMomentBlob } from "@/components/moments/MomentsFeed";
+import { PhotoStudio } from "@/components/photo/PhotoStudio";
 
 /**
  * One shared bottom sheet for profile-photo management, reachable from the
@@ -21,6 +22,7 @@ export function AvatarEditorSheet({
 }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
+  const [studioFile, setStudioFile] = useState<File | null>(null);
 
   async function applyAvatar(url: string | null) {
     const { data: u } = await supabase.auth.getUser();
@@ -29,7 +31,7 @@ export function AvatarEditorSheet({
     if (error) throw error;
   }
 
-  async function pick(e: React.ChangeEvent<HTMLInputElement>) {
+  function pick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
@@ -41,6 +43,11 @@ export function AvatarEditorSheet({
       toast.error("keep it under 10MB");
       return;
     }
+    // Photos flow through PhotoStudio (crop/filters + metadata strip).
+    setStudioFile(file);
+  }
+
+  async function uploadEdited(file: File) {
     setBusy(true);
     try {
       const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
@@ -106,6 +113,16 @@ export function AvatarEditorSheet({
           </button>
         )}
       </div>
+      {studioFile && (
+        <PhotoStudio
+          file={studioFile}
+          onCancel={() => setStudioFile(null)}
+          onDone={(edited) => {
+            setStudioFile(null);
+            void uploadEdited(edited);
+          }}
+        />
+      )}
     </div>
   );
 }

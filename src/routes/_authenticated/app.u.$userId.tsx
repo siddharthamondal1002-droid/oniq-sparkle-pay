@@ -2,7 +2,8 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Heart, MessageCircle, Play, Eye, X, Film, Sparkles } from "lucide-react";
+import { ArrowLeft, Heart, MessageCircle, Eye, Play, X, Film, Sparkles } from "lucide-react";
+import { ReelTile } from "@/components/reels/ReelTile";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/app/u/$userId")({
@@ -31,6 +32,7 @@ type UserClip = {
   id: string;
   caption: string | null;
   video_url: string;
+  thumbnail_url: string | null;
   like_count: number;
   view_count: number;
   comment_count: number;
@@ -92,9 +94,10 @@ function UserPage() {
   const { data: clips = [] } = useQuery({
     queryKey: ["user-page-clips", userId, isMe],
     queryFn: async (): Promise<UserClip[]> => {
-      let q = supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q = (supabase as any)
         .from("clips")
-        .select("id, caption, video_url, like_count, view_count, comment_count, created_at")
+        .select("id, caption, video_url, thumbnail_url, like_count, view_count, comment_count, created_at")
         .eq("user_id", userId)
         .eq("is_deleted", false);
       if (!isMe) q = q.eq("visibility", "public");
@@ -262,19 +265,15 @@ function UserPage() {
         ) : clips.length === 0 ? (
           <EmptyState label="no public reels yet 🎬" />
         ) : (
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-3 gap-0.5">
             {clips.map((c) => (
-              <button
+              <ReelTile
                 key={c.id}
+                thumbnailUrl={c.thumbnail_url}
+                videoUrl={c.video_url}
+                viewCount={c.view_count}
                 onClick={() => setViewClip(c)}
-                className="relative aspect-[3/4] overflow-hidden rounded-lg bg-black"
-              >
-                <video src={c.video_url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-                <Play className="absolute inset-0 m-auto h-6 w-6 text-white/90 drop-shadow" />
-                <span className="absolute bottom-1 left-1.5 flex items-center gap-0.5 text-[10px] font-semibold text-white drop-shadow">
-                  <Eye className="h-3 w-3" /> {c.view_count}
-                </span>
-              </button>
+              />
             ))}
           </div>
         )}

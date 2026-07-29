@@ -8,6 +8,7 @@ import {
   ChevronLeft, Plus, X, Send, Loader2, UserPlus, UserCheck, Flag, Trash2,
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
+import { captureFrameFromFile, uploadClipThumb } from "@/lib/clipThumbs";
 
 export const Route = createFileRoute("/_authenticated/app/clips")({
   component: ClipsScreen,
@@ -568,15 +569,25 @@ function UploadSheet({
         .createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
       if (sErr || !signed) throw sErr ?? new Error("Failed to sign URL");
 
+      // Poster thumbnail from the local file (t≈0.1s) — best-effort; a clip
+      // without one falls back to the video/placeholder chain in the grids.
+      let thumbUrl: string | null = null;
+      try {
+        const frame = await captureFrameFromFile(file, 0.1);
+        thumbUrl = await uploadClipThumb(me, frame);
+      } catch { /* non-blocking */ }
+
       const tags = Array.from(caption.matchAll(HASHTAG_RE))
         .map((m) => m[1].toLowerCase())
         .filter((v, i, a) => a.indexOf(v) === i)
         .slice(0, 10);
       const cleaned = caption.replace(HASHTAG_STRIP_RE, "").trim().slice(0, 300);
 
-      const { error: insErr } = await supabase.from("clips").insert({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error: insErr } = await (supabase as any).from("clips").insert({
         user_id: me,
         video_url: signed.signedUrl,
+        thumbnail_url: thumbUrl,
         caption: cleaned.length ? cleaned : null,
         hashtags: tags,
         visibility,

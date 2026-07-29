@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info, BellOff, Bell, Link2, FileText, Image as ImageIcon } from "lucide-react";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
+import { PhotoStudio } from "@/components/photo/PhotoStudio";
 import { EMOJI_CATEGORIES } from "@/lib/emojis";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
@@ -895,10 +896,14 @@ function ChatThread() {
     setUploading(false);
   };
 
+  // Every picked photo goes through PhotoStudio (filters/adjust/crop +
+  // metadata-stripping re-encode) before upload — one at a time for batches.
   const handlePickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     e.target.value = "";
-    void handlePickedFiles(files, "image");
+    if (files.length === 0) return;
+    studioResults.current = [];
+    setStudioQueue(files);
   };
   const handlePickVideo = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -910,6 +915,9 @@ function ChatThread() {
     e.target.value = "";
     void handlePickedFiles(files, "file");
   };
+
+  const [studioQueue, setStudioQueue] = useState<File[]>([]);
+  const studioResults = useRef<File[]>([]);
 
 
   const startRecording = async () => {
@@ -1763,6 +1771,25 @@ function ChatThread() {
 
       {showContactSheet && peerId && (
         <ContactSheet peerId={peerId} onClose={() => setShowContactSheet(false)} />
+      )}
+      {studioQueue.length > 0 && (
+        <PhotoStudio
+          file={studioQueue[0]}
+          onCancel={() => {
+            setStudioQueue([]);
+            studioResults.current = [];
+          }}
+          onDone={(edited) => {
+            const rest = studioQueue.slice(1);
+            const acc = [...studioResults.current, edited];
+            studioResults.current = acc;
+            setStudioQueue(rest);
+            if (rest.length === 0) {
+              studioResults.current = [];
+              void handlePickedFiles(acc, "image");
+            }
+          }}
+        />
       )}
 
       {showMediaSheet && (

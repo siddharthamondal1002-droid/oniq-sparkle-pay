@@ -1,10 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Heart, MessageCircle, Play, Eye, Pencil, X, Check, Film, Sparkles, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
+import { backfillClipThumb } from "@/lib/clipThumbs";
+import { ReelTile, ReelTileSkeleton } from "@/components/reels/ReelTile";
+import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
+import { MoreHorizontal } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app/chat/me")({
   component: MyPageTab,
@@ -32,6 +36,9 @@ type MyClip = {
   id: string;
   caption: string | null;
   video_url: string;
+  thumbnail_url: string | null;
+  hashtags: string[] | null;
+  visibility: string;
   like_count: number;
   view_count: number;
   comment_count: number;
@@ -54,6 +61,7 @@ function MyPageTab() {
   const [viewMoment, setViewMoment] = useState<MyMoment | null>(null);
   const [viewClip, setViewClip] = useState<MyClip | null>(null);
   const [editAvatar, setEditAvatar] = useState(false);
+  const [ownReel, setOwnReel] = useState<MyClip | null>(null);
 
   const { data: me } = useQuery({
     queryKey: ["my-page-profile"],
@@ -84,13 +92,14 @@ function MyPageTab() {
     },
   });
 
-  const { data: clips = [] } = useQuery({
+  const { data: clips = [], isLoading: clipsLoading } = useQuery({
     queryKey: ["my-page-clips", me?.id],
     enabled: !!me?.id,
     queryFn: async (): Promise<MyClip[]> => {
-      const { data } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
         .from("clips")
-        .select("id, caption, video_url, like_count, view_count, comment_count, created_at")
+        .select("id, caption, video_url, thumbnail_url, hashtags, visibility, like_count, view_count, comment_count, created_at")
         .eq("user_id", me!.id)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
@@ -98,6 +107,23 @@ function MyPageTab() {
       return (data as MyClip[]) ?? [];
     },
   });
+
+  // Lazy thumbnail backfill for older reels: heal up to 3 per visit, owner-only.
+  const backfilling = useRef(false);
+  useEffect(() => {
+    if (!me?.id || backfilling.current) return;
+    const missing = clips.filter((c) => !c.thumbnail_url).slice(0, 3);
+    if (missing.length === 0) return;
+    backfilling.current = true;
+    (async () => {
+      let healed = 0;
+      for (const c of missing) {
+        const url = await backfillClipThumb(me.id, c.id, c.video_url);
+        if (url) healed += 1;
+      }
+      if (healed > 0) qc.invalidateQueries({ queryKey: ["my-page-clips"] });
+    })();
+  }, [clips, me?.id, qc]);
 
   const totalLikes =
     moments.reduce((a, m) => a + (m.like_count ?? 0), 0) +
@@ -281,26 +307,47 @@ function MyPageTab() {
               })}
             </div>
           )
+        ) : clipsLoading ? (
+          <div className="grid grid-cols-3 gap-0.5">
+            {[0, 1, 2, 3, 4, 5].map((i) => <ReelTileSkeleton key={i} />)}
+          </div>
         ) : clips.length === 0 ? (
-          <EmptyState label="no reels yet — your main-character era awaits 🎬" />
+          <EmptyState label="no reels yet — create one 🎬 your main-character era awaits" />
         ) : (
-          <div className="grid grid-cols-3 gap-1">
+          <div className="grid grid-cols-3 gap-0.5">
             {clips.map((c) => (
-              <button
+              <ReelTile
                 key={c.id}
+                thumbnailUrl={c.thumbnail_url}
+                videoUrl={c.video_url}
+                viewCount={c.view_count}
                 onClick={() => setViewClip(c)}
-                className="relative aspect-[3/4] overflow-hidden rounded-lg bg-black"
-              >
-                <video src={c.video_url} muted playsInline preload="metadata" className="h-full w-full object-cover" />
-                <Play className="absolute inset-0 m-auto h-6 w-6 text-white/90 drop-shadow" />
-                <span className="absolute bottom-1 left-1.5 flex items-center gap-0.5 text-[10px] font-semibold text-white drop-shadow">
-                  <Eye className="h-3 w-3" /> {c.view_count}
-                </span>
-              </button>
+                onLongPress={() => setOwnReel(c)}
+                topRight={
+                  <button
+                    type="button"
+                    onClick={() => setOwnReel(c)}
+                    aria-label="Reel options"
+                    className="grid h-6 w-6 place-items-center rounded-full bg-black/50 text-white"
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </button>
+                }
+              />
             ))}
           </div>
         )}
       </div>
+
+      {ownReel && me?.id && (
+        <ReelOwnerSheet
+          clip={ownReel}
+          meId={me.id}
+          onClose={() => setOwnReel(null)}
+          onChanged={() => qc.invalidateQueries({ queryKey: ["my-page-clips"] })}
+          onDeleted={() => qc.invalidateQueries({ queryKey: ["my-page-clips"] })}
+        />
+      )}
 
       {editAvatar && (
         <AvatarEditorSheet
