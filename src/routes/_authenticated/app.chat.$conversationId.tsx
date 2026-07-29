@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info, BellOff, Bell, Link2, FileText, Image as ImageIcon } from "lucide-react";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
+import { EMOJI_CATEGORIES } from "@/lib/emojis";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 // CallOverlay is mounted globally by GlobalCallHost — see src/components/chat/GlobalCallHost.tsx.
