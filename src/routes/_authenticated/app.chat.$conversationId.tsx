@@ -600,7 +600,38 @@ function ChatThread() {
 
   useEffect(() => {
     inputRef.current?.focus();
+    setShowEmojiPicker(false);
   }, [conversationId]);
+
+  useEffect(() => {
+    setRecentReactions(readRecentReactions());
+  }, []);
+
+  const reactionRow = (() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const e of [...recentReactions, ...REACTION_EMOJIS]) {
+      if (seen.has(e)) continue;
+      seen.add(e);
+      out.push(e);
+      if (out.length === 6) break;
+    }
+    return out;
+  })();
+
+  const insertEmoji = (emoji: string) => {
+    const el = inputRef.current;
+    if (!el) { handleTextChange(text + emoji); return; }
+    const start = el.selectionStart ?? text.length;
+    const end = el.selectionEnd ?? start;
+    const next = text.slice(0, start) + emoji + text.slice(end);
+    handleTextChange(next);
+    const caret = start + emoji.length;
+    requestAnimationFrame(() => {
+      el.focus();
+      try { el.setSelectionRange(caret, caret); } catch { /* noop */ }
+    });
+  };
 
   const toggleBlock = async () => {
     if (!me || !peerId) return;
