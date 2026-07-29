@@ -471,6 +471,7 @@ export type Database = {
           id: string
           is_deleted: boolean
           like_count: number
+          thumbnail_url: string | null
           user_id: string
           video_url: string
           view_count: number
@@ -484,6 +485,7 @@ export type Database = {
           id?: string
           is_deleted?: boolean
           like_count?: number
+          thumbnail_url?: string | null
           user_id: string
           video_url: string
           view_count?: number
@@ -497,6 +499,7 @@ export type Database = {
           id?: string
           is_deleted?: boolean
           like_count?: number
+          thumbnail_url?: string | null
           user_id?: string
           video_url?: string
           view_count?: number
@@ -2454,6 +2457,7 @@ export type Database = {
           id: string
           is_deleted: boolean
           like_count: number
+          thumbnail_url: string | null
           user_id: string
           video_url: string
           view_count: number
@@ -2476,6 +2480,7 @@ export type Database = {
           id: string
           is_deleted: boolean
           like_count: number
+          thumbnail_url: string | null
           user_id: string
           video_url: string
           view_count: number
