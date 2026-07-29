@@ -16,8 +16,11 @@ import {
   Flag,
   Pencil,
   RotateCw,
+  Share2,
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
+import { systemShare, type SharePayload } from "@/lib/share";
+import { ShareSheet } from "@/components/share/ShareSheet";
 import { PhotoStudio } from "@/components/photo/PhotoStudio";
 import { detectSelfHarmSignal } from "@/lib/selfHarm";
 import { sha256Hex, recordProvenance } from "@/lib/provenance";
@@ -105,6 +108,16 @@ export function MomentsFeed() {
   const [isSynthetic, setIsSynthetic] = useState(false);
   // L4 care-first: on-device signal only; never blocks or reports.
   const [showCrisis, setShowCrisis] = useState(false);
+  const [shareSheet, setShareSheet] = useState<SharePayload | null>(null);
+
+  async function sharePost(p: Post) {
+    const payload: SharePayload = {
+      title: "ONIQ Moment ✨",
+      text: p.content ?? undefined,
+      url: typeof window !== "undefined" ? `${window.location.origin}/app/chat/moments#post-${p.id}` : "",
+    };
+    if (!(await systemShare(payload))) setShareSheet(payload);
+  }
 
   async function uploadPicked(file: File) {
     setUploading(true);
@@ -491,6 +504,13 @@ export function MomentsFeed() {
                     >
                       <MessageCircle className="h-4 w-4" /> {p.comment_count ?? 0}
                     </button>
+                    <button
+                      onClick={() => sharePost(p)}
+                      className="flex items-center gap-1 hover:text-primary"
+                      aria-label="Share post"
+                    >
+                      <Share2 className="h-4 w-4" /> share
+                    </button>
                   </div>
                 </article>
               );
@@ -518,6 +538,7 @@ export function MomentsFeed() {
       )}
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
       {showCrisis && <CrisisSupportSheet onClose={() => setShowCrisis(false)} />}
+      {shareSheet && <ShareSheet payload={shareSheet} onClose={() => setShareSheet(null)} />}
       {studioFile && (
         <PhotoStudio
           file={studioFile}

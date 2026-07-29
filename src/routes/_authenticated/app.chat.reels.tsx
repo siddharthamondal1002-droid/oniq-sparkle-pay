@@ -2,7 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, Volume2, VolumeX, Loader2, Play, Plus, MoreHorizontal } from "lucide-react";
+import { Heart, MessageCircle, Volume2, VolumeX, Loader2, Play, Plus, MoreHorizontal, Share2, Eye } from "lucide-react";
+import { systemShare, type SharePayload } from "@/lib/share";
+import { ShareSheet } from "@/components/share/ShareSheet";
+import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
 import { toast } from "sonner";
 import { useMediaCoordinator } from "@/lib/MediaProvider";
@@ -143,6 +146,7 @@ function ReelCard({
   const qc = useQueryClient();
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const viewedRef = useRef(false);
   const { register } = useMediaCoordinator();
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(clip.like_count);
@@ -180,6 +184,10 @@ function ReelCard({
           if (e.isIntersecting) {
             register(vid);
             vid.play().catch(() => {});
+            if (!viewedRef.current) {
+              viewedRef.current = true;
+              void supabase.rpc("record_clip_view", { _clip_id: clip.id });
+            }
             if (isLast) onLoadMore();
           } else {
             vid.pause();
@@ -215,6 +223,17 @@ function ReelCard({
     | null
     | { id: string; video_url: string; thumbnail_url: string | null; caption: string | null; hashtags: string[] | null; visibility: string }
   >(null);
+  const [shareSheet, setShareSheet] = useState<SharePayload | null>(null);
+  const [showViewers, setShowViewers] = useState(false);
+
+  async function share() {
+    const payload: SharePayload = {
+      title: "ONIQ Reel 🎬",
+      text: clip.caption ?? undefined,
+      url: typeof window !== "undefined" ? `${window.location.origin}/app/clips#${clip.id}` : "",
+    };
+    if (!(await systemShare(payload))) setShareSheet(payload);
+  }
 
   async function openOwnerSheet() {
     // The feed RPC doesn't carry hashtags/visibility/thumbnail — fetch the
@@ -266,6 +285,21 @@ function ReelCard({
           <MessageCircle className="h-7 w-7" />
           <span className="text-xs">{clip.comment_count}</span>
         </div>
+        <button onClick={share} className="flex flex-col items-center gap-1 text-white" aria-label="Share">
+          <Share2 className="h-7 w-7" />
+          <span className="text-xs">Share</span>
+        </button>
+        {me === clip.user_id ? (
+          <button onClick={() => setShowViewers(true)} className="flex flex-col items-center gap-1 text-white" aria-label="See who viewed">
+            <Eye className="h-6 w-6" />
+            <span className="text-xs">{clip.view_count}</span>
+          </button>
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-white/80">
+            <Eye className="h-6 w-6" />
+            <span className="text-xs">{clip.view_count}</span>
+          </div>
+        )}
         {me === clip.user_id && (
           <button onClick={openOwnerSheet} className="flex flex-col items-center gap-1 text-white" aria-label="Reel options">
             <MoreHorizontal className="h-7 w-7" />
@@ -305,6 +339,8 @@ function ReelCard({
         )}
       </div>
 
+      {shareSheet && <ShareSheet payload={shareSheet} onClose={() => setShareSheet(null)} />}
+      {showViewers && <ViewersSheet clipId={clip.id} onClose={() => setShowViewers(false)} />}
       {ownerSheet && me && (
         <ReelOwnerSheet
           clip={ownerSheet}
