@@ -1971,7 +1971,42 @@ function ChatThread() {
             )}
           </div>
           <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
-            <Smile className="h-5 w-5 shrink-0 text-muted-foreground" />
+            <button
+              type="button"
+              aria-label="Emoji"
+              data-testid="chat-emoji-toggle"
+              disabled={isBlocked}
+              onClick={() => { setShowAttachSheet(false); setShowEmojiPicker((v) => !v); }}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition active:scale-95 hover:bg-muted disabled:opacity-40"
+            >
+              <Smile className="h-5 w-5" />
+            </button>
+            {showEmojiPicker && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowEmojiPicker(false)} />
+                <div className="absolute bottom-14 left-0 right-0 z-40 max-h-[260px] overflow-y-auto rounded-2xl border border-border bg-card p-2 shadow-2xl">
+                  {EMOJI_CATEGORIES.map((cat) => (
+                    <div key={cat.name}>
+                      <div className="sticky top-0 z-10 bg-card px-1 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {cat.name}
+                      </div>
+                      <div className="mb-1 flex flex-wrap">
+                        {cat.emojis.map((em) => (
+                          <button
+                            key={cat.name + em}
+                            type="button"
+                            onClick={() => insertEmoji(em)}
+                            className="grid h-9 w-9 place-items-center rounded-lg text-xl transition active:scale-90 hover:bg-muted"
+                          >
+                            {em}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
             <input
               data-testid="chat-input"
               ref={inputRef}
