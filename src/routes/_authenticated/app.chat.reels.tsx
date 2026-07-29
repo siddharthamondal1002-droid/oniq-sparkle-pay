@@ -281,7 +281,7 @@ function ReelCard({
           className="flex items-center gap-2"
           aria-label={`View @${handle}'s page`}
         >
-          <span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[2px]">
+          <span className="isolate shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[2px]">
             <span className="block rounded-full bg-black/40 p-[2px]">
               {profile?.avatar_url ? (
                 <img
