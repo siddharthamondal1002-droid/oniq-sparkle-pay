@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Heart, MessageCircle, Eye, X, Film, Sparkles } from "lucide-react";
+import { ArrowLeft, Heart, MessageCircle, Eye, Play, X, Film, Sparkles } from "lucide-react";
 import { ReelTile } from "@/components/reels/ReelTile";
 import { supabase } from "@/integrations/supabase/client";
 
