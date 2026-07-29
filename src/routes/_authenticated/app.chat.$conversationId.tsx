@@ -1599,7 +1599,7 @@ function ChatThread() {
           >
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-muted-foreground/30" />
             <div className="mb-2 flex items-center justify-around rounded-2xl bg-muted/40 px-2 py-2">
-              {REACTION_EMOJIS.map((e) => (
+              {reactionRow.map((e) => (
                 <button
                   key={e}
                   type="button"
