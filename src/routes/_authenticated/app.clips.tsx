@@ -516,6 +516,8 @@ function UploadSheet({
     if (typeof sessionStorage === "undefined") return "public";
     return (sessionStorage.getItem("oniq_post_visibility") as "public" | "moots") ?? "public";
   });
+  // IT Rules 2026: mandatory synthetic-content declaration at upload.
+  const [isSynthetic, setIsSynthetic] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
 
@@ -591,6 +593,7 @@ function UploadSheet({
         caption: cleaned.length ? cleaned : null,
         hashtags: tags,
         visibility,
+        is_synthetic: isSynthetic,
       });
 
       if (insErr) throw insErr;
@@ -699,6 +702,15 @@ function UploadSheet({
               );
             })}
           </div>
+          <label className="mt-2 flex items-start gap-2 text-[11px] text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={isSynthetic}
+              onChange={(e) => setIsSynthetic(e.target.checked)}
+              className="mt-0.5 accent-[hsl(var(--primary))]"
+            />
+            <span>this clip is AI-generated or AI-edited 🤖 <span className="opacity-70">(Indian law requires labelling synthetic content)</span></span>
+          </label>
         </div>
 
 

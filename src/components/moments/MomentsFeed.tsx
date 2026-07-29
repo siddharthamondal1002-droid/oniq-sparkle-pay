@@ -30,6 +30,7 @@ type Post = {
   created_at: string | null;
   user_id: string;
   visibility: string | null;
+  is_synthetic: boolean | null;
   profiles: {
     display_name: string | null;
     username: string | null;
@@ -97,6 +98,8 @@ export function MomentsFeed() {
   });
 
   const [studioFile, setStudioFile] = useState<File | null>(null);
+  // IT Rules 2026: mandatory synthetic-content declaration at upload.
+  const [isSynthetic, setIsSynthetic] = useState(false);
 
   async function uploadPicked(file: File) {
     setUploading(true);
@@ -161,7 +164,7 @@ export function MomentsFeed() {
       const { data } = await supabase
         .from("moments_posts")
         .select(
-          "id, content, media_urls, like_count, comment_count, created_at, user_id, visibility, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)",
+          "id, content, media_urls, like_count, comment_count, created_at, user_id, visibility, is_synthetic, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)",
         )
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
@@ -203,13 +206,14 @@ export function MomentsFeed() {
     const media = imageUrl.trim() ? [imageUrl.trim()] : [];
     const { error } = await supabase
       .from("moments_posts")
-      .insert({ user_id: u.user.id, content: content.trim(), media_urls: media, visibility });
+      .insert({ user_id: u.user.id, content: content.trim(), media_urls: media, visibility, is_synthetic: isSynthetic } as never);
 
     if (error) toast.error(error.message);
     else {
       toast.success("Posted to Moments");
       setContent("");
       setImageUrl("");
+      setIsSynthetic(false);
       refetch();
     }
     setPosting(false);
@@ -322,6 +326,15 @@ export function MomentsFeed() {
               })}
             </div>
           </div>
+          <label className="mt-2 flex items-start gap-2 text-[11px] text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={isSynthetic}
+              onChange={(e) => setIsSynthetic(e.target.checked)}
+              className="mt-0.5 accent-[hsl(var(--primary))]"
+            />
+            <span>this media is AI-generated or AI-edited 🤖 <span className="opacity-70">(Indian law requires labelling synthetic content)</span></span>
+          </label>
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
             <div className="flex gap-2 text-muted-foreground">
               <button
@@ -379,7 +392,7 @@ export function MomentsFeed() {
                       aria-label={`View ${p.profiles?.display_name ?? "user"}'s page`}
                     >
                       {/* story-ring avatar — tap to visit their page */}
-                      <span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[2px]">
+                      <span className="isolate shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[2px]">
                         <span className="block rounded-full bg-background p-[2px]">
                           {p.profiles?.avatar_url ? (
                             <img
@@ -443,6 +456,11 @@ export function MomentsFeed() {
                     )}
                   </div>
 
+                  {p.is_synthetic && (
+                    <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+                      AI-generated content 🤖
+                    </span>
+                  )}
                   {p.content && <p className="mt-3 whitespace-pre-wrap text-sm">{p.content}</p>}
                   {p.media_urls?.[0] && (
                     <MomentMedia

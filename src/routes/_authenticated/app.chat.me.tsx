@@ -29,6 +29,7 @@ type MyMoment = {
   like_count: number | null;
   comment_count: number | null;
   visibility: string | null;
+  is_synthetic: boolean | null;
   created_at: string | null;
 };
 
@@ -42,6 +43,7 @@ type MyClip = {
   like_count: number;
   view_count: number;
   comment_count: number;
+  is_synthetic: boolean | null;
   created_at: string | null;
 };
 
@@ -81,9 +83,10 @@ function MyPageTab() {
     queryKey: ["my-page-moments", me?.id],
     enabled: !!me?.id,
     queryFn: async (): Promise<MyMoment[]> => {
-      const { data } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
         .from("moments_posts")
-        .select("id, content, media_urls, like_count, comment_count, visibility, created_at")
+        .select("id, content, media_urls, like_count, comment_count, visibility, is_synthetic, created_at")
         .eq("user_id", me!.id)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
@@ -99,7 +102,7 @@ function MyPageTab() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data } = await (supabase as any)
         .from("clips")
-        .select("id, caption, video_url, thumbnail_url, hashtags, visibility, like_count, view_count, comment_count, created_at")
+        .select("id, caption, video_url, thumbnail_url, hashtags, visibility, is_synthetic, like_count, view_count, comment_count, created_at")
         .eq("user_id", me!.id)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
@@ -164,7 +167,7 @@ function MyPageTab() {
             type="button"
             onClick={() => setEditAvatar(true)}
             aria-label="Edit profile photo"
-            className="relative rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[3px]"
+            className="relative isolate rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[3px]"
           >
             <span className="block rounded-full bg-background p-[3px]">
               {me?.avatar_url ? (
@@ -373,6 +376,9 @@ function MyPageTab() {
             ) : (
               <img src={viewMoment.media_urls[0]} alt="" className="max-h-[60vh] w-full rounded-2xl object-contain" />
             ))}
+          {viewMoment.is_synthetic && (
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">AI-generated content 🤖</span>
+          )}
           {viewMoment.content && <p className="mt-3 whitespace-pre-wrap text-sm">{viewMoment.content}</p>}
           <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> {viewMoment.like_count ?? 0}</span>
@@ -385,6 +391,9 @@ function MyPageTab() {
       {viewClip && (
         <MediaViewer onClose={() => setViewClip(null)}>
           <video src={viewClip.video_url} controls autoPlay playsInline className="max-h-[65vh] w-full rounded-2xl bg-black object-contain" />
+          {viewClip.is_synthetic && (
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">AI-generated content 🤖</span>
+          )}
           {viewClip.caption && <p className="mt-3 whitespace-pre-wrap text-sm">{viewClip.caption}</p>}
           <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> {viewClip.like_count}</span>

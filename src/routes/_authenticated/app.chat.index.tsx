@@ -376,7 +376,7 @@ function ChatList() {
                     <div className="relative">
                       {/* IG-style ring: gradient when there's something unseen */}
                       <span
-                        className={`block rounded-full p-[2px] ${
+                        className={`isolate block rounded-full p-[2px] ${
                           c.unread > 0
                             ? "bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary"
                             : "bg-transparent"
@@ -439,19 +439,8 @@ function ChatList() {
       </div>
 
 
-      {mounted && !showNew && !showRequests &&
-        createPortal(
-          <button
-            onClick={() => setShowNew(true)}
-            aria-label="New chat"
-            data-testid="new-chat-fab"
-            className="press fixed right-4 bottom-6 z-[70] h-14 w-14 rounded-full bg-[#25D366] text-black shadow-xl shadow-[#25D366]/40 grid place-items-center hover:brightness-110"
-          >
-            <Edit3 className="h-5 w-5" />
-          </button>,
-          document.body,
-        )}
-
+      {/* Compose FAB removed on Chats — it overlapped the tab bar / My Page.
+          The header pencil remains the compose entry point. */}
       {showNew && me && <NewChatSheet meId={me.id} onClose={() => setShowNew(false)} />}
       {showRequests && me && <FriendRequestsSheet meId={me.id} onClose={() => setShowRequests(false)} />}
 
