@@ -246,7 +246,9 @@ function ChatList() {
           <Link to="/app" aria-label="Back" className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted">
             <ArrowLeft className="h-5 w-5" />
           </Link>
-          <h1 className="font-display text-3xl font-bold">Chats</h1>
+          <h1 className="font-display text-3xl font-bold">
+            <span className="bg-gradient-to-r from-foreground via-foreground to-fuchsia-400 bg-clip-text text-transparent">Chats</span>
+          </h1>
         </div>
         <div className="flex items-center gap-1">
           <button
@@ -312,9 +314,9 @@ function ChatList() {
             <button
               key={c.k}
               onClick={() => setChip(c.k)}
-              className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-medium transition ${
+              className={`shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition ${
                 active
-                  ? "bg-primary text-primary-foreground"
+                  ? "bg-gradient-to-r from-primary to-fuchsia-500 text-primary-foreground shadow-[0_0_14px_hsl(var(--primary)/0.35)]"
                   : "border border-border bg-card/40 text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -359,7 +361,18 @@ function ChatList() {
                     }}
                   >
                     <div className="relative">
-                      <Avatar name={c.title} url={c.avatar_url} size={52} group={c.type === "group"} channel={isChannel} />
+                      {/* IG-style ring: gradient when there's something unseen */}
+                      <span
+                        className={`block rounded-full p-[2px] ${
+                          c.unread > 0
+                            ? "bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary"
+                            : "bg-transparent"
+                        }`}
+                      >
+                        <span className={`block rounded-full ${c.unread > 0 ? "bg-background p-[2px]" : ""}`}>
+                          <Avatar name={c.title} url={c.avatar_url} size={48} group={c.type === "group"} channel={isChannel} />
+                        </span>
+                      </span>
                       {online && (
                         <span
                           data-testid="online-dot"
