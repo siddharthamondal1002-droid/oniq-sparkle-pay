@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info, BellOff, Bell, Link2, FileText, Image as ImageIcon } from "lucide-react";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
+import { EMOJI_CATEGORIES } from "@/lib/emojis";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 // CallOverlay is mounted globally by GlobalCallHost — see src/components/chat/GlobalCallHost.tsx.
@@ -33,6 +34,28 @@ type Message = {
 type Reaction = { id: string; message_id: string; user_id: string; emoji: string };
 
 const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🙏"] as const;
+const RECENT_REACTIONS_KEY = "oniq:recent-reactions";
+
+function readRecentReactions(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_REACTIONS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is string => typeof x === "string").slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentReactions(list: string[]) {
+  try {
+    localStorage.setItem(RECENT_REACTIONS_KEY, JSON.stringify(list.slice(0, 6)));
+  } catch {
+    /* storage unavailable in webview — ignore */
+  }
+}
+
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 function humanSize(n: number | null | undefined): string {
@@ -127,6 +150,8 @@ function ChatThread() {
   const [recSeconds, setRecSeconds] = useState(0);
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [showAttachSheet, setShowAttachSheet] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [recentReactions, setRecentReactions] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const anyFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -311,6 +336,11 @@ function ChatThread() {
       await supabase.from("message_reactions").delete().eq("id", existing.id);
     } else {
       await supabase.from("message_reactions").insert({ message_id: messageId, user_id: me.id, emoji });
+      setRecentReactions((prev) => {
+        const next = [emoji, ...prev.filter((x) => x !== emoji)].slice(0, 6);
+        writeRecentReactions(next);
+        return next;
+      });
     }
     refetchReactions();
   };
@@ -571,7 +601,38 @@ function ChatThread() {
 
   useEffect(() => {
     inputRef.current?.focus();
+    setShowEmojiPicker(false);
   }, [conversationId]);
+
+  useEffect(() => {
+    setRecentReactions(readRecentReactions());
+  }, []);
+
+  const reactionRow = (() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const e of [...recentReactions, ...REACTION_EMOJIS]) {
+      if (seen.has(e)) continue;
+      seen.add(e);
+      out.push(e);
+      if (out.length === 6) break;
+    }
+    return out;
+  })();
+
+  const insertEmoji = (emoji: string) => {
+    const el = inputRef.current;
+    if (!el) { handleTextChange(text + emoji); return; }
+    const start = el.selectionStart ?? text.length;
+    const end = el.selectionEnd ?? start;
+    const next = text.slice(0, start) + emoji + text.slice(end);
+    handleTextChange(next);
+    const caret = start + emoji.length;
+    requestAnimationFrame(() => {
+      el.focus();
+      try { el.setSelectionRange(caret, caret); } catch { /* noop */ }
+    });
+  };
 
   const toggleBlock = async () => {
     if (!me || !peerId) return;
@@ -623,6 +684,7 @@ function ChatThread() {
     };
     qc.setQueryData<Message[]>(["messages", conversationId], (prev) => [...(prev ?? []), optimistic]);
     setText("");
+    setShowEmojiPicker(false);
     setReplyTo(null);
     emitTyping("stop");
     lastTypingSentRef.current = 0;
@@ -1538,7 +1600,7 @@ function ChatThread() {
           >
             <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-muted-foreground/30" />
             <div className="mb-2 flex items-center justify-around rounded-2xl bg-muted/40 px-2 py-2">
-              {REACTION_EMOJIS.map((e) => (
+              {reactionRow.map((e) => (
                 <button
                   key={e}
                   type="button"
@@ -1854,7 +1916,7 @@ function ChatThread() {
           <div className="relative">
             <button
               type="button"
-              onClick={() => setShowAttachSheet((v) => !v)}
+              onClick={() => { setShowEmojiPicker(false); setShowAttachSheet((v) => !v); }}
               disabled={isBlocked || uploading}
               aria-label="Attach"
               data-testid="chat-attach"
@@ -1909,8 +1971,43 @@ function ChatThread() {
               </>
             )}
           </div>
-          <div className="flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
-            <Smile className="h-5 w-5 shrink-0 text-muted-foreground" />
+          <div className="relative flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
+            <button
+              type="button"
+              aria-label="Emoji"
+              data-testid="chat-emoji-toggle"
+              disabled={isBlocked}
+              onClick={() => { setShowAttachSheet(false); setShowEmojiPicker((v) => !v); }}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted-foreground transition active:scale-95 hover:bg-muted disabled:opacity-40"
+            >
+              <Smile className="h-5 w-5" />
+            </button>
+            {showEmojiPicker && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowEmojiPicker(false)} />
+                <div className="absolute bottom-14 left-0 right-0 z-40 max-h-[260px] overflow-y-auto rounded-2xl border border-border bg-card p-2 shadow-2xl">
+                  {EMOJI_CATEGORIES.map((cat) => (
+                    <div key={cat.name}>
+                      <div className="sticky top-0 z-10 bg-card px-1 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        {cat.name}
+                      </div>
+                      <div className="mb-1 flex flex-wrap">
+                        {cat.emojis.map((em) => (
+                          <button
+                            key={cat.name + em}
+                            type="button"
+                            onClick={() => insertEmoji(em)}
+                            className="grid h-9 w-9 place-items-center rounded-lg text-xl transition active:scale-90 hover:bg-muted"
+                          >
+                            {em}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
             <input
               data-testid="chat-input"
               ref={inputRef}
