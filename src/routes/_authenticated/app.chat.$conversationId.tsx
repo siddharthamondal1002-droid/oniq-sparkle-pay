@@ -335,6 +335,11 @@ function ChatThread() {
       await supabase.from("message_reactions").delete().eq("id", existing.id);
     } else {
       await supabase.from("message_reactions").insert({ message_id: messageId, user_id: me.id, emoji });
+      setRecentReactions((prev) => {
+        const next = [emoji, ...prev.filter((x) => x !== emoji)].slice(0, 6);
+        writeRecentReactions(next);
+        return next;
+      });
     }
     refetchReactions();
   };
