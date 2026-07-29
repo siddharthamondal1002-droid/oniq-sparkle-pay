@@ -2576,6 +2576,10 @@ export type Database = {
         Args: { _application_id: string; _status: string }
         Returns: undefined
       }
+      admin_takedown_content: {
+        Args: { _content_id: string; _content_type: string; _reason?: string }
+        Returns: undefined
+      }
       book_service: {
         Args: {
           _address?: string
@@ -2730,6 +2734,15 @@ export type Database = {
           skills: string[]
           village: string
         }[]
+      }
+      log_moderation_action: {
+        Args: {
+          _action: string
+          _reason?: string
+          _target_id: string
+          _target_type: string
+        }
+        Returns: undefined
       }
       mark_conversation_read: {
         Args: { _conversation_id: string }
