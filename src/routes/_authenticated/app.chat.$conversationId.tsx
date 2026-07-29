@@ -33,6 +33,28 @@ type Message = {
 type Reaction = { id: string; message_id: string; user_id: string; emoji: string };
 
 const REACTION_EMOJIS = ["❤️", "😂", "👍", "😮", "😢", "🙏"] as const;
+const RECENT_REACTIONS_KEY = "oniq:recent-reactions";
+
+function readRecentReactions(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_REACTIONS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((x): x is string => typeof x === "string").slice(0, 6);
+  } catch {
+    return [];
+  }
+}
+
+function writeRecentReactions(list: string[]) {
+  try {
+    localStorage.setItem(RECENT_REACTIONS_KEY, JSON.stringify(list.slice(0, 6)));
+  } catch {
+    /* storage unavailable in webview — ignore */
+  }
+}
+
 const EDIT_WINDOW_MS = 15 * 60 * 1000;
 
 function humanSize(n: number | null | undefined): string {
