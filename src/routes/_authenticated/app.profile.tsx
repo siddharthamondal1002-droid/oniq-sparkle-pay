@@ -1,7 +1,8 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle, Music2, Database } from "lucide-react";
+import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle, Music2, Database, Camera } from "lucide-react";
+import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import {
@@ -38,6 +39,7 @@ function ProfileScreen() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [form, setForm] = useState({ display_name: "", bio: "", avatar_url: "" });
+  const [editAvatar, setEditAvatar] = useState(false);
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile"],
@@ -99,13 +101,23 @@ function ProfileScreen() {
   return (
     <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))] pb-24 min-h-screen">
       <div className="flex flex-col items-center text-center">
-        <div className="grid h-20 w-20 place-items-center rounded-3xl bg-primary text-primary-foreground font-bold text-3xl overflow-hidden">
-          {form.avatar_url ? (
-            <img src={form.avatar_url} alt="avatar" className="h-full w-full object-cover" />
-          ) : (
-            (form.display_name || profile?.username || "O").charAt(0).toUpperCase()
-          )}
-        </div>
+        <button
+          type="button"
+          onClick={() => setEditAvatar(true)}
+          aria-label="Edit profile photo"
+          className="relative grid h-20 w-20 place-items-center rounded-3xl bg-primary text-primary-foreground font-bold text-3xl overflow-visible"
+        >
+          <span className="grid h-full w-full place-items-center overflow-hidden rounded-3xl">
+            {form.avatar_url ? (
+              <img src={form.avatar_url} alt="avatar" className="h-full w-full object-cover" />
+            ) : (
+              (form.display_name || profile?.username || "O").charAt(0).toUpperCase()
+            )}
+          </span>
+          <span className="absolute -bottom-1.5 -right-1.5 grid h-7 w-7 place-items-center rounded-full border-2 border-background bg-card text-foreground">
+            <Camera className="h-3.5 w-3.5" />
+          </span>
+        </button>
         <h1 className="mt-4 font-display text-2xl font-bold">
           {profile?.display_name ?? "Your profile"}
         </h1>
@@ -148,15 +160,13 @@ function ProfileScreen() {
               placeholder="A short bio"
             />
           </Field>
-          <Field label="Avatar URL">
-            <input
-              value={form.avatar_url}
-              onChange={(e) => setForm({ ...form, avatar_url: e.target.value })}
-              maxLength={500}
-              className="w-full bg-transparent outline-none text-sm"
-              placeholder="https://..."
-            />
-          </Field>
+          <button
+            type="button"
+            onClick={() => setEditAvatar(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-3 text-sm font-medium text-muted-foreground hover:text-foreground"
+          >
+            <Camera className="h-4 w-4" /> change profile photo
+          </button>
 
           <button
             type="submit"
@@ -184,6 +194,20 @@ function ProfileScreen() {
       </button>
 
       <DangerZone />
+
+      {editAvatar && (
+        <AvatarEditorSheet
+          currentUrl={form.avatar_url || null}
+          onClose={() => setEditAvatar(false)}
+          onChanged={(url) => {
+            setEditAvatar(false);
+            setForm((f) => ({ ...f, avatar_url: url ?? "" }));
+            qc.invalidateQueries({ queryKey: ["profile"] });
+            qc.invalidateQueries({ queryKey: ["my-page-profile"] });
+            qc.invalidateQueries({ queryKey: ["conversations"] });
+          }}
+        />
+      )}
     </div>
   );
 }
