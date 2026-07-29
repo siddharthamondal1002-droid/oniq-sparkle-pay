@@ -42,8 +42,8 @@ export const PRESETS: Preset[] = [
   { id: "grain", label: "Film Grain", css: (t) => `contrast(${f(lerp(1, 1.1, t))}) saturate(${f(lerp(1, 0.92, t))})`, grain: true },
 ];
 
-type Adjust = { brightness: number; contrast: number; saturation: number; warmth: number; blur: number };
-const ADJUST_DEFAULT: Adjust = { brightness: 100, contrast: 100, saturation: 100, warmth: 0, blur: 0 };
+type Adjust = { brightness: number; contrast: number; saturation: number; warmth: number; blur: number; sharpen: number };
+const ADJUST_DEFAULT: Adjust = { brightness: 100, contrast: 100, saturation: 100, warmth: 0, blur: 0, sharpen: 0 };
 type CropAspect = "free" | "1:1" | "4:5" | "9:16";
 const CROP_RATIOS: Record<Exclude<CropAspect, "free">, number> = { "1:1": 1, "4:5": 4 / 5, "9:16": 9 / 16 };
 
@@ -54,6 +54,8 @@ function adjustCss(a: Adjust, blurScale = 1): string {
   if (a.saturation !== 100) parts.push(`saturate(${f(a.saturation / 100)})`);
   if (a.warmth !== 0) parts.push(`sepia(${f(a.warmth / 200)})`);
   if (a.blur !== 0) parts.push(`blur(${f((a.blur / 10) * blurScale)}px)`);
+  // a.sharpen intentionally absent: unsharp mask runs at export only
+  // (no CSS primitive; preview stays 60fps).
   return parts.join(" ");
 }
 
@@ -95,6 +97,21 @@ export function PhotoStudio({
   const [adjust, setAdjust] = useState<Adjust>(ADJUST_DEFAULT);
   const [rotate, setRotate] = useState(0);
   const [crop, setCrop] = useState<CropAspect>("free");
+  // Free-drag crop: pan the image inside the crop window (0..1, 0.5 = center).
+  const [pan, setPan] = useState({ x: 0.5, y: 0.5 });
+  const dragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+  const onDragStart = (cx: number, cy: number) => {
+    dragRef.current = { startX: cx, startY: cy, panX: pan.x, panY: pan.y };
+  };
+  const onDragMove = (cx: number, cy: number, el: HTMLElement) => {
+    const d = dragRef.current;
+    if (!d) return;
+    const r = el.getBoundingClientRect();
+    setPan({
+      x: Math.min(1, Math.max(0, d.panX - (cx - d.startX) / Math.max(r.width, 1))),
+      y: Math.min(1, Math.max(0, d.panY - (cy - d.startY) / Math.max(r.height, 1))),
+    });
+  };
   const [exporting, setExporting] = useState(false);
 
   // rAF-coalesced filter string so slider drags never outpace the frame rate.
@@ -146,7 +163,7 @@ export function PhotoStudio({
       let w = rotated ? bmp.height : bmp.width;
       let h = rotated ? bmp.width : bmp.height;
 
-      // center crop to the chosen aspect
+      // crop to the chosen aspect, positioned by the drag-pan offsets
       let cw = w;
       let ch = h;
       if (crop !== "free") {
@@ -175,10 +192,41 @@ export function PhotoStudio({
       ctx.rotate((rot * Math.PI) / 180);
       const drawW = rotated ? outH * (w / cw) : outW * (w / cw);
       const drawH = rotated ? outW * (h / ch) : outH * (h / ch);
-      ctx.drawImage(bmp, -drawW / 2, -drawH / 2, drawW, drawH);
+      // Pan shifts which part of the over-sized draw lands in the window
+      // (0.5 = centered, matching the objectPosition preview).
+      const spanW = rotated ? outH : outW;
+      const spanH = rotated ? outW : outH;
+      const offX = (pan.x - 0.5) * (drawW - spanW);
+      const offY = (pan.y - 0.5) * (drawH - spanH);
+      const dx = rotated ? -offY : -offX;
+      const dy = rotated ? -offX : -offY;
+      ctx.drawImage(bmp, -drawW / 2 + dx, -drawH / 2 + dy, drawW, drawH);
       ctx.restore();
       bmp.close();
       ctx.filter = "none";
+
+      // Unsharp mask (export-only): out = base + k * (base - blurred).
+      if (adjust.sharpen > 0) {
+        const k = (adjust.sharpen / 100) * 0.8;
+        const blurCanvas = document.createElement("canvas");
+        blurCanvas.width = outW;
+        blurCanvas.height = outH;
+        const bctx = blurCanvas.getContext("2d");
+        if (bctx) {
+          bctx.filter = `blur(${Math.max(1.2, Math.round(Math.max(outW, outH) / 800))}px)`;
+          bctx.drawImage(canvas, 0, 0);
+          const base = ctx.getImageData(0, 0, outW, outH);
+          const blur = bctx.getImageData(0, 0, outW, outH);
+          const bd = base.data;
+          const ld = blur.data;
+          for (let i = 0; i < bd.length; i += 4) {
+            bd[i] = bd[i] + k * (bd[i] - ld[i]);
+            bd[i + 1] = bd[i + 1] + k * (bd[i + 1] - ld[i + 1]);
+            bd[i + 2] = bd[i + 2] + k * (bd[i + 2] - ld[i + 2]);
+          }
+          ctx.putImageData(base, 0, 0);
+        }
+      }
 
       const t = intensity / 100;
       if (preset.grain && t > 0) {
@@ -239,6 +287,7 @@ export function PhotoStudio({
               setAdjust(ADJUST_DEFAULT);
               setRotate(0);
               setCrop("free");
+              setPan({ x: 0.5, y: 0.5 });
             }}
             className="flex h-9 items-center gap-1.5 rounded-full bg-white/10 px-3 text-xs font-medium text-white"
           >
@@ -257,7 +306,16 @@ export function PhotoStudio({
 
       {/* preview */}
       <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-2">
-        <div className="relative max-h-full overflow-hidden rounded-xl" style={cropStyle}>
+        <div
+          className="relative max-h-full touch-none overflow-hidden rounded-xl"
+          style={cropStyle}
+          onTouchStart={(e) => crop !== "free" && onDragStart(e.touches[0].clientX, e.touches[0].clientY)}
+          onTouchMove={(e) => crop !== "free" && onDragMove(e.touches[0].clientX, e.touches[0].clientY, e.currentTarget)}
+          onTouchEnd={() => (dragRef.current = null)}
+          onMouseDown={(e) => crop !== "free" && onDragStart(e.clientX, e.clientY)}
+          onMouseMove={(e) => crop !== "free" && e.buttons === 1 && onDragMove(e.clientX, e.clientY, e.currentTarget)}
+          onMouseUp={() => (dragRef.current = null)}
+        >
           <img
             src={srcUrl}
             alt=""
@@ -265,7 +323,9 @@ export function PhotoStudio({
             style={{
               filter: filterStr || undefined,
               transform: rotate ? `rotate(${rotate}deg)` : undefined,
-              ...(crop !== "free" ? { height: "100%", width: "100%", objectFit: "cover" as const } : {}),
+              ...(crop !== "free"
+                ? { height: "100%", width: "100%", objectFit: "cover" as const, objectPosition: `${pan.x * 100}% ${pan.y * 100}%` }
+                : {}),
             }}
             draggable={false}
           />
@@ -337,6 +397,7 @@ export function PhotoStudio({
               ["saturation", 0, 200],
               ["warmth", 0, 100],
               ["blur", 0, 40],
+              ["sharpen", 0, 100],
             ] as const).map(([key, min, max]) => (
               <div key={key} className="flex items-center gap-3">
                 <span className="w-16 text-[11px] capitalize text-white/70">{key}</span>
@@ -362,7 +423,10 @@ export function PhotoStudio({
                 {(["free", "1:1", "4:5", "9:16"] as const).map((c) => (
                   <button
                     key={c}
-                    onClick={() => setCrop(c)}
+                    onClick={() => {
+                      setCrop(c);
+                      setPan({ x: 0.5, y: 0.5 });
+                    }}
                     className={`rounded-full px-2.5 py-1.5 text-[11px] font-medium ${crop === c ? "bg-primary text-primary-foreground" : "bg-white/10 text-white/80"}`}
                   >
                     {c}
