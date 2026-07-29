@@ -47,11 +47,27 @@ export function AvatarEditorSheet({
     setStudioFile(file);
   }
 
+  // Avatars are capped at 512px WebP (canvas re-encode also strips EXIF/GPS —
+  // PhotoStudio already re-encoded, this enforces the avatar-specific size).
+  async function toAvatarWebp(file: File): Promise<Blob> {
+    const bmp = await createImageBitmap(file);
+    const scale = Math.min(1, 512 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas");
+    c.width = Math.max(1, Math.round(bmp.width * scale));
+    c.height = Math.max(1, Math.round(bmp.height * scale));
+    c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
+    bmp.close();
+    return new Promise((resolve, reject) =>
+      c.toBlob((b) => (b ? resolve(b) : reject(new Error("encode failed"))), "image/webp", 0.85),
+    );
+  }
+
   async function uploadEdited(file: File) {
     setBusy(true);
     try {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      const url = await uploadMomentBlob(file, ext, file.type);
+      const blob = await toAvatarWebp(file).catch(() => file);
+      const ext = blob.type === "image/webp" ? "webp" : (file.name.split(".").pop() || "jpg").toLowerCase();
+      const url = await uploadMomentBlob(blob, ext, blob.type || file.type);
       await applyAvatar(url);
       toast.success("new look who dis 😎");
       onChanged(url);
