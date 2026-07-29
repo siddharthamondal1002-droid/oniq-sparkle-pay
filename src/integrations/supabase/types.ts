@@ -2738,6 +2738,16 @@ export type Database = {
         }
         Returns: Json
       }
+      clip_viewers: {
+        Args: { _clip_id: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          user_id: string
+          username: string
+          viewed_at: string
+        }[]
+      }
       clips_feed: {
         Args: { _limit?: number; _offset?: number }
         Returns: {
