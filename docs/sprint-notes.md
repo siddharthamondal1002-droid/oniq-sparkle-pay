@@ -114,3 +114,47 @@ needs a URL-resolver refactor, tracked as the top follow-up).
 ## Phase 6 — Acceptance
 
 Recorded at the bottom of this file after the run.
+
+---
+
+## Phase 6 — acceptance results (2026-07-29)
+
+- [x] `tsc --noEmit` clean · production build clean (×3 targets) · 30/30 tests
+- [x] Reels grid: thumbnail → video#t=0.1 → branded placeholder chain; uniform
+      9:16 tiles, solid backgrounds, 2px gutters, scrim under view pill,
+      skeletons + empty state. Broken-media glyph unreachable (onError flips
+      to placeholder).
+- [x] Owner actions: edit / change cover (scrubber) / visibility incl.
+      private / share / soft-delete, on grid tiles (⋯ + long-press) and the
+      full-screen player. Ownership enforced by clips RLS
+      (`auth.uid() = user_id` on UPDATE); negative case verified by policy
+      inspection (single-session environment — no second JWT available).
+- [x] PhotoStudio reachable from: chat attachment (single + batch, incl.
+      camera capture / group / reply), moments composer, moments edit sheet,
+      profile photo editor. Reels covers use the frame scrubber (not a photo
+      import) — documented.
+- [x] 14 presets + intensity, adjust sliders, rotate, center-crop
+      free/1:1/4:5/9:16; export ≤2048px WebP→JPEG; canvas re-encode strips
+      EXIF/GPS unconditionally; preview is a CSS-filtered <img> (rAF-coalesced)
+      — layout verified at 360px (controls stack, strip scrolls).
+- [x] privacy-audit.sql: 0 RLS-disabled, 0 public buckets, 1 column-mitigated
+      profiles read policy (accepted, documented). No admin path to user
+      messages/media found in code audit.
+- [x] delete-account purges 4 buckets + cascades 64 FKs. (Live zero-row
+      verification requires deleting a real account — not run against
+      production; purge logic reviewed + committed.)
+- [x] Bundle: no new npm dependencies (package.json untouched); new code is
+      first-party components (~1.5k LoC), client assets total 3.3MB pre-gzip.
+- [x] Protected call stack: `git diff origin/main...HEAD` shows zero call
+      files touched (CallOverlay / GlobalIncomingCall / IncomingCallScreen /
+      CallReminderWatcher / TURN / FCM / MainActivity).
+
+## Deferred / blockers (full list)
+
+1. Signed-URL TTL ≤60min app-wide — needs path-based storage + resolver refactor.
+2. Moderation audit-log table + bounded review windows.
+3. Reel comments on/off + location tag (no columns; needs product call).
+4. Sharpness slider & free-drag crop in PhotoStudio (perf/scope).
+5. CallOverlay peer-UUID debug logs (protected file this sprint).
+6. Live deletion zero-row proof + foreign-JWT RLS negative test (need a
+   disposable second account; recommend running both before production).
