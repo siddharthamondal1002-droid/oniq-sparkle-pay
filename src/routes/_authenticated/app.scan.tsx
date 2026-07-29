@@ -316,9 +316,11 @@ function MyQrTab() {
     setSaving(true);
     const { data: u } = await supabase.auth.getUser();
     const { error } = await supabase
-      .from("profiles")
-      .update({ upi_vpa: vpaInput.trim().toLowerCase() })
-      .eq("id", u.user!.id);
+      .from("profiles_private")
+      .upsert(
+        { user_id: u.user!.id, upi_vpa: vpaInput.trim().toLowerCase() },
+        { onConflict: "user_id" },
+      );
     setSaving(false);
     if (error) {
       toast.error(error.message);

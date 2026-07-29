@@ -1680,19 +1680,13 @@ export type Database = {
           bio: string | null
           country_code: string | null
           created_at: string | null
-          date_of_birth: string | null
           display_name: string
           id: string
           is_admin: boolean
-          is_minor: boolean
           language: string | null
           last_policy_notice_at: string | null
           oniq_pay_enabled: boolean | null
-          parent_email: string | null
-          parent_name: string | null
-          parent_phone: string | null
           updated_at: string | null
-          upi_vpa: string | null
           username: string
         }
         Insert: {
@@ -1700,19 +1694,13 @@ export type Database = {
           bio?: string | null
           country_code?: string | null
           created_at?: string | null
-          date_of_birth?: string | null
           display_name: string
           id: string
           is_admin?: boolean
-          is_minor?: boolean
           language?: string | null
           last_policy_notice_at?: string | null
           oniq_pay_enabled?: boolean | null
-          parent_email?: string | null
-          parent_name?: string | null
-          parent_phone?: string | null
           updated_at?: string | null
-          upi_vpa?: string | null
           username: string
         }
         Update: {
@@ -1720,22 +1708,57 @@ export type Database = {
           bio?: string | null
           country_code?: string | null
           created_at?: string | null
-          date_of_birth?: string | null
           display_name?: string
           id?: string
           is_admin?: boolean
-          is_minor?: boolean
           language?: string | null
           last_policy_notice_at?: string | null
           oniq_pay_enabled?: boolean | null
-          parent_email?: string | null
-          parent_name?: string | null
-          parent_phone?: string | null
           updated_at?: string | null
-          upi_vpa?: string | null
           username?: string
         }
         Relationships: []
+      }
+      profiles_private: {
+        Row: {
+          date_of_birth: string | null
+          is_minor: boolean
+          parent_email: string | null
+          parent_name: string | null
+          parent_phone: string | null
+          updated_at: string
+          upi_vpa: string | null
+          user_id: string
+        }
+        Insert: {
+          date_of_birth?: string | null
+          is_minor?: boolean
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
+          updated_at?: string
+          upi_vpa?: string | null
+          user_id: string
+        }
+        Update: {
+          date_of_birth?: string | null
+          is_minor?: boolean
+          parent_email?: string | null
+          parent_name?: string | null
+          parent_phone?: string | null
+          updated_at?: string
+          upi_vpa?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_private_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       quiz_attempts: {
         Row: {
