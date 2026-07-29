@@ -35,12 +35,17 @@ export function AvatarEditorSheet({
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
+    // Some Android pickers return an empty MIME type — fall back to the
+    // extension; PhotoStudio will surface a clear error if it can't decode.
+    const looksImage =
+      file.type.startsWith("image/") ||
+      (!file.type && /\.(jpe?g|png|webp|gif|heic|heif|bmp|avif)$/i.test(file.name));
+    if (!looksImage) {
       toast.error("choose a photo 📷");
       return;
     }
-    if (file.size > 10 * 1024 * 1024) {
-      toast.error("keep it under 10MB");
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("keep it under 50MB");
       return;
     }
     // Photos flow through PhotoStudio (crop/filters + metadata strip).

@@ -10,6 +10,9 @@ import {
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { captureFrameFromFile, uploadClipThumb } from "@/lib/clipThumbs";
 import { sha256Hex, recordProvenance } from "@/lib/provenance";
+import { systemShare, type SharePayload } from "@/lib/share";
+import { ShareSheet } from "@/components/share/ShareSheet";
+import { ViewersSheet } from "@/components/reels/ViewersSheet";
 
 export const Route = createFileRoute("/_authenticated/app/clips")({
   component: ClipsScreen,
@@ -71,14 +74,25 @@ function ClipsScreen() {
           <ChevronLeft className="h-5 w-5" />
         </Link>
         <div className="font-display text-base font-semibold drop-shadow">For You ✨</div>
-        <button
-          type="button"
-          onClick={() => setMuted((m) => !m)}
-          className="pointer-events-auto grid h-10 w-10 place-items-center rounded-full bg-black/40 backdrop-blur"
-          aria-label={muted ? "Unmute" : "Mute"}
-        >
-          {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
-        </button>
+        <div className="pointer-events-auto flex items-center gap-2">
+          <button
+            type="button"
+            data-testid="upload-clip"
+            onClick={() => setOpenUpload(true)}
+            className="grid h-10 w-10 place-items-center rounded-full bg-black/40 backdrop-blur"
+            aria-label="Upload clip"
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setMuted((m) => !m)}
+            className="grid h-10 w-10 place-items-center rounded-full bg-black/40 backdrop-blur"
+            aria-label={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? <VolumeX className="h-5 w-5" /> : <Volume2 className="h-5 w-5" />}
+          </button>
+        </div>
       </div>
 
       {clips.length === 0 && !query.isLoading ? (
@@ -120,17 +134,6 @@ function ClipsScreen() {
           )}
         </div>
       )}
-
-      <button
-        data-testid="upload-clip"
-        onClick={() => setOpenUpload(true)}
-        className="fixed right-5 z-[60] grid h-14 w-14 place-items-center rounded-full bg-primary text-primary-foreground shadow-2xl"
-        style={{ bottom: "calc(6.5rem + env(safe-area-inset-bottom))" }}
-        aria-label="Upload clip"
-      >
-        <Plus className="h-6 w-6" />
-      </button>
-
 
       {openComments && (
         <CommentsSheet
@@ -273,16 +276,18 @@ function ClipCard({
     }
   }
 
+  const [shareSheet, setShareSheet] = useState<SharePayload | null>(null);
+  const [showViewers, setShowViewers] = useState(false);
+
   async function share() {
-    const url = typeof window !== "undefined" ? `${window.location.origin}/app/clips#${clip.id}` : "";
-    try {
-      if (navigator.share) {
-        await navigator.share({ title: "ONIQ Clip", url });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success("Link copied");
-      }
-    } catch { /* user cancelled */ }
+    const payload: SharePayload = {
+      title: "ONIQ Clip 🎬",
+      text: clip.caption ?? undefined,
+      url: typeof window !== "undefined" ? `${window.location.origin}/app/clips#${clip.id}` : "",
+    };
+    // System sheet (WhatsApp/Bluetooth/everything) when available,
+    // in-app sheet otherwise.
+    if (!(await systemShare(payload))) setShareSheet(payload);
   }
 
   const name = profile?.display_name ?? profile?.username ?? "user";
@@ -316,10 +321,21 @@ function ClipCard({
           <Share2 className="h-7 w-7" />
           <span className="text-xs">Share</span>
         </button>
-        <div className="flex flex-col items-center gap-1 text-white/80">
-          <Eye className="h-6 w-6" />
-          <span className="text-xs">{viewCount}</span>
-        </div>
+        {me === clip.user_id ? (
+          <button
+            onClick={() => setShowViewers(true)}
+            className="flex flex-col items-center gap-1 text-white"
+            aria-label="See who viewed"
+          >
+            <Eye className="h-6 w-6" />
+            <span className="text-xs">{viewCount}</span>
+          </button>
+        ) : (
+          <div className="flex flex-col items-center gap-1 text-white/80">
+            <Eye className="h-6 w-6" />
+            <span className="text-xs">{viewCount}</span>
+          </div>
+        )}
         {me === clip.user_id ? (
           <button
             onClick={async () => {
@@ -388,6 +404,9 @@ function ClipCard({
           </div>
         )}
       </div>
+
+      {shareSheet && <ShareSheet payload={shareSheet} onClose={() => setShareSheet(null)} />}
+      {showViewers && <ViewersSheet clipId={clip.id} onClose={() => setShowViewers(false)} />}
     </div>
   );
 }
