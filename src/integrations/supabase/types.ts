@@ -470,6 +470,7 @@ export type Database = {
           hashtags: string[] | null
           id: string
           is_deleted: boolean
+          is_synthetic: boolean
           like_count: number
           thumbnail_url: string | null
           user_id: string
@@ -484,6 +485,7 @@ export type Database = {
           hashtags?: string[] | null
           id?: string
           is_deleted?: boolean
+          is_synthetic?: boolean
           like_count?: number
           thumbnail_url?: string | null
           user_id: string
@@ -498,6 +500,7 @@ export type Database = {
           hashtags?: string[] | null
           id?: string
           is_deleted?: boolean
+          is_synthetic?: boolean
           like_count?: number
           thumbnail_url?: string | null
           user_id?: string
@@ -1493,6 +1496,7 @@ export type Database = {
           created_at: string | null
           id: string
           is_deleted: boolean
+          is_synthetic: boolean
           like_count: number | null
           location_name: string | null
           media_urls: string[] | null
@@ -1505,6 +1509,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_deleted?: boolean
+          is_synthetic?: boolean
           like_count?: number | null
           location_name?: string | null
           media_urls?: string[] | null
@@ -1517,6 +1522,7 @@ export type Database = {
           created_at?: string | null
           id?: string
           is_deleted?: boolean
+          is_synthetic?: boolean
           like_count?: number | null
           location_name?: string | null
           media_urls?: string[] | null
@@ -2228,6 +2234,54 @@ export type Database = {
         }
         Relationships: []
       }
+      takedown_orders: {
+        Row: {
+          authority: string | null
+          content_id: string
+          content_type: string
+          created_at: string
+          handled_by: string | null
+          id: string
+          order_ref: string | null
+          reason: string | null
+          received_at: string
+          removed_at: string | null
+          sla_deadline: string | null
+          source: string
+          status: string
+        }
+        Insert: {
+          authority?: string | null
+          content_id: string
+          content_type: string
+          created_at?: string
+          handled_by?: string | null
+          id?: string
+          order_ref?: string | null
+          reason?: string | null
+          received_at?: string
+          removed_at?: string | null
+          sla_deadline?: string | null
+          source: string
+          status?: string
+        }
+        Update: {
+          authority?: string | null
+          content_id?: string
+          content_type?: string
+          created_at?: string
+          handled_by?: string | null
+          id?: string
+          order_ref?: string | null
+          reason?: string | null
+          received_at?: string
+          removed_at?: string | null
+          sla_deadline?: string | null
+          source?: string
+          status?: string
+        }
+        Relationships: []
+      }
       user_channels: {
         Row: {
           channel_id: string
@@ -2456,6 +2510,7 @@ export type Database = {
           hashtags: string[] | null
           id: string
           is_deleted: boolean
+          is_synthetic: boolean
           like_count: number
           thumbnail_url: string | null
           user_id: string
@@ -2479,6 +2534,7 @@ export type Database = {
           hashtags: string[] | null
           id: string
           is_deleted: boolean
+          is_synthetic: boolean
           like_count: number
           thumbnail_url: string | null
           user_id: string
