@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, Volume2, VolumeX, Loader2, Play, Plus } from "lucide-react";
+import { Heart, MessageCircle, Volume2, VolumeX, Loader2, Play, Plus, MoreHorizontal } from "lucide-react";
+import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
 import { toast } from "sonner";
 import { useMediaCoordinator } from "@/lib/MediaProvider";
 
@@ -210,6 +211,27 @@ function ReelCard({
     }
   }
 
+  const [ownerSheet, setOwnerSheet] = useState<
+    | null
+    | { id: string; video_url: string; thumbnail_url: string | null; caption: string | null; hashtags: string[] | null; visibility: string }
+  >(null);
+
+  async function openOwnerSheet() {
+    // The feed RPC doesn't carry hashtags/visibility/thumbnail — fetch the
+    // full row (owner SELECT allowed by RLS) before opening the sheet.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from("clips")
+      .select("id, video_url, thumbnail_url, caption, hashtags, visibility")
+      .eq("id", clip.id)
+      .maybeSingle();
+    if (error || !data) {
+      toast.error("couldn't load reel options");
+      return;
+    }
+    setOwnerSheet(data);
+  }
+
   function tapVideo() {
     const v = videoRef.current;
     if (!v) return;
@@ -244,6 +266,11 @@ function ReelCard({
           <MessageCircle className="h-7 w-7" />
           <span className="text-xs">{clip.comment_count}</span>
         </div>
+        {me === clip.user_id && (
+          <button onClick={openOwnerSheet} className="flex flex-col items-center gap-1 text-white" aria-label="Reel options">
+            <MoreHorizontal className="h-7 w-7" />
+          </button>
+        )}
       </div>
 
       <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">
@@ -277,6 +304,22 @@ function ReelCard({
           <p className="mt-2 text-sm text-white/95 line-clamp-2">{clip.caption}</p>
         )}
       </div>
+
+      {ownerSheet && me && (
+        <ReelOwnerSheet
+          clip={ownerSheet}
+          meId={me}
+          onClose={() => setOwnerSheet(null)}
+          onChanged={() => {
+            qc.invalidateQueries({ queryKey: ["clips-feed"] });
+            qc.invalidateQueries({ queryKey: ["my-page-clips"] });
+          }}
+          onDeleted={() => {
+            qc.invalidateQueries({ queryKey: ["clips-feed"] });
+            qc.invalidateQueries({ queryKey: ["my-page-clips"] });
+          }}
+        />
+      )}
     </div>
   );
 }

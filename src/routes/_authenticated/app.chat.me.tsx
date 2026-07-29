@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
 import { backfillClipThumb } from "@/lib/clipThumbs";
 import { ReelTile, ReelTileSkeleton } from "@/components/reels/ReelTile";
+import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
+import { MoreHorizontal } from "lucide-react";
 
 export const Route = createFileRoute("/_authenticated/app/chat/me")({
   component: MyPageTab,
@@ -59,6 +61,7 @@ function MyPageTab() {
   const [viewMoment, setViewMoment] = useState<MyMoment | null>(null);
   const [viewClip, setViewClip] = useState<MyClip | null>(null);
   const [editAvatar, setEditAvatar] = useState(false);
+  const [ownReel, setOwnReel] = useState<MyClip | null>(null);
 
   const { data: me } = useQuery({
     queryKey: ["my-page-profile"],
@@ -319,11 +322,32 @@ function MyPageTab() {
                 videoUrl={c.video_url}
                 viewCount={c.view_count}
                 onClick={() => setViewClip(c)}
+                onLongPress={() => setOwnReel(c)}
+                topRight={
+                  <button
+                    type="button"
+                    onClick={() => setOwnReel(c)}
+                    aria-label="Reel options"
+                    className="grid h-6 w-6 place-items-center rounded-full bg-black/50 text-white"
+                  >
+                    <MoreHorizontal className="h-3.5 w-3.5" />
+                  </button>
+                }
               />
             ))}
           </div>
         )}
       </div>
+
+      {ownReel && me?.id && (
+        <ReelOwnerSheet
+          clip={ownReel}
+          meId={me.id}
+          onClose={() => setOwnReel(null)}
+          onChanged={() => qc.invalidateQueries({ queryKey: ["my-page-clips"] })}
+          onDeleted={() => qc.invalidateQueries({ queryKey: ["my-page-clips"] })}
+        />
+      )}
 
       {editAvatar && (
         <AvatarEditorSheet
