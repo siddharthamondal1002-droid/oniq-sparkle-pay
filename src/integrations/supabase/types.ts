@@ -1224,6 +1224,113 @@ export type Database = {
         }
         Relationships: []
       }
+      legal_holds: {
+        Row: {
+          active: boolean
+          created_at: string
+          expires_at: string
+          id: string
+          legal_request_id: string | null
+          override_reason: string
+          released_at: string | null
+          scope: string
+          subject_user_id: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          expires_at: string
+          id?: string
+          legal_request_id?: string | null
+          override_reason: string
+          released_at?: string | null
+          scope?: string
+          subject_user_id: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          expires_at?: string
+          id?: string
+          legal_request_id?: string | null
+          override_reason?: string
+          released_at?: string | null
+          scope?: string
+          subject_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "legal_holds_legal_request_id_fkey"
+            columns: ["legal_request_id"]
+            isOneToOne: false
+            referencedRelation: "legal_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      legal_requests: {
+        Row: {
+          approver_1: string | null
+          approver_1_at: string | null
+          approver_2: string | null
+          approver_2_at: string | null
+          created_at: string
+          flag_reason: string | null
+          fulfilled_at: string | null
+          id: string
+          issuer_kind: string
+          issuer_name: string | null
+          notes: string | null
+          order_ref: string | null
+          received_at: string
+          records_sought: string
+          status: string
+          target_identifier: string
+          window_end: string | null
+          window_start: string | null
+        }
+        Insert: {
+          approver_1?: string | null
+          approver_1_at?: string | null
+          approver_2?: string | null
+          approver_2_at?: string | null
+          created_at?: string
+          flag_reason?: string | null
+          fulfilled_at?: string | null
+          id?: string
+          issuer_kind: string
+          issuer_name?: string | null
+          notes?: string | null
+          order_ref?: string | null
+          received_at?: string
+          records_sought: string
+          status?: string
+          target_identifier: string
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Update: {
+          approver_1?: string | null
+          approver_1_at?: string | null
+          approver_2?: string | null
+          approver_2_at?: string | null
+          created_at?: string
+          flag_reason?: string | null
+          fulfilled_at?: string | null
+          id?: string
+          issuer_kind?: string
+          issuer_name?: string | null
+          notes?: string | null
+          order_ref?: string | null
+          received_at?: string
+          records_sought?: string
+          status?: string
+          target_identifier?: string
+          window_end?: string | null
+          window_start?: string | null
+        }
+        Relationships: []
+      }
       media_provenance: {
         Row: {
           content_id: string | null
@@ -2705,6 +2812,7 @@ export type Database = {
           provider_count: number
         }[]
       }
+      has_active_legal_hold: { Args: { _user_id: string }; Returns: boolean }
       is_admin: { Args: { _uid: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }
