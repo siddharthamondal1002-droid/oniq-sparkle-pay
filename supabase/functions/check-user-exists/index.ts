@@ -13,8 +13,8 @@ const CORS = {
   "Access-Control-Allow-Methods": "GET, OPTIONS",
 };
 
-// Static URL guard. Env override wins when set.
-const URL_KEY = Deno.env.get("CHECK_USER_KEY") ?? "37e1ce40bffb3cf2728e47ebf7eeaf309a41934f23cd422d";
+// Static URL guard. Secret-only: no hardcoded fallback, fails closed if unset.
+const URL_KEY = Deno.env.get("CHECK_USER_KEY") ?? "";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -27,6 +27,10 @@ Deno.serve(async (req) => {
   if (req.method !== "GET") return json({ error: "method not allowed" }, 405);
 
   const url = new URL(req.url);
+  if (!URL_KEY) {
+    console.error("check-user-exists: CHECK_USER_KEY is not configured");
+    return json({ error: "unauthorized" }, 401);
+  }
   if (url.searchParams.get("key") !== URL_KEY) {
     return json({ error: "unauthorized" }, 401);
   }
