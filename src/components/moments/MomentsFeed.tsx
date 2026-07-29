@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -357,29 +358,41 @@ export function MomentsFeed() {
               return (
                 <article key={p.id} className="rounded-3xl border border-border bg-card p-4">
                   <div className="flex items-center gap-3">
-                    {p.profiles?.avatar_url ? (
-                      <img
-                        src={p.profiles.avatar_url}
-                        alt=""
-                        className="h-10 w-10 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
-                        {(p.profiles?.display_name ?? p.profiles?.username ?? "U")
-                          .charAt(0)
-                          .toUpperCase()}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="truncate text-sm font-medium">
-                        {p.profiles?.display_name ?? p.profiles?.username ?? "User"}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(p.created_at ?? Date.now()), {
-                          addSuffix: true,
-                        })}
-                      </div>
-                    </div>
+                    <Link
+                      to={isMine ? "/app/chat/me" : "/app/u/$userId"}
+                      params={isMine ? undefined : { userId: p.user_id }}
+                      className="flex min-w-0 flex-1 items-center gap-3"
+                      aria-label={`View ${p.profiles?.display_name ?? "user"}'s page`}
+                    >
+                      {/* story-ring avatar — tap to visit their page */}
+                      <span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[2px]">
+                        <span className="block rounded-full bg-background p-[2px]">
+                          {p.profiles?.avatar_url ? (
+                            <img
+                              src={p.profiles.avatar_url}
+                              alt=""
+                              className="h-9 w-9 rounded-full object-cover"
+                            />
+                          ) : (
+                            <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold text-primary-foreground">
+                              {(p.profiles?.display_name ?? p.profiles?.username ?? "U")
+                                .charAt(0)
+                                .toUpperCase()}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {p.profiles?.display_name ?? p.profiles?.username ?? "User"}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(p.created_at ?? Date.now()), {
+                            addSuffix: true,
+                          })}
+                        </span>
+                      </span>
+                    </Link>
                     {isMine && p.visibility === "moots" && (
                       <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
                         moots only 🤝

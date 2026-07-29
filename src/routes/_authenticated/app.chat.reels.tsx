@@ -247,22 +247,32 @@ function ReelCard({
       </div>
 
       <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">
-        <div className="flex items-center gap-2">
-          {profile?.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              alt=""
-              loading="lazy"
-              decoding="async"
-              className="h-9 w-9 rounded-full object-cover"
-            />
-          ) : (
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold">
-              {name.charAt(0).toUpperCase()}
-            </div>
-          )}
-          <div className="text-sm font-semibold">@{handle}</div>
-        </div>
+        {/* tap the author to visit their page */}
+        <Link
+          to="/app/u/$userId"
+          params={{ userId: clip.user_id }}
+          className="flex items-center gap-2"
+          aria-label={`View @${handle}'s page`}
+        >
+          <span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[2px]">
+            <span className="block rounded-full bg-black/40 p-[2px]">
+              {profile?.avatar_url ? (
+                <img
+                  src={profile.avatar_url}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="h-8 w-8 rounded-full object-cover"
+                />
+              ) : (
+                <span className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold">
+                  {name.charAt(0).toUpperCase()}
+                </span>
+              )}
+            </span>
+          </span>
+          <span className="text-sm font-semibold">@{handle}</span>
+        </Link>
         {clip.caption && (
           <p className="mt-2 text-sm text-white/95 line-clamp-2">{clip.caption}</p>
         )}

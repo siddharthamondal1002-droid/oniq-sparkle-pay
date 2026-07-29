@@ -2420,9 +2420,16 @@ function ContactSheet({ peerId, onClose }: { peerId: string; onClose: () => void
             on ONIQ since {new Date(peer.created_at).toLocaleDateString()}
           </div>
         )}
+        <Link
+          to="/app/u/$userId"
+          params={{ userId: peerId }}
+          className="press mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+        >
+          view their page ✨
+        </Link>
         <button
           onClick={onClose}
-          className="press mt-5 w-full rounded-2xl border border-border py-3 text-sm text-muted-foreground"
+          className="press mt-2 w-full rounded-2xl border border-border py-3 text-sm text-muted-foreground"
         >
           Close
         </button>
