@@ -1988,6 +1988,7 @@ export type Database = {
       }
       quiz_attempts: {
         Row: {
+          answer_sheet: Json | null
           chapter: string | null
           correct_count: number | null
           created_at: string
@@ -2000,6 +2001,7 @@ export type Database = {
           total_questions: number | null
         }
         Insert: {
+          answer_sheet?: Json | null
           chapter?: string | null
           correct_count?: number | null
           created_at?: string
@@ -2012,6 +2014,7 @@ export type Database = {
           total_questions?: number | null
         }
         Update: {
+          answer_sheet?: Json | null
           chapter?: string | null
           correct_count?: number | null
           created_at?: string
