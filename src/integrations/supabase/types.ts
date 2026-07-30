@@ -3030,6 +3030,33 @@ export type Database = {
           viewer_id: string
         }[]
       }
+      public_moment_card: {
+        Args: { _post_id: string }
+        Returns: {
+          content: string
+          display_name: string
+          media_url: string
+          username: string
+        }[]
+      }
+      public_profile_card: {
+        Args: { _user_id: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          display_name: string
+          username: string
+        }[]
+      }
+      public_reel_card: {
+        Args: { _clip_id: string }
+        Returns: {
+          caption: string
+          display_name: string
+          thumbnail_url: string
+          username: string
+        }[]
+      }
       rate_booking: {
         Args: { _booking_id: string; _rating: number; _review?: string }
         Returns: undefined
@@ -3077,6 +3104,13 @@ export type Database = {
           _parent_phone?: string
         }
         Returns: Json
+      }
+      share_reel_to_moots: {
+        Args: { _clip_id: string; _note?: string; _recipient_ids: string[] }
+        Returns: {
+          recipient_id: string
+          status: string
+        }[]
       }
       toggle_clip_like: { Args: { _clip_id: string }; Returns: boolean }
       toggle_message_star: { Args: { _message_id: string }; Returns: boolean }
