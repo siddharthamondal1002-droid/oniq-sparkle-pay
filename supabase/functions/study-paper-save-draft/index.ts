@@ -2,7 +2,8 @@
 // long paper session. JWT-gated. Same ownership pattern as study-paper-grade/
 // finish. Best-effort: always returns HTTP 200, never throws to the client.
 //
-// Body: { paper_id, question_id, draft: null | {kind:"text", value:string} | {kind:"photo", attached:true} }
+// Body: { paper_id, question_id, draft: null | {kind:"text", value:string}
+//         | {kind:"photo", attached:true} | {kind:"mcq", value:number} }
 // Photo bytes are intentionally NOT persisted (too heavy for jsonb) — we only
 // store a lightweight {kind:"photo", attached:true} marker so the resume flow
 // can prompt the student to reattach the photo.
@@ -12,7 +13,8 @@ import { corsHeaders, json } from "../_shared/llm.ts";
 type DraftIn =
   | null
   | { kind: "text"; value: string }
-  | { kind: "photo"; attached: true };
+  | { kind: "photo"; attached: true }
+  | { kind: "mcq"; value: number };
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -50,6 +52,9 @@ Deno.serve(async (req) => {
       if (v.length > 0) normalized = { kind: "text", value: v };
     } else if (raw.kind === "photo") {
       normalized = { kind: "photo", attached: true };
+    } else if (raw.kind === "mcq" && typeof raw.value === "number" && Number.isFinite(raw.value)) {
+      const v = Math.max(0, Math.min(9, Math.floor(raw.value)));
+      normalized = { kind: "mcq", value: v };
     }
   }
 
@@ -88,9 +93,7 @@ Deno.serve(async (req) => {
   // Merge into draft_answers at the question_id key (or delete if null).
   try {
     if (normalized === null) {
-      // Remove that key using jsonb - operator.
-      const { error: upErr } = await admin.rpc as unknown as never; // fallback if rpc unavailable
-      // Simpler path: read-modify-write via service role.
+      // Read-modify-write via service role.
       const { data: cur } = await admin
         .from("study_papers")
         .select("draft_answers")
@@ -104,8 +107,8 @@ Deno.serve(async (req) => {
         .from("study_papers")
         .update({ draft_answers: map, updated_at: new Date().toISOString() })
         .eq("id", paperId);
-      if (upErr || upErr2) {
-        console.warn("study-paper-save-draft: delete failed", (upErr2 || upErr as unknown as Error)?.message ?? "");
+      if (upErr2) {
+        console.warn("study-paper-save-draft: delete failed", upErr2.message);
       }
     } else {
       // Merge single key using read-modify-write (jsonb || operator would

@@ -275,3 +275,69 @@
   animation: fade-up 0.4s ease-out both;
 }
 
+
+/* ------------------------------------------------------------------ *
+ * Global interaction standards (desktop + mobile web polish)
+ * ------------------------------------------------------------------ */
+
+/* Tailwind v4 preflight leaves buttons with the default cursor — on the
+   web every interactive control should read as clickable. */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+label[for],
+select,
+summary {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* Kill the grey/blue tap flash on Android WebView & mobile browsers;
+   the .press scale + hover states are the feedback instead. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Remove the 300ms double-tap-zoom delay on interactive elements while
+   keeping pinch-zoom available on content. */
+button, a, [role="button"], input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Visible keyboard-focus everywhere (mouse clicks stay clean). */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* No sideways rubber-banding; keep native pull-to-refresh vertical only. */
+html, body {
+  overscroll-behavior-x: none;
+}
+
+/* Brand text selection. */
+::selection {
+  background: color-mix(in oklab, var(--primary) 30%, transparent);
+}
+
+/* Slim, theme-aware scrollbars on desktop. */
+@media (pointer: fine) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--muted-foreground) 30%, transparent) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--muted-foreground) 30%, transparent);
+    border-radius: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

@@ -2303,6 +2303,7 @@ function QuizModal({
   const [correct, setCorrect] = useState(0);
   const [done, setDone] = useState(false);
   const insertedRef = useRef(false);
+  const sheetRef = useRef<QuizSheetItem[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2353,6 +2354,8 @@ function QuizModal({
         total_questions: 5,
         correct_count: finalCorrect,
         chapter: chapter ?? null,
+        // Per-question sheet so the attempt can be reviewed later.
+        answer_sheet: sheetRef.current.length ? sheetRef.current : null,
       });
     } catch {
       // best-effort
@@ -2362,7 +2365,15 @@ function QuizModal({
   function choose(i: number) {
     if (picked !== null || !questions) return;
     setPicked(i);
-    if (i === questions[idx].correct_index) setCorrect((c) => c + 1);
+    const q = questions[idx];
+    sheetRef.current.push({
+      question: q.question,
+      options: q.options,
+      picked: i,
+      correct_index: q.correct_index,
+      explanation: q.explanation,
+    });
+    if (i === q.correct_index) setCorrect((c) => c + 1);
   }
 
   function next() {
@@ -2694,6 +2705,8 @@ function PaperModal({
             const dd = d as { kind?: string; value?: unknown };
             if (dd?.kind === "text" && typeof dd.value === "string" && dd.value.length > 0) {
               map[qid] = { kind: "text", value: dd.value };
+            } else if (dd?.kind === "mcq" && typeof dd.value === "number" && dd.value >= 0) {
+              map[qid] = { kind: "mcq", pick: dd.value };
             } else if (dd?.kind === "photo") {
               reattach.add(qid);
             }
@@ -2750,11 +2763,14 @@ function PaperModal({
     if (!paperId) return;
     if (saveTimers.current[qid]) clearTimeout(saveTimers.current[qid]);
     saveTimers.current[qid] = setTimeout(async () => {
-      let payload: null | { kind: "text"; value: string } | { kind: "photo"; attached: true } = null;
+      let payload:
+        | null
+        | { kind: "text"; value: string }
+        | { kind: "photo"; attached: true }
+        | { kind: "mcq"; value: number } = null;
       if (next && next.kind === "text") payload = { kind: "text", value: next.value };
       else if (next && next.kind === "photo") payload = { kind: "photo", attached: true };
-      // MCQ picks and empty drafts don't persist per spec.
-      if (next && next.kind === "mcq") return;
+      else if (next && next.kind === "mcq") payload = { kind: "mcq", value: next.pick };
       try {
         await supabase.functions.invoke("study-paper-save-draft", {
           body: { paper_id: paperId, question_id: qid, draft: payload },
@@ -3638,6 +3654,14 @@ function PaperAnswerArea({
 
 // ------------------------- Progress -------------------------
 
+type QuizSheetItem = {
+  question: string;
+  options: string[];
+  picked: number;
+  correct_index: number;
+  explanation?: string;
+};
+
 type Attempt = {
   id: string;
   profile_id: string;
@@ -3649,6 +3673,7 @@ type Attempt = {
   marks_scored: number | null;
   chapter: string | null;
   created_at: string;
+  answer_sheet?: QuizSheetItem[] | null;
 };
 
 
@@ -3668,7 +3693,7 @@ function useAttempts() {
         };
       })
         .from("quiz_attempts")
-        .select("id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, chapter, created_at")
+        .select("id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, chapter, created_at, answer_sheet")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -3866,6 +3891,7 @@ function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () =
 }
 
 function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; onClose: () => void }) {
+  const [quizSheet, setQuizSheet] = useState<Attempt | null>(null);
   const { t: tProgress } = useT();
   const { data: attempts, isLoading } = useAttempts();
   const { data: sheets } = usePaperSheets();
@@ -3997,14 +4023,28 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
                         const when = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
                         const { num, den } = attemptScore(r);
                         const isPaper = !!(r.total_marks && r.total_marks > 0);
-                        return (
+                        const hasSheet = !isPaper && Array.isArray(r.answer_sheet) && r.answer_sheet.length > 0;
+                        return hasSheet ? (
+                          <button
+                            key={r.id}
+                            onClick={() => setQuizSheet(r)}
+                            className="flex w-full items-center justify-between rounded-lg px-1 py-0.5 text-left text-xs hover:bg-muted active:bg-muted"
+                          >
+                            <span className="truncate text-primary">
+                              {r.subject} <span className="text-[9px]">· review 📖</span>
+                            </span>
+                            <span className="text-muted-foreground">
+                              {when} · {num}/{den}
+                            </span>
+                          </button>
+                        ) : (
                           <div key={r.id} className="flex items-center justify-between text-xs">
                             <span className="truncate">
                               {r.subject}
                               {isPaper && <span className="ml-1 text-[9px] text-muted-foreground">· paper</span>}
                             </span>
                             <span className="text-muted-foreground">
-                              {when} · {num}/{den}{isPaper ? "" : ""}
+                              {when} · {num}/{den}
                             </span>
                           </div>
                         );
@@ -4042,6 +4082,62 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
       )}
 
       {openSheet && <AnswerSheetModal paperId={openSheet} onClose={() => setOpenSheet(null)} />}
+      {quizSheet && <QuizSheetModal attempt={quizSheet} onClose={() => setQuizSheet(null)} />}
+    </div>
+  );
+}
+
+/* Review sheet for a quick quiz attempt: every question with the student's
+   pick vs the correct answer, plus the explanation. */
+function QuizSheetModal({ attempt, onClose }: { attempt: Attempt; onClose: () => void }) {
+  const items = (attempt.answer_sheet ?? []) as QuizSheetItem[];
+  const when = new Date(attempt.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+      <div
+        className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-3xl border-t border-border bg-background p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/30" />
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <h3 className="font-display text-base font-semibold">{attempt.subject} — quiz review 📖</h3>
+            <div className="text-[11px] text-muted-foreground">{when} · {attempt.correct_count}/{attempt.total_questions} correct</div>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full bg-muted">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-2">
+          {items.map((q, i) => {
+            const right = q.picked === q.correct_index;
+            return (
+              <div key={i} className={`rounded-2xl border p-3 text-sm ${right ? "border-emerald-500/40" : "border-red-500/40"}`}>
+                <div className="mb-2 font-medium">Q{i + 1}. {q.question}</div>
+                <div className="space-y-1">
+                  {q.options.map((opt, oi) => (
+                    <div
+                      key={oi}
+                      className={`rounded-lg px-2.5 py-1.5 text-xs ${
+                        oi === q.correct_index
+                          ? "bg-emerald-500/15 text-emerald-500 font-semibold"
+                          : oi === q.picked
+                            ? "bg-red-500/15 text-red-400"
+                            : "text-muted-foreground"
+                      }`}
+                    >
+                      {oi === q.picked ? "➤ " : ""}{opt}{oi === q.correct_index ? " ✓" : ""}
+                    </div>
+                  ))}
+                </div>
+                {q.explanation && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">💡 {q.explanation}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 }
