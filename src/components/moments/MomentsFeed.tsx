@@ -20,6 +20,7 @@ import {
   Eye,
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
+import { AttachmentSheet, useAttachmentContext, type AttachmentOption } from "@/components/attach/AttachmentSheet";
 import { systemShare, type SharePayload } from "@/lib/share";
 import { watchImageView } from "@/lib/views";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
@@ -114,6 +115,27 @@ export function MomentsFeed() {
   const [showCrisis, setShowCrisis] = useState(false);
   const [shareSheet, setShareSheet] = useState<SharePayload | null>(null);
   const [viewersFor, setViewersFor] = useState<string | null>(null);
+  const [showAttach, setShowAttach] = useState(false);
+  const attachCtx = useAttachmentContext();
+
+  // Unified attachment sheet -> the existing single-file moment pipeline.
+  async function handleSheetFiles(_opt: AttachmentOption, files: File[]) {
+    const file = files[0];
+    if (!file) return;
+    if (file.size > 50 * 1024 * 1024) {
+      toast.error("Keep it under 50MB for now — longer videos coming soon 🎬");
+      return;
+    }
+    if (file.type.startsWith("image/")) {
+      setStudioFile(file);
+      return;
+    }
+    if (file.type.startsWith("video/") || file.type.startsWith("audio/")) {
+      await uploadPicked(file);
+      return;
+    }
+    toast.error("Choose a photo, video, or audio file");
+  }
 
   async function sharePost(p: Post) {
     const payload: SharePayload = {
@@ -365,7 +387,7 @@ export function MomentsFeed() {
             <div className="flex gap-2 text-muted-foreground">
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => setShowAttach(true)}
                 disabled={uploading}
                 className={`grid h-8 w-8 place-items-center rounded-full hover:bg-muted ${uploading ? "opacity-50" : ""}`}
                 aria-label="Add photo from gallery"
@@ -560,6 +582,15 @@ export function MomentsFeed() {
       {showCrisis && <CrisisSupportSheet onClose={() => setShowCrisis(false)} />}
       {shareSheet && <ShareSheet payload={shareSheet} onClose={() => setShareSheet(null)} />}
       {viewersFor && <ViewersSheet postType="moment" postId={viewersFor} onClose={() => setViewersFor(null)} />}
+      <AttachmentSheet
+        open={showAttach}
+        surface="moment"
+        context={attachCtx}
+        acceptOverride={{ gallery: "image/*,video/*,audio/*" }}
+        onClose={() => setShowAttach(false)}
+        onFiles={(opt, files) => void handleSheetFiles(opt, files)}
+        onSelect={() => {}}
+      />
       {studioFile && (
         <PhotoStudio
           file={studioFile}

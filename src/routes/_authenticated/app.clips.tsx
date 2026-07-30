@@ -14,6 +14,7 @@ import { systemShare, type SharePayload } from "@/lib/share";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { ReelVideo } from "@/components/reels/ReelVideo";
+import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
 import { watchVideoView } from "@/lib/views";
 
 export const Route = createFileRoute("/_authenticated/app/clips")({
@@ -554,6 +555,8 @@ function UploadSheet({
   // IT Rules 2026: mandatory synthetic-content declaration at upload.
   const [isSynthetic, setIsSynthetic] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const [showAttach, setShowAttach] = useState(false);
+  const attachCtx = useAttachmentContext();
 
 
   const pick = useCallback(async (f: File | null) => {
@@ -686,10 +689,19 @@ function UploadSheet({
           className="hidden"
           onChange={(e) => { const f = e.target.files?.[0] ?? null; e.target.value = ""; pick(f); }}
         />
+        <AttachmentSheet
+          open={showAttach}
+          surface="reel"
+          context={attachCtx}
+          acceptOverride={{ gallery: "video/mp4,video/webm,video/quicktime", camera: "video/*" }}
+          onClose={() => setShowAttach(false)}
+          onFiles={(_opt, files) => void pick(files[0] ?? null)}
+          onSelect={() => {}}
+        />
 
         {!file ? (
           <button
-            onClick={() => inputRef.current?.click()}
+            onClick={() => setShowAttach(true)}
             className="grid w-full place-items-center rounded-2xl border-2 border-dashed border-border py-14 text-sm text-muted-foreground"
           >
             <span>Tap to pick a video</span>

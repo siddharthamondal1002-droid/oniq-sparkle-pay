@@ -10,6 +10,7 @@ import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
 // CallOverlay is mounted globally by GlobalCallHost — see src/components/chat/GlobalCallHost.tsx.
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
+import { AttachmentSheet, useAttachmentContext, type AttachmentOption } from "@/components/attach/AttachmentSheet";
 import { useIsOnline } from "@/hooks/usePresence";
 import { sendPush } from "@/lib/push";
 import { CALLS_ENABLED } from "@/lib/flags";
@@ -918,6 +919,56 @@ function ChatThread() {
 
   const [studioQueue, setStudioQueue] = useState<File[]>([]);
   const studioResults = useRef<File[]>([]);
+
+  const attachCtx = useAttachmentContext();
+
+  // Unified attachment sheet -> existing upload pipelines.
+  const handleSheetFiles = (option: AttachmentOption, files: File[]) => {
+    if (option.id === "gallery" || option.id === "camera") {
+      const images = files.filter((f) => f.type.startsWith("image/"));
+      const videos = files.filter((f) => f.type.startsWith("video/"));
+      if (images.length) {
+        studioResults.current = [];
+        setStudioQueue(images);
+      }
+      if (videos.length) void handlePickedFiles(videos, "video");
+      return;
+    }
+    // document / audio ride the existing any-file pipeline (chat-media
+    // storage policy already allows these extensions).
+    void handlePickedFiles(files, "file");
+  };
+
+  // Location share: one tap -> a maps link message (no live tracking).
+  const sendLocation = () => {
+    if (!me) return;
+    if (!("geolocation" in navigator)) {
+      toast.error("location not available on this device");
+      return;
+    }
+    toast("getting your location…");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        const content = `📍 My location: https://maps.google.com/?q=${latitude.toFixed(6)},${longitude.toFixed(6)}`;
+        const { error } = await supabase.from("messages").insert({
+          conversation_id: conversationId,
+          sender_id: me.id,
+          content,
+          type: "text",
+        });
+        if (error) {
+          toast.error(error.message || "couldn't share location");
+          return;
+        }
+        await supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+        markRead();
+        sendPush({ conversation_id: conversationId, kind: "message", preview: "📍 Location" });
+      },
+      () => toast.error("location permission denied"),
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+    );
+  };
 
 
   const startRecording = async () => {
@@ -1951,52 +2002,16 @@ function ChatThread() {
             >
               <Paperclip className="h-5 w-5" />
             </button>
-            {showAttachSheet && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setShowAttachSheet(false)} />
-                <div className="absolute bottom-14 left-0 z-40 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
-                  <button
-                    type="button"
-                    data-testid="chat-attach-camera"
-                    onClick={() => { setShowAttachSheet(false); cameraInputRef.current?.click(); }}
-                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
-                  >
-                    <span className="text-lg">📸</span> Camera
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="chat-attach-camera-video"
-                    onClick={() => { setShowAttachSheet(false); cameraVideoRef.current?.click(); }}
-                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
-                  >
-                    <span className="text-lg">🎬</span> quick vid
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setShowAttachSheet(false); fileInputRef.current?.click(); }}
-                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
-                  >
-                    <span className="text-lg">📷</span> Photo
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="chat-attach-video"
-                    onClick={() => { setShowAttachSheet(false); videoInputRef.current?.click(); }}
-                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
-                  >
-                    <span className="text-lg">🎥</span> Video
-                  </button>
-                  <button
-                    type="button"
-                    data-testid="chat-attach-file"
-                    onClick={() => { setShowAttachSheet(false); anyFileInputRef.current?.click(); }}
-                    className="flex w-full items-center gap-3 px-3 py-3 text-left text-sm hover:bg-muted"
-                  >
-                    <span className="text-lg">📎</span> File
-                  </button>
-                </div>
-              </>
-            )}
+            <AttachmentSheet
+              open={showAttachSheet}
+              surface="chat"
+              context={attachCtx}
+              onClose={() => setShowAttachSheet(false)}
+              onFiles={(opt, files) => handleSheetFiles(opt, files)}
+              onSelect={(opt) => {
+                if (opt.id === "location") sendLocation();
+              }}
+            />
           </div>
           <div className="relative flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
             <button
