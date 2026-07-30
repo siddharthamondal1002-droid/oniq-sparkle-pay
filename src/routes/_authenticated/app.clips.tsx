@@ -13,6 +13,7 @@ import { sha256Hex, recordProvenance } from "@/lib/provenance";
 import { systemShare, type SharePayload } from "@/lib/share";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
+import { ReelVideo } from "@/components/reels/ReelVideo";
 import { watchVideoView } from "@/lib/views";
 
 export const Route = createFileRoute("/_authenticated/app/clips")({
@@ -65,7 +66,7 @@ function ClipsScreen() {
   const clips = query.data?.pages.flat() ?? [];
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-black text-white">
+    <div className="relative h-screen w-full overflow-hidden bg-black text-white" style={{ height: "100dvh" }}>
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))]">
         <Link
           to="/app"
@@ -318,16 +319,7 @@ function ClipCard({
 
   return (
     <div ref={sectionRef} data-testid="clip-card" className="relative h-full w-full snap-start">
-      <video
-        ref={videoRef}
-        src={clip.video_url}
-        loop
-        playsInline
-        muted={muted}
-        preload="metadata"
-        onClick={togglePlay}
-        className="absolute inset-0 h-full w-full object-contain bg-black"
-      />
+      <ReelVideo src={clip.video_url} muted={muted} videoRef={videoRef} onClick={togglePlay} />
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
 
