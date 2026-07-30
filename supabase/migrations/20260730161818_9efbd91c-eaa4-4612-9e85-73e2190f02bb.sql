@@ -1,0 +1,1 @@
+ALTER TABLE public.quiz_attempts ADD COLUMN IF NOT EXISTS answer_sheet jsonb;
