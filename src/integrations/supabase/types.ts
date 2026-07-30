@@ -1680,6 +1680,7 @@ export type Database = {
           location_name: string | null
           media_urls: string[] | null
           user_id: string
+          view_count: number
           visibility: string
         }
         Insert: {
@@ -1693,6 +1694,7 @@ export type Database = {
           location_name?: string | null
           media_urls?: string[] | null
           user_id: string
+          view_count?: number
           visibility?: string
         }
         Update: {
@@ -1706,6 +1708,7 @@ export type Database = {
           location_name?: string | null
           media_urls?: string[] | null
           user_id?: string
+          view_count?: number
           visibility?: string
         }
         Relationships: [
@@ -2254,6 +2257,7 @@ export type Database = {
           kind: string
           media_url: string | null
           user_id: string
+          view_count: number
         }
         Insert: {
           bg_color?: string | null
@@ -2264,6 +2268,7 @@ export type Database = {
           kind: string
           media_url?: string | null
           user_id: string
+          view_count?: number
         }
         Update: {
           bg_color?: string | null
@@ -2274,6 +2279,7 @@ export type Database = {
           kind?: string
           media_url?: string | null
           user_id?: string
+          view_count?: number
         }
         Relationships: []
       }
