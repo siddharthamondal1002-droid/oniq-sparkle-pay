@@ -6,6 +6,7 @@ import { Heart, MessageCircle, Volume2, VolumeX, Loader2, Play, Plus, MoreHorizo
 import { systemShare, type SharePayload } from "@/lib/share";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
+import { watchVideoView } from "@/lib/views";
 import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
 import { toast } from "sonner";
 import { useMediaCoordinator } from "@/lib/MediaProvider";
@@ -146,7 +147,6 @@ function ReelCard({
   const qc = useQueryClient();
   const sectionRef = useRef<HTMLDivElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
-  const viewedRef = useRef(false);
   const { register } = useMediaCoordinator();
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(clip.like_count);
@@ -184,10 +184,6 @@ function ReelCard({
           if (e.isIntersecting) {
             register(vid);
             vid.play().catch(() => {});
-            if (!viewedRef.current) {
-              viewedRef.current = true;
-              void supabase.rpc("record_clip_view", { _clip_id: clip.id });
-            }
             if (isLast) onLoadMore();
           } else {
             vid.pause();
@@ -197,8 +193,12 @@ function ReelCard({
       { threshold: 0.6 },
     );
     io.observe(el);
-    return () => io.disconnect();
-  }, [clip.id, isLast, onLoadMore, register]);
+    const stopWatch = watchVideoView(vid, "reel", clip.id, clip.user_id, me);
+    return () => {
+      io.disconnect();
+      stopWatch();
+    };
+  }, [clip.id, clip.user_id, me, isLast, onLoadMore, register]);
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = muted;
@@ -340,7 +340,7 @@ function ReelCard({
       </div>
 
       {shareSheet && <ShareSheet payload={shareSheet} onClose={() => setShareSheet(null)} />}
-      {showViewers && <ViewersSheet clipId={clip.id} onClose={() => setShowViewers(false)} />}
+      {showViewers && <ViewersSheet postType="reel" postId={clip.id} onClose={() => setShowViewers(false)} />}
       {ownerSheet && me && (
         <ReelOwnerSheet
           clip={ownerSheet}

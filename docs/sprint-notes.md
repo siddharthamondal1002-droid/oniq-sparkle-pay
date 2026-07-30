@@ -487,3 +487,47 @@ PhotoStudio's root — same idiom the codebase already uses for inner sheet
 cards. Verified by re-running the probe: hosted mount now keeps the studio
 open, highlight moves, panels switch; clean mount unchanged. All temporary
 instrumentation, the probe route, and the probe script were removed.
+
+---
+
+# LOOP — view counts + viewer lists (2026-07-30)
+
+## P1 inventory — eye-icon surfaces and why they're stale
+
+| # | Surface | Component | Number comes from | Root cause of staleness |
+|---|---------|-----------|-------------------|------------------------|
+| 1 | For You reels player | `app.clips.tsx` ClipCard | `clips.view_count` via `clips_feed` RPC; `record_clip_view` on IntersectionObserver ≥0.6 | View = impression (no dwell time) so scroll-past counts; owner's own views counted; number only moves via local optimistic +1, never refetched |
+| 2 | Moments-world reels | `app.chat.reels.tsx` ReelCard | same column | This surface recorded NOTHING until 2026-07-30 (views from here were invisible); same impression semantics |
+| 3 | My Page reel modal | `app.chat.me.tsx` | `clips.view_count` from one-shot select | Fetched once, never refetched while open; eye not tappable |
+| 4 | User-page reel modal | `app.u.$userId.tsx` | same | same (correct as plain count for non-owners) |
+| 5 | Updates/status viewer | `app.chat.updates.tsx` | `status_views` raw insert on open + `count(*)` per status | Insert fires with zero dwell; count fetched once per open; identity stored but NO viewer list UI |
+| 6 | Moments posts | `MomentsFeed.tsx` | — | No views table, no column, no icon — never built |
+
+Confirmed: `clips_views(clip_id,user_id)` and `status_views(status_id,viewer_id)`
+exist (write-time counter only for clips); moments has nothing; counts are
+write-time counters (not count(*)), never refetched on focus; RLS is not the
+cause (counts are plain columns readable with the row).
+
+## P4 privacy-gate decisions (recorded before shipping the sheet)
+
+- **Per-surface defaults.** Viewer IDENTITY lists (owner-only) on moments,
+  updates, and reels. The mission recommended aggregate-only for public
+  reels (Instagram's posture); the founder explicitly requested reel viewer
+  lists on 2026-07-30 ("user can view who has viewed their post by clicking
+  on eye icon"), and ONIQ is a small moots-centric network, so reels ship
+  with identity too — mitigated by the toggle below, minor anonymisation,
+  and owner-only access. Recorded as a deliberate product deviation.
+- **Toggle.** `profiles.show_view_identity` (default ON), UI in Profile →
+  "Show my name in view lists". OFF ⇒ still counted, shown as anonymous —
+  and SYMMETRICALLY the user's own viewer lists come back fully anonymised
+  (enforced inside `post_viewers`, not in the client).
+- **Minors.** Viewers with `profiles.is_minor = true` are NEVER named in
+  any viewer list (anonymous entry, no profile link) — DPDP children's
+  data; targeting-vector concern from the mission.
+- **Blocked pairs** are never recorded (`record_post_view`) and are also
+  filtered out of `post_viewers` output (defence in depth).
+- **Consent notice gap (for counsel):** identifying who viewed content is a
+  processing purpose the current consent notice may not cover. FLAGGED for
+  the DPDP consent-notice update (pairs with the B5 notices work). Until
+  counsel signs off, the mitigations are: default-on visibility is limited
+  to owner-only lists, symmetric opt-out exists, minors are never named.
