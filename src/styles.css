@@ -306,11 +306,20 @@ button, a, [role="button"], input, select, textarea {
   touch-action: manipulation;
 }
 
-/* Visible keyboard-focus everywhere (mouse clicks stay clean). */
+/* Visible keyboard-focus for buttons/links (mouse clicks stay clean).
+   Form fields are excluded — they carry their own border/focus styling,
+   and browsers apply :focus-visible to inputs on every tap, which doubled
+   the chat composer's border with a loud ring. */
 :focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
   border-radius: 6px;
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[contenteditable="true"]:focus-visible {
+  outline: none;
 }
 
 /* No sideways rubber-banding; keep native pull-to-refresh vertical only. */
