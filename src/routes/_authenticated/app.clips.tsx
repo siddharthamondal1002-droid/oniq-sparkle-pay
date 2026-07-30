@@ -13,6 +13,7 @@ import { sha256Hex, recordProvenance } from "@/lib/provenance";
 import { systemShare, type SharePayload } from "@/lib/share";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
+import { watchVideoView } from "@/lib/views";
 
 export const Route = createFileRoute("/_authenticated/app/clips")({
   component: ClipsScreen,
@@ -202,12 +203,6 @@ function ClipCard({
         for (const e of entries) {
           if (e.isIntersecting) {
             vid.play().catch(() => {});
-            if (!viewedRef.current) {
-              viewedRef.current = true;
-              supabase.rpc("record_clip_view", { _clip_id: clip.id }).then(({ error }) => {
-                if (!error) setViewCount((v) => v + 1);
-              });
-            }
             if (isLast) onLoadMore();
           } else {
             vid.pause();
@@ -217,8 +212,36 @@ function ClipCard({
       { threshold: 0.6 },
     );
     io.observe(el);
-    return () => io.disconnect();
-  }, [clip.id, isLast, onLoadMore]);
+    // Qualified view: ≥3s playback (or half the clip if shorter), batched.
+    const stopWatch = watchVideoView(vid, "reel", clip.id, clip.user_id, me, () => {
+      if (!viewedRef.current) {
+        viewedRef.current = true;
+        setViewCount((v) => v + 1);
+      }
+    });
+    return () => {
+      io.disconnect();
+      stopWatch();
+    };
+  }, [clip.id, clip.user_id, me, isLast, onLoadMore]);
+
+  // Live count while the player is open (owner sees new views arrive).
+  useEffect(() => {
+    const ch = supabase
+      .channel(`clip-views-${clip.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "clips", filter: `id=eq.${clip.id}` },
+        (payload) => {
+          const next = (payload.new as { view_count?: number }).view_count;
+          if (typeof next === "number") setViewCount(next);
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(ch);
+    };
+  }, [clip.id]);
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = muted;
