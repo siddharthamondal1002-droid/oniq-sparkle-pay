@@ -20,6 +20,9 @@ import { Route as AuthNativeCallbackRouteImport } from './routes/auth-native-cal
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as UUserIdRouteImport } from './routes/u.$userId'
+import { Route as RClipIdRouteImport } from './routes/r.$clipId'
+import { Route as MPostIdRouteImport } from './routes/m.$postId'
 import { Route as BlogWhatIsASuperAppRouteImport } from './routes/blog.what-is-a-super-app'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
@@ -110,6 +113,21 @@ const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const UUserIdRoute = UUserIdRouteImport.update({
+  id: '/u/$userId',
+  path: '/u/$userId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RClipIdRoute = RClipIdRouteImport.update({
+  id: '/r/$clipId',
+  path: '/r/$clipId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MPostIdRoute = MPostIdRouteImport.update({
+  id: '/m/$postId',
+  path: '/m/$postId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogWhatIsASuperAppRoute = BlogWhatIsASuperAppRouteImport.update({
@@ -327,6 +345,9 @@ export interface FileRoutesByFullPath {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
+  '/m/$postId': typeof MPostIdRoute
+  '/r/$clipId': typeof RClipIdRoute
+  '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/app/admin': typeof AuthenticatedAppAdminRoute
@@ -375,6 +396,9 @@ export interface FileRoutesByTo {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
+  '/m/$postId': typeof MPostIdRoute
+  '/r/$clipId': typeof RClipIdRoute
+  '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/app/admin': typeof AuthenticatedAppAdminRoute
@@ -425,6 +449,9 @@ export interface FileRoutesById {
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
+  '/m/$postId': typeof MPostIdRoute
+  '/r/$clipId': typeof RClipIdRoute
+  '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/_authenticated/app/admin': typeof AuthenticatedAppAdminRoute
@@ -476,6 +503,9 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/app'
     | '/blog/what-is-a-super-app'
+    | '/m/$postId'
+    | '/r/$clipId'
+    | '/u/$userId'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/app/admin'
@@ -524,6 +554,9 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/blog/what-is-a-super-app'
+    | '/m/$postId'
+    | '/r/$clipId'
+    | '/u/$userId'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/app/admin'
@@ -573,6 +606,9 @@ export interface FileRouteTypes {
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/app'
     | '/blog/what-is-a-super-app'
+    | '/m/$postId'
+    | '/r/$clipId'
+    | '/u/$userId'
     | '/.lovable/oauth/consent'
     | '/.mcp/invoke-tool/$tool'
     | '/_authenticated/app/admin'
@@ -623,6 +659,9 @@ export interface RootRouteChildren {
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   BlogWhatIsASuperAppRoute: typeof BlogWhatIsASuperAppRoute
+  MPostIdRoute: typeof MPostIdRoute
+  RClipIdRoute: typeof RClipIdRoute
+  UUserIdRoute: typeof UUserIdRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
@@ -705,6 +744,27 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/u/$userId': {
+      id: '/u/$userId'
+      path: '/u/$userId'
+      fullPath: '/u/$userId'
+      preLoaderRoute: typeof UUserIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/r/$clipId': {
+      id: '/r/$clipId'
+      path: '/r/$clipId'
+      fullPath: '/r/$clipId'
+      preLoaderRoute: typeof RClipIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/m/$postId': {
+      id: '/m/$postId'
+      path: '/m/$postId'
+      fullPath: '/m/$postId'
+      preLoaderRoute: typeof MPostIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/what-is-a-super-app': {
@@ -1076,6 +1136,9 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
   BlogWhatIsASuperAppRoute: BlogWhatIsASuperAppRoute,
+  MPostIdRoute: MPostIdRoute,
+  RClipIdRoute: RClipIdRoute,
+  UUserIdRoute: UUserIdRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,

@@ -308,11 +308,9 @@ function ClipCard({
     const payload: SharePayload = {
       title: "ONIQ Clip 🎬",
       text: clip.caption ?? undefined,
-      url: typeof window !== "undefined" ? `${window.location.origin}/app/clips#${clip.id}` : "",
+      url: `https://oniqhub.com/r/${clip.id}`,
     };
-    // System sheet (WhatsApp/Bluetooth/everything) when available,
-    // in-app sheet otherwise.
-    if (!(await systemShare(payload))) setShareSheet(payload);
+    setShareSheet(payload);
   }
 
   const name = profile?.display_name ?? profile?.username ?? "user";
@@ -421,7 +419,9 @@ function ClipCard({
         )}
       </div>
 
-      {shareSheet && <ShareSheet payload={shareSheet} onClose={() => setShareSheet(null)} />}
+      {shareSheet && (
+        <ShareSheet payload={shareSheet} reel={{ id: clip.id, videoUrl: clip.video_url }} onClose={() => setShareSheet(null)} />
+      )}
       {showViewers && <ViewersSheet postType="reel" postId={clip.id} onClose={() => setShowViewers(false)} />}
     </div>
   );

@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { AttachmentSheet, useAttachmentContext, type AttachmentOption } from "@/components/attach/AttachmentSheet";
 import { scanProvenance } from "@/lib/provenance";
+import { ReelChatCard, extractReelShare } from "@/components/chat/ReelChatCard";
 
 // Make http(s) links in plain-text messages tappable (maps links, shared
 // URLs). Only real URLs become anchors; everything else stays text.
@@ -1601,7 +1602,22 @@ function ChatThread() {
                       </button>
                     </div>
                   ) : (
-                    <div className="whitespace-pre-wrap break-words leading-snug"><LinkifiedText text={m.content ?? ""} /></div>
+                    (() => {
+                      const reel = m.content ? extractReelShare(m.content) : null;
+                      if (reel) {
+                        return (
+                          <div>
+                            {reel.note && (
+                              <div className="whitespace-pre-wrap break-words leading-snug">{reel.note}</div>
+                            )}
+                            <ReelChatCard clipId={reel.clipId} />
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="whitespace-pre-wrap break-words leading-snug"><LinkifiedText text={m.content ?? ""} /></div>
+                      );
+                    })()
                   )}
                   <div
                     className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${

@@ -38,17 +38,22 @@ export function smsShareUrl(message: string): string {
 }
 
 /** Prefer the native share sheet when present; report whether it handled it. */
+/** Payload for the app-wide share pipeline (systemShare / ShareSheet) —
+ *  invites ride the exact same path as reels and moments. */
+export function invitePayload(regionLabel: string, providerCount?: number): { title: string; text: string; url: string } {
+  return {
+    title: INVITE_SUBJECT,
+    text: buildInviteMessage(regionLabel, providerCount),
+    url: "https://oniqhub.com",
+  };
+}
+
 export async function nativeShare(
   message: string,
   title: string = INVITE_SUBJECT,
 ): Promise<boolean> {
-  try {
-    if (typeof navigator !== "undefined" && "share" in navigator) {
-      await navigator.share({ title, text: message });
-      return true;
-    }
-  } catch {
-    /* user cancelled or unsupported — fall through */
-  }
-  return false;
+  // Delegate to the app-wide share helper (Capacitor Share plugin → Web
+  // Share → caller fallback), so invites use the same sheet as everything.
+  const { systemShare } = await import("@/lib/share");
+  return systemShare({ title, text: message, url: "https://oniqhub.com" });
 }

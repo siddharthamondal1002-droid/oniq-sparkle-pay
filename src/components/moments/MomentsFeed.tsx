@@ -180,7 +180,7 @@ export function MomentsFeed() {
       text: p.content ?? undefined,
       url: typeof window !== "undefined" ? `${window.location.origin}/app/chat/moments#post-${p.id}` : "",
     };
-    if (!(await systemShare(payload))) setShareSheet(payload);
+    setShareSheet(payload);
   }
 
   async function uploadPicked(file: File) {

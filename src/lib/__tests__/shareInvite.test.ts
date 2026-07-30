@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 
-import { buildInviteMessage, emailShareUrl, smsShareUrl, INVITE_SUBJECT } from "../shareInvite";
+import { buildInviteMessage, emailShareUrl, smsShareUrl, invitePayload, INVITE_SUBJECT } from "../shareInvite";
 import { REGION_PROVIDER_TARGET } from "../regionService";
 
 // shareInvite transitively imports the supabase client via regionService.
@@ -39,5 +39,14 @@ describe("share URLs", () => {
     const url = smsShareUrl("come join ONIQ");
     expect(url.startsWith("sms:?&body=")).toBe(true);
     expect(url).toContain(encodeURIComponent("come join ONIQ"));
+  });
+});
+
+describe("invitePayload", () => {
+  it("returns a systemShare-compatible payload with the invite copy", () => {
+    const p = invitePayload("Singur", 3);
+    expect(p.title).toBe(INVITE_SUBJECT);
+    expect(p.text).toContain("Singur");
+    expect(p.url).toBe("https://oniqhub.com");
   });
 });

@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { DeepLinkWatcher } from "@/components/DeepLinkWatcher";
 import {
   Outlet,
   Link,
@@ -217,6 +218,7 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
+      <DeepLinkWatcher />
       <Outlet />
       <Toaster theme="dark" position="top-center" richColors />
     </QueryClientProvider>

@@ -231,9 +231,9 @@ function ReelCard({
     const payload: SharePayload = {
       title: "ONIQ Reel 🎬",
       text: clip.caption ?? undefined,
-      url: typeof window !== "undefined" ? `${window.location.origin}/app/clips#${clip.id}` : "",
+      url: `https://oniqhub.com/r/${clip.id}`,
     };
-    if (!(await systemShare(payload))) setShareSheet(payload);
+    setShareSheet(payload);
   }
 
   async function openOwnerSheet() {
@@ -331,7 +331,9 @@ function ReelCard({
         )}
       </div>
 
-      {shareSheet && <ShareSheet payload={shareSheet} onClose={() => setShareSheet(null)} />}
+      {shareSheet && (
+        <ShareSheet payload={shareSheet} reel={{ id: clip.id, videoUrl: clip.video_url }} onClose={() => setShareSheet(null)} />
+      )}
       {showViewers && <ViewersSheet postType="reel" postId={clip.id} onClose={() => setShowViewers(false)} />}
       {ownerSheet && me && (
         <ReelOwnerSheet
