@@ -36,6 +36,9 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="oniqhub.com" android:pathPrefix="/auth-native-callback" />
+                <data android:scheme="https" android:host="oniqhub.com" android:pathPrefix="/r/" />
+                <data android:scheme="https" android:host="oniqhub.com" android:pathPrefix="/m/" />
+                <data android:scheme="https" android:host="oniqhub.com" android:pathPrefix="/u/" />
             </intent-filter>
 
         </activity>
