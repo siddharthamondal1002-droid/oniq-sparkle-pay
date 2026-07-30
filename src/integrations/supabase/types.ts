@@ -1862,6 +1862,38 @@ export type Database = {
         }
         Relationships: []
       }
+      post_views: {
+        Row: {
+          first_viewed_at: string
+          last_viewed_at: string
+          post_id: string
+          post_type: string
+          viewer_id: string
+        }
+        Insert: {
+          first_viewed_at?: string
+          last_viewed_at?: string
+          post_id: string
+          post_type: string
+          viewer_id: string
+        }
+        Update: {
+          first_viewed_at?: string
+          last_viewed_at?: string
+          post_id?: string
+          post_type?: string
+          viewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_views_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -2989,6 +3021,10 @@ export type Database = {
       record_clip_view: { Args: { _clip_id: string }; Returns: undefined }
       record_consent: {
         Args: { _granted: boolean; _purpose: string; _source?: string }
+        Returns: undefined
+      }
+      record_post_view: {
+        Args: { _post_id: string; _post_type: string }
         Returns: undefined
       }
       remove_group_member: {
