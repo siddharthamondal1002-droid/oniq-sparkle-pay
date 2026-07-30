@@ -13,8 +13,12 @@ const SIGN_TTL = 60 * 60 * 24 * 365 * 100;
 export function captureVideoFrame(
   src: string,
   atSeconds = 0.1,
-  { crossOrigin = true, timeoutMs = 8000 }: { crossOrigin?: boolean; timeoutMs?: number } = {},
+  { crossOrigin = true, timeoutMs = 10000 }: { crossOrigin?: boolean; timeoutMs?: number } = {},
 ): Promise<Blob> {
+  // Fade-in clips have black opening frames: scan forward until a frame has
+  // enough luminance, then use it as the poster (max 5 tries, then keep the
+  // last frame captured regardless).
+  const SCAN_TIMES = [atSeconds, 0.6, 1.2, 2.0, 3.0];
   return new Promise((resolve, reject) => {
     const v = document.createElement("video");
     if (crossOrigin) v.crossOrigin = "anonymous";
@@ -22,6 +26,7 @@ export function captureVideoFrame(
     v.playsInline = true;
     v.preload = "auto";
     let done = false;
+    let attempt = 0;
     const fail = (why: string) => {
       if (done) return;
       done = true;
@@ -34,11 +39,11 @@ export function captureVideoFrame(
     };
     const timer = setTimeout(() => fail("thumbnail timeout"), timeoutMs);
 
-    v.onloadedmetadata = () => {
-      // Some encoders put a black first frame at 0 — seek slightly in.
-      const target = Math.min(Math.max(atSeconds, 0.05), Math.max((v.duration || 1) - 0.05, 0.05));
+    const seekTo = (t: number) => {
+      const target = Math.min(Math.max(t, 0.05), Math.max((v.duration || 1) - 0.05, 0.05));
       v.currentTime = target;
     };
+    v.onloadedmetadata = () => seekTo(SCAN_TIMES[0]);
     v.onseeked = () => {
       if (done) return;
       try {
@@ -52,6 +57,30 @@ export function captureVideoFrame(
         const ctx = canvas.getContext("2d");
         if (!ctx) return fail("no canvas context");
         ctx.drawImage(v, 0, 0, canvas.width, canvas.height);
+
+        // Cheap luminance probe on a 32px downsample.
+        let avgLuma = 255;
+        try {
+          const probe = document.createElement("canvas");
+          probe.width = 32;
+          probe.height = 32;
+          const pctx = probe.getContext("2d")!;
+          pctx.drawImage(canvas, 0, 0, 32, 32);
+          const d = pctx.getImageData(0, 0, 32, 32).data;
+          let sum = 0;
+          for (let i = 0; i < d.length; i += 4) sum += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+          avgLuma = sum / (d.length / 4);
+        } catch { /* tainted canvas etc — accept the frame */ }
+
+        const nearBlack = avgLuma < 12;
+        const lastTry = attempt >= SCAN_TIMES.length - 1;
+        const beyondEnd = v.duration > 0 && SCAN_TIMES[attempt + 1] >= v.duration;
+        if (nearBlack && !lastTry && !beyondEnd) {
+          attempt++;
+          seekTo(SCAN_TIMES[attempt]);
+          return;
+        }
+
         canvas.toBlob(
           (blob) => {
             clearTimeout(timer);

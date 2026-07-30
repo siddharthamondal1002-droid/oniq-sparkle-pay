@@ -271,7 +271,7 @@ function UserPage() {
           <div className="grid grid-cols-3 gap-0.5">
             {clips.map((c) => (
               <ReelTile
-                key={c.id}
+                key={`${userId}:${c.id}`}
                 thumbnailUrl={c.thumbnail_url}
                 videoUrl={c.video_url}
                 viewCount={c.view_count}
