@@ -27,8 +27,9 @@ import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { PhotoStudio } from "@/components/photo/PhotoStudio";
 import { detectSelfHarmSignal } from "@/lib/selfHarm";
-import { sha256Hex, recordProvenance } from "@/lib/provenance";
+import { sha256Hex, recordProvenance, scanProvenance } from "@/lib/provenance";
 import { CrisisSupportSheet } from "@/components/safety/CrisisSupportSheet";
+import { removeStorageObjects, parseStorageRef } from "@/lib/storagePath";
 import { formatDistanceToNow } from "date-fns";
 
 type Post = {
@@ -56,19 +57,53 @@ function isImageUrl(url: string): boolean {
 
 // Upload a moment attachment to storage and return a long-lived signed URL.
 // Exported for reuse (e.g. profile-photo uploads share this bucket + pattern).
-export async function uploadMomentBlob(blob: Blob, ext: string, contentType: string): Promise<string> {
+export async function uploadMomentBlob(blob: Blob, ext: string, contentType: string, bucket = "moments"): Promise<string> {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) throw new Error("Not signed in");
   const path = `${u.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
   const { error: upErr } = await supabase.storage
-    .from("moments")
+    .from(bucket)
     .upload(path, blob, { cacheControl: "3600", upsert: false, contentType });
-  if (upErr) throw upErr;
+  if (upErr) {
+    // Never surface a raw RLS/Postgres error to the composer.
+    if (/row-level security|violates/i.test(upErr.message ?? "")) {
+      throw new Error("that file type isn't allowed here yet");
+    }
+    throw new Error(upErr.message || "upload failed");
+  }
   const { data: signed, error: sErr } = await supabase.storage
-    .from("moments")
+    .from(bucket)
     .createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
   if (sErr || !signed) throw sErr ?? new Error("Failed to sign URL");
   return signed.signedUrl;
+}
+
+// Storage bucket policies are extension-allowlisted per bucket. Route each
+// moment attachment to a bucket that accepts it (signed URLs work the same
+// from any private bucket):
+//   images -> moments · video -> clips · audio -> chat-media
+export function routeMomentFile(file: File): { bucket: string; ext: string } {
+  const ext = (file.name.split(".").pop() || "").toLowerCase();
+  if (file.type.startsWith("image/")) {
+    const ok = ["jpg", "jpeg", "png", "webp", "gif"];
+    return { bucket: "moments", ext: ok.includes(ext) ? ext : "jpg" };
+  }
+  if (file.type.startsWith("video/")) {
+    const map: Record<string, string> = { mp4: "mp4", webm: "webm", mov: "mov", quicktime: "mov" };
+    const e = map[ext] ?? (file.type === "video/quicktime" ? "mov" : file.type === "video/webm" ? "webm" : ext === "" ? "mp4" : ext);
+    if (!["mp4", "webm", "mov"].includes(e)) {
+      throw new Error("that video format isn't supported — use mp4, webm or mov 🎬");
+    }
+    return { bucket: "clips", ext: e };
+  }
+  if (file.type.startsWith("audio/")) {
+    const ok = ["m4a", "mp3", "ogg", "wav", "webm"];
+    if (!ok.includes(ext)) {
+      throw new Error("that audio format isn't supported — use mp3, m4a, ogg or wav 🎧");
+    }
+    return { bucket: "chat-media", ext };
+  }
+  throw new Error("Choose a photo, video, or audio file");
 }
 
 // Rotate an already-uploaded image 90° clockwise and re-upload it.
@@ -111,6 +146,8 @@ export function MomentsFeed() {
   const [studioFile, setStudioFile] = useState<File | null>(null);
   // IT Rules 2026: mandatory synthetic-content declaration at upload.
   const [isSynthetic, setIsSynthetic] = useState(false);
+  // "confirmed" provenance (ONIQ-generated media) locks the declaration on.
+  const [syntheticLocked, setSyntheticLocked] = useState(false);
   // L4 care-first: on-device signal only; never blocks or reports.
   const [showCrisis, setShowCrisis] = useState(false);
   const [shareSheet, setShareSheet] = useState<SharePayload | null>(null);
@@ -149,12 +186,27 @@ export function MomentsFeed() {
   async function uploadPicked(file: File) {
     setUploading(true);
     try {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      setImageUrl(await uploadMomentBlob(file, ext, file.type));
+      const { bucket, ext } = routeMomentFile(file);
+      const url = await uploadMomentBlob(file, ext, file.type, bucket);
+      setImageUrl(url);
       // B4 provenance: hash of uploaded bytes (content_id linked on post).
       void sha256Hex(file).then((hash) => recordProvenance({ contentType: "moment", hash }));
+      // P4: read Content Credentials server-side; pre-tick when found.
+      const ref = parseStorageRef(url);
+      if (ref) {
+        void scanProvenance({ bucket: ref.bucket, path: ref.path, contentType: "moment" }).then((r) => {
+          if (r.verdict === "confirmed") {
+            setIsSynthetic(true);
+            setSyntheticLocked(true);
+            toast("AI content credentials verified — label applied 🤖");
+          } else if (r.verdict === "likely" || r.verdict === "possible") {
+            setIsSynthetic(true);
+            toast("this file carries AI-generation credentials — label pre-applied (untick if that's wrong)");
+          }
+        });
+      }
     } catch (err: any) {
-      toast.error(err.message ?? "Upload failed");
+      toast.error(err?.message ?? "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -291,18 +343,24 @@ export function MomentsFeed() {
 
   async function deletePost(postId: string) {
     if (!window.confirm("Delete post?")) return;
-    const prev = qc.getQueryData(["moments"]);
+    const prev = qc.getQueryData(["moments"]) as Post[] | undefined;
+    const target = prev?.find((p) => p.id === postId);
     qc.setQueryData(["moments"], (old: any) => old?.filter((p: any) => p.id !== postId));
-    const { error } = await supabase
+    const { data: delRows, error } = await supabase
       .from("moments_posts")
       .update({ is_deleted: true })
-      .eq("id", postId);
-    if (error) {
+      .eq("id", postId)
+      .select("id");
+    // A 0-row update means RLS refused it — report it, don't fake success.
+    if (error || !delRows || delRows.length === 0) {
       qc.setQueryData(["moments"], prev);
-      toast.error(error.message);
-    } else {
-      toast.success("Post deleted");
+      toast.error(error?.message || "couldn't delete — this isn't your post");
+      return;
     }
+    // Remove the media objects behind the post (best-effort, reported).
+    const failures = await removeStorageObjects(target?.media_urls ?? []);
+    if (failures > 0) toast.error("post removed, but some media files couldn't be cleaned up");
+    else toast.success("Post deleted");
   }
 
   return (
@@ -378,10 +436,11 @@ export function MomentsFeed() {
             <input
               type="checkbox"
               checked={isSynthetic}
+              disabled={syntheticLocked}
               onChange={(e) => setIsSynthetic(e.target.checked)}
               className="mt-0.5 accent-[hsl(var(--primary))]"
             />
-            <span>this media is AI-generated or AI-edited 🤖 <span className="opacity-70">(Indian law requires labelling synthetic content)</span></span>
+            <span>this media is AI-generated or AI-edited 🤖 <span className="opacity-70">(ticks itself when we detect AI credentials; required under Indian law{syntheticLocked ? " — verified, can't be removed" : ""})</span></span>
           </label>
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
             <div className="flex gap-2 text-muted-foreground">
@@ -624,12 +683,13 @@ function EditPostSheet({ post, onClose, onSaved }: { post: Post; onClose: () => 
   const [studioFile, setStudioFile] = useState<File | null>(null);
 
   async function uploadReplacement(file: File) {
+    // Type-routed buckets, same as the composer.
     setBusy(true);
     try {
-      const ext = (file.name.split(".").pop() || "jpg").toLowerCase();
-      setMedia(await uploadMomentBlob(file, ext, file.type));
+      const { bucket, ext } = routeMomentFile(file);
+      setMedia(await uploadMomentBlob(file, ext, file.type, bucket));
     } catch (err: any) {
-      toast.error(err.message ?? "Upload failed");
+      toast.error(err?.message ?? "Upload failed");
     } finally {
       setBusy(false);
     }
