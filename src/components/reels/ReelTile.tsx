@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Eye, Play } from "lucide-react";
 
 /**
@@ -24,6 +24,12 @@ export function ReelTile({
 }) {
   const [thumbBroken, setThumbBroken] = useState(false);
   const [videoBroken, setVideoBroken] = useState(false);
+  // Reset stale error state when this tile is reused for a different clip
+  // (e.g. navigating from one profile grid to another).
+  useEffect(() => {
+    setThumbBroken(false);
+    setVideoBroken(false);
+  }, [thumbnailUrl, videoUrl]);
   const useThumb = !!thumbnailUrl && !thumbBroken;
   const useVideo = !useThumb && !videoBroken;
 

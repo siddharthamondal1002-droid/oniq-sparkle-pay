@@ -9,7 +9,8 @@ import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { backfillClipThumb } from "@/lib/clipThumbs";
 import { ReelTile, ReelTileSkeleton } from "@/components/reels/ReelTile";
 import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
-import { MoreHorizontal } from "lucide-react";
+import { MoreHorizontal, Trash2 } from "lucide-react";
+import { removeStorageObjects } from "@/lib/storagePath";
 
 export const Route = createFileRoute("/_authenticated/app/chat/me")({
   component: MyPageTab,
@@ -388,6 +389,29 @@ function MyPageTab() {
             {viewMoment.visibility === "moots" && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>}
             {viewMoment.created_at && <span className="ml-auto">{new Date(viewMoment.created_at).toLocaleDateString()}</span>}
           </div>
+          <button
+            onClick={async () => {
+              if (!window.confirm("Delete this post?")) return;
+              const { data: delRows, error } = await supabase
+                .from("moments_posts")
+                .update({ is_deleted: true })
+                .eq("id", viewMoment.id)
+                .select("id");
+              if (error || !delRows || delRows.length === 0) {
+                toast.error(error?.message || "couldn't delete — try again");
+                return;
+              }
+              const failures = await removeStorageObjects(viewMoment.media_urls ?? []);
+              if (failures > 0) toast.error("post removed, but some media files couldn't be cleaned up");
+              else toast.success("Post deleted");
+              setViewMoment(null);
+              qc.invalidateQueries({ queryKey: ["my-page-moments"] });
+              qc.invalidateQueries({ queryKey: ["moments"] });
+            }}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-red-500/40 py-2.5 text-sm font-semibold text-red-400 active:bg-red-500/10"
+          >
+            <Trash2 className="h-4 w-4" /> delete post
+          </button>
         </MediaViewer>
       )}
       {viewersFor && <ViewersSheet postType="reel" postId={viewersFor} onClose={() => setViewersFor(null)} />}

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { captureFrameFromFile, uploadClipThumb } from "@/lib/clipThumbs";
-import { sha256Hex, recordProvenance } from "@/lib/provenance";
+import { sha256Hex, recordProvenance, scanProvenance } from "@/lib/provenance";
 import { systemShare, type SharePayload } from "@/lib/share";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
@@ -609,6 +609,16 @@ function UploadSheet({
         .createSignedUrl(path, 60 * 60 * 24 * 365 * 100);
       if (sErr || !signed) throw sErr ?? new Error("Failed to sign URL");
 
+      // P4: read Content Credentials server-side before publishing.
+      let effectiveSynthetic = isSynthetic;
+      try {
+        const scan = await scanProvenance({ bucket: "clips", path, contentType: "clip" });
+        if (scan.verdict !== "none" && !effectiveSynthetic) {
+          effectiveSynthetic = true;
+          toast("this video carries AI-generation credentials — label applied 🤖");
+        }
+      } catch { /* best-effort */ }
+
       // Poster thumbnail from the local file (t≈0.1s) — best-effort; a clip
       // without one falls back to the video/placeholder chain in the grids.
       let thumbUrl: string | null = null;
@@ -631,14 +641,14 @@ function UploadSheet({
         caption: cleaned.length ? cleaned : null,
         hashtags: tags,
         visibility,
-        is_synthetic: isSynthetic,
+        is_synthetic: effectiveSynthetic,
       }).select("id").single();
 
       if (insErr) throw insErr;
 
       // B4 provenance: SHA-256 of the uploaded bytes, append-only record.
       void sha256Hex(file).then((hash) =>
-        recordProvenance({ contentType: "clip", contentId: insRow?.id ?? null, hash, declaredSynthetic: isSynthetic }),
+        recordProvenance({ contentType: "clip", contentId: insRow?.id ?? null, hash, declaredSynthetic: effectiveSynthetic }),
       );
 
       toast.success("Clip posted 🎬 it's giving content creator");
@@ -761,7 +771,7 @@ function UploadSheet({
               onChange={(e) => setIsSynthetic(e.target.checked)}
               className="mt-0.5 accent-[hsl(var(--primary))]"
             />
-            <span>this clip is AI-generated or AI-edited 🤖 <span className="opacity-70">(Indian law requires labelling synthetic content)</span></span>
+            <span>this clip is AI-generated or AI-edited 🤖 <span className="opacity-70">(auto-applied when we detect AI credentials; required under Indian law)</span></span>
           </label>
         </div>
 

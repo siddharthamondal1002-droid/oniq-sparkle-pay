@@ -34,3 +34,28 @@ export async function recordProvenance(args: {
     /* non-blocking */
   }
 }
+
+export type ScanVerdict = { verdict: "none" | "possible" | "likely" | "confirmed"; kind: "ai" | "ai_edited" | null };
+
+/**
+ * Server-side provenance scan (C2PA/XMP/EXIF markers — never pixels).
+ * Returns the verdict so composers can pre-tick the synthetic declaration.
+ * Best-effort: any failure reads as "none".
+ */
+export async function scanProvenance(args: {
+  bucket: string;
+  path: string;
+  contentType: "moment" | "clip" | "avatar" | "chat" | "other";
+  contentId?: string | null;
+}): Promise<ScanVerdict> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).functions.invoke("media-provenance-scan", {
+      body: { bucket: args.bucket, path: args.path, content_type: args.contentType, content_id: args.contentId ?? null },
+    });
+    if (error || !data) return { verdict: "none", kind: null };
+    return { verdict: data.verdict ?? "none", kind: data.kind ?? null };
+  } catch {
+    return { verdict: "none", kind: null };
+  }
+}
