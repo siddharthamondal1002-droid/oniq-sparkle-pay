@@ -3078,6 +3078,13 @@ export type Database = {
         }
         Returns: Json
       }
+      share_reel_to_moots: {
+        Args: { _clip_id: string; _note?: string; _recipient_ids: string[] }
+        Returns: {
+          recipient_id: string
+          status: string
+        }[]
+      }
       toggle_clip_like: { Args: { _clip_id: string }; Returns: boolean }
       toggle_message_star: { Args: { _message_id: string }; Returns: boolean }
       toggle_moment_like: { Args: { _post_id: string }; Returns: boolean }
