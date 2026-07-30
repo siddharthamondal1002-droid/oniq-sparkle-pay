@@ -42,6 +42,12 @@ async function flush() {
   );
 }
 
+/** Direct record for full-screen surfaces (e.g. status viewer) where the
+ *  caller already enforces the dwell threshold. Session-deduped + batched. */
+export function recordView(postType: PostType, postId: string) {
+  enqueue(postType, postId);
+}
+
 type Cleanup = () => void;
 
 /**

@@ -3,6 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Plus, X, Trash2, Image as ImageIcon, Eye } from "lucide-react";
+import { ViewersSheet } from "@/components/reels/ViewersSheet";
+import { recordView } from "@/lib/views";
 import { toast } from "sonner";
 import { formatDistanceToNowStrict } from "date-fns";
 
@@ -88,8 +90,13 @@ function UpdatesTab() {
     queryKey: ["status-my-views", me?.id],
     enabled: !!me,
     queryFn: async (): Promise<string[]> => {
-      const { data } = await supabase.from("status_views").select("status_id").eq("viewer_id", me!.id);
-      return (data ?? []).map((r: { status_id: string }) => r.status_id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("post_views")
+        .select("post_id")
+        .eq("post_type", "update")
+        .eq("viewer_id", me!.id);
+      return (data ?? []).map((r: { post_id: string }) => r.post_id);
     },
   });
   const viewedSet = useMemo(() => new Set(myViews), [myViews]);
@@ -321,20 +328,27 @@ function StatusViewer({
 }: { meId: string; isOwn: boolean; rows: StatusRow[]; onClose: () => void; onDeleted: () => void }) {
   const [idx, setIdx] = useState(0);
   const [viewsCount, setViewsCount] = useState<number | null>(null);
+  const [showViewers, setShowViewers] = useState(false);
   const cur = rows[idx];
 
   useEffect(() => {
     if (!cur) return;
-    // Mark viewed (skip if own)
     if (!isOwn) {
-      supabase.from("status_views").insert({ status_id: cur.id, viewer_id: meId }).then(() => {});
-    } else {
-      supabase
-        .from("status_views")
-        .select("*", { count: "exact", head: true })
-        .eq("status_id", cur.id)
-        .then(({ count }) => setViewsCount(count ?? 0));
+      // Qualified view (>=1s on screen) through the shared batching path.
+      const t1 = setTimeout(() => recordView("update", cur.id), 1000);
+      const t = setTimeout(() => {
+        setIdx((i) => (i + 1 < rows.length ? i + 1 : -1));
+      }, 5000);
+      return () => { clearTimeout(t1); clearTimeout(t); };
     }
+    // Owner: fresh count from the unified table (owner-readable by RLS).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("post_views")
+      .select("*", { count: "exact", head: true })
+      .eq("post_type", "update")
+      .eq("post_id", cur.id)
+      .then(({ count }: { count: number | null }) => setViewsCount(count ?? 0));
     const t = setTimeout(() => {
       setIdx((i) => (i + 1 < rows.length ? i + 1 : -1));
     }, 5000);
@@ -388,14 +402,22 @@ function StatusViewer({
 
       {isOwn && (
         <div className="flex items-center justify-between gap-3 p-4">
-          <div className="flex items-center gap-2 text-sm text-white/80">
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowViewers(true); }}
+            role="button"
+            aria-label="See who viewed"
+            className="flex min-h-[44px] items-center gap-2 rounded-full bg-white/10 px-4 text-sm text-white active:bg-white/20"
+          >
             <Eye className="h-4 w-4" />
             {viewsCount ?? 0} {viewsCount === 1 ? "view" : "views"}
-          </div>
+          </button>
           <button onClick={remove} className="flex items-center gap-2 rounded-full bg-red-600 px-4 py-2 text-sm font-semibold">
             <Trash2 className="h-4 w-4" /> Delete
           </button>
         </div>
+      )}
+      {showViewers && cur && (
+        <ViewersSheet postType="update" postId={cur.id} onClose={() => setShowViewers(false)} />
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Heart, MessageCircle, Play, Eye, Pencil, X, Check, Film, Sparkles, Camera } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
+import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { backfillClipThumb } from "@/lib/clipThumbs";
 import { ReelTile, ReelTileSkeleton } from "@/components/reels/ReelTile";
 import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
@@ -62,6 +63,7 @@ function MyPageTab() {
   const [savingBio, setSavingBio] = useState(false);
   const [viewMoment, setViewMoment] = useState<MyMoment | null>(null);
   const [viewClip, setViewClip] = useState<MyClip | null>(null);
+  const [viewersFor, setViewersFor] = useState<string | null>(null);
   const [editAvatar, setEditAvatar] = useState(false);
   const [ownReel, setOwnReel] = useState<MyClip | null>(null);
 
@@ -388,6 +390,7 @@ function MyPageTab() {
           </div>
         </MediaViewer>
       )}
+      {viewersFor && <ViewersSheet postType="reel" postId={viewersFor} onClose={() => setViewersFor(null)} />}
       {viewClip && (
         <MediaViewer onClose={() => setViewClip(null)}>
           <video src={viewClip.video_url} controls autoPlay playsInline className="max-h-[65vh] w-full rounded-2xl bg-black object-contain" />
@@ -397,7 +400,14 @@ function MyPageTab() {
           {viewClip.caption && <p className="mt-3 whitespace-pre-wrap text-sm">{viewClip.caption}</p>}
           <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> {viewClip.like_count}</span>
-            <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> {viewClip.view_count}</span>
+            <button
+              onClick={() => setViewersFor(viewClip.id)}
+              role="button"
+              aria-label="See who viewed"
+              className="flex min-h-[32px] items-center gap-1 text-primary active:opacity-70"
+            >
+              <Eye className="h-3.5 w-3.5" /> {viewClip.view_count}
+            </button>
             <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> {viewClip.comment_count}</span>
             {viewClip.created_at && <span className="ml-auto">{new Date(viewClip.created_at).toLocaleDateString()}</span>}
           </div>

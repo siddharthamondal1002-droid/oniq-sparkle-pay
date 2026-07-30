@@ -17,9 +17,12 @@ import {
   Pencil,
   RotateCw,
   Share2,
+  Eye,
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { systemShare, type SharePayload } from "@/lib/share";
+import { watchImageView } from "@/lib/views";
+import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { PhotoStudio } from "@/components/photo/PhotoStudio";
 import { detectSelfHarmSignal } from "@/lib/selfHarm";
@@ -33,6 +36,7 @@ type Post = {
   media_urls: string[] | null;
   like_count: number | null;
   comment_count: number | null;
+  view_count?: number | null;
   created_at: string | null;
   user_id: string;
   visibility: string | null;
@@ -109,6 +113,7 @@ export function MomentsFeed() {
   // L4 care-first: on-device signal only; never blocks or reports.
   const [showCrisis, setShowCrisis] = useState(false);
   const [shareSheet, setShareSheet] = useState<SharePayload | null>(null);
+  const [viewersFor, setViewersFor] = useState<string | null>(null);
 
   async function sharePost(p: Post) {
     const payload: SharePayload = {
@@ -184,7 +189,7 @@ export function MomentsFeed() {
       const { data } = await supabase
         .from("moments_posts")
         .select(
-          "id, content, media_urls, like_count, comment_count, created_at, user_id, visibility, is_synthetic, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)",
+          "id, content, media_urls, like_count, comment_count, view_count, created_at, user_id, visibility, is_synthetic, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)",
         )
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
@@ -511,6 +516,21 @@ export function MomentsFeed() {
                     >
                       <Share2 className="h-4 w-4" /> share
                     </button>
+                    {me === p.user_id ? (
+                      <button
+                        onClick={() => setViewersFor(p.id)}
+                        role="button"
+                        aria-label="See who viewed"
+                        className="flex min-h-[24px] items-center gap-1 hover:text-primary active:opacity-70"
+                      >
+                        <Eye className="h-4 w-4" /> {p.view_count ?? 0}
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-1" aria-label="Views">
+                        <Eye className="h-4 w-4" /> {p.view_count ?? 0}
+                      </span>
+                    )}
+                    <ViewTracker postId={p.id} ownerId={p.user_id} me={me} />
                   </div>
                 </article>
               );
@@ -539,6 +559,7 @@ export function MomentsFeed() {
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
       {showCrisis && <CrisisSupportSheet onClose={() => setShowCrisis(false)} />}
       {shareSheet && <ShareSheet payload={shareSheet} onClose={() => setShareSheet(null)} />}
+      {viewersFor && <ViewersSheet postType="moment" postId={viewersFor} onClose={() => setViewersFor(null)} />}
       {studioFile && (
         <PhotoStudio
           file={studioFile}
@@ -815,4 +836,16 @@ function MomentMedia({ url, className }: { url: string; className?: string }) {
     return <audio src={url} controls preload="metadata" className="mt-3 w-full" />;
   }
   return <img src={url} alt="" loading="lazy" decoding="async" className={className} />;
+}
+
+/* Invisible helper: observes its parent post card and records a qualified
+   view (>=1s at >=50% visible) through the shared batching path. */
+function ViewTracker({ postId, ownerId, me }: { postId: string; ownerId: string; me: string | null }) {
+  const ref = useRef<HTMLSpanElement | null>(null);
+  useEffect(() => {
+    const host = ref.current?.closest("article");
+    if (!host || !me) return;
+    return watchImageView(host as HTMLElement, "moment", postId, ownerId, me);
+  }, [postId, ownerId, me]);
+  return <span ref={ref} className="hidden" aria-hidden="true" />;
 }
