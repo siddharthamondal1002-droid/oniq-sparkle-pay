@@ -1680,6 +1680,7 @@ export type Database = {
           location_name: string | null
           media_urls: string[] | null
           user_id: string
+          view_count: number
           visibility: string
         }
         Insert: {
@@ -1693,6 +1694,7 @@ export type Database = {
           location_name?: string | null
           media_urls?: string[] | null
           user_id: string
+          view_count?: number
           visibility?: string
         }
         Update: {
@@ -1706,6 +1708,7 @@ export type Database = {
           location_name?: string | null
           media_urls?: string[] | null
           user_id?: string
+          view_count?: number
           visibility?: string
         }
         Relationships: [
@@ -1862,6 +1865,38 @@ export type Database = {
         }
         Relationships: []
       }
+      post_views: {
+        Row: {
+          first_viewed_at: string
+          last_viewed_at: string
+          post_id: string
+          post_type: string
+          viewer_id: string
+        }
+        Insert: {
+          first_viewed_at?: string
+          last_viewed_at?: string
+          post_id: string
+          post_type: string
+          viewer_id: string
+        }
+        Update: {
+          first_viewed_at?: string
+          last_viewed_at?: string
+          post_id?: string
+          post_type?: string
+          viewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "post_views_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1874,6 +1909,7 @@ export type Database = {
           language: string | null
           last_policy_notice_at: string | null
           oniq_pay_enabled: boolean | null
+          show_view_identity: boolean
           updated_at: string | null
           username: string
         }
@@ -1888,6 +1924,7 @@ export type Database = {
           language?: string | null
           last_policy_notice_at?: string | null
           oniq_pay_enabled?: boolean | null
+          show_view_identity?: boolean
           updated_at?: string | null
           username: string
         }
@@ -1902,6 +1939,7 @@ export type Database = {
           language?: string | null
           last_policy_notice_at?: string | null
           oniq_pay_enabled?: boolean | null
+          show_view_identity?: boolean
           updated_at?: string | null
           username?: string
         }
@@ -2222,6 +2260,7 @@ export type Database = {
           kind: string
           media_url: string | null
           user_id: string
+          view_count: number
         }
         Insert: {
           bg_color?: string | null
@@ -2232,6 +2271,7 @@ export type Database = {
           kind: string
           media_url?: string | null
           user_id: string
+          view_count?: number
         }
         Update: {
           bg_color?: string | null
@@ -2242,6 +2282,7 @@ export type Database = {
           kind?: string
           media_url?: string | null
           user_id?: string
+          view_count?: number
         }
         Relationships: []
       }
@@ -2738,16 +2779,6 @@ export type Database = {
         }
         Returns: Json
       }
-      clip_viewers: {
-        Args: { _clip_id: string }
-        Returns: {
-          avatar_url: string
-          display_name: string
-          user_id: string
-          username: string
-          viewed_at: string
-        }[]
-      }
       clips_feed: {
         Args: { _limit?: number; _offset?: number }
         Returns: {
@@ -2974,6 +3005,22 @@ export type Database = {
         }
         Returns: string
       }
+      post_viewers: {
+        Args: {
+          _limit?: number
+          _offset?: number
+          _post_id: string
+          _post_type: string
+        }
+        Returns: {
+          anonymous: boolean
+          avatar_url: string
+          display_name: string
+          username: string
+          viewed_at: string
+          viewer_id: string
+        }[]
+      }
       rate_booking: {
         Args: { _booking_id: string; _rating: number; _review?: string }
         Returns: undefined
@@ -2989,6 +3036,10 @@ export type Database = {
       record_clip_view: { Args: { _clip_id: string }; Returns: undefined }
       record_consent: {
         Args: { _granted: boolean; _purpose: string; _source?: string }
+        Returns: undefined
+      }
+      record_post_view: {
+        Args: { _post_id: string; _post_type: string }
         Returns: undefined
       }
       remove_group_member: {
