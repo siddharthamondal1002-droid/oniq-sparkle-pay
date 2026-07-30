@@ -11,6 +11,34 @@ import { toast } from "sonner";
 // CallOverlay is mounted globally by GlobalCallHost — see src/components/chat/GlobalCallHost.tsx.
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { AttachmentSheet, useAttachmentContext, type AttachmentOption } from "@/components/attach/AttachmentSheet";
+
+// Make http(s) links in plain-text messages tappable (maps links, shared
+// URLs). Only real URLs become anchors; everything else stays text.
+const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
+function LinkifiedText({ text }: { text: string }) {
+  const parts = text.split(URL_RE);
+  if (parts.length === 1) return <>{text}</>;
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^https?:\/\//.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="break-all text-primary underline underline-offset-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {part}
+          </a>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  );
+}
 import { useIsOnline } from "@/hooks/usePresence";
 import { sendPush } from "@/lib/push";
 import { CALLS_ENABLED } from "@/lib/flags";
@@ -966,7 +994,7 @@ function ChatThread() {
         sendPush({ conversation_id: conversationId, kind: "message", preview: "📍 Location" });
       },
       () => toast.error("location permission denied"),
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   };
 
@@ -1570,7 +1598,7 @@ function ChatThread() {
                       </button>
                     </div>
                   ) : (
-                    <div className="whitespace-pre-wrap break-words leading-snug">{m.content}</div>
+                    <div className="whitespace-pre-wrap break-words leading-snug"><LinkifiedText text={m.content ?? ""} /></div>
                   )}
                   <div
                     className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
