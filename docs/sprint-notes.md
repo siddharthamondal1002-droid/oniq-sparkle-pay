@@ -531,3 +531,29 @@ cause (counts are plain columns readable with the row).
   the DPDP consent-notice update (pairs with the B5 notices work). Until
   counsel signs off, the mitigations are: default-on visibility is limited
   to owner-only lists, symmetric opt-out exists, minors are never named.
+
+## P6 verification — live DB test suite (2026-07-30, production, all fixtures cleaned)
+
+One red found and fixed per the loop: `post_viewers` originally read
+`profiles.is_minor`, but the DPDP PII split moved that flag to
+`profiles_private.user_id/is_minor` — the function would have errored on
+first open. Fixed in `20260730103000_fix_post_viewers_minor_source.sql`
+(LEFT JOIN profiles_private; behaviour unchanged). The corrected function
+was applied with the identical SQL now committed here.
+
+Seeded test on a real clip (owner = founder), four role-simulated viewers
+(normal / identity-hidden / minor / blocked-by-owner), then full cleanup:
+
+- 4 record attempts → **3 rows** — blocked pair never recorded ✅
+- `clips.view_count` = 3 = `count(*)` in post_views ✅ (counter, not count(*))
+- Owner's `post_viewers`: **1 named + 2 anonymous** (hidden-toggle viewer
+  and minor both anonymised, no identity fields returned), blocked absent ✅
+- Re-view by viewer1: rows stay 3, counter stays 3, `last_viewed_at` moved ✅
+- Non-owner (role-simulated): `post_views` SELECT → **0 rows**;
+  `post_viewers` → **0 rows** ✅
+- Symmetric anonymity: owner with toggle OFF sees **3/3 anonymous** ✅
+- Logs: client lib logs post ids only; no viewer identity in any log path ✅
+- tsc clean · build ×3 · 30/30 tests · reels thumbnails + PhotoStudio untouched ✅
+
+Cleanup verified: fixture rows deleted, counter recomputed to 0, both
+profile flags restored, temp block removed.
