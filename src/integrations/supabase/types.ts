@@ -1909,6 +1909,7 @@ export type Database = {
           language: string | null
           last_policy_notice_at: string | null
           oniq_pay_enabled: boolean | null
+          show_view_identity: boolean
           updated_at: string | null
           username: string
         }
@@ -1923,6 +1924,7 @@ export type Database = {
           language?: string | null
           last_policy_notice_at?: string | null
           oniq_pay_enabled?: boolean | null
+          show_view_identity?: boolean
           updated_at?: string | null
           username: string
         }
@@ -1937,6 +1939,7 @@ export type Database = {
           language?: string | null
           last_policy_notice_at?: string | null
           oniq_pay_enabled?: boolean | null
+          show_view_identity?: boolean
           updated_at?: string | null
           username?: string
         }
@@ -2776,16 +2779,6 @@ export type Database = {
         }
         Returns: Json
       }
-      clip_viewers: {
-        Args: { _clip_id: string }
-        Returns: {
-          avatar_url: string
-          display_name: string
-          user_id: string
-          username: string
-          viewed_at: string
-        }[]
-      }
       clips_feed: {
         Args: { _limit?: number; _offset?: number }
         Returns: {
@@ -3011,6 +3004,22 @@ export type Database = {
           _restaurant_id: string
         }
         Returns: string
+      }
+      post_viewers: {
+        Args: {
+          _limit?: number
+          _offset?: number
+          _post_id: string
+          _post_type: string
+        }
+        Returns: {
+          anonymous: boolean
+          avatar_url: string
+          display_name: string
+          username: string
+          viewed_at: string
+          viewer_id: string
+        }[]
       }
       rate_booking: {
         Args: { _booking_id: string; _rating: number; _review?: string }
