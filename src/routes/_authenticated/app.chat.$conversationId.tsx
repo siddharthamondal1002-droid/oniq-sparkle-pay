@@ -11,6 +11,7 @@ import { toast } from "sonner";
 // CallOverlay is mounted globally by GlobalCallHost — see src/components/chat/GlobalCallHost.tsx.
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { AttachmentSheet, useAttachmentContext, type AttachmentOption } from "@/components/attach/AttachmentSheet";
+import { scanProvenance } from "@/lib/provenance";
 
 // Make http(s) links in plain-text messages tappable (maps links, shared
 // URLs). Only real URLs become anchors; everything else stays text.
@@ -764,6 +765,8 @@ function ChatThread() {
       .from("chat-media")
       .createSignedUrl(path, SIGNED_TTL);
     if (sErr || !signed) throw sErr ?? new Error("could not sign url");
+    // P4: provenance ledger entry for chat media (no badge surface here).
+    void scanProvenance({ bucket: "chat-media", path, contentType: "chat" });
     return signed.signedUrl;
   };
 
