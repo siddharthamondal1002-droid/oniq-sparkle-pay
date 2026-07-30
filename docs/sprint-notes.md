@@ -460,3 +460,30 @@ protected stack).
 - [ ] N1/N2 — separate native sprint (mission-sanctioned deferral)
 
 Legend: [x] pass · [~] delivered with a logged, bounded deferral · [ ] blocked, logged above.
+
+---
+
+# LOOP fix (2026-07-30) — PhotoStudio chips/tabs "dead"
+
+**Probe result (Playwright/Chromium, 360px touch, per the loop's Step 1):**
+Branch **A variant** — taps LAND and handlers FIRE. `elementFromPoint`
+returned the chip itself and `PROBE:filter-select clarity` logged in both
+mount contexts. In a clean mount (moments composer, chat attachment) the
+highlight moved and FILTERS⇄ADJUST switched — the component was never
+broken. In a hosted mount the same tap ALSO bubbled to the host sheet's
+click-to-dismiss overlay (`onClick={onClose}` fired right after the chip
+handler), unmounting the entire studio on the first tap.
+
+**Root cause:** PhotoStudio's root did not stop click propagation, and two
+hosts render it inside click-anywhere-to-close overlays: AvatarEditorSheet
+and EditPostSheet. Every tap in the studio closed the host (and the studio
+with it). Chat + moments-composer mounts were unaffected (no dismissing
+ancestor). Side effect explained: tapping DONE in the avatar flow closed
+the sheet while export/upload kept running detached — the orphaned webp
+uploads found in the moments bucket during the avatar-bug investigation.
+
+**Fix (minimum diff):** `onClick={(e) => e.stopPropagation()}` on
+PhotoStudio's root — same idiom the codebase already uses for inner sheet
+cards. Verified by re-running the probe: hosted mount now keeps the studio
+open, highlight moves, panels switch; clean mount unchanged. All temporary
+instrumentation, the probe route, and the probe script were removed.

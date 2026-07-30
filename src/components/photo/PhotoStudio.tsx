@@ -273,7 +273,10 @@ export function PhotoStudio({
   const dirty = presetId !== "original" || rotate !== 0 || crop !== "free" || JSON.stringify(adjust) !== JSON.stringify(ADJUST_DEFAULT);
 
   return (
-    <div className="fixed inset-0 z-[90] flex flex-col bg-black">
+    // stopPropagation: hosts render this inside click-to-dismiss overlays
+    // (AvatarEditorSheet, EditPostSheet) — without it every tap in the studio
+    // bubbles to the overlay's onClose and unmounts the studio mid-edit.
+    <div className="fixed inset-0 z-[90] flex flex-col bg-black" onClick={(e) => e.stopPropagation()}>
       {/* top bar */}
       <div className="flex items-center justify-between px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <button onClick={onCancel} aria-label="Cancel" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white">
