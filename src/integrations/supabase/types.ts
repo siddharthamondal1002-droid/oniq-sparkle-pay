@@ -1372,30 +1372,36 @@ export type Database = {
       }
       media_provenance: {
         Row: {
+          confidence: string | null
           content_id: string | null
           content_type: string
           created_at: string
           declared_synthetic: boolean
+          evidence: Json | null
           id: string
           origin: string
           sha256: string
           uploader_id: string
         }
         Insert: {
+          confidence?: string | null
           content_id?: string | null
           content_type: string
           created_at?: string
           declared_synthetic?: boolean
+          evidence?: Json | null
           id?: string
           origin?: string
           sha256: string
           uploader_id: string
         }
         Update: {
+          confidence?: string | null
           content_id?: string | null
           content_type?: string
           created_at?: string
           declared_synthetic?: boolean
+          evidence?: Json | null
           id?: string
           origin?: string
           sha256?: string
