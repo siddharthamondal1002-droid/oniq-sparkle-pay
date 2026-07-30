@@ -340,7 +340,7 @@ function ReelCard({
       </div>
 
       {shareSheet && <ShareSheet payload={shareSheet} onClose={() => setShareSheet(null)} />}
-      {showViewers && <ViewersSheet clipId={clip.id} onClose={() => setShowViewers(false)} />}
+      {showViewers && <ViewersSheet postType="reel" postId={clip.id} onClose={() => setShowViewers(false)} />}
       {ownerSheet && me && (
         <ReelOwnerSheet
           clip={ownerSheet}

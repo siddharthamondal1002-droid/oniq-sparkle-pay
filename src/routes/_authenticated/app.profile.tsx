@@ -354,6 +354,7 @@ function SafetySection() {
           </Link>
         </div>
       </div>
+      <ViewIdentityToggle />
       <div className="flex gap-2">
         <Link to="/terms" className="flex-1 rounded-2xl border border-border bg-card p-3 text-center text-xs font-semibold hover:bg-muted">
           <ScrollText className="mx-auto mb-1 h-4 w-4" /> Terms
@@ -646,3 +647,68 @@ const LANG_ENTRIES: Array<[string, string]> = [
 ];
 
 
+
+/* Viewer-identity privacy toggle (P4). Symmetric: hiding your own views
+   also anonymises everyone in YOUR viewer lists (enforced server-side). */
+function ViewIdentityToggle() {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("profiles")
+        .select("show_view_identity")
+        .eq("id", u.user.id)
+        .maybeSingle();
+      setOn(data?.show_view_identity ?? true);
+    })();
+  }, []);
+
+  async function toggle() {
+    if (on === null || busy) return;
+    setBusy(true);
+    const next = !on;
+    setOn(next);
+    const { data: u } = await supabase.auth.getUser();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from("profiles")
+      .update({ show_view_identity: next })
+      .eq("id", u.user!.id);
+    if (error) {
+      setOn(!next);
+      toast.error("couldn't save — try again");
+    }
+    setBusy(false);
+  }
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-sm font-semibold">Show my name in view lists 👀</div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Off = you still count in view numbers but appear anonymous — and
+            you won't see who viewed your posts either (fair's fair).
+          </p>
+        </div>
+        <button
+          onClick={toggle}
+          disabled={on === null || busy}
+          role="switch"
+          aria-checked={on ?? true}
+          aria-label="Show my name in view lists"
+          className={`relative h-7 w-12 shrink-0 rounded-full transition ${on ? "bg-primary" : "bg-muted"} disabled:opacity-50`}
+        >
+          <span
+            className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow transition-all ${on ? "left-[calc(100%-1.625rem)]" : "left-0.5"}`}
+          />
+        </button>
+      </div>
+    </div>
+  );
+}
