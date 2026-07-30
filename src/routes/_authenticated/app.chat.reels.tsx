@@ -6,6 +6,7 @@ import { Heart, MessageCircle, Volume2, VolumeX, Loader2, Play, Plus, MoreHorizo
 import { systemShare, type SharePayload } from "@/lib/share";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
+import { ReelVideo } from "@/components/reels/ReelVideo";
 import { watchVideoView } from "@/lib/views";
 import { ReelOwnerSheet } from "@/components/reels/ReelOwnerSheet";
 import { toast } from "sonner";
@@ -90,7 +91,7 @@ function ReelsTab() {
   }
 
   return (
-    <div className="relative -mx-0 h-[calc(100dvh-5.5rem)] w-full overflow-hidden bg-black text-white">
+    <div className="relative -mx-0 h-screen w-full overflow-hidden bg-black text-white" style={{ height: "100dvh" }}>
       <button
         type="button"
         onClick={() => setMuted((m) => !m)}
@@ -263,20 +264,11 @@ function ReelCard({
 
   return (
     <div ref={sectionRef} className="relative h-full w-full snap-start">
-      <video
-        ref={videoRef}
-        src={clip.video_url}
-        loop
-        playsInline
-        muted={muted}
-        preload="metadata"
-        onClick={tapVideo}
-        className="absolute inset-0 h-full w-full bg-black object-contain"
-      />
+      <ReelVideo src={clip.video_url} muted={muted} videoRef={videoRef} onClick={tapVideo} />
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/80 to-transparent" />
 
-      <div className="absolute bottom-6 right-3 z-20 flex flex-col items-center gap-5">
+      <div className="absolute bottom-[calc(6.5rem+env(safe-area-inset-bottom))] right-3 z-20 flex flex-col items-center gap-5">
         <button onClick={toggleLike} className="flex flex-col items-center gap-1" aria-label="Like">
           <Heart className={`h-7 w-7 ${liked ? "fill-red-500 text-red-500" : "text-white"}`} />
           <span className="text-xs">{likeCount}</span>
@@ -307,7 +299,7 @@ function ReelCard({
         )}
       </div>
 
-      <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">
+      <div className="absolute inset-x-0 bottom-[calc(6.5rem+env(safe-area-inset-bottom))] z-20 px-4 pr-20">
         {/* tap the author to visit their page */}
         <Link
           to="/app/u/$userId"

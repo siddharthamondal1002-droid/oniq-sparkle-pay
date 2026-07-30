@@ -48,21 +48,28 @@ public class MainActivity extends BridgeActivity {
 
     /**
      * Android 15+ (SDK 35) draws apps edge-to-edge by default. Pad the content
-     * view by the system-bar/cutout insets so the WebView never renders under
-     * the status or navigation bars, and keep the keyboard (IME) inset so
-     * inputs still lift above it. The padded strips are painted in the app's
-     * dark theme color. No-op on older Android where the window already fits
-     * system bars (insets arrive as zero).
+     * view by the top/side system-bar/cutout insets so headers never sit under
+     * the status bar, but let the WebView extend BENEATH the bottom gesture/
+     * navigation bar (full-bleed surfaces like Reels draw edge to edge; web UI
+     * anchored to the bottom already reserves env(safe-area-inset-bottom)).
+     * The keyboard (IME) inset is kept so inputs still lift above it. No-op on
+     * older Android where the window already fits system bars (insets are 0).
      */
     private void applyEdgeToEdgeInsets() {
         View content = findViewById(android.R.id.content);
         if (content == null) return;
         content.setBackgroundColor(Color.parseColor("#1a1230"));
+        // Transparent, non-contrasted nav bar so page content shows through
+        // behind the gesture area instead of a scrim/wallpaper strip.
+        getWindow().setNavigationBarColor(Color.TRANSPARENT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
         ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
             Insets bars = insets.getInsets(
                 WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
-            v.setPadding(bars.left, bars.top, bars.right, Math.max(bars.bottom, ime.bottom));
+            v.setPadding(bars.left, bars.top, bars.right, ime.bottom);
             return WindowInsetsCompat.CONSUMED;
         });
     }

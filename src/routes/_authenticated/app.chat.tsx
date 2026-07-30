@@ -37,8 +37,9 @@ function ChatWorldLayout() {
     : VISIBLE_TABS.length === 3 ? "grid-cols-3"
     : "grid-cols-2";
 
+  const fullBleed = normalized.startsWith("/app/chat/reels");
   return (
-    <div className={showTabs ? "pb-24" : ""}>
+    <div className={showTabs && !fullBleed ? "pb-24" : ""}>
       <Outlet />
       {showTabs && (
         <nav className="fixed bottom-0 left-1/2 z-40 w-full max-w-md -translate-x-1/2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
