@@ -138,6 +138,13 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
         Real money moves through your own UPI apps. ONIQ never touches the bag — your bank handles everything, no cap.
       </p>
 
+      <Link
+        to="/app/scan"
+        className="press mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-border bg-card p-3 text-sm font-semibold"
+      >
+        <ScanLine className="h-4 w-4" /> Scan a QR instead 📷
+      </Link>
+
       <div className="mt-5 rounded-3xl border border-border bg-card p-5">
         <label className="text-xs text-muted-foreground">Recipient UPI ID</label>
         <div className="relative mt-1">
@@ -279,7 +286,31 @@ function ReceiveTab() {
   const qc = useQueryClient();
   const [amount, setAmount] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [vpaInput, setVpaInput] = useState("");
+  const [saving, setSaving] = useState(false);
   const cardRef = useRef<HTMLDivElement | null>(null);
+
+  async function saveVpa() {
+    if (!isValidVpa(vpaInput)) {
+      toast.error("Enter a valid UPI ID like name@bank");
+      return;
+    }
+    setSaving(true);
+    const { data: u } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("profiles_private")
+      .upsert(
+        { user_id: u.user!.id, upi_vpa: vpaInput.trim().toLowerCase() },
+        { onConflict: "user_id" },
+      );
+    setSaving(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("UPI ID saved — QR incoming ✨");
+    qc.invalidateQueries({ queryKey: ["profile-vpa"] });
+  }
 
   const { data: profile, isLoading } = useQuery({
     queryKey: ["profile-vpa"],
@@ -489,7 +520,7 @@ function ReceiveTab() {
     );
   }
 
-  // Empty state — no VPA set
+  // Empty state — no VPA set; set it up right here.
   if (!profile?.upi_vpa) {
     return (
       <div className="mt-5 rounded-3xl border border-border bg-card p-6 text-center">
@@ -498,8 +529,25 @@ function ReceiveTab() {
         </div>
         <h3 className="mt-4 font-display text-lg font-semibold">set up your receive QR ✨</h3>
         <p className="mt-2 text-sm text-muted-foreground">
-          Add your UPI ID from Profile — ONIQ turns it into a scannable QR. Money lands straight in your bank.
+          Enter your UPI ID once — ONIQ turns it into a scannable QR. Money lands straight in your bank; ONIQ never touches it.
         </p>
+        <div className="relative mt-4 text-left">
+          <AtSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            value={vpaInput}
+            onChange={(e) => setVpaInput(e.target.value)}
+            placeholder="yourname@okhdfcbank"
+            autoCapitalize="none"
+            className="w-full rounded-2xl border border-border bg-background py-3 pl-10 pr-3 text-sm focus:border-primary focus:outline-none"
+          />
+        </div>
+        <button
+          onClick={saveVpa}
+          disabled={saving}
+          className="press mt-4 w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Generate my QR"}
+        </button>
       </div>
     );
   }
