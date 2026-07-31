@@ -140,8 +140,6 @@ function HomeScreen() {
           </div>
           <AlsoInOniqRow
             tiles={[
-              { key: "scan", to: "/app/scan", label: t("home.tile.scan", "scan & pay 📷"), color: "#22C55E" },
-              { key: "upi", to: "/app/upi", label: t("home.tile.upi", "tap in 💳"), color: "#22C55E" },
               { key: "ting", to: "/app/ai", label: t("home.tile.ting", "Ting") },
               { key: "learn", to: "/app/learn", label: t("home.tile.smart", "bachat") },
               { key: "rides", to: "/app/rides", label: t("home.tile.rides") },
