@@ -63,6 +63,11 @@ function UpiScreen() {
         </button>
       </div>
 
+      {/* Standing, low-key anti-fraud note — visible on both tabs. */}
+      <p className="mt-3 text-center text-[11px] text-muted-foreground">
+        Suspect fraud? Report at 1930 or cybercrime.gov.in.
+      </p>
+
       {tab === "pay" ? <PayTab prefill={prefill} /> : <ReceiveTab />}
     </div>
   );
@@ -164,16 +169,34 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
         />
       </div>
 
+      {/* Payee + amount restated at the moment of action, away from the form fields. */}
+      <div
+        data-testid="upi-confirm-line"
+        className="mt-5 rounded-2xl border border-primary/30 bg-primary/10 px-4 py-3 text-center text-sm"
+      >
+        <span className="text-muted-foreground">You're sending </span>
+        <span className="font-bold text-foreground">
+          {params.amount ? `₹${params.amount.toFixed(2)}` : "an amount you'll enter in the app"}
+        </span>
+        <span className="text-muted-foreground"> to </span>
+        <span className="font-bold text-foreground">
+          {params.name || vpa.trim() || "—"}
+        </span>
+      </div>
+
       <button
         type="button"
         disabled={!ready}
         data-testid="upi-pay"
         data-upi-ready={ready ? "true" : "false"}
         onClick={payViaUpi}
-        className="press mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground shadow-card disabled:opacity-50"
+        className="press mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-sm font-semibold text-primary-foreground shadow-card disabled:opacity-50"
       >
         Pay via UPI
       </button>
+      <p className="mt-2 text-center text-xs text-muted-foreground">
+        UPI PIN is never needed to receive money. Never enter your PIN for a "refund", "cashback", or "₹1 verification" request.
+      </p>
       <p className="mt-2 text-center text-xs text-muted-foreground">
         Android shows a chooser of every UPI app you have — GPay, PhonePe, Paytm, BHIM, your bank's app, whatever's installed.
       </p>
@@ -219,6 +242,9 @@ function ReceiveTab() {
   const amt = parseFloat(amount);
   const amountValid = !amount || (Number.isFinite(amt) && amt > 0 && amt <= 100000);
 
+  // Push-payment QR only: the payer scans and pushes money to this VPA.
+  // Collect/"request money" requests are intentionally absent — NPCI banned P2P
+  // UPI collect requests from 1 Oct 2025. Do not reintroduce one here.
   const receiveLink = useMemo(() => {
     if (!profile?.upi_vpa) return null;
     return upiLink({

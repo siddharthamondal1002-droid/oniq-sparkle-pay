@@ -160,6 +160,11 @@ export function UpiScannerOverlay({
 
       <div className="px-5 pb-8 pt-3 text-center text-xs text-white/70">
         point at any UPI QR — shop counters, PhonePe/GPay/Paytm stickers all work
+        <div className="mt-2 text-[11px] text-white/50">
+          Scanning a QR only ever sends money — you never need your UPI PIN to receive it.
+          <br />
+          Suspect fraud? Report at 1930 or cybercrime.gov.in.
+        </div>
         <div className="mt-3">
           <button
             type="button"
