@@ -3021,41 +3021,53 @@ function PaperModal({
 </div></body></html>`;
   }
 
-  async function doPrintInApp() {
-    const html = buildPaperHtml();
-    // Try opening a new window (works reliably in desktop browsers).
-    let w: Window | null = null;
-    try { w = window.open("", "_blank"); } catch { w = null; }
-    if (w) {
-      w.document.open();
-      w.document.write(html);
-      w.document.close();
-      setTimeout(() => { try { w!.focus(); w!.print(); } catch { /* ignore */ } }, 500);
-      setDownloadSheet(false);
-      return;
-    }
-    // Native WebView: render via hidden iframe and call print on that frame.
-    // This is best-effort — some Android WebView builds silently ignore print.
+  // Vector-text PDF built from the structured question data (no DOM raster,
+  // no window.print() — Android System WebView silently no-ops on print()).
+  async function doDownloadPdf() {
+    if (pdfBusy) return;
+    const qs = questions ?? [];
+    if (!qs.length) return;
+    setPdfBusy(true);
     try {
-      const iframe = document.createElement("iframe");
-      iframe.setAttribute("aria-hidden", "true");
-      Object.assign(iframe.style, { position: "fixed", right: "0", bottom: "0", width: "0", height: "0", border: "0" });
-      document.body.appendChild(iframe);
-      const doc = iframe.contentDocument;
-      if (!doc) throw new Error("no doc");
-      doc.open();
-      doc.write(html);
-      doc.close();
-      setTimeout(() => {
-        try { iframe.contentWindow?.focus(); iframe.contentWindow?.print(); } catch { /* ignore */ }
-        setTimeout(() => iframe.remove(), 60_000);
-      }, 500);
+      const clsLbl =
+        profile.class_level === "ug" ? "Undergraduate"
+        : profile.class_level === "pg" ? "Postgraduate"
+        : profile.class_level === "drop" ? "Drop year"
+        : profile.class_level === "aspirant" ? "Aspirant"
+        : `Class ${profile.class_level}`;
+      const sections = (["mcq", "short", "long"] as const)
+        .map((t) => ({
+          label: sectionForType(t).label,
+          items: qs.filter((qq) => qq.type === t).map((qq) => ({
+            marks: qq.marks,
+            question: qq.question,
+            options: qq.type === "mcq" ? qq.options : undefined,
+            answerLines: qq.type === "mcq" ? 0 : qq.type === "short" ? 4 : 10,
+          })),
+        }))
+        .filter((s) => s.items.length > 0);
+      const { exportPaperPdf } = await import("@/lib/paperPdf");
+      await exportPaperPdf({
+        board: BOARD_UPPER[profile.board],
+        classLabel: clsLbl,
+        subject,
+        totalMarks,
+        time: timeHintFor(totalMarks),
+        sections,
+      });
       setDownloadSheet(false);
-      toast.success("if nothing happened, try 'open in browser' below");
-    } catch {
-      toast.error("in-app print not available — try 'open in browser'");
+      toast.success("paper saved 📄");
+    } catch (e) {
+      if (e instanceof Error && /cancel|abort/i.test(e.message)) {
+        setDownloadSheet(false);
+      } else {
+        toast.error("couldn't build the PDF — try again");
+      }
+    } finally {
+      setPdfBusy(false);
     }
   }
+
 
   async function doOpenInBrowser() {
     const html = buildPaperHtml();
