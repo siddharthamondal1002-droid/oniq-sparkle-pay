@@ -136,12 +136,6 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
     void launchUpiIntent(rawIntact ? prefill.raw! : upiPayeeLink(params));
   }
 
-  // PhonePe additionally blocks payments *initiated from other apps* for
-  // non-partner sources regardless of link shape — their policy, not a bug.
-  // Google Pay's tez:// scheme targets GPay directly as an alternative.
-  function openInGpay() {
-    void launchUpiIntent(`tez://upi/pay?${upiPayeeLink(params).split("?")[1]}`);
-  }
 
   async function copyLink() {
     if (!validate()) return;
@@ -259,31 +253,28 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
           data-testid="upi-declined-help"
           className="mt-4 rounded-2xl border border-amber-500/40 bg-card p-4 text-xs text-muted-foreground"
         >
-          <p className="text-sm font-semibold text-foreground">payment declined "for security reasons"? 🛡️</p>
+          <p className="text-sm font-semibold text-foreground">declined "for security reasons"? 🛡️</p>
           <p className="mt-1.5">
-            That's the UPI app's own policy — PhonePe especially blocks payments
-            started from other apps. Your bank and this payee are fine. What works:
+            GPay &amp; PhonePe block person-to-person payments started from other
+            apps — an anti-fraud rule on their side, not a problem with your bank
+            or this payee. This way always works:
           </p>
           <ol className="mt-2 list-decimal space-y-1 pl-4">
-            <li>pick <span className="font-semibold text-foreground">Google Pay, BHIM or Paytm</span> from the chooser instead</li>
-            <li>or copy the UPI ID, open your UPI app yourself, and pay via "To UPI ID"</li>
+            <li>tap <span className="font-semibold text-foreground">Copy UPI ID</span> below</li>
+            <li>open GPay / PhonePe yourself → <span className="font-semibold text-foreground">"Pay to UPI ID"</span></li>
+            <li>paste, enter the amount, pay ✅</li>
           </ol>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={copyVpaOnly}
-              className="press flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background py-2.5 font-semibold text-foreground"
-            >
-              <AtSign className="h-3.5 w-3.5" /> Copy UPI ID
-            </button>
-            <button
-              type="button"
-              onClick={openInGpay}
-              className="press flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background py-2.5 font-semibold text-foreground"
-            >
-              Open Google Pay
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={copyVpaOnly}
+            className="press mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl bg-primary py-2.5 font-semibold text-primary-foreground"
+          >
+            <AtSign className="h-3.5 w-3.5" /> Copy UPI ID
+          </button>
+          <p className="mt-2 text-[11px]">
+            Shop QRs scanned with ONIQ and your own receive QR are unaffected —
+            this only hits person-to-person sends handed to another app.
+          </p>
         </div>
       )}
 
@@ -332,9 +323,12 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
             </div>
             <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">
               {!rawIntact && params.amount && (
+                <li>• your UPI app will ask you to type the amount — enter ₹{params.amount.toFixed(2)} there</li>
+              )}
+              {!rawIntact && (
                 <li>
-                  • your UPI app will ask you to type the amount — enter ₹{params.amount.toFixed(2)} there
-                  (pre-filled amounts get declined "for security reasons" by some apps)
+                  • if it declines "for security reasons": GPay &amp; PhonePe block sends started
+                  from other apps — copy the UPI ID instead and pay inside your app
                 </li>
               )}
               <li>• double-check the name and UPI ID above match who you meant to pay</li>
