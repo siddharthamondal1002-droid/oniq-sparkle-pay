@@ -350,3 +350,11 @@ html, body {
     background: transparent;
   }
 }
+
+/* Browser print: clean A4 paper, no app chrome. */
+@media print {
+  @page { size: A4; margin: 15mm; }
+  body { background: #fff !important; color: #000 !important; }
+  nav, header[data-app-chrome], [data-no-print] { display: none !important; }
+  .print-question, .q { page-break-inside: avoid; break-inside: avoid; }
+}
