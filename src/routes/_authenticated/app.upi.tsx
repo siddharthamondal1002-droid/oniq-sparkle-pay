@@ -63,6 +63,11 @@ function UpiScreen() {
         </button>
       </div>
 
+      {/* Standing, low-key anti-fraud note — visible on both tabs. */}
+      <p className="mt-3 text-center text-[11px] text-muted-foreground">
+        Suspect fraud? Report at 1930 or cybercrime.gov.in.
+      </p>
+
       {tab === "pay" ? <PayTab prefill={prefill} /> : <ReceiveTab />}
     </div>
   );
