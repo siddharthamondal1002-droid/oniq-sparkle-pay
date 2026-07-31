@@ -1442,11 +1442,12 @@ function AlsoInOniqRow({
 type BannerMode = "watch" | "study" | "moments" | "mast";
 const BANNER_MODE_KEY = "oniq.home.banner.mode";
 
+const BANNER_MODES: BannerMode[] = ["watch", "study", "moments", "mast"];
+
 function HomeMediaBanner() {
   const [hidden] = useHiddenTiles();
   const { data: theme } = useUserTheme();
   const skins = theme?.tile_skins ?? {};
-  const watchHidden = (hidden as Set<string>).has("watch");
   const { t } = useT();
 
   const [mode, setMode] = useState<BannerMode>(() => {
@@ -1461,17 +1462,30 @@ function HomeMediaBanner() {
     try { localStorage.setItem(BANNER_MODE_KEY, mode); } catch { /* noop */ }
   }, [mode]);
 
-  // If watch is hidden but was persisted, fall back to study.
+  // If the current tab is hidden (persisted or just toggled), fall back to
+  // the first tab that's still visible.
   useEffect(() => {
-    if (mode === "watch" && watchHidden) setMode("study");
-  }, [mode, watchHidden]);
+    if (hidden.has(mode)) {
+      const first = BANNER_MODES.find((m) => !hidden.has(m));
+      if (first) setMode(first);
+    }
+  }, [mode, hidden]);
 
-  const tabs: { id: BannerMode; label: string; hidden?: boolean }[] = [
-    { id: "watch", label: t("banner.tab.watch", "Watch"), hidden: watchHidden },
+  const tabs: { id: BannerMode; label: string }[] = [
+    { id: "watch", label: t("banner.tab.watch", "Watch") },
     { id: "study", label: t("banner.tab.study", "Study") },
     { id: "moments", label: t("banner.tab.moments", "Moments") },
     { id: "mast", label: t("banner.tab.mast", "Mast 🎬") },
   ];
+  const visibleTabs = tabs.filter((tb) => !hidden.has(tb.id));
+
+  if (visibleTabs.length === 0) {
+    return (
+      <p className="rounded-2xl border border-dashed border-border bg-card/50 px-4 py-3 text-xs text-muted-foreground">
+        all feed tiles are hidden — bring them back anytime from Customize 🎨
+      </p>
+    );
+  }
 
   return (
     <div>
@@ -1480,7 +1494,7 @@ function HomeMediaBanner() {
         aria-label="Home feed"
         className="mb-3 inline-flex rounded-full border border-border bg-card/70 p-1 text-[11px] font-semibold uppercase tracking-wider"
       >
-        {tabs.filter((t) => !t.hidden).map((t) => {
+        {visibleTabs.map((t) => {
           const active = mode === t.id;
           return (
             <button
@@ -1496,12 +1510,12 @@ function HomeMediaBanner() {
         })}
       </div>
 
-      {mode === "watch" && !watchHidden && (
+      {mode === "watch" && !hidden.has("watch") && (
         <MediaBanner watchHidden={false} watchSkin={skins.watch} />
       )}
-      {mode === "study" && <StudyHero />}
-      {mode === "moments" && <MomentsPreview />}
-      {mode === "mast" && <MastPreview />}
+      {mode === "study" && !hidden.has("study") && <StudyHero />}
+      {mode === "moments" && !hidden.has("moments") && <MomentsPreview />}
+      {mode === "mast" && !hidden.has("mast") && <MastPreview />}
     </div>
   );
 }
