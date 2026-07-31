@@ -11,8 +11,11 @@ export const Route = createFileRoute("/_authenticated/app/scan")({
   component: ScanScreen,
 });
 
-/** Parse a upi://pay?... string into prefill params. Returns null if not UPI. */
-export function parseUpiUri(raw: string): { pa: string; pn?: string; am?: string; tn?: string } | null {
+/** Parse a upi://pay?... string into prefill params. Returns null if not UPI.
+ *  `raw` carries the untouched URI — merchant QRs include fields we don't
+ *  model (mc, tr, mode, sign) that must survive to the intent launch, or
+ *  UPI apps flag the payment as unverified P2P and decline it. */
+export function parseUpiUri(raw: string): { pa: string; pn?: string; am?: string; tn?: string; raw?: string } | null {
   const s = raw.trim();
   if (!/^upi:\/\/pay\?/i.test(s)) return null;
   try {
@@ -24,6 +27,7 @@ export function parseUpiUri(raw: string): { pa: string; pn?: string; am?: string
       pn: q.get("pn")?.trim() || undefined,
       am: q.get("am")?.trim() || undefined,
       tn: q.get("tn")?.trim() || undefined,
+      raw: s,
     };
   } catch {
     return null;

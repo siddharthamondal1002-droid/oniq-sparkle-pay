@@ -315,6 +315,19 @@ export function upiLink(p: UpiParams) {
   return `upi://pay?${upiQuery(p)}`;
 }
 
+/**
+ * Payee-only intent for manual P2P sends. PhonePe (and others) decline
+ * third-party intents that pre-fill an amount — "declined for security
+ * reasons" — so the payer types the amount inside their own UPI app.
+ */
+export function upiPayeeLink({ vpa, name }: Pick<UpiParams, "vpa" | "name">) {
+  const q = new URLSearchParams();
+  q.set("pa", vpa.trim());
+  q.set("pn", name.trim() || vpa.trim());
+  q.set("cu", "INR");
+  return `upi://pay?${q.toString()}`;
+}
+
 /** App-targeted UPI intents. */
 export const UPI_APPS = [
   { id: "any", name: "Any UPI app", scheme: (p: UpiParams) => `upi://pay?${upiQuery(p)}`, color: "#00D4B8" },

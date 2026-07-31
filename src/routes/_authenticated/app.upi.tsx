@@ -12,11 +12,11 @@ import {
   Download,
 } from "lucide-react";
 import { toast } from "sonner";
-import { upiLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
+import { upiLink, upiPayeeLink, isValidVpa, launchUpiIntent } from "@/lib/miniapps";
 
 import { supabase } from "@/integrations/supabase/client";
 
-type UpiSearch = { pa?: string; pn?: string; am?: string; tn?: string; tab?: string };
+type UpiSearch = { pa?: string; pn?: string; am?: string; tn?: string; tab?: string; raw?: string };
 
 export const Route = createFileRoute("/_authenticated/app/upi")({
   validateSearch: (search: Record<string, unknown>): UpiSearch => ({
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/_authenticated/app/upi")({
     am: typeof search.am === "string" ? search.am : undefined,
     tn: typeof search.tn === "string" ? search.tn : undefined,
     tab: typeof search.tab === "string" ? search.tab : undefined,
+    raw: typeof search.raw === "string" && /^upi:\/\/pay\?/i.test(search.raw) ? search.raw : undefined,
   }),
   component: UpiScreen,
 });
@@ -110,6 +111,14 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
 
   const ready = isValidVpa(vpa) && (!amount || (Number.isFinite(amt) && amt > 0 && amt <= 100000));
 
+  // Scanned QR whose details the user hasn't edited — launch the original
+  // URI untouched so merchant fields (mc/tr/sign) survive.
+  const rawIntact =
+    !!prefill.raw &&
+    vpa.trim() === (prefill.pa ?? "") &&
+    amount.trim() === (prefill.am ?? "") &&
+    note.trim() === (prefill.tn ?? "");
+
   function payViaUpi() {
     if (!validate()) return;
     setConfirming(true);
@@ -119,14 +128,30 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
     setConfirming(false);
     // Generic upi://pay intent — no package/scheme override, so Android
     // shows its native chooser of every UPI-capable app installed.
-    void launchUpiIntent(upiLink(params));
+    // Manual sends go payee-only: PhonePe & co decline third-party intents
+    // that pre-fill an amount ("declined for security reasons") — the payer
+    // types the amount inside their own UPI app instead.
+    void launchUpiIntent(rawIntact ? prefill.raw! : upiPayeeLink(params));
   }
 
   async function copyLink() {
     if (!validate()) return;
     try {
-      await navigator.clipboard.writeText(upiLink(params));
+      await navigator.clipboard.writeText(rawIntact ? prefill.raw! : upiLink(params));
       toast.success("Link copied ✅ opens in any UPI app");
+    } catch {
+      toast.error("Couldn't copy on this device");
+    }
+  }
+
+  async function copyVpaOnly() {
+    if (!isValidVpa(vpa)) {
+      toast.error("Enter a valid UPI ID like name@bank");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(vpa.trim());
+      toast.success("UPI ID copied — paste it in PhonePe, GPay or any UPI app");
     } catch {
       toast.error("Couldn't copy on this device");
     }
@@ -220,12 +245,24 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
         Android shows a chooser of every UPI app you have — GPay, PhonePe, Paytm, BHIM, your bank's app, whatever's installed.
       </p>
 
-      <button
-        onClick={copyLink}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-border p-3 text-sm text-muted-foreground"
-      >
-        <Copy className="h-4 w-4" /> Copy UPI payment link
-      </button>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          onClick={copyVpaOnly}
+          data-testid="copy-upi-id"
+          className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border p-3 text-sm text-muted-foreground"
+        >
+          <AtSign className="h-4 w-4" /> Copy UPI ID
+        </button>
+        <button
+          onClick={copyLink}
+          className="flex items-center justify-center gap-2 rounded-2xl border border-dashed border-border p-3 text-sm text-muted-foreground"
+        >
+          <Copy className="h-4 w-4" /> Copy payment link
+        </button>
+      </div>
+      <p className="mt-2 text-center text-[11px] text-muted-foreground">
+        Payment declined "for security reasons"? Copy the UPI ID and pay directly inside your UPI app.
+      </p>
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Works on Android with a UPI app installed. On desktop, copy the link to your phone.
@@ -252,6 +289,12 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
               </div>
             </div>
             <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+              {!rawIntact && params.amount && (
+                <li>
+                  • your UPI app will ask you to type the amount — enter ₹{params.amount.toFixed(2)} there
+                  (pre-filled amounts get declined "for security reasons" by some apps)
+                </li>
+              )}
               <li>• double-check the name and UPI ID above match who you meant to pay</li>
               <li>• your UPI PIN is only ever needed to SEND money — never to receive it</li>
               <li>• "pay ₹1 to verify", refund and cashback requests are scams</li>
