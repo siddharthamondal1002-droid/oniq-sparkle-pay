@@ -2613,6 +2613,8 @@ function PaperModal({
       }
   >(null);
   const [downloadSheet, setDownloadSheet] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
+
   const [answerSheetOpen, setAnswerSheetOpen] = useState(false);
 
   useEffect(() => {
