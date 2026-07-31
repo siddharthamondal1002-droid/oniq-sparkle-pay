@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, X, ImagePlus } from "lucide-react";
+import { Camera, X, ImagePlus, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { parseUpiUri } from "@/routes/_authenticated/app.scan";
-import { decodeQrFromImageFile, qrDecodeSupported } from "@/lib/qrFromImage";
+import { decodeQrFromImageFile, decodeQrFromVideo, cameraSupported } from "@/lib/qr/decodeQr";
 
 type Prefill = { pa: string; pn?: string; am?: string; tn?: string };
 
@@ -15,10 +15,10 @@ export function UpiScannerOverlay({
 }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const runningRef = useRef(true);
+  const runningRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [scanning, setScanning] = useState(false);
-  const [supported, setSupported] = useState(true);
+  const [canUseCamera] = useState(() => cameraSupported());
   const [permError, setPermError] = useState<string | null>(null);
   const [decodingFile, setDecodingFile] = useState(false);
 
@@ -27,15 +27,11 @@ export function UpiScannerOverlay({
     // reset immediately so re-picking the same file still fires change
     e.target.value = "";
     if (!file) return;
-    if (!qrDecodeSupported()) {
-      toast.error("QR decoding needs Android Chrome / WebView — try the live camera");
-      return;
-    }
     setDecodingFile(true);
     try {
       const raw = await decodeQrFromImageFile(file);
       if (!raw) {
-        toast.error("couldn't find a QR in that photo 🔍 try another one");
+        toast.error("couldn't read this QR — try a clearer photo");
         return;
       }
       // Feed into the exact same pipeline as the live scanner.
@@ -49,12 +45,11 @@ export function UpiScannerOverlay({
       onDecode(parsed);
       onClose();
     } catch {
-      toast.error("couldn't read that image — try another one");
+      toast.error("couldn't read this QR — try a clearer photo");
     } finally {
       setDecodingFile(false);
     }
   }
-
 
   function stopCamera() {
     runningRef.current = false;
@@ -68,56 +63,59 @@ export function UpiScannerOverlay({
     onClose();
   }
 
-  useEffect(() => {
-    runningRef.current = true;
-    setSupported(typeof window !== "undefined" && "BarcodeDetector" in window);
-    // auto-start on mount
-    (async () => {
-      if (!("BarcodeDetector" in window)) return;
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "environment" },
-        });
-        if (!runningRef.current) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          await videoRef.current.play();
-        }
-        setScanning(true);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const Detector = (window as any).BarcodeDetector;
-        const detector = new Detector({ formats: ["qr_code"] });
-        const tick = async () => {
-          if (!runningRef.current || !streamRef.current || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            if (codes.length > 0 && codes[0].rawValue) {
-              const parsed = parseUpiUri(codes[0].rawValue as string);
-              if (!parsed) {
-                toast.error("That QR isn't a UPI payment code");
-              } else {
-                stopCamera();
-                toast.success(`Found ${parsed.pn || parsed.pa} ✅`);
-                onDecode(parsed);
-                onClose();
-                return;
-              }
-            }
-          } catch {
-            /* frame not ready */
-          }
-          if (runningRef.current) requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
-      } catch {
-        setPermError("Camera unavailable — check permissions");
+  // iOS requires a user gesture — camera only starts from this tap.
+  async function startCamera() {
+    if (!cameraSupported()) return;
+    setPermError(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+        audio: false,
+      });
+      runningRef.current = true;
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
       }
-    })();
-    return () => stopCamera();
+      setScanning(true);
+
+      let last = 0;
+      const tick = async (now: number) => {
+        if (!runningRef.current || !streamRef.current || !videoRef.current) return;
+        if (now - last >= 100) {
+          last = now;
+          const raw = await decodeQrFromVideo(videoRef.current).catch(() => null);
+          if (raw) {
+            const parsed = parseUpiUri(raw);
+            if (!parsed) {
+              toast.error("That QR isn't a UPI payment code");
+            } else {
+              stopCamera();
+              toast.success(`Found ${parsed.pn || parsed.pa} ✅`);
+              onDecode(parsed);
+              onClose();
+              return;
+            }
+          }
+        }
+        if (runningRef.current) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    } catch {
+      setPermError("Camera unavailable — check permissions");
+    }
+  }
+
+  useEffect(() => {
+    const onHide = () => {
+      if (document.hidden) stopCamera();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      stopCamera();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -138,6 +136,7 @@ export function UpiScannerOverlay({
         <video
           ref={videoRef}
           playsInline
+          autoPlay
           muted
           className="absolute inset-0 h-full w-full object-cover"
         />
@@ -146,10 +145,32 @@ export function UpiScannerOverlay({
             <div>
               <Camera className="mx-auto h-10 w-10 text-white/80" />
               <p className="mt-3 text-sm text-white/80">
-                {!supported
-                  ? "Live scanning needs Android Chrome — cancel & paste the link on the UPI screen instead"
-                  : permError ?? "Starting camera…"}
+                {!canUseCamera
+                  ? "This browser blocks camera access. Open oniqhub.com in Safari or Chrome to scan live."
+                  : permError ?? "Tap to start the camera"}
               </p>
+              {canUseCamera ? (
+                <button
+                  onClick={startCamera}
+                  className="press mt-4 rounded-full bg-white px-5 py-2 text-sm font-semibold text-black"
+                >
+                  Scan QR
+                </button>
+              ) : (
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText("https://oniqhub.com");
+                      toast.success("link copied ✨");
+                    } catch {
+                      toast.error("couldn't copy — it's oniqhub.com");
+                    }
+                  }}
+                  className="press mt-4 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-white"
+                >
+                  <Link2 className="h-4 w-4" /> Copy link
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -189,4 +210,3 @@ export function UpiScannerOverlay({
     </div>
   );
 }
-
