@@ -88,6 +88,7 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
   const [amount, setAmount] = useState(prefill.am ?? "");
   const [note, setNote] = useState(prefill.tn ?? "");
   const [confirming, setConfirming] = useState(false);
+  const [launched, setLaunched] = useState(false);
 
   const amt = parseFloat(amount);
   const params = {
@@ -126,12 +127,20 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
 
   function confirmPay() {
     setConfirming(false);
+    setLaunched(true);
     // Generic upi://pay intent — no package/scheme override, so Android
     // shows its native chooser of every UPI-capable app installed.
     // Manual sends go payee-only: PhonePe & co decline third-party intents
     // that pre-fill an amount ("declined for security reasons") — the payer
     // types the amount inside their own UPI app instead.
     void launchUpiIntent(rawIntact ? prefill.raw! : upiPayeeLink(params));
+  }
+
+  // PhonePe additionally blocks payments *initiated from other apps* for
+  // non-partner sources regardless of link shape — their policy, not a bug.
+  // Google Pay's tez:// scheme targets GPay directly as an alternative.
+  function openInGpay() {
+    void launchUpiIntent(`tez://upi/pay?${upiPayeeLink(params).split("?")[1]}`);
   }
 
   async function copyLink() {
@@ -244,6 +253,39 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
       <p className="mt-2 text-center text-xs text-muted-foreground">
         Android shows a chooser of every UPI app you have — GPay, PhonePe, Paytm, BHIM, your bank's app, whatever's installed.
       </p>
+
+      {launched && (
+        <div
+          data-testid="upi-declined-help"
+          className="mt-4 rounded-2xl border border-amber-500/40 bg-card p-4 text-xs text-muted-foreground"
+        >
+          <p className="text-sm font-semibold text-foreground">payment declined "for security reasons"? 🛡️</p>
+          <p className="mt-1.5">
+            That's the UPI app's own policy — PhonePe especially blocks payments
+            started from other apps. Your bank and this payee are fine. What works:
+          </p>
+          <ol className="mt-2 list-decimal space-y-1 pl-4">
+            <li>pick <span className="font-semibold text-foreground">Google Pay, BHIM or Paytm</span> from the chooser instead</li>
+            <li>or copy the UPI ID, open your UPI app yourself, and pay via "To UPI ID"</li>
+          </ol>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={copyVpaOnly}
+              className="press flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background py-2.5 font-semibold text-foreground"
+            >
+              <AtSign className="h-3.5 w-3.5" /> Copy UPI ID
+            </button>
+            <button
+              type="button"
+              onClick={openInGpay}
+              className="press flex items-center justify-center gap-1.5 rounded-xl border border-border bg-background py-2.5 font-semibold text-foreground"
+            >
+              Open Google Pay
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         <button
