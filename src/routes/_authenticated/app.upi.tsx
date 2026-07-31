@@ -242,6 +242,9 @@ function ReceiveTab() {
   const amt = parseFloat(amount);
   const amountValid = !amount || (Number.isFinite(amt) && amt > 0 && amt <= 100000);
 
+  // Push-payment QR only: the payer scans and pushes money to this VPA.
+  // Collect/"request money" requests are intentionally absent — NPCI banned P2P
+  // UPI collect requests from 1 Oct 2025. Do not reintroduce one here.
   const receiveLink = useMemo(() => {
     if (!profile?.upi_vpa) return null;
     return upiLink({
