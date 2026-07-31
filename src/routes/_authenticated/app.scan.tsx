@@ -5,7 +5,7 @@ import { ArrowLeft, ScanLine, QrCode, Camera, ClipboardPaste, AtSign, ImagePlus 
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { upiLink, isValidVpa } from "@/lib/miniapps";
-import { decodeQrFromImageFile, qrDecodeSupported } from "@/lib/qrFromImage";
+import { decodeQrFromImageFile, decodeQrFromVideo, cameraSupported } from "@/lib/qr/decodeQr";
 
 export const Route = createFileRoute("/_authenticated/app/scan")({
   component: ScanScreen,
