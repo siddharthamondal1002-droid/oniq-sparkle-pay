@@ -3491,20 +3491,23 @@ function PaperModal({
             <p className="mt-1 text-xs text-muted-foreground">questions only — no answers included. save as PDF or print on paper.</p>
             <div className="mt-4 space-y-2">
               <button
-                onClick={() => void doPrintInApp()}
-                className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+                onClick={() => void doDownloadPdf()}
+                disabled={pdfBusy}
+                className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
               >
-                🖨️ print / save as PDF
+                {pdfBusy ? "building PDF…" : "📄 save as PDF"}
               </button>
               <button
                 onClick={() => void doOpenInBrowser()}
-                className="w-full rounded-xl border border-border py-3 text-sm"
+                disabled={pdfBusy}
+                className="w-full rounded-xl border border-border py-3 text-sm disabled:opacity-60"
               >
-                🌐 open in browser to save as PDF
+                🌐 open in browser to print
               </button>
               <p className="text-[10px] leading-relaxed text-muted-foreground">
-                on some Android versions in-app print doesn't work reliably — if the first option does nothing, use the browser option (opens Chrome, then use Chrome's Share → Print → Save as PDF).
+                the PDF is a clean A4 question paper with ruled answer space. use "open in browser" if you'd rather print on paper.
               </p>
+
               <button
                 onClick={() => setDownloadSheet(false)}
                 className="w-full rounded-xl border border-border py-2 text-xs text-muted-foreground"
