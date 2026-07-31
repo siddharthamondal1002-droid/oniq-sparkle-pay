@@ -195,6 +195,7 @@ function ScanTab() {
         <video
           ref={videoRef}
           playsInline
+          autoPlay
           muted
           className="absolute inset-0 h-full w-full object-cover"
         />
@@ -203,16 +204,30 @@ function ScanTab() {
             <div className="text-center">
               <Camera className="mx-auto h-10 w-10 text-white/80" />
               <p className="mt-3 text-sm text-white/80">
-                {supported
+                {canUseCamera
                   ? "Point at any UPI QR — shop counters, PhonePe/GPay/Paytm stickers, all of them work"
-                  : "Live scanning needs Android Chrome — paste the UPI link below instead"}
+                  : "This browser blocks camera access. Open oniqhub.com in Safari or Chrome to scan live."}
               </p>
-              {supported && (
+              {canUseCamera ? (
                 <button
                   onClick={startCamera}
                   className="mt-4 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground"
                 >
-                  Start camera
+                  Scan QR
+                </button>
+              ) : (
+                <button
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText("https://oniqhub.com");
+                      toast.success("link copied ✨");
+                    } catch {
+                      toast.error("couldn't copy — it's oniqhub.com");
+                    }
+                  }}
+                  className="press mt-4 inline-flex items-center gap-2 rounded-full border border-white/25 bg-white/10 px-4 py-2 text-xs font-semibold text-white"
+                >
+                  <Link2 className="h-4 w-4" /> Copy link
                 </button>
               )}
             </div>
