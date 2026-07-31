@@ -169,6 +169,7 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { data: theme } = useUserTheme();
   const [busy, setBusy] = useState<string | null>(null);
+  const [hiddenTiles, setHiddenTile] = useHiddenTiles();
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["user-theme"] });
 
@@ -345,6 +346,17 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
                 <span className="flex-1 text-sm font-medium">
                   {TILE_LABELS[k]}
                 </span>
+                <button
+                  type="button"
+                  onClick={() => setHiddenTile(k, !hiddenTiles.has(k))}
+                  aria-label={hiddenTiles.has(k) ? `Show ${TILE_LABELS[k]}` : `Hide ${TILE_LABELS[k]}`}
+                  aria-pressed={!hiddenTiles.has(k)}
+                  className="press grid h-8 w-8 place-items-center rounded-lg bg-surface"
+                >
+                  {hiddenTiles.has(k)
+                    ? <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                    : <Eye className="h-3.5 w-3.5 text-primary" />}
+                </button>
                 <button
                   type="button"
                   onClick={() => handleTile(k)}
