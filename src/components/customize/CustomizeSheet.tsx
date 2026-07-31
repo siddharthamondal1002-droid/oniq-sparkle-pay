@@ -49,6 +49,9 @@ const SIGNED_TTL_SECONDS = 60 * 60 * 24 * 365 * 100; // ~100 years
 
 export type TileKey =
   | "watch"
+  | "study"
+  | "moments"
+  | "mast"
   | "pulse"
   | "clips"
   | "ting"
@@ -62,6 +65,9 @@ export type TileKey =
 
 export const TILE_LABELS: Record<TileKey, string> = {
   watch: "Watch",
+  study: "Study 📚",
+  moments: "Moments ✨",
+  mast: "Mast 🎬",
   pulse: "the tea ☕",
   clips: "brainrot 🎬",
   ting: "Ting ✨",
@@ -73,6 +79,9 @@ export const TILE_LABELS: Record<TileKey, string> = {
   faith: "blessed 🙏",
   vitals: "vitals 🫀",
 };
+
+// Feed-banner tabs are hideable but have no skin surface of their own.
+const BANNER_ONLY_TILES: TileKey[] = ["study", "moments", "mast"];
 
 
 export type UserTheme = {
@@ -242,7 +251,9 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const tileKeys = Object.keys(TILE_LABELS) as TileKey[];
+  const tileKeys = (Object.keys(TILE_LABELS) as TileKey[]).filter(
+    (k) => !BANNER_ONLY_TILES.includes(k),
+  );
   const skins = theme?.tile_skins ?? {};
 
   return (
@@ -363,7 +374,10 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
 }
 
 const HERO_TOGGLES: { key: TileKey; label: string }[] = [
-  { key: "watch", label: "Watch hero 📺" },
+  { key: "watch", label: "Watch feed 📺" },
+  { key: "study", label: "Study feed 📚" },
+  { key: "moments", label: "Moments feed ✨" },
+  { key: "mast", label: "Mast feed 🎬" },
   { key: "clips", label: "brainrot hero 🎬" },
 ];
 
@@ -372,7 +386,7 @@ function HeroVisibilitySection() {
   return (
     <section className="mt-6">
       <div className="text-xs uppercase tracking-wider text-muted-foreground mb-2">
-        Show / hide hero tiles
+        Show / hide feed tiles
       </div>
       <ul className="space-y-2">
         {HERO_TOGGLES.map(({ key, label }) => {
