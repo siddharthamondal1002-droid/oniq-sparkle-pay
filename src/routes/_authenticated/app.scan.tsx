@@ -84,20 +84,26 @@ function ScanTab() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const runningRef = useRef(false);
   const [scanning, setScanning] = useState(false);
-  const [supported, setSupported] = useState(true);
+  const [canUseCamera] = useState(() => cameraSupported());
   const [manual, setManual] = useState("");
   const [decodingFile, setDecodingFile] = useState(false);
 
-
   useEffect(() => {
-    // BarcodeDetector ships in Chromium (Android Chrome/WebView) — our target.
-    setSupported(typeof window !== "undefined" && "BarcodeDetector" in window);
-    return () => stopCamera();
+    const onHide = () => {
+      if (document.hidden) stopCamera();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      stopCamera();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function stopCamera() {
+    runningRef.current = false;
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     setScanning(false);
@@ -114,12 +120,15 @@ function ScanTab() {
     navigate({ to: "/app/upi", search: parsed });
   }
 
+  // iOS requires a user gesture — the stream only starts from this tap.
   async function startCamera() {
-    if (!supported) return;
+    if (!cameraSupported()) return;
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 } },
+        audio: false,
       });
+      runningRef.current = true;
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -127,21 +136,18 @@ function ScanTab() {
       }
       setScanning(true);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const Detector = (window as any).BarcodeDetector;
-      const detector = new Detector({ formats: ["qr_code"] });
-      const tick = async () => {
-        if (!streamRef.current || !videoRef.current) return;
-        try {
-          const codes = await detector.detect(videoRef.current);
-          if (codes.length > 0 && codes[0].rawValue) {
-            handleResult(codes[0].rawValue as string);
+      let last = 0;
+      const tick = async (now: number) => {
+        if (!runningRef.current || !streamRef.current || !videoRef.current) return;
+        if (now - last >= 100) {
+          last = now;
+          const raw = await decodeQrFromVideo(videoRef.current).catch(() => null);
+          if (raw) {
+            handleResult(raw);
             return;
           }
-        } catch {
-          /* frame not ready — keep looping */
         }
-        if (streamRef.current) requestAnimationFrame(tick);
+        if (runningRef.current) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
     } catch {
@@ -164,25 +170,22 @@ function ScanTab() {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!qrDecodeSupported()) {
-      toast.error("QR decoding needs Android Chrome / WebView — try the live camera");
-      return;
-    }
     setDecodingFile(true);
     try {
       const raw = await decodeQrFromImageFile(file);
       if (!raw) {
-        toast.error("couldn't find a QR in that photo 🔍 try another one");
+        toast.error("couldn't read this QR — try a clearer photo");
         return;
       }
       // Feed straight into the same downstream pipeline as the live scanner.
       handleResult(raw);
     } catch {
-      toast.error("couldn't read that image — try another one");
+      toast.error("couldn't read this QR — try a clearer photo");
     } finally {
       setDecodingFile(false);
     }
   }
+
 
 
   return (
