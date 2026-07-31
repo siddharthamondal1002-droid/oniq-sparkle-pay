@@ -65,7 +65,13 @@ function UpiScreen() {
 
       {/* Standing, low-key anti-fraud note — visible on both tabs. */}
       <p className="mt-3 text-center text-[11px] text-muted-foreground">
-        Suspect fraud? Report at 1930 or cybercrime.gov.in.
+        Suspect fraud? Call{" "}
+        <a href="tel:1930" className="font-semibold text-foreground underline">1930</a>{" "}
+        or report at{" "}
+        <a href="https://cybercrime.gov.in" target="_blank" rel="noreferrer" className="font-semibold text-foreground underline">
+          cybercrime.gov.in
+        </a>
+        .
       </p>
 
       {tab === "pay" ? <PayTab prefill={prefill} /> : <ReceiveTab />}
@@ -80,6 +86,7 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
   const [name, setName] = useState(prefill.pn ?? "");
   const [amount, setAmount] = useState(prefill.am ?? "");
   const [note, setNote] = useState(prefill.tn ?? "");
+  const [confirming, setConfirming] = useState(false);
 
   const amt = parseFloat(amount);
   const params = {
@@ -105,6 +112,11 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
 
   function payViaUpi() {
     if (!validate()) return;
+    setConfirming(true);
+  }
+
+  function confirmPay() {
+    setConfirming(false);
     // Generic upi://pay intent — no package/scheme override, so Android
     // shows its native chooser of every UPI-capable app installed.
     void launchUpiIntent(upiLink(params));
@@ -114,7 +126,7 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
     if (!validate()) return;
     try {
       await navigator.clipboard.writeText(upiLink(params));
-      toast.success("Link copied ✅ go collect");
+      toast.success("Link copied ✅ opens in any UPI app");
     } catch {
       toast.error("Couldn't copy on this device");
     }
@@ -211,6 +223,52 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Works on Android with a UPI app installed. On desktop, copy the link to your phone.
       </p>
+
+      {/* Deliberate friction: one confirm step restating payee VPA, name and
+          amount before the hand-off to the UPI app. */}
+      {confirming && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-4 pb-8"
+          onClick={() => setConfirming(false)}
+        >
+          <div
+            data-testid="upi-confirm-sheet"
+            className="w-full max-w-md rounded-3xl border border-border bg-card p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-display text-lg font-bold">you're SENDING money 💸</h3>
+            <div className="mt-3 rounded-2xl border border-border bg-background p-4 text-center">
+              <div className="text-base font-semibold">{params.name}</div>
+              <div className="mt-0.5 break-all text-sm text-muted-foreground">{params.vpa}</div>
+              <div className="mt-2 text-2xl font-bold text-primary">
+                {params.amount ? `₹ ${params.amount.toFixed(2)}` : "amount entered in your UPI app"}
+              </div>
+            </div>
+            <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+              <li>• double-check the name and UPI ID above match who you meant to pay</li>
+              <li>• your UPI PIN is only ever needed to SEND money — never to receive it</li>
+              <li>• "pay ₹1 to verify", refund and cashback requests are scams</li>
+            </ul>
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirming(false)}
+                className="press rounded-2xl border border-border bg-background py-3 text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-testid="upi-confirm-send"
+                onClick={confirmPay}
+                className="press rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+              >
+                Yes, open UPI app
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -490,6 +548,10 @@ function ReceiveTab() {
 
         <p className="mt-4 text-xs text-muted-foreground">
           scannable by any UPI app — GPay, PhonePe, Paytm &amp; more
+        </p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          receiving money never needs your UPI PIN — anyone who asks for it to
+          "receive" a payment is scamming you 🚩
         </p>
       </div>
 

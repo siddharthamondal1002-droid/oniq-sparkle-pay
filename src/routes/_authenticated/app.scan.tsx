@@ -57,6 +57,17 @@ function ScanScreen() {
         </button>
       </div>
 
+      {/* Standing, low-key anti-fraud note — visible on both tabs. */}
+      <p className="mt-3 text-center text-[11px] text-muted-foreground">
+        Suspect fraud? Call{" "}
+        <a href="tel:1930" className="font-semibold text-foreground underline">1930</a>{" "}
+        or report at{" "}
+        <a href="https://cybercrime.gov.in" target="_blank" rel="noreferrer" className="font-semibold text-foreground underline">
+          cybercrime.gov.in
+        </a>
+        .
+      </p>
+
       {tab === "scan" ? <ScanTab /> : <MyQrTab />}
     </div>
   );
@@ -345,6 +356,10 @@ function MyQrTab() {
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
             Anyone can scan this with GPay, PhonePe, Paytm or any UPI app — money lands straight in your bank. Screenshot it, print it, own it 📸
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            receiving money never needs your UPI PIN — anyone who asks for it to
+            "receive" a payment is scamming you 🚩
           </p>
           <button
             onClick={() => {
