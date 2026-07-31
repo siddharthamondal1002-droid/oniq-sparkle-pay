@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ScanLine, QrCode, Camera, ClipboardPaste, AtSign, ImagePlus } from "lucide-react";
+import { ArrowLeft, ScanLine, QrCode, Camera, ClipboardPaste, AtSign, ImagePlus, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { upiLink, isValidVpa } from "@/lib/miniapps";
