@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Palette, Upload, RotateCcw, X, Eye, EyeOff } from "lucide-react";
+import { useT } from "@/lib/i18n/LanguageProvider";
+import { resolveTileLabel, TILE_LABELS_HI } from "@/lib/i18n/tileLabel";
 
 const HIDDEN_TILES_KEY = "oniq.tiles.hidden.v1";
 
@@ -170,6 +172,7 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
   const { data: theme } = useUserTheme();
   const [busy, setBusy] = useState<string | null>(null);
   const [hiddenTiles, setHiddenTile] = useHiddenTiles();
+  const { lang } = useT();
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ["user-theme"] });
 
@@ -344,7 +347,7 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
                   )}
                 </div>
                 <span className="flex-1 text-sm font-medium">
-                  {TILE_LABELS[k]}
+                  {resolveTileLabel(lang, TILE_LABELS[k], TILE_LABELS_HI[k])}
                 </span>
                 <button
                   type="button"

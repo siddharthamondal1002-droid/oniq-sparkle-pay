@@ -1,59 +1,287 @@
 [
-  { "religion": "hindu", "name": "Makar Sankranti", "date": "2026-01-14" },
-  { "religion": "hindu", "name": "Maha Shivaratri", "date": "2026-02-15" },
-  { "religion": "hindu", "name": "Holi", "date": "2026-03-03" },
-  { "religion": "hindu", "name": "Ram Navami", "date": "2026-03-27" },
-  { "religion": "hindu", "name": "Hanuman Jayanti", "date": "2026-04-01" },
-  { "religion": "hindu", "name": "Raksha Bandhan", "date": "2026-08-28" },
-  { "religion": "hindu", "name": "Krishna Janmashtami", "date": "2026-09-04" },
-  { "religion": "hindu", "name": "Ganesh Chaturthi", "date": "2026-09-14" },
-  { "religion": "hindu", "name": "Navratri begins", "date": "2026-10-11" },
-  { "religion": "hindu", "name": "Dussehra", "date": "2026-10-20" },
-  { "religion": "hindu", "name": "Diwali", "date": "2026-11-08" },
-
-  { "religion": "islam", "name": "Ramadan begins", "date": "2026-02-17" },
-  { "religion": "islam", "name": "Laylat al-Qadr (approx.)", "date": "2026-03-14" },
-  { "religion": "islam", "name": "Eid al-Fitr", "date": "2026-03-20" },
-  { "religion": "islam", "name": "Hajj begins", "date": "2026-05-25" },
-  { "religion": "islam", "name": "Eid al-Adha", "date": "2026-05-27" },
-  { "religion": "islam", "name": "Islamic New Year", "date": "2026-06-16" },
-  { "religion": "islam", "name": "Day of Ashura", "date": "2026-06-25" },
-  { "religion": "islam", "name": "Mawlid al-Nabi", "date": "2026-08-25" },
-
-  { "religion": "christian", "name": "Epiphany", "date": "2026-01-06" },
-  { "religion": "christian", "name": "Ash Wednesday", "date": "2026-02-18" },
-  { "religion": "christian", "name": "Palm Sunday", "date": "2026-03-29" },
-  { "religion": "christian", "name": "Good Friday", "date": "2026-04-03" },
-  { "religion": "christian", "name": "Easter Sunday", "date": "2026-04-05" },
-  { "religion": "christian", "name": "Pentecost", "date": "2026-05-24" },
-  { "religion": "christian", "name": "All Saints' Day", "date": "2026-11-01" },
-  { "religion": "christian", "name": "Advent begins", "date": "2026-11-29" },
-  { "religion": "christian", "name": "Christmas Day", "date": "2026-12-25" },
-
-  { "religion": "sikh", "name": "Guru Gobind Singh Jayanti", "date": "2026-01-05" },
-  { "religion": "sikh", "name": "Vaisakhi", "date": "2026-04-13" },
-  { "religion": "sikh", "name": "Martyrdom of Guru Arjan Dev", "date": "2026-06-16" },
-  { "religion": "sikh", "name": "Parkash Guru Granth Sahib", "date": "2026-09-01" },
-  { "religion": "sikh", "name": "Bandi Chhor Divas", "date": "2026-11-08" },
-  { "religion": "sikh", "name": "Guru Nanak Jayanti", "date": "2026-11-24" },
-  { "religion": "sikh", "name": "Martyrdom of Guru Tegh Bahadur", "date": "2026-11-24" },
-
-  { "religion": "buddhist", "name": "Mahayana New Year", "date": "2026-01-03" },
-  { "religion": "buddhist", "name": "Magha Puja", "date": "2026-03-03" },
-  { "religion": "buddhist", "name": "Buddha Purnima (Vesak)", "date": "2026-05-01" },
-  { "religion": "buddhist", "name": "Asalha Puja", "date": "2026-07-29" },
-  { "religion": "buddhist", "name": "Rains Retreat begins", "date": "2026-07-30" },
-  { "religion": "buddhist", "name": "Pavarana Day", "date": "2026-10-26" },
-  { "religion": "buddhist", "name": "Kathina", "date": "2026-11-01" },
-  { "religion": "buddhist", "name": "Bodhi Day", "date": "2026-12-08" },
-
-  { "religion": "jewish", "name": "Purim", "date": "2026-03-03" },
-  { "religion": "jewish", "name": "Passover (Pesach) begins", "date": "2026-04-02" },
-  { "religion": "jewish", "name": "Shavuot", "date": "2026-05-22" },
-  { "religion": "jewish", "name": "Tisha B'Av", "date": "2026-07-23" },
-  { "religion": "jewish", "name": "Rosh Hashanah", "date": "2026-09-12" },
-  { "religion": "jewish", "name": "Yom Kippur", "date": "2026-09-21" },
-  { "religion": "jewish", "name": "Sukkot begins", "date": "2026-09-26" },
-  { "religion": "jewish", "name": "Simchat Torah", "date": "2026-10-04" },
-  { "religion": "jewish", "name": "Hanukkah begins", "date": "2026-12-04" }
+  {
+    "religion": "hindu",
+    "name": "Makar Sankranti",
+    "date": "2026-01-14"
+  },
+  {
+    "religion": "hindu",
+    "name": "Maha Shivaratri",
+    "date": "2026-02-15"
+  },
+  {
+    "religion": "hindu",
+    "name": "Holi",
+    "date": "2026-03-03"
+  },
+  {
+    "religion": "hindu",
+    "name": "Ram Navami",
+    "date": "2026-03-27"
+  },
+  {
+    "religion": "hindu",
+    "name": "Hanuman Jayanti",
+    "date": "2026-04-01"
+  },
+  {
+    "religion": "hindu",
+    "name": "Raksha Bandhan",
+    "date": "2026-08-28"
+  },
+  {
+    "religion": "hindu",
+    "name": "Krishna Janmashtami",
+    "date": "2026-09-04"
+  },
+  {
+    "religion": "hindu",
+    "name": "Ganesh Chaturthi",
+    "date": "2026-09-14"
+  },
+  {
+    "religion": "hindu",
+    "name": "Navratri begins",
+    "date": "2026-10-11"
+  },
+  {
+    "religion": "hindu",
+    "name": "Dussehra",
+    "date": "2026-10-20"
+  },
+  {
+    "religion": "hindu",
+    "name": "Diwali",
+    "date": "2026-11-08"
+  },
+  {
+    "religion": "islam",
+    "name": "Ramadan begins",
+    "date": "2026-02-17"
+  },
+  {
+    "religion": "islam",
+    "name": "Laylat al-Qadr (approx.)",
+    "date": "2026-03-14"
+  },
+  {
+    "religion": "islam",
+    "name": "Eid al-Fitr",
+    "date": "2026-03-20"
+  },
+  {
+    "religion": "islam",
+    "name": "Hajj begins",
+    "date": "2026-05-25"
+  },
+  {
+    "religion": "islam",
+    "name": "Eid al-Adha",
+    "date": "2026-05-27"
+  },
+  {
+    "religion": "islam",
+    "name": "Islamic New Year",
+    "date": "2026-06-16"
+  },
+  {
+    "religion": "islam",
+    "name": "Day of Ashura",
+    "date": "2026-06-25"
+  },
+  {
+    "religion": "islam",
+    "name": "Mawlid al-Nabi",
+    "date": "2026-08-25"
+  },
+  {
+    "religion": "christian",
+    "name": "Epiphany",
+    "date": "2026-01-06"
+  },
+  {
+    "religion": "christian",
+    "name": "Ash Wednesday",
+    "date": "2026-02-18"
+  },
+  {
+    "religion": "christian",
+    "name": "Palm Sunday",
+    "date": "2026-03-29"
+  },
+  {
+    "religion": "christian",
+    "name": "Good Friday",
+    "date": "2026-04-03"
+  },
+  {
+    "religion": "christian",
+    "name": "Easter Sunday",
+    "date": "2026-04-05"
+  },
+  {
+    "religion": "christian",
+    "name": "Pentecost",
+    "date": "2026-05-24"
+  },
+  {
+    "religion": "christian",
+    "name": "All Saints' Day",
+    "date": "2026-11-01"
+  },
+  {
+    "religion": "christian",
+    "name": "Advent begins",
+    "date": "2026-11-29"
+  },
+  {
+    "religion": "christian",
+    "name": "Christmas Day",
+    "date": "2026-12-25"
+  },
+  {
+    "religion": "sikh",
+    "name": "Guru Gobind Singh Jayanti",
+    "date": "2026-01-05"
+  },
+  {
+    "religion": "sikh",
+    "name": "Vaisakhi",
+    "date": "2026-04-13"
+  },
+  {
+    "religion": "sikh",
+    "name": "Martyrdom of Guru Arjan Dev",
+    "date": "2026-06-16"
+  },
+  {
+    "religion": "sikh",
+    "name": "Parkash Guru Granth Sahib",
+    "date": "2026-09-01"
+  },
+  {
+    "religion": "sikh",
+    "name": "Bandi Chhor Divas",
+    "date": "2026-11-08"
+  },
+  {
+    "religion": "sikh",
+    "name": "Guru Nanak Jayanti",
+    "date": "2026-11-24"
+  },
+  {
+    "religion": "sikh",
+    "name": "Martyrdom of Guru Tegh Bahadur",
+    "date": "2026-11-24"
+  },
+  {
+    "religion": "buddhist",
+    "name": "Mahayana New Year",
+    "date": "2026-01-03"
+  },
+  {
+    "religion": "buddhist",
+    "name": "Magha Puja",
+    "date": "2026-03-03"
+  },
+  {
+    "religion": "buddhist",
+    "name": "Buddha Purnima (Vesak)",
+    "date": "2026-05-01"
+  },
+  {
+    "religion": "buddhist",
+    "name": "Asalha Puja",
+    "date": "2026-07-29"
+  },
+  {
+    "religion": "buddhist",
+    "name": "Rains Retreat begins",
+    "date": "2026-07-30"
+  },
+  {
+    "religion": "buddhist",
+    "name": "Pavarana Day",
+    "date": "2026-10-26"
+  },
+  {
+    "religion": "buddhist",
+    "name": "Kathina",
+    "date": "2026-11-01"
+  },
+  {
+    "religion": "buddhist",
+    "name": "Bodhi Day",
+    "date": "2026-12-08"
+  },
+  {
+    "religion": "jewish",
+    "name": "Purim",
+    "date": "2026-03-03"
+  },
+  {
+    "religion": "jewish",
+    "name": "Passover (Pesach) begins",
+    "date": "2026-04-02"
+  },
+  {
+    "religion": "jewish",
+    "name": "Shavuot",
+    "date": "2026-05-22"
+  },
+  {
+    "religion": "jewish",
+    "name": "Tisha B'Av",
+    "date": "2026-07-23"
+  },
+  {
+    "religion": "jewish",
+    "name": "Rosh Hashanah",
+    "date": "2026-09-12"
+  },
+  {
+    "religion": "jewish",
+    "name": "Yom Kippur",
+    "date": "2026-09-21"
+  },
+  {
+    "religion": "jewish",
+    "name": "Sukkot begins",
+    "date": "2026-09-26"
+  },
+  {
+    "religion": "jewish",
+    "name": "Simchat Torah",
+    "date": "2026-10-04"
+  },
+  {
+    "religion": "jewish",
+    "name": "Hanukkah begins",
+    "date": "2026-12-04"
+  },
+  {
+    "religion": "jain",
+    "name": "Mahavir Jayanti",
+    "date": "2026-03-31"
+  },
+  {
+    "religion": "jain",
+    "name": "Akshaya Tritiya (Varshi Tap Parna)",
+    "date": "2026-04-19"
+  },
+  {
+    "religion": "jain",
+    "name": "Paryushan Parva begins",
+    "date": "2026-09-07"
+  },
+  {
+    "religion": "jain",
+    "name": "Samvatsari",
+    "date": "2026-09-14"
+  },
+  {
+    "religion": "jain",
+    "name": "Mahavir Nirvana (Diwali)",
+    "date": "2026-11-08"
+  }
 ]

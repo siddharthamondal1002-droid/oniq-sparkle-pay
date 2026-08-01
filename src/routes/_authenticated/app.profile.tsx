@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle, Music2, Database, Camera } from "lucide-react";
 import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
+import { COUNTRIES, useCountry } from "@/lib/country";
+import type { CountryCode } from "@/lib/miniapps";
 import { toast } from "sonner";
 import { useEffect, useState } from "react";
 import {
@@ -626,6 +628,28 @@ function LanguageSection() {
           AI answers appear in this language. The app menus stay in English.
         </p>
       </div>
+      <CountrySection />
+    </div>
+  );
+}
+
+function CountrySection() {
+  const [country, setCountry] = useCountry();
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4" data-testid="country-section">
+      <label className="block text-sm font-semibold">Country 🌍</label>
+      <select
+        value={country}
+        onChange={(e) => setCountry(e.target.value as CountryCode)}
+        className="mt-3 w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm outline-none focus:border-primary"
+      >
+        {COUNTRIES.map((c) => (
+          <option key={c.code} value={c.code}>{c.flag} {c.label}</option>
+        ))}
+      </select>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Picks which apps show in the plug, shopping & entertainment. Saved on this device only.
+      </p>
     </div>
   );
 }
