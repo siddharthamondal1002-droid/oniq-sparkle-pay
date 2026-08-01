@@ -63,23 +63,25 @@ export type TileKey =
   | "learn"
   | "wander"
   | "faith"
-  | "vitals";
+  | "vitals"
+  | "official";
 
 export const TILE_LABELS: Record<TileKey, string> = {
   watch: "Watch",
   study: "Study 📚",
   moments: "Moments ✨",
   mast: "Mast 🎬",
-  pulse: "the tea ☕",
+  pulse: "Pulse",
   clips: "brainrot 🎬",
   ting: "Ting ✨",
-  rides: "pull up 🚗",
-  miniapps: "the plug 🔌",
+  rides: "Rides 🚗",
+  miniapps: "Hacks 🔌",
   upi: "tap in 💳",
-  learn: "smart 🧠",
+  learn: "Scout 🧠",
   wander: "touch grass ✈️",
-  faith: "blessed 🙏",
-  vitals: "vitals 🫀",
+  faith: "Blessed 🙏",
+  vitals: "Vitals 🫀",
+  official: "Official 🏛️",
 };
 
 // Feed-banner tabs are hideable but have no skin surface of their own.

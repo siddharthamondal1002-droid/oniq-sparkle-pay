@@ -36,6 +36,7 @@ import { Route as AuthenticatedAppStudyRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppScanRouteImport } from './routes/_authenticated/app.scan'
 import { Route as AuthenticatedAppRidesRouteImport } from './routes/_authenticated/app.rides'
 import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/app.profile'
+import { Route as AuthenticatedAppOfficialRouteImport } from './routes/_authenticated/app.official'
 import { Route as AuthenticatedAppNewsRouteImport } from './routes/_authenticated/app.news'
 import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenticated/app.miniapps'
 import { Route as AuthenticatedAppLearnRouteImport } from './routes/_authenticated/app.learn'
@@ -197,6 +198,12 @@ const AuthenticatedAppProfileRoute = AuthenticatedAppProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppOfficialRoute =
+  AuthenticatedAppOfficialRouteImport.update({
+    id: '/official',
+    path: '/official',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppNewsRoute = AuthenticatedAppNewsRouteImport.update({
   id: '/news',
   path: '/news',
@@ -359,6 +366,7 @@ export interface FileRoutesByFullPath {
   '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/news': typeof AuthenticatedAppNewsRoute
+  '/app/official': typeof AuthenticatedAppOfficialRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
   '/app/rides': typeof AuthenticatedAppRidesRoute
   '/app/scan': typeof AuthenticatedAppScanRoute
@@ -409,6 +417,7 @@ export interface FileRoutesByTo {
   '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/news': typeof AuthenticatedAppNewsRoute
+  '/app/official': typeof AuthenticatedAppOfficialRoute
   '/app/profile': typeof AuthenticatedAppProfileRoute
   '/app/rides': typeof AuthenticatedAppRidesRoute
   '/app/scan': typeof AuthenticatedAppScanRoute
@@ -463,6 +472,7 @@ export interface FileRoutesById {
   '/_authenticated/app/learn': typeof AuthenticatedAppLearnRoute
   '/_authenticated/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/_authenticated/app/news': typeof AuthenticatedAppNewsRoute
+  '/_authenticated/app/official': typeof AuthenticatedAppOfficialRoute
   '/_authenticated/app/profile': typeof AuthenticatedAppProfileRoute
   '/_authenticated/app/rides': typeof AuthenticatedAppRidesRoute
   '/_authenticated/app/scan': typeof AuthenticatedAppScanRoute
@@ -517,6 +527,7 @@ export interface FileRouteTypes {
     | '/app/learn'
     | '/app/miniapps'
     | '/app/news'
+    | '/app/official'
     | '/app/profile'
     | '/app/rides'
     | '/app/scan'
@@ -567,6 +578,7 @@ export interface FileRouteTypes {
     | '/app/learn'
     | '/app/miniapps'
     | '/app/news'
+    | '/app/official'
     | '/app/profile'
     | '/app/rides'
     | '/app/scan'
@@ -620,6 +632,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/learn'
     | '/_authenticated/app/miniapps'
     | '/_authenticated/app/news'
+    | '/_authenticated/app/official'
     | '/_authenticated/app/profile'
     | '/_authenticated/app/rides'
     | '/_authenticated/app/scan'
@@ -858,6 +871,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppProfileRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/official': {
+      id: '/_authenticated/app/official'
+      path: '/official'
+      fullPath: '/app/official'
+      preLoaderRoute: typeof AuthenticatedAppOfficialRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/news': {
       id: '/_authenticated/app/news'
       path: '/news'
@@ -1063,6 +1083,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppLearnRoute: typeof AuthenticatedAppLearnRoute
   AuthenticatedAppMiniappsRoute: typeof AuthenticatedAppMiniappsRoute
   AuthenticatedAppNewsRoute: typeof AuthenticatedAppNewsRoute
+  AuthenticatedAppOfficialRoute: typeof AuthenticatedAppOfficialRoute
   AuthenticatedAppProfileRoute: typeof AuthenticatedAppProfileRoute
   AuthenticatedAppRidesRoute: typeof AuthenticatedAppRidesRoute
   AuthenticatedAppScanRoute: typeof AuthenticatedAppScanRoute
@@ -1089,6 +1110,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppLearnRoute: AuthenticatedAppLearnRoute,
   AuthenticatedAppMiniappsRoute: AuthenticatedAppMiniappsRoute,
   AuthenticatedAppNewsRoute: AuthenticatedAppNewsRoute,
+  AuthenticatedAppOfficialRoute: AuthenticatedAppOfficialRoute,
   AuthenticatedAppProfileRoute: AuthenticatedAppProfileRoute,
   AuthenticatedAppRidesRoute: AuthenticatedAppRidesRoute,
   AuthenticatedAppScanRoute: AuthenticatedAppScanRoute,

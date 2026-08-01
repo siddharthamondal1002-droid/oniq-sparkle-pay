@@ -142,13 +142,14 @@ function HomeScreen() {
           <AlsoInOniqRow
             tiles={[
               { key: "ting", to: "/app/ai", label: "Ting ✨", labelHi: "टिंग" },
-              { key: "learn", to: "/app/learn", label: "smart 🧠", labelHi: "बचत" },
-              { key: "rides", to: "/app/rides", label: "pull up 🚗", labelHi: "चलो" },
-              { key: "miniapps", to: "/app/miniapps", label: "the plug 🔌", labelHi: "जुगाड़" },
-              { key: "pulse", to: "/app/news", label: "the tea ☕", labelHi: "ख़बर" },
+              { key: "learn", to: "/app/learn", label: "Scout 🧠", labelHi: "भाव" },
+              { key: "rides", to: "/app/rides", label: "Rides 🚗", labelHi: "सवारी" },
+              { key: "miniapps", to: "/app/miniapps", label: "Hacks 🔌", labelHi: "जुगाड़" },
+              { key: "official", to: "/app/official", label: "Official 🏛️", labelHi: "सरकारी" },
+              { key: "pulse", to: "/app/news", label: "Pulse", labelHi: "खबर" },
               { key: "watch", to: "/app/news", search: { tab: "watch" as const }, label: "Watch", labelHi: "देखो" },
-              { key: "faith", to: "/app/faith", label: "blessed 🙏", labelHi: "भक्ति" },
-              { key: "vitals", to: "/app/vitals", label: "vitals 🫀", labelHi: "सेहत", color: vitalsColor },
+              { key: "faith", to: "/app/faith", label: "Blessed 🙏", labelHi: "आस्था" },
+              { key: "vitals", to: "/app/vitals", label: "Vitals 🫀", labelHi: "सेहत", color: vitalsColor },
               { key: "wander", to: "/app/travel", label: "touch grass ✈️", labelHi: "सफ़र" },
               { key: "earn", to: "/app/earn", label: "earn 💸", labelHi: "कमाई" },
             ]}

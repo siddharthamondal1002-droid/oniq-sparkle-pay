@@ -1,7 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, ExternalLink, Car, IndianRupee } from "lucide-react";
-import { MINI_APPS, CATEGORY_LABELS, launchMiniApp, relativeLuminance, readableInk, appAvailableIn, type MiniApp } from "@/lib/miniapps";
+import { ArrowLeft, ExternalLink, Car, IndianRupee, Landmark } from "lucide-react";
+import { launchAppEntry, relativeLuminance, readableInk } from "@/lib/miniapps";
+import { CATEGORY_LABELS, visibleApps, APP_REGISTRY, type CategoryId } from "@/data/appRegistry";
 import { COUNTRIES, useCountry } from "@/lib/country";
 import { resolveTileLabel } from "@/lib/i18n/tileLabel";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -11,11 +12,13 @@ export const Route = createFileRoute("/_authenticated/app/miniapps")({
   component: MiniAppsScreen,
 });
 
-const CATEGORY_ORDER: MiniApp["category"][] = ["rides", "quickcommerce", "services", "food", "payments", "social", "shopping", "beauty", "fashion", "entertainment"];
+const CATEGORY_ORDER: CategoryId[] = ["rides", "quickcommerce", "services", "food", "payments", "social", "shopping", "beauty", "fashion", "entertainment"];
 
-// Hidden, not deleted — /app/upi and /app/scan stay reachable (deep links,
-// chat attachments) and keep their anti-fraud UX; only the Plug shortcut is off.
-const SHOW_UPI_SHORTCUT = false;
+// The Pay-via-UPI shortcut is registry-driven: the "oniq-upi" entry carries
+// hidden:true — hidden, not deleted. /app/upi and /app/scan stay reachable
+// (deep links, chat attachments) and keep their anti-fraud UX.
+const UPI_ENTRY = APP_REGISTRY.find((a) => a.id === "oniq-upi");
+const SHOW_UPI_SHORTCUT = !!UPI_ENTRY && !UPI_ENTRY.hidden;
 
 type FolderItem = {
   id: string;
@@ -34,33 +37,14 @@ type Folder = {
   disclaimer?: string;
 };
 
-const GOV_PORTALS: { name: string; tagline: string; url: string; emoji: string }[] = [
-  { name: "Grievances (CPGRAMS)", tagline: "File & track public grievances", url: "https://pgportal.gov.in", emoji: "📝" },
-  { name: "Court case status (eCourts)", tagline: "Check case status online", url: "https://services.ecourts.gov.in", emoji: "⚖️" },
-  { name: "All gov services", tagline: "India.gov.in services portal", url: "https://services.india.gov.in", emoji: "🏛️" },
-  { name: "DigiLocker", tagline: "Your documents, digital", url: "https://www.digilocker.gov.in", emoji: "🗂️" },
-  { name: "Income Tax", tagline: "File returns & track refunds", url: "https://www.incometax.gov.in", emoji: "💸" },
-  { name: "GST", tagline: "GST portal", url: "https://www.gst.gov.in", emoji: "🧾" },
-  { name: "Passport Seva", tagline: "Apply & track passport", url: "https://www.passportindia.gov.in", emoji: "🛂" },
-  { name: "Aadhaar (UIDAI)", tagline: "Aadhaar services", url: "https://uidai.gov.in", emoji: "🆔" },
-  { name: "EPFO", tagline: "Provident fund services", url: "https://www.epfindia.gov.in", emoji: "🏦" },
-  { name: "RTO / vehicle (Parivahan)", tagline: "License & vehicle services", url: "https://parivahan.gov.in", emoji: "🚘" },
-  { name: "Cybercrime", tagline: "Report cybercrime", url: "https://cybercrime.gov.in", emoji: "🛡️" },
-  { name: "Consumer Helpline", tagline: "Consumer complaints", url: "https://consumerhelpline.gov.in", emoji: "📞" },
-  { name: "KMC (Kolkata)", tagline: "Kolkata Municipal Corporation", url: "https://www.kmcgov.in", emoji: "🏙️" },
-  { name: "West Bengal gov", tagline: "Government of West Bengal", url: "https://wb.gov.in", emoji: "🌆" },
-];
-
-const GOV_DISCLAIMER =
-  "Official government portals. ONIQ is not affiliated with, endorsed by, or acting on behalf of any government body. Links open the official websites.";
-
 function MiniAppsScreen() {
   const [openKey, setOpenKey] = useState<string | null>(null);
   const [country, setCountry] = useCountry();
   const { lang } = useT();
 
   const folders: Folder[] = CATEGORY_ORDER.map((cat) => {
-    const apps = MINI_APPS.filter((a) => a.category === cat && appAvailableIn(a, country));
+    // visibleApps enforces status==="active", hidden and country in one place.
+    const apps = visibleApps(country, cat);
     return {
       key: cat,
       label: resolveTileLabel(lang, CATEGORY_LABELS[cat].label, CATEGORY_LABELS[cat].labelHi),
@@ -71,26 +55,10 @@ function MiniAppsScreen() {
         color: app.color,
         emoji: app.emoji,
         letter: app.letter,
-        onTap: () => launchMiniApp({ name: app.name, url: app.url, androidPackage: app.androidPackage }),
+        onTap: () => launchAppEntry(app),
       })),
     };
   }).filter((f) => f.items.length > 0);
-
-  if (country === "IN") {
-    folders.push({
-      key: "gov",
-      label: resolveTileLabel(lang, "gov 🇮🇳", "सरकारी 🇮🇳"),
-      disclaimer: GOV_DISCLAIMER,
-      items: GOV_PORTALS.map((g) => ({
-        id: g.url,
-        name: g.name,
-        tagline: g.tagline,
-        color: "#1B1E26",
-        emoji: g.emoji,
-        onTap: () => launchMiniApp({ name: g.name, url: g.url }),
-      })),
-    });
-  }
 
   const activeFolder = folders.find((f) => f.key === openKey) ?? null;
 
@@ -100,7 +68,7 @@ function MiniAppsScreen() {
         <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <h1 className="font-display text-2xl font-bold">the plug 🔌</h1>
+        <h1 className="font-display text-2xl font-bold">{resolveTileLabel(lang, "Hacks 🔌", "जुगाड़ 🔌")}</h1>
       </div>
       <p className="mt-2 text-sm text-muted-foreground">
         Every app you're lowkey addicted to, one tap away. Tap a folder to dive in.
@@ -129,7 +97,7 @@ function MiniAppsScreen() {
       </div>
 
       {/* Native ONIQ shortcuts */}
-      <div className={`mt-4 grid gap-3 ${SHOW_UPI_SHORTCUT ? "grid-cols-2" : "grid-cols-1"}`}>
+      <div className={`mt-4 grid gap-3 ${SHOW_UPI_SHORTCUT ? "grid-cols-3" : "grid-cols-2"}`}>
         <Link
           to="/app/rides"
           className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
@@ -140,6 +108,18 @@ function MiniAppsScreen() {
           <div>
             <div className="text-sm font-semibold">Book a ride</div>
             <div className="text-xs text-muted-foreground">Uber · Ola · Rapido</div>
+          </div>
+        </Link>
+        <Link
+          to="/app/official"
+          className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
+        >
+          <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/15 text-primary">
+            <Landmark className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-sm font-semibold">{resolveTileLabel(lang, "Official", "सरकारी")}</div>
+            <div className="text-xs text-muted-foreground">gov services & visas</div>
           </div>
         </Link>
         {SHOW_UPI_SHORTCUT && (

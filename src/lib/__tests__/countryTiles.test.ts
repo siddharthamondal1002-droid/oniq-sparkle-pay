@@ -59,9 +59,11 @@ describe("country-scoped app registry", () => {
     }
   });
 
-  it("lists JioHotstar as one merged IN entry — no separate JioCinema/Hotstar", () => {
-    const names = MINI_APPS.map((a) => a.name.toLowerCase());
-    expect(names.filter((n) => n.includes("hotstar") || n.includes("jiocinema"))).toEqual(["jiohotstar"]);
+  it("renders JioHotstar as one merged IN entry — JioCinema/Hotstar are history rows", () => {
+    const rendered = MINI_APPS.filter(
+      (a) => a.status === "active" && !a.hidden && a.category === "entertainment",
+    ).map((a) => a.name.toLowerCase());
+    expect(rendered.filter((n) => n.includes("hotstar") || n.includes("jiocinema"))).toEqual(["jiohotstar"]);
     const jio = MINI_APPS.find((a) => a.id === "jiohotstar")!;
     expect(jio.countries).toEqual(["IN"]);
   });
