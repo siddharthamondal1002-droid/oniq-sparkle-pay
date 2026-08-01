@@ -3,20 +3,23 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronLeft, ChevronRight, ExternalLink, BookOpen, Headphones, Calendar as CalIcon, ShoppingBag, ArrowLeft, Video } from "lucide-react";
+import { resolveTileLabel } from "@/lib/i18n/tileLabel";
+import { useT } from "@/lib/i18n/LanguageProvider";
 
 
 export const Route = createFileRoute("/_authenticated/app/faith")({
   component: FaithPage,
 });
 
-type Religion = "hindu" | "islam" | "christian" | "sikh" | "buddhist" | "jewish";
-const RELIGIONS: { key: Religion; label: string; emoji: string }[] = [
-  { key: "hindu", label: "Hindu", emoji: "🕉" },
-  { key: "islam", label: "Islam", emoji: "☪️" },
-  { key: "christian", label: "Christian", emoji: "✝️" },
-  { key: "sikh", label: "Sikh", emoji: "🪯" },
-  { key: "buddhist", label: "Buddhist", emoji: "☸️" },
-  { key: "jewish", label: "Jewish", emoji: "✡️" },
+type Religion = "hindu" | "islam" | "christian" | "sikh" | "buddhist" | "jain" | "jewish";
+const RELIGIONS: { key: Religion; label: string; labelHi: string; emoji: string }[] = [
+  { key: "hindu", label: "Hindu", labelHi: "हिन्दू", emoji: "🕉" },
+  { key: "islam", label: "Islam", labelHi: "इस्लाम", emoji: "☪️" },
+  { key: "christian", label: "Christian", labelHi: "ईसाई", emoji: "✝️" },
+  { key: "sikh", label: "Sikh", labelHi: "सिख", emoji: "🪯" },
+  { key: "buddhist", label: "Buddhist", labelHi: "बौद्ध", emoji: "☸️" },
+  { key: "jain", label: "Jain", labelHi: "जैन", emoji: "🖐️" },
+  { key: "jewish", label: "Jewish", labelHi: "यहूदी", emoji: "✡️" },
 ];
 
 const LS_KEY = "oniq.faith.religion.v1";
@@ -25,6 +28,7 @@ type Section = "read" | "listen" | "dates" | "shop" | "watch";
 function FaithPage() {
   const [religion, setReligion] = useState<Religion | null>(null);
   const [section, setSection] = useState<Section>("read");
+  const { lang } = useT();
 
   useEffect(() => {
     try {
@@ -59,7 +63,7 @@ function FaithPage() {
               onClick={() => pick(r.key)}
               className={`press rounded-full px-3 py-1.5 text-sm font-medium border ${religion === r.key ? "bg-primary text-primary-foreground border-primary" : "bg-surface-2 border-border"}`}
             >
-              <span className="mr-1">{r.emoji}</span>{r.label}
+              <span className="mr-1">{r.emoji}</span>{resolveTileLabel(lang, r.label, r.labelHi)}
             </button>
           ))}
         </div>
@@ -96,7 +100,7 @@ function FaithPage() {
 // DEVOTIONAL LIVE — YouTube streams from official public channels
 // ============================================================
 
-type FaithId = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jewish";
+type FaithId = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jain" | "jewish";
 type LiveVideo = {
   videoId: string;
   title: string;
@@ -114,6 +118,7 @@ const FAITH_META: { id: FaithId; label: string }[] = [
   { id: "hindu", label: "🕉️ Hindu" },
   { id: "christian", label: "✝️ Christian" },
   { id: "buddhist", label: "☸️ Buddhist" },
+  { id: "jain", label: "🖐️ Jain" },
   { id: "jewish", label: "✡️ Jewish" },
 ];
 
@@ -125,6 +130,7 @@ function religionToFaithId(religion: Religion | null): FaithId | null {
     religion === "sikh" ||
     religion === "christian" ||
     religion === "buddhist" ||
+    religion === "jain" ||
     religion === "jewish"
   ) return religion;
   return null;
@@ -385,6 +391,7 @@ const READ_INDEX: Record<Religion, { title: string; items: BookDef[] }> = {
   ]},
   sikh: { title: "Gurbani", items: [{ chapter: 1, label: "Selected Passages" }] },
   buddhist: { title: "Dhammapada", items: [{ chapter: 1, label: "Selected Verses" }] },
+  jain: { title: "Tattvartha Sutra", items: Array.from({ length: 10 }, (_, i) => ({ chapter: i + 1, label: `Chapter ${i + 1}` })) },
   jewish: { title: "Torah", items: [
     { book: "Genesis", chapter: 1, label: "Genesis 1" },
     { book: "Exodus", chapter: 20, label: "Exodus 20" },
@@ -482,6 +489,10 @@ const LISTEN: Record<Religion, { label: string; url: string }[]> = {
   buddhist: [
     { label: "Dhammapada — LibriVox audiobook (archive.org)", url: "https://archive.org/details/dhammapada_0707_librivox" },
     { label: "Dhammapada — alt reading (archive.org)", url: "https://archive.org/details/dhammapada_2105_librivox" },
+  ],
+  jain: [
+    { label: "Navkar Mantra & jain bhajans (archive.org)", url: "https://archive.org/search?query=navkar+mantra" },
+    { label: "Vitragvani — pravachans & shastra audio", url: "https://www.vitragvani.com" },
   ],
   jewish: [
     { label: "Sefaria — audio texts library", url: "https://www.sefaria.org/texts/audio" },
@@ -586,6 +597,10 @@ const SHOP: Record<Religion, { label: string; desc: string; url: string }[]> = {
   buddhist: [
     { label: "Tibet Shop", desc: "prayer wheels, thangkas, singing bowls", url: "https://www.tibetshop.com/" },
     { label: "Exotic India — Buddhist", desc: "buddha statues, malas, ritual items", url: "https://www.exoticindiaart.com/" },
+  ],
+  jain: [
+    { label: "Exotic India — Jain", desc: "jain murtis, books, ritual items", url: "https://www.exoticindiaart.com/" },
+    { label: "Vitragvani Store", desc: "jain shastras, pravachan media", url: "https://www.vitragvani.com/" },
   ],
   jewish: [
     { label: "A Holy Land", desc: "judaica from Israel — mezuzahs, tallits, menorahs", url: "https://www.aholyland.com/" },

@@ -1,14 +1,21 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, ExternalLink, Car, IndianRupee } from "lucide-react";
-import { MINI_APPS, CATEGORY_LABELS, launchMiniApp, relativeLuminance, readableInk, type MiniApp } from "@/lib/miniapps";
+import { MINI_APPS, CATEGORY_LABELS, launchMiniApp, relativeLuminance, readableInk, appAvailableIn, type MiniApp } from "@/lib/miniapps";
+import { COUNTRIES, useCountry } from "@/lib/country";
+import { resolveTileLabel } from "@/lib/i18n/tileLabel";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/_authenticated/app/miniapps")({
   component: MiniAppsScreen,
 });
 
-const CATEGORY_ORDER: MiniApp["category"][] = ["rides", "quickcommerce", "services", "food", "payments", "social", "shopping"];
+const CATEGORY_ORDER: MiniApp["category"][] = ["rides", "quickcommerce", "services", "food", "payments", "social", "shopping", "beauty", "fashion", "entertainment"];
+
+// Hidden, not deleted — /app/upi and /app/scan stay reachable (deep links,
+// chat attachments) and keep their anti-fraud UX; only the Plug shortcut is off.
+const SHOW_UPI_SHORTCUT = false;
 
 type FolderItem = {
   id: string;
@@ -49,12 +56,14 @@ const GOV_DISCLAIMER =
 
 function MiniAppsScreen() {
   const [openKey, setOpenKey] = useState<string | null>(null);
+  const [country, setCountry] = useCountry();
+  const { lang } = useT();
 
   const folders: Folder[] = CATEGORY_ORDER.map((cat) => {
-    const apps = MINI_APPS.filter((a) => a.category === cat);
+    const apps = MINI_APPS.filter((a) => a.category === cat && appAvailableIn(a, country));
     return {
       key: cat,
-      label: CATEGORY_LABELS[cat],
+      label: resolveTileLabel(lang, CATEGORY_LABELS[cat].label, CATEGORY_LABELS[cat].labelHi),
       items: apps.map((app) => ({
         id: app.id,
         name: app.name,
@@ -67,19 +76,21 @@ function MiniAppsScreen() {
     };
   }).filter((f) => f.items.length > 0);
 
-  folders.push({
-    key: "gov",
-    label: "gov 🇮🇳",
-    disclaimer: GOV_DISCLAIMER,
-    items: GOV_PORTALS.map((g) => ({
-      id: g.url,
-      name: g.name,
-      tagline: g.tagline,
-      color: "#1B1E26",
-      emoji: g.emoji,
-      onTap: () => launchMiniApp({ name: g.name, url: g.url }),
-    })),
-  });
+  if (country === "IN") {
+    folders.push({
+      key: "gov",
+      label: resolveTileLabel(lang, "gov 🇮🇳", "सरकारी 🇮🇳"),
+      disclaimer: GOV_DISCLAIMER,
+      items: GOV_PORTALS.map((g) => ({
+        id: g.url,
+        name: g.name,
+        tagline: g.tagline,
+        color: "#1B1E26",
+        emoji: g.emoji,
+        onTap: () => launchMiniApp({ name: g.name, url: g.url }),
+      })),
+    });
+  }
 
   const activeFolder = folders.find((f) => f.key === openKey) ?? null;
 
@@ -98,8 +109,27 @@ function MiniAppsScreen() {
         Apps open with your own accounts — ONIQ never sees their logins.
       </p>
 
+      {/* Country selector — app lists below re-render instantly */}
+      <div className="no-scrollbar mt-4 flex gap-1.5 overflow-x-auto" data-testid="country-picker">
+        {COUNTRIES.map((c) => (
+          <button
+            key={c.code}
+            type="button"
+            onClick={() => setCountry(c.code)}
+            aria-pressed={country === c.code}
+            className={`press shrink-0 rounded-full border px-2.5 py-1 text-xs font-semibold ${
+              country === c.code
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border bg-card text-muted-foreground"
+            }`}
+          >
+            {c.flag} {c.code}
+          </button>
+        ))}
+      </div>
+
       {/* Native ONIQ shortcuts */}
-      <div className="mt-4 grid grid-cols-2 gap-3">
+      <div className={`mt-4 grid gap-3 ${SHOW_UPI_SHORTCUT ? "grid-cols-2" : "grid-cols-1"}`}>
         <Link
           to="/app/rides"
           className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
@@ -112,18 +142,20 @@ function MiniAppsScreen() {
             <div className="text-xs text-muted-foreground">Uber · Ola · Rapido</div>
           </div>
         </Link>
-        <Link
-          to="/app/upi"
-          className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
-        >
-          <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/15 text-primary">
-            <IndianRupee className="h-5 w-5" />
-          </div>
-          <div>
-            <div className="text-sm font-semibold">Pay via UPI</div>
-            <div className="text-xs text-muted-foreground">GPay · PhonePe · Paytm</div>
-          </div>
-        </Link>
+        {SHOW_UPI_SHORTCUT && (
+          <Link
+            to="/app/upi"
+            className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4"
+          >
+            <div className="grid h-10 w-10 place-items-center rounded-xl bg-primary/15 text-primary">
+              <IndianRupee className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold">Pay via UPI</div>
+              <div className="text-xs text-muted-foreground">GPay · PhonePe · Paytm</div>
+            </div>
+          </Link>
+        )}
       </div>
 
       {/* Folder grid */}

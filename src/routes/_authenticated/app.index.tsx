@@ -39,6 +39,7 @@ import {
 } from "@/components/customize/CustomizeSheet";
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useT } from "@/lib/i18n/LanguageProvider";
+import { resolveTileLabel } from "@/lib/i18n/tileLabel";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   component: HomeScreen,
@@ -140,16 +141,16 @@ function HomeScreen() {
           </div>
           <AlsoInOniqRow
             tiles={[
-              { key: "ting", to: "/app/ai", label: t("home.tile.ting", "Ting") },
-              { key: "learn", to: "/app/learn", label: t("home.tile.smart", "bachat") },
-              { key: "rides", to: "/app/rides", label: t("home.tile.rides") },
-              { key: "miniapps", to: "/app/miniapps", label: t("home.tile.miniapps") },
-              { key: "pulse", to: "/app/news", label: t("home.tile.pulse") },
-              { key: "watch", to: "/app/news", search: { tab: "watch" as const }, label: t("home.tile.watch", "Watch") },
-              { key: "faith", to: "/app/faith", label: t("home.tile.blessed", "blessed") },
-              { key: "vitals", to: "/app/vitals", label: t("home.tile.vitals", "vitals"), color: vitalsColor },
-              { key: "wander", to: "/app/travel", label: t("home.tile.wander") },
-              { key: "earn", to: "/app/earn", label: t("home.tile.earn", "earn") },
+              { key: "ting", to: "/app/ai", label: "Ting ✨", labelHi: "टिंग" },
+              { key: "learn", to: "/app/learn", label: "smart 🧠", labelHi: "बचत" },
+              { key: "rides", to: "/app/rides", label: "pull up 🚗", labelHi: "चलो" },
+              { key: "miniapps", to: "/app/miniapps", label: "the plug 🔌", labelHi: "जुगाड़" },
+              { key: "pulse", to: "/app/news", label: "the tea ☕", labelHi: "ख़बर" },
+              { key: "watch", to: "/app/news", search: { tab: "watch" as const }, label: "Watch", labelHi: "देखो" },
+              { key: "faith", to: "/app/faith", label: "blessed 🙏", labelHi: "भक्ति" },
+              { key: "vitals", to: "/app/vitals", label: "vitals 🫀", labelHi: "सेहत", color: vitalsColor },
+              { key: "wander", to: "/app/travel", label: "touch grass ✈️", labelHi: "सफ़र" },
+              { key: "earn", to: "/app/earn", label: "earn 💸", labelHi: "कमाई" },
             ]}
             hidden={hidden}
           />
@@ -1406,9 +1407,10 @@ function AlsoInOniqRow({
   tiles,
   hidden,
 }: {
-  tiles: { key: string; to: string; label: string; color?: string; search?: Record<string, unknown> }[];
+  tiles: { key: string; to: string; label: string; labelHi?: string; color?: string; search?: Record<string, unknown> }[];
   hidden: Set<TileKey>;
 }) {
+  const { lang } = useT();
   const visible = tiles.filter((t) => !(hidden as Set<string>).has(t.key));
   if (visible.length === 0) return null;
   return (
@@ -1430,7 +1432,7 @@ function AlsoInOniqRow({
               style={{ background: t.color }}
             />
           )}
-          {t.label}
+          {resolveTileLabel(lang, t.label, t.labelHi)}
         </Link>
       ))}
     </div>
@@ -1448,7 +1450,7 @@ function HomeMediaBanner() {
   const [hidden] = useHiddenTiles();
   const { data: theme } = useUserTheme();
   const skins = theme?.tile_skins ?? {};
-  const { t } = useT();
+  const { lang } = useT();
 
   const [mode, setMode] = useState<BannerMode>(() => {
     if (typeof window === "undefined") return "study";
@@ -1472,10 +1474,10 @@ function HomeMediaBanner() {
   }, [mode, hidden]);
 
   const tabs: { id: BannerMode; label: string }[] = [
-    { id: "watch", label: t("banner.tab.watch", "Watch") },
-    { id: "study", label: t("banner.tab.study", "Study") },
-    { id: "moments", label: t("banner.tab.moments", "Moments") },
-    { id: "mast", label: t("banner.tab.mast", "Mast 🎬") },
+    { id: "watch", label: resolveTileLabel(lang, "Watch", "देखो") },
+    { id: "study", label: resolveTileLabel(lang, "Study", "पढ़ाई") },
+    { id: "moments", label: resolveTileLabel(lang, "Moments", "पल") },
+    { id: "mast", label: resolveTileLabel(lang, "Mast 🎬", "मस्त 🎬") },
   ];
   const visibleTabs = tabs.filter((tb) => !hidden.has(tb.id));
 
