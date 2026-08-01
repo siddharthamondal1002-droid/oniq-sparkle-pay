@@ -3,151 +3,24 @@
 // browser sheet on device, new tab on web). Deep links hand off to the native
 // partner app when installed, pre-filled with context (destination, amount).
 
-export type CountryCode = "IN" | "US" | "GB" | "AE" | "CA" | "AU" | "SG";
-
-export type MiniApp = {
-  id: string;
-  name: string;
-  tagline: string;
-  category: "food" | "rides" | "quickcommerce" | "services" | "payments" | "social" | "shopping" | "beauty" | "fashion" | "entertainment";
-  url: string; // web URL opened in the in-app browser / same-tab fallback
-  color: string; // brand tile color
-  letter: string; // fallback monogram
-  androidPackage?: string; // Android package id for intent:// deep launch
-  appScheme?: string; // iOS/web deep-link scheme (e.g. "uber://"); triggers app-first with https fallback
-  emoji?: string; // optional tile emoji instead of letter
-  countries: readonly CountryCode[] | "*"; // where the app is offered; "*" = everywhere
-};
-
-/** True when `app` is offered in `country`. */
-export function appAvailableIn(app: Pick<MiniApp, "countries">, country: CountryCode): boolean {
-  return app.countries === "*" || app.countries.includes(country);
-}
-
-
-export const MINI_APPS: MiniApp[] = [
-  // Food
-  { id: "swiggy", name: "Swiggy", tagline: "Food & grocery delivery", category: "food", url: "https://www.swiggy.com", color: "#FC8019", letter: "S", androidPackage: "in.swiggy.android", appScheme: "swiggy://", emoji: "🛵", countries: ["IN"] },
-  { id: "zomato", name: "Zomato", tagline: "Restaurants & delivery", category: "food", url: "https://www.zomato.com", color: "#E23744", letter: "Z", androidPackage: "com.application.zomato", appScheme: "zomato://", emoji: "🍽️", countries: ["IN", "AE"] },
-  { id: "dominos", name: "Domino's", tagline: "Pizza delivery", category: "food", url: "https://www.dominos.co.in", color: "#0A6EBD", letter: "D", emoji: "🍕", countries: ["IN"] },
-  { id: "ubereats", name: "Uber Eats", tagline: "Food delivery", category: "food", url: "https://www.ubereats.com", color: "#06C167", letter: "U", androidPackage: "com.ubercab.eats", emoji: "🍔", countries: ["US", "GB", "AE", "CA", "AU", "SG"] },
-  { id: "doordash", name: "DoorDash", tagline: "Restaurants to your door", category: "food", url: "https://www.doordash.com", color: "#FF3008", letter: "D", androidPackage: "com.dd.doordash", emoji: "🥡", countries: ["US", "CA", "AU"] },
-  { id: "deliveroo", name: "Deliveroo", tagline: "Food, fast", category: "food", url: "https://deliveroo.co.uk", color: "#00CCBC", letter: "D", androidPackage: "com.deliveroo.orderapp", emoji: "🍱", countries: ["GB", "AE", "SG"] },
-  { id: "grubhub", name: "Grubhub", tagline: "Takeout & delivery", category: "food", url: "https://www.grubhub.com", color: "#FF8000", letter: "G", emoji: "🥪", countries: ["US"] },
-  { id: "talabat", name: "Talabat", tagline: "Food & groceries", category: "food", url: "https://www.talabat.com", color: "#FF5A00", letter: "T", emoji: "🍟", countries: ["AE"] },
-  { id: "foodpanda", name: "foodpanda", tagline: "Food & pandamart", category: "food", url: "https://www.foodpanda.sg", color: "#D70F64", letter: "F", emoji: "🐼", countries: ["SG"] },
-  { id: "menulog", name: "Menulog", tagline: "Aussie takeaway", category: "food", url: "https://www.menulog.com.au", color: "#FF8000", letter: "M", emoji: "🍕", countries: ["AU"] },
-  // Rides 🚗
-  { id: "uber", name: "Uber", tagline: "Book a cab", category: "rides", url: "https://m.uber.com", color: "#000000", letter: "U", androidPackage: "com.ubercab", appScheme: "uber://", emoji: "🚕", countries: "*" },
-  { id: "ola", name: "Ola", tagline: "Cabs & autos", category: "rides", url: "https://book.olacabs.com", color: "#a4c639", letter: "O", androidPackage: "com.olacabs.customer", appScheme: "olacabs://", emoji: "🚖", countries: ["IN", "GB", "AU"] },
-  { id: "rapido", name: "Rapido", tagline: "Bike taxis & autos", category: "rides", url: "https://rapido.bike", color: "#FFCB05", letter: "R", androidPackage: "com.rapido.passenger", appScheme: "rapido://", emoji: "🏍️", countries: ["IN"] },
-  { id: "indrive", name: "inDrive", tagline: "Name your fare", category: "rides", url: "https://indrive.com", color: "#C1F11D", letter: "I", androidPackage: "sinet.startup.inDriver", appScheme: "indrive://", emoji: "💸", countries: ["IN", "US"] },
-  { id: "nammayatri", name: "Namma Yatri", tagline: "Zero-commission autos", category: "rides", url: "https://nammayatri.in", color: "#FFCE00", letter: "N", androidPackage: "in.juspay.nammayatri", emoji: "🛺", countries: ["IN"] },
-  { id: "blusmart", name: "BluSmart", tagline: "All-electric cabs", category: "rides", url: "https://blu-smart.com", color: "#003DA5", letter: "B", androidPackage: "com.blusmart.rider", emoji: "⚡", countries: ["IN"] },
-  { id: "lyft", name: "Lyft", tagline: "Rides in minutes", category: "rides", url: "https://www.lyft.com", color: "#FF00BF", letter: "L", androidPackage: "me.lyft.android", appScheme: "lyft://", emoji: "🚗", countries: ["US", "CA"] },
-  { id: "bolt", name: "Bolt", tagline: "Fast, affordable rides", category: "rides", url: "https://bolt.eu", color: "#34D186", letter: "B", androidPackage: "ee.mtakso.client", emoji: "⚡", countries: ["GB"] },
-  { id: "careem", name: "Careem", tagline: "Rides & more", category: "rides", url: "https://www.careem.com", color: "#37B44A", letter: "C", androidPackage: "com.careem.acma", emoji: "🚖", countries: ["AE"] },
-  { id: "grab", name: "Grab", tagline: "Rides & deliveries", category: "rides", url: "https://www.grab.com", color: "#00B14F", letter: "G", androidPackage: "com.grabtaxi.passenger", appScheme: "grab://", emoji: "🛵", countries: ["SG"] },
-  { id: "didi", name: "DiDi", tagline: "Everyday rides", category: "rides", url: "https://web.didiglobal.com", color: "#FF7A45", letter: "D", androidPackage: "com.didiglobal.passenger", emoji: "🚕", countries: ["AU"] },
-  // Quick commerce 🛒
-  { id: "zepto", name: "Zepto", tagline: "Groceries in 10 min", category: "quickcommerce", url: "https://www.zeptonow.com", color: "#7C3AED", letter: "Z", androidPackage: "com.zeptoconsumerapp", appScheme: "zepto://", emoji: "⚡", countries: ["IN"] },
-  { id: "blinkit", name: "Blinkit", tagline: "Groceries in minutes", category: "quickcommerce", url: "https://blinkit.com", color: "#F8CB46", letter: "B", androidPackage: "com.grofers.customerapp", appScheme: "blinkit://", emoji: "🛍️", countries: ["IN"] },
-  { id: "instamart", name: "Swiggy Instamart", tagline: "Instant groceries", category: "quickcommerce", url: "https://www.swiggy.com/instamart", color: "#FC8019", letter: "I", androidPackage: "in.swiggy.android", appScheme: "swiggy://", emoji: "🥬", countries: ["IN"] },
-  { id: "bigbasket", name: "BigBasket", tagline: "Groceries & essentials", category: "quickcommerce", url: "https://www.bigbasket.com", color: "#84C225", letter: "B", androidPackage: "com.bigbasket.mobileapp", emoji: "🧺", countries: ["IN"] },
-  { id: "instacart", name: "Instacart", tagline: "Groceries delivered", category: "quickcommerce", url: "https://www.instacart.com", color: "#43B02A", letter: "I", androidPackage: "com.instacart.client", emoji: "🥕", countries: ["US", "CA"] },
-  { id: "gopuff", name: "Gopuff", tagline: "Essentials in minutes", category: "quickcommerce", url: "https://www.gopuff.com", color: "#0FA8E0", letter: "G", emoji: "🚀", countries: ["US", "GB"] },
-  { id: "noonminutes", name: "noon Minutes", tagline: "15-minute delivery", category: "quickcommerce", url: "https://www.noon.com", color: "#FEEE00", letter: "N", emoji: "🛒", countries: ["AE"] },
-  { id: "fairprice", name: "FairPrice", tagline: "Groceries & essentials", category: "quickcommerce", url: "https://www.fairprice.com.sg", color: "#0072CE", letter: "F", emoji: "🧺", countries: ["SG"] },
-  // Payments
-  { id: "gpay", name: "Google Pay", tagline: "UPI payments", category: "payments", url: "https://pay.google.com", color: "#4285F4", letter: "G", appScheme: "tez://", emoji: "💳", countries: "*" },
-  { id: "phonepe", name: "PhonePe", tagline: "UPI & recharges", category: "payments", url: "https://www.phonepe.com", color: "#5F259F", letter: "P", appScheme: "phonepe://", emoji: "📲", countries: ["IN"] },
-  { id: "paytm", name: "Paytm", tagline: "Payments & bills", category: "payments", url: "https://paytm.com", color: "#00BAF2", letter: "P", appScheme: "paytmmp://", emoji: "💰", countries: ["IN"] },
-  { id: "paypal", name: "PayPal", tagline: "Send & spend safely", category: "payments", url: "https://www.paypal.com", color: "#003087", letter: "P", androidPackage: "com.paypal.android.p2pmobile", emoji: "💙", countries: ["US", "GB", "AE", "CA", "AU", "SG"] },
-  { id: "venmo", name: "Venmo", tagline: "Split & send", category: "payments", url: "https://venmo.com", color: "#3D95CE", letter: "V", emoji: "💸", countries: ["US"] },
-  { id: "cashapp", name: "Cash App", tagline: "Money, simplified", category: "payments", url: "https://cash.app", color: "#00D632", letter: "C", emoji: "💵", countries: ["US", "GB"] },
-  { id: "revolut", name: "Revolut", tagline: "All-in-one finance", category: "payments", url: "https://www.revolut.com", color: "#0666EB", letter: "R", emoji: "💳", countries: ["GB", "AU", "SG"] },
-
-  // Social
-  { id: "instagram", name: "Instagram", tagline: "Photos & reels", category: "social", url: "https://www.instagram.com", color: "#E1306C", letter: "I", emoji: "📸", countries: "*" },
-  { id: "youtube", name: "YouTube", tagline: "Videos & shorts", category: "social", url: "https://m.youtube.com", color: "#FF0000", letter: "Y", emoji: "▶️", countries: "*" },
-  { id: "x", name: "X", tagline: "What's happening", category: "social", url: "https://x.com", color: "#111111", letter: "X", emoji: "✖️", countries: "*" },
-  { id: "reddit", name: "Reddit", tagline: "Communities", category: "social", url: "https://www.reddit.com", color: "#FF4500", letter: "R", emoji: "👽", countries: "*" },
-  { id: "facebook", name: "Facebook", tagline: "Friends & groups", category: "social", url: "https://m.facebook.com", color: "#1877F2", letter: "F", emoji: "📘", countries: "*" },
-  { id: "whatsapp", name: "WhatsApp", tagline: "Messaging", category: "social", url: "https://www.whatsapp.com", color: "#25D366", letter: "W", emoji: "💬", countries: "*" },
-  { id: "telegram", name: "Telegram", tagline: "Chats & channels", category: "social", url: "https://web.telegram.org", color: "#26A5E4", letter: "T", emoji: "✈️", countries: "*" },
-  { id: "tiktok", name: "TikTok", tagline: "Short videos", category: "social", url: "https://www.tiktok.com", color: "#010101", letter: "T", emoji: "🎵", countries: "*" },
-  { id: "linkedin", name: "LinkedIn", tagline: "Professional network", category: "social", url: "https://www.linkedin.com", color: "#0A66C2", letter: "L", emoji: "💼", countries: "*" },
-  { id: "snapchat", name: "Snapchat", tagline: "Snaps & stories", category: "social", url: "https://web.snapchat.com", color: "#C9A200", letter: "S", emoji: "👻", countries: "*" },
-  { id: "pinterest", name: "Pinterest", tagline: "Ideas & inspo", category: "social", url: "https://www.pinterest.com", color: "#E60023", letter: "P", emoji: "📌", countries: "*" },
-  { id: "threads", name: "Threads", tagline: "Text conversations", category: "social", url: "https://www.threads.net", color: "#1A1A1A", letter: "T", emoji: "🧵", countries: "*" },
-  { id: "discord", name: "Discord", tagline: "Servers & voice", category: "social", url: "https://discord.com/app", color: "#5865F2", letter: "D", emoji: "🎮", countries: "*" },
-  { id: "twitch", name: "Twitch", tagline: "Live streams", category: "social", url: "https://m.twitch.tv", color: "#9146FF", letter: "T", emoji: "📡", countries: "*" },
-  // Shopping
-  { id: "amazon", name: "Amazon", tagline: "Everything store", category: "shopping", url: "https://www.amazon.in", color: "#FF9900", letter: "A", emoji: "📦", countries: ["IN"] },
-  { id: "amazon-global", name: "Amazon", tagline: "Everything store", category: "shopping", url: "https://www.amazon.com", color: "#FF9900", letter: "A", emoji: "📦", countries: ["US", "GB", "AE", "CA", "AU", "SG"] },
-  { id: "flipkart", name: "Flipkart", tagline: "Fashion & electronics", category: "shopping", url: "https://www.flipkart.com", color: "#2874F0", letter: "F", emoji: "🛒", countries: ["IN"] },
-  { id: "ebay", name: "eBay", tagline: "Buy & sell anything", category: "shopping", url: "https://www.ebay.com", color: "#E53238", letter: "E", emoji: "🏷️", countries: ["US", "GB", "CA", "AU"] },
-  { id: "walmart", name: "Walmart", tagline: "Save money, live better", category: "shopping", url: "https://www.walmart.com", color: "#0071CE", letter: "W", emoji: "🛒", countries: ["US", "CA"] },
-  { id: "target", name: "Target", tagline: "Style & essentials", category: "shopping", url: "https://www.target.com", color: "#CC0000", letter: "T", emoji: "🎯", countries: ["US"] },
-  { id: "noon", name: "noon", tagline: "Middle-East marketplace", category: "shopping", url: "https://www.noon.com", color: "#FEEE00", letter: "N", emoji: "🌟", countries: ["AE"] },
-  { id: "lazada", name: "Lazada", tagline: "Southeast-Asia shopping", category: "shopping", url: "https://www.lazada.sg", color: "#0F136D", letter: "L", emoji: "📦", countries: ["SG"] },
-  { id: "shopee", name: "Shopee", tagline: "Deals & flash sales", category: "shopping", url: "https://shopee.sg", color: "#EE4D2D", letter: "S", emoji: "🛍️", countries: ["SG"] },
-  // Beauty 💄
-  { id: "nykaa", name: "Nykaa", tagline: "Beauty & cosmetics", category: "beauty", url: "https://www.nykaa.com", color: "#FC2779", letter: "N", androidPackage: "com.fsn.nykaa", emoji: "💄", countries: ["IN"] },
-  { id: "tira", name: "Tira", tagline: "Beauty by Reliance", category: "beauty", url: "https://www.tirabeauty.com", color: "#9D174D", letter: "T", emoji: "✨", countries: ["IN"] },
-  { id: "purplle", name: "Purplle", tagline: "Affordable beauty", category: "beauty", url: "https://www.purplle.com", color: "#6B21A8", letter: "P", androidPackage: "com.manash.purplle", emoji: "💜", countries: ["IN"] },
-  { id: "sugar", name: "Sugar Cosmetics", tagline: "Bold, break-proof makeup", category: "beauty", url: "https://www.sugarcosmetics.com", color: "#111111", letter: "S", emoji: "💋", countries: ["IN"] },
-  { id: "myglamm", name: "MyGlamm", tagline: "Makeup & skincare", category: "beauty", url: "https://www.myglamm.com", color: "#E91E63", letter: "M", emoji: "🌸", countries: ["IN"] },
-  { id: "sephora", name: "Sephora", tagline: "Prestige beauty", category: "beauty", url: "https://www.sephora.com", color: "#000000", letter: "S", androidPackage: "com.sephora", emoji: "🖤", countries: ["US", "GB", "AE", "CA", "AU", "SG"] },
-  { id: "ulta", name: "Ulta Beauty", tagline: "Beauty superstore", category: "beauty", url: "https://www.ulta.com", color: "#E4551F", letter: "U", emoji: "💅", countries: ["US"] },
-  { id: "boots", name: "Boots", tagline: "Pharmacy & beauty", category: "beauty", url: "https://www.boots.com", color: "#05054B", letter: "B", emoji: "🧴", countries: ["GB"] },
-  { id: "mecca", name: "MECCA", tagline: "Beauty destination", category: "beauty", url: "https://www.mecca.com", color: "#B45309", letter: "M", emoji: "✨", countries: ["AU"] },
-  { id: "watsons", name: "Watsons", tagline: "Health & beauty", category: "beauty", url: "https://www.watsons.com.sg", color: "#00B0B9", letter: "W", emoji: "🧴", countries: ["SG"] },
-  // Fashion 👗
-  { id: "myntra", name: "Myntra", tagline: "Fashion & lifestyle", category: "fashion", url: "https://www.myntra.com", color: "#FF3F6C", letter: "M", androidPackage: "com.myntra.android", appScheme: "myntra://", emoji: "👗", countries: ["IN"] },
-  { id: "ajio", name: "AJIO", tagline: "Curated fashion", category: "fashion", url: "https://www.ajio.com", color: "#2C4152", letter: "A", androidPackage: "com.ril.ajio", emoji: "🧥", countries: ["IN"] },
-  { id: "meesho", name: "Meesho", tagline: "Budget-friendly finds", category: "fashion", url: "https://www.meesho.com", color: "#F43397", letter: "M", androidPackage: "com.meesho.supply", emoji: "🛍️", countries: ["IN"] },
-  { id: "nykaafashion", name: "Nykaa Fashion", tagline: "Trendy fits", category: "fashion", url: "https://www.nykaafashion.com", color: "#FC2779", letter: "N", emoji: "👠", countries: ["IN"] },
-  { id: "bewakoof", name: "Bewakoof", tagline: "Streetwear & tees", category: "fashion", url: "https://www.bewakoof.com", color: "#FFD600", letter: "B", emoji: "😎", countries: ["IN"] },
-  { id: "asos", name: "ASOS", tagline: "Fashion forward", category: "fashion", url: "https://www.asos.com", color: "#2D2D2D", letter: "A", emoji: "🧢", countries: ["US", "GB", "AU"] },
-  { id: "hm", name: "H&M", tagline: "Everyday fashion", category: "fashion", url: "https://www2.hm.com", color: "#E50010", letter: "H", emoji: "👕", countries: "*" },
-  { id: "zara", name: "Zara", tagline: "Runway to street", category: "fashion", url: "https://www.zara.com", color: "#1A1A1A", letter: "Z", emoji: "🕶️", countries: "*" },
-  { id: "shein", name: "SHEIN", tagline: "Fast fashion", category: "fashion", url: "https://www.shein.com", color: "#111111", letter: "S", emoji: "🛒", countries: ["US", "GB", "AE", "CA", "AU", "SG"] },
-  { id: "namshi", name: "Namshi", tagline: "Middle-East fashion", category: "fashion", url: "https://www.namshi.com", color: "#70163C", letter: "N", emoji: "👜", countries: ["AE"] },
-  // Entertainment 🍿
-  { id: "netflix", name: "Netflix", tagline: "Movies & series", category: "entertainment", url: "https://www.netflix.com", color: "#E50914", letter: "N", androidPackage: "com.netflix.mediaclient", appScheme: "nflx://", emoji: "🎬", countries: "*" },
-  { id: "primevideo", name: "Amazon Prime Video", tagline: "Prime originals & rentals", category: "entertainment", url: "https://www.primevideo.com", color: "#1A98FF", letter: "P", androidPackage: "com.amazon.avod.thirdpartyclient", emoji: "🎥", countries: "*" },
-  { id: "jiohotstar", name: "JioHotstar", tagline: "Cricket, movies & TV", category: "entertainment", url: "https://www.hotstar.com", color: "#122447", letter: "J", androidPackage: "in.startv.hotstar", emoji: "🏏", countries: ["IN"] },
-  { id: "sonyliv", name: "SonyLIV", tagline: "Sports & originals", category: "entertainment", url: "https://www.sonyliv.com", color: "#5A2BAF", letter: "S", androidPackage: "com.sonyliv", emoji: "📺", countries: ["IN"] },
-  { id: "zee5", name: "ZEE5", tagline: "Desi entertainment", category: "entertainment", url: "https://www.zee5.com", color: "#8230C6", letter: "Z", androidPackage: "com.graymatrix.did", emoji: "🎭", countries: ["IN"] },
-  { id: "mxplayer", name: "MX Player", tagline: "Free movies & shows", category: "entertainment", url: "https://www.mxplayer.in", color: "#3C5AF3", letter: "M", androidPackage: "com.mxtech.videoplayer.ad", emoji: "▶️", countries: ["IN"] },
-  { id: "disneyplus", name: "Disney+", tagline: "Disney, Marvel, Star Wars", category: "entertainment", url: "https://www.disneyplus.com", color: "#113CCF", letter: "D", androidPackage: "com.disney.disneyplus", emoji: "🏰", countries: ["US", "GB", "AE", "CA", "AU", "SG"] },
-  { id: "hulu", name: "Hulu", tagline: "Stream TV & movies", category: "entertainment", url: "https://www.hulu.com", color: "#1CE783", letter: "H", emoji: "📺", countries: ["US"] },
-  { id: "iplayer", name: "BBC iPlayer", tagline: "British TV, free", category: "entertainment", url: "https://www.bbc.co.uk/iplayer", color: "#FF4C98", letter: "B", emoji: "🎞️", countries: ["GB"] },
-  { id: "stan", name: "Stan", tagline: "Aussie streaming", category: "entertainment", url: "https://www.stan.com.au", color: "#0166FF", letter: "S", emoji: "🎬", countries: ["AU"] },
-  { id: "shahid", name: "Shahid", tagline: "Arabic originals", category: "entertainment", url: "https://shahid.mbc.net", color: "#10B981", letter: "S", emoji: "🌙", countries: ["AE"] },
-  { id: "mewatch", name: "meWATCH", tagline: "Singapore TV", category: "entertainment", url: "https://www.mewatch.sg", color: "#E11D48", letter: "M", emoji: "📺", countries: ["SG"] },
-  // Services 🛠
-  { id: "urbancompany", name: "Urban Company", tagline: "Home services on demand", category: "services", url: "https://www.urbancompany.com", color: "#E91E63", letter: "U", androidPackage: "com.urbanclap.urbanclap", emoji: "🧹", countries: ["IN", "AE", "SG"] },
-  { id: "snabbit", name: "Snabbit", tagline: "10-min home help", category: "services", url: "https://snabbit.com", color: "#FF6B35", letter: "S", androidPackage: "com.snabbit.customer", emoji: "⚡", countries: ["IN"] },
-  { id: "nobroker", name: "NoBroker", tagline: "Rent & buy, no brokerage", category: "services", url: "https://www.nobroker.in", color: "#DC2626", letter: "N", androidPackage: "com.nobroker.app", emoji: "🏠", countries: ["IN"] },
-  { id: "porter", name: "Porter", tagline: "Trucks, movers, couriers", category: "services", url: "https://porter.in", color: "#FBBF24", letter: "P", androidPackage: "com.theporter.android.customerapp", emoji: "🚚", countries: ["IN"] },
-];
-
-/** Category names — `label` is the original (English & every non-Hindi
- *  locale); `labelHi` renders only when the active locale is `hi`. */
-export const CATEGORY_LABELS: Record<MiniApp["category"], { label: string; labelHi: string }> = {
-  food: { label: "Food delivery", labelHi: "खाना" },
-  rides: { label: "🚗 Rides", labelHi: "🚗 राइड्स" },
-  quickcommerce: { label: "🛒 Quick commerce", labelHi: "🛒 झटपट किराना" },
-  services: { label: "🛠 get it done", labelHi: "🛠 काम करवाओ" },
-  payments: { label: "Payments", labelHi: "पेमेंट्स" },
-  social: { label: "Social", labelHi: "सोशल" },
-  shopping: { label: "Shopping", labelHi: "शॉपिंग" },
-  beauty: { label: "Beauty 💄", labelHi: "ब्यूटी 💄" },
-  fashion: { label: "Fashion 👗", labelHi: "फ़ैशन 👗" },
-  entertainment: { label: "Entertainment 🍿", labelHi: "मनोरंजन 🍿" },
-};
+// Registry data moved to src/data/appRegistry.ts — this module keeps the
+// launch helpers and re-exports the registry for existing imports.
+export {
+  APP_REGISTRY as MINI_APPS,
+  CATEGORY_LABELS,
+  appAvailableIn,
+  visibleApps,
+  effectiveLaunchType,
+  queryPackageIds,
+  ALL_COUNTRIES,
+} from "@/data/appRegistry";
+export type {
+  AppEntry as MiniApp,
+  Country as CountryCode,
+  CategoryId,
+  TileLabel,
+} from "@/data/appRegistry";
+import { effectiveLaunchType as _effLaunch, type AppEntry } from "@/data/appRegistry";
 
 // ---------------- Seamless switch-and-return launcher ----------------
 
@@ -323,6 +196,69 @@ export async function launchMiniApp(app: {
 }
 
 
+
+/**
+ * Registry-driven launcher — the one three-tier fallback for every AppEntry:
+ * 1) native app (package intent / scheme), 2) Play Store listing, 3) webUrl
+ * in a Custom Tab. verified:false entries never attempt a native launch
+ * (effectiveLaunchType forces webOnly). Built on the same primitives as the
+ * Ride Genie launcher above — not a second launcher.
+ */
+export async function launchAppEntry(entry: AppEntry): Promise<void> {
+  writePending({ app: entry.name, at: Date.now() });
+  if (typeof window === "undefined") return;
+  const mode = _effLaunch(entry);
+  try {
+    const native = await isCapacitorNative();
+    if (native && isAndroid()) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const mod: any = await import(/* @vite-ignore */ "@capacitor/app");
+      if (mode === "package" && entry.packageId) {
+        // Tier 1 — the app itself; the intent carries a baked-in web fallback
+        // the OS uses when neither the app nor a handler resolves.
+        try {
+          const intent = `intent://#Intent;package=${entry.packageId};S.browser_fallback_url=${encodeURIComponent(entry.webUrl)};end`;
+          await mod.App.openUrl({ url: intent });
+          return;
+        } catch {
+          /* not installed / not resolvable — Tier 2 */
+        }
+        try {
+          await mod.App.openUrl({ url: `market://details?id=${entry.packageId}` });
+          return;
+        } catch {
+          /* no Play Store — Tier 3 */
+        }
+      }
+      if (mode === "scheme" && entry.scheme) {
+        try {
+          await mod.App.openUrl({ url: entry.scheme });
+          return;
+        } catch {
+          /* scheme unhandled — Tier 3 */
+        }
+      }
+      await openInApp(entry.webUrl);
+      return;
+    }
+    if (native) {
+      await openInApp(entry.webUrl);
+      return;
+    }
+    // Web platform — scheme probe, then web.
+    if (mode !== "webOnly" && entry.scheme) {
+      const opened = await tryWebAppScheme(entry.scheme);
+      if (opened) return;
+    }
+    await openInApp(entry.webUrl);
+  } catch {
+    try {
+      await openInApp(entry.webUrl);
+    } catch {
+      /* ignore */
+    }
+  }
+}
 
 /** Fire an OS-level deep link (upi://, uber:// etc). Returns immediately. */
 export function openDeepLink(url: string) {

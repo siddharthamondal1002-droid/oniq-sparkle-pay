@@ -648,7 +648,11 @@ function CountrySection() {
         ))}
       </select>
       <p className="mt-2 text-xs text-muted-foreground">
-        Picks which apps show in the plug, shopping & entertainment. Saved on this device only.
+        Picks which apps show in Hacks, Shop, Entertainment & Official. Saved on this device only.
+      </p>
+      <p className="mt-3 border-t border-border pt-3 text-[11px] text-muted-foreground">
+        Third-party app names and trademarks belong to their respective owners. ONIQ
+        links to them for convenience and implies no partnership or endorsement.
       </p>
     </div>
   );

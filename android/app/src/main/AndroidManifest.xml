@@ -83,4 +83,51 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
+    <!-- GENERATED from src/data/appRegistry.ts — run scripts/gen-android-queries.mjs -->
+    <queries>
+        <package android:name="com.amazon.avod.thirdpartyclient" />
+        <package android:name="com.android.vending" />
+        <package android:name="com.application.zomato" />
+        <package android:name="com.bigbasket.mobileapp" />
+        <package android:name="com.careem.acma" />
+        <package android:name="com.dd.doordash" />
+        <package android:name="com.deliveroo.orderapp" />
+        <package android:name="com.didiglobal.passenger" />
+        <package android:name="com.disney.disneyplus" />
+        <package android:name="com.fsn.nykaa" />
+        <package android:name="com.grabtaxi.passenger" />
+        <package android:name="com.graymatrix.did" />
+        <package android:name="com.grofers.customerapp" />
+        <package android:name="com.instacart.client" />
+        <package android:name="com.meesho.supply" />
+        <package android:name="com.mxtech.videoplayer.ad" />
+        <package android:name="com.myntra.android" />
+        <package android:name="com.netflix.mediaclient" />
+        <package android:name="com.nobroker.app" />
+        <package android:name="com.olacabs.customer" />
+        <package android:name="com.paypal.android.p2pmobile" />
+        <package android:name="com.rapido.passenger" />
+        <package android:name="com.ril.ajio" />
+        <package android:name="com.sephora" />
+        <package android:name="com.sonyliv" />
+        <package android:name="com.theporter.android.customerapp" />
+        <package android:name="com.ubercab" />
+        <package android:name="com.ubercab.eats" />
+        <package android:name="com.urbanclap.urbanclap" />
+        <package android:name="com.zeptoconsumerapp" />
+        <package android:name="ee.mtakso.client" />
+        <package android:name="in.juspay.nammayatri" />
+        <package android:name="in.startv.hotstar" />
+        <package android:name="in.swiggy.android" />
+        <package android:name="me.lyft.android" />
+        <package android:name="sinet.startup.inDriver" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" />
+        </intent>
+    </queries>
 </manifest>
