@@ -1427,6 +1427,7 @@ function AlsoInOniqRow({
           to={t.to as any}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           search={t.search as any}
+          onClick={() => void recordSignal("hub_open", t.key)}
           className="press fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
           style={t.color ? { boxShadow: `inset 0 0 0 1px ${t.color}22` } : undefined}
         >
