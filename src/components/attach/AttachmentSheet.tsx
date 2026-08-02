@@ -12,6 +12,7 @@ import {
   Music2,
   Timer,
   Type,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
@@ -250,7 +251,7 @@ export function AttachmentSheet({
         input.value = "";
         input.accept = acceptOverride?.[option.id] ?? option.accept;
         input.multiple = Boolean(option.multiple);
-        if (option.id === "camera" && context.isNative === false) {
+        if ((option.id === "camera" || option.id === "camera-video") && context.isNative === false) {
           input.setAttribute("capture", "environment");
         } else {
           input.removeAttribute("capture");

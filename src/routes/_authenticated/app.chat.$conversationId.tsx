@@ -956,6 +956,10 @@ function ChatThread() {
 
   // Unified attachment sheet -> existing upload pipelines.
   const handleSheetFiles = (option: AttachmentOption, files: File[]) => {
+    if (option.id === "camera-video") {
+      void handlePickedFiles(files.filter((f) => f.type.startsWith("video/")), "video");
+      return;
+    }
     if (option.id === "gallery" || option.id === "camera") {
       const images = files.filter((f) => f.type.startsWith("image/"));
       const videos = files.filter((f) => f.type.startsWith("video/"));
