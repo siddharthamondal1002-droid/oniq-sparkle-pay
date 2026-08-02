@@ -2430,6 +2430,47 @@ export type Database = {
         }
         Relationships: []
       }
+      usage_signals: {
+        Row: {
+          city: string | null
+          created_at: string
+          dow: number
+          hour: number
+          hub: string
+          id: string
+          kind: string
+          user_id: string
+        }
+        Insert: {
+          city?: string | null
+          created_at?: string
+          dow: number
+          hour: number
+          hub: string
+          id?: string
+          kind: string
+          user_id: string
+        }
+        Update: {
+          city?: string | null
+          created_at?: string
+          dow?: number
+          hour?: number
+          hub?: string
+          id?: string
+          kind?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_signals_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_channels: {
         Row: {
           channel_id: string
@@ -2772,6 +2813,7 @@ export type Database = {
         Args: { _conv: string; _user: string }
         Returns: boolean
       }
+      is_minor_account: { Args: { _uid: string }; Returns: boolean }
       join_channel: { Args: { _conversation_id: string }; Returns: undefined }
       leave_group: { Args: { _conversation_id: string }; Returns: undefined }
       list_public_channels: {
@@ -2820,6 +2862,7 @@ export type Database = {
           username: string
         }[]
       }
+      minor_age_for_country: { Args: { _country: string }; Returns: number }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -2871,6 +2914,7 @@ export type Database = {
         Args: { _booking_id: string; _price: number }
         Returns: undefined
       }
+      personalisation_allowed: { Args: { _uid: string }; Returns: boolean }
       place_order: {
         Args: {
           _delivery_address: string
