@@ -1872,6 +1872,7 @@ function ChatThread() {
       )}
       {studioQueue.length > 0 && (
         <PhotoStudio
+          key={`${studioQueue.length}-${studioQueue[0].name}-${studioQueue[0].size}-${studioQueue[0].lastModified}`}
           file={studioQueue[0]}
           onCancel={() => {
             setStudioQueue([]);
