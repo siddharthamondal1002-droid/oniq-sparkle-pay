@@ -4,6 +4,8 @@ import { ArrowLeft, Send, Globe, ExternalLink, Paperclip, X, Camera, Mic } from 
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { compressToJpeg } from "@/lib/imageCompress";
+import { guardTingPrompt, CRISIS_RESPONSE, HEALTH_DISCLAIMER } from "@/lib/tingGuard";
+import { CrisisCard } from "@/components/vitals/CrisisCard";
 
 export const Route = createFileRoute("/_authenticated/app/ai")({
   component: TingScreen,
@@ -24,6 +26,8 @@ type Msg = {
   content: string;
   sources?: string[];
   attachment?: { kind: Attachment["kind"]; name: string; previewUrl?: string };
+  crisis?: boolean; // hard-coded crisis routing — renders the crisis card, no model call
+  healthNote?: boolean; // reply framed as general wellness info, not medical advice
 };
 
 const SUGGESTIONS = [
@@ -177,6 +181,16 @@ function TingScreen() {
     setMessages(next);
     setInput("");
     setAttachment(null);
+
+    // HARD-CODED crisis routing: warmth + the country crisis card, never a
+    // model conversation. Runs on the raw text of every turn, so rephrasing,
+    // roleplay or "hypothetically" framing still lands here.
+    const verdict = guardTingPrompt(text);
+    if (verdict === "crisis") {
+      setMessages([...next, { role: "assistant", content: CRISIS_RESPONSE, crisis: true }]);
+      return;
+    }
+
     setLoading(true);
     try {
       // Cap history to the last ~10 turns AND never send a whitespace-only
@@ -215,7 +229,12 @@ function TingScreen() {
       if (d?.error) throw new Error(d.error);
       setMessages([
         ...next,
-        { role: "assistant", content: d?.reply ?? "", sources: d?.sources ?? [] },
+        {
+          role: "assistant",
+          content: d?.reply ?? "",
+          sources: d?.sources ?? [],
+          healthNote: verdict === "health",
+        },
       ]);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
@@ -302,6 +321,16 @@ function TingScreen() {
                     >
                       {m.content}
                     </div>
+                  )}
+                  {m.role === "assistant" && m.crisis && (
+                    <div className="mt-2">
+                      <CrisisCard />
+                    </div>
+                  )}
+                  {m.role === "assistant" && m.healthNote && (
+                    <p data-testid="ting-health-note" className="mt-1.5 text-[11px] text-muted-foreground">
+                      ⚕️ {HEALTH_DISCLAIMER}
+                    </p>
                   )}
                   {m.role === "assistant" && m.sources && m.sources.length > 0 && (
                     <div data-testid="ting-sources" className="mt-1.5 space-y-1">
