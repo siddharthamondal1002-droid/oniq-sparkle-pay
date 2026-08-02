@@ -1345,6 +1345,7 @@ function StudyHero() {
   return (
     <Link
       to="/app/study"
+      onClick={() => void recordSignal("hub_open", "study")}
       className="press fade-up relative block overflow-hidden rounded-3xl border border-border p-5"
       style={{
         background:
