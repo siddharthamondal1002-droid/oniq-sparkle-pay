@@ -3034,7 +3034,9 @@ function PaperModal({
     // renders every script through the OS text stack.
     const NON_LATIN = /[^\u0000-\u024F\u2000-\u206F\u20A0-\u20BF\u2190-\u22FF]/;
     const hasNonLatin = qs.some(
-      (qq) => NON_LATIN.test(qq.question) || (qq.options ?? []).some((o: string) => NON_LATIN.test(o)),
+      (qq) =>
+        NON_LATIN.test(qq.question) ||
+        (qq.type === "mcq" ? qq.options.some((o: string) => NON_LATIN.test(o)) : false),
     );
     if (hasNonLatin) {
       toast("opening the printable paper — your language needs the browser to render 📄");
