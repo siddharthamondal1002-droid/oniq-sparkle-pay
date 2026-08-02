@@ -40,6 +40,8 @@ import {
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { resolveTileLabel } from "@/lib/i18n/tileLabel";
+import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
+import { recordSignal } from "@/lib/personalisation";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   component: HomeScreen,
