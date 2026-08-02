@@ -83,6 +83,14 @@ export const ATTACHMENT_OPTIONS: AttachmentOption[] = [
     accept: "image/*",
   },
   {
+    id: "camera-video",
+    label: "Video",
+    icon: Video,
+    tint: "bg-red-500/10 text-red-500",
+    surfaces: ["chat"],
+    accept: "video/*",
+  },
+  {
     id: "location",
     label: "Location",
     icon: MapPin,
