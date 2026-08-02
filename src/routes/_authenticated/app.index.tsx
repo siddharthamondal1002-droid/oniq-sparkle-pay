@@ -125,6 +125,8 @@ function HomeScreen() {
 
           <GlanceCard />
 
+          <AnticipatoryCard />
+
           <div className="mt-7 px-1 flex items-center justify-between">
             <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
               your feed
