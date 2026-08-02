@@ -59,7 +59,7 @@ const HOUR_WINDOW = 1;
 
 const isWeekend = (dow: number) => dow === 0 || dow === 6;
 
-function bandLabel(hour: number): string {
+export function bandLabel(hour: number): string {
   if (hour < 5) return "late at night";
   if (hour < 12) return "in the morning";
   if (hour < 17) return "in the afternoon";
