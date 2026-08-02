@@ -12,7 +12,7 @@ const CRISIS_PATTERNS: RegExp[] = [
   // explicit
   /suicid/i,
   /kill(?:ing)?\s+myself/i,
-  /end(?:ing)?\s+(?:my|his|her|their|it)\s*(?:all|life|everything)?\b/i,
+  /\bend(?:ing)?\s+(?:my|his|her|their|its)\s+(?:own\s+)?(?:life|life\s+all|everything)\b/i,
   /wants?\s+to\s+end\s+(?:his|her|their|my|its?)\s+life/i,
   /take\s+my\s+(?:own\s+)?life/i,
   /self[\s-]?harm/i,
@@ -20,7 +20,8 @@ const CRISIS_PATTERNS: RegExp[] = [
   /wants?\s+to\s+die/i,
   /better\s+off\s+dead/i,
   // indirect — the phrasing detection systems usually miss
-  /don'?t\s+want\s+to\s+(?:live|be\s+here|exist|wake\s+up)/i,
+  /don'?t\s+want\s+to\s+(?:live\s+(?:any\s*more|anymore)|be\s+here|exist|wake\s+up)(?!\s+(?:in|with|at|near|alone\s+in))/i,
+  /don'?t\s+want\s+to\s+live\b(?!\s+(?:in|with|at|near|on|by|abroad|alone|like|here\s+in))/i,
   /no\s+(?:reason|point)\s+(?:to|in)\s+liv/i,
   /sleep\s+forever/i,
   /never\s+wake\s+up/i,

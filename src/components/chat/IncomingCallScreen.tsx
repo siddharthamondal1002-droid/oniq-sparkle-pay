@@ -281,7 +281,7 @@ export async function sendQuickReply(conversationId: string, text: string) {
     conversation_id: conversationId,
     sender_id: uid,
     content: text,
-    message_type: "text",
+    type: "text",
   } as never);
 }
 
