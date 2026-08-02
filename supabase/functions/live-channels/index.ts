@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "devotional";
-type Faith = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jewish";
+type Faith = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jain" | "jewish";
 type Candidate = { name: string; id?: string; handle?: string; faith?: Faith };
 type GenreDef = {
   id: GenreId;
@@ -150,6 +150,15 @@ const GENRES: GenreDef[] = [
       { id: "UClUMK5PN0vPSVAq2CDkM26w", name: "FPMT", faith: "buddhist" },
       { id: "UCTUkNCf8m5jAxzUblftQyBw", name: "Zen Mountain Monastery", faith: "buddhist" },
       { id: "UCfz9QrY-qz_j0uSygPesAeg", name: "Namgyal Monastery", faith: "buddhist" },
+      // Jain — Digambar
+      { id: "UCDNNWj0oAFXngcwHAwnwP4w", name: "Jinvani Channel", faith: "jain" },
+      // Jain — Shwetambar
+      { id: "UCsQUid3uu0yB2SLGq88EkHg", name: "Terapanth", faith: "jain" },
+      { id: "UCgcOIWyN-hiHVjl1bDhj7JA", name: "Vitraag Jain Shwetambar Sangh", faith: "jain" },
+      // Jain — general devotional (verified)
+      { id: "UCo37KIbexDijRo0-2bfK_Tw", name: "Jain Live", faith: "jain" },
+      { id: "UCh8hboHfOeh5eoVbNgRCmlQ", name: "Jain Darshan", faith: "jain" },
+      { id: "UCXcHpI7iFXxIyNa4HK6rqTg", name: "jainam live channel", faith: "jain" },
       // Jewish — Torah teachings & cantorial (verified handles → IDs)
       { id: "UCfZX3CU_wWgcDyhWkvQ5rSg", name: "Chabad.org", faith: "jewish" },
       { id: "UCl9IK49EtWMazcVLoHnHdgw", name: "Aleph Beta", faith: "jewish" },
@@ -304,7 +313,7 @@ async function resolveGenre(g: GenreDef): Promise<ResolvedGenre | null> {
   return { id: g.id, name: g.name, emoji: g.emoji, live: false, videos: merged.slice(0, 12) };
 }
 
-const FAITH_ORDER: Faith[] = ["islamic", "sikh", "hindu", "christian", "buddhist", "jewish"];
+const FAITH_ORDER: Faith[] = ["islamic", "sikh", "hindu", "christian", "buddhist", "jain", "jewish"];
 const PER_FAITH_CAP = 6;
 
 async function resolveFaithGroup(faith: Faith, candidates: Candidate[]): Promise<Video[]> {
