@@ -12,6 +12,7 @@ import {
   Music2,
   Timer,
   Type,
+  Video,
   type LucideIcon,
 } from "lucide-react";
 import { Capacitor } from "@capacitor/core";
@@ -81,6 +82,14 @@ export const ATTACHMENT_OPTIONS: AttachmentOption[] = [
     tint: "bg-pink-500/10 text-pink-500",
     surfaces: ["chat", "moment", "reel"],
     accept: "image/*",
+  },
+  {
+    id: "camera-video",
+    label: "Video",
+    icon: Video,
+    tint: "bg-red-500/10 text-red-500",
+    surfaces: ["chat"],
+    accept: "video/*",
   },
   {
     id: "location",
@@ -242,7 +251,7 @@ export function AttachmentSheet({
         input.value = "";
         input.accept = acceptOverride?.[option.id] ?? option.accept;
         input.multiple = Boolean(option.multiple);
-        if (option.id === "camera" && context.isNative === false) {
+        if ((option.id === "camera" || option.id === "camera-video") && context.isNative === false) {
           input.setAttribute("capture", "environment");
         } else {
           input.removeAttribute("capture");
