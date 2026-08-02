@@ -32,7 +32,9 @@
   {
     "religion": "hindu",
     "name": "Krishna Janmashtami",
-    "date": "2026-09-04"
+    "date": "2026-09-04",
+    "alt_date": "2026-09-05",
+    "alt_note": "observed by Vaishnava / ISKCON traditions"
   },
   {
     "religion": "hindu",
@@ -293,5 +295,155 @@
     "religion": "jain",
     "name": "Kshamavani (Digambar forgiveness day)",
     "date": "2026-09-25"
+  },
+  {
+    "religion": "hindu",
+    "name": "Ugadi (Telugu & Kannada New Year)",
+    "date": "2026-03-19",
+    "systems": [
+      "telugu-kannada"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Gudi Padwa (Marathi New Year)",
+    "date": "2026-03-19",
+    "systems": [
+      "marathi"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Nav Samvatsar — Vikram Samvat 2083 begins",
+    "date": "2026-03-19",
+    "systems": [
+      "north"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Navreh (Kashmiri New Year)",
+    "date": "2026-03-19",
+    "systems": [
+      "north"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Cheti Chand (Sindhi New Year)",
+    "date": "2026-03-20",
+    "systems": [
+      "north"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Chaitra Navratri begins",
+    "date": "2026-03-19",
+    "systems": [
+      "north",
+      "marathi",
+      "telugu-kannada",
+      "gujarati"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Puthandu (Tamil New Year)",
+    "date": "2026-04-14",
+    "systems": [
+      "tamil"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Vishu",
+    "date": "2026-04-14",
+    "systems": [
+      "malayalam"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Pana Sankranti (Odia New Year)",
+    "date": "2026-04-14",
+    "systems": [
+      "odia"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Bohag Bihu (Assamese New Year)",
+    "date": "2026-04-14",
+    "systems": [
+      "assamese"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Baisakhi",
+    "date": "2026-04-14",
+    "systems": [
+      "punjabi",
+      "north"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Poila Boishakh (Bengali New Year)",
+    "date": "2026-04-15",
+    "systems": [
+      "bengali"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Kollavarsham New Year (Chingam 1)",
+    "date": "2026-08-17",
+    "systems": [
+      "malayalam"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Bestu Varas (Gujarati New Year — VS 2083)",
+    "date": "2026-11-09",
+    "systems": [
+      "gujarati"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Thai Pongal",
+    "date": "2026-01-14",
+    "systems": [
+      "tamil"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Onam (Thiruvonam)",
+    "date": "2026-08-26",
+    "systems": [
+      "malayalam"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Durga Puja begins (Maha Saptami)",
+    "date": "2026-10-17",
+    "systems": [
+      "bengali",
+      "odia",
+      "assamese"
+    ]
+  },
+  {
+    "religion": "hindu",
+    "name": "Chhath Puja",
+    "date": "2026-11-15",
+    "systems": [
+      "north"
+    ]
   }
 ]

@@ -159,6 +159,83 @@ describe("faith content isolation (Phase A)", () => {
   });
 });
 
+describe("regional Hindu calendar (slice 1+2)", () => {
+  type Cal = {
+    religion: string;
+    name: string;
+    date: string;
+    alt_date?: string;
+    alt_note?: string;
+    systems?: string[];
+  };
+  const cal = JSON.parse(readFileSync("public/faith-calendar-2026.json", "utf8")) as Cal[];
+  const hindu = cal.filter((c) => c.religion === "hindu");
+  const KNOWN_SYSTEMS = [
+    "north",
+    "marathi",
+    "telugu-kannada",
+    "tamil",
+    "bengali",
+    "gujarati",
+    "malayalam",
+    "odia",
+    "assamese",
+    "punjabi",
+  ];
+
+  it("ships every regional new year and the missing regional majors", () => {
+    const names = hindu.map((h) => h.name.toLowerCase()).join(" | ");
+    for (const n of [
+      "ugadi",
+      "gudi padwa",
+      "puthandu",
+      "vishu",
+      "poila boishakh",
+      "bohag bihu",
+      "bestu varas",
+      "pana sankranti",
+      "baisakhi",
+      "navreh",
+      "cheti chand",
+      "pongal",
+      "onam",
+      "durga puja",
+      "chhath",
+      "kollavarsham",
+    ]) {
+      expect(names.includes(n), n).toBe(true);
+    }
+  });
+
+  it("contested Janmashtami carries both dates — never a single truth", () => {
+    const j = hindu.find((h) => h.name.includes("Janmashtami"))!;
+    expect(j.date).toBe("2026-09-04");
+    expect(j.alt_date).toBe("2026-09-05");
+    expect((j.alt_note ?? "").toLowerCase()).toContain("vaishnava");
+  });
+
+  it("every systems tag is a known calendar system", () => {
+    for (const h of hindu) {
+      for (const sys of h.systems ?? []) {
+        expect(KNOWN_SYSTEMS, `${h.name}: ${sys}`).toContain(sys);
+      }
+    }
+  });
+
+  it("every calendar system has at least its own new year", () => {
+    for (const sys of KNOWN_SYSTEMS) {
+      expect(
+        hindu.some((h) => (h.systems ?? []).includes(sys)),
+        sys,
+      ).toBe(true);
+    }
+  });
+
+  it("untagged (pan-India) entries remain for every system view", () => {
+    expect(hindu.some((h) => !h.systems)).toBe(true); // e.g. Diwali, Holi
+  });
+});
+
 describe("crisis layer (Phase B)", () => {
   it("every seeded country has at least one named crisis line + emergency number", () => {
     for (const c of ALL_COUNTRIES) {

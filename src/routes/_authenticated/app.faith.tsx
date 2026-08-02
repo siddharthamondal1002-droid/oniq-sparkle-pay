@@ -1115,7 +1115,33 @@ function ListenSection({ religion }: { religion: Religion }) {
 // DATES
 // ============================================================
 
-type CalItem = { religion: Religion; name: string; date: string };
+type CalItem = {
+  religion: Religion;
+  name: string;
+  date: string;
+  alt_date?: string; // contested festivals — never presented as a single truth
+  alt_note?: string;
+  systems?: string[]; // which family calendars observe it; absent = everyone
+};
+
+// Regional Hindu calendar systems — an explicit, user-overridable choice.
+// Defaulting everyone to the North Indian calendar is the classic offense;
+// "all" stays the default until the user picks their family's system.
+export const HINDU_CAL_SYSTEMS: { id: string; label: string; hint: string; era?: string }[] = [
+  { id: "all", label: "All India (everything)", hint: "every region's festivals together" },
+  { id: "north", label: "North Indian — Vikram Samvat", hint: "UP · Bihar · MP · Rajasthan · Haryana · HP · Uttarakhand · Jharkhand · Chhattisgarh · J&K", era: "Vikram Samvat 2083 · new year 19 Mar 2026" },
+  { id: "marathi", label: "Marathi — Shalivahana Shaka", hint: "Maharashtra · Goa · Konkan", era: "Shaka Samvat 1948 · Gudi Padwa 19 Mar 2026" },
+  { id: "telugu-kannada", label: "Telugu / Kannada", hint: "Andhra · Telangana · Karnataka", era: "Shaka Samvat 1948 · Ugadi 19 Mar 2026" },
+  { id: "tamil", label: "Tamil (solar)", hint: "Tamil Nadu", era: "Puthandu 14 Apr 2026" },
+  { id: "bengali", label: "Bengali Panjika", hint: "West Bengal · Tripura", era: "Bangabda 1433 · Poila Boishakh 15 Apr 2026" },
+  { id: "gujarati", label: "Gujarati (Kartikadi)", hint: "Gujarat", era: "Vikram Samvat 2083 from Bestu Varas, 9 Nov 2026" },
+  { id: "malayalam", label: "Malayalam — Kollavarsham", hint: "Kerala", era: "Kollavarsham 1201–02 · Vishu 14 Apr · Chingam 1 on 17 Aug" },
+  { id: "odia", label: "Odia Panji", hint: "Odisha", era: "Pana Sankranti 14 Apr 2026" },
+  { id: "assamese", label: "Assamese", hint: "Assam", era: "Bhaskarabda 1432–33 · Bohag Bihu 14 Apr 2026" },
+  { id: "punjabi", label: "Punjabi", hint: "Punjab", era: "Nanakshahi 558 · Baisakhi 14 Apr 2026" },
+];
+
+const HINDU_CAL_KEY = "oniq.faith.hinducal.v1";
 
 function DatesSection({ religion }: { religion: Religion }) {
   const { data } = useQuery({
@@ -1127,12 +1153,52 @@ function DatesSection({ religion }: { religion: Religion }) {
     },
   });
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
+  const [calSystem, setCalSystem] = useState<string>(() => {
+    try {
+      return localStorage.getItem(HINDU_CAL_KEY) ?? "all";
+    } catch {
+      return "all";
+    }
+  });
+  const pickSystem = (id: string) => {
+    setCalSystem(id);
+    try { localStorage.setItem(HINDU_CAL_KEY, id); } catch { /* noop */ }
+  };
+  const activeSystem = HINDU_CAL_SYSTEMS.find((c) => c.id === calSystem) ?? HINDU_CAL_SYSTEMS[0];
+
   const items = (data ?? [])
     .filter((d) => d.religion === religion)
+    .filter((d) =>
+      religion !== "hindu" || calSystem === "all"
+        ? true
+        : !d.systems || d.systems.includes(calSystem),
+    )
     .sort((a, b) => a.date.localeCompare(b.date));
   return (
     <div>
-      <div className="mb-2 text-[11px] text-muted-foreground">dates may vary by region 🌙</div>
+      {religion === "hindu" && (
+        <div className="mb-3 rounded-2xl border border-border bg-card p-3">
+          <label htmlFor="hindu-cal-picker" className="block text-sm font-semibold">
+            which calendar does your family follow? 🗓
+          </label>
+          <select
+            id="hindu-cal-picker"
+            data-testid="hindu-cal-picker"
+            value={calSystem}
+            onChange={(e) => pickSystem(e.target.value)}
+            className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
+          >
+            {HINDU_CAL_SYSTEMS.map((c) => (
+              <option key={c.id} value={c.id}>{c.label}</option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-[11px] text-muted-foreground">{activeSystem.hint}</p>
+          {activeSystem.era && (
+            <p className="mt-0.5 text-[11px] font-medium text-primary/80">{activeSystem.era}</p>
+          )}
+        </div>
+      )}
+      <div className="mb-2 text-[11px] text-muted-foreground">dates may vary by region &amp; tradition 🌙</div>
       <ul className="space-y-2">
         {items.map((it) => {
           const days = Math.round(
@@ -1153,6 +1219,12 @@ function DatesSection({ religion }: { religion: Religion }) {
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold truncate">{it.name}</div>
                 <div className="text-[11px] text-muted-foreground">{it.date}</div>
+                {it.alt_date && (
+                  <div className="text-[11px] text-primary/80">
+                    also observed {new Date(it.alt_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    {it.alt_note ? ` — ${it.alt_note}` : ""}
+                  </div>
+                )}
               </div>
               <span
                 className={`rounded-full px-2 py-1 text-[11px] font-semibold ${past ? "bg-surface-2 text-muted-foreground" : days <= 30 ? "bg-primary/20 text-primary" : "bg-surface-2 text-foreground"}`}
