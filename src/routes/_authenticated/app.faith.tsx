@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { ChevronLeft, ChevronRight, ExternalLink, BookOpen, Headphones, Calendar as CalIcon, ShoppingBag, ArrowLeft, Video } from "lucide-react";
 import { resolveTileLabel } from "@/lib/i18n/tileLabel";
+import { itemsForFaith, type FaithId } from "@/data/faithContent";
 import { useT } from "@/lib/i18n/LanguageProvider";
 
 
@@ -100,7 +101,6 @@ function FaithPage() {
 // DEVOTIONAL LIVE — YouTube streams from official public channels
 // ============================================================
 
-type FaithId = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jain" | "jewish";
 type LiveVideo = {
   videoId: string;
   title: string;
@@ -198,26 +198,22 @@ function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
         </div>
       ) : (
         <div className="space-y-5">
-          {/* Prefer the user's own faith, but never render an empty section:
-              if their faith's channels have nothing right now, fall back to
-              showing every faith that does have streams. */}
+          {/* STRICT faith isolation: only the selected faith's own channels
+              may render here. On a miss, show this faith's empty state —
+              never another faith's content (that was the Jain bleed bug). */}
           {(() => {
             const only = religionToFaithId(religion);
-            const hasOwn = only ? data.videos.some((v) => v.faith === only) : false;
-            const metas = only && hasOwn ? FAITH_META.filter((f) => f.id === only) : FAITH_META;
+            const items = itemsForFaith(data.videos, only);
+            if (items.length === 0) {
+              return (
+                <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
+                  no {FAITH_META.find((f) => f.id === only)?.label ?? "devotional"} streams right
+                  now — check back later 🌙
+                </div>
+              );
+            }
             return (
-              <>
-                {only && !hasOwn && (
-                  <div className="rounded-xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground">
-                    your faith's channels are quiet right now — here's what's playing across faiths 🌙
-                  </div>
-                )}
-                {metas.map((f) => {
-            const items = data.videos.filter((v) => v.faith === f.id);
-            if (items.length === 0) return null;
-            return (
-              <div key={f.id}>
-                <div className="mb-2 text-sm font-semibold text-foreground/90">{f.label}</div>
+              <div>
                 <ul className="grid grid-cols-2 gap-2">
                   {items.map((v) => (
                     <li key={v.videoId}>
@@ -240,9 +236,6 @@ function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
                   ))}
                 </ul>
               </div>
-            );
-                })}
-              </>
             );
           })()}
         </div>
@@ -313,8 +306,13 @@ function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
             const only = religionToFaithId(religion);
             return only ? f.id === only : true;
           }).map((f) => {
-            const items = stations.filter((s) => s.faith === f.id);
-            if (items.length === 0) return null;
+            const items = itemsForFaith(stations, f.id);
+            if (items.length === 0)
+              return (
+                <div key={f.id} className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
+                  no {f.label} stations right now 📡
+                </div>
+              );
             return (
               <div key={f.id}>
                 <div className="mb-2 text-sm font-semibold text-foreground/90">{f.label}</div>
@@ -378,8 +376,9 @@ function TabBtn({ active, onClick, icon, label }: { active: boolean; onClick: ()
 // READ
 // ============================================================
 
-type BookDef = { book?: string; chapter: number; label: string };
-const READ_INDEX: Record<Religion, { title: string; items: BookDef[] }> = {
+type LocalVerse = { ref: string; text: string; translation?: string };
+type BookDef = { book?: string; chapter: number; label: string; verses?: LocalVerse[] };
+export const READ_INDEX: Record<Religion, { title: string; items: BookDef[] }> = {
   hindu: { title: "Bhagavad Gita", items: Array.from({ length: 18 }, (_, i) => ({ chapter: i + 1, label: `Chapter ${i + 1}` })) },
   islam: { title: "Al-Quran", items: [1,2,36,55,67,112,113,114].map((n) => ({ chapter: n, label: `Surah ${n}` })) },
   christian: { title: "Bible", items: [
@@ -391,7 +390,73 @@ const READ_INDEX: Record<Religion, { title: string; items: BookDef[] }> = {
   ]},
   sikh: { title: "Gurbani", items: [{ chapter: 1, label: "Selected Passages" }] },
   buddhist: { title: "Dhammapada", items: [{ chapter: 1, label: "Selected Verses" }] },
-  jain: { title: "Tattvartha Sutra", items: Array.from({ length: 10 }, (_, i) => ({ chapter: i + 1, label: `Chapter ${i + 1}` })) },
+  // Jain readings are served locally (public-domain originals with plain
+  // renderings) — the remote scripture source has no Jain corpus yet.
+  jain: {
+    title: "Jain Paath",
+    items: [
+      {
+        chapter: 1,
+        label: "Namokar Mantra",
+        verses: [
+          { ref: "1", text: "Ṇamo Arihantāṇaṁ", translation: "I bow to the Arihants — the victors who have conquered their inner enemies." },
+          { ref: "2", text: "Ṇamo Siddhāṇaṁ", translation: "I bow to the Siddhas — the liberated souls." },
+          { ref: "3", text: "Ṇamo Āyariyāṇaṁ", translation: "I bow to the Acharyas — the spiritual leaders." },
+          { ref: "4", text: "Ṇamo Uvajjhāyāṇaṁ", translation: "I bow to the Upadhyayas — the teachers of scripture." },
+          { ref: "5", text: "Ṇamo Loe Savva-Sāhūṇaṁ", translation: "I bow to all the Sadhus in the world — the seekers on the path." },
+          { ref: "6", text: "Eso pañca ṇamokkāro, savva-pāva-ppaṇāsaṇo", translation: "This five-fold salutation destroys all sins." },
+          { ref: "7", text: "Maṅgalāṇaṁ ca savvesiṁ, paḍhamaṁ havai maṅgalaṁ", translation: "Of all that is auspicious, it is the foremost." },
+        ],
+      },
+      {
+        chapter: 2,
+        label: "Kshamapana (Forgiveness)",
+        verses: [
+          { ref: "1", text: "Khāmemi savva-jīve, savve jīvā khamantu me", translation: "I forgive all living beings; may all living beings forgive me." },
+          { ref: "2", text: "Mittī me savva-bhūesu, veraṁ majjha na keṇavi", translation: "My friendship is with all beings; my enmity is with none." },
+          { ref: "3", text: "Micchāmi Dukkaḍaṁ", translation: "May any harm I have caused, knowingly or unknowingly, be forgiven." },
+        ],
+      },
+      {
+        chapter: 3,
+        label: "Tattvartha Sutra — Ch. 1",
+        verses: [
+          { ref: "1.1", text: "Samyag-darśana-jñāna-cāritrāṇi mokṣa-mārgaḥ", translation: "Right faith, right knowledge and right conduct — together, the path to liberation. (Umāsvāti)" },
+          { ref: "1.2", text: "Tattvārtha-śraddhānaṁ samyag-darśanam", translation: "Belief in the true nature of reality is right faith." },
+          { ref: "1.4", text: "Jīva-ajīva-āsrava-bandha-saṁvara-nirjarā-mokṣāḥ tattvam", translation: "The seven realities: soul, non-soul, inflow, bondage, stoppage, shedding, and liberation." },
+          { ref: "5.21", text: "Parasparopagraho jīvānām", translation: "Souls exist to serve one another — the motto of Jainism." },
+          { ref: "7.11", text: "Maitrī-pramoda-kāruṇya-mādhyasthyāni ca sattva-guṇādhika-kliśyamāna-avineyeṣu", translation: "Friendship toward all beings, joy at the virtuous, compassion for the suffering, equanimity toward the indisposed." },
+        ],
+      },
+      {
+        chapter: 4,
+        label: "Five Mahavratas",
+        verses: [
+          { ref: "1", text: "Ahiṁsā", translation: "Non-violence — cause no harm to any living being, in thought, word or deed." },
+          { ref: "2", text: "Satya", translation: "Truth — speak what is true, kind and helpful." },
+          { ref: "3", text: "Asteya", translation: "Non-stealing — take nothing that is not freely given." },
+          { ref: "4", text: "Brahmacharya", translation: "Chastity — restraint of the senses." },
+          { ref: "5", text: "Aparigraha", translation: "Non-possessiveness — attachment to nothing, openness to all." },
+        ],
+      },
+      {
+        chapter: 5,
+        label: "Bhaktamar Stotra — opening",
+        verses: [
+          { ref: "1", text: "Bhaktāmara-praṇata-maulimaṇi-prabhāṇām udyotakaṁ dalita-pāpa-tamo-vitānam...", translation: "The radiance of the Jina's feet brightens the jewels of the crowns of the bowing devas, and tears apart the canopy of darkness that is sin. (Mānatuṅga, v.1)" },
+          { ref: "2", text: "...taṁ prathamaṁ jinendram", translation: "I bow to Him, the first of the Jinas — Ādinātha — refuge of all beings in the ocean of existence. (v.1–2, condensed)" },
+        ],
+      },
+      {
+        chapter: 6,
+        label: "Kalpa Sutra — on Mahavira",
+        verses: [
+          { ref: "§118", text: "The Venerable Ascetic Mahāvīra was benevolent to all living beings.", translation: "From the Kalpa Sutra's account of Mahavira's conduct (tr. Jacobi, 1884)." },
+          { ref: "§119", text: "With supreme knowledge, with supreme intuition, he meditated on himself — circumspect in walking, in speaking, in thought.", translation: "The discipline of the Jina: care in every act, so that no being is harmed." },
+        ],
+      },
+    ],
+  },
   jewish: { title: "Torah", items: [
     { book: "Genesis", chapter: 1, label: "Genesis 1" },
     { book: "Exodus", chapter: 20, label: "Exodus 20" },
@@ -406,9 +471,11 @@ function ReadSection({ religion }: { religion: Religion }) {
   useEffect(() => { setActive(0); }, [religion]);
   const sel = idx.items[active];
 
-  const { data, isLoading, error } = useQuery({
+  // Local readings (e.g. Jain) render without a network fetch; everything
+  // else pulls from the scripture source keyed strictly on this religion.
+  const { data: fetched, isLoading, error } = useQuery({
     queryKey: ["faith", religion, sel?.book, sel?.chapter],
-    enabled: !!sel,
+    enabled: !!sel && !sel.verses,
     staleTime: 60 * 60 * 1000,
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("faith-scripture", {
@@ -438,27 +505,31 @@ function ReadSection({ religion }: { religion: Religion }) {
 
       <div className="rounded-2xl border border-border bg-card p-4">
         <div className="flex items-center justify-between mb-3">
-          <div className="font-display text-lg font-bold">{data?.title || sel?.label || idx.title}</div>
+          <div className="font-display text-lg font-bold">{(sel?.verses ? sel.label : fetched?.title) || sel?.label || idx.title}</div>
           <div className="flex gap-1">
             <button onClick={prev} disabled={active === 0} className="press grid h-8 w-8 place-items-center rounded-full bg-surface-2 disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
             <button onClick={next} disabled={active === idx.items.length - 1} className="press grid h-8 w-8 place-items-center rounded-full bg-surface-2 disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
           </div>
         </div>
-        {isLoading && <div className="text-sm text-muted-foreground">loading verses…</div>}
-        {error && <div className="text-sm text-amber-400">couldn't reach the scripture source — try again in a moment 🙏</div>}
-        {data && (
+        {!sel?.verses && isLoading && <div className="text-sm text-muted-foreground">loading verses…</div>}
+        {!sel?.verses && error && <div className="text-sm text-amber-400">couldn't reach the scripture source — try again in a moment 🙏</div>}
+        {(() => {
+          const view = sel?.verses ? { verses: sel.verses, note: undefined as string | undefined } : fetched;
+          if (!view) return null;
+          return (
           <div className="space-y-3">
-            {data.note && <div className="text-[11px] text-muted-foreground">{data.note}</div>}
-            {data.verses.map((v) => (
+            {view.note && <div className="text-[11px] text-muted-foreground">{view.note}</div>}
+            {view.verses.map((v) => (
               <div key={v.ref} className="rounded-xl bg-surface-2/50 p-3">
                 <div className="text-[11px] uppercase tracking-wider text-primary/80 mb-1">{v.ref}</div>
                 <div className="text-sm leading-relaxed">{v.text}</div>
                 {v.translation && <div className="mt-1 text-xs text-muted-foreground italic">{v.translation}</div>}
               </div>
             ))}
-            {!data.verses.length && <div className="text-sm text-muted-foreground">no verses came back — try another chapter</div>}
+            {!view.verses.length && <div className="text-sm text-muted-foreground">no verses came back — try another chapter</div>}
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
@@ -468,7 +539,7 @@ function ReadSection({ religion }: { religion: Religion }) {
 // LISTEN
 // ============================================================
 
-const LISTEN: Record<Religion, { label: string; url: string }[]> = {
+export const LISTEN: Record<Religion, { label: string; url: string }[]> = {
   hindu: [
     { label: "Bhagavad Gita — LibriVox audiobook (archive.org)", url: "https://archive.org/details/bhagavad-gita_1502_librivox_201711" },
   ],
@@ -572,7 +643,7 @@ function DatesSection({ religion }: { religion: Religion }) {
 // SHOP
 // ============================================================
 
-const SHOP: Record<Religion, { label: string; desc: string; url: string }[]> = {
+export const SHOP: Record<Religion, { label: string; desc: string; url: string }[]> = {
   hindu: [
     { label: "Vedic Vaani", desc: "puja samagri, idols, yajna kits — ships worldwide", url: "https://vedicvaani.com/" },
     { label: "Krishna Store", desc: "ISKCON devotional books, deity wear, japa malas", url: "https://krishnastore.com/" },

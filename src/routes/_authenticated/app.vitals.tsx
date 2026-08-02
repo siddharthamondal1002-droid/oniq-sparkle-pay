@@ -4,7 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Heart, CheckCircle2, Droplets, Moon, Zap, Flower2, Sparkles, Upload, FileText, Loader2, Trash2, ExternalLink } from "lucide-react";
-import { writeVitalsCache, scoreToColor } from "@/components/vitals/useVitalsTileColor";
+import { writeVitalsCache } from "@/components/vitals/useVitalsTileColor";
+import { CrisisCard } from "@/components/vitals/CrisisCard";
+import { BreathingCard } from "@/components/vitals/BreathingCard";
 import { launchMiniApp } from "@/lib/miniapps";
 
 export const Route = createFileRoute("/_authenticated/app/vitals")({
@@ -118,7 +120,6 @@ function VitalsPage() {
             <div className="text-xs uppercase tracking-wider text-muted-foreground">vitals 🫀</div>
             <h1 className="font-display text-2xl font-bold">ur body's group chat</h1>
           </div>
-          <ScoreRing score={score} experience={hp?.experience ?? null} />
         </div>
 
         {hpLoading ? (
@@ -128,6 +129,9 @@ function VitalsPage() {
         ) : (
           <div className="mt-6 space-y-6">
             <DailyCheckin todayRow={(checkins ?? []).find((c) => c.day === today()) ?? null} />
+            <WeekReflections rows={checkins ?? []} />
+            <SupportSection rows={checkins ?? []} />
+            <BreathingCard />
             <RecentCheckins rows={(checkins ?? []).filter((c) => c.day !== today())} />
             {hp.experience === "women" && <CycleSection />}
             <CareSection experience={hp.experience} />
@@ -143,29 +147,13 @@ function VitalsPage() {
   );
 }
 
-function ScoreRing({ score, experience }: { score: number | null; experience: Experience | null }) {
-  const color = scoreToColor(score, experience);
-  const s = score ?? 0;
-  const circ = 2 * Math.PI * 20;
-  const off = circ - (circ * s) / 100;
-  return (
-    <div className="relative grid h-14 w-14 place-items-center">
-      <svg viewBox="0 0 48 48" className="absolute inset-0 h-full w-full -rotate-90">
-        <circle cx="24" cy="24" r="20" strokeWidth="4" fill="none" className="stroke-surface-2" />
-        <circle cx="24" cy="24" r="20" strokeWidth="4" fill="none" strokeLinecap="round"
-          stroke={color} strokeDasharray={circ} strokeDashoffset={score == null ? circ : off} />
-      </svg>
-      <div className="relative text-[11px] font-bold" style={{ color }}>{score ?? "—"}</div>
-    </div>
-  );
-}
 
 function ExperiencePicker({ onPick, busy }: { onPick: (e: Experience) => void; busy: boolean }) {
   return (
     <div className="mt-6 rounded-3xl border border-border bg-card p-5">
       <div className="text-xs uppercase tracking-wider text-muted-foreground">first time here</div>
       <h2 className="font-display text-xl font-bold mt-1">how should vitals vibe? 💗</h2>
-      <p className="text-sm text-muted-foreground mt-1">pick the experience — we'll tune the score color + cycle tools accordingly.</p>
+      <p className="text-sm text-muted-foreground mt-1">pick the experience — we'll tune the vitals tile + cycle tools accordingly.</p>
       <div className="mt-4 grid grid-cols-2 gap-3">
         <button
           disabled={busy}
@@ -226,7 +214,7 @@ function DailyCheckin({ todayRow }: { todayRow: Checkin | null }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["health-checkins"] });
-      toast.success("checked in — score updated 💪");
+      toast.success("checked in ✅");
     },
     onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "couldn't save"),
   });
@@ -701,4 +689,79 @@ function ReportsSection() {
       )}
     </section>
   );
+}
+
+
+// ---------- week reflections (descriptive, never evaluative) ----------
+
+function buildReflections(rows: Checkin[]): string[] {
+  const week = rows.slice(0, 7);
+  if (!week.length) return [];
+  const out: string[] = [];
+
+  const sleeps = week.map((r) => r.sleep_hrs).filter((v): v is number => v != null).map(Number);
+  if (sleeps.length >= 3) {
+    const avg = sleeps.reduce((a, b) => a + b, 0) / sleeps.length;
+    const spread = Math.max(...sleeps) - Math.min(...sleeps);
+    if (spread <= 1.5) out.push(`sleep steady this week — around ${avg.toFixed(1)}h a night`);
+    else out.push(`sleep varied this week — between ${Math.min(...sleeps)}h and ${Math.max(...sleeps)}h`);
+  }
+
+  const moved = week.filter((r) => r.exercised === true).length;
+  if (week.some((r) => r.exercised != null)) out.push(`moved on ${moved} day${moved === 1 ? "" : "s"} this week`);
+
+  const energies = week.map((r) => r.energy).filter((v): v is number => v != null).map(Number);
+  if (energies.length >= 4) {
+    const half = Math.floor(energies.length / 2);
+    const recent = energies.slice(0, half).reduce((a, b) => a + b, 0) / half;
+    const earlier = energies.slice(half).reduce((a, b) => a + b, 0) / (energies.length - half);
+    if (recent - earlier > 0.5) out.push("energy climbing lately");
+    else if (earlier - recent > 0.5) out.push("energy dipped in recent days");
+    else out.push("energy holding steady");
+  }
+
+  const waters = week.map((r) => r.water_glasses).filter((v): v is number => v != null).map(Number);
+  if (waters.length >= 3) {
+    const days = waters.filter((w) => Number(w) >= 6).length;
+    out.push(`hydration showed up on ${days} day${days === 1 ? "" : "s"}`);
+  }
+
+  return out;
+}
+
+function WeekReflections({ rows }: { rows: Checkin[] }) {
+  const notes = useMemo(() => buildReflections(rows), [rows]);
+  if (!notes.length) return null;
+  return (
+    <section className="rounded-3xl border border-border bg-card p-5" data-testid="week-reflections">
+      <h2 className="font-display text-lg font-bold">your week, gently 🍃</h2>
+      <ul className="mt-2 space-y-1.5">
+        {notes.map((n) => (
+          <li key={n} className="text-sm text-muted-foreground">
+            · {n}
+          </li>
+        ))}
+      </ul>
+      <p className="mt-2 text-[11px] text-muted-foreground/70">
+        reflections, not grades — every week counts, including the uneven ones.
+      </p>
+    </section>
+  );
+}
+
+// ---------- support (crisis lines — always reachable, gently offered) ----------
+
+function SupportSection({ rows }: { rows: Checkin[] }) {
+  const week = rows.slice(0, 4);
+  const moods = week.map((r) => r.mood).filter((v): v is number => v != null).map(Number);
+  const latestLow = moods.length > 0 && moods[0] <= 2;
+  const lowRun = moods.length >= 3 && moods.slice(0, 3).every((m) => m <= 2);
+
+  const intro = lowRun
+    ? "the last few days look heavy. no pressure at all — but if you'd like to talk to someone, these lines are free and confidential."
+    : latestLow
+      ? "today felt low — that's okay. if you want a real person to talk to, these are here."
+      : undefined;
+
+  return <CrisisCard intro={intro} />;
 }
