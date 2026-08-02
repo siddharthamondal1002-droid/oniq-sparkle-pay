@@ -2,7 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Download, Pencil, Trash2, AlertTriangle, FileText, Sparkles } from "lucide-react";
+import { ArrowLeft, Download, Pencil, Trash2, AlertTriangle, FileText, Sparkles, Brain } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   PERSONALISATION_NOTICE,
@@ -11,6 +11,14 @@ import {
   listMySignals,
   setPersonalisationConsent,
 } from "@/lib/personalisation";
+import {
+  MEMORY_KEYS,
+  confirmMemory,
+  forgetAllMemory,
+  forgetMemory,
+  listMyMemory,
+  type MemoryRow,
+} from "@/lib/memory";
 
 
 export const Route = createFileRoute("/_authenticated/app/privacy/data-rights")({
@@ -145,6 +153,9 @@ function DataRightsPage() {
           </RightsCard>
 
           <PersonalisationCard />
+
+          <MemoryCard />
+
 
           <RightsCard
 
@@ -312,3 +323,89 @@ function PersonalisationCard() {
   );
 }
 
+
+/**
+ * Loop 3 — everything ONIQ remembers about this account, in plain words.
+ * Each item can be confirmed (pinned so it stops being re-guessed) or
+ * forgotten individually. Nothing here is shared with anyone else.
+ */
+function MemoryCard() {
+  const [rows, setRows] = useState<MemoryRow[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = async () => setRows(await listMyMemory());
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  async function act(fn: () => Promise<void>, msg: string) {
+    setBusy(true);
+    try {
+      await fn();
+      await refresh();
+      toast.success(msg);
+    } catch {
+      toast.error("Couldn't update that");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <RightsCard
+      icon={<Brain className="h-5 w-5" />}
+      title="What ONIQ remembers"
+      desc="Short preferences worked out from your own activity, or that you told us. You can pin one so it stops changing, or forget it. Turning personalisation off erases all of it."
+    >
+      {rows.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Nothing remembered yet — clean slate, no cap 🧼
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((r) => (
+            <div
+              key={r.id}
+              className="flex items-center gap-2 rounded-xl border border-border bg-card p-2.5"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {MEMORY_KEYS[r.key] ?? r.key}
+                </div>
+                <div className="truncate text-sm font-medium">{r.value}</div>
+                <div className="text-[10px] text-muted-foreground">
+                  {r.confirmed || r.source === "stated" ? "you confirmed this" : "guessed from your activity"}
+                </div>
+              </div>
+              {!r.confirmed && r.source === "derived" && (
+                <button
+                  onClick={() => void act(() => confirmMemory(r.id), "Pinned ✅")}
+                  disabled={busy}
+                  className="rounded-lg border border-border px-2 py-1 text-xs disabled:opacity-50"
+                >
+                  That's right
+                </button>
+              )}
+              <button
+                onClick={() => void act(() => forgetMemory(r.id), "Forgotten 🧹")}
+                disabled={busy}
+                aria-label="Forget this"
+                className="rounded-lg border border-border px-2 py-1 text-xs disabled:opacity-50"
+              >
+                Forget
+              </button>
+            </div>
+          ))}
+          <button
+            onClick={() => void act(forgetAllMemory, "Everything forgotten 🧹")}
+            disabled={busy}
+            className="w-full rounded-xl border border-border bg-card py-2.5 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+          >
+            Forget everything ({rows.length})
+          </button>
+        </div>
+      )}
+    </RightsCard>
+  );
+}

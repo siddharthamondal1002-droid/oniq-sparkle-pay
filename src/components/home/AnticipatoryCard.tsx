@@ -8,12 +8,13 @@
  */
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { pickSuggestion, type Signal, type Suggestion } from "@/lib/adaptive";
+import { bandLabel, pickSuggestion, type Signal, type Suggestion } from "@/lib/adaptive";
 import {
   getPersonalisationConsent,
   listMySignals,
   recordSignal,
 } from "@/lib/personalisation";
+import { rememberValue } from "@/lib/memory";
 
 export function AnticipatoryCard() {
   const navigate = useNavigate();
@@ -28,7 +29,14 @@ export function AnticipatoryCard() {
         if (!(await getPersonalisationConsent())) return;
         const signals = (await listMySignals(400)) as unknown as Signal[];
         if (!alive) return;
-        setSuggestion(pickSuggestion(signals));
+        const picked = pickSuggestion(signals);
+        setSuggestion(picked);
+        if (picked) {
+          // Loop 3: keep what we worked out, so it is inspectable and correctable
+          // in Profile → Privacy instead of living only in this render.
+          void rememberValue("favourite_hub", picked.label);
+          void rememberValue("usual_time_band", bandLabel(new Date().getHours()));
+        }
       } catch {
         /* a suggestion failing is never an error the user should see */
       }
@@ -37,6 +45,7 @@ export function AnticipatoryCard() {
       alive = false;
     };
   }, []);
+
 
   if (!suggestion || gone) return null;
 
