@@ -40,6 +40,8 @@ import {
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { resolveTileLabel } from "@/lib/i18n/tileLabel";
+import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
+import { recordSignal } from "@/lib/personalisation";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   component: HomeScreen,
@@ -124,6 +126,8 @@ function HomeScreen() {
           )}
 
           <GlanceCard />
+
+          <AnticipatoryCard />
 
           <div className="mt-7 px-1 flex items-center justify-between">
             <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
@@ -1341,6 +1345,7 @@ function StudyHero() {
   return (
     <Link
       to="/app/study"
+      onClick={() => void recordSignal("hub_open", "study")}
       className="press fade-up relative block overflow-hidden rounded-3xl border border-border p-5"
       style={{
         background:
@@ -1423,6 +1428,7 @@ function AlsoInOniqRow({
           to={t.to as any}
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           search={t.search as any}
+          onClick={() => void recordSignal("hub_open", t.key)}
           className="press fade-up inline-flex items-center gap-1.5 rounded-full border border-border bg-card/70 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
           style={t.color ? { boxShadow: `inset 0 0 0 1px ${t.color}22` } : undefined}
         >
