@@ -89,16 +89,72 @@ describe("faith content isolation (Phase A)", () => {
     }
   });
 
-  it("Jain Read ships real local content, not a stub", () => {
+  it("Jain Read ships the full spec'd entry list, not a stub", () => {
     const jain = READ_INDEX.jain.items;
-    expect(jain.length).toBeGreaterThanOrEqual(5);
+    expect(jain.length).toBeGreaterThanOrEqual(14);
     const labels = jain.map((i) => i.label.toLowerCase()).join(" ");
-    for (const t of ["namokar", "tattvartha", "bhaktamar", "kalpa"]) {
+    for (const t of [
+      "namokar",
+      "tattvartha",
+      "ratnatraya",
+      "anekantavada",
+      "five vows",
+      "nine tattvas",
+      "bhaktamar",
+      "michhami",
+      "kalpa",
+      "acharanga",
+      "pratikraman",
+      "samayasara",
+      "shatkhandagama",
+      "chhahdhala",
+    ]) {
       expect(labels.includes(t), t).toBe(true);
     }
-    // every Jain item carries its own local verses with translations
     for (const item of jain) {
       expect((item.verses ?? []).length, item.label).toBeGreaterThan(0);
+    }
+  });
+
+  it("Jain entries are sect-balanced: every entry tagged, both traditions present", () => {
+    const jain = READ_INDEX.jain.items;
+    for (const item of jain) {
+      expect(["shared", "digambar", "shwetambar"]).toContain(item.tradition);
+    }
+    const tags = new Set(jain.map((i) => i.tradition));
+    expect(tags.has("shared")).toBe(true);
+    expect(tags.has("digambar")).toBe(true);
+    expect(tags.has("shwetambar")).toBe(true);
+  });
+
+  it("Namokar Mantra opens by default (first item) and carries Devanagari + transliteration", () => {
+    const first = READ_INDEX.jain.items[0];
+    expect(first.label.toLowerCase()).toContain("namokar");
+    for (const v of first.verses ?? []) {
+      expect(/[ऀ-ॿ]/.test(v.text), v.ref).toBe(true);
+      expect((v.roman ?? "").length, v.ref).toBeGreaterThan(0);
+    }
+  });
+
+  it("Jain calendar carries both traditions' observances", () => {
+    const cal = JSON.parse(readFileSync("public/faith-calendar-2026.json", "utf8")) as {
+      religion: string;
+      name: string;
+    }[];
+    const names = cal
+      .filter((c) => c.religion === "jain")
+      .map((c) => c.name.toLowerCase())
+      .join(" ");
+    for (const n of [
+      "paryushan",
+      "samvatsari",
+      "das lakshana",
+      "kshamavani",
+      "mahavir jayanti",
+      "nirvana",
+      "akshaya",
+    ]) {
+      expect(names.includes(n), n).toBe(true);
     }
   });
 });
