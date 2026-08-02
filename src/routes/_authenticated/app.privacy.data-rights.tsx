@@ -1,9 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, Download, Pencil, Trash2, AlertTriangle, FileText } from "lucide-react";
+import { ArrowLeft, Download, Pencil, Trash2, AlertTriangle, FileText, Sparkles } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  PERSONALISATION_NOTICE,
+  clearMySignals,
+  getPersonalisationConsent,
+  listMySignals,
+  setPersonalisationConsent,
+} from "@/lib/personalisation";
+
 
 export const Route = createFileRoute("/_authenticated/app/privacy/data-rights")({
   head: () => ({
@@ -136,7 +144,10 @@ function DataRightsPage() {
             </button>
           </RightsCard>
 
+          <PersonalisationCard />
+
           <RightsCard
+
             icon={<Trash2 className="h-5 w-5 text-destructive" />}
             title="Delete my account"
             desc="Permanently removes your ONIQ profile, messages, media, health data, learner profile, quiz history, consents, and more. Cannot be undone."
@@ -225,3 +236,79 @@ function RightsCard({
     </div>
   );
 }
+
+/**
+ * Behavioural personalisation — a separate consent purpose with its own
+ * notice, never bundled with general app consent. Withdrawing it wipes the
+ * derived signals server-side.
+ */
+function PersonalisationCard() {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [count, setCount] = useState(0);
+  const [busy, setBusy] = useState(false);
+
+  async function refresh() {
+    const [granted, rows] = await Promise.all([getPersonalisationConsent(), listMySignals()]);
+    setOn(granted);
+    setCount(rows.length);
+  }
+
+  useEffect(() => {
+    void refresh();
+  }, []);
+
+  async function toggle(next: boolean) {
+    setBusy(true);
+    try {
+      await setPersonalisationConsent(next);
+      await refresh();
+      toast.success(next ? "Personalisation on — thanks ✨" : "Personalisation off. Everything collected has been erased.");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Couldn't update that";
+      toast.error(/minor/i.test(msg) ? "Personalisation isn't available on this account." : msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function wipe() {
+    setBusy(true);
+    try {
+      await clearMySignals();
+      await refresh();
+      toast.success("Collected signals erased 🧹");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <RightsCard
+      icon={<Sparkles className="h-5 w-5" />}
+      title="Personalise my home screen"
+      desc={PERSONALISATION_NOTICE}
+    >
+      <div className="space-y-2">
+        <button
+          onClick={() => void toggle(!on)}
+          disabled={busy || on === null}
+          className={`w-full rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50 ${
+            on ? "border border-border bg-card hover:bg-muted" : "bg-primary text-primary-foreground"
+          }`}
+        >
+          {on === null ? "Checking…" : on ? "Turn personalisation off" : "Turn personalisation on"}
+        </button>
+        {on && (
+          <button
+            onClick={() => void wipe()}
+            disabled={busy}
+            className="w-full rounded-xl border border-border bg-card py-2.5 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+          >
+            Erase collected signals ({count})
+          </button>
+        )}
+      </div>
+    </RightsCard>
+  );
+}
+

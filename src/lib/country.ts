@@ -8,6 +8,28 @@ import type { CountryCode } from "@/lib/miniapps";
 
 const KEY = "oniq.country";
 const EVENT = "oniq:country-changed";
+/**
+ * Digital-age-of-consent threshold per country. India's DPDP Act treats
+ * everyone under 18 as a child (no behavioural monitoring, profiling or
+ * targeted advertising); 13 is the baseline elsewhere. Mirrored in Postgres
+ * by `public.minor_age_for_country()` — the database, not the UI, is what
+ * actually enforces it.
+ */
+export const MINOR_AGE: Record<CountryCode, number> = {
+  IN: 18,
+  US: 13,
+  GB: 13,
+  AE: 13,
+  CA: 13,
+  AU: 13,
+  SG: 13,
+};
+
+/** CountryConfig.minorAge accessor — never hardcode the number at call sites. */
+export function getMinorAge(code: CountryCode): number {
+  return MINOR_AGE[code] ?? 18;
+}
+
 
 export const COUNTRIES: { code: CountryCode; label: string; flag: string }[] = [
   { code: "IN", label: "India", flag: "🇮🇳" },
