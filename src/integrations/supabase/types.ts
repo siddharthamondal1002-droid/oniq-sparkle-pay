@@ -116,6 +116,42 @@ export type Database = {
           },
         ]
       }
+      audit_log: {
+        Row: {
+          actor: string
+          created_at: string
+          event_data: Json
+          event_type: string
+          id: string
+          prev_hash: string | null
+          record_hash: string
+          seq: number
+          user_id: string | null
+        }
+        Insert: {
+          actor?: string
+          created_at?: string
+          event_data?: Json
+          event_type: string
+          id?: string
+          prev_hash?: string | null
+          record_hash?: string
+          seq?: number
+          user_id?: string | null
+        }
+        Update: {
+          actor?: string
+          created_at?: string
+          event_data?: Json
+          event_type?: string
+          id?: string
+          prev_hash?: string | null
+          record_hash?: string
+          seq?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       blocked_users: {
         Row: {
           blocked_id: string
@@ -487,6 +523,57 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      consent_records: {
+        Row: {
+          consent_state: string
+          created_at: string
+          data_categories: Json
+          id: string
+          jurisdiction: string
+          notice_locale: string
+          notice_version: string
+          prev_hash: string | null
+          purpose_desc: string
+          purpose_id: string
+          record_hash: string
+          schema_version: string
+          seq: number
+          user_id: string
+        }
+        Insert: {
+          consent_state: string
+          created_at?: string
+          data_categories: Json
+          id?: string
+          jurisdiction: string
+          notice_locale: string
+          notice_version: string
+          prev_hash?: string | null
+          purpose_desc: string
+          purpose_id: string
+          record_hash?: string
+          schema_version?: string
+          seq?: number
+          user_id: string
+        }
+        Update: {
+          consent_state?: string
+          created_at?: string
+          data_categories?: Json
+          id?: string
+          jurisdiction?: string
+          notice_locale?: string
+          notice_version?: string
+          prev_hash?: string | null
+          purpose_desc?: string
+          purpose_id?: string
+          record_hash?: string
+          schema_version?: string
+          seq?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       conversation_members: {
         Row: {
@@ -2723,6 +2810,15 @@ export type Database = {
         Args: { _content_id: string; _content_type: string; _reason?: string }
         Returns: undefined
       }
+      append_audit: {
+        Args: {
+          _actor?: string
+          _event_data?: Json
+          _event_type: string
+          _user_id?: string
+        }
+        Returns: string
+      }
       book_service: {
         Args: {
           _address?: string
@@ -2734,6 +2830,22 @@ export type Database = {
           _time_slot?: string
         }
         Returns: Json
+      }
+      breach_notify_board: {
+        Args: { _incident_id: string; _reference: string }
+        Returns: undefined
+      }
+      breach_notify_users: {
+        Args: { _incident_id: string; _message: string }
+        Returns: undefined
+      }
+      breach_record_awareness: {
+        Args: { _affected?: string[]; _summary: string }
+        Returns: string
+      }
+      breach_submit_report: {
+        Args: { _incident_id: string; _report: string }
+        Returns: undefined
       }
       clips_feed: {
         Args: { _limit?: number; _offset?: number }
@@ -3065,6 +3177,22 @@ export type Database = {
       toggle_moment_like: { Args: { _post_id: string }; Returns: boolean }
       unread_count: { Args: { _conversation_id: string }; Returns: number }
       user_exists: { Args: { _identifier: string }; Returns: boolean }
+      verify_audit_chain: {
+        Args: never
+        Returns: {
+          first_bad: string
+          ok: boolean
+          rows_checked: number
+        }[]
+      }
+      verify_consent_chain: {
+        Args: { _user_id?: string }
+        Returns: {
+          first_bad: string
+          ok: boolean
+          rows_checked: number
+        }[]
+      }
       wipe_my_chat_media: { Args: never; Returns: number }
       wipe_my_clips: { Args: never; Returns: number }
       wipe_my_moments: { Args: never; Returns: number }

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, Shield } from "lucide-react";
 import { z } from "zod";
+import { GRIEVANCE_OFFICER, DATA_PROTECTION_BOARD } from "@/config/privacy";
 
 export const Route = createFileRoute("/_authenticated/app/privacy/grievance")({
   head: () => ({
@@ -19,13 +20,8 @@ export const Route = createFileRoute("/_authenticated/app/privacy/grievance")({
   component: GrievancePage,
 });
 
-const OFFICER = {
-  name: "Siddhartha Mondal",
-  role: "Grievance Officer & Data Protection Officer",
-  email: "grievance@oniqhub.com",
-  phone: "+91 — available on written request",
-  address: "ONIQ Hub, India",
-};
+/** Officer identity lives in config, never hardcoded in a component. */
+const OFFICER = GRIEVANCE_OFFICER;
 
 const COMPLAINT_TYPES = [
   "Data access / correction / deletion",
@@ -132,6 +128,17 @@ function GrievancePage() {
             <span>{OFFICER.address}</span>
           </div>
           <p className="pt-2 text-[11px] text-muted-foreground">
+            Not resolved? {DATA_PROTECTION_BOARD.note}{" "}
+            <a
+              href={DATA_PROTECTION_BOARD.url}
+              target="_blank"
+              rel="noreferrer"
+              className="text-primary hover:underline"
+            >
+              {DATA_PROTECTION_BOARD.name}
+            </a>
+          </p>
+          <p className="text-[11px] text-muted-foreground">
             Complaints acknowledged within 7 days. Serious safety complaints resolved within 36 hours.
           </p>
         </div>

@@ -341,7 +341,13 @@ function SafetySection() {
         <p className="mt-2 text-xs text-muted-foreground">
           Complaints acknowledged in 7 days · Serious complaints resolved in 36 hours.
         </p>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <Link
+          to="/app/privacy/notice"
+          className="mt-3 block rounded-xl border border-border bg-muted/30 py-2 text-center text-xs font-semibold hover:bg-muted/50"
+        >
+          Consent notice &amp; my consents
+        </Link>
+        <div className="mt-2 grid grid-cols-2 gap-2">
           <Link
             to="/app/privacy/grievance"
             className="rounded-xl border border-border bg-muted/30 py-2 text-center text-xs font-semibold hover:bg-muted/50"
