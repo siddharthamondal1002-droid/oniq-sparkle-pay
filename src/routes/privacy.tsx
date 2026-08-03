@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { GRIEVANCE_OFFICER } from "@/config/privacy";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
