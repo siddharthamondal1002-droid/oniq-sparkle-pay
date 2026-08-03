@@ -4,6 +4,7 @@ import { ArrowLeft, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import { CrisisCard } from "@/components/vitals/CrisisCard";
 import { systemShare } from "@/lib/share";
+import { healthWritesAllowed } from "@/lib/healthGuard";
 
 export const Route = createFileRoute("/_authenticated/app/safety-plan")({
   component: SafetyPlanPage,
@@ -62,6 +63,17 @@ function SafetyPlanPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
+    // UAE (Federal Law 2/2019): a safety plan is health data — never read or
+    // written on this device when Home is a country that disallows it.
+    if (!healthWritesAllowed()) {
+      try {
+        localStorage.removeItem(STORE_KEY);
+      } catch {
+        /* noop */
+      }
+      setLoaded(true);
+      return;
+    }
     try {
       const raw = localStorage.getItem(STORE_KEY);
       if (raw) setPlan(JSON.parse(raw) as Plan);
@@ -74,6 +86,7 @@ function SafetyPlanPage() {
   function update(key: string, value: string) {
     setPlan((prev) => {
       const next = { ...prev, [key]: value };
+      if (!healthWritesAllowed()) return prev;
       try {
         localStorage.setItem(STORE_KEY, JSON.stringify(next));
       } catch {

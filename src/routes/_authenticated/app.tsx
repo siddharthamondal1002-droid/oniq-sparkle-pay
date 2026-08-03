@@ -15,6 +15,7 @@ import { initPush } from "@/lib/push";
 import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
 import { FullScreenIntentPrompt } from "@/components/onboarding/FullScreenIntentPrompt";
 import { CallReminderWatcher } from "@/components/chat/CallReminderWatcher";
+import { HealthDataWatcher } from "@/components/vitals/HealthDataWatcher";
 import { LanguageProvider, useT } from "@/lib/i18n/LanguageProvider";
 
 
@@ -85,6 +86,7 @@ function AppShell() {
       <PermissionsOnboarding />
       <FullScreenIntentPrompt />
       <CallReminderWatcher />
+      <HealthDataWatcher />
 
 
 
