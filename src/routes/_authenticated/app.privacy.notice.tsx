@@ -83,20 +83,26 @@ function ConsentNoticePage() {
   async function toggle(purposeId: string, next: boolean) {
     setBusy(purposeId);
     try {
-      await writeConsent({
-        purposeId,
-        state: next ? "granted" : "withdrawn",
-        locale,
-        home,
-      });
-      // Keep the live personalisation enforcement in step with the ledger.
       if (purposeId === "personalisation") {
-        await supabase.rpc("record_consent", {
+        // record_consent writes the ledger row itself and mirrors the legacy
+        // table, so calling writeConsent as well would double-append the chain.
+        const { error } = await supabase.rpc("record_consent", {
           _purpose: "personalisation",
           _granted: next,
           _source: "consent-notice",
+          _notice_version: NOTICE_VERSION,
+          _notice_locale: locale,
+        });
+        if (error) throw error;
+      } else {
+        await writeConsent({
+          purposeId,
+          state: next ? "granted" : "withdrawn",
+          locale,
+          home,
         });
       }
+
       toast.success(
         next ? tr(NOTICE_STRINGS.granted, locale) : tr(NOTICE_STRINGS.withdrawn, locale),
       );
