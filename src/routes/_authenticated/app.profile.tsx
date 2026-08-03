@@ -347,6 +347,12 @@ function SafetySection() {
         >
           Consent notice &amp; my consents
         </Link>
+        <Link
+          to="/app/privacy/parental-consent"
+          className="mt-2 block rounded-xl border border-border bg-muted/30 py-2 text-center text-xs font-semibold hover:bg-muted/50"
+        >
+          Parental consent (under-age accounts)
+        </Link>
         <div className="mt-2 grid grid-cols-2 gap-2">
           <Link
             to="/app/privacy/grievance"

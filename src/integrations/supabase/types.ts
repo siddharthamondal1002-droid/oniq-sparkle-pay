@@ -1760,6 +1760,51 @@ export type Database = {
         }
         Relationships: []
       }
+      parental_consent_requests: {
+        Row: {
+          child_user_id: string
+          code: string
+          created_at: string
+          expires_at: string
+          failure_reason: string | null
+          id: string
+          method: string
+          parent_email: string | null
+          status: string
+          token_ref: string | null
+          verified_at: string | null
+          verifier_user_id: string | null
+        }
+        Insert: {
+          child_user_id: string
+          code: string
+          created_at?: string
+          expires_at?: string
+          failure_reason?: string | null
+          id?: string
+          method: string
+          parent_email?: string | null
+          status?: string
+          token_ref?: string | null
+          verified_at?: string | null
+          verifier_user_id?: string | null
+        }
+        Update: {
+          child_user_id?: string
+          code?: string
+          created_at?: string
+          expires_at?: string
+          failure_reason?: string | null
+          id?: string
+          method?: string
+          parent_email?: string | null
+          status?: string
+          token_ref?: string | null
+          verified_at?: string | null
+          verifier_user_id?: string | null
+        }
+        Relationships: []
+      }
       partner_applications: {
         Row: {
           aadhaar_path: string | null
@@ -2819,6 +2864,7 @@ export type Database = {
         }
         Returns: string
       }
+      approve_parental_consent: { Args: { _code: string }; Returns: Json }
       book_service: {
         Args: {
           _address?: string
@@ -2847,6 +2893,7 @@ export type Database = {
         Args: { _incident_id: string; _report: string }
         Returns: undefined
       }
+      child_restricted: { Args: { _uid: string }; Returns: boolean }
       clips_feed: {
         Args: { _limit?: number; _offset?: number }
         Returns: {
@@ -3003,6 +3050,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      log_parental_consent: {
+        Args: { _child: string; _detail: Json; _method: string }
+        Returns: undefined
+      }
       mark_conversation_read: {
         Args: { _conversation_id: string }
         Returns: undefined
@@ -3027,6 +3078,7 @@ export type Database = {
         }
         Returns: number
       }
+      my_age_gate_status: { Args: never; Returns: Json }
       my_partner_bookings: {
         Args: never
         Returns: {
@@ -3069,6 +3121,7 @@ export type Database = {
         Args: { _booking_id: string; _price: number }
         Returns: undefined
       }
+      parental_consent_verified: { Args: { _uid: string }; Returns: boolean }
       personalisation_allowed: { Args: { _uid: string }; Returns: boolean }
       place_order: {
         Args: {
@@ -3147,6 +3200,10 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: undefined
       }
+      request_parental_consent: {
+        Args: { _method?: string; _parent_email: string }
+        Returns: Json
+      }
       respond_booking: {
         Args: { _booking_id: string; _status: string }
         Returns: undefined
@@ -3171,6 +3228,10 @@ export type Database = {
           recipient_id: string
           status: string
         }[]
+      }
+      submit_digilocker_parental_consent: {
+        Args: { _token_ref: string }
+        Returns: Json
       }
       toggle_clip_like: { Args: { _clip_id: string }; Returns: boolean }
       toggle_message_star: { Args: { _message_id: string }; Returns: boolean }
