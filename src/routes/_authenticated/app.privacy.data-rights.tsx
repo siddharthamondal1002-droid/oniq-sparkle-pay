@@ -1,9 +1,7 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Download, Pencil, Trash2, AlertTriangle, FileText, Sparkles, Brain } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { ArrowLeft, Download, Pencil, Trash2, AlertTriangle, FileText, Sparkles, Brain, Clock } from "lucide-react";
 import {
   PERSONALISATION_NOTICE,
   clearMySignals,
@@ -19,6 +17,16 @@ import {
   listMyMemory,
   type MemoryRow,
 } from "@/lib/memory";
+import {
+  DSR_SLA_DAYS,
+  DSR_TYPE_LABEL,
+  type DsrRequest,
+  canCancel,
+  cancelDsrRequest,
+  countdown,
+  createDsrRequest,
+  listMyDsrRequests,
+} from "@/lib/dsr";
 
 
 export const Route = createFileRoute("/_authenticated/app/privacy/data-rights")({
@@ -36,19 +44,38 @@ export const Route = createFileRoute("/_authenticated/app/privacy/data-rights")(
 });
 
 function DataRightsPage() {
-  const navigate = useNavigate();
-  const qc = useQueryClient();
   const [exporting, setExporting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
+  const [requests, setRequests] = useState<DsrRequest[]>([]);
 
+  const refreshRequests = useCallback(async () => {
+    try {
+      setRequests(await listMyDsrRequests());
+    } catch {
+      /* read-only list; a failure here shouldn't block the page */
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshRequests();
+  }, [refreshRequests]);
+
+  const pendingErasure = requests.find(
+    (r) => r.request_type === "erasure" && (r.status === "received" || r.status === "soft_deleted"),
+  );
+
+  /**
+   * Access / portability are fulfilled instantly by the DSR handler: it logs
+   * the request, runs export_my_data as the caller, and closes the ticket.
+   */
   async function exportData() {
     setExporting(true);
     try {
-      const { data, error } = await supabase.rpc("export_my_data");
-      if (error) throw error;
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+      const res = await createDsrRequest("portability");
+      if (!res.export) throw new Error("Export came back empty");
+      const blob = new Blob([JSON.stringify(res.export, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -57,6 +84,7 @@ function DataRightsPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+      await refreshRequests();
       toast.success("Data export downloaded 📦");
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't export data");
@@ -65,24 +93,49 @@ function DataRightsPage() {
     }
   }
 
-  async function deleteAccount() {
+  async function requestCorrection() {
+    setBusy(true);
+    try {
+      await createDsrRequest("correction", "Correction requested from Your data rights.");
+      await refreshRequests();
+      toast.success("Correction request logged — we'll respond within 30 days ✍️");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't log that request");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Erasure is no longer instant. It becomes a ticket: 48 hours of advance
+   * notice, then sign-out + deactivation, then 30 days of grace before the
+   * data is destroyed for good.
+   */
+  async function requestErasure() {
     if (typed.trim().toUpperCase() !== "DELETE") return;
     setBusy(true);
     try {
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token;
-      if (!token) throw new Error("You're signed out");
-      const { error } = await supabase.functions.invoke("delete-account", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (error) throw error;
-      await qc.cancelQueries();
-      qc.clear();
-      await supabase.auth.signOut();
-      toast.success("Account deleted. Take care 💙");
-      navigate({ to: "/", replace: true });
+      await createDsrRequest("erasure");
+      await refreshRequests();
+      setConfirmOpen(false);
+      setTyped("");
+      toast.success("Erasure scheduled. You have 48 hours to change your mind 💙");
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't delete account");
+      toast.error(e instanceof Error ? e.message : "Couldn't schedule deletion");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancel(id: string) {
+    setBusy(true);
+    try {
+      await cancelDsrRequest(id);
+      await refreshRequests();
+      toast.success("Request cancelled — you're staying 🎉");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Couldn't cancel that");
+    } finally {
       setBusy(false);
     }
   }
@@ -100,7 +153,12 @@ function DataRightsPage() {
         <h1 className="mt-4 font-display text-2xl font-bold">Your data rights</h1>
         <p className="mt-1 text-xs text-muted-foreground">
           Under India's Digital Personal Data Protection Act, 2023, you can access, correct, or delete your data at any time.
+          Every request is answered within {DSR_SLA_DAYS} days.
         </p>
+
+        {pendingErasure && (
+          <ErasureBanner req={pendingErasure} busy={busy} onCancel={() => void cancel(pendingErasure.id)} />
+        )}
 
         <div className="mt-6 space-y-3">
           <RightsCard
@@ -120,7 +178,7 @@ function DataRightsPage() {
           <RightsCard
             icon={<Pencil className="h-5 w-5" />}
             title="Correct my data"
-            desc="Update your display name, bio, avatar, and language in the Profile screen. For anything not editable in-app, contact the Grievance Officer."
+            desc="Update your display name, bio, avatar, and language in the Profile screen. For anything not editable in-app, log a correction request or contact the Grievance Officer."
           >
             <div className="grid grid-cols-2 gap-2">
               <Link
@@ -136,6 +194,13 @@ function DataRightsPage() {
                 Contact officer
               </Link>
             </div>
+            <button
+              onClick={() => void requestCorrection()}
+              disabled={busy}
+              className="mt-2 w-full rounded-xl border border-border bg-card py-2.5 text-sm font-semibold hover:bg-muted disabled:opacity-50"
+            >
+              Log a formal correction request
+            </button>
           </RightsCard>
 
           <RightsCard
@@ -156,19 +221,20 @@ function DataRightsPage() {
 
           <MemoryCard />
 
+          <RequestsCard requests={requests} busy={busy} onCancel={(id) => void cancel(id)} />
 
           <RightsCard
-
             icon={<Trash2 className="h-5 w-5 text-destructive" />}
             title="Delete my account"
-            desc="Permanently removes your ONIQ profile, messages, media, health data, learner profile, quiz history, consents, and more. Cannot be undone."
+            desc="Permanently removes your ONIQ profile, messages, media, health data, learner profile, quiz history, consents, and more. You get 48 hours to change your mind, then 30 days before it's destroyed for good."
             danger
           >
             <button
               onClick={() => setConfirmOpen(true)}
-              className="w-full rounded-xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground"
+              disabled={!!pendingErasure}
+              className="w-full rounded-xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
             >
-              Delete my account
+              {pendingErasure ? "Deletion already scheduled" : "Delete my account"}
             </button>
           </RightsCard>
         </div>
@@ -186,7 +252,7 @@ function DataRightsPage() {
               <div className="font-display text-lg font-semibold">Permanent deletion</div>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              This will remove all your data. Type{" "}
+              Your account is deactivated 48 hours from now, then erased for good 30 days after that. Type{" "}
               <span className="font-semibold text-foreground">DELETE</span> to confirm.
             </p>
             <input
@@ -205,17 +271,93 @@ function DataRightsPage() {
                 Cancel
               </button>
               <button
-                onClick={deleteAccount}
+                onClick={() => void requestErasure()}
                 disabled={busy || typed.trim().toUpperCase() !== "DELETE"}
                 className="flex-1 rounded-2xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
               >
-                {busy ? "Deleting…" : "Delete forever"}
+                {busy ? "Scheduling…" : "Schedule deletion"}
               </button>
             </div>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+/** The authoritative 48-hour advance notice: in-app, impossible to miss. */
+function ErasureBanner({ req, busy, onCancel }: { req: DsrRequest; busy: boolean; onCancel: () => void }) {
+  const left = req.erasure_effective_at ? countdown(req.erasure_effective_at) : null;
+  return (
+    <div className="mt-4 rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
+      <div className="flex items-center gap-2 text-destructive">
+        <Clock className="h-4 w-4" />
+        <div className="text-sm font-semibold">
+          {req.status === "soft_deleted" ? "Account deactivated" : "Deletion scheduled"}
+        </div>
+      </div>
+      <p className="mt-1.5 text-xs text-muted-foreground">
+        {req.status === "soft_deleted"
+          ? "Your account is signed out and deactivated. Your data is destroyed for good after the 30-day grace period — email the Grievance Officer to restore it before then."
+          : left
+            ? `Your account is deactivated in ${left}. You can still cancel until then.`
+            : "Your account is being deactivated now."}
+      </p>
+      {canCancel(req) && (
+        <button
+          onClick={onCancel}
+          disabled={busy}
+          className="mt-3 w-full rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          Cancel deletion — keep my account
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Every formal request this account has made, with its 30-day clock. */
+function RequestsCard({
+  requests,
+  busy,
+  onCancel,
+}: {
+  requests: DsrRequest[];
+  busy: boolean;
+  onCancel: (id: string) => void;
+}) {
+  return (
+    <RightsCard
+      icon={<Clock className="h-5 w-5" />}
+      title="My privacy requests"
+      desc={`Every access, correction, erasure, or portability request you've made, and where it's up to. We answer all of them within ${DSR_SLA_DAYS} days.`}
+    >
+      {requests.length === 0 ? (
+        <p className="text-xs text-muted-foreground">No requests yet — nothing pending 🧼</p>
+      ) : (
+        <div className="space-y-2">
+          {requests.map((r) => (
+            <div key={r.id} className="flex items-center gap-2 rounded-xl border border-border bg-card p-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium">{DSR_TYPE_LABEL[r.request_type]}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {r.status.replace("_", " ")} · due {new Date(r.sla_deadline).toLocaleDateString()}
+                </div>
+              </div>
+              {canCancel(r) && (
+                <button
+                  onClick={() => onCancel(r.id)}
+                  disabled={busy}
+                  className="rounded-lg border border-border px-2 py-1 text-xs disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </RightsCard>
   );
 }
 
