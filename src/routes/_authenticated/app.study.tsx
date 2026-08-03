@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Paperclip, X, Camera, Plus, Trash2, Pencil, Check, BarChart3 } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, X, Camera, Plus, Trash2, Pencil, Check, BarChart3, Loader2 } from "lucide-react";
+import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { compressToJpeg } from "@/lib/imageCompress";
@@ -2614,6 +2615,8 @@ function PaperModal({
   >(null);
   const [downloadSheet, setDownloadSheet] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState<{ done: number; total: number } | null>(null);
+  const [pdfError, setPdfError] = useState<string | null>(null);
 
   const [answerSheetOpen, setAnswerSheetOpen] = useState(false);
 
@@ -3017,9 +3020,9 @@ function PaperModal({
   </header>
   ${sectionsHtml}
   <footer>— End of paper —</footer>
-  <div class="noprint" style="margin-top:16px;text-align:center;">
+  ${Capacitor.isNativePlatform() ? "" : `<div class="noprint" style="margin-top:16px;text-align:center;">
     <button onclick="window.print()" style="padding:10px 18px;font-size:14px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;cursor:pointer">🖨️ Print / Save as PDF</button>
-  </div>
+  </div>`}
 </div></body></html>`;
   }
 
@@ -3038,12 +3041,28 @@ function PaperModal({
         NON_LATIN.test(qq.question) ||
         (qq.type === "mcq" ? qq.options.some((o: string) => NON_LATIN.test(o)) : false),
     );
+    setPdfError(null);
     if (hasNonLatin) {
-      toast("opening the printable paper — your language needs the browser to render 📄");
-      await doOpenInBrowser();
+      // jsPDF cannot shape Indic/Arabic scripts — save a self-contained HTML
+      // paper instead, which the OS renders (and can print to PDF) correctly.
+      setPdfBusy(true);
+      try {
+        const { exportPaperHtml } = await import("@/lib/paperPdf");
+        const { filename } = await exportPaperHtml(buildPaperHtml(), subject);
+        setDownloadSheet(false);
+        toast.success(`saved ${filename} 📄 — open it to print`);
+      } catch (e) {
+        const msg = e instanceof Error && /cancel|abort/i.test(e.message)
+          ? null
+          : "couldn't save the paper — free up some space and try again";
+        if (msg) { setPdfError(msg); toast.error(msg); } else { setDownloadSheet(false); }
+      } finally {
+        setPdfBusy(false);
+      }
       return;
     }
     setPdfBusy(true);
+    setPdfProgress({ done: 0, total: qs.length });
     try {
       const clsLbl =
         profile.class_level === "ug" ? "Undergraduate"
@@ -3063,30 +3082,59 @@ function PaperModal({
         }))
         .filter((s) => s.items.length > 0);
       const { exportPaperPdf } = await import("@/lib/paperPdf");
-      await exportPaperPdf({
+      const { filename } = await exportPaperPdf({
         board: BOARD_UPPER[profile.board],
         classLabel: clsLbl,
         subject,
         totalMarks,
         time: timeHintFor(totalMarks),
         sections,
-      });
+      }, (done, total) => setPdfProgress({ done, total }));
       setDownloadSheet(false);
-      toast.success("paper saved 📄");
+      toast.success(`saved ${filename} 📄`);
     } catch (e) {
-      if (e instanceof Error && /cancel|abort/i.test(e.message)) {
+      if (e instanceof Error && /cancel|abort|dismiss/i.test(e.message)) {
+        // user closed the share sheet — not an error
         setDownloadSheet(false);
       } else {
-        toast.error("couldn't build the PDF — try again");
+        const msg =
+          e instanceof Error && /space|quota/i.test(e.message)
+            ? "not enough storage to save the paper — free up some space"
+            : "couldn't build the PDF — try again, or use \u201copen in browser\u201d to print";
+        setPdfError(msg);
+        toast.error(msg);
       }
     } finally {
       setPdfBusy(false);
+      setPdfProgress(null);
     }
   }
 
 
   async function doOpenInBrowser() {
     const html = buildPaperHtml();
+    if (Capacitor.isNativePlatform()) {
+      // No download manager and no print bridge inside the WebView: saving the
+      // file and handing it to the share sheet is the only path that lands
+      // anything on the device.
+      setPdfBusy(true);
+      setPdfError(null);
+      try {
+        const { exportPaperHtml } = await import("@/lib/paperPdf");
+        const { filename } = await exportPaperHtml(html, subject);
+        setDownloadSheet(false);
+        toast.success(`saved ${filename} 📄 — open it to print`);
+      } catch (e) {
+        if (!(e instanceof Error && /cancel|abort|dismiss/i.test(e.message))) {
+          const msg = "couldn't save the paper — try again";
+          setPdfError(msg);
+          toast.error(msg);
+        } else setDownloadSheet(false);
+      } finally {
+        setPdfBusy(false);
+      }
+      return;
+    }
     const blob = new Blob([html], { type: "text/html" });
     const url = URL.createObjectURL(blob);
     setDownloadSheet(false);
@@ -3509,15 +3557,29 @@ function PaperModal({
                 disabled={pdfBusy}
                 className="w-full rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
               >
-                {pdfBusy ? "building PDF…" : "📄 save as PDF"}
+                {pdfBusy ? (
+                  <span className="inline-flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {pdfProgress && pdfProgress.total > 0
+                      ? `building PDF… ${Math.round((pdfProgress.done / pdfProgress.total) * 100)}%`
+                      : "building PDF…"}
+                  </span>
+                ) : (
+                  "📄 save as PDF"
+                )}
               </button>
               <button
                 onClick={() => void doOpenInBrowser()}
                 disabled={pdfBusy}
                 className="w-full rounded-xl border border-border py-3 text-sm disabled:opacity-60"
               >
-                🌐 open in browser to print
+                {Capacitor.isNativePlatform() ? "🌐 save as printable page" : "🌐 open in browser to print"}
               </button>
+              {pdfError && (
+                <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-[11px] text-destructive">
+                  {pdfError}
+                </p>
+              )}
               <p className="text-[10px] leading-relaxed text-muted-foreground">
                 the PDF is a clean A4 question paper with ruled answer space. use "open in browser" if you'd rather print on paper.
               </p>
