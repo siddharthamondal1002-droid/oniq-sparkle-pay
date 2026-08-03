@@ -11,11 +11,7 @@ import { useT } from "@/lib/i18n/LanguageProvider";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { bandLabel, pickSuggestion, type Signal, type Suggestion } from "@/lib/adaptive";
-import {
-  getPersonalisationConsent,
-  listMySignals,
-  recordSignal,
-} from "@/lib/personalisation";
+import { getPersonalisationConsent, listMySignals, recordSignal } from "@/lib/personalisation";
 import { rememberValue } from "@/lib/memory";
 
 export function AnticipatoryCard() {
@@ -49,7 +45,6 @@ export function AnticipatoryCard() {
     };
   }, []);
 
-
   if (!suggestion || gone) return null;
 
   const open = () => {
@@ -69,17 +64,11 @@ export function AnticipatoryCard() {
   return (
     <div className="mt-3 rounded-2xl border border-border bg-card/85 p-3 fade-up">
       <div className="flex items-center gap-2">
-        <button
-          onClick={open}
-          className="press flex-1 text-left"
-          aria-label={`Open ${name}`}
-        >
+        <button onClick={open} className="press flex-1 text-left" aria-label={`Open ${name}`}>
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
             picking up where you left off
           </div>
-          <div className="font-display text-sm font-semibold">
-            Jump back into {name}
-          </div>
+          <div className="font-display text-sm font-semibold">Jump back into {name}</div>
         </button>
         <button
           onClick={dismiss}
@@ -97,8 +86,8 @@ export function AnticipatoryCard() {
       </button>
       {why && (
         <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
-          {suggestion.reason} Only your own activity on this account is used. You
-          can turn this off in Profile → Privacy → your data.
+          {suggestion.reason} Only your own activity on this account is used. You can turn this off
+          in Profile → Privacy → your data.
         </p>
       )}
     </div>

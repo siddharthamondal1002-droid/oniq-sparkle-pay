@@ -3,7 +3,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { placesAutocomplete, placeDetails, type PlaceSuggestion } from "@/lib/places.functions";
-import { ArrowLeft, MapPin, Navigation, Search, Car, Bike, Mic, Sparkles, ChevronDown, ChevronRight, IndianRupee } from "lucide-react";
+import {
+  ArrowLeft,
+  MapPin,
+  Navigation,
+  Search,
+  Car,
+  Bike,
+  Mic,
+  Sparkles,
+  ChevronDown,
+  ChevronRight,
+  IndianRupee,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -27,7 +39,6 @@ import {
 export const Route = createFileRoute("/_authenticated/app/rides")({
   component: RidesScreen,
 });
-
 
 type Point = { lat: number; lon: number; label: string };
 
@@ -65,7 +76,6 @@ function RidesScreen() {
   const autocompleteFn = useServerFn(placesAutocomplete);
   const detailsFn = useServerFn(placeDetails);
 
-
   const [genie, setGenie] = useState("");
   const [micSupported, setMicSupported] = useState(false);
   const [listening, setListening] = useState(false);
@@ -86,7 +96,10 @@ function RidesScreen() {
   // press the search button (Mappls/Nominatim geocode) or type freely.
   useEffect(() => {
     const q = pickupQuery.trim();
-    if (q.length < 2 || !pickupEditing) { setPickupSuggests([]); return; }
+    if (q.length < 2 || !pickupEditing) {
+      setPickupSuggests([]);
+      return;
+    }
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
@@ -98,12 +111,18 @@ function RidesScreen() {
         console.warn("[places] pickup autocomplete failed", (e as Error)?.message);
       }
     }, 250);
-    return () => { cancelled = true; clearTimeout(t); };
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [pickupQuery, pickupEditing, pickup, autocompleteFn]);
 
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2 || destination) { setDestSuggests([]); return; }
+    if (q.length < 2 || destination) {
+      setDestSuggests([]);
+      return;
+    }
     let cancelled = false;
     const t = setTimeout(async () => {
       try {
@@ -115,7 +134,10 @@ function RidesScreen() {
         console.warn("[places] destination autocomplete failed", (e as Error)?.message);
       }
     }, 250);
-    return () => { cancelled = true; clearTimeout(t); };
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
   }, [query, destination, pickup, autocompleteFn]);
 
   async function resolveSuggest(s: PlaceSuggestion): Promise<Point | null> {
@@ -132,7 +154,6 @@ function RidesScreen() {
     }
   }
 
-
   // Default pickup = current phone location (native GPS on device, browser API on web)
   async function locateMe(fromTap = false) {
     setGeoState("locating");
@@ -147,7 +168,6 @@ function RidesScreen() {
       setCachedCity(c);
       setGeoState("ready");
       if (fromTap) toast.success("Locked in 📍 " + label);
-
     } catch {
       setGeoState("denied");
       if (fromTap) {
@@ -161,7 +181,6 @@ function RidesScreen() {
   }
   useEffect(() => {
     locateMe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // If the browser never surfaces the permission prompt, flip to denied after ~12s
@@ -207,7 +226,6 @@ function RidesScreen() {
     }
   }
 
-
   async function runCompare(from: Point | null, to: Point | null) {
     if (!from || !to) {
       toast.error("Need pickup and destination first");
@@ -225,7 +243,11 @@ function RidesScreen() {
         },
       });
       if (error) throw error;
-      const payload = data as { route?: { km: number; mins: number }; options?: ServerRideOption[]; error?: string };
+      const payload = data as {
+        route?: { km: number; mins: number };
+        options?: ServerRideOption[];
+        error?: string;
+      };
       if (payload?.error || !payload?.route || !payload?.options?.length) {
         throw new Error(payload?.error ?? "no options");
       }
@@ -249,7 +271,10 @@ function RidesScreen() {
       let dropPt: Point | null = null;
       if (m) {
         const [, fromStr, toStr] = m;
-        const [fromRes, toRes] = await Promise.all([geocode(fromStr.trim()), geocode(toStr.trim())]);
+        const [fromRes, toRes] = await Promise.all([
+          geocode(fromStr.trim()),
+          geocode(toStr.trim()),
+        ]);
         if (!fromRes.length || !toRes.length) {
           toast.error("couldn't find that place — add your city name");
           return;
@@ -286,7 +311,12 @@ function RidesScreen() {
     if (!raw) return;
     try {
       let lang = "en";
-      try { const m = await import("@/lib/userLanguage"); lang = await m.getUserLanguage(); } catch { /* noop */ }
+      try {
+        const m = await import("@/lib/userLanguage");
+        lang = await m.getUserLanguage();
+      } catch {
+        /* noop */
+      }
       const { data, error } = await supabase.functions.invoke("ride-genie", {
         body: { text: raw, currentLabel: pickup?.label, lang },
       });
@@ -369,7 +399,9 @@ function RidesScreen() {
   const uberHref = destination
     ? uberLink(
         { lat: destination.lat, lon: destination.lon, label: destination.label },
-        explicitPickup ? { lat: explicitPickup.lat, lon: explicitPickup.lon, label: explicitPickup.label } : undefined,
+        explicitPickup
+          ? { lat: explicitPickup.lat, lon: explicitPickup.lon, label: explicitPickup.label }
+          : undefined,
       )
     : undefined;
   const olaHref = destination
@@ -384,7 +416,10 @@ function RidesScreen() {
   return (
     <div className="px-5 pt-12 pb-6">
       <div className="flex items-center gap-3">
-        <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
+        <Link
+          to="/app"
+          className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h1 className="font-display text-2xl font-bold">Book a ride</h1>
@@ -437,7 +472,9 @@ function RidesScreen() {
             <Navigation className="h-4 w-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-xs text-muted-foreground">Pickup {pickup && pickupIsCurrent && "· 📍 current"}</div>
+            <div className="text-xs text-muted-foreground">
+              Pickup {pickup && pickupIsCurrent && "· 📍 current"}
+            </div>
             <div className="text-sm font-medium truncate">
               {geoState === "locating" && !pickup
                 ? "Locating you…"
@@ -512,7 +549,11 @@ function RidesScreen() {
                     <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                     <div className="min-w-0 flex-1">
                       <div className="line-clamp-1 font-medium">{s.label}</div>
-                      {s.secondary && <div className="line-clamp-1 text-xs text-muted-foreground">{s.secondary}</div>}
+                      {s.secondary && (
+                        <div className="line-clamp-1 text-xs text-muted-foreground">
+                          {s.secondary}
+                        </div>
+                      )}
                     </div>
                   </button>
                 ))}
@@ -544,14 +585,13 @@ function RidesScreen() {
 
             {geoState === "denied" && (
               <p className="text-xs text-muted-foreground">
-                Location is blocked — search a pickup address, or allow location and tap "use current location".
+                Location is blocked — search a pickup address, or allow location and tap "use
+                current location".
               </p>
             )}
           </div>
         )}
       </div>
-
-
 
       {/* Destination search */}
       <div className="mt-3 rounded-2xl border border-border bg-card p-4">
@@ -597,7 +637,9 @@ function RidesScreen() {
                 <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                 <div className="min-w-0 flex-1">
                   <div className="line-clamp-1 font-medium">{s.label}</div>
-                  {s.secondary && <div className="line-clamp-1 text-xs text-muted-foreground">{s.secondary}</div>}
+                  {s.secondary && (
+                    <div className="line-clamp-1 text-xs text-muted-foreground">{s.secondary}</div>
+                  )}
                 </div>
               </button>
             ))}
@@ -706,7 +748,6 @@ function RidesScreen() {
         onBlocked={needDestination}
       />
 
-
       <p className="mt-6 text-center text-xs text-muted-foreground">
         Rides are booked and paid in the provider's app. Pickup uses your live location.
       </p>
@@ -767,7 +808,8 @@ function FareCard({
     </>
   );
 
-  const cls = "flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary/40";
+  const cls =
+    "flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary/40";
   if (!href) {
     return (
       <a
@@ -823,7 +865,10 @@ function Provider({
 }) {
   const body = (
     <>
-      <div className="grid h-11 w-11 place-items-center rounded-xl text-white" style={{ backgroundColor: color }}>
+      <div
+        className="grid h-11 w-11 place-items-center rounded-xl text-white"
+        style={{ backgroundColor: color }}
+      >
         <Icon className="h-5 w-5" />
       </div>
       <div className="flex-1 min-w-0">
@@ -844,7 +889,13 @@ function Provider({
     "flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary/40";
   if (!href) {
     return (
-      <a href="#" data-testid={testId} aria-disabled="true" onClick={onBlocked} className={cls + " opacity-70"}>
+      <a
+        href="#"
+        data-testid={testId}
+        aria-disabled="true"
+        onClick={onBlocked}
+        className={cls + " opacity-70"}
+      >
         {body}
       </a>
     );
@@ -964,4 +1015,3 @@ function CityProviders({
     </div>
   );
 }
-

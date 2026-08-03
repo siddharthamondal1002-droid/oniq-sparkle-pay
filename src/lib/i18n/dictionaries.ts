@@ -345,7 +345,19 @@ const ur: Dict = {
 };
 
 export const DICTIONARIES: Record<string, Dict> = {
-  en, hi, bn, te, mr, ta, gu, kn, ml, pa, or, as, ur,
+  en,
+  hi,
+  bn,
+  te,
+  mr,
+  ta,
+  gu,
+  kn,
+  ml,
+  pa,
+  or,
+  as,
+  ur,
 };
 
 export const FALLBACK_LANG = "en";

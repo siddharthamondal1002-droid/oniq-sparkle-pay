@@ -5,8 +5,21 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  Heart, MessageCircle, Share2, Eye, Volume2, VolumeX,
-  ChevronLeft, Plus, X, Send, Loader2, UserPlus, UserCheck, Flag, Trash2,
+  Heart,
+  MessageCircle,
+  Share2,
+  Eye,
+  Volume2,
+  VolumeX,
+  ChevronLeft,
+  Plus,
+  X,
+  Send,
+  Loader2,
+  UserPlus,
+  UserCheck,
+  Flag,
+  Trash2,
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
 import { captureFrameFromFile, uploadClipThumb } from "@/lib/clipThumbs";
@@ -68,7 +81,10 @@ function ClipsScreen() {
   const clips = query.data?.pages.flat() ?? [];
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-black text-white" style={{ height: "100dvh" }}>
+    <div
+      className="relative h-screen w-full overflow-hidden bg-black text-white"
+      style={{ height: "100dvh" }}
+    >
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))]">
         <Link
           to="/app"
@@ -140,11 +156,7 @@ function ClipsScreen() {
       )}
 
       {openComments && (
-        <CommentsSheet
-          clipId={openComments}
-          me={me}
-          onClose={() => setOpenComments(null)}
-        />
+        <CommentsSheet clipId={openComments} me={me} onClose={() => setOpenComments(null)} />
       )}
       {openUpload && (
         <UploadSheet me={me} onClose={() => setOpenUpload(false)} onDone={() => query.refetch()} />
@@ -155,7 +167,14 @@ function ClipsScreen() {
 }
 
 function ClipCard({
-  clip, muted, me, isLast, onLoadMore, onOpenComments, onReport, onDeleted,
+  clip,
+  muted,
+  me,
+  isLast,
+  onLoadMore,
+  onOpenComments,
+  onReport,
+  onDeleted,
 }: {
   clip: Clip;
   muted: boolean;
@@ -267,8 +286,7 @@ function ClipCard({
   async function toggleFollow() {
     if (!me) return;
     if (following) {
-      await supabase.from("follows").delete()
-        .eq("follower_id", me).eq("followee_id", clip.user_id);
+      await supabase.from("follows").delete().eq("follower_id", me).eq("followee_id", clip.user_id);
     } else {
       await supabase.from("follows").insert({ follower_id: me, followee_id: clip.user_id });
     }
@@ -285,7 +303,6 @@ function ClipCard({
     if (v.paused) await v.play().catch(() => {});
     else v.pause();
   }
-
 
   async function toggleLike() {
     const prevLiked = liked;
@@ -328,7 +345,11 @@ function ClipCard({
           <Heart className={`h-7 w-7 ${liked ? "fill-red-500 text-red-500" : "text-white"}`} />
           <span className="text-xs">{likeCount}</span>
         </button>
-        <button onClick={onOpenComments} className="flex flex-col items-center gap-1" aria-label="Comments">
+        <button
+          onClick={onOpenComments}
+          className="flex flex-col items-center gap-1"
+          aria-label="Comments"
+        >
           <MessageCircle className="h-7 w-7" />
           <span className="text-xs">{clip.comment_count}</span>
         </button>
@@ -380,7 +401,11 @@ function ClipCard({
             <Trash2 className="h-5 w-5" />
           </button>
         ) : (
-          <button onClick={onReport} className="flex flex-col items-center gap-1 text-white/70" aria-label="Report clip">
+          <button
+            onClick={onReport}
+            className="flex flex-col items-center gap-1 text-white/70"
+            aria-label="Report clip"
+          >
             <Flag className="h-5 w-5" />
           </button>
         )}
@@ -389,7 +414,13 @@ function ClipCard({
       <div className="absolute inset-x-0 bottom-6 z-20 px-4 pr-20">
         <div className="flex items-center gap-2">
           {profile?.avatar_url ? (
-            <img src={profile.avatar_url} alt="" loading="lazy" decoding="async" className="h-9 w-9 rounded-full object-cover" />
+            <img
+              src={profile.avatar_url}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-9 w-9 rounded-full object-cover"
+            />
           ) : (
             <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold">
               {name.charAt(0).toUpperCase()}
@@ -403,14 +434,16 @@ function ClipCard({
                 following ? "border-white/40 text-white/80" : "border-white bg-white text-black"
               }`}
             >
-              {following ? <UserCheck className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
+              {following ? (
+                <UserCheck className="h-3.5 w-3.5" />
+              ) : (
+                <UserPlus className="h-3.5 w-3.5" />
+              )}
               {following ? "Following" : "Follow"}
             </button>
           )}
         </div>
-        {clip.caption && (
-          <p className="mt-2 text-sm text-white/95 line-clamp-2">{clip.caption}</p>
-        )}
+        {clip.caption && <p className="mt-2 text-sm text-white/95 line-clamp-2">{clip.caption}</p>}
         {clip.hashtags && clip.hashtags.length > 0 && (
           <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-white/80">
             {clip.hashtags.map((t) => (
@@ -421,16 +454,28 @@ function ClipCard({
       </div>
 
       {shareSheet && (
-        <ShareSheet payload={shareSheet} reel={{ id: clip.id, videoUrl: clip.video_url }} onClose={() => setShareSheet(null)} />
+        <ShareSheet
+          payload={shareSheet}
+          reel={{ id: clip.id, videoUrl: clip.video_url }}
+          onClose={() => setShareSheet(null)}
+        />
       )}
-      {showViewers && <ViewersSheet postType="reel" postId={clip.id} onClose={() => setShowViewers(false)} />}
+      {showViewers && (
+        <ViewersSheet postType="reel" postId={clip.id} onClose={() => setShowViewers(false)} />
+      )}
     </div>
   );
 }
 
 function CommentsSheet({
-  clipId, me, onClose,
-}: { clipId: string; me: string | null; onClose: () => void }) {
+  clipId,
+  me,
+  onClose,
+}: {
+  clipId: string;
+  me: string | null;
+  onClose: () => void;
+}) {
   const qc = useQueryClient();
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
@@ -440,7 +485,9 @@ function CommentsSheet({
     queryFn: async () => {
       const { data } = await supabase
         .from("clips_comments")
-        .select("id, content, created_at, user_id, profiles:profiles!clips_comments_user_id_fkey(username, display_name, avatar_url)")
+        .select(
+          "id, content, created_at, user_id, profiles:profiles!clips_comments_user_id_fkey(username, display_name, avatar_url)",
+        )
         .eq("clip_id", clipId)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -453,7 +500,9 @@ function CommentsSheet({
     if (val.length < 1 || val.length > 500 || !me) return;
     setSending(true);
     const { error } = await supabase.from("clips_comments").insert({
-      clip_id: clipId, user_id: me, content: val,
+      clip_id: clipId,
+      user_id: me,
+      content: val,
     });
     if (error) toast.error(error.message);
     else {
@@ -473,24 +522,31 @@ function CommentsSheet({
       >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-display text-base font-semibold">Comments</h3>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-muted">
+          <button
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
         <div className="max-h-[50vh] space-y-3 overflow-y-auto">
-          {comments?.length ? comments.map((c: any) => (
-            <div key={c.id} className="flex gap-3">
-              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-primary-foreground">
-                {(c.profiles?.display_name ?? c.profiles?.username ?? "U").charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 rounded-2xl bg-muted px-3 py-2">
-                <div className="text-xs font-medium">
-                  {c.profiles?.display_name ?? c.profiles?.username ?? "User"}
+          {comments?.length ? (
+            comments.map((c: any) => (
+              <div key={c.id} className="flex gap-3">
+                <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-primary-foreground">
+                  {(c.profiles?.display_name ?? c.profiles?.username ?? "U")
+                    .charAt(0)
+                    .toUpperCase()}
                 </div>
-                <div className="text-sm">{c.content}</div>
+                <div className="flex-1 rounded-2xl bg-muted px-3 py-2">
+                  <div className="text-xs font-medium">
+                    {c.profiles?.display_name ?? c.profiles?.username ?? "User"}
+                  </div>
+                  <div className="text-sm">{c.content}</div>
+                </div>
               </div>
-            </div>
-          )) : (
+            ))
+          ) : (
             <p className="py-6 text-center text-xs text-muted-foreground">
               First one to drop a comment sets the vibe.
             </p>
@@ -500,7 +556,9 @@ function CommentsSheet({
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") send(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") send();
+            }}
             placeholder="Add a comment…"
             className="flex-1 rounded-full border border-border bg-background px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
@@ -526,7 +584,9 @@ function probeDuration(file: File): Promise<number | null> {
     const finish = (d: number | null) => {
       if (done) return;
       done = true;
-      try { URL.revokeObjectURL(url); } catch {}
+      try {
+        URL.revokeObjectURL(url);
+      } catch {}
       resolve(d);
     };
     const url = URL.createObjectURL(file);
@@ -544,8 +604,14 @@ function probeDuration(file: File): Promise<number | null> {
 }
 
 function UploadSheet({
-  me, onClose, onDone,
-}: { me: string | null; onClose: () => void; onDone: () => void }) {
+  me,
+  onClose,
+  onDone,
+}: {
+  me: string | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
@@ -558,7 +624,6 @@ function UploadSheet({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [showAttach, setShowAttach] = useState(false);
   const attachCtx = useAttachmentContext();
-
 
   const pick = useCallback(async (f: File | null) => {
     if (!f) return;
@@ -592,16 +657,12 @@ function UploadSheet({
         .upload(path, file, { contentType: file.type, upsert: false });
 
       const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(
-          () => reject(new Error("timeout")),
-          120_000,
-        );
+        timeoutId = setTimeout(() => reject(new Error("timeout")), 120_000);
       });
 
-      const { error: upErr } = (await Promise.race([
-        uploadPromise,
-        timeoutPromise,
-      ])) as Awaited<typeof uploadPromise>;
+      const { error: upErr } = (await Promise.race([uploadPromise, timeoutPromise])) as Awaited<
+        typeof uploadPromise
+      >;
       clearTimeout(timeoutId);
       if (upErr) throw upErr;
 
@@ -618,7 +679,9 @@ function UploadSheet({
           effectiveSynthetic = true;
           toast("this video carries AI-generation credentials — label applied 🤖");
         }
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
 
       // Poster thumbnail from the local file (t≈0.1s) — best-effort; a clip
       // without one falls back to the video/placeholder chain in the grids.
@@ -626,7 +689,9 @@ function UploadSheet({
       try {
         const frame = await captureFrameFromFile(file, 0.1);
         thumbUrl = await uploadClipThumb(me, frame);
-      } catch { /* non-blocking */ }
+      } catch {
+        /* non-blocking */
+      }
 
       const tags = Array.from(caption.matchAll(HASHTAG_RE))
         .map((m) => m[1].toLowerCase())
@@ -635,21 +700,30 @@ function UploadSheet({
       const cleaned = caption.replace(HASHTAG_STRIP_RE, "").trim().slice(0, 300);
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: insRow, error: insErr } = await (supabase as any).from("clips").insert({
-        user_id: me,
-        video_url: signed.signedUrl,
-        thumbnail_url: thumbUrl,
-        caption: cleaned.length ? cleaned : null,
-        hashtags: tags,
-        visibility,
-        is_synthetic: effectiveSynthetic,
-      }).select("id").single();
+      const { data: insRow, error: insErr } = await (supabase as any)
+        .from("clips")
+        .insert({
+          user_id: me,
+          video_url: signed.signedUrl,
+          thumbnail_url: thumbUrl,
+          caption: cleaned.length ? cleaned : null,
+          hashtags: tags,
+          visibility,
+          is_synthetic: effectiveSynthetic,
+        })
+        .select("id")
+        .single();
 
       if (insErr) throw insErr;
 
       // B4 provenance: SHA-256 of the uploaded bytes, append-only record.
       void sha256Hex(file).then((hash) =>
-        recordProvenance({ contentType: "clip", contentId: insRow?.id ?? null, hash, declaredSynthetic: effectiveSynthetic }),
+        recordProvenance({
+          contentType: "clip",
+          contentId: insRow?.id ?? null,
+          hash,
+          declaredSynthetic: effectiveSynthetic,
+        }),
       );
 
       toast.success("Clip posted 🎬 it's giving content creator");
@@ -672,13 +746,14 @@ function UploadSheet({
       } else if (msg.includes("mime")) {
         toast.error("Unsupported format — use mp4, webm, or mov 🎞️");
       } else {
-        toast.error(err?.message ? `Upload failed — ${err.message}` : "Upload failed — try again 📶");
+        toast.error(
+          err?.message ? `Upload failed — ${err.message}` : "Upload failed — try again 📶",
+        );
       }
     } finally {
       setBusy(false);
     }
   }
-
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/70" onClick={onClose}>
@@ -688,7 +763,10 @@ function UploadSheet({
       >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-display text-base font-semibold">Post a clip</h3>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-muted">
+          <button
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -698,7 +776,11 @@ function UploadSheet({
           type="file"
           accept="video/mp4,video/webm,video/quicktime"
           className="hidden"
-          onChange={(e) => { const f = e.target.files?.[0] ?? null; e.target.value = ""; pick(f); }}
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            e.target.value = "";
+            pick(f);
+          }}
         />
         <AttachmentSheet
           open={showAttach}
@@ -724,10 +806,7 @@ function UploadSheet({
             <div className="text-xs text-muted-foreground">
               {homeFormat().bytes(file.size)} · {file.type}
             </div>
-            <button
-              onClick={() => setFile(null)}
-              className="mt-2 text-xs text-primary"
-            >
+            <button onClick={() => setFile(null)} className="mt-2 text-xs text-primary">
               Choose another
             </button>
           </div>
@@ -754,10 +833,13 @@ function UploadSheet({
                   data-testid={`clip-visibility-${v}`}
                   onClick={() => {
                     setVisibility(v);
-                    if (typeof sessionStorage !== "undefined") sessionStorage.setItem("oniq_post_visibility", v);
+                    if (typeof sessionStorage !== "undefined")
+                      sessionStorage.setItem("oniq_post_visibility", v);
                   }}
                   className={`flex-1 rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
-                    active ? "border-primary bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted"
+                    active
+                      ? "border-primary bg-primary/15 text-primary"
+                      : "border-border bg-card text-muted-foreground hover:bg-muted"
                   }`}
                 >
                   {label}
@@ -772,10 +854,14 @@ function UploadSheet({
               onChange={(e) => setIsSynthetic(e.target.checked)}
               className="mt-0.5 accent-[hsl(var(--primary))]"
             />
-            <span>this clip is AI-generated or AI-edited 🤖 <span className="opacity-70">(auto-applied when we detect AI credentials; required under Indian law)</span></span>
+            <span>
+              this clip is AI-generated or AI-edited 🤖{" "}
+              <span className="opacity-70">
+                (auto-applied when we detect AI credentials; required under Indian law)
+              </span>
+            </span>
           </label>
         </div>
-
 
         <button
           data-testid="publish-clip"
