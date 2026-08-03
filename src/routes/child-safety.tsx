@@ -101,6 +101,15 @@ function ChildSafetyPage() {
                 {GRIEVANCE_OFFICER.email}
               </a>
             </div>
+            <div>
+              Phone:{" "}
+              <a
+                className="text-primary hover:underline"
+                href={`tel:${GRIEVANCE_OFFICER.phone}`}
+              >
+                {GRIEVANCE_OFFICER.phoneDisplay}
+              </a>
+            </div>
             <p className="mt-2 text-muted-foreground">
               This contact can speak to ONIQ's CSAE prevention practices and compliance
               obligations, and is designated under India's IT Rules 2021.
