@@ -603,11 +603,16 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
   const [board, setBoard] = useState<Board>("cbse");
   const [classLevel, setClassLevel] = useState<ClassLevel>("8");
   const [secondLang, setSecondLang] = useState<string>("Hindi");
+  const [home] = useCountry();
+  const isIndia = home === "IN";
+  const [eduSel, setEduSel] = useState<EduSelection>(() => initialEduSelection(home));
 
   const create = useMutation({
     mutationFn: async () => {
       const trimmed = name.trim();
       if (!trimmed) throw new Error("please enter a name");
+      const edu = isIndia ? null : eduSelectionResult(home, eduSel);
+      if (!isIndia && !edu) throw new Error("that curriculum isn't supported yet — pick another");
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("not signed in");
       const { data, error } = await (supabase as unknown as {
@@ -623,9 +628,14 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
         .insert({
           user_id: u.user.id,
           name: trimmed,
+          // For non-India learners `board` is an inert placeholder that is
+          // never read — edu_system_id drives everything instead.
           board,
           class_level: classLevel,
-          second_language: boardUsesSecondLangPicker(board) ? secondLang : null,
+          second_language: !isIndia ? null : boardUsesSecondLangPicker(board) ? secondLang : null,
+          edu_system_id: edu?.systemId ?? null,
+          edu_stage: edu?.stage ?? null,
+          edu_region: edu?.region ?? null,
         })
         .select("id, name, board, class_level, second_language, created_at, edu_system_id, edu_stage, edu_region")
         .single();
@@ -656,31 +666,37 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
         className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
       />
 
-      <label className="mt-4 block text-xs font-medium text-muted-foreground">{tSetup("study.setup.board", "Board")}</label>
-      <div className="mt-1">
-        <BoardPicker
-          board={board}
-          onChange={(b) => {
-            setBoard(b);
-            const opts = classLevelsFor(b);
-            if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value);
-          }}
-        />
-      </div>
+      {isIndia ? (
+        <>
+          <label className="mt-4 block text-xs font-medium text-muted-foreground">{tSetup("study.setup.board", "Board")}</label>
+          <div className="mt-1">
+            <BoardPicker
+              board={board}
+              onChange={(b) => {
+                setBoard(b);
+                const opts = classLevelsFor(b);
+                if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value);
+              }}
+            />
+          </div>
 
 
-      <label className="mt-4 block text-xs font-medium text-muted-foreground">{tSetup("study.setup.class", "Class")}</label>
-      <select
-        value={classLevel}
-        onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
-        className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
-      >
-        {classLevelsFor(board).map((c) => (
-          <option key={c.value} value={c.value}>{c.label}</option>
-        ))}
-      </select>
+          <label className="mt-4 block text-xs font-medium text-muted-foreground">{tSetup("study.setup.class", "Class")}</label>
+          <select
+            value={classLevel}
+            onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
+            className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
+          >
+            {classLevelsFor(board).map((c) => (
+              <option key={c.value} value={c.value}>{c.label}</option>
+            ))}
+          </select>
+        </>
+      ) : (
+        <EduSystemFields country={home} value={eduSel} onChange={setEduSel} />
+      )}
 
-      {boardUsesSecondLangPicker(board) && (
+      {isIndia && boardUsesSecondLangPicker(board) && (
         <>
           <label className="mt-4 block text-xs font-medium text-muted-foreground">
             2nd / vernacular language
@@ -726,11 +742,21 @@ function EditProfile({
   const [board, setBoard] = useState<Board>(profile.board);
   const [classLevel, setClassLevel] = useState<ClassLevel>(profile.class_level);
   const [secondLang, setSecondLang] = useState<string>(profile.second_language || "Hindi");
+  const [home] = useCountry();
+  const isIndia = home === "IN" && !profile.edu_system_id;
+  const [eduSel, setEduSel] = useState<EduSelection>(() => ({
+    ...initialEduSelection(home),
+    curriculumId: profile.edu_system_id ?? initialEduSelection(home).curriculumId,
+    region: profile.edu_region ?? initialEduSelection(home).region,
+    stage: profile.edu_stage ?? null,
+  }));
 
   const save = useMutation({
     mutationFn: async () => {
       const trimmed = name.trim();
       if (!trimmed) throw new Error("name required");
+      const edu = isIndia ? null : eduSelectionResult(home, eduSel);
+      if (!isIndia && !edu) throw new Error("that curriculum isn't supported yet — pick another");
       const { error } = await (supabase as unknown as {
         from: (t: string) => {
           update: (row: unknown) => {
@@ -743,7 +769,10 @@ function EditProfile({
           name: trimmed,
           board,
           class_level: classLevel,
-          second_language: boardUsesSecondLangPicker(board) ? secondLang : null,
+          second_language: !isIndia ? null : boardUsesSecondLangPicker(board) ? secondLang : null,
+          edu_system_id: edu?.systemId ?? null,
+          edu_stage: edu?.stage ?? null,
+          edu_region: edu?.region ?? null,
         })
         .eq("id", profile.id);
       if (error) throw error;
@@ -790,33 +819,36 @@ function EditProfile({
           className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
         />
 
-        <label className="mt-4 block text-xs font-medium text-muted-foreground">Board</label>
-        <div className="mt-1">
-          <BoardPicker
-            board={board}
-            onChange={(b) => {
-              setBoard(b);
-              const opts = classLevelsFor(b);
-              if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value);
-            }}
-          />
-        </div>
+        {isIndia ? (
+          <>
+            <label className="mt-4 block text-xs font-medium text-muted-foreground">Board</label>
+            <div className="mt-1">
+              <BoardPicker
+                board={board}
+                onChange={(b) => {
+                  setBoard(b);
+                  const opts = classLevelsFor(b);
+                  if (!opts.some((o) => o.value === classLevel)) setClassLevel(opts[0].value);
+                }}
+              />
+            </div>
 
-        <label className="mt-4 block text-xs font-medium text-muted-foreground">Class</label>
-        <select
-          value={classLevel}
-          onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
-          className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
-        >
-          {classLevelsFor(board).map((c) => (
-            <option key={c.value} value={c.value}>{c.label}</option>
-          ))}
-        </select>
+            <label className="mt-4 block text-xs font-medium text-muted-foreground">Class</label>
+            <select
+              value={classLevel}
+              onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
+              className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
+            >
+              {classLevelsFor(board).map((c) => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </>
+        ) : (
+          <EduSystemFields country={home} value={eduSel} onChange={setEduSel} />
+        )}
 
-
-
-
-        {boardUsesSecondLangPicker(board) && (
+        {isIndia && boardUsesSecondLangPicker(board) && (
           <>
             <label className="mt-4 block text-xs font-medium text-muted-foreground">
               2nd / vernacular language
