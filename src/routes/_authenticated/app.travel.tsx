@@ -58,6 +58,16 @@ const SECTIONS: Section[] = [
       { id: "agoda", name: "Agoda", tagline: "Asia stay specialist", color: "#5C2D91", letter: "A", url: "https://www.agoda.com" },
       { id: "airbnb", name: "Airbnb", tagline: "Homes & unique stays", color: "#FF385C", letter: "A", url: "https://www.airbnb.co.in" },
       { id: "goibibo", name: "Goibibo", tagline: "Hotels, flights & bus", color: "#2A2AC0", letter: "G", url: "https://www.goibibo.com" },
+      { id: "makemytrip-hotels", name: "MakeMyTrip Hotels", tagline: "Hotels across India", color: "#E7392C", letter: "M", url: "https://www.makemytrip.com/hotels/" },
+      { id: "cleartrip-hotels", name: "Cleartrip Hotels", tagline: "Simple hotel booking", color: "#3366CC", letter: "C", url: "https://www.cleartrip.com/hotels" },
+      { id: "trivago", name: "Trivago", tagline: "Compare hotel prices", color: "#007FAD", letter: "T", url: "https://www.trivago.in" },
+      { id: "expedia", name: "Expedia", tagline: "Hotels, flights & packages", color: "#FFC94D", letter: "E", url: "https://www.expedia.com" },
+      { id: "hotels-com", name: "Hotels.com", tagline: "Stay 10 nights, get 1", color: "#D32F2F", letter: "H", url: "https://www.hotels.com" },
+      { id: "marriott", name: "Marriott Bonvoy", tagline: "Global hotel group", color: "#8C2332", letter: "M", url: "https://www.marriott.com" },
+      { id: "taj", name: "Taj Hotels", tagline: "IHCL luxury stays", color: "#9C7A32", letter: "T", url: "https://www.tajhotels.com" },
+      { id: "treebo", name: "Treebo", tagline: "Quality budget hotels", color: "#00A5A8", letter: "T", url: "https://www.treebo.com" },
+      { id: "fabhotels", name: "FabHotels", tagline: "Value hotels in India", color: "#F26B21", letter: "F", url: "https://www.fabhotels.com" },
+      { id: "yatra-hotels", name: "Yatra Hotels", tagline: "Deals on Indian stays", color: "#E4002B", letter: "Y", url: "https://www.yatra.com/hotels" },
     ],
   },
 ];
@@ -116,8 +126,8 @@ function TravelScreen() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="font-display text-2xl font-bold">Wander 🌍</h1>
-          <p className="text-xs text-muted-foreground">time to touch grass — buses, trains, flights, ferries, stays</p>
+          <h1 className="font-display text-2xl font-bold">Vanderlust 🌍</h1>
+          <p className="text-xs text-muted-foreground">wanderlust activated — buses, trains, flights, ferries, stays</p>
         </div>
       </div>
 
@@ -173,7 +183,7 @@ function TravelScreen() {
       ))}
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        Bookings & payments happen in the provider's app — Wander gets you there faster.
+        Bookings & payments happen in the provider's app — Vanderlust gets you there faster.
       </p>
     </div>
   );
