@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   healthWritesAllowed,
@@ -10,8 +9,15 @@ import { getCrisisLines, primaryEmergency, medicalEmergency } from "@/data/count
 
 describe("UAE health-data block", () => {
   beforeEach(() => {
-    localStorage.clear();
-    vi.unstubAllGlobals();
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => store.clear(),
+    });
+    vi.stubGlobal("window", { dispatchEvent: () => true, CustomEvent: class {} });
+    vi.stubGlobal("CustomEvent", class {});
   });
 
   it("refuses health writes when Home is AE", () => {
