@@ -187,24 +187,53 @@ function ParentalConsentPage() {
             <ShieldCheck className="size-4 text-[#00D4B8]" />
             <h2 className="text-sm font-semibold">I am the parent</h2>
           </div>
-          <p className="text-xs leading-relaxed text-white/60">
-            Signed in on your own adult ONIQ account? Enter the code your child gave you.
-            The approval is written into the tamper-evident consent ledger.
-          </p>
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value.toUpperCase())}
-            placeholder="ABCD1234"
-            className="mt-3 w-full rounded-xl bg-black/40 px-3 py-2 font-mono text-sm tracking-widest outline-none"
-          />
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => run(() => approveParentalConsent(code), "Consent recorded")}
-            className="mt-3 w-full rounded-xl bg-[#00D4B8] py-2 text-sm font-semibold text-black disabled:opacity-50"
-          >
-            Approve
-          </button>
+          {status && status.has_dob === false ? (
+            <>
+              <p className="text-xs leading-relaxed text-white/60">
+                Approving for a child requires your own date of birth on file. It is
+                recorded once and is not shared with the child.
+              </p>
+              <p className="mt-2 text-xs leading-relaxed text-white/40">
+                If the date you enter makes you under the age of digital consent, this
+                account becomes restricted itself.
+              </p>
+              <input
+                type="date"
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+                className="mt-3 w-full rounded-xl bg-black/40 px-3 py-2 text-sm outline-none"
+              />
+              <button
+                type="button"
+                disabled={busy || !dob}
+                onClick={() => run(() => setMyDateOfBirth(dob), "Date of birth confirmed")}
+                className="mt-3 w-full rounded-xl bg-[#00D4B8] py-2 text-sm font-semibold text-black disabled:opacity-50"
+              >
+                Confirm date of birth
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs leading-relaxed text-white/60">
+                Signed in on your own adult ONIQ account? Enter the code your child gave you.
+                The approval is written into the tamper-evident consent ledger.
+              </p>
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value.toUpperCase())}
+                placeholder="ABCD1234"
+                className="mt-3 w-full rounded-xl bg-black/40 px-3 py-2 font-mono text-sm tracking-widest outline-none"
+              />
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => run(() => approveParentalConsent(code), "Consent recorded")}
+                className="mt-3 w-full rounded-xl bg-[#00D4B8] py-2 text-sm font-semibold text-black disabled:opacity-50"
+              >
+                Approve
+              </button>
+            </>
+          )}
         </section>
 
         <Link
