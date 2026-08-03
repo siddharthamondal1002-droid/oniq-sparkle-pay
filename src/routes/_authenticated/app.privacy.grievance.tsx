@@ -119,14 +119,6 @@ function GrievancePage() {
               {OFFICER.email}
             </a>
           </div>
-          <div className="text-xs">
-            <span className="text-muted-foreground">Phone: </span>
-            <span>{OFFICER.phone}</span>
-          </div>
-          <div className="text-xs">
-            <span className="text-muted-foreground">Address: </span>
-            <span>{OFFICER.address}</span>
-          </div>
           <p className="pt-2 text-[11px] text-muted-foreground">
             Not resolved? {DATA_PROTECTION_BOARD.note}{" "}
             <a

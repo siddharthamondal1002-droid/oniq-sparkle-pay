@@ -8,12 +8,6 @@ export const GRIEVANCE_OFFICER = {
   // DPDP requires a MEANS OF CONTACT, not just a name. This monitored role
   // address is that means; it must stay reachable.
   email: "grievance@oniqhub.com",
-  // TODO(legal): replace with the officer's real published telephone number.
-  // DPDP is satisfied by the email above, so this is not a compliance gap —
-  // but until a number is filled in, do not present this string as a phone
-  // contact anywhere in the UI.
-  phone: "+91 — available on written request",
-  address: "ONIQ Hub, India",
 } as const;
 
 /** Regulator of last resort for the DPDP Act, 2023. */
