@@ -71,6 +71,20 @@ export async function submitDigilockerToken(tokenRef: string): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * One-time backfill of the caller's own date of birth, for grandfathered
+ * accounts that never recorded one. Uses the existing `set_signup_profile`
+ * RPC, which upserts the DOB and recomputes `is_minor`.
+ *
+ * Only ever offer this when `has_dob` is false: once a DOB exists,
+ * `trg_prevent_is_minor_self_change` locks it permanently, which is what stops
+ * a restricted minor from re-declaring themselves an adult.
+ */
+export async function setMyDateOfBirth(dob: string): Promise<void> {
+  const { error } = await supabase.rpc("set_signup_profile", { _dob: dob });
+  if (error) throw error;
+}
+
 /** True when an error came from the restricted-state guard. */
 export function isRestrictedError(err: unknown): boolean {
   const msg = (err as { message?: string } | null)?.message ?? "";
