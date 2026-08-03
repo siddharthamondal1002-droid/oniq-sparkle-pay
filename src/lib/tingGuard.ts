@@ -68,8 +68,8 @@ const CRISIS_PATTERNS: RegExp[] = [
   /\bnot\s+want\s+to\s+(?:be\s+)?(?:alive|here)\b/i,
   /\bkms\b/i,
   // ---- indirect / passive — the phrasing systems usually miss ----------
-  /don'?t\s+want\s+to\s+(?:live\s+(?:any\s*more|anymore)|be\s+here|exist|wake\s+up|be\s+alive)(?!\s+(?:in|with|at|near|alone\s+in))/i,
-  /don'?t\s+want\s+to\s+live\b(?!\s+(?:in|with|at|near|on|by|abroad|alone|like|here\s+in))/i,
+  /do(?:es)?n'?t\s+want\s+to\s+(?:live\s+(?:any\s*more|anymore)|be\s+here|exist|wake\s+up|be\s+alive)(?!\s+(?:in|with|at|near|alone\s+in))/i,
+  /do(?:es)?n'?t\s+want\s+to\s+live\b(?!\s+(?:in|with|at|near|on|by|abroad|alone|like|here\s+in))/i,
   /no\s+(?:reason|point|use)\s+(?:to|in)\s+(?:be\s+)?(?:liv|alive|carry|go)/i,
   /what'?s\s+the\s+point\s+(?:of\s+(?:it\s+)?all|anymore|any\s+more|in\s+going\s+on)/i,
   /sleep\s+forever/i,
