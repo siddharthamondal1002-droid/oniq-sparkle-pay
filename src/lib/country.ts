@@ -1,4 +1,13 @@
-// Country preference — local only (no Supabase column). Stored under
+// HOME COUNTRY — identity. Sticky and user-chosen: it is NEVER rewritten by
+// location detection (see src/lib/region.ts for the transient currentRegion).
+// Source of truth is `profiles.country_code` in Supabase; the device copy is
+// an offline-first-paint mirror. On login the profile wins.
+//
+// Home drives language default, currency/number formatting, tile set, faith
+// and calendar content, government directory, app registry, legal regime,
+// consent notice, retention rules and whether the health hub exists at all.
+//
+// Stored under
 // `oniq.country` in Capacitor Preferences when the plugin is present,
 // mirrored to localStorage so web (and the current shell, which predates the
 // plugin) reads it synchronously. Never blocks the UI: the initial value is
@@ -72,12 +81,25 @@ export function getCountry(): CountryCode {
   return inferred;
 }
 
+/** Best-effort mirror of Home to the Supabase profile (the source of truth). */
+async function persistHomeToProfile(code: CountryCode): Promise<void> {
+  try {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const { data } = await supabase.auth.getUser();
+    if (!data.user) return;
+    await supabase.from("profiles").update({ country_code: code }).eq("id", data.user.id);
+  } catch {
+    /* offline / signed out — the device mirror still holds */
+  }
+}
+
 export function setCountry(code: CountryCode): void {
   try {
     localStorage.setItem(KEY, code);
   } catch {
     /* noop */
   }
+  void persistHomeToProfile(code);
   // Best-effort native persistence; plugin absence is fine (localStorage
   // inside the WebView persists too).
   void (async () => {
@@ -101,6 +123,30 @@ export function useCountry(): [CountryCode, (c: CountryCode) => void] {
   );
 
   useEffect(() => {
+    // Profile wins for Home on login — it survives reinstall and follows the
+    // account across devices. Detection never reaches this code path.
+    void (async () => {
+      try {
+        const { supabase } = await import("@/integrations/supabase/client");
+        const { data } = await supabase.auth.getUser();
+        if (!data.user) return;
+        const { data: row } = await supabase
+          .from("profiles")
+          .select("country_code")
+          .eq("id", data.user.id)
+          .maybeSingle();
+        if (isCode(row?.country_code)) {
+          setState(row.country_code);
+          try {
+            localStorage.setItem(KEY, row.country_code);
+          } catch {
+            /* noop */
+          }
+        }
+      } catch {
+        /* signed out or offline */
+      }
+    })();
     // Hydrate from Capacitor Preferences once (covers native reinstalls where
     // WebView storage was cleared but Preferences survived).
     void (async () => {
@@ -131,3 +177,8 @@ export function useCountry(): [CountryCode, (c: CountryCode) => void] {
 
   return [country, setCountry];
 }
+
+/** Explicit alias — Home is one of two axes; `useCountry` predates the split. */
+export const useHomeCountry = useCountry;
+export const getHomeCountry = getCountry;
+export const setHomeCountry = setCountry;

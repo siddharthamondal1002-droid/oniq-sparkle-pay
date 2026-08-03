@@ -38,6 +38,9 @@ import {
   type TileKey,
 } from "@/components/customize/CustomizeSheet";
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
+import { useCountry } from "@/lib/country";
+import { isAvailable } from "@/data/countryRegistry";
+import { RegionBanner } from "@/components/home/RegionBanner";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { resolveTileLabel } from "@/lib/i18n/tileLabel";
 import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
@@ -139,6 +142,8 @@ function HomeScreen() {
           <div className="mt-3">
             <HomeMediaBanner />
           </div>
+
+          <RegionBanner />
 
           <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             also in ONIQ
@@ -1214,7 +1219,10 @@ function SectionRow({
   hidden: Set<TileKey>;
   skins: Record<string, string | undefined>;
 }) {
-  const visible = tiles.filter((t) => !(hidden as Set<string>).has(t.key));
+  const [home] = useCountry();
+  const visible = tiles.filter(
+    (t) => !(hidden as Set<string>).has(t.key) && isAvailable(t.key, home),
+  );
   if (visible.length === 0) return null;
   return (
     <div className="mt-5">
@@ -1417,7 +1425,12 @@ function AlsoInOniqRow({
   hidden: Set<TileKey>;
 }) {
   const { lang } = useT();
-  const visible = tiles.filter((t) => !(hidden as Set<string>).has(t.key));
+  const [home] = useCountry();
+  // Unsupported in this Home country => the tile does not render at all.
+  // No greyed-out state, no disabled tile, no "coming soon".
+  const visible = tiles.filter(
+    (t) => !(hidden as Set<string>).has(t.key) && isAvailable(t.key, home),
+  );
   if (visible.length === 0) return null;
   return (
     <div className="mt-2 flex flex-wrap gap-2">

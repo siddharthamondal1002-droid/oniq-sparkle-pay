@@ -1,0 +1,160 @@
+// currentRegion — where the user physically is RIGHT NOW.
+//
+// DEVICE-ONLY. This value is never written to Supabase, never sent in any
+// insert/update, and appears in no table. It is transient trip state, not
+// identity. Home country lives in src/lib/country.ts.
+//
+// It drives ONLY: emergency numbers, crisis lines, ride-hailing, delivery and
+// nearby utilities. It never changes language, currency, tiles, faith content,
+// legal regime or retention rules — those follow HOME.
+//
+// Detection is country-code only: a Cloudflare edge header, falling back to
+// the device language tag. No GPS is requested and no coordinates are ever
+// read, derived or stored.
+import { useEffect, useState } from "react";
+import type { Country } from "@/data/appRegistry";
+import { ALL_COUNTRIES } from "@/data/appRegistry";
+
+const KEY = "oniq.currentRegion";
+const DISMISS_KEY = "oniq.regionBannerDismissed";
+const EVENT = "oniq:region-changed";
+
+function isCountry(v: unknown): v is Country {
+  return typeof v === "string" && (ALL_COUNTRIES as string[]).includes(v);
+}
+
+// Capacitor Preferences is the system of record on device; the WebView mirror
+// keeps first paint synchronous (same pattern as the home-country store).
+async function prefs(): Promise<{
+  get: (o: { key: string }) => Promise<{ value: string | null }>;
+  set: (o: { key: string; value: string }) => Promise<void>;
+  remove: (o: { key: string }) => Promise<void>;
+} | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod: any = await import(/* @vite-ignore */ "@capacitor" + "/preferences");
+    return mod.Preferences;
+  } catch {
+    return null;
+  }
+}
+
+function readMirror(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeMirror(key: string, value: string | null): void {
+  try {
+    if (value === null) localStorage.removeItem(key);
+    else localStorage.setItem(key, value);
+  } catch {
+    /* noop */
+  }
+}
+
+/** Synchronous read of the last known current region. null = unknown. */
+export function getCurrentRegion(): Country | null {
+  const v = readMirror(KEY);
+  return isCountry(v) ? v : null;
+}
+
+/** Device-only write. Deliberately has no Supabase path. */
+export function setCurrentRegion(code: Country | null): void {
+  writeMirror(KEY, code);
+  void (async () => {
+    const p = await prefs();
+    if (!p) return;
+    if (code) await p.set({ key: KEY, value: code });
+    else await p.remove({ key: KEY });
+  })();
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EVENT));
+}
+
+export function isRegionBannerDismissed(region: Country): boolean {
+  return readMirror(DISMISS_KEY) === region;
+}
+
+/** Remembered for this trip — a new detected region shows the offer again. */
+export function dismissRegionBanner(region: Country): void {
+  writeMirror(DISMISS_KEY, region);
+  void (async () => {
+    const p = await prefs();
+    await p?.set({ key: DISMISS_KEY, value: region });
+  })();
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EVENT));
+}
+
+/**
+ * Device fallback when the edge header is unavailable or unknown.
+ * Reads the locale region only — no GPS, no permission prompt.
+ */
+export async function detectRegionFromDevice(): Promise<Country | null> {
+  let tag: string | null = null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mod: any = await import(/* @vite-ignore */ "@capacitor" + "/device");
+    tag = (await mod.Device.getLanguageTag())?.value ?? null;
+  } catch {
+    tag = typeof navigator !== "undefined" ? navigator.language : null;
+  }
+  if (!tag) return null;
+  try {
+    const region = new Intl.Locale(tag).maximize().region;
+    return isCountry(region) ? region : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Reactive current region. Refreshes from Preferences on mount, then runs
+ * detection once per session (edge header first, device tag second).
+ */
+export function useCurrentRegion(): [Country | null, (c: Country | null) => void] {
+  const [region, setState] = useState<Country | null>(() =>
+    typeof window === "undefined" ? null : getCurrentRegion(),
+  );
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      const p = await prefs();
+      if (p) {
+        const { value } = await p.get({ key: KEY });
+        if (alive && isCountry(value)) {
+          writeMirror(KEY, value);
+          setState(value);
+        }
+      }
+      // Detection never touches HOME — it only updates this device value.
+      let detected: Country | null = null;
+      try {
+        const { detectRegion } = await import("@/lib/region.functions");
+        const res = await detectRegion();
+        if (isCountry(res?.country)) detected = res.country;
+      } catch {
+        /* offline or SSR — device fallback below */
+      }
+      if (!detected) detected = await detectRegionFromDevice();
+      if (alive && detected && detected !== getCurrentRegion()) {
+        setCurrentRegion(detected);
+        setState(detected);
+      }
+    })();
+
+    const onChange = () => setState(getCurrentRegion());
+    window.addEventListener(EVENT, onChange);
+    window.addEventListener("storage", onChange);
+    return () => {
+      alive = false;
+      window.removeEventListener(EVENT, onChange);
+      window.removeEventListener("storage", onChange);
+    };
+  }, []);
+
+  return [region, setCurrentRegion];
+}
