@@ -226,6 +226,12 @@ function ConsentNoticePage() {
             {GRIEVANCE_OFFICER.email}
           </a>
           <a
+            href={`tel:${GRIEVANCE_OFFICER.phone}`}
+            className="block text-primary hover:underline"
+          >
+            {GRIEVANCE_OFFICER.phoneDisplay}
+          </a>
+          <a
             href={DATA_PROTECTION_BOARD.url}
             target="_blank"
             rel="noreferrer"

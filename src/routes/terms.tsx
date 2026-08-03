@@ -54,6 +54,7 @@ function TermsPage() {
             <div className="font-semibold">Grievance Officer</div>
             <div>{GRIEVANCE_OFFICER.name}</div>
             <div>Email: <a className="text-primary hover:underline" href={`mailto:${GRIEVANCE_OFFICER.email}`}>{GRIEVANCE_OFFICER.email}</a></div>
+            <div>Phone: <a className="text-primary hover:underline" href={`tel:${GRIEVANCE_OFFICER.phone}`}>{GRIEVANCE_OFFICER.phoneDisplay}</a></div>
           </div>
           <p><strong>Timelines we commit to:</strong></p>
           <ul className="list-disc space-y-1 pl-6">
