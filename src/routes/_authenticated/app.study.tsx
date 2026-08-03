@@ -8,6 +8,10 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { compressToJpeg } from "@/lib/imageCompress";
 import { useT } from "@/lib/i18n/LanguageProvider";
+import { useCountry } from "@/lib/country";
+import { getEduSystem } from "@/data/eduSystems";
+import { eduSystemPayload, eduSystemLabel } from "@/lib/eduPaperFormat";
+import { EduSystemFields, eduSelectionResult, eduSubjectsFor, initialEduSelection, type EduSelection } from "@/components/study/EduSystemFields";
 
 export const Route = createFileRoute("/_authenticated/app/study")({
   component: StudyScreen,
@@ -31,7 +35,32 @@ type LearnerProfile = {
   class_level: ClassLevel;
   second_language?: string | null;
   created_at: string;
+  // Phase 2 — set only for learners outside India. When present, the paper
+  // generator uses the registry-driven path instead of the India board path.
+  edu_system_id?: string | null;
+  edu_stage?: string | null;
+  edu_region?: string | null;
 };
+
+/** Header/label text for a profile, India or otherwise. */
+function profileSystemLabel(p: LearnerProfile): string {
+  if (p.edu_system_id) return eduSystemLabel(p.edu_system_id) ?? p.edu_system_id;
+  return BOARD_UPPER[p.board];
+}
+
+function profileStageLabel(p: LearnerProfile): string {
+  if (p.edu_system_id) {
+    const sys = getEduSystem(p.edu_system_id);
+    const unit = sys?.stageModel.unitName;
+    const st = p.edu_stage ?? "";
+    return unit === "Grade" || unit === "Year" || unit === "Class" ? `${unit} ${st}` : st;
+  }
+  return p.class_level === "ug" ? "UG"
+    : p.class_level === "pg" ? "PG"
+    : p.class_level === "drop" ? "Drop year"
+    : p.class_level === "aspirant" ? "Aspirant"
+    : `Class ${p.class_level}`;
+}
 
 // Regional first-language subject enforced by state boards. For any state
 // board listed here, subjectsFor() replaces the generic "Hindi" slot with
@@ -333,7 +362,7 @@ function useLearnerProfiles() {
         };
       })
         .from("learner_profiles")
-        .select("id, name, board, class_level, second_language, created_at")
+        .select("id, name, board, class_level, second_language, created_at, edu_system_id, edu_stage, edu_region")
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data ?? [];
@@ -374,7 +403,7 @@ function StudyScreen() {
   const { t } = useT();
   const headerName = active?.name ?? t("study.header.default", "Study Buddy");
   const headerSub = active
-    ? `${BOARD_UPPER[active.board]} · ${active.class_level === "ug" ? "UG" : active.class_level === "pg" ? "PG" : active.class_level === "drop" ? "Drop year" : active.class_level === "aspirant" ? "Aspirant" : `Class ${active.class_level}`}`
+    ? `${profileSystemLabel(active)} · ${profileStageLabel(active)}`
     : null;
 
   return (
@@ -598,7 +627,7 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
           class_level: classLevel,
           second_language: boardUsesSecondLangPicker(board) ? secondLang : null,
         })
-        .select("id, name, board, class_level, second_language, created_at")
+        .select("id, name, board, class_level, second_language, created_at, edu_system_id, edu_stage, edu_region")
         .single();
       if (error || !data) throw error ?? new Error("failed");
       return data;
@@ -858,7 +887,9 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const cameraRef = useRef<HTMLInputElement | null>(null);
 
-  const subjects = subjectsFor(profile.board, profile.class_level, profile.second_language);
+  const subjects =
+    eduSubjectsFor(profile.edu_system_id) ??
+    subjectsFor(profile.board, profile.class_level, profile.second_language);
 
   // Hydrate chat history from study_messages when the active profile changes.
   useEffect(() => {
@@ -4061,7 +4092,7 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
                   <div>
                     <div className="font-semibold">{p.name}</div>
                     <div className="text-[10px] text-muted-foreground">
-                      {BOARD_UPPER[p.board]} · {p.class_level === "ug" ? "UG" : p.class_level === "pg" ? "PG" : p.class_level === "drop" ? "Drop year" : p.class_level === "aspirant" ? "Aspirant" : `Class ${p.class_level}`}
+                      {profileSystemLabel(p)} · {profileStageLabel(p)}
                     </div>
                   </div>
                   <div className="text-right">
