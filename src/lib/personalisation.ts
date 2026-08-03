@@ -13,6 +13,8 @@
  * does, using each account's country threshold (18 in IN, 13 elsewhere).
  */
 import { supabase } from "@/integrations/supabase/client";
+import { NOTICE_VERSION } from "@/lib/consent/notice";
+
 
 export const PERSONALISATION_PURPOSE = "personalisation" as const;
 
@@ -54,9 +56,13 @@ export async function setPersonalisationConsent(granted: boolean): Promise<void>
     _purpose: PERSONALISATION_PURPOSE,
     _granted: granted,
     _source: "privacy-settings",
+    _notice_version: NOTICE_VERSION,
+    _notice_locale: "en",
+    _purpose_desc: PERSONALISATION_NOTICE,
   });
   if (error) throw error;
 }
+
 
 /**
  * Best-effort signal write. Silent on failure by design: a minor account or a

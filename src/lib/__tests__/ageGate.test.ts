@@ -18,6 +18,16 @@ describe("isRestrictedError", () => {
     ).toBe(true);
   });
 
+  it("detects the minor self-consent refusal", () => {
+    expect(
+      isRestrictedError({
+        message:
+          "restricted: this account is under the age of digital consent and cannot give its own consent. A verified parent must consent first. Nothing was saved.",
+      }),
+    ).toBe(true);
+  });
+
+
   it("is case-insensitive", () => {
     expect(isRestrictedError({ message: "RESTRICTED: nothing was saved" })).toBe(true);
   });

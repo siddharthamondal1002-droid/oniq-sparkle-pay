@@ -6,6 +6,8 @@ import { lovable } from "@/integrations/lovable";
 import { ArrowLeft, Mail, Lock, Phone } from "lucide-react";
 import { OTP_LOGIN_ENABLED } from "@/lib/flags";
 import { COUNTRIES, toWidgetFormat, nextResendDelay, MAX_RESENDS, OTP_EXPIRY_MINUTES } from "@/lib/phoneAuth";
+import { NOTICE_VERSION } from "@/lib/consent/notice";
+
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
@@ -111,11 +113,22 @@ async function persistSignupCompliance(
     _parent_phone: parentPhone || undefined,
   });
   if (sErr) throw sErr;
+  // Consent is recorded into the tamper-evident ledger (record_consent writes
+  // consent_records and mirrors the legacy table). An under-age account cannot
+  // self-consent: the database refuses these rows until a verified parent
+  // consents, and the restricted banner tells the user so.
   await Promise.all(
     (Object.keys(consents) as ConsentKey[]).map((k) =>
-      supabase.rpc("record_consent", { _purpose: k, _granted: consents[k], _source: "signup" }),
+      supabase.rpc("record_consent", {
+        _purpose: k,
+        _granted: consents[k],
+        _source: "signup",
+        _notice_version: NOTICE_VERSION,
+        _notice_locale: "en",
+      }),
     ),
   );
+
 }
 
 function AuthPage() {
