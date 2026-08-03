@@ -41,9 +41,14 @@ export function paperFilename(subject: string): string {
 }
 
 /** Build the PDF. Yields to the event loop on every page break. */
-export async function buildPaperPdf(input: PaperPdfInput, onProgress?: PaperProgress) {
+export async function buildPaperPdf(
+  input: PaperPdfInput,
+  onProgress?: PaperProgress,
+  /** `compress: false` leaves the text streams readable — used by tests. */
+  opts?: { compress?: boolean },
+) {
   const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  const doc = new jsPDF({ unit: "mm", format: "a4", compress: opts?.compress ?? true });
 
   let y = M;
   let page = 1;

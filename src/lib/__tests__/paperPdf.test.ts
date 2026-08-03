@@ -68,7 +68,7 @@ describe("paper PDF generation", () => {
   });
 
   it("contains the whole paper, not just the first screen", async () => {
-    const doc = await buildPaperPdf(makePaper(25, 25));
+    const doc = await buildPaperPdf(makePaper(25, 25), undefined, { compress: false });
     const raw = pdfText(doc);
     // last question and the closing line both made it into the document
     expect(raw).toContain("Long question 25");
@@ -77,8 +77,8 @@ describe("paper PDF generation", () => {
   });
 
   it("keeps ruled answer space for written questions", async () => {
-    const withLines = await buildPaperPdf(makePaper(5, 0));
-    const withoutLines = await buildPaperPdf(makePaper(0, 5));
+    const withLines = await buildPaperPdf(makePaper(5, 0), undefined, { compress: false });
+    const withoutLines = await buildPaperPdf(makePaper(0, 5), undefined, { compress: false });
     // ruled lines are vector strokes, so the lined paper is materially longer
     expect(pdfText(withLines).length).toBeGreaterThan(pdfText(withoutLines).length);
   });
