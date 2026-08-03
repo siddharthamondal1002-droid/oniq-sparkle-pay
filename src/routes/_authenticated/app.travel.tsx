@@ -153,6 +153,8 @@ function TravelScreen() {
         </div>
       </form>
 
+      <StayScout />
+
       {SECTIONS.map((section) => (
         <section key={section.key}>
           <h2 className="mt-6 px-1 font-display text-sm uppercase tracking-wider text-muted-foreground">
