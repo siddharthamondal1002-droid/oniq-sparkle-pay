@@ -111,7 +111,7 @@ function ProfileScreen() {
         >
           <span className="grid h-full w-full place-items-center overflow-hidden rounded-3xl">
             {form.avatar_url ? (
-              <img src={form.avatar_url} alt="avatar" className="h-full w-full object-cover" />
+              <img src={form.avatar_url} alt="Your profile picture" className="h-full w-full object-cover" />
             ) : (
               (form.display_name || profile?.username || "O").charAt(0).toUpperCase()
             )}
