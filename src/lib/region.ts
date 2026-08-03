@@ -105,8 +105,9 @@ export function dismissRegionBanner(region: Country): void {
 
 
 /**
- * Reactive current region. Refreshes from Preferences on mount, then runs
- * detection once per session (edge header first, device tag second).
+ * Reactive current region. Refreshes from Preferences on mount, then asks the
+ * edge for a genuine location signal exactly once. There is NO second-guess
+ * fallback: if the edge cannot tell, the region stays null.
  */
 export function useCurrentRegion(): [Country | null, (c: Country | null) => void] {
   const [region, setState] = useState<Country | null>(() =>
@@ -125,15 +126,16 @@ export function useCurrentRegion(): [Country | null, (c: Country | null) => void
         }
       }
       // Detection never touches HOME — it only updates this device value.
+      // cf-ipcountry is the ONLY accepted source. null / XX / T1 => stay null.
       let detected: Country | null = null;
       try {
         const { detectRegion } = await import("@/lib/region.functions");
         const res = await detectRegion();
         if (isCountry(res?.country)) detected = res.country;
       } catch {
-        /* offline or SSR — device fallback below */
+        /* offline or SSR — region simply stays unknown */
       }
-      if (!detected) detected = await detectRegionFromDevice();
+
       if (alive && detected && detected !== getCurrentRegion()) {
         setCurrentRegion(detected);
         setState(detected);
