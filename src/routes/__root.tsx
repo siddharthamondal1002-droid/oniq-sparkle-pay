@@ -101,8 +101,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "mobile-web-app-capable", content: "yes" },
       {
         name: "google-site-verification",
-        content: "W0N2GaYsxMbxxgesm4pQa4AGvl5xf0ZAn8bSMvoEKtk",
+        content: "TGtlOMz3P5zLi4a1ToyRj6VfsKO6sRwkiU250lMRKOI",
       },
+
     ],
     links: [
       { rel: "stylesheet", href: appCss },
