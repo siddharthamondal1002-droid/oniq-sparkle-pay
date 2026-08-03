@@ -2850,6 +2850,7 @@ export type Database = {
       }
       has_active_legal_hold: { Args: { _user_id: string }; Returns: boolean }
       health_data_allowed: { Args: { _user_id: string }; Returns: boolean }
+      health_request_region_ok: { Args: never; Returns: boolean }
       is_admin: { Args: { _uid: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }

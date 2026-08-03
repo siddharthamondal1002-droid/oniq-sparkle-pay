@@ -1,10 +1,12 @@
-// Watches the HOME country. When Home is a country where health data may not
-// be stored (UAE), device-local health data is cleared immediately and the
-// user is prompted once to delete anything still held server-side.
+// Watches BOTH axes of the UAE health block: the HOME country and the current
+// region. When either says health data may not be stored (UAE), device-local
+// health data is cleared immediately and the user is prompted once to delete
+// anything still held server-side.
 // Crisis/emergency content is static reference material and is NOT touched.
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useCountry } from "@/lib/country";
+import { useCurrentRegion } from "@/lib/region";
 import {
   clearLocalHealthData,
   countMyHealthRows,
@@ -15,11 +17,12 @@ import type { Country } from "@/data/countryRegistry";
 
 export function HealthDataWatcher() {
   const [home] = useCountry();
+  const [region] = useCurrentRegion();
   const [pending, setPending] = useState(0);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (healthWritesAllowed(home as Country)) return;
+    if (healthWritesAllowed(home as Country, region as Country | null)) return;
     // Device copy goes immediately — no confirmation needed for local data.
     clearLocalHealthData();
     let cancelled = false;
@@ -34,7 +37,8 @@ export function HealthDataWatcher() {
     return () => {
       cancelled = true;
     };
-  }, [home]);
+  }, [home, region]);
+
 
   if (!pending) return null;
 
