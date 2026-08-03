@@ -78,6 +78,7 @@ export type EduSystem = {
   paperFormat?: {
     unit: "marks" | "points";
     commandWords: string[];
+    /** Closing line printed at the foot of a paper, e.g. "End of paper". */
     terminator: string;
     spelling: "en-GB" | "en-US" | "en-AU" | "en-CA" | "en-IN";
   };
