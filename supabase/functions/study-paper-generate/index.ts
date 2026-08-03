@@ -95,13 +95,46 @@ Deno.serve(async (req) => {
     profileId?: string;
     chapter?: string;
     lang?: string;
+    // Phase 2 (Education & Careers): optional, already-resolved education
+    // system sent by the client for non-India learners. Ignored whenever
+    // profile.board is a recognized India board key — India's path is
+    // completely unchanged.
+    eduSystem?: {
+      id?: string;
+      authority?: string;
+      commandWords?: unknown;
+      unit?: string;
+      terminator?: string;
+      spelling?: string;
+    };
   } = {};
   try { body = await req.json(); } catch { /* ignore */ }
 
   const boardKey = String(body.profile?.board ?? "").toLowerCase();
-  const board = BOARD_LABEL[boardKey] ? boardKey : "cbse";
-  const classLevel = (VALID_CLASS_LEVELS as readonly string[]).includes(String(body.profile?.classLevel ?? ""))
-    ? String(body.profile?.classLevel) : "8";
+  const isIndiaBoard = Boolean(BOARD_LABEL[boardKey]);
+  const board = isIndiaBoard ? boardKey : "cbse";
+
+  // Resolve the optional generic path. Never for a recognized India board.
+  const eduRaw = body.eduSystem;
+  const edu = !isIndiaBoard && eduRaw && typeof eduRaw.id === "string" && eduRaw.id.trim()
+    ? {
+      id: String(eduRaw.id).slice(0, 60),
+      authority: String(eduRaw.authority ?? "").slice(0, 200),
+      commandWords: (Array.isArray(eduRaw.commandWords) ? eduRaw.commandWords : [])
+        .slice(0, 16).map((w) => String(w).slice(0, 40)).filter(Boolean),
+      unit: eduRaw.unit === "points" ? "points" as const : "marks" as const,
+      terminator: String(eduRaw.terminator ?? "End of paper").slice(0, 60),
+      spelling: String(eduRaw.spelling ?? "en-GB").slice(0, 8),
+    }
+    : null;
+
+  // India keeps its strict VALID_CLASS_LEVELS check. The eduSystem path is
+  // validated permissively — the client already validated the stage against
+  // the system's own stageModel.stages before sending it.
+  const classLevel = edu
+    ? (String(body.profile?.classLevel ?? "").trim().slice(0, 40) || "10")
+    : ((VALID_CLASS_LEVELS as readonly string[]).includes(String(body.profile?.classLevel ?? ""))
+      ? String(body.profile?.classLevel) : "8");
   const subject = String(body.subject ?? "").trim().slice(0, 80);
   const totalMarks = Number(body.totalMarks);
   const profileId = String(body.profileId ?? body.profile?.id ?? "").trim();
