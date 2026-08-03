@@ -6,6 +6,8 @@ import { lovable } from "@/integrations/lovable";
 import { ArrowLeft, Mail, Lock, Phone } from "lucide-react";
 import { OTP_LOGIN_ENABLED } from "@/lib/flags";
 import { COUNTRIES, toWidgetFormat, nextResendDelay, MAX_RESENDS, OTP_EXPIRY_MINUTES } from "@/lib/phoneAuth";
+import { NOTICE_VERSION } from "@/lib/consent/notice";
+
 
 export const Route = createFileRoute("/auth")({
   head: () => ({
