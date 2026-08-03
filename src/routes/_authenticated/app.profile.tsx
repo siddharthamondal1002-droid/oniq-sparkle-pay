@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { GRIEVANCE_OFFICER } from "@/config/privacy";
 import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle, Music2, Database, Camera } from "lucide-react";
 import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
 import { COUNTRIES, useCountry } from "@/lib/country";
