@@ -1,3 +1,4 @@
+import { homeFormat } from "@/lib/format";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -93,9 +94,7 @@ const EDIT_WINDOW_MS = 15 * 60 * 1000;
 function humanSize(n: number | null | undefined): string {
   if (!n || n <= 0) return "";
   if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MB`;
-  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GB`;
+  return homeFormat().bytes(n);
 }
 
 function truncateMiddle(s: string, max = 32) {

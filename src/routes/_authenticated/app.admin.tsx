@@ -1,3 +1,4 @@
+import { homeFormat } from "@/lib/format";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -165,7 +166,7 @@ function AdminInbox() {
               <div key={r.id} className="rounded-2xl border border-border bg-card p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="text-xs text-muted-foreground">
-                    {new Date(r.created_at).toLocaleString()}
+                    {homeFormat().dateTime(r.created_at)}
                   </div>
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
                     r.status === "open" ? "bg-red-500/20 text-red-400"
@@ -368,7 +369,7 @@ function PartnerKycPanel() {
               )}
             </div>
             <div className="mt-2 text-[10px] text-muted-foreground">
-              applied {new Date(a.created_at).toLocaleString()}
+              applied {homeFormat().dateTime(a.created_at)}
             </div>
           </div>
         ))
@@ -487,7 +488,7 @@ function TakedownPanel() {
               <div className="mt-1 font-mono text-[10px] text-muted-foreground">id {o.content_id}</div>
               {o.authority && <div className="mt-0.5 text-muted-foreground">authority: {o.authority} {o.order_ref ? `· ref ${o.order_ref}` : ""}</div>}
               <div className="mt-0.5 text-muted-foreground">
-                received {new Date(o.received_at).toLocaleString()} · SLA {o.sla_deadline ? new Date(o.sla_deadline).toLocaleString() : "—"}
+                received {homeFormat().dateTime(o.received_at)} · SLA {o.sla_deadline ? homeFormat().dateTime(o.sla_deadline) : "—"}
               </div>
               {o.status === "received" && (
                 <button onClick={() => executeTakedown(o)} disabled={busy} className="press mt-2 w-full rounded-xl border border-red-500/50 py-2 text-[11px] font-semibold text-red-400 disabled:opacity-50">
@@ -568,7 +569,7 @@ function DeletionProofPanel() {
             <span className={`font-semibold ${p.pass ? "text-emerald-400" : "text-red-400"}`}>
               {p.pass ? "PASS ✅" : "FAIL ❌"}
             </span>
-            <span className="text-muted-foreground">{new Date(p.created_at).toLocaleString()}</span>
+            <span className="text-muted-foreground">{homeFormat().dateTime(p.created_at)}</span>
           </div>
           <div className="mt-1 text-muted-foreground">
             {p.tables_checked} tables · {p.buckets_checked} buckets · test {p.test_email}

@@ -1,3 +1,4 @@
+import { homeFormat } from "@/lib/format";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -721,7 +722,7 @@ function UploadSheet({
           <div className="rounded-2xl bg-muted p-3 text-sm">
             <div className="truncate font-medium">{file.name}</div>
             <div className="text-xs text-muted-foreground">
-              {(file.size / (1024 * 1024)).toFixed(1)} MB · {file.type}
+              {homeFormat().bytes(file.size)} · {file.type}
             </div>
             <button
               onClick={() => setFile(null)}

@@ -147,3 +147,8 @@ export function moneyIn(amount: number, currency: string, home?: Country): strin
     return `${currency} ${amount}`;
   }
 }
+
+/** Formatters for the current home country, outside React. */
+export function homeFormat(): Formatters {
+  return makeFormatters((typeof window === "undefined" ? "IN" : getCountry()) as Country);
+}
