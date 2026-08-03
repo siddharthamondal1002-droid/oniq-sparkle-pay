@@ -54,9 +54,13 @@ export async function setPersonalisationConsent(granted: boolean): Promise<void>
     _purpose: PERSONALISATION_PURPOSE,
     _granted: granted,
     _source: "privacy-settings",
+    _notice_version: NOTICE_VERSION,
+    _notice_locale: "en",
+    _purpose_desc: PERSONALISATION_NOTICE,
   });
   if (error) throw error;
 }
+
 
 /**
  * Best-effort signal write. Silent on failure by design: a minor account or a
