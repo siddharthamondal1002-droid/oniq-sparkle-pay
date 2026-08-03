@@ -339,7 +339,7 @@ function SafetySection() {
         <div className="text-sm font-semibold">Grievance Officer</div>
         <div className="text-xs text-muted-foreground">{GRIEVANCE_OFFICER.name}</div>
         <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="text-xs text-primary hover:underline">{GRIEVANCE_OFFICER.email}</a>
-        <div><a href={`tel:${GRIEVANCE_OFFICER.phone}`} className="text-xs text-primary hover:underline">{GRIEVANCE_OFFICER.phoneDisplay}</a></div>
+        
         <p className="mt-2 text-xs text-muted-foreground">
           Complaints acknowledged in 7 days · Serious complaints resolved in 36 hours.
         </p>

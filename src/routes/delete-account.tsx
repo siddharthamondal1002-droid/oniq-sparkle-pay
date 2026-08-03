@@ -203,10 +203,6 @@ function DeleteAccountPage() {
             Contact our Grievance Officer, {GRIEVANCE_OFFICER.name}, at{" "}
             <a className="text-primary hover:underline" href={`mailto:${GRIEVANCE_OFFICER.email}`}>
               {GRIEVANCE_OFFICER.email}
-            </a>{" "}
-            or{" "}
-            <a className="text-primary hover:underline" href={`tel:${GRIEVANCE_OFFICER.phone}`}>
-              {GRIEVANCE_OFFICER.phoneDisplay}
             </a>
             .
           </p>
