@@ -76,22 +76,24 @@ function DataRightsPage() {
       const res = await createDsrRequest("portability");
       if (!res.export) throw new Error("Export came back empty");
       const blob = new Blob([JSON.stringify(res.export, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `oniq-data-${new Date().toISOString().slice(0, 10)}.json`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const filename = `oniq-data-${new Date().toISOString().slice(0, 10)}.json`;
+      const outcome = await deliverFile(filename, "application/json", blob);
       await refreshRequests();
-      toast.success("Data export downloaded 📦");
+      toast.success(
+        outcome === "shared" ? "Export ready — choose where to save it 📦" : "Data export downloaded 📦",
+      );
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Couldn't export data");
+      if (isShareCancelled(e)) {
+        await refreshRequests();
+        toast("Save cancelled");
+      } else {
+        toast.error(e instanceof Error ? e.message : "Couldn't export data");
+      }
     } finally {
       setExporting(false);
     }
   }
+
 
   async function requestCorrection() {
     setBusy(true);
