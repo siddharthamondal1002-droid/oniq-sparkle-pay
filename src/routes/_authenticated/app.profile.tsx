@@ -336,8 +336,8 @@ function SafetySection() {
       </div>
       <div className="rounded-2xl border border-border bg-card p-4">
         <div className="text-sm font-semibold">Grievance Officer</div>
-        <div className="text-xs text-muted-foreground">Siddhartha Mondal</div>
-        <a href="mailto:grievance@oniqhub.com" className="text-xs text-primary hover:underline">grievance@oniqhub.com</a>
+        <div className="text-xs text-muted-foreground">{GRIEVANCE_OFFICER.name}</div>
+        <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="text-xs text-primary hover:underline">{GRIEVANCE_OFFICER.email}</a>
         <p className="mt-2 text-xs text-muted-foreground">
           Complaints acknowledged in 7 days · Serious complaints resolved in 36 hours.
         </p>
