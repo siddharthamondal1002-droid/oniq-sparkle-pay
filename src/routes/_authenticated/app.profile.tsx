@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { GRIEVANCE_OFFICER } from "@/config/privacy";
 import { LogOut, Save, Shield, Flag, ScrollText, Trash2, AlertTriangle, Music2, Database, Camera } from "lucide-react";
 import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
 import { COUNTRIES, useCountry } from "@/lib/country";
@@ -336,8 +337,8 @@ function SafetySection() {
       </div>
       <div className="rounded-2xl border border-border bg-card p-4">
         <div className="text-sm font-semibold">Grievance Officer</div>
-        <div className="text-xs text-muted-foreground">Siddhartha Mondal</div>
-        <a href="mailto:grievance@oniqhub.com" className="text-xs text-primary hover:underline">grievance@oniqhub.com</a>
+        <div className="text-xs text-muted-foreground">{GRIEVANCE_OFFICER.name}</div>
+        <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="text-xs text-primary hover:underline">{GRIEVANCE_OFFICER.email}</a>
         <p className="mt-2 text-xs text-muted-foreground">
           Complaints acknowledged in 7 days · Serious complaints resolved in 36 hours.
         </p>

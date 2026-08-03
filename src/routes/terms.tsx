@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { GRIEVANCE_OFFICER } from "@/config/privacy";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
@@ -51,8 +52,8 @@ function TermsPage() {
           <p>We have designated a Grievance Officer as required under the Information Technology (Intermediary Guidelines and Digital Media Ethics Code) Rules, 2021.</p>
           <div className="rounded-2xl border border-border bg-card p-5">
             <div className="font-semibold">Grievance Officer</div>
-            <div>Siddhartha Mondal</div>
-            <div>Email: <a className="text-primary hover:underline" href="mailto:grievance@oniqhub.com">grievance@oniqhub.com</a></div>
+            <div>{GRIEVANCE_OFFICER.name}</div>
+            <div>Email: <a className="text-primary hover:underline" href={`mailto:${GRIEVANCE_OFFICER.email}`}>{GRIEVANCE_OFFICER.email}</a></div>
           </div>
           <p><strong>Timelines we commit to:</strong></p>
           <ul className="list-disc space-y-1 pl-6">

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { GRIEVANCE_OFFICER } from "@/config/privacy";
 import {
   MessageCircle,
   Sparkles,
@@ -215,7 +216,7 @@ function Landing() {
             <span>·</span>
             <Link to="/privacy" className="hover:text-primary">Privacy</Link>
             <span>·</span>
-            <a href="mailto:grievance@oniqhub.com" className="hover:text-primary">Grievance officer</a>
+            <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="hover:text-primary">Grievance officer</a>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
             © {new Date().getFullYear()} ONIQ. All rights reserved.

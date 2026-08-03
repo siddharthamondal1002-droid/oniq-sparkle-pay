@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { GRIEVANCE_OFFICER } from "@/config/privacy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -199,9 +200,9 @@ function DeleteAccountPage() {
 
           <h2 className="font-display text-2xl font-semibold">Questions</h2>
           <p>
-            Contact our Grievance Officer, Siddhartha Mondal, at{" "}
-            <a className="text-primary hover:underline" href="mailto:grievance@oniqhub.com">
-              grievance@oniqhub.com
+            Contact our Grievance Officer, {GRIEVANCE_OFFICER.name}, at{" "}
+            <a className="text-primary hover:underline" href={`mailto:${GRIEVANCE_OFFICER.email}`}>
+              {GRIEVANCE_OFFICER.email}
             </a>
             .
           </p>

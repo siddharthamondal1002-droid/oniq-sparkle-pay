@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { GRIEVANCE_OFFICER } from "@/config/privacy";
 
 export const Route = createFileRoute("/privacy")({
   head: () => ({
@@ -72,8 +73,8 @@ function PrivacyPage() {
 
           <div className="rounded-2xl border border-border bg-card p-5">
             <div className="font-semibold">Grievance Officer</div>
-            <div>Siddhartha Mondal</div>
-            <div>Email: <a className="text-primary hover:underline" href="mailto:grievance@oniqhub.com">grievance@oniqhub.com</a></div>
+            <div>{GRIEVANCE_OFFICER.name}</div>
+            <div>Email: <a className="text-primary hover:underline" href={`mailto:${GRIEVANCE_OFFICER.email}`}>{GRIEVANCE_OFFICER.email}</a></div>
           </div>
 
           <p className="mt-10 border-t border-border pt-6 text-xs text-muted-foreground">
