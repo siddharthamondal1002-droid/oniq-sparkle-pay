@@ -2,21 +2,22 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowRight, MessageCircle, QrCode, Sparkles, ShieldCheck, Globe2 } from "lucide-react";
 
 const TITLE = "What is a Super App? The Future of Unified Digital Living";
+const SEO_TITLE = "What is a Super App? | ONIQ";
 const DESCRIPTION =
-  "A super app bundles chat, payments, food, rides, and mini apps into one login. Learn what a super app is, why WeChat, Grab, and Gojek dominate, and how ONIQ brings the model to a global audience.";
+  "A super app bundles chat, payments, food, rides, and mini apps into one login. Here's how WeChat, Grab, and Gojek work — and how ONIQ goes global.";
 const URL = "https://oniqhub.com/blog/what-is-a-super-app";
 
 export const Route = createFileRoute("/blog/what-is-a-super-app")({
   head: () => ({
     meta: [
-      { title: `${TITLE} | ONIQ` },
+      { title: SEO_TITLE },
       { name: "description", content: DESCRIPTION },
-      { property: "og:title", content: TITLE },
+      { property: "og:title", content: SEO_TITLE },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:url", content: URL },
       { property: "og:type", content: "article" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:title", content: TITLE },
+      { name: "twitter:title", content: SEO_TITLE },
       { name: "twitter:description", content: DESCRIPTION },
     ],
     links: [{ rel: "canonical", href: URL }],
