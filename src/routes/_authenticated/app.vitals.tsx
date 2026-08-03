@@ -8,6 +8,7 @@ import { writeVitalsCache } from "@/components/vitals/useVitalsTileColor";
 import { CrisisCard } from "@/components/vitals/CrisisCard";
 import { BreathingCard } from "@/components/vitals/BreathingCard";
 import { launchMiniApp } from "@/lib/miniapps";
+import { assertHealthWriteAllowed, healthWritesAllowed } from "@/lib/healthGuard";
 
 export const Route = createFileRoute("/_authenticated/app/vitals")({
   component: VitalsPage,
@@ -89,6 +90,7 @@ function VitalsPage() {
 
   const score = useMemo(() => computeScore(checkins ?? []), [checkins]);
   useEffect(() => {
+    if (!healthWritesAllowed()) return;
     writeVitalsCache(score, hp?.experience ?? null);
   }, [score, hp?.experience]);
 
@@ -96,13 +98,15 @@ function VitalsPage() {
     mutationFn: async (exp: Experience) => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("sign in first");
+      // UAE (Federal Law 2/2019): no health data may be created for AE-home users.
+      assertHealthWriteAllowed();
       const { error } = await supabase
         .from("health_profiles")
         .upsert({ user_id: u.user.id, experience: exp, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
       if (error) throw error;
     },
     onSuccess: (_d, exp) => {
-      writeVitalsCache(score, exp);
+      if (healthWritesAllowed()) writeVitalsCache(score, exp);
       qc.invalidateQueries({ queryKey: ["health-profile"] });
       toast.success("locked in — vitals is yours ✨");
     },
@@ -201,6 +205,8 @@ function DailyCheckin({ todayRow }: { todayRow: Checkin | null }) {
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("sign in first");
+      // UAE (Federal Law 2/2019): no health data may be created for AE-home users.
+      assertHealthWriteAllowed();
       const { error } = await supabase.from("health_checkins").upsert({
         user_id: u.user.id,
         day: today(),
@@ -318,6 +324,8 @@ function CycleSection() {
     mutationFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("sign in first");
+      // UAE (Federal Law 2/2019): no health data may be created for AE-home users.
+      assertHealthWriteAllowed();
       const { error } = await supabase.from("cycle_logs").insert({
         user_id: u.user.id,
         period_start: start,
@@ -529,6 +537,8 @@ function WipeHealthData() {
     try {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("sign in first");
+      // UAE (Federal Law 2/2019): no health data may be created for AE-home users.
+      assertHealthWriteAllowed();
       const uid = u.user.id;
       const r1 = await supabase.from("cycle_logs").delete().eq("user_id", uid);
       if (r1.error) throw r1.error;
