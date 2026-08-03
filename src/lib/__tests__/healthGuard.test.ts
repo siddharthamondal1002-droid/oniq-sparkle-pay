@@ -50,3 +50,48 @@ describe("UAE health-data block", () => {
     expect(medicalEmergency("AE")).toBe("998");
   });
 });
+
+describe("UAE region axis (data generated in the UAE)", () => {
+  beforeEach(() => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+      clear: () => store.clear(),
+    });
+  });
+
+  it("blocks an IN-home user physically in the UAE", () => {
+    expect(healthWritesAllowed("IN", "AE")).toBe(false);
+    expect(() => assertHealthWriteAllowed("IN", "AE")).toThrow();
+  });
+
+  it("blocks regardless of home when region is AE", () => {
+    for (const c of ["IN", "US", "GB", "CA", "AU", "SG", "AE"] as const) {
+      expect(healthWritesAllowed(c, "AE")).toBe(false);
+    }
+  });
+
+  it("still blocks an AE-home user travelling elsewhere", () => {
+    expect(healthWritesAllowed("AE", "IN")).toBe(false);
+  });
+
+  it("allows when both axes are non-AE", () => {
+    expect(healthWritesAllowed("IN", "IN")).toBe(true);
+    expect(healthWritesAllowed("US", null)).toBe(true);
+  });
+
+  it("region fails OPEN on null (no positive signal) — documented decision", () => {
+    expect(healthWritesAllowed("IN", null)).toBe(true);
+  });
+
+  it("crisis content stays available in every state, including region=AE", () => {
+    expect(getCrisisLines("AE").length).toBeGreaterThan(0);
+    expect(primaryEmergency("AE")).toBe("999");
+    expect(medicalEmergency("AE")).toBe("998");
+    for (const c of ["IN", "US", "GB", "CA", "AU", "SG"] as const) {
+      expect(getCrisisLines(c).length).toBeGreaterThan(0);
+    }
+  });
+});
