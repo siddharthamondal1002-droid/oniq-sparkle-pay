@@ -3189,7 +3189,15 @@ export type Database = {
       }
       record_clip_view: { Args: { _clip_id: string }; Returns: undefined }
       record_consent: {
-        Args: { _granted: boolean; _purpose: string; _source?: string }
+        Args: {
+          _categories?: Json
+          _granted: boolean
+          _notice_locale?: string
+          _notice_version?: string
+          _purpose: string
+          _purpose_desc?: string
+          _source?: string
+        }
         Returns: undefined
       }
       record_post_view: {
