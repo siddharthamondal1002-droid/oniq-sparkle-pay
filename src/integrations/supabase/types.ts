@@ -2685,10 +2685,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      __ae_health_proof: {
-        Args: { _country: string; _fake_region: string }
-        Returns: Json
-      }
       accept_booking_price: {
         Args: { _booking_id: string }
         Returns: undefined

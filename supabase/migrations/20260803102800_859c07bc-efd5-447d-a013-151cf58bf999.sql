@@ -1,0 +1,1 @@
+DROP FUNCTION IF EXISTS public.__ae_health_proof(text, text);
