@@ -3,17 +3,20 @@
 import { Link } from "@tanstack/react-router";
 import { HeartHandshake, Phone } from "lucide-react";
 import { useCountry } from "@/lib/country";
-import { CRISIS_LINES, CRISIS_EMERGENCY } from "@/data/crisisLines";
+import { useCurrentRegion } from "@/lib/region";
+import { getCrisisLines, primaryEmergency } from "@/data/countryRegistry";
 
 export function CrisisCard({ intro }: { intro?: string }) {
-  // TODO(current-region): these lines must follow where the user physically
-  // IS, not their home country — an Indian user in Dubai needs the UAE lines
-  // and UAE emergency number. `useCountry()` is the home/profile country and
-  // is the only signal that exists today; swap it for a current-region signal
-  // the moment one lands. No new location mechanism is invented here.
-  const [country] = useCountry();
-  const lines = CRISIS_LINES[country] ?? CRISIS_LINES.IN;
-  const emergency = CRISIS_EMERGENCY[country] ?? "112";
+  // Help must reach the body, not the passport: these follow the CURRENT
+  // region and fall back to Home only when the region is unknown. An Indian
+  // user in Dubai gets the UAE lines and the UAE ambulance number.
+  const [home] = useCountry();
+  const [region] = useCurrentRegion();
+  const here = region ?? home;
+  const lines = getCrisisLines(here);
+  const emergency = primaryEmergency(here);
+
+
 
 
   return (
