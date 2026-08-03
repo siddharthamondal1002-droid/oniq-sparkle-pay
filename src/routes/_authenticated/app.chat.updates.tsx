@@ -341,14 +341,13 @@ function StatusViewer({
       }, 5000);
       return () => { clearTimeout(t1); clearTimeout(t); };
     }
-    // Owner: fresh count from the unified table (owner-readable by RLS).
+    // Owner: total viewer count via owner-scoped RPC. Viewer identity is
+    // never returned here — the "seen by" list uses post_viewers(), which
+    // honours each viewer's show_view_identity preference.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
-      .from("post_views")
-      .select("*", { count: "exact", head: true })
-      .eq("post_type", "update")
-      .eq("post_id", cur.id)
-      .then(({ count }: { count: number | null }) => setViewsCount(count ?? 0));
+      .rpc("post_view_count", { _post_type: "update", _post_id: cur.id })
+      .then(({ data }: { data: number | null }) => setViewsCount(data ?? 0));
     const t = setTimeout(() => {
       setIdx((i) => (i + 1 < rows.length ? i + 1 : -1));
     }, 5000);
