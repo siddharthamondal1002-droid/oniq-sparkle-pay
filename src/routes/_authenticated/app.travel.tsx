@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
-import { ArrowLeft, ExternalLink, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, ExternalLink, Loader2, Search, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { openInApp } from "@/lib/miniapps";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/_authenticated/app/travel")({
   component: TravelScreen,
