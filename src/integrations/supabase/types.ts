@@ -3184,6 +3184,10 @@ export type Database = {
         }
         Returns: string
       }
+      post_view_count: {
+        Args: { _post_id: string; _post_type: string }
+        Returns: number
+      }
       post_viewers: {
         Args: {
           _limit?: number
