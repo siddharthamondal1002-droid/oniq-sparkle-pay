@@ -3,7 +3,7 @@ import type {} from "@tanstack/react-start";
 
 
 
-const BASE_URL = "https://oniq-sparkle-pay.lovable.app";
+const BASE_URL = "https://oniqhub.com";
 
 interface SitemapEntry {
   path: string;
@@ -19,6 +19,10 @@ export const Route = createFileRoute("/sitemap.xml")({
           { path: "/", changefreq: "weekly", priority: "1.0" },
           { path: "/auth", changefreq: "monthly", priority: "0.5" },
           { path: "/blog/what-is-a-super-app", changefreq: "monthly", priority: "0.8" },
+          { path: "/privacy", changefreq: "yearly", priority: "0.3" },
+          { path: "/terms", changefreq: "yearly", priority: "0.3" },
+          { path: "/child-safety", changefreq: "yearly", priority: "0.3" },
+          { path: "/delete-account", changefreq: "yearly", priority: "0.3" },
         ];
 
         const urls = entries.map((e) =>
