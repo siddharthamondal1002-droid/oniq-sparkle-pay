@@ -17,6 +17,7 @@ import { FullScreenIntentPrompt } from "@/components/onboarding/FullScreenIntent
 import { CallReminderWatcher } from "@/components/chat/CallReminderWatcher";
 import { HealthDataWatcher } from "@/components/vitals/HealthDataWatcher";
 import { LanguageProvider, useT } from "@/lib/i18n/LanguageProvider";
+import { useDocumentDirection } from "@/lib/i18n/direction";
 
 
 
@@ -48,10 +49,13 @@ function AppShell() {
     ? pathname.slice(0, -1)
     : pathname;
   const showNav = TOP_LEVEL.has(normalized);
+  // Resolved from the HOME country's CountryConfig.dir (AE => rtl) and mirrored
+  // onto <html dir>; portal roots take it from useDir() themselves.
+  const dir = useDocumentDirection();
 
   return (
     <LanguageProvider>
-    <>
+    <div dir={dir} className="contents">
       {/* Desktop/tablet backdrop — subtle branded gradient behind the mobile frame */}
       <div
         aria-hidden
@@ -120,7 +124,7 @@ function AppShell() {
         </>
       )}
     </div>
-    </>
+    </div>
     </LanguageProvider>
   );
 }

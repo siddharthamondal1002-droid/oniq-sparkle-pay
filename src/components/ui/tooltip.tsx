@@ -4,6 +4,7 @@ import * as React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
 import { cn } from "@/lib/utils";
+import { useDir } from "@/lib/i18n/direction";
 
 const TooltipProvider = TooltipPrimitive.Provider;
 
@@ -17,6 +18,7 @@ const TooltipContent = React.forwardRef<
 >(({ className, sideOffset = 4, ...props }, ref) => (
   <TooltipPrimitive.Portal>
     <TooltipPrimitive.Content
+    dir={useDir()}
       ref={ref}
       sideOffset={sideOffset}
       className={cn(

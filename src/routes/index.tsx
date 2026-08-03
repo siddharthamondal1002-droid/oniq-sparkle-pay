@@ -40,10 +40,10 @@ const features = [
   { icon: Sparkles, title: "Moments", desc: "A private social feed for you and your circle." },
   { icon: Film, title: "Clips", desc: "Endless short videos in a swipeable feed." },
   { icon: QrCode, title: "Scan & Pay (UPI)", desc: "Scan any UPI QR, show your own — payments run through your own UPI apps." },
-  { icon: Car, title: "Ride Genie", desc: "Compare ride prices across providers before you book." },
+  { icon: Car, title: "Rides", desc: "Compare ride prices across providers before you book." },
   { icon: Plane, title: "Wander", desc: "Compare buses, trains, flights and hotels in one hub." },
   { icon: Sparkles, title: "Ting AI", desc: "Live-web AI assistant that actually answers what's happening now." },
-  { icon: Languages, title: "Lingo", desc: "25-language translator plus Bengali lessons in ONIQ Learn." },
+  { icon: Languages, title: "Scout", desc: "25-language translator plus Bengali lessons in ONIQ Learn." },
   { icon: Tv, title: "Pulse & Watch", desc: "Live news TV, 6 genre channels, plus My TV for your YouTube picks." },
   { icon: Grid3x3, title: "25+ Mini Apps", desc: "A growing hub of partner apps that open right inside ONIQ." },
   { icon: ShieldCheck, title: "Yours to skin", desc: "Install as a PWA, add wallpapers and tile skins." },
@@ -123,7 +123,7 @@ function Landing() {
               </div>
               <div className="mt-10 grid grid-cols-3 gap-6 text-sm">
                 <Stat value="12" label="Worlds in one app" />
-                <Stat value="25" label="Languages in Lingo" />
+                <Stat value="25" label="Languages in Scout" />
                 <Stat value="6" label="TV genres live" />
               </div>
             </div>

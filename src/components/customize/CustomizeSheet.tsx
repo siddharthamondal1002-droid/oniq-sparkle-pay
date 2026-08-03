@@ -4,7 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Palette, Upload, RotateCcw, X, Eye, EyeOff } from "lucide-react";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { resolveTileLabel, TILE_LABELS_HI } from "@/lib/i18n/tileLabel";
+import { resolveTileLabel, TILE_LABELS_HI, TILE_LABELS, type TileKey } from "@/lib/i18n/tileLabel";
+
+export type { TileKey };
+export { TILE_LABELS };
 
 const HIDDEN_TILES_KEY = "oniq.tiles.hidden.v1";
 
@@ -49,43 +52,13 @@ export function useHiddenTiles(): [Set<TileKey>, (key: TileKey, hidden: boolean)
 
 const SIGNED_TTL_SECONDS = 60 * 60 * 24 * 365 * 100; // ~100 years
 
-export type TileKey =
-  | "watch"
-  | "study"
-  | "moments"
-  | "mast"
-  | "pulse"
-  | "clips"
-  | "ting"
-  | "rides"
-  | "miniapps"
-  | "upi"
-  | "learn"
-  | "wander"
-  | "faith"
-  | "vitals"
-  | "official";
 
-export const TILE_LABELS: Record<TileKey, string> = {
-  watch: "Watch",
-  study: "Study 📚",
-  moments: "Moments ✨",
-  mast: "Mast 🎬",
-  pulse: "Pulse",
-  clips: "brainrot 🎬",
-  ting: "Ting ✨",
-  rides: "Rides 🚗",
-  miniapps: "Hacks 🔌",
-  upi: "tap in 💳",
-  learn: "Scout 🧠",
-  wander: "touch grass ✈️",
-  faith: "Blessed 🙏",
-  vitals: "Vitals 🫀",
-  official: "Official 🏛️",
-};
 
 // Feed-banner tabs are hideable but have no skin surface of their own.
-const BANNER_ONLY_TILES: TileKey[] = ["study", "moments", "mast"];
+// Feed-banner tabs are hideable but have no skin surface of their own.
+// `earn`/`moots` are named in the shared label table for other renderers but
+// are not customizable tiles here.
+const BANNER_ONLY_TILES: TileKey[] = ["study", "moments", "mast", "earn", "moots"];
 
 
 export type UserTheme = {

@@ -1,3 +1,4 @@
+import { moneyIn } from "@/lib/format";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,7 +73,7 @@ function FoodScreen() {
                   <Clock className="h-3 w-3" /> {r.delivery_time_mins} min
                 </span>
                 <span>·</span>
-                <span>${Number(r.delivery_fee).toFixed(2)} delivery</span>
+                <span>{moneyIn(Number(r.delivery_fee), "USD")} delivery</span>
               </div>
             </div>
           </Link>

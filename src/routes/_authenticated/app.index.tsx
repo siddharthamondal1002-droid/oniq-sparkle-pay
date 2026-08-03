@@ -1,10 +1,10 @@
+import { moneyIn } from "@/lib/format";
 import { useEffect, useId, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sparkles,
-  
   Send,
   Car,
   LayoutGrid,
@@ -35,7 +35,6 @@ import {
   CustomizeButton,
   useHiddenTiles,
   useUserTheme,
-  type TileKey,
 } from "@/components/customize/CustomizeSheet";
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useCountry } from "@/lib/country";
@@ -43,7 +42,7 @@ import { isAvailable } from "@/data/countryRegistry";
 import { RegionBanner } from "@/components/home/RegionBanner";
 import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { resolveTileLabel } from "@/lib/i18n/tileLabel";
+import { resolveTileLabel, tileName, type TileKey } from "@/lib/i18n/tileLabel";
 import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
 import { recordSignal } from "@/lib/personalisation";
 
@@ -73,105 +72,110 @@ function HomeScreen() {
   const vitalsColor = useVitalsTileColor();
   const { t } = useT();
 
-
-
   const first = profile?.display_name?.split(" ")[0] ?? profile?.username ?? "there";
 
   return (
     <MediaProvider>
-    <div className="relative pb-6 min-h-screen">
-      {/* Wallpaper is now rendered by the app shell (_authenticated/app.tsx)
+      <div className="relative pb-6 min-h-screen">
+        {/* Wallpaper is now rendered by the app shell (_authenticated/app.tsx)
           so it persists across every /app/* tab. */}
-      <div className="relative z-10">
-        <h1 className="sr-only">Your ONIQ dashboard</h1>
-        <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">
-          <div className="flex items-center justify-between fade-up">
-            <div>
-              <div className="text-xs text-muted-foreground">main character detected ✨</div>
-              {profileLoading ? (
-                <div className="mt-1 h-8 w-40 animate-pulse rounded-lg bg-surface" />
-              ) : (
-                <p className="font-display text-3xl font-bold text-gradient-primary">{t("home.greeting", "Hey")}, {first} 👋</p>
-              )}
-            </div>
-
-            <Link
-              to="/app/profile"
-              aria-label="Open profile"
-              className="press grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground font-bold overflow-hidden"
-            >
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="Your profile picture" className="h-full w-full object-cover" />
-              ) : (
-                (profile?.display_name ?? profile?.username ?? "O").charAt(0).toUpperCase()
-              )}
-            </Link>
-          </div>
-
-          {installPrompt.canInstall && (
-            <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-border bg-card/85 px-3 py-2 fade-up">
-              <span className="text-xs">📲 install ONIQ on your home screen</span>
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={installPrompt.prompt}
-                  className="press rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
-                >
-                  Install
-                </button>
-                <button
-                  onClick={installPrompt.dismiss}
-                  className="press rounded-full px-2 py-1 text-xs text-muted-foreground"
-                  aria-label="Dismiss"
-                >
-                  ✕
-                </button>
+        <div className="relative z-10">
+          <h1 className="sr-only">Your ONIQ dashboard</h1>
+          <div className="px-5 pt-[max(3rem,env(safe-area-inset-top))]">
+            <div className="flex items-center justify-between fade-up">
+              <div>
+                <div className="text-xs text-muted-foreground">main character detected ✨</div>
+                {profileLoading ? (
+                  <div className="mt-1 h-8 w-40 animate-pulse rounded-lg bg-surface" />
+                ) : (
+                  <p className="font-display text-3xl font-bold text-gradient-primary">
+                    {t("home.greeting", "Hey")}, {first} 👋
+                  </p>
+                )}
               </div>
+
+              <Link
+                to="/app/profile"
+                aria-label="Open profile"
+                className="press grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground font-bold overflow-hidden"
+              >
+                {profile?.avatar_url ? (
+                  <img
+                    src={profile.avatar_url}
+                    alt="Your profile picture"
+                    className="h-full w-full object-cover"
+                  />
+                ) : (
+                  (profile?.display_name ?? profile?.username ?? "O").charAt(0).toUpperCase()
+                )}
+              </Link>
             </div>
-          )}
 
-          <GlanceCard />
+            {installPrompt.canInstall && (
+              <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-border bg-card/85 px-3 py-2 fade-up">
+                <span className="text-xs">📲 install ONIQ on your home screen</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={installPrompt.prompt}
+                    className="press rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground"
+                  >
+                    Install
+                  </button>
+                  <button
+                    onClick={installPrompt.dismiss}
+                    className="press rounded-full px-2 py-1 text-xs text-muted-foreground"
+                    aria-label="Dismiss"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            )}
 
-          <AnticipatoryCard />
+            <GlanceCard />
 
-          <div className="mt-7 px-1 flex items-center justify-between">
-            <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
-              your feed
-            </h2>
-            <CustomizeButton />
+            <AnticipatoryCard />
+
+            <div className="mt-7 px-1 flex items-center justify-between">
+              <h2 className="font-display text-xs uppercase tracking-wider text-muted-foreground">
+                your feed
+              </h2>
+              <CustomizeButton />
+            </div>
+
+            <div className="mt-3">
+              <HomeMediaBanner />
+            </div>
+
+            <RegionBanner />
+
+            <div className="mt-3">
+              <HomeCountryPrompt />
+            </div>
+
+            <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              also in ONIQ
+            </div>
+            <AlsoInOniqRow
+              tiles={[
+                // Names come from the shared table (tileLabel.ts) — never inline.
+                { key: "ting", to: "/app/ai" },
+                { key: "learn", to: "/app/learn" },
+                { key: "rides", to: "/app/rides" },
+                { key: "miniapps", to: "/app/miniapps" },
+                { key: "official", to: "/app/official" },
+                { key: "pulse", to: "/app/news" },
+                { key: "watch", to: "/app/news", search: { tab: "watch" as const } },
+                { key: "faith", to: "/app/faith" },
+                { key: "vitals", to: "/app/vitals", color: vitalsColor },
+                { key: "wander", to: "/app/travel" },
+                { key: "earn", to: "/app/earn" },
+              ]}
+              hidden={hidden}
+            />
           </div>
-
-          <div className="mt-3">
-            <HomeMediaBanner />
-          </div>
-
-          <RegionBanner />
-
-          <div className="mt-3">
-            <HomeCountryPrompt />
-          </div>
-
-          <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            also in ONIQ
-          </div>
-          <AlsoInOniqRow
-            tiles={[
-              { key: "ting", to: "/app/ai", label: "Ting ✨", labelHi: "टिंग" },
-              { key: "learn", to: "/app/learn", label: "Scout 🧠", labelHi: "भाव" },
-              { key: "rides", to: "/app/rides", label: "Rides 🚗", labelHi: "सवारी" },
-              { key: "miniapps", to: "/app/miniapps", label: "Hacks 🔌", labelHi: "जुगाड़" },
-              { key: "official", to: "/app/official", label: "Official 🏛️", labelHi: "सरकारी" },
-              { key: "pulse", to: "/app/news", label: "Pulse", labelHi: "खबर" },
-              { key: "watch", to: "/app/news", search: { tab: "watch" as const }, label: "Watch", labelHi: "देखो" },
-              { key: "faith", to: "/app/faith", label: "Blessed 🙏", labelHi: "आस्था" },
-              { key: "vitals", to: "/app/vitals", label: "Vitals 🫀", labelHi: "सेहत", color: vitalsColor },
-              { key: "wander", to: "/app/travel", label: "touch grass ✈️", labelHi: "सफ़र" },
-              { key: "earn", to: "/app/earn", label: "earn 💸", labelHi: "कमाई" },
-            ]}
-            hidden={hidden}
-          />
         </div>
       </div>
-    </div>
     </MediaProvider>
   );
 }
@@ -212,7 +216,11 @@ function Tile({
       {!showSkin && (
         <div
           className="relative grid h-11 w-11 place-items-center rounded-2xl overflow-hidden transition-transform duration-200"
-          style={{ color: tint, background: `${tint}26`, boxShadow: `0 0 18px ${tint}40, inset 0 0 0 1px ${tint}33` }}
+          style={{
+            color: tint,
+            background: `${tint}26`,
+            boxShadow: `0 0 18px ${tint}40, inset 0 0 0 1px ${tint}33`,
+          }}
         >
           <Icon className="h-5 w-5" />
         </div>
@@ -222,17 +230,27 @@ function Tile({
           <Lock className="h-2.5 w-2.5 text-muted-foreground" />
         </div>
       )}
-      <span className={`font-display relative z-10 text-xs font-medium ${showSkin ? "text-white drop-shadow" : ""} ${locked ? "text-muted-foreground" : ""}`}>{label}</span>
+      <span
+        className={`font-display relative z-10 text-xs font-medium ${showSkin ? "text-white drop-shadow" : ""} ${locked ? "text-muted-foreground" : ""}`}
+      >
+        {label}
+      </span>
     </>
   );
   const base =
     "press fade-up relative overflow-hidden flex flex-col items-center justify-center gap-2 rounded-2xl bg-card p-2 border border-border transition-colors";
   const washStyle = !showSkin
-    ? { background: `radial-gradient(120% 90% at 0% 0%, ${tint}47 0%, ${tint}14 35%, transparent 65%), hsl(var(--card))` }
+    ? {
+        background: `radial-gradient(120% 90% at 0% 0%, ${tint}47 0%, ${tint}14 35%, transparent 65%), hsl(var(--card))`,
+      }
     : undefined;
   const style = { animationDelay: `${delay}ms`, ...(washStyle ?? {}) };
   if (locked) {
-    return <div className={`${base} opacity-60`} style={style}>{inner}</div>;
+    return (
+      <div className={`${base} opacity-60`} style={style}>
+        {inner}
+      </div>
+    );
   }
   return (
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -242,7 +260,15 @@ function Tile({
   );
 }
 
-type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "devotional" | "mytv";
+type GenreId =
+  | "news"
+  | "sports"
+  | "entertainment"
+  | "finance"
+  | "influencer"
+  | "lifestyle"
+  | "devotional"
+  | "mytv";
 type FaithId = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jewish";
 type Video = {
   videoId: string;
@@ -260,8 +286,11 @@ function readDevotionalFaithPref(): FaithId | null {
   try {
     const r = localStorage.getItem("oniq.faith.religion.v1");
     if (r === "islam") return "islamic";
-    if (r === "hindu" || r === "sikh" || r === "christian" || r === "buddhist" || r === "jewish") return r;
-  } catch { /* noop */ }
+    if (r === "hindu" || r === "sikh" || r === "christian" || r === "buddhist" || r === "jewish")
+      return r;
+  } catch {
+    /* noop */
+  }
   return null;
 }
 
@@ -276,7 +305,6 @@ const DEVOTIONAL_DURATIONS: { label: string; sec: number }[] = [
   { label: "12 hr", sec: 12 * 60 * 60 },
   { label: "24 hr", sec: 24 * 60 * 60 },
 ];
-
 
 function useLiveGenres(enabled: boolean) {
   return useQuery({
@@ -318,30 +346,52 @@ function HeroTile({
   const showSkin = skin && !skinError;
   const { data: baseGenres } = useLiveGenres(livePreview && !showSkin);
   const { videos: myTvVideos } = useMyTv();
-  const genres = livePreview && !showSkin
-    ? [
-        ...(baseGenres ?? []),
-        ...(myTvVideos.length > 0
-          ? [{ id: "mytv" as GenreId, name: "My TV", emoji: "📺", live: false, videos: myTvVideos }]
-          : []),
-      ]
-    : [];
+  const genres =
+    livePreview && !showSkin
+      ? [
+          ...(baseGenres ?? []),
+          ...(myTvVideos.length > 0
+            ? [
+                {
+                  id: "mytv" as GenreId,
+                  name: "My TV",
+                  emoji: "📺",
+                  live: false,
+                  videos: myTvVideos,
+                },
+              ]
+            : []),
+        ]
+      : [];
   const [genreId, setGenreId] = useState<GenreId>(() => {
     if (typeof window === "undefined") return "news";
-    try { return (localStorage.getItem("oniq.watch.lastGenre") as GenreId) || "news"; } catch { return "news"; }
+    try {
+      return (localStorage.getItem("oniq.watch.lastGenre") as GenreId) || "news";
+    } catch {
+      return "news";
+    }
   });
-  const activeGenre =
-    genres.find((g) => g.id === genreId) ?? genres[0] ?? null;
+  const activeGenre = genres.find((g) => g.id === genreId) ?? genres[0] ?? null;
   const isDevotional = activeGenre?.id === "devotional";
 
   // Devotional loop state — anchored to real timestamps in localStorage so backgrounding/reopens resume.
   const [devLoopStart, setDevLoopStart] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
-    try { const v = localStorage.getItem(DEVOTIONAL_LOOP_START_KEY); return v ? Number(v) : null; } catch { return null; }
+    try {
+      const v = localStorage.getItem(DEVOTIONAL_LOOP_START_KEY);
+      return v ? Number(v) : null;
+    } catch {
+      return null;
+    }
   });
   const [devLoopDur, setDevLoopDur] = useState<number | null>(() => {
     if (typeof window === "undefined") return null;
-    try { const v = localStorage.getItem(DEVOTIONAL_LOOP_DUR_KEY); return v ? Number(v) : null; } catch { return null; }
+    try {
+      const v = localStorage.getItem(DEVOTIONAL_LOOP_DUR_KEY);
+      return v ? Number(v) : null;
+    } catch {
+      return null;
+    }
   });
   const [devJustBrowse, setDevJustBrowse] = useState(false);
   // Ticks once per second while in devotional loop so "elapsed" flips reactively.
@@ -351,21 +401,30 @@ function HeroTile({
     const t = window.setInterval(() => setNowTs(Date.now()), 1000);
     return () => window.clearInterval(t);
   }, [isDevotional, devLoopStart, devLoopDur]);
-  const devLoopActive = isDevotional && devLoopStart != null && devLoopDur != null && (nowTs - devLoopStart) < devLoopDur * 1000;
-  const devLoopEnded = isDevotional && devLoopStart != null && devLoopDur != null && (nowTs - devLoopStart) >= devLoopDur * 1000;
+  const devLoopActive =
+    isDevotional &&
+    devLoopStart != null &&
+    devLoopDur != null &&
+    nowTs - devLoopStart < devLoopDur * 1000;
+  const devLoopEnded =
+    isDevotional &&
+    devLoopStart != null &&
+    devLoopDur != null &&
+    nowTs - devLoopStart >= devLoopDur * 1000;
   const devFaithPref = isDevotional ? readDevotionalFaithPref() : null;
   // Reset "just browse" whenever we switch away from devotional so re-entering shows the picker again.
-  useEffect(() => { if (!isDevotional) setDevJustBrowse(false); }, [isDevotional]);
+  useEffect(() => {
+    if (!isDevotional) setDevJustBrowse(false);
+  }, [isDevotional]);
   const showDevPicker = isDevotional && !devLoopActive && !devJustBrowse;
 
   const rawVideos = activeGenre?.videos ?? [];
-  const videos = isDevotional && devFaithPref
-    ? rawVideos.filter((v) => (v as Video).faith === devFaithPref)
-    : rawVideos;
+  const videos =
+    isDevotional && devFaithPref
+      ? rawVideos.filter((v) => (v as Video).faith === devFaithPref)
+      : rawVideos;
 
   const isLiveGenre = !!activeGenre?.live;
-
-
 
   const [idx, setIdx] = useState(0);
   // Bumped on every manual channel/genre pick so the auto-tour timer restarts
@@ -383,7 +442,9 @@ function HeroTile({
         const foundIdx = videos.findIndex((v) => v.videoId === last);
         if (foundIdx >= 0) setIdx(foundIdx);
       }
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
     resumedRef.current = true;
   }, [videos, livePreview, showSkin]);
   const [paused, setPaused] = useState(false);
@@ -392,7 +453,9 @@ function HeroTile({
   const playerRef = useRef<any>(null);
   const hideTimerRef = useRef<number | null>(null);
   const stopAdvanceRef = useRef(false);
-  useEffect(() => { stopAdvanceRef.current = devLoopEnded; }, [devLoopEnded]);
+  useEffect(() => {
+    stopAdvanceRef.current = devLoopEnded;
+  }, [devLoopEnded]);
 
   // Speaker/mute coordination — start muted (matches autoplay policy),
   // unmute only on explicit user tap. Registers a controllable wrapper with
@@ -401,9 +464,19 @@ function HeroTile({
   const media = useMediaCoordinator();
   const [muted, setMuted] = useState(true);
   const controllableRef = useRef({
-    pause: () => { try { playerRef.current?.pauseVideo?.(); } catch { /* noop */ } },
+    pause: () => {
+      try {
+        playerRef.current?.pauseVideo?.();
+      } catch {
+        /* noop */
+      }
+    },
     mute: () => {
-      try { playerRef.current?.mute?.(); } catch { /* noop */ }
+      try {
+        playerRef.current?.mute?.();
+      } catch {
+        /* noop */
+      }
       setMuted(true);
     },
   });
@@ -423,20 +496,19 @@ function HeroTile({
         p.mute?.();
         setMuted(true);
       }
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
     bumpHide();
   };
 
   const playerHostId = `yt-tile-${useId().replace(/:/g, "")}`;
-  const playerCoverClass = "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
+  const playerCoverClass =
+    "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
 
-  const current = livePreview && !showSkin && videos.length
-    ? videos[idx % videos.length]
-    : null;
+  const current = livePreview && !showSkin && videos.length ? videos[idx % videos.length] : null;
   const videoId = current?.videoId ?? null;
-  const currentLabel = current
-    ? (isLiveGenre ? current.channelName : current.title)
-    : "";
+  const currentLabel = current ? (isLiveGenre ? current.channelName : current.title) : "";
 
   // Persist last watched channel + genre for next home load
   useEffect(() => {
@@ -444,7 +516,9 @@ function HeroTile({
     try {
       if (videoId) localStorage.setItem("oniq.watch.last", videoId);
       if (activeGenre?.id) localStorage.setItem("oniq.watch.lastGenre", activeGenre.id);
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   }, [videoId, activeGenre?.id, livePreview, showSkin]);
 
   // 2-minute auto-tour cap (per video); ENDED handler also advances naturally on shorter clips.
@@ -465,16 +539,37 @@ function HeroTile({
       setIdx((i) => (i + 1) % vLen);
     };
     t = window.setTimeout(tick, 120_000);
-    return () => { if (t) window.clearTimeout(t); };
-  }, [idx, pickNonce, vLen, livePreview, showSkin, paused, controlsVisible, isDevotional, devLoopActive, showDevPicker, devLoopEnded]);
-
+    return () => {
+      if (t) window.clearTimeout(t);
+    };
+  }, [
+    idx,
+    pickNonce,
+    vLen,
+    livePreview,
+    showSkin,
+    paused,
+    controlsVisible,
+    isDevotional,
+    devLoopActive,
+    showDevPicker,
+    devLoopEnded,
+  ]);
 
   const bumpHide = () => {
     if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
     hideTimerRef.current = window.setTimeout(() => setControlsVisible(false), 15_000);
   };
-  const showControls = () => { setControlsVisible(true); bumpHide(); };
-  useEffect(() => () => { if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current); }, []);
+  const showControls = () => {
+    setControlsVisible(true);
+    bumpHide();
+  };
+  useEffect(
+    () => () => {
+      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!livePreview || showSkin || !videoId) return;
@@ -486,7 +581,9 @@ function HeroTile({
       try {
         playerRef.current.loadVideoById(videoId);
         playerRef.current.getIframe?.()?.setAttribute("class", playerCoverClass);
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
       return;
     }
 
@@ -512,11 +609,15 @@ function HeroTile({
             onReady: (e: any) => {
               try {
                 e.target.getIframe?.()?.setAttribute("class", playerCoverClass);
-                e.target.getIframe?.()?.setAttribute("allow", "autoplay; encrypted-media; picture-in-picture");
+                e.target
+                  .getIframe?.()
+                  ?.setAttribute("allow", "autoplay; encrypted-media; picture-in-picture");
                 e.target.getIframe?.()?.setAttribute("title", "Live preview");
                 e.target.mute();
                 e.target.playVideo();
-              } catch { /* noop */ }
+              } catch {
+                /* noop */
+              }
             },
             onStateChange: (e: any) => {
               if (e?.data === 0) {
@@ -526,7 +627,6 @@ function HeroTile({
                 if (total > 0) setIdx((i) => (i + 1) % total);
               }
             },
-
           },
         });
       } catch (err) {
@@ -534,12 +634,18 @@ function HeroTile({
       }
     });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [livePreview, showSkin, videoId, playerHostId, vLen]);
 
   useEffect(() => {
     return () => {
-      try { playerRef.current?.destroy?.(); } catch { /* noop */ }
+      try {
+        playerRef.current?.destroy?.();
+      } catch {
+        /* noop */
+      }
       playerRef.current = null;
     };
   }, []);
@@ -564,14 +670,21 @@ function HeroTile({
               className="absolute inset-0 h-full w-full object-cover"
             />
             <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-
           </>
         ) : (
           <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
         )}
         <div className="relative">
-          <div className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}>{tagline}</div>
-          <div className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}>{label}</div>
+          <div
+            className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}
+          >
+            {tagline}
+          </div>
+          <div
+            className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}
+          >
+            {label}
+          </div>
         </div>
       </Link>
     );
@@ -581,7 +694,10 @@ function HeroTile({
     if (controlsVisible) setControlsVisible(false);
     else showControls();
   };
-  const stop = (e: React.MouseEvent) => { e.stopPropagation(); bumpHide(); };
+  const stop = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    bumpHide();
+  };
   const gotoIdx = (next: number) => {
     const total = videos.length;
     if (total === 0) return;
@@ -607,7 +723,9 @@ function HeroTile({
     try {
       localStorage.setItem(DEVOTIONAL_LOOP_START_KEY, String(now));
       localStorage.setItem(DEVOTIONAL_LOOP_DUR_KEY, String(sec));
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
     setNowTs(Date.now());
     bumpHide();
   };
@@ -617,9 +735,15 @@ function HeroTile({
     try {
       localStorage.removeItem(DEVOTIONAL_LOOP_START_KEY);
       localStorage.removeItem(DEVOTIONAL_LOOP_DUR_KEY);
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   };
-  const skipDevPicker = () => { clearDevLoop(); setDevJustBrowse(true); bumpHide(); };
+  const skipDevPicker = () => {
+    clearDevLoop();
+    setDevJustBrowse(true);
+    bumpHide();
+  };
 
   const pickVideo = (i: number) => {
     setIdx(i);
@@ -639,11 +763,7 @@ function HeroTile({
       className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between cursor-pointer`}
     >
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div
-          id={playerHostId}
-          ref={mountRef}
-          className={playerCoverClass}
-        />
+        <div id={playerHostId} ref={mountRef} className={playerCoverClass} />
       </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
 
@@ -658,14 +778,20 @@ function HeroTile({
             {DEVOTIONAL_DURATIONS.map((d) => (
               <button
                 key={d.sec}
-                onClick={(e) => { e.stopPropagation(); startDevLoop(d.sec); }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  startDevLoop(d.sec);
+                }}
                 className="rounded-full border border-primary/60 bg-primary/20 px-2.5 py-0.5 text-[11px] font-semibold text-white"
               >
                 {d.label}
               </button>
             ))}
             <button
-              onClick={(e) => { e.stopPropagation(); skipDevPicker(); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                skipDevPicker();
+              }}
               className="rounded-full border border-white/25 bg-black/40 px-2.5 py-0.5 text-[11px] font-medium text-white/90"
             >
               just browse
@@ -681,13 +807,21 @@ function HeroTile({
         >
           <span>loop ended</span>
           <button
-            onClick={(e) => { e.stopPropagation(); clearDevLoop(); setDevJustBrowse(false); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              clearDevLoop();
+              setDevJustBrowse(false);
+            }}
             className="rounded-full border border-primary/50 bg-primary/25 px-2 py-0.5 font-semibold"
           >
             replay
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); clearDevLoop(); setDevJustBrowse(true); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              clearDevLoop();
+              setDevJustBrowse(true);
+            }}
             className="rounded-full border border-white/25 bg-black/40 px-2 py-0.5"
           >
             keep browsing
@@ -695,8 +829,9 @@ function HeroTile({
         </div>
       )}
 
-
-      <span className={`relative inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/15 text-red-300" : "border-primary/50 bg-primary/15 text-primary"}`}>
+      <span
+        className={`relative inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/15 text-red-300" : "border-primary/50 bg-primary/15 text-primary"}`}
+      >
         {isLiveGenre ? (
           <>
             <span className="relative flex h-1.5 w-1.5">
@@ -715,7 +850,10 @@ function HeroTile({
       >
         {genres && genres.length > 1 && (
           <div
-            onClick={(e) => { e.stopPropagation(); bumpHide(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              bumpHide();
+            }}
             className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto px-3"
           >
             {genres.map((g) => {
@@ -723,7 +861,10 @@ function HeroTile({
               return (
                 <button
                   key={g.id}
-                  onClick={(e) => { e.stopPropagation(); pickGenre(g.id); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    pickGenre(g.id);
+                  }}
                   className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
                   aria-label={g.name}
                 >
@@ -735,7 +876,10 @@ function HeroTile({
         )}
         {videos.length > 1 && (
           <div
-            onClick={(e) => { e.stopPropagation(); bumpHide(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              bumpHide();
+            }}
             className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto px-3"
           >
             {videos.map((v, i) => {
@@ -744,7 +888,10 @@ function HeroTile({
               return (
                 <button
                   key={v.videoId}
-                  onClick={(e) => { e.stopPropagation(); pickVideo(i); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    pickVideo(i);
+                  }}
                   className={`max-w-[10rem] truncate whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
                   title={chipLabel}
                 >
@@ -755,27 +902,55 @@ function HeroTile({
           </div>
         )}
         {currentLabel && (
-          <span className="glass max-w-[80%] truncate rounded-full px-2 py-0.5 text-[10px] text-foreground/90">{currentLabel}</span>
+          <span className="glass max-w-[80%] truncate rounded-full px-2 py-0.5 text-[10px] text-foreground/90">
+            {currentLabel}
+          </span>
         )}
 
         <div className="glass flex items-center gap-1 rounded-full p-1">
-          <button className={ctrlBtn} aria-label="Previous video" onClick={(e) => { stop(e); gotoIdx(idx - 1); }}>
+          <button
+            className={ctrlBtn}
+            aria-label="Previous video"
+            onClick={(e) => {
+              stop(e);
+              gotoIdx(idx - 1);
+            }}
+          >
             <SkipBack className="h-4 w-4" />
           </button>
           <button
             className={ctrlBtn}
             aria-label={paused ? "Play" : "Pause"}
-            onClick={(e) => { stop(e); if (paused) { playerRef.current?.playVideo?.(); setPaused(false); } else { playerRef.current?.pauseVideo?.(); setPaused(true); } }}
+            onClick={(e) => {
+              stop(e);
+              if (paused) {
+                playerRef.current?.playVideo?.();
+                setPaused(false);
+              } else {
+                playerRef.current?.pauseVideo?.();
+                setPaused(true);
+              }
+            }}
           >
             {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
           </button>
-          <button className={ctrlBtn} aria-label="Next video" onClick={(e) => { stop(e); gotoIdx(idx + 1); }}>
+          <button
+            className={ctrlBtn}
+            aria-label="Next video"
+            onClick={(e) => {
+              stop(e);
+              gotoIdx(idx + 1);
+            }}
+          >
             <SkipForward className="h-4 w-4" />
           </button>
           <button
             className={ctrlBtn}
             aria-label="Expand to full Watch"
-            onClick={(e) => { stop(e); navigate({ to: "/app/news", search: { tab: "watch" as const } }); }}
+            onClick={(e) => {
+              stop(e);
+              navigate({ to: "/app/news", search: { tab: "watch" as const } });
+            }}
           >
             <Maximize2 className="h-4 w-4" />
           </button>
@@ -796,7 +971,10 @@ function HeroTile({
       {livePreview && !showSkin && (
         <button
           type="button"
-          onClick={(e) => { e.stopPropagation(); navigate({ to: "/app/news", search: { tab: "watch" as const } }); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate({ to: "/app/news", search: { tab: "watch" as const } });
+          }}
           aria-label="Open full Watch"
           className="press absolute top-3 right-3 z-30 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/60 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur"
         >
@@ -850,7 +1028,9 @@ function ClipsHeroTile({
       setIdx((i) => (i + 1) % total);
     };
     t = window.setTimeout(tick, 20_000);
-    return () => { if (t) window.clearTimeout(t); };
+    return () => {
+      if (t) window.clearTimeout(t);
+    };
   }, [idx, total, showSkin]);
 
   const videoUrl = current?.video_url ?? null;
@@ -893,15 +1073,20 @@ function ClipsHeroTile({
         <Clapperboard className="relative h-10 w-10 text-foreground/90" strokeWidth={1.6} />
       )}
       <div className="relative">
-        <div className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}>doomscroll era</div>
-        <div className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}>mast 🎬</div>
+        <div
+          className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}
+        >
+          doomscroll era
+        </div>
+        <div
+          className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}
+        >
+          mast 🎬
+        </div>
       </div>
     </Link>
   );
 }
-
-
-
 
 type BIPEvent = Event & {
   prompt: () => Promise<void>;
@@ -950,19 +1135,32 @@ type MarketData = {
   bankRates: Array<{ bank: string; rate: number; type: string }>;
 };
 
-type NewsItem = { title: string; link: string; source: string; publishedAt: string; image?: string };
+type NewsItem = {
+  title: string;
+  link: string;
+  source: string;
+  publishedAt: string;
+  image?: string;
+};
 
 const GLANCE_COLLAPSE_KEY = "oniq.home.glance.collapsed";
-
 
 function useGlanceCollapsed() {
   const [collapsed, setCollapsed] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
-    try { return localStorage.getItem(GLANCE_COLLAPSE_KEY) === "1"; } catch { return false; }
+    try {
+      return localStorage.getItem(GLANCE_COLLAPSE_KEY) === "1";
+    } catch {
+      return false;
+    }
   });
   const set = (v: boolean) => {
     setCollapsed(v);
-    try { localStorage.setItem(GLANCE_COLLAPSE_KEY, v ? "1" : "0"); } catch { /* noop */ }
+    try {
+      localStorage.setItem(GLANCE_COLLAPSE_KEY, v ? "1" : "0");
+    } catch {
+      /* noop */
+    }
   };
   return [collapsed, set] as const;
 }
@@ -982,7 +1180,11 @@ function GlanceCard() {
     refetchInterval: 15 * 60 * 1000,
   });
 
-  const { data: loans, isLoading: loansLoading, isError: loansError } = useQuery<LoanRatesPayload | null>({
+  const {
+    data: loans,
+    isLoading: loansLoading,
+    isError: loansError,
+  } = useQuery<LoanRatesPayload | null>({
     queryKey: ["loan-rates", "v2"],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("loan-rates");
@@ -1012,13 +1214,15 @@ function GlanceCard() {
   const silver = market?.silver?.pricePerGram ?? null;
 
   const tabs: { t: LoanCategory["type"]; emoji: string; label: string }[] = [
-    { t: "home",     emoji: "🏠", label: "Home" },
-    { t: "gold",     emoji: "🪙", label: "Gold" },
-    { t: "car",      emoji: "🚗", label: "Car"  },
-    { t: "fd",       emoji: "🏦", label: "FD"   },
+    { t: "home", emoji: "🏠", label: "Home" },
+    { t: "gold", emoji: "🪙", label: "Gold" },
+    { t: "car", emoji: "🚗", label: "Car" },
+    { t: "fd", emoji: "🏦", label: "FD" },
     { t: "personal", emoji: "🏦", label: "Personal" },
   ];
-  const active = openTab ? (loans?.categories ?? []).find((c) => c.type === openTab) ?? null : null;
+  const active = openTab
+    ? ((loans?.categories ?? []).find((c) => c.type === openTab) ?? null)
+    : null;
 
   return (
     <div
@@ -1033,13 +1237,13 @@ function GlanceCard() {
         <div className="grid flex-1 grid-cols-2 gap-2">
           <StatBox
             label="24K Gold"
-            value={gold ? `₹${gold.toLocaleString("en-IN")}` : "—"}
+            value={gold ? moneyIn(gold, "INR") : "—"}
             unit="/g"
             accent="#F59E0B"
           />
           <StatBox
             label="Silver"
-            value={silver ? `₹${silver.toLocaleString("en-IN")}` : "—"}
+            value={silver ? moneyIn(silver, "INR") : "—"}
             unit="/g"
             accent="#94A3B8"
           />
@@ -1067,7 +1271,8 @@ function GlanceCard() {
                   : "border-white/10 bg-black/25 text-foreground hover:border-primary/40 hover:bg-primary/10"
               }`}
             >
-              <span className="mr-1">{c.emoji}</span>{c.label}
+              <span className="mr-1">{c.emoji}</span>
+              {c.label}
             </button>
           );
         })}
@@ -1095,7 +1300,9 @@ function GlanceCard() {
                     <div className="font-display text-sm font-bold text-primary">{b.rateRange}</div>
                   </div>
                   {b.note && (
-                    <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">{b.note}</div>
+                    <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
+                      {b.note}
+                    </div>
                   )}
                 </div>
               ))}
@@ -1113,23 +1320,40 @@ function GlanceCard() {
   );
 }
 
-
 type LoanBank = { bank: string; rateRange: string; note?: string };
-type LoanCategory = { type: "home" | "gold" | "car" | "fd" | "personal"; label: string; banks: LoanBank[] };
+type LoanCategory = {
+  type: "home" | "gold" | "car" | "fd" | "personal";
+  label: string;
+  banks: LoanBank[];
+};
 type LoanRatesPayload = { asOf: string; categories: LoanCategory[]; disclaimer: string };
 
 const DEFAULT_LOAN_DISCLAIMER =
   "Rates vary by CIBIL score, loan amount, tenure, and individual bank policy. 750+ CIBIL typically qualifies for the lower end of each range. Confirm your exact rate with the bank directly.";
 
-function StatBox({ label, value, unit, accent }: { label: string; value: string; unit: string; accent: string }) {
+function StatBox({
+  label,
+  value,
+  unit,
+  accent,
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  accent: string;
+}) {
   return (
     <div
       className="min-w-0 rounded-xl border border-white/5 bg-black/25 px-3 py-2"
       style={{ boxShadow: `inset 0 0 0 1px ${accent}18` }}
     >
-      <div className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </div>
       <div className="mt-0.5 flex items-baseline gap-1 whitespace-nowrap">
-        <span className="font-display text-base font-bold tabular-nums" style={{ color: accent }}>{value}</span>
+        <span className="font-display text-base font-bold tabular-nums" style={{ color: accent }}>
+          {value}
+        </span>
         {unit && <span className="text-[10px] text-muted-foreground">{unit}</span>}
       </div>
     </div>
@@ -1164,7 +1388,6 @@ function PrimaryTile({
   const height = span === 6 ? "h-28" : "h-24";
 
   return (
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     <Link
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       to={to as any}
@@ -1189,14 +1412,26 @@ function PrimaryTile({
       )}
       <div
         className="relative grid h-10 w-10 place-items-center rounded-2xl overflow-hidden"
-        style={{ color, background: `${color}26`, boxShadow: `0 0 18px ${color}40, inset 0 0 0 1px ${color}33` }}
+        style={{
+          color,
+          background: `${color}26`,
+          boxShadow: `0 0 18px ${color}40, inset 0 0 0 1px ${color}33`,
+        }}
       >
         <Icon className="h-5 w-5" />
       </div>
       <div className="relative">
-        <div className={`font-display text-sm font-semibold ${showSkin ? "text-white drop-shadow" : "text-foreground"}`}>{label}</div>
+        <div
+          className={`font-display text-sm font-semibold ${showSkin ? "text-white drop-shadow" : "text-foreground"}`}
+        >
+          {label}
+        </div>
         {sub && (
-          <div className={`mt-0.5 font-sans text-[11px] normal-case tracking-normal font-normal ${showSkin ? "text-white/80 drop-shadow" : "text-muted-foreground"}`}>{sub}</div>
+          <div
+            className={`mt-0.5 font-sans text-[11px] normal-case tracking-normal font-normal ${showSkin ? "text-white/80 drop-shadow" : "text-muted-foreground"}`}
+          >
+            {sub}
+          </div>
         )}
       </div>
     </Link>
@@ -1231,13 +1466,14 @@ function SectionRow({
   if (visible.length === 0) return null;
   return (
     <div className="mt-5">
-      <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{title}</h3>
+      <h3 className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+        {title}
+      </h3>
       <div className="no-scrollbar mt-2 -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {visible.map((t) => {
           const skin = skins[t.key];
           const Icon = t.icon;
           return (
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             <Link
               key={t.key}
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1257,11 +1493,19 @@ function SectionRow({
               )}
               <div
                 className="relative grid h-8 w-8 shrink-0 place-items-center rounded-xl"
-                style={{ color: t.color, background: `${t.color}26`, boxShadow: `inset 0 0 0 1px ${t.color}33` }}
+                style={{
+                  color: t.color,
+                  background: `${t.color}26`,
+                  boxShadow: `inset 0 0 0 1px ${t.color}33`,
+                }}
               >
                 <Icon className="h-4 w-4" />
               </div>
-              <span className={`font-display relative text-xs font-medium ${skin ? "text-white drop-shadow" : "text-foreground"}`}>{t.label}</span>
+              <span
+                className={`font-display relative text-xs font-medium ${skin ? "text-white drop-shadow" : "text-foreground"}`}
+              >
+                {t.label}
+              </span>
               <ChevronRight className="relative ml-auto h-3.5 w-3.5 text-muted-foreground" />
             </Link>
           );
@@ -1304,7 +1548,12 @@ function MediaBanner({
 // ---------- Study hero (Study-first home) ----------
 
 type LearnerProfileLite = { id: string; name: string; board: string; class_level: string };
-type RecentAttempt = { profile_id: string; subject: string; chapter: string | null; created_at: string };
+type RecentAttempt = {
+  profile_id: string;
+  subject: string;
+  chapter: string | null;
+  created_at: string;
+};
 
 function classLabel(c: string): string {
   if (c === "ug") return "UG";
@@ -1320,21 +1569,37 @@ function StudyHero() {
     staleTime: 30_000,
     queryFn: async () => {
       const [profilesRes, attemptsRes] = await Promise.all([
-        (supabase as unknown as {
-          from: (t: string) => { select: (c: string) => { order: (col: string, opts: { ascending: boolean }) => Promise<{ data: LearnerProfileLite[] | null; error: Error | null }> } };
-        })
+        (
+          supabase as unknown as {
+            from: (t: string) => {
+              select: (c: string) => {
+                order: (
+                  col: string,
+                  opts: { ascending: boolean },
+                ) => Promise<{ data: LearnerProfileLite[] | null; error: Error | null }>;
+              };
+            };
+          }
+        )
           .from("learner_profiles")
           .select("id, name, board, class_level")
           .order("created_at", { ascending: true }),
-        (supabase as unknown as {
-          from: (t: string) => {
-            select: (c: string) => {
-              order: (col: string, opts: { ascending: boolean }) => {
-                limit: (n: number) => Promise<{ data: RecentAttempt[] | null; error: Error | null }>;
+        (
+          supabase as unknown as {
+            from: (t: string) => {
+              select: (c: string) => {
+                order: (
+                  col: string,
+                  opts: { ascending: boolean },
+                ) => {
+                  limit: (
+                    n: number,
+                  ) => Promise<{ data: RecentAttempt[] | null; error: Error | null }>;
+                };
               };
             };
-          };
-        })
+          }
+        )
           .from("quiz_attempts")
           .select("profile_id, subject, chapter, created_at")
           .order("created_at", { ascending: false })
@@ -1368,7 +1633,11 @@ function StudyHero() {
       <div className="flex items-start justify-between gap-3">
         <div
           className="grid h-12 w-12 place-items-center rounded-2xl"
-          style={{ color: "#FB7185", background: "#FB718526", boxShadow: "0 0 22px #FB718540, inset 0 0 0 1px #FB718533" }}
+          style={{
+            color: "#FB7185",
+            background: "#FB718526",
+            boxShadow: "0 0 22px #FB718540, inset 0 0 0 1px #FB718533",
+          }}
         >
           <BookOpen className="h-6 w-6" />
         </div>
@@ -1385,17 +1654,21 @@ function StudyHero() {
       ) : hasRecent ? (
         <div className="mt-4">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            continue · {activeProfile!.name} · {activeProfile!.board.toUpperCase()} {classLabel(activeProfile!.class_level)}
+            continue · {activeProfile!.name} · {activeProfile!.board.toUpperCase()}{" "}
+            {classLabel(activeProfile!.class_level)}
           </div>
           <div className="mt-1 font-display text-xl font-bold text-foreground">
             {recent!.subject}
-            {recent!.chapter ? <span className="text-muted-foreground"> · {recent!.chapter}</span> : null}
+            {recent!.chapter ? (
+              <span className="text-muted-foreground"> · {recent!.chapter}</span>
+            ) : null}
           </div>
         </div>
       ) : hasProfile ? (
         <div className="mt-4">
           <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-            {activeProfile!.name} · {activeProfile!.board.toUpperCase()} {classLabel(activeProfile!.class_level)}
+            {activeProfile!.name} · {activeProfile!.board.toUpperCase()}{" "}
+            {classLabel(activeProfile!.class_level)}
           </div>
           <div className="mt-1 font-display text-xl font-bold text-foreground">
             pick a chapter to begin
@@ -1426,7 +1699,7 @@ function AlsoInOniqRow({
   tiles,
   hidden,
 }: {
-  tiles: { key: string; to: string; label: string; labelHi?: string; color?: string; search?: Record<string, unknown> }[];
+  tiles: { key: TileKey; to: string; color?: string; search?: Record<string, unknown> }[];
   hidden: Set<TileKey>;
 }) {
   const { lang } = useT();
@@ -1457,7 +1730,7 @@ function AlsoInOniqRow({
               style={{ background: t.color }}
             />
           )}
-          {resolveTileLabel(lang, t.label, t.labelHi)}
+          {tileName(lang, t.key)}
         </Link>
       ))}
     </div>
@@ -1482,11 +1755,17 @@ function HomeMediaBanner() {
     try {
       const v = localStorage.getItem(BANNER_MODE_KEY);
       if (v === "watch" || v === "study" || v === "moments" || v === "mast") return v;
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
     return "study";
   });
   useEffect(() => {
-    try { localStorage.setItem(BANNER_MODE_KEY, mode); } catch { /* noop */ }
+    try {
+      localStorage.setItem(BANNER_MODE_KEY, mode);
+    } catch {
+      /* noop */
+    }
   }, [mode]);
 
   // If the current tab is hidden (persisted or just toggled), fall back to
@@ -1499,10 +1778,10 @@ function HomeMediaBanner() {
   }, [mode, hidden]);
 
   const tabs: { id: BannerMode; label: string }[] = [
-    { id: "watch", label: resolveTileLabel(lang, "Watch", "देखो") },
-    { id: "study", label: resolveTileLabel(lang, "Study", "पढ़ाई") },
-    { id: "moments", label: resolveTileLabel(lang, "Moments", "पल") },
-    { id: "mast", label: resolveTileLabel(lang, "Mast 🎬", "मस्त 🎬") },
+    { id: "watch", label: tileName(lang, "watch") },
+    { id: "study", label: tileName(lang, "study") },
+    { id: "moments", label: tileName(lang, "moments") },
+    { id: "mast", label: tileName(lang, "mast") },
   ];
   const visibleTabs = tabs.filter((tb) => !hidden.has(tb.id));
 
@@ -1547,14 +1826,17 @@ function HomeMediaBanner() {
   );
 }
 
-
 type MomentPost = {
   id: string;
   content: string | null;
   media_urls: string[] | null;
   like_count: number | null;
   created_at: string;
-  profiles: { display_name: string | null; username: string | null; avatar_url: string | null } | null;
+  profiles: {
+    display_name: string | null;
+    username: string | null;
+    avatar_url: string | null;
+  } | null;
 };
 
 function MomentsPreview() {
@@ -1565,7 +1847,9 @@ function MomentsPreview() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data } = await (supabase as any)
         .from("moments_posts")
-        .select("id, content, media_urls, like_count, created_at, user_id, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)")
+        .select(
+          "id, content, media_urls, like_count, created_at, user_id, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)",
+        )
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(50);
@@ -1579,7 +1863,9 @@ function MomentsPreview() {
   const [pageIdx, setPageIdx] = useState(0);
   const [pickNonce, setPickNonce] = useState(0);
 
-  useEffect(() => { if (pageIdx >= pages) setPageIdx(0); }, [pages, pageIdx]);
+  useEffect(() => {
+    if (pageIdx >= pages) setPageIdx(0);
+  }, [pages, pageIdx]);
 
   // Auto-rotate every 2 minutes; resets whenever user manually picks a page.
   useEffect(() => {
@@ -1624,12 +1910,8 @@ function MomentsPreview() {
         </div>
       ) : posts.length === 0 ? (
         <Link to="/app/chat/moments" className="mt-4 block">
-          <div className="font-display text-xl font-bold text-foreground">
-            no moments yet
-          </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            be the first to post ✨
-          </div>
+          <div className="font-display text-xl font-bold text-foreground">no moments yet</div>
+          <div className="mt-1 text-xs text-muted-foreground">be the first to post ✨</div>
         </Link>
       ) : (
         <div className="mt-3 space-y-2">
@@ -1645,7 +1927,15 @@ function MomentsPreview() {
                 className="flex items-center gap-3 rounded-xl bg-card/60 p-2 border border-border/60"
               >
                 {img ? (
-                  <img src={img} alt="" width={48} height={48} loading="lazy" decoding="async" className="h-12 w-12 rounded-lg object-cover flex-shrink-0" />
+                  <img
+                    src={img}
+                    alt=""
+                    width={48}
+                    height={48}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-12 w-12 rounded-lg object-cover flex-shrink-0"
+                  />
                 ) : (
                   <div className="h-12 w-12 rounded-lg bg-surface grid place-items-center flex-shrink-0">
                     <Sparkles className="h-5 w-5 text-muted-foreground" />
@@ -1767,12 +2057,8 @@ function MastPreview() {
         <div className="mt-3 aspect-video animate-pulse rounded-xl bg-surface" />
       ) : clips.length === 0 || !active ? (
         <div className="mt-4">
-          <div className="font-display text-xl font-bold text-foreground">
-            no clips yet
-          </div>
-          <div className="mt-1 text-xs text-muted-foreground">
-            be the first to post 🎬
-          </div>
+          <div className="font-display text-xl font-bold text-foreground">no clips yet</div>
+          <div className="mt-1 text-xs text-muted-foreground">be the first to post 🎬</div>
         </div>
       ) : (
         <>
@@ -1795,8 +2081,10 @@ function MastPreview() {
               // Swipe threshold — dominant axis must exceed 40px.
               if (Math.max(absX, absY) < 40) return;
               e.stopPropagation();
-              const forward = (absY > absX ? dy < 0 : dx < 0); // up or left → next
-              setIdx((i) => (forward ? (i + 1) % clips.length : (i - 1 + clips.length) % clips.length));
+              const forward = absY > absX ? dy < 0 : dx < 0; // up or left → next
+              setIdx((i) =>
+                forward ? (i + 1) % clips.length : (i - 1 + clips.length) % clips.length,
+              );
               setPickNonce((n) => n + 1);
             }}
           >
@@ -1811,7 +2099,7 @@ function MastPreview() {
               preload="auto"
               disablePictureInPicture
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              {...({ "disableremoteplayback": "" } as any)}
+              {...({ disableremoteplayback: "" } as any)}
               className="absolute inset-0 h-full w-full object-cover"
             />
             <button
@@ -1854,20 +2142,10 @@ function MastPreview() {
             )}
           </div>
           {active.caption && (
-            <div className="mt-3 text-xs text-foreground line-clamp-1">
-              {active.caption}
-            </div>
+            <div className="mt-3 text-xs text-foreground line-clamp-1">{active.caption}</div>
           )}
         </>
       )}
     </div>
   );
 }
-
-
-
-
-
-
-
-

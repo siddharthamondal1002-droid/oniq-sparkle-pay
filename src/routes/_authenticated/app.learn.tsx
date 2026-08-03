@@ -1,3 +1,4 @@
+import { moneyIn } from "@/lib/format";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,7 +21,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchClearButton } from "@/components/ui/SearchClearButton";
 import { useT } from "@/lib/i18n/LanguageProvider";
-
 
 export const Route = createFileRoute("/_authenticated/app/learn")({
   component: LearnScreen,
@@ -67,11 +67,29 @@ const LANG_LABEL: Record<string, string> = Object.fromEntries([
 ]);
 
 const SPEECH_LOCALE: Record<string, string> = {
-  bn: "bn-IN", hi: "hi-IN", ta: "ta-IN", te: "te-IN", mr: "mr-IN",
-  gu: "gu-IN", kn: "kn-IN", ml: "ml-IN", pa: "pa-IN", ur: "ur-IN",
-  en: "en-IN", es: "es-ES", fr: "fr-FR", de: "de-DE", pt: "pt-BR",
-  ar: "ar-SA", zh: "zh-CN", ja: "ja-JP", ko: "ko-KR", ru: "ru-RU",
-  it: "it-IT", tr: "tr-TR", id: "id-ID",
+  bn: "bn-IN",
+  hi: "hi-IN",
+  ta: "ta-IN",
+  te: "te-IN",
+  mr: "mr-IN",
+  gu: "gu-IN",
+  kn: "kn-IN",
+  ml: "ml-IN",
+  pa: "pa-IN",
+  ur: "ur-IN",
+  en: "en-IN",
+  es: "es-ES",
+  fr: "fr-FR",
+  de: "de-DE",
+  pt: "pt-BR",
+  ar: "ar-SA",
+  zh: "zh-CN",
+  ja: "ja-JP",
+  ko: "ko-KR",
+  ru: "ru-RU",
+  it: "it-IT",
+  tr: "tr-TR",
+  id: "id-ID",
 };
 
 function localeFor(code: string): string {
@@ -84,21 +102,28 @@ function LearnScreen() {
   return (
     <div className="min-h-screen overflow-x-hidden px-5 pt-12 pb-10">
       <div className="flex items-center gap-3">
-        <Link to="/app" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-card">
+        <Link
+          to="/app"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border bg-card"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h1 className="font-display text-2xl font-bold flex items-center gap-2 min-w-0 truncate">
           <span>🧠</span> {t("smart.header", "smart")}
         </h1>
       </div>
-      <div className="mt-1 text-xs text-muted-foreground">{t("smart.subtitle", "shop & speak any language")}</div>
+      <div className="mt-1 text-xs text-muted-foreground">
+        {t("smart.subtitle", "shop & speak any language")}
+      </div>
 
       <div className="mt-4 grid grid-cols-3 rounded-2xl border border-border bg-card p-1 text-xs">
-        {([
-          ["scout", t("smart.tab.scout", "price scout 🛒")],
-          ["translate", t("smart.tab.translate", "translate 🌐")],
-          ["lessons", t("smart.tab.lessons", "learn 📚")],
-        ] as const).map(([k, label]) => (
+        {(
+          [
+            ["scout", t("smart.tab.scout", "price scout 🛒")],
+            ["translate", t("smart.tab.translate", "translate 🌐")],
+            ["lessons", t("smart.tab.lessons", "learn 📚")],
+          ] as const
+        ).map(([k, label]) => (
           <button
             key={k}
             onClick={() => setTab(k as Tab)}
@@ -109,11 +134,16 @@ function LearnScreen() {
         ))}
       </div>
 
-      {tab === "scout" ? <ScoutPanel /> : tab === "translate" ? <TranslatePanel /> : <LessonsPanel />}
+      {tab === "scout" ? (
+        <ScoutPanel />
+      ) : tab === "translate" ? (
+        <TranslatePanel />
+      ) : (
+        <LessonsPanel />
+      )}
     </div>
   );
 }
-
 
 /* ================= TRANSLATE ================= */
 
@@ -134,7 +164,9 @@ function TranslatePanel() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     setSpeechSupported(!!SR);
     return () => {
-      try { recRef.current?.stop?.(); } catch {}
+      try {
+        recRef.current?.stop?.();
+      } catch {}
     };
   }, []);
 
@@ -142,11 +174,14 @@ function TranslatePanel() {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) return;
     if (listening) {
-      try { recRef.current?.stop?.(); } catch {}
+      try {
+        recRef.current?.stop?.();
+      } catch {}
       return;
     }
 
-    const blockedMsg = "Mic is blocked for this site — tap the padlock/⋮ in your browser bar → Permissions → Microphone → Allow, then retry";
+    const blockedMsg =
+      "Mic is blocked for this site — tap the padlock/⋮ in your browser bar → Permissions → Microphone → Allow, then retry";
 
     // Force the permission prompt reliably before starting recognition
     try {
@@ -186,7 +221,9 @@ function TranslatePanel() {
           toast.error("Speech service needs internet — check your connection");
         } else if (code === "language-not-supported") {
           recRef.current = null;
-          toast.info("That language isn't supported for dictation on this device — try English mic + auto-detect");
+          toast.info(
+            "That language isn't supported for dictation on this device — try English mic + auto-detect",
+          );
         } else {
           toast.error("Mic glitched — type it instead");
         }
@@ -209,8 +246,6 @@ function TranslatePanel() {
       setListening(false);
     }
   }
-
-
 
   async function doTranslate() {
     const t = text.trim();
@@ -299,7 +334,9 @@ function TranslatePanel() {
           )}
         </div>
         <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">
-          <span>{LANG_LABEL[from] ?? from} → {LANG_LABEL[to] ?? to}</span>
+          <span>
+            {LANG_LABEL[from] ?? from} → {LANG_LABEL[to] ?? to}
+          </span>
           <span>{text.length}/1000</span>
         </div>
         <button
@@ -308,7 +345,11 @@ function TranslatePanel() {
           disabled={loading}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
         >
-          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Languages className="h-4 w-4" />}
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Languages className="h-4 w-4" />
+          )}
           {loading ? "Translating…" : tr("smart.translate.cta", "Translate")}
         </button>
       </div>
@@ -351,24 +392,40 @@ function LangSelect({
       {includeAuto && <option value="auto">Auto detect</option>}
       <optgroup label="Indian languages">
         {INDIAN_LANGS.map((l) => (
-          <option key={l.code} value={l.code}>{l.label}</option>
+          <option key={l.code} value={l.code}>
+            {l.label}
+          </option>
         ))}
       </optgroup>
       <optgroup label="International">
         {INTL_LANGS.map((l) => (
-          <option key={l.code} value={l.code}>{l.label}</option>
+          <option key={l.code} value={l.code}>
+            {l.label}
+          </option>
         ))}
       </optgroup>
     </select>
   );
 }
 
-
 /* ================= LESSONS ================= */
 
-type Course = { id: string; title: string; emoji: string; description: string | null; sort: number };
+type Course = {
+  id: string;
+  title: string;
+  emoji: string;
+  description: string | null;
+  sort: number;
+};
 type Lesson = { id: string; course_id: string; title: string; sort: number };
-type Question = { id: string; lesson_id: string; prompt: string; options: string[]; correct_index: number; sort: number };
+type Question = {
+  id: string;
+  lesson_id: string;
+  prompt: string;
+  options: string[];
+  correct_index: number;
+  sort: number;
+};
 
 function LessonsPanel() {
   const qc = useQueryClient();
@@ -379,7 +436,11 @@ function LessonsPanel() {
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return { xp: 0, streak: 0 };
-      const { data } = await supabase.from("learn_stats").select("xp, streak").eq("user_id", u.user.id).maybeSingle();
+      const { data } = await supabase
+        .from("learn_stats")
+        .select("xp, streak")
+        .eq("user_id", u.user.id)
+        .maybeSingle();
       return data ?? { xp: 0, streak: 0 };
     },
   });
@@ -405,7 +466,10 @@ function LessonsPanel() {
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return new Set<string>();
-      const { data } = await supabase.from("learn_progress").select("lesson_id").eq("user_id", u.user.id);
+      const { data } = await supabase
+        .from("learn_progress")
+        .select("lesson_id")
+        .eq("user_id", u.user.id);
       return new Set((data ?? []).map((r) => r.lesson_id));
     },
   });
@@ -449,7 +513,9 @@ function LessonsPanel() {
                 <div className="text-2xl">{c.emoji}</div>
                 <div>
                   <div className="font-display text-base font-bold">{c.title}</div>
-                  {c.description && <div className="text-xs text-muted-foreground">{c.description}</div>}
+                  {c.description && (
+                    <div className="text-xs text-muted-foreground">{c.description}</div>
+                  )}
                 </div>
               </div>
               <div className="mt-4 space-y-2">
@@ -464,7 +530,9 @@ function LessonsPanel() {
                     >
                       <div
                         className={`grid h-9 w-9 place-items-center rounded-full text-sm font-bold ${
-                          done ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                          done
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
                         }`}
                       >
                         {done ? <Check className="h-4 w-4" /> : i + 1}
@@ -489,7 +557,9 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
   const [correctCount, setCorrectCount] = useState(0);
   const [finished, setFinished] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [summary, setSummary] = useState<{ xp: number; streak: number; first: boolean } | null>(null);
+  const [summary, setSummary] = useState<{ xp: number; streak: number; first: boolean } | null>(
+    null,
+  );
 
   const { data: questions } = useQuery({
     queryKey: ["learn-questions", lesson.id],
@@ -505,7 +575,10 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
 
   const total = questions?.length ?? 0;
   const q = questions?.[idx];
-  const score = useMemo(() => (total ? Math.round((correctCount / total) * 100) : 0), [correctCount, total]);
+  const score = useMemo(
+    () => (total ? Math.round((correctCount / total) * 100) : 0),
+    [correctCount, total],
+  );
 
   function pick(i: number) {
     if (picked !== null || !q) return;
@@ -554,7 +627,9 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
     return (
       <div className="mt-8 rounded-2xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
         No questions in this lesson yet.
-        <button onClick={onExit} className="mt-3 block w-full text-primary underline">back</button>
+        <button onClick={onExit} className="mt-3 block w-full text-primary underline">
+          back
+        </button>
       </div>
     );
   }
@@ -565,11 +640,17 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
         <div className="rounded-2xl border border-primary/40 bg-gradient-to-br from-primary/15 to-transparent p-6 text-center">
           <div className="text-6xl">{score >= 80 ? "🏆" : score >= 50 ? "💪" : "🌱"}</div>
           <div className="mt-2 font-display text-2xl font-bold">{score}%</div>
-          <div className="text-xs text-muted-foreground">{correctCount}/{total} correct</div>
+          <div className="text-xs text-muted-foreground">
+            {correctCount}/{total} correct
+          </div>
           {summary && (
             <div className="mt-4 flex items-center justify-center gap-3 text-sm">
-              <span className="rounded-full bg-primary/20 px-3 py-1 text-primary">⚡ {summary.xp} XP</span>
-              <span className="rounded-full bg-orange-500/20 px-3 py-1 text-orange-400">🔥 {summary.streak} streak</span>
+              <span className="rounded-full bg-primary/20 px-3 py-1 text-primary">
+                ⚡ {summary.xp} XP
+              </span>
+              <span className="rounded-full bg-orange-500/20 px-3 py-1 text-orange-400">
+                🔥 {summary.streak} streak
+              </span>
             </div>
           )}
         </div>
@@ -587,11 +668,18 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
   return (
     <div className="mt-4 space-y-3">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <button onClick={onExit} className="underline">exit</button>
-        <span>{idx + 1}/{total}</span>
+        <button onClick={onExit} className="underline">
+          exit
+        </button>
+        <span>
+          {idx + 1}/{total}
+        </span>
       </div>
       <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-        <div className="h-full bg-primary transition-all" style={{ width: `${((idx) / total) * 100}%` }} />
+        <div
+          className="h-full bg-primary transition-all"
+          style={{ width: `${(idx / total) * 100}%` }}
+        />
       </div>
       <div className="rounded-2xl border border-border bg-card p-6 text-center">
         <div className="text-xs uppercase tracking-wider text-muted-foreground">Translate</div>
@@ -624,25 +712,58 @@ function LessonPlayer({ lesson, onExit }: { lesson: Lesson; onExit: () => void }
 
 /* ================= SCOUT ================= */
 
-type ScoutResult = { store: string; price_inr: number | null; price_range_inr?: string | null; rating: string | null; source_domain?: string | null; verified?: boolean; note: string | null };
+type ScoutResult = {
+  store: string;
+  price_inr: number | null;
+  price_range_inr?: string | null;
+  rating: string | null;
+  source_domain?: string | null;
+  verified?: boolean;
+  note: string | null;
+};
 type ScoutTopPick = { store: string; why: string; cross_checked?: string[] };
-type ScoutResponse = { product: string; results: ScoutResult[]; top_pick?: ScoutTopPick | null; disclaimer?: string; sources?: Array<{ url: string; title?: string }> };
+type ScoutResponse = {
+  product: string;
+  results: ScoutResult[];
+  top_pick?: ScoutTopPick | null;
+  disclaimer?: string;
+  sources?: Array<{ url: string; title?: string }>;
+};
 
 const STORE_LAUNCH: Record<string, { pkg?: string; url: (q: string) => string }> = {
-  amazon: { pkg: "in.amazon.mShop.android.shopping", url: (q) => `https://www.amazon.in/s?k=${encodeURIComponent(q)}` },
-  flipkart: { pkg: "com.flipkart.android", url: (q) => `https://www.flipkart.com/search?q=${encodeURIComponent(q)}` },
-  meesho: { pkg: "com.meesho.supply", url: (q) => `https://www.meesho.com/search?q=${encodeURIComponent(q)}` },
-  jiomart: { pkg: "com.jpl.jiomart", url: (q) => `https://www.jiomart.com/search/${encodeURIComponent(q)}` },
-  myntra: { pkg: "com.myntra.android", url: (q) => `https://www.myntra.com/${encodeURIComponent(q)}` },
+  amazon: {
+    pkg: "in.amazon.mShop.android.shopping",
+    url: (q) => `https://www.amazon.in/s?k=${encodeURIComponent(q)}`,
+  },
+  flipkart: {
+    pkg: "com.flipkart.android",
+    url: (q) => `https://www.flipkart.com/search?q=${encodeURIComponent(q)}`,
+  },
+  meesho: {
+    pkg: "com.meesho.supply",
+    url: (q) => `https://www.meesho.com/search?q=${encodeURIComponent(q)}`,
+  },
+  jiomart: {
+    pkg: "com.jpl.jiomart",
+    url: (q) => `https://www.jiomart.com/search/${encodeURIComponent(q)}`,
+  },
+  myntra: {
+    pkg: "com.myntra.android",
+    url: (q) => `https://www.myntra.com/${encodeURIComponent(q)}`,
+  },
   croma: { url: (q) => `https://www.croma.com/searchB?q=${encodeURIComponent(q)}` },
-  "reliance digital": { url: (q) => `https://www.reliancedigital.in/search?q=${encodeURIComponent(q)}` },
+  "reliance digital": {
+    url: (q) => `https://www.reliancedigital.in/search?q=${encodeURIComponent(q)}`,
+  },
   blinkit: { url: (q) => `https://blinkit.com/s/?q=${encodeURIComponent(q)}` },
   zepto: { url: (q) => `https://www.zeptonow.com/search?query=${encodeURIComponent(q)}` },
 };
 
 function launchStore(store: string, query: string) {
   const key = store.toLowerCase().replace(/\.in$/, "").trim();
-  const entry = STORE_LAUNCH[key] ?? { url: (q: string) => `https://www.google.com/search?q=${encodeURIComponent(store + " " + q)}` };
+  const entry = STORE_LAUNCH[key] ?? {
+    url: (q: string) => `https://www.google.com/search?q=${encodeURIComponent(store + " " + q)}`,
+  };
   const fallback = entry.url(query);
   import("@/lib/miniapps").then(({ launchMiniApp }) => {
     launchMiniApp({ name: store, url: fallback, androidPackage: entry.pkg });
@@ -652,7 +773,9 @@ function launchStore(store: string, query: string) {
 function ScoutPanel() {
   const { t: tr } = useT();
   const [query, setQuery] = useState("");
-  const [image, setImage] = useState<{ base64: string; mime: string; preview: string } | null>(null);
+  const [image, setImage] = useState<{ base64: string; mime: string; preview: string } | null>(
+    null,
+  );
   const [loading, setLoading] = useState(false);
   const [loadingPhase, setLoadingPhase] = useState(0);
   const [data, setData] = useState<ScoutResponse | null>(null);
@@ -664,17 +787,28 @@ function ScoutPanel() {
   useEffect(() => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     setSpeechSupported(!!SR);
-    return () => { try { recRef.current?.stop?.(); } catch {} };
+    return () => {
+      try {
+        recRef.current?.stop?.();
+      } catch {}
+    };
   }, []);
 
   // Rotating "still searching" messages so a long exploratory query (restaurants,
   // salons — multiple platforms to check) doesn't feel like the app is stuck.
   useEffect(() => {
-    if (!loading) { setLoadingPhase(0); return; }
+    if (!loading) {
+      setLoadingPhase(0);
+      return;
+    }
     const t1 = setTimeout(() => setLoadingPhase(1), 15000);
     const t2 = setTimeout(() => setLoadingPhase(2), 35000);
     const t3 = setTimeout(() => setLoadingPhase(3), 70000);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
   }, [loading]);
 
   async function toggleMic() {
@@ -683,7 +817,12 @@ function ScoutPanel() {
       toast.info("ur browser can't do voice yet 😔");
       return;
     }
-    if (listening) { try { recRef.current?.stop?.(); } catch {} return; }
+    if (listening) {
+      try {
+        recRef.current?.stop?.();
+      } catch {}
+      return;
+    }
     try {
       const s = await navigator.mediaDevices.getUserMedia({ audio: true });
       s.getTracks().forEach((t) => t.stop());
@@ -706,13 +845,28 @@ function ScoutPanel() {
       }
       if (finalT) setQuery((p) => (p ? `${p} ${finalT}` : finalT).slice(0, 300));
     };
-    rec.onerror = () => { setListening(false); recRef.current = null; };
-    rec.onend = () => { setListening(false); recRef.current = null; };
+    rec.onerror = () => {
+      setListening(false);
+      recRef.current = null;
+    };
+    rec.onend = () => {
+      setListening(false);
+      recRef.current = null;
+    };
     recRef.current = rec;
-    try { rec.start(); setListening(true); } catch { setListening(false); }
+    try {
+      rec.start();
+      setListening(true);
+    } catch {
+      setListening(false);
+    }
   }
 
-  async function compressToJpeg(file: File, maxDim = 1024, quality = 0.7): Promise<{ dataUrl: string; base64: string }> {
+  async function compressToJpeg(
+    file: File,
+    maxDim = 1024,
+    quality = 0.7,
+  ): Promise<{ dataUrl: string; base64: string }> {
     const srcUrl = URL.createObjectURL(file);
     try {
       const img = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -722,10 +876,16 @@ function ScoutPanel() {
         el.src = srcUrl;
       });
       let { width, height } = img;
-      if (width > height && width > maxDim) { height = Math.round(height * (maxDim / width)); width = maxDim; }
-      else if (height >= width && height > maxDim) { width = Math.round(width * (maxDim / height)); height = maxDim; }
+      if (width > height && width > maxDim) {
+        height = Math.round(height * (maxDim / width));
+        width = maxDim;
+      } else if (height >= width && height > maxDim) {
+        width = Math.round(width * (maxDim / height));
+        height = maxDim;
+      }
       const canvas = document.createElement("canvas");
-      canvas.width = width; canvas.height = height;
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("canvas unavailable");
       ctx.drawImage(img, 0, 0, width, height);
@@ -741,7 +901,10 @@ function ScoutPanel() {
     const f = e.target.files?.[0];
     if (fileRef.current) fileRef.current.value = "";
     if (!f) return;
-    if (f.size > 20 * 1024 * 1024) { toast.error("image too big — pick a smaller one"); return; }
+    if (f.size > 20 * 1024 * 1024) {
+      toast.error("image too big — pick a smaller one");
+      return;
+    }
     try {
       const { dataUrl, base64 } = await compressToJpeg(f);
       setImage({ base64, mime: "image/jpeg", preview: dataUrl });
@@ -752,15 +915,37 @@ function ScoutPanel() {
 
   const [scoutError, setScoutError] = useState<string | null>(null);
 
-  async function resolveLocation(): Promise<{ label?: string; pin?: string; lat?: number; lon?: number } | null> {
+  async function resolveLocation(): Promise<{
+    label?: string;
+    pin?: string;
+    lat?: number;
+    lon?: number;
+  } | null> {
     try {
       if (!("geolocation" in navigator)) return null;
       const pos = await new Promise<GeolocationPosition | null>((resolve) => {
         let done = false;
-        const t = setTimeout(() => { if (!done) { done = true; resolve(null); } }, 4000);
+        const t = setTimeout(() => {
+          if (!done) {
+            done = true;
+            resolve(null);
+          }
+        }, 4000);
         navigator.geolocation.getCurrentPosition(
-          (p) => { if (!done) { done = true; clearTimeout(t); resolve(p); } },
-          () => { if (!done) { done = true; clearTimeout(t); resolve(null); } },
+          (p) => {
+            if (!done) {
+              done = true;
+              clearTimeout(t);
+              resolve(p);
+            }
+          },
+          () => {
+            if (!done) {
+              done = true;
+              clearTimeout(t);
+              resolve(null);
+            }
+          },
           { enableHighAccuracy: false, maximumAge: 5 * 60 * 1000, timeout: 4000 },
         );
       });
@@ -770,14 +955,21 @@ function ScoutPanel() {
       try {
         const m = await import("@/lib/miniapps");
         label = await m.reverseGeocode(lat, lon);
-      } catch { /* noop */ }
+      } catch {
+        /* noop */
+      }
       const pin = label?.match(/\b(\d{6})\b/)?.[1];
       return { label, pin, lat, lon };
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
   async function scout() {
-    if (!query.trim() && !image) { toast.error("type or snap something first 👀"); return; }
+    if (!query.trim() && !image) {
+      toast.error("type or snap something first 👀");
+      return;
+    }
     setLoading(true);
     setData(null);
     setScoutError(null);
@@ -795,10 +987,22 @@ function ScoutPanel() {
         ]);
 
       let lang = "en";
-      try { const m = await import("@/lib/userLanguage"); lang = await m.getUserLanguage(); } catch { /* noop */ }
+      try {
+        const m = await import("@/lib/userLanguage");
+        lang = await m.getUserLanguage();
+      } catch {
+        /* noop */
+      }
 
       const { data: r, error } = await supabase.functions.invoke("smart-scout", {
-        body: { query: query.trim(), imageBase64: image?.base64, imageMime: image?.mime, language: "auto", lang, location: locRaced },
+        body: {
+          query: query.trim(),
+          imageBase64: image?.base64,
+          imageMime: image?.mime,
+          language: "auto",
+          lang,
+          location: locRaced,
+        },
       });
       // Prefer the function's own { error } body over supabase's generic wrapper.
       const bodyErr = (r as any)?.error;
@@ -854,14 +1058,29 @@ function ScoutPanel() {
             >
               <Camera className="h-4 w-4" />
             </button>
-            <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPickImage} />
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={onPickImage}
+            />
           </div>
         </div>
         {image && (
           <div className="mt-2 flex items-center gap-2 rounded-xl border border-border bg-background p-2">
-            <img src={image.preview} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-            <div className="min-w-0 flex-1 truncate text-xs text-muted-foreground">photo attached — we'll ID it 📸</div>
-            <button onClick={() => setImage(null)} className="shrink-0 text-xs text-red-400">remove</button>
+            <img
+              src={image.preview}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-lg object-cover"
+            />
+            <div className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+              photo attached — we'll ID it 📸
+            </div>
+            <button onClick={() => setImage(null)} className="shrink-0 text-xs text-red-400">
+              remove
+            </button>
           </div>
         )}
         <button
@@ -871,17 +1090,22 @@ function ScoutPanel() {
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
           {loading
-            ? (loadingPhase === 0 ? "scouting the best prices 🕵️…"
-              : loadingPhase === 1 ? "still searching — checking a few more places 🔎"
-              : loadingPhase === 2 ? "comparing across shops & platforms 🛒"
-              : "almost there — synthesising the best pick ✨")
+            ? loadingPhase === 0
+              ? "scouting the best prices 🕵️…"
+              : loadingPhase === 1
+                ? "still searching — checking a few more places 🔎"
+                : loadingPhase === 2
+                  ? "comparing across shops & platforms 🛒"
+                  : "almost there — synthesising the best pick ✨"
             : tr("smart.scout.cta", "find best price")}
         </button>
       </div>
 
       {scoutError && !loading && (
         <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-center">
-          <div className="text-sm font-medium text-red-300">scout hit a wall 😵‍💫 — try again in a sec</div>
+          <div className="text-sm font-medium text-red-300">
+            scout hit a wall 😵‍💫 — try again in a sec
+          </div>
           <div className="mt-1 text-xs text-red-400/80 break-words">{scoutError}</div>
           <button
             onClick={scout}
@@ -900,19 +1124,33 @@ function ScoutPanel() {
           </div>
           {data.top_pick?.store && (
             <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4">
-              <div className="text-xs font-medium uppercase tracking-wider text-amber-300">🏆 best pick</div>
-              <div className="mt-1 font-display text-base font-bold break-words">{data.top_pick.store}</div>
-              {data.top_pick.why && <div className="mt-1 text-xs leading-relaxed text-amber-100/90 break-words">{data.top_pick.why}</div>}
-              {Array.isArray(data.top_pick.cross_checked) && data.top_pick.cross_checked.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] uppercase tracking-wider text-emerald-300/90">✓ confirmed via</span>
-                  {data.top_pick.cross_checked.slice(0, 5).map((src, i) => (
-                    <span key={i} className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200 break-words">
-                      {src}
-                    </span>
-                  ))}
+              <div className="text-xs font-medium uppercase tracking-wider text-amber-300">
+                🏆 best pick
+              </div>
+              <div className="mt-1 font-display text-base font-bold break-words">
+                {data.top_pick.store}
+              </div>
+              {data.top_pick.why && (
+                <div className="mt-1 text-xs leading-relaxed text-amber-100/90 break-words">
+                  {data.top_pick.why}
                 </div>
               )}
+              {Array.isArray(data.top_pick.cross_checked) &&
+                data.top_pick.cross_checked.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[10px] uppercase tracking-wider text-emerald-300/90">
+                      ✓ confirmed via
+                    </span>
+                    {data.top_pick.cross_checked.slice(0, 5).map((src, i) => (
+                      <span
+                        key={i}
+                        className="rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200 break-words"
+                      >
+                        {src}
+                      </span>
+                    ))}
+                  </div>
+                )}
             </div>
           )}
           {(() => {
@@ -929,11 +1167,17 @@ function ScoutPanel() {
                 {ranked.map((r, i) => (
                   <div key={`r-${i}`} className="rounded-2xl border border-border bg-card p-4">
                     <div className="flex items-start gap-3">
-                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">{rankBadge(i)}</div>
+                      <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">
+                        {rankBadge(i)}
+                      </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <div className="truncate font-semibold">{r.store}</div>
-                          {r.verified && <span className="shrink-0 text-[10px] font-medium text-emerald-400">✓ verified</span>}
+                          {r.verified && (
+                            <span className="shrink-0 text-[10px] font-medium text-emerald-400">
+                              ✓ verified
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground truncate">
                           {r.rating && <span>★ {r.rating}</span>}
@@ -941,10 +1185,12 @@ function ScoutPanel() {
                         </div>
                       </div>
                       <div className="shrink-0 font-display text-lg font-bold">
-                        ₹{(r.price_inr as number).toLocaleString("en-IN")}
+                        {moneyIn(r.price_inr as number, "INR")}
                       </div>
                     </div>
-                    {r.note && <div className="mt-2 text-xs text-muted-foreground break-words">{r.note}</div>}
+                    {r.note && (
+                      <div className="mt-2 text-xs text-muted-foreground break-words">{r.note}</div>
+                    )}
                     <button
                       onClick={() => launchStore(r.store, data.product)}
                       className="mt-3 flex w-full items-center justify-center gap-1 rounded-xl border border-border bg-background py-2 text-xs font-semibold"
@@ -968,10 +1214,16 @@ function ScoutPanel() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <div className="truncate text-sm font-semibold">{r.store}</div>
-                              {r.verified && <span className="shrink-0 text-[10px] font-medium text-emerald-400">✓</span>}
+                              {r.verified && (
+                                <span className="shrink-0 text-[10px] font-medium text-emerald-400">
+                                  ✓
+                                </span>
+                              )}
                             </div>
                             <div className="truncate text-xs text-muted-foreground">
-                              {r.price_range_inr ? `${r.price_range_inr}${r.rating ? ` · ★ ${r.rating}` : ""}` : (r.note ?? "couldn't verify live — check in app")}
+                              {r.price_range_inr
+                                ? `${r.price_range_inr}${r.rating ? ` · ★ ${r.rating}` : ""}`
+                                : (r.note ?? "couldn't verify live — check in app")}
                               {r.source_domain ? ` · ${r.source_domain}` : ""}
                             </div>
                           </div>
@@ -994,4 +1246,3 @@ function ScoutPanel() {
     </div>
   );
 }
-

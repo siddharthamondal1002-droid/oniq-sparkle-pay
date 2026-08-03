@@ -2,6 +2,7 @@ import * as React from "react";
 import * as HoverCardPrimitive from "@radix-ui/react-hover-card";
 
 import { cn } from "@/lib/utils";
+import { useDir } from "@/lib/i18n/direction";
 
 const HoverCard = HoverCardPrimitive.Root;
 
@@ -12,6 +13,7 @@ const HoverCardContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof HoverCardPrimitive.Content>
 >(({ className, align = "center", sideOffset = 4, ...props }, ref) => (
   <HoverCardPrimitive.Content
+    dir={useDir()}
     ref={ref}
     align={align}
     sideOffset={sideOffset}

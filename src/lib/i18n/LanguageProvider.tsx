@@ -21,7 +21,9 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLang] = useState<string>(FALLBACK_LANG);
 
   const load = () => {
-    getUserLanguage().then(setLang).catch(() => setLang(FALLBACK_LANG));
+    getUserLanguage()
+      .then(setLang)
+      .catch(() => setLang(FALLBACK_LANG));
   };
 
   useEffect(() => {
@@ -43,7 +45,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       document.documentElement.lang = lang;
     }
   }, [lang]);
-
 
   const value = useMemo<Ctx>(
     () => ({

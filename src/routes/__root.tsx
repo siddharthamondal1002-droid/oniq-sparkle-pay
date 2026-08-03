@@ -9,7 +9,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { Toaster } from "sonner";
+import { DirectionalToaster } from "@/components/DirectionalToaster";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -221,7 +221,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <DeepLinkWatcher />
       <Outlet />
-      <Toaster theme="dark" position="top-center" richColors />
+      <DirectionalToaster theme="dark" position="top-center" richColors />
     </QueryClientProvider>
   );
 }

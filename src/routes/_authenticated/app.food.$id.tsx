@@ -1,3 +1,4 @@
+import { moneyIn } from "@/lib/format";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -119,7 +120,7 @@ function RestaurantPage() {
                     {it.description}
                   </div>
                   <div className="mt-2 flex items-center justify-between">
-                    <div className="text-sm font-semibold">${Number(it.price).toFixed(2)}</div>
+                    <div className="text-sm font-semibold">{moneyIn(Number(it.price), "USD")}</div>
                     {qty === 0 ? (
                       <button
                         onClick={() => add(it.id)}
@@ -168,7 +169,7 @@ function RestaurantPage() {
               <ShoppingBag className="h-4 w-4" /> {cartCount} item{cartCount > 1 ? "s" : ""}
             </span>
             <span>
-              ${(subtotal + Number(restaurant.delivery_fee ?? 0)).toFixed(2)} · Checkout
+              {moneyIn(subtotal + Number(restaurant.delivery_fee ?? 0), "USD")} · Checkout
             </span>
           </button>
         </div>
@@ -255,7 +256,7 @@ function CheckoutSheet({
               <span>
                 {cart[it.id]}× {it.name}
               </span>
-              <span className="font-medium">${(cart[it.id] * Number(it.price)).toFixed(2)}</span>
+              <span className="font-medium">{moneyIn(cart[it.id] * Number(it.price), "USD")}</span>
             </div>
           ))}
         </div>
@@ -263,15 +264,15 @@ function CheckoutSheet({
         <div className="mt-3 space-y-1 border-t border-border pt-3 text-sm">
           <div className="flex justify-between text-muted-foreground">
             <span>Subtotal</span>
-            <span>${subtotal.toFixed(2)}</span>
+            <span>{moneyIn(subtotal, "USD")}</span>
           </div>
           <div className="flex justify-between text-muted-foreground">
             <span>Delivery</span>
-            <span>${deliveryFee.toFixed(2)}</span>
+            <span>{moneyIn(deliveryFee, "USD")}</span>
           </div>
           <div className="flex justify-between font-semibold">
             <span>Total</span>
-            <span>${total.toFixed(2)}</span>
+            <span>{moneyIn(total, "USD")}</span>
           </div>
         </div>
 
@@ -289,7 +290,7 @@ function CheckoutSheet({
           data-testid="place-order"
           className="mt-5 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-50"
         >
-          {placing ? "Placing order…" : `Pay $${total.toFixed(2)}`}
+          {placing ? "Placing order…" : `Pay ${moneyIn(total, "USD")}`}
         </button>
       </div>
     </div>

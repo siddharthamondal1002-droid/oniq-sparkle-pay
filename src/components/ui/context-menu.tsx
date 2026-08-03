@@ -3,8 +3,14 @@ import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useDir } from "@/lib/i18n/direction";
 
-const ContextMenu = ContextMenuPrimitive.Root;
+// Radix menus take `dir` on the Root (it propagates to the portalled content),
+// not on Content. Without it a portalled menu ignores <html dir>.
+const ContextMenu = (props: React.ComponentProps<typeof ContextMenuPrimitive.Root>) => {
+  const dir = useDir();
+  return <ContextMenuPrimitive.Root dir={dir} {...props} />;
+};
 
 const ContextMenuTrigger = ContextMenuPrimitive.Trigger;
 

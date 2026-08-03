@@ -1,0 +1,68 @@
+/**
+ * Phase 3 verification — tile-name resolution and Intl formatting.
+ */
+import { describe, expect, it } from "vitest";
+import { tileName, TILE_LABELS, TILE_LABELS_HI } from "@/lib/i18n/tileLabel";
+import { makeFormatters, moneyIn } from "@/lib/format";
+import { COUNTRY_REGISTRY } from "@/data/countryRegistry";
+import type { Country } from "@/data/countryRegistry";
+import { CATEGORY_LABELS } from "@/data/appRegistry";
+
+describe("tile names", () => {
+  const cases: Array<[keyof typeof TILE_LABELS, string, string]> = [
+    ["pulse", "Pulse", "खबर"],
+    ["miniapps", "Hacks", "जुगाड़"],
+    ["learn", "Scout", "भाव"],
+    ["rides", "Rides", "सवारी"],
+  ];
+
+  it.each(cases)("%s resolves per locale", (key, en, hi) => {
+    // emoji suffixes are decoration; the NAME is what must be locale-correct
+    expect(tileName("en", key)).toContain(en);
+    expect(tileName("hi", key)).toContain(hi);
+  });
+
+  it("keeps ONIQ-owned names that need no translation", () => {
+    for (const key of ["faith", "moots", "vitals"] as const) {
+      expect(tileName("en", key)).toBe(TILE_LABELS[key]);
+      expect(TILE_LABELS_HI[key]).toBeTruthy();
+    }
+  });
+
+  it("category names follow the same English/Hindi split", () => {
+    expect(CATEGORY_LABELS.shopping.label).toBe("Shop");
+    expect(CATEGORY_LABELS.shopping.labelHi).toBe("खरीदारी");
+    expect(CATEGORY_LABELS.services.labelHi).toContain("सेवाएँ");
+  });
+
+  it("falls back to English for locales without a Hindi table", () => {
+    expect(tileName("ta", "pulse")).toBe("Pulse");
+  });
+
+  it("toggling locale twice returns the original label (no stale state)", () => {
+    const a = tileName("en", "pulse");
+    tileName("hi", "pulse");
+    expect(tileName("en", "pulse")).toBe(a);
+  });
+});
+
+describe("Intl money formatting", () => {
+  it("uses Indian lakh/crore grouping for IN", () => {
+    const out = makeFormatters("IN").money(1234567.89);
+    expect(out.replace(/\u00a0/g, " ")).toContain("12,34,567.89");
+    expect(out).toContain("₹");
+  });
+
+  it("formats every registered country in its own currency", () => {
+    for (const code of Object.keys(COUNTRY_REGISTRY) as Country[]) {
+      const out = makeFormatters(code).money(1234.5);
+      expect(out.length).toBeGreaterThan(3);
+      expect(out).toMatch(/\d/);
+    }
+  });
+
+  it("pins currency for fixed-denomination data", () => {
+    expect(moneyIn(1234567, "INR", "IN").replace(/\u00a0/g, " ")).toContain("12,34,567");
+    expect(moneyIn(12.5, "USD", "US")).toContain("$");
+  });
+});

@@ -1,3 +1,4 @@
+import { TILE_LABELS, type TileKey } from "@/lib/i18n/tileLabel";
 /**
  * Loop 2 — the rules engine behind anticipatory home cards.
  *
@@ -28,6 +29,8 @@ export type Signal = {
 
 export type Suggestion = {
   hub: string;
+  /** Key into the shared tile-label table, for localised display. */
+  tile?: TileKey;
   label: string;
   to: string;
   search?: Record<string, unknown>;
@@ -36,20 +39,26 @@ export type Suggestion = {
 };
 
 /** Every hub the card is allowed to point at. Nothing money-, health- or call-related. */
-export const SUGGESTABLE: Record<string, { label: string; to: string; search?: Record<string, unknown> }> = {
-  study: { label: "Study 📚", to: "/app/study" },
-  ting: { label: "Ting ✨", to: "/app/ai" },
-  learn: { label: "Scout 🧠", to: "/app/learn" },
-  rides: { label: "Rides 🚗", to: "/app/rides" },
-  faith: { label: "Blessed 🙏", to: "/app/faith" },
-  pulse: { label: "Pulse", to: "/app/news" },
-  watch: { label: "Watch", to: "/app/news", search: { tab: "watch" } },
-  miniapps: { label: "Hacks 🔌", to: "/app/miniapps" },
-  official: { label: "Official 🏛️", to: "/app/official" },
-  wander: { label: "touch grass ✈️", to: "/app/travel" },
-  earn: { label: "earn 💸", to: "/app/earn" },
-  clips: { label: "Reels", to: "/app/chat/reels" },
-  moments: { label: "Moments", to: "/app/chat/moments" },
+// `tile` names the entry in the shared label table (src/lib/i18n/tileLabel.ts)
+// so the card can localise; `label` is the English fallback used in pure
+// (non-React) contexts such as the reason string and memory writes.
+export const SUGGESTABLE: Record<
+  string,
+  { tile?: TileKey; label: string; to: string; search?: Record<string, unknown> }
+> = {
+  study: { tile: "study", label: TILE_LABELS.study, to: "/app/study" },
+  ting: { tile: "ting", label: TILE_LABELS.ting, to: "/app/ai" },
+  learn: { tile: "learn", label: TILE_LABELS.learn, to: "/app/learn" },
+  rides: { tile: "rides", label: TILE_LABELS.rides, to: "/app/rides" },
+  faith: { tile: "faith", label: TILE_LABELS.faith, to: "/app/faith" },
+  pulse: { tile: "pulse", label: TILE_LABELS.pulse, to: "/app/news" },
+  watch: { tile: "watch", label: TILE_LABELS.watch, to: "/app/news", search: { tab: "watch" } },
+  miniapps: { tile: "miniapps", label: TILE_LABELS.miniapps, to: "/app/miniapps" },
+  official: { tile: "official", label: TILE_LABELS.official, to: "/app/official" },
+  wander: { tile: "wander", label: TILE_LABELS.wander, to: "/app/travel" },
+  earn: { tile: "earn", label: TILE_LABELS.earn, to: "/app/earn" },
+  clips: { tile: "clips", label: TILE_LABELS.clips, to: "/app/chat/reels" },
+  moments: { tile: "moments", label: TILE_LABELS.moments, to: "/app/chat/moments" },
 };
 
 export const MIN_HITS = 3;
@@ -113,6 +122,7 @@ export function pickSuggestion(signals: Signal[], now: Date = new Date()): Sugge
   const when = isWeekend(dow) ? "on weekends" : "on weekdays";
   return {
     hub,
+    tile: meta.tile,
     label: meta.label,
     to: meta.to,
     search: meta.search,

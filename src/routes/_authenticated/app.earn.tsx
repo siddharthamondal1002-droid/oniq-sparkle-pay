@@ -1,3 +1,4 @@
+import { moneyIn } from "@/lib/format";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -46,16 +47,76 @@ const PROVIDERS: Provider[] = [
   },
 ];
 
-const GOMECHANIC: Provider = { id: "gomechanic", name: "GoMechanic", url: "https://gomechanic.in", color: "#E63946", emoji: "🔧" };
-const READYASSIST: Provider = { id: "readyassist", name: "ReadyAssist", url: "https://readyassist.in", color: "#FF8500", emoji: "🛠️" };
-const PRACTO: Provider = { id: "practo", name: "Practo", url: "https://www.practo.com", color: "#199FD9", emoji: "🩺" };
-const PORTEA: Provider = { id: "portea", name: "Portea", url: "https://www.portea.com", color: "#00A0B0", emoji: "🏥" };
-const CARE24: Provider = { id: "care24", name: "Care24", url: "https://www.care24.co.in", color: "#4CAF50", emoji: "🤲" };
-const CLEARTAX: Provider = { id: "cleartax", name: "ClearTax", url: "https://cleartax.in", color: "#1F73B7", emoji: "🧾" };
-const QUICKO: Provider = { id: "quicko", name: "Quicko", url: "https://quicko.com", color: "#7C3AED", emoji: "📊" };
-const LAWRATO: Provider = { id: "lawrato", name: "LawRato", url: "https://lawrato.com", color: "#0B5394", emoji: "⚖️" };
-const VAKILSEARCH: Provider = { id: "vakilsearch", name: "Vakilsearch", url: "https://vakilsearch.com", color: "#E85D26", emoji: "📜" };
-const INDIAFILINGS: Provider = { id: "indiafilings", name: "IndiaFilings", url: "https://www.indiafilings.com", color: "#2E7D32", emoji: "🏢" };
+const GOMECHANIC: Provider = {
+  id: "gomechanic",
+  name: "GoMechanic",
+  url: "https://gomechanic.in",
+  color: "#E63946",
+  emoji: "🔧",
+};
+const READYASSIST: Provider = {
+  id: "readyassist",
+  name: "ReadyAssist",
+  url: "https://readyassist.in",
+  color: "#FF8500",
+  emoji: "🛠️",
+};
+const PRACTO: Provider = {
+  id: "practo",
+  name: "Practo",
+  url: "https://www.practo.com",
+  color: "#199FD9",
+  emoji: "🩺",
+};
+const PORTEA: Provider = {
+  id: "portea",
+  name: "Portea",
+  url: "https://www.portea.com",
+  color: "#00A0B0",
+  emoji: "🏥",
+};
+const CARE24: Provider = {
+  id: "care24",
+  name: "Care24",
+  url: "https://www.care24.co.in",
+  color: "#4CAF50",
+  emoji: "🤲",
+};
+const CLEARTAX: Provider = {
+  id: "cleartax",
+  name: "ClearTax",
+  url: "https://cleartax.in",
+  color: "#1F73B7",
+  emoji: "🧾",
+};
+const QUICKO: Provider = {
+  id: "quicko",
+  name: "Quicko",
+  url: "https://quicko.com",
+  color: "#7C3AED",
+  emoji: "📊",
+};
+const LAWRATO: Provider = {
+  id: "lawrato",
+  name: "LawRato",
+  url: "https://lawrato.com",
+  color: "#0B5394",
+  emoji: "⚖️",
+};
+const VAKILSEARCH: Provider = {
+  id: "vakilsearch",
+  name: "Vakilsearch",
+  url: "https://vakilsearch.com",
+  color: "#E85D26",
+  emoji: "📜",
+};
+const INDIAFILINGS: Provider = {
+  id: "indiafilings",
+  name: "IndiaFilings",
+  url: "https://www.indiafilings.com",
+  color: "#2E7D32",
+  emoji: "🏢",
+};
 
 const CATEGORIES: Category[] = [
   { id: "house_cleaning", label: "House Cleaning", emoji: "🧹", providers: PROVIDERS },
@@ -70,7 +131,12 @@ const CATEGORIES: Category[] = [
   { id: "plumber", label: "Plumber", emoji: "🚰", providers: PROVIDERS },
   { id: "beauty", label: "Beauty & Salon at home", emoji: "💅", providers: PROVIDERS },
   { id: "tutor", label: "Tutor", emoji: "📚", providers: PROVIDERS },
-  { id: "bike_mechanic", label: "Bike Mechanic", emoji: "🏍️", providers: [GOMECHANIC, READYASSIST] },
+  {
+    id: "bike_mechanic",
+    label: "Bike Mechanic",
+    emoji: "🏍️",
+    providers: [GOMECHANIC, READYASSIST],
+  },
   { id: "car_mechanic", label: "Car Mechanic", emoji: "🚗", providers: [GOMECHANIC, READYASSIST] },
   { id: "physiotherapist", label: "Physiotherapist", emoji: "🧑‍⚕️", providers: [PRACTO, PORTEA] },
   { id: "caregiver", label: "Caregiver / Attendant", emoji: "🧑‍🦽", providers: [PORTEA, CARE24] },
@@ -79,7 +145,12 @@ const CATEGORIES: Category[] = [
   { id: "tax_ca", label: "Tax Consultant / CA", emoji: "🧾", providers: [CLEARTAX, QUICKO] },
   { id: "lawyer_civil", label: "Lawyer — Civil", emoji: "⚖️", providers: [LAWRATO, VAKILSEARCH] },
   { id: "lawyer_criminal", label: "Lawyer — Criminal", emoji: "⚖️", providers: [LAWRATO] },
-  { id: "lawyer_corporate", label: "Lawyer — Corporate", emoji: "⚖️", providers: [VAKILSEARCH, INDIAFILINGS] },
+  {
+    id: "lawyer_corporate",
+    label: "Lawyer — Corporate",
+    emoji: "⚖️",
+    providers: [VAKILSEARCH, INDIAFILINGS],
+  },
 ];
 
 const CITY_GROUPS = [
@@ -245,9 +316,6 @@ function RegionSelect({
   );
 }
 
-
-
-
 function EarnScreen() {
   const [tab, setTab] = useState<Tab>("hire");
   return (
@@ -313,7 +381,9 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
         {CATEGORIES.map((c) => (
           <button
             key={c.id}
-            onClick={() => (c.providers && c.providers.length ? setChooserFor(c) : setNoProviderFor(c))}
+            onClick={() =>
+              c.providers && c.providers.length ? setChooserFor(c) : setNoProviderFor(c)
+            }
             className="press flex flex-col items-center justify-center gap-1 rounded-2xl border border-border bg-card p-3 text-center hover:brightness-110"
           >
             <span className="text-2xl">{c.emoji}</span>
@@ -340,12 +410,14 @@ function HirePanel({ goPartner }: { goPartner: () => void }) {
         </div>
       </button>
 
-      {chooserFor && (
-        <ProviderChooser category={chooserFor} onClose={() => setChooserFor(null)} />
-      )}
+      {chooserFor && <ProviderChooser category={chooserFor} onClose={() => setChooserFor(null)} />}
       {noProviderFor && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setNoProviderFor(null)} aria-hidden />
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setNoProviderFor(null)}
+            aria-hidden
+          />
           <div className="glass relative z-10 w-full max-w-md rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
             <div className="font-display text-lg font-bold">
               {noProviderFor.emoji} {noProviderFor.label}
@@ -422,17 +494,27 @@ function PriceOfferSheet({
   const [busy, setBusy] = useState(false);
   const submit = async () => {
     const n = Math.round(Number(price));
-    if (!Number.isFinite(n) || n < 10) { toast.error("enter at least ₹10"); return; }
+    if (!Number.isFinite(n) || n < 10) {
+      toast.error(`enter at least ${moneyIn(10, "INR")}`);
+      return;
+    }
     setBusy(true);
-    try { await onSubmit(n); } finally { setBusy(false); }
+    try {
+      await onSubmit(n);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <div className="fixed inset-0 z-[60] flex items-end bg-black/60" onClick={onClose}>
-      <div className="w-full rounded-t-3xl border-t border-border bg-background p-5 pb-8" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="w-full rounded-t-3xl border-t border-border bg-background p-5 pb-8"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="font-display text-lg font-bold">{title}</div>
         <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
         <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3">
-          <span className="text-lg font-bold">₹</span>
+          <span className="text-lg font-bold">{moneyIn(0, "INR").replace(/[\d.,\s]/g, "")}</span>
           <input
             type="number"
             inputMode="numeric"
@@ -458,23 +540,47 @@ function PriceOfferSheet({
 
 const TIME_SLOTS = ["8–10 am", "10–12", "12–2 pm", "2–4 pm", "4–6 pm", "6–8 pm"];
 
-function slotLine(b: { category: string | null; scheduled_date: string | null; time_slot: string | null }): string {
+function slotLine(b: {
+  category: string | null;
+  scheduled_date: string | null;
+  time_slot: string | null;
+}): string {
   const parts: string[] = [];
   const cat = b.category ? catById(b.category) : null;
   if (cat) parts.push(`${cat.emoji} ${cat.label}`);
-  if (b.scheduled_date) parts.push(new Date(b.scheduled_date + "T00:00:00").toLocaleDateString(undefined, { day: "numeric", month: "short" }));
+  if (b.scheduled_date)
+    parts.push(
+      new Date(b.scheduled_date + "T00:00:00").toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+      }),
+    );
   if (b.time_slot) parts.push(b.time_slot);
   return parts.join(" · ");
 }
 
-function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner: () => void; withInviteCard?: boolean }) {
+function OniqPartnersSection({
+  goPartner,
+  withInviteCard = false,
+}: {
+  goPartner: () => void;
+  withInviteCard?: boolean;
+}) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const [city, setCity] = useState(() => {
-    try { return localStorage.getItem("oniq.earn.city") || "Kolkata"; } catch { return "Kolkata"; }
+    try {
+      return localStorage.getItem("oniq.earn.city") || "Kolkata";
+    } catch {
+      return "Kolkata";
+    }
   });
   const [village, setVillage] = useState(() => {
-    try { return localStorage.getItem("oniq.earn.village") || ""; } catch { return ""; }
+    try {
+      return localStorage.getItem("oniq.earn.village") || "";
+    } catch {
+      return "";
+    }
   });
   const [bookTarget, setBookTarget] = useState<RegionProvider | null>(null);
   const [rateTarget, setRateTarget] = useState<MyBooking | null>(null);
@@ -492,7 +598,9 @@ function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner:
     try {
       localStorage.setItem("oniq.earn.city", city);
       localStorage.setItem("oniq.earn.village", village);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [city, village]);
 
   const region = regionKey(city, village);
@@ -516,7 +624,9 @@ function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner:
     enabled,
     queryFn: async (): Promise<RegionProvider[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("list_region_providers", { _region: region });
+      const { data, error } = await (supabase as any).rpc("list_region_providers", {
+        _region: region,
+      });
       if (error) throw error;
       return data ?? [];
     },
@@ -533,200 +643,241 @@ function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner:
   });
 
   const openChat = async (otherId: string) => {
-    const { data: id, error } = await supabase.rpc("find_or_create_direct_conversation", { other_user_id: otherId });
-    if (error || !id) { toast.error(error?.message ?? "couldn't open chat"); return; }
+    const { data: id, error } = await supabase.rpc("find_or_create_direct_conversation", {
+      other_user_id: otherId,
+    });
+    if (error || !id) {
+      toast.error(error?.message ?? "couldn't open chat");
+      return;
+    }
     navigate({ to: "/app/chat/$conversationId", params: { conversationId: id as string } });
   };
 
   const cancelBooking = async (id: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).rpc("respond_booking", { _booking_id: id, _status: "cancelled" });
+    const { error } = await (supabase as any).rpc("respond_booking", {
+      _booking_id: id,
+      _status: "cancelled",
+    });
     if (error) return toast.error(error.message);
     await qc.invalidateQueries({ queryKey: ["my-service-bookings"] });
   };
 
   return (
     <>
-    {withInviteCard && !enabled && (
-      <InviteNotification regionLabel={label} regionKey={region} providerCount={status?.provider_count} />
-    )}
-    <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-semibold">ONIQ partners near you</div>
-        <span className="rounded-full bg-[#25D366]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#25D366]">
-          free booking
-        </span>
-      </div>
-      <div className="mt-2">
-        <RegionSelect city={city} setCity={setCity} village={village} setVillage={setVillage} />
-      </div>
-
-      {region.length === 0 ? (
-        <div className="mt-3 text-xs text-muted-foreground">type your village name to check availability</div>
-      ) : !status ? (
-        <div className="mt-3 flex justify-center"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>
-      ) : enabled ? (
-        <div className="mt-3 space-y-2">
-          <div className="text-xs font-semibold text-[#25D366]">🎉 ONIQ services are live in {label}</div>
-          {providers.map((p) => (
-            <div key={p.id} className="flex items-center gap-3 rounded-xl border border-border bg-background/50 p-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <div className="truncate text-sm font-semibold">{p.full_name}</div>
-                  {p.avg_rating != null && (
-                    <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
-                      ⭐ {p.avg_rating}
-                    </span>
-                  )}
-                </div>
-                <div className="truncate text-[11px] text-muted-foreground">
-                  {p.skills.map((s) => catById(s)?.emoji ?? "").join(" ")}{" "}
-                  {p.skills.map((s) => catById(s)?.label).filter(Boolean).slice(0, 2).join(", ")}
-                  {p.experience_years > 0 && ` · ${p.experience_years} yr`}
-                  {p.jobs_done > 0 && ` · ${p.jobs_done} job${p.jobs_done === 1 ? "" : "s"}`}
-                  {(p.village || p.area) && ` · ${p.village || p.area}`}
-                </div>
-              </div>
-              <button
-                onClick={() => setBookTarget(p)}
-                className="press shrink-0 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground"
-              >
-                book free
-              </button>
-            </div>
-          ))}
-          <div className="text-center text-[10px] text-muted-foreground">
-            ONIQ charges ₹0 for bookings — you deal with the partner directly
-          </div>
-        </div>
-      ) : (
-        <div className="mt-3">
-          <div className="flex items-baseline justify-between text-xs">
-            <span className="font-semibold">{status.provider_count}/{REGION_TARGET} partners registered in {label}</span>
-          </div>
-          <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${Math.min(100, (status.provider_count / REGION_TARGET) * 100)}%` }}
-            />
-          </div>
-          <div className="mt-2 text-[11px] text-muted-foreground">
-            when {REGION_TARGET} verified partners register here, ONIQ services go live for everyone in {label} — with 100% free booking.
-          </div>
-          <button onClick={goPartner} className="press mt-2 text-xs font-semibold text-primary">
-            know someone who provides services? invite them to become a partner →
-          </button>
-        </div>
+      {withInviteCard && !enabled && (
+        <InviteNotification
+          regionLabel={label}
+          regionKey={region}
+          providerCount={status?.provider_count}
+        />
       )}
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-sm font-semibold">ONIQ partners near you</div>
+          <span className="rounded-full bg-[#25D366]/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#25D366]">
+            free booking
+          </span>
+        </div>
+        <div className="mt-2">
+          <RegionSelect city={city} setCity={setCity} village={village} setVillage={setVillage} />
+        </div>
 
-      {myBookings.length > 0 && (
-        <div className="mt-4 border-t border-border pt-3">
-          <div className="text-xs font-semibold text-muted-foreground">your bookings</div>
-          <div className="mt-2 space-y-2">
-            {myBookings.map((b) => (
-              <div key={b.id} className="flex items-center gap-2 rounded-xl border border-border p-2.5">
+        {region.length === 0 ? (
+          <div className="mt-3 text-xs text-muted-foreground">
+            type your village name to check availability
+          </div>
+        ) : !status ? (
+          <div className="mt-3 flex justify-center">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : enabled ? (
+          <div className="mt-3 space-y-2">
+            <div className="text-xs font-semibold text-[#25D366]">
+              🎉 ONIQ services are live in {label}
+            </div>
+            {providers.map((p) => (
+              <div
+                key={p.id}
+                className="flex items-center gap-3 rounded-xl border border-border bg-background/50 p-3"
+              >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">{b.provider_name}</div>
-                  {slotLine(b) && <div className="truncate text-[11px] text-muted-foreground">{slotLine(b)}</div>}
-                  <div className="text-[11px] font-semibold">
-                    {b.agreed_price
-                      ? `₹${b.agreed_price} agreed 🤝`
-                      : b.status === "countered" && b.counter_price
-                        ? `they ask ₹${b.counter_price} (you offered ₹${b.offered_price})`
-                        : b.offered_price
-                          ? `your offer: ₹${b.offered_price}`
-                          : ""}
+                  <div className="flex items-center gap-1.5">
+                    <div className="truncate text-sm font-semibold">{p.full_name}</div>
+                    {p.avg_rating != null && (
+                      <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-400">
+                        ⭐ {p.avg_rating}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                    {b.status}{b.rating ? ` · you rated ⭐${b.rating}` : ""}
+                  <div className="truncate text-[11px] text-muted-foreground">
+                    {p.skills.map((s) => catById(s)?.emoji ?? "").join(" ")}{" "}
+                    {p.skills
+                      .map((s) => catById(s)?.label)
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .join(", ")}
+                    {p.experience_years > 0 && ` · ${p.experience_years} yr`}
+                    {p.jobs_done > 0 && ` · ${p.jobs_done} job${p.jobs_done === 1 ? "" : "s"}`}
+                    {(p.village || p.area) && ` · ${p.village || p.area}`}
                   </div>
-                  {b.status === "countered" && b.counter_price && (
-                    <div className="mt-1.5 flex gap-2">
-                      <button
-                        onClick={() => acceptCounter(b.id)}
-                        className="press rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground"
-                      >
-                        accept ₹{b.counter_price}
-                      </button>
-                      <button
-                        onClick={() => setReofferTarget(b)}
-                        className="press rounded-full border border-border px-3 py-1 text-[11px] text-muted-foreground"
-                      >
-                        offer again
-                      </button>
-                    </div>
-                  )}
                 </div>
                 <button
-                  onClick={() => openChat(b.provider_user_id)}
-                  aria-label="Chat with partner"
-                  className="press grid h-8 w-8 place-items-center rounded-full border border-border"
+                  onClick={() => setBookTarget(p)}
+                  className="press shrink-0 rounded-full bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground"
                 >
-                  <MessageCircle className="h-4 w-4" />
+                  book free
                 </button>
-                {(b.status === "requested" || b.status === "accepted") && (
-                  <button
-                    onClick={() => cancelBooking(b.id)}
-                    className="press rounded-full border border-border px-3 py-1 text-[11px] text-muted-foreground"
-                  >
-                    cancel
-                  </button>
-                )}
-                {b.status === "done" && !b.rating && (
-                  <button
-                    onClick={() => setRateTarget(b)}
-                    className="press rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-semibold text-amber-400"
-                  >
-                    rate ⭐
-                  </button>
-                )}
               </div>
             ))}
+            <div className="text-center text-[10px] text-muted-foreground">
+              ONIQ charges {moneyIn(0, "INR")} for bookings — you deal with the partner directly
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        ) : (
+          <div className="mt-3">
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="font-semibold">
+                {status.provider_count}/{REGION_TARGET} partners registered in {label}
+              </span>
+            </div>
+            <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-primary transition-all"
+                style={{
+                  width: `${Math.min(100, (status.provider_count / REGION_TARGET) * 100)}%`,
+                }}
+              />
+            </div>
+            <div className="mt-2 text-[11px] text-muted-foreground">
+              when {REGION_TARGET} verified partners register here, ONIQ services go live for
+              everyone in {label} — with 100% free booking.
+            </div>
+            <button onClick={goPartner} className="press mt-2 text-xs font-semibold text-primary">
+              know someone who provides services? invite them to become a partner →
+            </button>
+          </div>
+        )}
 
-    {bookTarget && (
-      <BookServiceSheet
-        provider={bookTarget}
-        onClose={() => setBookTarget(null)}
-        onBooked={() => {
-          setBookTarget(null);
-          qc.invalidateQueries({ queryKey: ["my-service-bookings"] });
-        }}
-      />
-    )}
-    {rateTarget && (
-      <RateBookingSheet
-        booking={rateTarget}
-        onClose={() => setRateTarget(null)}
-        onRated={() => {
-          setRateTarget(null);
-          qc.invalidateQueries({ queryKey: ["my-service-bookings"] });
-          qc.invalidateQueries({ queryKey: ["region-providers"] });
-        }}
-      />
-    )}
-    {reofferTarget && (
-      <PriceOfferSheet
-        title={`new offer to ${reofferTarget.provider_name}`}
-        hint={`they asked ₹${reofferTarget.counter_price ?? "—"} · you pay them directly, ONIQ takes ₹0`}
-        initial={reofferTarget.counter_price}
-        onClose={() => setReofferTarget(null)}
-        onSubmit={async (price) => {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error } = await (supabase as any).rpc("offer_booking_price", {
-            _booking_id: reofferTarget.id,
-            _price: price,
-          });
-          if (error) { toast.error(error.message); return; }
-          toast.success("offer sent 📨");
-          setReofferTarget(null);
-          qc.invalidateQueries({ queryKey: ["my-service-bookings"] });
-        }}
-      />
-    )}
+        {myBookings.length > 0 && (
+          <div className="mt-4 border-t border-border pt-3">
+            <div className="text-xs font-semibold text-muted-foreground">your bookings</div>
+            <div className="mt-2 space-y-2">
+              {myBookings.map((b) => (
+                <div
+                  key={b.id}
+                  className="flex items-center gap-2 rounded-xl border border-border p-2.5"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-medium">{b.provider_name}</div>
+                    {slotLine(b) && (
+                      <div className="truncate text-[11px] text-muted-foreground">
+                        {slotLine(b)}
+                      </div>
+                    )}
+                    <div className="text-[11px] font-semibold">
+                      {b.agreed_price
+                        ? `${moneyIn(Number(b.agreed_price), "INR")} agreed 🤝`
+                        : b.status === "countered" && b.counter_price
+                          ? `they ask ${moneyIn(Number(b.counter_price), "INR")} (you offered ${moneyIn(Number(b.offered_price), "INR")})`
+                          : b.offered_price
+                            ? `your offer: ${moneyIn(Number(b.offered_price), "INR")}`
+                            : ""}
+                    </div>
+                    <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                      {b.status}
+                      {b.rating ? ` · you rated ⭐${b.rating}` : ""}
+                    </div>
+                    {b.status === "countered" && b.counter_price && (
+                      <div className="mt-1.5 flex gap-2">
+                        <button
+                          onClick={() => acceptCounter(b.id)}
+                          className="press rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground"
+                        >
+                          accept {moneyIn(Number(b.counter_price), "INR")}
+                        </button>
+                        <button
+                          onClick={() => setReofferTarget(b)}
+                          className="press rounded-full border border-border px-3 py-1 text-[11px] text-muted-foreground"
+                        >
+                          offer again
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => openChat(b.provider_user_id)}
+                    aria-label="Chat with partner"
+                    className="press grid h-8 w-8 place-items-center rounded-full border border-border"
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                  </button>
+                  {(b.status === "requested" || b.status === "accepted") && (
+                    <button
+                      onClick={() => cancelBooking(b.id)}
+                      className="press rounded-full border border-border px-3 py-1 text-[11px] text-muted-foreground"
+                    >
+                      cancel
+                    </button>
+                  )}
+                  {b.status === "done" && !b.rating && (
+                    <button
+                      onClick={() => setRateTarget(b)}
+                      className="press rounded-full bg-amber-500/15 px-3 py-1 text-[11px] font-semibold text-amber-400"
+                    >
+                      rate ⭐
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {bookTarget && (
+        <BookServiceSheet
+          provider={bookTarget}
+          onClose={() => setBookTarget(null)}
+          onBooked={() => {
+            setBookTarget(null);
+            qc.invalidateQueries({ queryKey: ["my-service-bookings"] });
+          }}
+        />
+      )}
+      {rateTarget && (
+        <RateBookingSheet
+          booking={rateTarget}
+          onClose={() => setRateTarget(null)}
+          onRated={() => {
+            setRateTarget(null);
+            qc.invalidateQueries({ queryKey: ["my-service-bookings"] });
+            qc.invalidateQueries({ queryKey: ["region-providers"] });
+          }}
+        />
+      )}
+      {reofferTarget && (
+        <PriceOfferSheet
+          title={`new offer to ${reofferTarget.provider_name}`}
+          hint={`they asked ${reofferTarget.counter_price != null ? moneyIn(Number(reofferTarget.counter_price), "INR") : "—"} · you pay them directly, ONIQ takes ${moneyIn(0, "INR")}`}
+          initial={reofferTarget.counter_price}
+          onClose={() => setReofferTarget(null)}
+          onSubmit={async (price) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error } = await (supabase as any).rpc("offer_booking_price", {
+              _booking_id: reofferTarget.id,
+              _price: price,
+            });
+            if (error) {
+              toast.error(error.message);
+              return;
+            }
+            toast.success("offer sent 📨");
+            setReofferTarget(null);
+            qc.invalidateQueries({ queryKey: ["my-service-bookings"] });
+          }}
+        />
+      )}
     </>
   );
 }
@@ -747,21 +898,41 @@ function BookServiceSheet({
   const [date, setDate] = useState(today);
   const [slot, setSlot] = useState(TIME_SLOTS[0]);
   const [address, setAddress] = useState(() => {
-    try { return localStorage.getItem("oniq.earn.address") || ""; } catch { return ""; }
+    try {
+      return localStorage.getItem("oniq.earn.address") || "";
+    } catch {
+      return "";
+    }
   });
   const [note, setNote] = useState("");
   const [price, setPrice] = useState("");
   const [busy, setBusy] = useState(false);
 
   const confirm = async () => {
-    if (!category) { toast.error("pick a service"); return; }
-    if (!date || date < today) { toast.error("pick today or a future date"); return; }
-    if (address.trim().length < 8) { toast.error("add your address so they can find you"); return; }
+    if (!category) {
+      toast.error("pick a service");
+      return;
+    }
+    if (!date || date < today) {
+      toast.error("pick today or a future date");
+      return;
+    }
+    if (address.trim().length < 8) {
+      toast.error("add your address so they can find you");
+      return;
+    }
     const offer = Math.round(Number(price));
-    if (!Number.isFinite(offer) || offer < 10) { toast.error("name your price — at least ₹10"); return; }
+    if (!Number.isFinite(offer) || offer < 10) {
+      toast.error(`name your price — at least ${moneyIn(10, "INR")}`);
+      return;
+    }
     setBusy(true);
     try {
-      try { localStorage.setItem("oniq.earn.address", address.trim()); } catch { /* ignore */ }
+      try {
+        localStorage.setItem("oniq.earn.address", address.trim());
+      } catch {
+        /* ignore */
+      }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error } = await (supabase as any).rpc("book_service", {
         _application_id: provider.id,
@@ -773,7 +944,7 @@ function BookServiceSheet({
         _offered_price: offer,
       });
       if (error) throw error;
-      toast.success("booked 🎉 they'll confirm shortly — ₹0 booking fee");
+      toast.success(`booked 🎉 they'll confirm shortly — ${moneyIn(0, "INR")} booking fee`);
       onBooked();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "couldn't book — try again");
@@ -790,7 +961,10 @@ function BookServiceSheet({
       >
         <div className="font-display text-lg font-bold">book {provider.full_name}</div>
         {provider.avg_rating != null && (
-          <div className="text-xs text-amber-400">⭐ {provider.avg_rating} · {provider.jobs_done} job{provider.jobs_done === 1 ? "" : "s"} done</div>
+          <div className="text-xs text-amber-400">
+            ⭐ {provider.avg_rating} · {provider.jobs_done} job{provider.jobs_done === 1 ? "" : "s"}{" "}
+            done
+          </div>
         )}
 
         <Field label="Service">
@@ -848,9 +1022,9 @@ function BookServiceSheet({
           />
         </Field>
 
-        <Field label="Your price offer (₹)">
+        <Field label={`Your price offer (${moneyIn(0, "INR").replace(/[\d.,\s]/g, "")})`}>
           <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-            <span className="font-bold">₹</span>
+            <span className="font-bold">{moneyIn(0, "INR").replace(/[\d.,\s]/g, "")}</span>
             <input
               type="number"
               inputMode="numeric"
@@ -862,7 +1036,7 @@ function BookServiceSheet({
             />
           </div>
           <div className="mt-1 text-[10px] text-muted-foreground">
-            you pay the partner directly · ONIQ takes ₹0 commission
+            you pay the partner directly · ONIQ takes {moneyIn(0, "INR")} commission
           </div>
         </Field>
 
@@ -882,9 +1056,12 @@ function BookServiceSheet({
           data-testid="confirm-booking"
           className="press mt-4 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60"
         >
-          {busy ? "booking…" : "confirm booking · ₹0 fee"}
+          {busy ? "booking…" : `confirm booking · ${moneyIn(0, "INR")} fee`}
         </button>
-        <button onClick={onClose} className="press mt-2 w-full rounded-2xl border border-border py-3 text-sm text-muted-foreground">
+        <button
+          onClick={onClose}
+          className="press mt-2 w-full rounded-2xl border border-border py-3 text-sm text-muted-foreground"
+        >
           cancel
         </button>
       </div>
@@ -916,7 +1093,10 @@ function RateBookingSheet({
       _review: review.trim() || null,
     });
     setBusy(false);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("thanks for rating 💚");
     onRated();
   };
@@ -966,9 +1146,7 @@ function ProviderChooser({ category, onClose }: { category: Category; onClose: (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} aria-hidden />
       <div className="glass relative z-10 w-full max-w-md rounded-t-3xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
-        <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
-          open with
-        </div>
+        <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">open with</div>
         <div className="font-display text-lg font-bold">
           {category.emoji} {category.label}
         </div>
@@ -1030,7 +1208,9 @@ function PartnerPanel() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from("partner_applications")
-        .select("id, full_name, city, village, region, created_at, status, verification_status, aadhaar_path, pan_path, extra_doc_path")
+        .select(
+          "id, full_name, city, village, region, created_at, status, verification_status, aadhaar_path, pan_path, extra_doc_path",
+        )
         .eq("user_id", me!.id)
         .maybeSingle();
       if (error) throw error;
@@ -1285,7 +1465,6 @@ function PartnerPanel() {
       >
         {submitting ? "submitting…" : "Join the partner waitlist"}
       </button>
-
     </form>
   );
 }
@@ -1303,7 +1482,12 @@ type PartnerApp = {
 const DOC_KINDS = [
   { key: "aadhaar_path" as const, kind: "aadhaar", label: "Aadhaar photo", required: true },
   { key: "pan_path" as const, kind: "pan", label: "PAN photo", required: true },
-  { key: "extra_doc_path" as const, kind: "extra", label: "Extra attachment (optional)", required: false },
+  {
+    key: "extra_doc_path" as const,
+    kind: "extra",
+    label: "Extra attachment (optional)",
+    required: false,
+  },
 ];
 
 function VerificationSection({ meId, app }: { meId: string; app: PartnerApp }) {
@@ -1350,9 +1534,9 @@ function VerificationSection({ meId, app }: { meId: string; app: PartnerApp }) {
     <div className="rounded-2xl border border-border bg-card p-4">
       <div className="text-sm font-semibold">verification</div>
       <div className="mt-1 text-[11px] text-muted-foreground">
-        upload your Aadhaar and PAN photos to get verified. Once {REGION_TARGET} verified partners register
-        in your region, ONIQ services go live there. Documents are stored privately and only used for
-        verification.
+        upload your Aadhaar and PAN photos to get verified. Once {REGION_TARGET} verified partners
+        register in your region, ONIQ services go live there. Documents are stored privately and
+        only used for verification.
       </div>
       <div className="mt-3 space-y-2">
         {DOC_KINDS.map((d) => {
@@ -1374,13 +1558,25 @@ function VerificationSection({ meId, app }: { meId: string; app: PartnerApp }) {
                   e.target.value = "";
                 }}
               />
-              <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${done ? "bg-[#25D366] text-black" : "bg-muted text-muted-foreground"}`}>
-                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : done ? <Check className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+              <span
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${done ? "bg-[#25D366] text-black" : "bg-muted text-muted-foreground"}`}
+              >
+                {busy ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : done ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <Upload className="h-4 w-4" />
+                )}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block text-sm font-medium">{d.label}</span>
                 <span className="block text-[10px] text-muted-foreground">
-                  {done ? "uploaded — tap to replace" : busy ? "uploading…" : "tap to upload photo or PDF"}
+                  {done
+                    ? "uploaded — tap to replace"
+                    : busy
+                      ? "uploading…"
+                      : "tap to upload photo or PDF"}
                 </span>
               </span>
             </label>
@@ -1421,8 +1617,8 @@ function PartnerRegionProgress({ region, regionName }: { region: string; regionN
             />
           </div>
           <div className="mt-2 text-[11px] text-muted-foreground">
-            when {REGION_TARGET} partners finish verification here, ONIQ services open up for your whole
-            region — and customers book you at zero charge.
+            when {REGION_TARGET} partners finish verification here, ONIQ services open up for your
+            whole region — and customers book you at zero charge.
           </div>
         </>
       )}
@@ -1464,7 +1660,10 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
 
   const respond = async (id: string, status: "accepted" | "declined" | "in_progress" | "done") => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).rpc("respond_booking", { _booking_id: id, _status: status });
+    const { error } = await (supabase as any).rpc("respond_booking", {
+      _booking_id: id,
+      _status: status,
+    });
     if (error) return toast.error(error.message);
     await qc.invalidateQueries({ queryKey: ["my-partner-bookings"] });
   };
@@ -1494,8 +1693,13 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
   };
 
   const openChat = async (otherId: string) => {
-    const { data: id, error } = await supabase.rpc("find_or_create_direct_conversation", { other_user_id: otherId });
-    if (error || !id) { toast.error(error?.message ?? "couldn't open chat"); return; }
+    const { data: id, error } = await supabase.rpc("find_or_create_direct_conversation", {
+      other_user_id: otherId,
+    });
+    if (error || !id) {
+      toast.error(error?.message ?? "couldn't open chat");
+      return;
+    }
     navigate({ to: "/app/chat/$conversationId", params: { conversationId: id as string } });
   };
 
@@ -1506,21 +1710,26 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
         <div className="text-3xl">📋</div>
         <div className="mt-2 text-sm font-semibold">your bookings</div>
         <div className="mt-1 text-xs text-muted-foreground">
-          no booking requests yet — when a customer books you, the job shows up here with their price offer.
+          no booking requests yet — when a customer books you, the job shows up here with their
+          price offer.
         </div>
       </div>
     );
   }
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <div className="text-sm font-semibold">{showEmpty ? "your bookings" : "booking requests"}</div>
+      <div className="text-sm font-semibold">
+        {showEmpty ? "your bookings" : "booking requests"}
+      </div>
       <div className="mt-2 space-y-2">
         {bookings.map((b) => (
           <div key={b.id} className="rounded-xl border border-border p-3">
             <div className="flex items-center gap-2">
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{b.customer_name}</div>
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{b.status}</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                  {b.status}
+                </div>
               </div>
               <button
                 onClick={() => openChat(b.customer_id)}
@@ -1532,15 +1741,24 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
             </div>
             {slotLine(b) && <div className="mt-1 text-xs font-medium">{slotLine(b)}</div>}
             {b.agreed_price != null ? (
-              <div className="mt-1 text-xs font-semibold text-[#25D366]">₹{b.agreed_price} agreed 🤝</div>
+              <div className="mt-1 text-xs font-semibold text-[#25D366]">
+                {moneyIn(Number(b.agreed_price), "INR")} agreed 🤝
+              </div>
             ) : b.status === "countered" && b.counter_price != null ? (
               <div className="mt-1 text-xs text-muted-foreground">
-                you asked <span className="font-semibold text-foreground">₹{b.counter_price}</span> — waiting
-                {b.offered_price != null ? ` (they offered ₹${b.offered_price})` : ""}
+                you asked{" "}
+                <span className="font-semibold text-foreground">
+                  {moneyIn(Number(b.counter_price), "INR")}
+                </span>{" "}
+                — waiting
+                {b.offered_price != null
+                  ? ` (they offered ${moneyIn(Number(b.offered_price), "INR")})`
+                  : ""}
               </div>
             ) : b.offered_price != null ? (
               <div className="mt-1 text-xs">
-                their offer: <span className="font-semibold">₹{b.offered_price}</span>
+                their offer:{" "}
+                <span className="font-semibold">{moneyIn(Number(b.offered_price), "INR")}</span>
               </div>
             ) : null}
             {b.address && (b.status === "accepted" || b.status === "in_progress") && (
@@ -1549,16 +1767,21 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
             {b.note && <div className="mt-1.5 text-xs text-muted-foreground">"{b.note}"</div>}
             {b.rating && (
               <div className="mt-1.5 text-xs text-amber-400">
-                ⭐ {b.rating}{b.review ? ` — "${b.review}"` : ""}
+                ⭐ {b.rating}
+                {b.review ? ` — "${b.review}"` : ""}
               </div>
             )}
             {b.status === "requested" && (
               <div className="mt-2 flex gap-2">
                 <button
-                  onClick={() => (b.offered_price != null ? acceptPrice(b.id) : respond(b.id, "accepted"))}
+                  onClick={() =>
+                    b.offered_price != null ? acceptPrice(b.id) : respond(b.id, "accepted")
+                  }
                   className="press flex-1 rounded-full bg-primary py-1.5 text-xs font-semibold text-primary-foreground"
                 >
-                  {b.offered_price != null ? `accept ₹${b.offered_price}` : "accept"}
+                  {b.offered_price != null
+                    ? `accept ${moneyIn(Number(b.offered_price), "INR")}`
+                    : "accept"}
                 </button>
                 <button
                   onClick={() => setCounterTarget(b)}
@@ -1614,7 +1837,7 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
           title="your counter price"
           hint={
             counterTarget.offered_price != null
-              ? `they offered ₹${counterTarget.offered_price} — name your price`
+              ? `they offered ${moneyIn(Number(counterTarget.offered_price), "INR")} — name your price`
               : "name your price for this job"
           }
           initial={counterTarget.counter_price ?? counterTarget.offered_price}
