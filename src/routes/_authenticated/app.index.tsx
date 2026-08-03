@@ -41,6 +41,7 @@ import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useCountry } from "@/lib/country";
 import { isAvailable } from "@/data/countryRegistry";
 import { RegionBanner } from "@/components/home/RegionBanner";
+import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { resolveTileLabel } from "@/lib/i18n/tileLabel";
 import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
@@ -144,6 +145,10 @@ function HomeScreen() {
           </div>
 
           <RegionBanner />
+
+          <div className="mt-3">
+            <HomeCountryPrompt />
+          </div>
 
           <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             also in ONIQ
