@@ -2685,6 +2685,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      __tmp_debug_request_headers: { Args: never; Returns: Json }
       accept_booking_price: {
         Args: { _booking_id: string }
         Returns: undefined
