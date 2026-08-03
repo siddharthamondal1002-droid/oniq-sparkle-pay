@@ -7,7 +7,10 @@ export const Route = createFileRoute("/terms")({
       { name: "description", content: "ONIQ Terms of Service — user conduct, prohibited content, account termination, and India IT Rules 2021 grievance mechanism." },
       { property: "og:title", content: "Terms of Service — ONIQ" },
       { property: "og:description", content: "Rules, prohibited content, grievance officer, and content-takedown timelines." },
+      { property: "og:url", content: "https://oniqhub.com/terms" },
+      { property: "og:type", content: "website" },
     ],
+    links: [{ rel: "canonical", href: "https://oniqhub.com/terms" }],
   }),
   component: TermsPage,
 });
