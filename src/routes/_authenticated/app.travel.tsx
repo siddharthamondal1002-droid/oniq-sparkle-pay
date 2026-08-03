@@ -183,7 +183,7 @@ function TravelScreen() {
       ))}
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        Bookings & payments happen in the provider's app — Wander gets you there faster.
+        Bookings & payments happen in the provider's app — Vanderlust gets you there faster.
       </p>
     </div>
   );

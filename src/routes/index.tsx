@@ -42,7 +42,7 @@ const features = [
   { icon: Film, title: "Clips", desc: "Endless short videos in a swipeable feed." },
   { icon: QrCode, title: "Scan & Pay (UPI)", desc: "Scan any UPI QR, show your own — payments run through your own UPI apps." },
   { icon: Car, title: "Rides", desc: "Compare ride prices across providers before you book." },
-  { icon: Plane, title: "Wander", desc: "Compare buses, trains, flights and hotels in one hub." },
+  { icon: Plane, title: "Vanderlust", desc: "Compare buses, trains, flights and hotels in one hub." },
   { icon: Sparkles, title: "Ting AI", desc: "Live-web AI assistant that actually answers what's happening now." },
   { icon: Languages, title: "Scout", desc: "25-language translator plus Bengali lessons in ONIQ Learn." },
   { icon: Tv, title: "Pulse & Watch", desc: "Live news TV, 6 genre channels, plus My TV for your YouTube picks." },
@@ -190,7 +190,7 @@ function Landing() {
             <WorldCard icon={QrCode} label="Pay (UPI)" tint="from-neon to-primary" />
             <WorldCard icon={Tv} label="Watch" tint="from-magenta to-primary" />
             <WorldCard icon={Sparkles} label="Ting AI" tint="from-primary to-magenta" />
-            <WorldCard icon={Plane} label="Wander" tint="from-amber to-magenta" />
+            <WorldCard icon={Plane} label="Vanderlust" tint="from-amber to-magenta" />
             <WorldCard icon={Car} label="Ride" tint="from-primary to-neon" />
           </div>
         </div>
