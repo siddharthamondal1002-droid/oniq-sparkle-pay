@@ -1241,6 +1241,9 @@ export type Database = {
           board: string
           class_level: string
           created_at: string
+          edu_region: string | null
+          edu_stage: string | null
+          edu_system_id: string | null
           id: string
           name: string
           second_language: string | null
@@ -1250,6 +1253,9 @@ export type Database = {
           board: string
           class_level: string
           created_at?: string
+          edu_region?: string | null
+          edu_stage?: string | null
+          edu_system_id?: string | null
           id?: string
           name: string
           second_language?: string | null
@@ -1259,6 +1265,9 @@ export type Database = {
           board?: string
           class_level?: string
           created_at?: string
+          edu_region?: string | null
+          edu_stage?: string | null
+          edu_system_id?: string | null
           id?: string
           name?: string
           second_language?: string | null
