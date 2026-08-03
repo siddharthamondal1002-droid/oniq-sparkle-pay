@@ -76,7 +76,11 @@ function DataRightsPage() {
     setExporting(true);
     try {
       const res = await createDsrRequest("portability");
-      if (!res.export) throw new Error("Export came back empty");
+      if (!res.export)
+        throw new Error(
+          "The export didn't come back — nothing was saved. Try again, or contact the Grievance Officer if it keeps failing.",
+        );
+
       const blob = new Blob([JSON.stringify(res.export, null, 2)], { type: "application/json" });
       const filename = `oniq-data-${new Date().toISOString().slice(0, 10)}.json`;
       const outcome = await deliverFile(filename, "application/json", blob);
