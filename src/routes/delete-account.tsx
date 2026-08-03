@@ -199,9 +199,9 @@ function DeleteAccountPage() {
 
           <h2 className="font-display text-2xl font-semibold">Questions</h2>
           <p>
-            Contact our Grievance Officer, Siddhartha Mondal, at{" "}
-            <a className="text-primary hover:underline" href="mailto:grievance@oniqhub.com">
-              grievance@oniqhub.com
+            Contact our Grievance Officer, {GRIEVANCE_OFFICER.name}, at{" "}
+            <a className="text-primary hover:underline" href={`mailto:${GRIEVANCE_OFFICER.email}`}>
+              {GRIEVANCE_OFFICER.email}
             </a>
             .
           </p>
