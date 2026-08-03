@@ -2849,6 +2849,7 @@ export type Database = {
         }[]
       }
       has_active_legal_hold: { Args: { _user_id: string }; Returns: boolean }
+      health_data_allowed: { Args: { _user_id: string }; Returns: boolean }
       is_admin: { Args: { _uid: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }
@@ -3007,6 +3008,7 @@ export type Database = {
           username: string
         }[]
       }
+      purge_my_health_data: { Args: never; Returns: number }
       rate_booking: {
         Args: { _booking_id: string; _rating: number; _review?: string }
         Returns: undefined
