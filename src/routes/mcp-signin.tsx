@@ -8,6 +8,12 @@ import { lovable } from "@/integrations/lovable";
 // email sign-in / sign-up / Google — used by the OAuth consent route so users
 // return to /.lovable/oauth/consent?authorization_id=… after auth.
 export const Route = createFileRoute("/mcp-signin")({
+  head: () => ({
+    meta: [
+      { title: "Sign in — ONIQ" },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
   ssr: false,
   validateSearch: (s: Record<string, unknown>) => ({
     next: typeof s.next === "string" ? s.next : "/app",

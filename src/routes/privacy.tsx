@@ -7,7 +7,10 @@ export const Route = createFileRoute("/privacy")({
       { name: "description", content: "How ONIQ collects, uses, and protects your data. DPDP-aligned plain-language policy." },
       { property: "og:title", content: "Privacy Policy — ONIQ" },
       { property: "og:description", content: "What we collect, why we collect it, and the controls you have." },
+      { property: "og:url", content: "https://oniqhub.com/privacy" },
+      { property: "og:type", content: "website" },
     ],
+    links: [{ rel: "canonical", href: "https://oniqhub.com/privacy" }],
   }),
   component: PrivacyPage,
 });

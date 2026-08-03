@@ -97,7 +97,7 @@ function HomeScreen() {
               className="press grid h-11 w-11 place-items-center rounded-full bg-primary text-primary-foreground font-bold overflow-hidden"
             >
               {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="avatar" className="h-full w-full object-cover" />
+                <img src={profile.avatar_url} alt="Your profile picture" className="h-full w-full object-cover" />
               ) : (
                 (profile?.display_name ?? profile?.username ?? "O").charAt(0).toUpperCase()
               )}

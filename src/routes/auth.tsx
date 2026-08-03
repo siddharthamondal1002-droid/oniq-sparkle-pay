@@ -14,10 +14,10 @@ export const Route = createFileRoute("/auth")({
       { name: "description", content: "Sign in or create your free ONIQ account to access messaging, payments, food, and every ONIQ world." },
       { property: "og:title", content: "Sign in — ONIQ" },
       { property: "og:description", content: "Open your ONIQ account — one login for every world." },
-      { property: "og:url", content: "https://oniq-sparkle-pay.lovable.app/auth" },
+      { property: "og:url", content: "https://oniqhub.com/auth" },
       { property: "og:type", content: "website" },
     ],
-    links: [{ rel: "canonical", href: "https://oniq-sparkle-pay.lovable.app/auth" }],
+    links: [{ rel: "canonical", href: "https://oniqhub.com/auth" }],
   }),
   component: AuthPage,
 });

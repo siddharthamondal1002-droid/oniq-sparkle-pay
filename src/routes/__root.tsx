@@ -108,7 +108,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "stylesheet", href: appCss },
       { rel: "manifest", href: "/manifest.webmanifest" },
       { rel: "apple-touch-icon", href: "/icon-192.png" },
-      { rel: "canonical", href: "https://oniqhub.com" },
+      
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
@@ -123,7 +123,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "ONIQ",
-          url: "https://oniq-sparkle-pay.lovable.app",
+          url: "https://oniqhub.com",
           description:
             "Chat, pay, watch live TV, ride, travel, learn — ONIQ is one app for every world.",
 
@@ -136,10 +136,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "@context": "https://schema.org",
           "@type": "WebSite",
           name: "ONIQ",
-          url: "https://oniq-sparkle-pay.lovable.app",
+          url: "https://oniqhub.com",
           potentialAction: {
             "@type": "SearchAction",
-            target: "https://oniq-sparkle-pay.lovable.app/?q={search_term_string}",
+            target: "https://oniqhub.com/?q={search_term_string}",
             "query-input": "required name=search_term_string",
           },
         }),
