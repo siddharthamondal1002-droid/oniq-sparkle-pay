@@ -217,9 +217,14 @@ function ConsentNoticePage() {
             to="/app/privacy/grievance"
             className="block text-primary hover:underline"
           >
-            {tr(NOTICE_STRINGS.grievance, locale)}: {GRIEVANCE_OFFICER.name} ·{" "}
-            {GRIEVANCE_OFFICER.email}
+            {tr(NOTICE_STRINGS.grievance, locale)}: {GRIEVANCE_OFFICER.name}
           </Link>
+          <a
+            href={`mailto:${GRIEVANCE_OFFICER.email}`}
+            className="block text-primary hover:underline"
+          >
+            {GRIEVANCE_OFFICER.email}
+          </a>
           <a
             href={DATA_PROTECTION_BOARD.url}
             target="_blank"

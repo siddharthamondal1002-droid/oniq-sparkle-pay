@@ -131,9 +131,9 @@ function DeleteAccountPage() {
               <strong>To:</strong>{" "}
               <a
                 className="text-primary hover:underline"
-                href="mailto:grievance@oniqhub.com?subject=Account%20Deletion%20Request"
+                href={`mailto:${GRIEVANCE_OFFICER.email}?subject=Account%20Deletion%20Request`}
               >
-                grievance@oniqhub.com
+                {GRIEVANCE_OFFICER.email}
               </a>
             </div>
             <div>
@@ -165,9 +165,9 @@ function DeleteAccountPage() {
             remove in-app), email{" "}
             <a
               className="text-primary hover:underline"
-              href="mailto:grievance@oniqhub.com?subject=Data%20Deletion%20Request"
+              href={`mailto:${GRIEVANCE_OFFICER.email}?subject=Data%20Deletion%20Request`}
             >
-              grievance@oniqhub.com
+              {GRIEVANCE_OFFICER.email}
             </a>{" "}
             with subject "Data Deletion Request" from your registered email, describing what you
             want removed. Verified requests are processed within <strong>7 days</strong>.
