@@ -166,6 +166,16 @@ export function primaryEmergency(region: Country): string {
   return e.unified ?? e.police;
 }
 
+/**
+ * The number to dial for a medical/psychiatric emergency. Where there is no
+ * unified line, this is the ambulance number — UAE's unified-ish 999 is
+ * police, and a person in crisis needs 998.
+ */
+export function medicalEmergency(region: Country): string {
+  const e = getEmergency(region);
+  return e.unified ?? e.ambulance;
+}
+
 export function getCrisisLines(region: Country): CrisisLine[] {
   return getCountryConfig(region).crisisLines;
 }

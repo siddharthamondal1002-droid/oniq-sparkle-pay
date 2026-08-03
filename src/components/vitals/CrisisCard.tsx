@@ -4,7 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { HeartHandshake, Phone } from "lucide-react";
 import { useCountry } from "@/lib/country";
 import { useCurrentRegion } from "@/lib/region";
-import { getCrisisLines, primaryEmergency } from "@/data/countryRegistry";
+import { getCrisisLines, medicalEmergency } from "@/data/countryRegistry";
 
 export function CrisisCard({ intro }: { intro?: string }) {
   // Help must reach the body, not the passport: these follow the CURRENT
@@ -14,7 +14,7 @@ export function CrisisCard({ intro }: { intro?: string }) {
   const [region] = useCurrentRegion();
   const here = region ?? home;
   const lines = getCrisisLines(here);
-  const emergency = primaryEmergency(here);
+  const emergency = medicalEmergency(here);
 
 
 
