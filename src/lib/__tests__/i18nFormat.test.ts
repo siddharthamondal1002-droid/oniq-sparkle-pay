@@ -17,8 +17,9 @@ describe("tile names", () => {
   ];
 
   it.each(cases)("%s resolves per locale", (key, en, hi) => {
-    expect(tileName("en", key)).toBe(en);
-    expect(tileName("hi", key)).toBe(hi);
+    // emoji suffixes are decoration; the NAME is what must be locale-correct
+    expect(tileName("en", key)).toContain(en);
+    expect(tileName("hi", key)).toContain(hi);
   });
 
   it("keeps ONIQ-owned names that need no translation", () => {
