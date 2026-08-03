@@ -8,9 +8,11 @@
 // nearby utilities. It never changes language, currency, tiles, faith content,
 // legal regime or retention rules — those follow HOME.
 //
-// Detection is country-code only: a Cloudflare edge header, falling back to
-// the device language tag. No GPS is requested and no coordinates are ever
-// read, derived or stored.
+// Detection is country-code only and comes from ONE source: the Cloudflare
+// edge header (cf-ipcountry). No GPS, no coordinates, and explicitly NO
+// device-language inference — a language tag says what a person reads, never
+// where they are standing. When the edge cannot tell, currentRegion is null.
+
 import { useEffect, useState } from "react";
 import type { Country } from "@/data/appRegistry";
 import { ALL_COUNTRIES } from "@/data/appRegistry";
