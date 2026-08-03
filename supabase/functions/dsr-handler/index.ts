@@ -110,7 +110,38 @@ Deno.serve(async (req) => {
   if (!TYPES.includes(requestType)) return json({ error: "Invalid request_type" }, 400);
   const details = typeof body["details"] === "string" ? (body["details"] as string).slice(0, 2000) : null;
 
+  // access / portability are instant, idempotent, side-effect-free reads: we
+  // run the export FIRST and only then log an already-completed ticket, so a
+  // failing export can never leave a stuck non-terminal row that blocks every
+  // later attempt. No "one open ticket" guard for these two types.
+  if (requestType === "access" || requestType === "portability") {
+    // export_my_data() is scoped by auth.uid(), so it must run as the caller,
+    // not as the service role.
+    const asUser = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${token}` } },
+    });
+    const { data: exported, error: expErr } = await asUser.rpc("export_my_data");
+    if (expErr) return json({ error: expErr.message }, 500);
+    if (!exported) return json({ error: "The export returned no data." }, 500);
+    const now = new Date().toISOString();
+    const { data: done, error: insErr2 } = await admin
+      .from("dsr_requests")
+      .insert({
+        user_id: uid,
+        request_type: requestType,
+        details,
+        status: "completed",
+        completed_at: now,
+      })
+      .select("*")
+      .single();
+    if (insErr2) return json({ error: insErr2.message }, 500);
+    return json({ ok: true, request: done, export: exported });
+  }
+
   // One open ticket per type — hand back the existing one instead of erroring.
+  // Only meaningful for erasure / correction.
   const { data: existing } = await admin
     .from("dsr_requests")
     .select("id, status, created_at, sla_deadline, erasure_effective_at")
@@ -122,6 +153,7 @@ Deno.serve(async (req) => {
   if (existing && existing.length > 0) {
     return json({ ok: true, existing: true, request: existing[0] }, 200);
   }
+
 
   if (requestType === "erasure") {
     let held = false;
