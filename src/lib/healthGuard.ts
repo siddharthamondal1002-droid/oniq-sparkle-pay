@@ -31,6 +31,12 @@
 // reading cf-ipcountry off the request itself — so a client that lies about
 // its region, or a crafted request, still cannot persist anything. The region
 // signal is read, used for the decision, and discarded; it is never stored.
+//
+// SERVER REGION SIGNAL: VERIFIED-LIVE (2026-08-03). A real authenticated
+// supabase-js request from the running app was observed arriving at PostgREST
+// with cf-ipcountry populated, so the server-side region axis is an active
+// control, not a dormant one. If the header ever stops arriving the axis fails
+// open silently, so health_request_region_ok() logs a line when it is missing.
 import { getCountry } from "@/lib/country";
 import { getCurrentRegion } from "@/lib/region";
 import { isHealthDataAllowed } from "@/data/countryRegistry";
