@@ -10,7 +10,7 @@ import { compressToJpeg } from "@/lib/imageCompress";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { useCountry } from "@/lib/country";
 import { getEduSystem } from "@/data/eduSystems";
-import { eduSystemPayload, eduSystemLabel } from "@/lib/eduPaperFormat";
+import { eduSystemPayload, eduSystemLabel, unitLabel } from "@/lib/eduPaperFormat";
 import { EduSystemFields, eduSelectionResult, eduSubjectsFor, initialEduSelection, type EduSelection } from "@/components/study/EduSystemFields";
 
 export const Route = createFileRoute("/_authenticated/app/study")({
@@ -2712,14 +2712,22 @@ function PaperModal({
     try {
       const { getUserLanguage } = await import("@/lib/userLanguage");
       const lang = await getUserLanguage().catch(() => "en");
+      // Non-India learners: send the already-resolved education system and
+      // its own stage string. `board` is deliberately the system id so the
+      // edge function does NOT match an India board key and takes the
+      // generic registry-driven path instead.
+      const eduPayload = profile.edu_system_id ? eduSystemPayload(profile.edu_system_id) : null;
       const { data, error } = await supabase.functions.invoke("study-paper-generate", {
         body: {
-          profile: { board: profile.board, classLevel: profile.class_level },
+          profile: eduPayload
+            ? { board: eduPayload.id, classLevel: profile.edu_stage ?? profile.class_level }
+            : { board: profile.board, classLevel: profile.class_level },
           profileId: profile.id,
           subject,
           totalMarks,
           chapter: chapter ?? undefined,
           lang,
+          ...(eduPayload ? { eduSystem: eduPayload } : {}),
         },
       });
       if (error) throw error;
@@ -2738,7 +2746,7 @@ function PaperModal({
     } finally {
       setLoading(false);
     }
-  }, [profile.id, profile.board, profile.class_level, subject, totalMarks]);
+  }, [profile.id, profile.board, profile.class_level, profile.edu_system_id, profile.edu_stage, subject, totalMarks]);
 
   useEffect(() => {
     let cancelled = false;
@@ -3020,13 +3028,11 @@ function PaperModal({
   // -------- Printable / downloadable paper --------
   function buildPaperHtml(): string {
     const qs = questions ?? [];
-    const boardLbl = BOARD_UPPER[profile.board];
-    const clsLbl =
-      profile.class_level === "ug" ? "Undergraduate"
-      : profile.class_level === "pg" ? "Postgraduate"
-      : profile.class_level === "drop" ? "Drop year"
-      : profile.class_level === "aspirant" ? "Aspirant"
-      : `Class ${profile.class_level}`;
+    const fmt = profile.edu_system_id ? getEduSystem(profile.edu_system_id)?.paperFormat : undefined;
+    const paperUnit: "marks" | "points" = fmt?.unit ?? "marks";
+    const paperTerminator = fmt?.terminator ?? "End of paper";
+    const boardLbl = profileSystemLabel(profile);
+    const clsLbl = profileStageLabel(profile);
     const time = timeHintFor(totalMarks);
     const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
     const sections = (["mcq", "short", "long"] as const)
@@ -3038,7 +3044,7 @@ function PaperModal({
       sectionsHtml += `<h2 class="section">${esc(s.info.label)}</h2>`;
       for (const qq of s.items) {
         counter++;
-        sectionsHtml += `<div class="q"><div class="qhead"><span class="qn">Q${counter}.</span> <span class="qm">[${qq.marks} ${qq.marks === 1 ? "mark" : "marks"}]</span></div><div class="qbody">${esc(qq.question)}</div>`;
+        sectionsHtml += `<div class="q"><div class="qhead"><span class="qn">Q${counter}.</span> <span class="qm">[${qq.marks} ${unitLabel(paperUnit, qq.marks)}]</span></div><div class="qbody">${esc(qq.question)}</div>`;
         if (qq.type === "mcq") {
           sectionsHtml += '<ol type="A" class="opts">';
           for (const opt of qq.options) sectionsHtml += `<li>${esc(opt)}</li>`;
@@ -3052,7 +3058,7 @@ function PaperModal({
       }
     }
     return `<!doctype html>
-<html><head><meta charset="utf-8"><title>${esc(subject)} — ${totalMarks} marks</title>
+<html><head><meta charset="utf-8"><title>${esc(subject)} — ${totalMarks} ${paperUnit}</title>
 <style>
   @page { size: A4; margin: 18mm; }
   * { box-sizing: border-box; }
@@ -3079,10 +3085,10 @@ function PaperModal({
   <header>
     <div class="board">${esc(boardLbl)}</div>
     <div class="cls">${esc(clsLbl)}</div>
-    <div class="meta"><span><b>Subject:</b> ${esc(subject)}</span><span><b>Max Marks:</b> ${totalMarks}</span><span><b>Time:</b> ${esc(time)}</span></div>
+    <div class="meta"><span><b>Subject:</b> ${esc(subject)}</span><span><b>Max ${paperUnit === "points" ? "Points" : "Marks"}:</b> ${totalMarks}</span><span><b>Time:</b> ${esc(time)}</span></div>
   </header>
   ${sectionsHtml}
-  <footer>— End of paper —</footer>
+  <footer>— ${esc(paperTerminator)} —</footer>
   ${Capacitor.isNativePlatform() ? "" : `<div class="noprint" style="margin-top:16px;text-align:center;">
     <button onclick="window.print()" style="padding:10px 18px;font-size:14px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;cursor:pointer">🖨️ Print / Save as PDF</button>
   </div>`}
@@ -3127,12 +3133,7 @@ function PaperModal({
     setPdfBusy(true);
     setPdfProgress({ done: 0, total: qs.length });
     try {
-      const clsLbl =
-        profile.class_level === "ug" ? "Undergraduate"
-        : profile.class_level === "pg" ? "Postgraduate"
-        : profile.class_level === "drop" ? "Drop year"
-        : profile.class_level === "aspirant" ? "Aspirant"
-        : `Class ${profile.class_level}`;
+      const clsLbl = profileStageLabel(profile);
       const sections = (["mcq", "short", "long"] as const)
         .map((t) => ({
           label: sectionForType(t).label,
@@ -3146,7 +3147,7 @@ function PaperModal({
         .filter((s) => s.items.length > 0);
       const { exportPaperPdf } = await import("@/lib/paperPdf");
       const { filename } = await exportPaperPdf({
-        board: BOARD_UPPER[profile.board],
+        board: profileSystemLabel(profile),
         classLabel: clsLbl,
         subject,
         totalMarks,
@@ -3413,7 +3414,7 @@ function PaperModal({
               >
                 <div className="text-center">
                   <div className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-700">
-                    {BOARD_UPPER[profile.board]}
+                    {profileSystemLabel(profile)}
                   </div>
                   <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">
                     {profile.class_level === "ug" ? "Undergraduate"
@@ -4802,7 +4803,7 @@ function MockPaperModal({
               >
                 <div className="text-center">
                   <div className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-700">
-                    {BOARD_UPPER[profile.board]}
+                    {profileSystemLabel(profile)}
                   </div>
                   <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">MOCK TEST</div>
                   <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-[11px] text-stone-800">
