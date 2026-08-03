@@ -89,26 +89,20 @@ export function dismissRegionBanner(region: Country): void {
 }
 
 /**
- * Device fallback when the edge header is unavailable or unknown.
- * Reads the locale region only — no GPS, no permission prompt.
+ * LANGUAGE IS NOT A LOCATION SIGNAL. There is deliberately no device-language
+ * fallback here, and none may be added.
+ *
+ * A phone set to en-US in Mumbai is an en-US phone in Mumbai — nothing more.
+ * Inferring 'US' from it would hand an Indian user 988 and 911 on the crisis
+ * path: a confident wrong answer at the exact moment it costs the most.
+ * A null currentRegion is honest; CrisisCard falls back to HOME, which the
+ * user actually chose.
+ *
+ * The language tag may still seed the HOME country *suggestion* at first run
+ * (see src/lib/country.ts) — that is an overridable preference default, not a
+ * claim about where the body is.
  */
-export async function detectRegionFromDevice(): Promise<Country | null> {
-  let tag: string | null = null;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const mod: any = await import(/* @vite-ignore */ "@capacitor" + "/device");
-    tag = (await mod.Device.getLanguageTag())?.value ?? null;
-  } catch {
-    tag = typeof navigator !== "undefined" ? navigator.language : null;
-  }
-  if (!tag) return null;
-  try {
-    const region = new Intl.Locale(tag).maximize().region;
-    return isCountry(region) ? region : null;
-  } catch {
-    return null;
-  }
-}
+
 
 /**
  * Reactive current region. Refreshes from Preferences on mount, then runs
