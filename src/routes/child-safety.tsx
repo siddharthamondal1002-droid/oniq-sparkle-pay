@@ -91,14 +91,14 @@ function ChildSafetyPage() {
           <h2 className="font-display text-2xl font-semibold">4. Designated point of contact</h2>
           <div className="rounded-2xl border border-border bg-card p-5 text-sm">
             <div className="font-semibold">Child Safety &amp; Grievance Officer</div>
-            <div>Siddhartha Mondal</div>
+            <div>{GRIEVANCE_OFFICER.name}</div>
             <div>
               Email:{" "}
               <a
                 className="text-primary hover:underline"
-                href="mailto:grievance@oniqhub.com?subject=Child%20Safety%20Concern"
+                href={`mailto:${GRIEVANCE_OFFICER.email}?subject=Child%20Safety%20Concern`}
               >
-                grievance@oniqhub.com
+                {GRIEVANCE_OFFICER.email}
               </a>
             </div>
             <p className="mt-2 text-muted-foreground">
