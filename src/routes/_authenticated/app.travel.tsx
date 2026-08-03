@@ -106,6 +106,303 @@ function parseGenie(raw: string): GenieResult {
   return { error: "start with flight / train / bus / hotel / ferry 🧳" };
 }
 
+type StayRow = {
+  site: string;
+  hotel?: string | null;
+  price_inr?: number | null;
+  price_range_inr?: string | null;
+  rating?: string | null;
+  source_domain?: string | null;
+  url?: string | null;
+  verified?: boolean;
+  note?: string | null;
+};
+type StayResponse = {
+  stay: string;
+  results: StayRow[];
+  top_pick?: { site: string; hotel?: string | null; why?: string; cross_checked?: string[] } | null;
+  disclaimer?: string;
+};
+
+const inr = (n: number) =>
+  new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(n);
+
+function StayScout() {
+  const [dest, setDest] = useState("");
+  const [checkin, setCheckin] = useState("");
+  const [checkout, setCheckout] = useState("");
+  const [guests, setGuests] = useState(2);
+  const [budget, setBudget] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState(0);
+  const [data, setData] = useState<StayResponse | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading) {
+      setPhase(0);
+      return;
+    }
+    const t = setInterval(() => setPhase((p) => (p + 1) % 4), 6000);
+    return () => clearInterval(t);
+  }, [loading]);
+
+  async function scout() {
+    if (!dest.trim()) {
+      toast.error("where you staying? drop a city or hotel 🏨");
+      return;
+    }
+    setLoading(true);
+    setData(null);
+    setErr(null);
+    try {
+      let lang = "en";
+      try {
+        const m = await import("@/lib/userLanguage");
+        lang = await m.getUserLanguage();
+      } catch {
+        /* noop */
+      }
+      const { data: r, error } = await supabase.functions.invoke("hotel-scout", {
+        body: {
+          query: dest.trim(),
+          checkin: checkin || undefined,
+          checkout: checkout || undefined,
+          guests,
+          budget: budget ? Number(budget) : undefined,
+          lang,
+        },
+      });
+      const bodyErr = (r as any)?.error;
+      if (bodyErr) throw new Error(bodyErr);
+      if (error) throw error;
+      setData({
+        stay: (r as any)?.stay ?? dest.trim(),
+        results: Array.isArray((r as any)?.results) ? (r as any).results : [],
+        top_pick: (r as any)?.top_pick ?? null,
+        disclaimer: (r as any)?.disclaimer,
+      });
+    } catch (e: any) {
+      const msg = e?.message ?? "stay scout hit a wall 😵‍💫";
+      setErr(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openRow(r: StayRow) {
+    const url =
+      r.url ??
+      `https://www.google.com/search?q=${encodeURIComponent(`${r.hotel ?? dest} ${r.site} price`)}`;
+    openInApp(url);
+  }
+
+  const rankBadge = (i: number) => (i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`);
+  const ranked = (data?.results ?? []).filter((r) => typeof r.price_inr === "number");
+  const rest = (data?.results ?? []).filter((r) => typeof r.price_inr !== "number");
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="rounded-2xl border border-primary/30 bg-card p-4">
+        <div className="mb-2 text-xs font-medium uppercase tracking-wider text-primary/80">
+          smart stay scout — same room, every site, one best price 🏨
+        </div>
+        <input
+          data-testid="stay-scout-dest"
+          value={dest}
+          onChange={(e) => setDest(e.target.value.slice(0, 300))}
+          placeholder="taj bengal kolkata, homestay in manali, hotel near goa beach…"
+          className="w-full min-w-0 rounded-xl border border-border bg-background p-3 text-sm focus:border-primary focus:outline-none"
+        />
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            check-in
+            <input
+              type="date"
+              value={checkin}
+              onChange={(e) => setCheckin(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-border bg-background p-2 text-sm focus:border-primary focus:outline-none"
+            />
+          </label>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            check-out
+            <input
+              type="date"
+              value={checkout}
+              onChange={(e) => setCheckout(e.target.value)}
+              className="mt-1 w-full rounded-xl border border-border bg-background p-2 text-sm focus:border-primary focus:outline-none"
+            />
+          </label>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            guests
+            <input
+              type="number"
+              min={1}
+              max={12}
+              value={guests}
+              onChange={(e) => setGuests(Math.min(12, Math.max(1, Number(e.target.value) || 1)))}
+              className="mt-1 w-full rounded-xl border border-border bg-background p-2 text-sm focus:border-primary focus:outline-none"
+            />
+          </label>
+          <label className="text-[10px] uppercase tracking-wider text-muted-foreground">
+            budget / night (₹)
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value.slice(0, 7))}
+              placeholder="optional"
+              className="mt-1 w-full rounded-xl border border-border bg-background p-2 text-sm focus:border-primary focus:outline-none"
+            />
+          </label>
+        </div>
+        <button
+          onClick={scout}
+          disabled={loading}
+          data-testid="stay-scout-go"
+          className="press glow-primary mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+          {loading
+            ? phase === 0
+              ? "scouting rooms 🕵️…"
+              : phase === 1
+                ? "checking booking.com, mmt, agoda 🔎"
+                : phase === 2
+                  ? "comparing taxes & cancellation 🧾"
+                  : "almost there — picking the best value ✨"
+            : "compare stay prices"}
+        </button>
+      </div>
+
+      {err && !loading && (
+        <div className="rounded-2xl border border-red-500/40 bg-red-500/10 p-4 text-center">
+          <div className="text-sm font-medium text-red-300">stay scout hit a wall 😵‍💫</div>
+          <div className="mt-1 break-words text-xs text-red-400/80">{err}</div>
+          <button
+            onClick={scout}
+            className="mt-3 rounded-xl border border-red-400/40 bg-background px-4 py-2 text-xs font-semibold text-red-300"
+          >
+            retry
+          </button>
+        </div>
+      )}
+
+      {data && (
+        <div className="space-y-2">
+          <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-4">
+            <div className="text-xs uppercase tracking-wider text-primary/80">stay</div>
+            <div className="mt-1 break-words font-display text-lg font-bold">{data.stay}</div>
+          </div>
+
+          {data.top_pick?.site && (
+            <div className="rounded-2xl border border-amber-400/40 bg-amber-500/10 p-4">
+              <div className="text-xs font-medium uppercase tracking-wider text-amber-300">🏆 best value</div>
+              <div className="mt-1 break-words font-display text-base font-bold">
+                {data.top_pick.hotel ? `${data.top_pick.hotel} — ${data.top_pick.site}` : data.top_pick.site}
+              </div>
+              {data.top_pick.why && (
+                <div className="mt-1 break-words text-xs leading-relaxed text-amber-100/90">
+                  {data.top_pick.why}
+                </div>
+              )}
+              {Array.isArray(data.top_pick.cross_checked) && data.top_pick.cross_checked.length > 0 && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <span className="text-[10px] uppercase tracking-wider text-emerald-300/90">✓ confirmed via</span>
+                  {data.top_pick.cross_checked.slice(0, 5).map((s, i) => (
+                    <span
+                      key={i}
+                      className="break-words rounded-full border border-emerald-400/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-200"
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {data.results.length === 0 && (
+            <div className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
+              nothing solid found rn — try naming the city or hotel
+            </div>
+          )}
+
+          {ranked.map((r, i) => (
+            <div key={`s-${i}`} className="rounded-2xl border border-border bg-card p-4">
+              <div className="flex items-start gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/15 text-lg font-bold">
+                  {rankBadge(i)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <div className="truncate font-semibold">{r.hotel || r.site}</div>
+                    {r.verified && (
+                      <span className="shrink-0 text-[10px] font-medium text-emerald-400">✓ verified</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 truncate text-xs text-muted-foreground">
+                    <span className="truncate">{r.site}</span>
+                    {r.rating && <span>· ★ {r.rating}</span>}
+                    {r.source_domain && <span className="truncate">· {r.source_domain}</span>}
+                  </div>
+                </div>
+                <div className="shrink-0 text-right">
+                  <div className="font-display text-lg font-bold">{inr(r.price_inr as number)}</div>
+                  <div className="text-[10px] text-muted-foreground">/night</div>
+                </div>
+              </div>
+              {r.note && <div className="mt-2 break-words text-xs text-muted-foreground">{r.note}</div>}
+              <button
+                onClick={() => openRow(r)}
+                className="mt-3 flex w-full items-center justify-center gap-1 rounded-xl border border-border bg-background py-2 text-xs font-semibold"
+              >
+                open on {r.site} <ExternalLink className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+
+          {rest.length > 0 && (
+            <div className="rounded-2xl border border-border bg-card p-3">
+              <div className="mb-2 px-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                check these urself 👀
+              </div>
+              <div className="space-y-1.5">
+                {rest.map((r, i) => (
+                  <button
+                    key={`u-${i}`}
+                    onClick={() => openRow(r)}
+                    className="flex w-full items-center justify-between gap-2 rounded-xl border border-border bg-background px-3 py-2 text-left"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold">{r.hotel || r.site}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        {r.price_range_inr
+                          ? `${r.price_range_inr}${r.rating ? ` · ★ ${r.rating}` : ""}`
+                          : (r.note ?? "couldn't verify live — check on site")}
+                        {r.source_domain ? ` · ${r.source_domain}` : ""}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1 text-xs font-semibold text-primary">
+                      open <ExternalLink className="h-3 w-3" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="pt-1 text-center text-xs text-muted-foreground">
+            {data.disclaimer ?? "rates scouted live — taxes & fees can move them, tap through to confirm 📈"}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function TravelScreen() {
   const [q, setQ] = useState("");
 
