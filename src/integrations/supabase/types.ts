@@ -770,6 +770,57 @@ export type Database = {
           },
         ]
       }
+      dsr_requests: {
+        Row: {
+          cancelled_at: string | null
+          completed_at: string | null
+          created_at: string
+          details: string | null
+          erasure_effective_at: string | null
+          grace_expires_at: string | null
+          id: string
+          purged_at: string | null
+          request_type: string
+          sla_deadline: string | null
+          soft_deleted_at: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          details?: string | null
+          erasure_effective_at?: string | null
+          grace_expires_at?: string | null
+          id?: string
+          purged_at?: string | null
+          request_type: string
+          sla_deadline?: string | null
+          soft_deleted_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+          details?: string | null
+          erasure_effective_at?: string | null
+          grace_expires_at?: string | null
+          id?: string
+          purged_at?: string | null
+          request_type?: string
+          sla_deadline?: string | null
+          soft_deleted_at?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -2960,6 +3011,8 @@ export type Database = {
         Returns: boolean
       }
       delete_my_account: { Args: never; Returns: undefined }
+      dsr_hard_purge_due: { Args: never; Returns: number }
+      dsr_promote_due_erasures: { Args: never; Returns: number }
       email_queue_dispatch: { Args: never; Returns: undefined }
       enqueue_email: {
         Args: { payload: Json; queue_name: string }
