@@ -145,6 +145,10 @@ function HomeScreen() {
 
           <RegionBanner />
 
+          <div className="mt-3">
+            <HomeCountryPrompt />
+          </div>
+
           <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             also in ONIQ
           </div>
