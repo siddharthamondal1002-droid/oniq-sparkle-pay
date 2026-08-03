@@ -43,6 +43,7 @@ function ParentalConsentPage() {
   const [parentEmail, setParentEmail] = useState("");
   const [tokenRef, setTokenRef] = useState("");
   const [code, setCode] = useState("");
+  const [dob, setDob] = useState("");
   const [busy, setBusy] = useState(false);
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["age-gate-status"] });
