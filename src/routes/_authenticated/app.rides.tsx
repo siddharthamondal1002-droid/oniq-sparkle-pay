@@ -428,7 +428,7 @@ function RidesScreen() {
       {/* Genie bar */}
       <div className="mt-4 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 to-transparent p-3">
         <div className="mb-2 flex items-center gap-1.5 text-xs font-medium uppercase tracking-wider text-primary">
-          <Sparkles className="h-3 w-3" /> Ride Genie
+          <Sparkles className="h-3 w-3" /> Rides
         </div>
         <div className="flex gap-2">
           <input

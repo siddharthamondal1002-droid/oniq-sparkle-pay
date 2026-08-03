@@ -4,7 +4,9 @@
 import { describe, expect, it } from "vitest";
 import { tileName, TILE_LABELS, TILE_LABELS_HI } from "@/lib/i18n/tileLabel";
 import { makeFormatters, moneyIn } from "@/lib/format";
-import { COUNTRIES } from "@/data/countryRegistry";
+import { COUNTRY_REGISTRY } from "@/data/countryRegistry";
+import type { Country } from "@/data/countryRegistry";
+import { CATEGORY_LABELS } from "@/data/appRegistry";
 
 describe("tile names", () => {
   const cases: Array<[keyof typeof TILE_LABELS, string, string]> = [
@@ -12,7 +14,6 @@ describe("tile names", () => {
     ["miniapps", "Hacks", "जुगाड़"],
     ["learn", "Scout", "भाव"],
     ["rides", "Rides", "सवारी"],
-    ["shopping", "Shop", "खरीदारी"],
   ];
 
   it.each(cases)("%s resolves per locale", (key, en, hi) => {
@@ -21,10 +22,16 @@ describe("tile names", () => {
   });
 
   it("keeps ONIQ-owned names that need no translation", () => {
-    for (const key of ["plug", "faith", "moots", "vitals"] as const) {
+    for (const key of ["faith", "moots", "vitals"] as const) {
       expect(tileName("en", key)).toBe(TILE_LABELS[key]);
       expect(TILE_LABELS_HI[key]).toBeTruthy();
     }
+  });
+
+  it("category names follow the same English/Hindi split", () => {
+    expect(CATEGORY_LABELS.shopping.label).toBe("Shop");
+    expect(CATEGORY_LABELS.shopping.labelHi).toBe("खरीदारी");
+    expect(CATEGORY_LABELS.services.labelHi).toContain("सेवाएँ");
   });
 
   it("falls back to English for locales without a Hindi table", () => {
@@ -46,7 +53,7 @@ describe("Intl money formatting", () => {
   });
 
   it("formats every registered country in its own currency", () => {
-    for (const code of Object.keys(COUNTRIES) as Array<keyof typeof COUNTRIES>) {
+    for (const code of Object.keys(COUNTRY_REGISTRY) as Country[]) {
       const out = makeFormatters(code).money(1234.5);
       expect(out.length).toBeGreaterThan(3);
       expect(out).toMatch(/\d/);
