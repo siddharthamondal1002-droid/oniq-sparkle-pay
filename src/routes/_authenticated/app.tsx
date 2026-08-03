@@ -7,6 +7,7 @@ import { GlobalIncomingCall } from "@/components/chat/GlobalIncomingCall";
 import { GlobalCallHost } from "@/components/chat/GlobalCallHost";
 import { CALLS_ENABLED } from "@/lib/flags";
 import { PolicyNoticeBanner } from "@/components/safety/PolicyNoticeBanner";
+import { RestrictedBanner } from "@/components/safety/RestrictedBanner";
 import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher";
 import { MessageNotifier } from "@/components/chat/MessageNotifier";
 import { usePresenceTracker } from "@/hooks/usePresence";
@@ -85,6 +86,7 @@ function AppShell() {
       {CALLS_ENABLED && <GlobalIncomingCall />}
       {CALLS_ENABLED && <GlobalCallHost />}
       <PolicyNoticeBanner />
+      <RestrictedBanner />
       <MiniAppReturnWatcher />
       <MessageNotifier />
       <PermissionsOnboarding />

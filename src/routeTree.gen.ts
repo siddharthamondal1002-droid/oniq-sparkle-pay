@@ -54,6 +54,7 @@ import { Route as AuthenticatedAppFoodIndexRouteImport } from './routes/_authent
 import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
 import { Route as AuthenticatedAppUUserIdRouteImport } from './routes/_authenticated/app.u.$userId'
+import { Route as AuthenticatedAppPrivacyParentalConsentRouteImport } from './routes/_authenticated/app.privacy.parental-consent'
 import { Route as AuthenticatedAppPrivacyNoticeRouteImport } from './routes/_authenticated/app.privacy.notice'
 import { Route as AuthenticatedAppPrivacyGrievanceRouteImport } from './routes/_authenticated/app.privacy.grievance'
 import { Route as AuthenticatedAppPrivacyDataRightsRouteImport } from './routes/_authenticated/app.privacy.data-rights'
@@ -298,6 +299,12 @@ const AuthenticatedAppUUserIdRoute = AuthenticatedAppUUserIdRouteImport.update({
   path: '/u/$userId',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppPrivacyParentalConsentRoute =
+  AuthenticatedAppPrivacyParentalConsentRouteImport.update({
+    id: '/privacy/parental-consent',
+    path: '/privacy/parental-consent',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppPrivacyNoticeRoute =
   AuthenticatedAppPrivacyNoticeRouteImport.update({
     id: '/privacy/notice',
@@ -408,6 +415,7 @@ export interface FileRoutesByFullPath {
   '/app/privacy/data-rights': typeof AuthenticatedAppPrivacyDataRightsRoute
   '/app/privacy/grievance': typeof AuthenticatedAppPrivacyGrievanceRoute
   '/app/privacy/notice': typeof AuthenticatedAppPrivacyNoticeRoute
+  '/app/privacy/parental-consent': typeof AuthenticatedAppPrivacyParentalConsentRoute
   '/app/u/$userId': typeof AuthenticatedAppUUserIdRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat/': typeof AuthenticatedAppChatIndexRoute
@@ -462,6 +470,7 @@ export interface FileRoutesByTo {
   '/app/privacy/data-rights': typeof AuthenticatedAppPrivacyDataRightsRoute
   '/app/privacy/grievance': typeof AuthenticatedAppPrivacyGrievanceRoute
   '/app/privacy/notice': typeof AuthenticatedAppPrivacyNoticeRoute
+  '/app/privacy/parental-consent': typeof AuthenticatedAppPrivacyParentalConsentRoute
   '/app/u/$userId': typeof AuthenticatedAppUUserIdRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/app/chat': typeof AuthenticatedAppChatIndexRoute
@@ -520,6 +529,7 @@ export interface FileRoutesById {
   '/_authenticated/app/privacy/data-rights': typeof AuthenticatedAppPrivacyDataRightsRoute
   '/_authenticated/app/privacy/grievance': typeof AuthenticatedAppPrivacyGrievanceRoute
   '/_authenticated/app/privacy/notice': typeof AuthenticatedAppPrivacyNoticeRoute
+  '/_authenticated/app/privacy/parental-consent': typeof AuthenticatedAppPrivacyParentalConsentRoute
   '/_authenticated/app/u/$userId': typeof AuthenticatedAppUUserIdRoute
   '/lovable/email/queue/process': typeof LovableEmailQueueProcessRoute
   '/_authenticated/app/chat/': typeof AuthenticatedAppChatIndexRoute
@@ -578,6 +588,7 @@ export interface FileRouteTypes {
     | '/app/privacy/data-rights'
     | '/app/privacy/grievance'
     | '/app/privacy/notice'
+    | '/app/privacy/parental-consent'
     | '/app/u/$userId'
     | '/lovable/email/queue/process'
     | '/app/chat/'
@@ -632,6 +643,7 @@ export interface FileRouteTypes {
     | '/app/privacy/data-rights'
     | '/app/privacy/grievance'
     | '/app/privacy/notice'
+    | '/app/privacy/parental-consent'
     | '/app/u/$userId'
     | '/lovable/email/queue/process'
     | '/app/chat'
@@ -689,6 +701,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/privacy/data-rights'
     | '/_authenticated/app/privacy/grievance'
     | '/_authenticated/app/privacy/notice'
+    | '/_authenticated/app/privacy/parental-consent'
     | '/_authenticated/app/u/$userId'
     | '/lovable/email/queue/process'
     | '/_authenticated/app/chat/'
@@ -1036,6 +1049,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppUUserIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/privacy/parental-consent': {
+      id: '/_authenticated/app/privacy/parental-consent'
+      path: '/privacy/parental-consent'
+      fullPath: '/app/privacy/parental-consent'
+      preLoaderRoute: typeof AuthenticatedAppPrivacyParentalConsentRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/privacy/notice': {
       id: '/_authenticated/app/privacy/notice'
       path: '/privacy/notice'
@@ -1158,6 +1178,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppPrivacyDataRightsRoute: typeof AuthenticatedAppPrivacyDataRightsRoute
   AuthenticatedAppPrivacyGrievanceRoute: typeof AuthenticatedAppPrivacyGrievanceRoute
   AuthenticatedAppPrivacyNoticeRoute: typeof AuthenticatedAppPrivacyNoticeRoute
+  AuthenticatedAppPrivacyParentalConsentRoute: typeof AuthenticatedAppPrivacyParentalConsentRoute
   AuthenticatedAppUUserIdRoute: typeof AuthenticatedAppUUserIdRoute
   AuthenticatedAppFoodIndexRoute: typeof AuthenticatedAppFoodIndexRoute
 }
@@ -1188,6 +1209,8 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
     AuthenticatedAppPrivacyDataRightsRoute,
   AuthenticatedAppPrivacyGrievanceRoute: AuthenticatedAppPrivacyGrievanceRoute,
   AuthenticatedAppPrivacyNoticeRoute: AuthenticatedAppPrivacyNoticeRoute,
+  AuthenticatedAppPrivacyParentalConsentRoute:
+    AuthenticatedAppPrivacyParentalConsentRoute,
   AuthenticatedAppUUserIdRoute: AuthenticatedAppUUserIdRoute,
   AuthenticatedAppFoodIndexRoute: AuthenticatedAppFoodIndexRoute,
 }
