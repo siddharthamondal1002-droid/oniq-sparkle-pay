@@ -197,24 +197,6 @@ Deno.serve(async (req) => {
     return json({ ok: true, request: inserted });
   }
 
-  if (requestType === "access" || requestType === "portability") {
-    // export_my_data() is scoped by auth.uid(), so it must run as the caller,
-    // not as the service role.
-    const asUser = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? "", {
-      auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: `Bearer ${token}` } },
-    });
-    const { data: exported, error: expErr } = await asUser.rpc("export_my_data");
-    if (expErr) return json({ error: expErr.message }, 500);
-    const now = new Date().toISOString();
-    const { data: done } = await admin
-      .from("dsr_requests")
-      .update({ status: "completed", completed_at: now, updated_at: now })
-      .eq("id", inserted.id)
-      .select("*")
-      .single();
-    return json({ ok: true, request: done ?? inserted, export: exported });
-  }
 
   // correction: formal audit trail / escalation path only — never automated.
   return json({ ok: true, request: inserted });
