@@ -38,7 +38,7 @@ function makePaper(nLong: number, nMcq: number): PaperPdfInput {
 }
 
 function pdfText(doc: Awaited<ReturnType<typeof buildPaperPdf>>): string {
-  return String(doc.output("string"));
+  return String((doc as unknown as { output: (t?: string) => string }).output());
 }
 
 describe("paper PDF generation", () => {
