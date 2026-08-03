@@ -10,6 +10,8 @@
 @import "@fontsource/inter/500.css";
 @import "@fontsource/inter/600.css";
 @import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource/noto-sans-arabic/400.css";
+@import "@fontsource/noto-sans-arabic/600.css";
 
 /* ONIQ Super App — Dark electric design system */
 
@@ -202,13 +204,22 @@
   :lang(gu) { font-family: "Baloo Bhai 2", system-ui, sans-serif; }
   :lang(pa) { font-family: "Baloo Paaji 2", system-ui, sans-serif; }
   :lang(or) { font-family: "Baloo Bhaina 2", system-ui, sans-serif; }
-  :lang(ar) { font-family: "Baloo Bhaijaan 2", system-ui, sans-serif; }
+  /* Arabic — bundled locally (font-display: swap comes from the @fontsource
+     face). Arabic needs a taller line-box than Latin: ascenders/descenders and
+     diacritics collide at Latin's 1.5. */
+  :lang(ar), [dir="rtl"] {
+    font-family: "Noto Sans Arabic", "Baloo Bhaijaan 2", system-ui, sans-serif;
+    line-height: 1.85;
+  }
   :lang(ur) { font-family: "Noto Nastaliq Urdu", system-ui, serif; }
   :lang(si) { font-family: "Noto Sans Sinhala", system-ui, sans-serif; }
   :lang(zh) { font-family: "Noto Sans SC", system-ui, sans-serif; }
   :lang(ja) { font-family: "Noto Sans JP", system-ui, sans-serif; }
   :lang(ko) { font-family: "Noto Sans KR", system-ui, sans-serif; }
   :lang(th) { font-family: "Noto Sans Thai", system-ui, sans-serif; }
+
+  /* RTL: nothing may spill sideways once the layout mirrors. */
+  [dir="rtl"] body { overflow-x: hidden; }
 }
 
 

@@ -1,3 +1,4 @@
+import { moneyIn } from "@/lib/format";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -941,7 +942,7 @@ function ScoutPanel() {
                         </div>
                       </div>
                       <div className="shrink-0 font-display text-lg font-bold">
-                        ₹{(r.price_inr as number).toLocaleString("en-IN")}
+                        {moneyIn(r.price_inr as number, "INR")}
                       </div>
                     </div>
                     {r.note && <div className="mt-2 text-xs text-muted-foreground break-words">{r.note}</div>}

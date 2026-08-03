@@ -1,3 +1,4 @@
+import { moneyIn } from "@/lib/format";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -759,7 +760,7 @@ function FareCard({
           )}
         </div>
         <div className="mt-1 text-base font-bold">
-          ₹{opt.fareLow}–{opt.fareHigh}
+          {moneyIn(opt.fareLow, "INR")}–{moneyIn(opt.fareHigh, "INR")}
         </div>
         <div className="text-xs text-muted-foreground">~{opt.etaMins} min trip</div>
       </div>

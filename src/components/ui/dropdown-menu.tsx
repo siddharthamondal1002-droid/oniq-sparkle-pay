@@ -5,8 +5,14 @@ import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useDir } from "@/lib/i18n/direction";
 
-const DropdownMenu = DropdownMenuPrimitive.Root;
+// Radix menus take `dir` on the Root (it propagates to the portalled content),
+// not on Content. Without it a portalled menu ignores <html dir>.
+const DropdownMenu = (props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) => {
+  const dir = useDir();
+  return <DropdownMenuPrimitive.Root dir={dir} {...props} />;
+};
 
 const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 

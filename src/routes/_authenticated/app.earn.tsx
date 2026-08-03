@@ -1,3 +1,4 @@
+import { moneyIn } from "@/lib/format";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -422,7 +423,7 @@ function PriceOfferSheet({
   const [busy, setBusy] = useState(false);
   const submit = async () => {
     const n = Math.round(Number(price));
-    if (!Number.isFinite(n) || n < 10) { toast.error("enter at least ₹10"); return; }
+    if (!Number.isFinite(n) || n < 10) { toast.error(`enter at least ${moneyIn(10, "INR")}`); return; }
     setBusy(true);
     try { await onSubmit(n); } finally { setBusy(false); }
   };
@@ -432,7 +433,7 @@ function PriceOfferSheet({
         <div className="font-display text-lg font-bold">{title}</div>
         <div className="mt-1 text-xs text-muted-foreground">{hint}</div>
         <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3">
-          <span className="text-lg font-bold">₹</span>
+          <span className="text-lg font-bold">{moneyIn(0, "INR").replace(/[\d.,\s]/g, "")}</span>
           <input
             type="number"
             inputMode="numeric"
@@ -596,7 +597,7 @@ function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner:
             </div>
           ))}
           <div className="text-center text-[10px] text-muted-foreground">
-            ONIQ charges ₹0 for bookings — you deal with the partner directly
+            ONIQ charges {moneyIn(0, "INR")} for bookings — you deal with the partner directly
           </div>
         </div>
       ) : (
@@ -630,11 +631,11 @@ function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner:
                   {slotLine(b) && <div className="truncate text-[11px] text-muted-foreground">{slotLine(b)}</div>}
                   <div className="text-[11px] font-semibold">
                     {b.agreed_price
-                      ? `₹${b.agreed_price} agreed 🤝`
+                      ? `${moneyIn(Number(b.agreed_price), "INR")} agreed 🤝`
                       : b.status === "countered" && b.counter_price
-                        ? `they ask ₹${b.counter_price} (you offered ₹${b.offered_price})`
+                        ? `they ask ${moneyIn(Number(b.counter_price), "INR")} (you offered ${moneyIn(Number(b.offered_price), "INR")})`
                         : b.offered_price
-                          ? `your offer: ₹${b.offered_price}`
+                          ? `your offer: ${moneyIn(Number(b.offered_price), "INR")}`
                           : ""}
                   </div>
                   <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -646,7 +647,7 @@ function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner:
                         onClick={() => acceptCounter(b.id)}
                         className="press rounded-full bg-primary px-3 py-1 text-[11px] font-semibold text-primary-foreground"
                       >
-                        accept ₹{b.counter_price}
+                        accept {moneyIn(Number(b.counter_price), "INR")}
                       </button>
                       <button
                         onClick={() => setReofferTarget(b)}
@@ -711,7 +712,7 @@ function OniqPartnersSection({ goPartner, withInviteCard = false }: { goPartner:
     {reofferTarget && (
       <PriceOfferSheet
         title={`new offer to ${reofferTarget.provider_name}`}
-        hint={`they asked ₹${reofferTarget.counter_price ?? "—"} · you pay them directly, ONIQ takes ₹0`}
+        hint={`they asked ${reofferTarget.counter_price != null ? moneyIn(Number(reofferTarget.counter_price), "INR") : "—"} · you pay them directly, ONIQ takes ${moneyIn(0, "INR")}`}
         initial={reofferTarget.counter_price}
         onClose={() => setReofferTarget(null)}
         onSubmit={async (price) => {
@@ -758,7 +759,7 @@ function BookServiceSheet({
     if (!date || date < today) { toast.error("pick today or a future date"); return; }
     if (address.trim().length < 8) { toast.error("add your address so they can find you"); return; }
     const offer = Math.round(Number(price));
-    if (!Number.isFinite(offer) || offer < 10) { toast.error("name your price — at least ₹10"); return; }
+    if (!Number.isFinite(offer) || offer < 10) { toast.error(`name your price — at least ${moneyIn(10, "INR")}`); return; }
     setBusy(true);
     try {
       try { localStorage.setItem("oniq.earn.address", address.trim()); } catch { /* ignore */ }
@@ -773,7 +774,7 @@ function BookServiceSheet({
         _offered_price: offer,
       });
       if (error) throw error;
-      toast.success("booked 🎉 they'll confirm shortly — ₹0 booking fee");
+      toast.success(`booked 🎉 they'll confirm shortly — ${moneyIn(0, "INR")} booking fee`);
       onBooked();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "couldn't book — try again");
@@ -848,9 +849,9 @@ function BookServiceSheet({
           />
         </Field>
 
-        <Field label="Your price offer (₹)">
+        <Field label={`Your price offer (${moneyIn(0, "INR").replace(/[\d.,\s]/g, "")})`}>
           <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
-            <span className="font-bold">₹</span>
+            <span className="font-bold">{moneyIn(0, "INR").replace(/[\d.,\s]/g, "")}</span>
             <input
               type="number"
               inputMode="numeric"
@@ -862,7 +863,7 @@ function BookServiceSheet({
             />
           </div>
           <div className="mt-1 text-[10px] text-muted-foreground">
-            you pay the partner directly · ONIQ takes ₹0 commission
+            you pay the partner directly · ONIQ takes {moneyIn(0, "INR")} commission
           </div>
         </Field>
 
@@ -882,7 +883,7 @@ function BookServiceSheet({
           data-testid="confirm-booking"
           className="press mt-4 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-60"
         >
-          {busy ? "booking…" : "confirm booking · ₹0 fee"}
+          {busy ? "booking…" : `confirm booking · ${moneyIn(0, "INR")} fee`}
         </button>
         <button onClick={onClose} className="press mt-2 w-full rounded-2xl border border-border py-3 text-sm text-muted-foreground">
           cancel
@@ -1532,15 +1533,15 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
             </div>
             {slotLine(b) && <div className="mt-1 text-xs font-medium">{slotLine(b)}</div>}
             {b.agreed_price != null ? (
-              <div className="mt-1 text-xs font-semibold text-[#25D366]">₹{b.agreed_price} agreed 🤝</div>
+              <div className="mt-1 text-xs font-semibold text-[#25D366]">{moneyIn(Number(b.agreed_price), "INR")} agreed 🤝</div>
             ) : b.status === "countered" && b.counter_price != null ? (
               <div className="mt-1 text-xs text-muted-foreground">
-                you asked <span className="font-semibold text-foreground">₹{b.counter_price}</span> — waiting
-                {b.offered_price != null ? ` (they offered ₹${b.offered_price})` : ""}
+                you asked <span className="font-semibold text-foreground">{moneyIn(Number(b.counter_price), "INR")}</span> — waiting
+                {b.offered_price != null ? ` (they offered ${moneyIn(Number(b.offered_price), "INR")})` : ""}
               </div>
             ) : b.offered_price != null ? (
               <div className="mt-1 text-xs">
-                their offer: <span className="font-semibold">₹{b.offered_price}</span>
+                their offer: <span className="font-semibold">{moneyIn(Number(b.offered_price), "INR")}</span>
               </div>
             ) : null}
             {b.address && (b.status === "accepted" || b.status === "in_progress") && (
@@ -1558,7 +1559,7 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
                   onClick={() => (b.offered_price != null ? acceptPrice(b.id) : respond(b.id, "accepted"))}
                   className="press flex-1 rounded-full bg-primary py-1.5 text-xs font-semibold text-primary-foreground"
                 >
-                  {b.offered_price != null ? `accept ₹${b.offered_price}` : "accept"}
+                  {b.offered_price != null ? `accept ${moneyIn(Number(b.offered_price), "INR")}` : "accept"}
                 </button>
                 <button
                   onClick={() => setCounterTarget(b)}
@@ -1614,7 +1615,7 @@ function PartnerRequests({ showEmpty = false }: { showEmpty?: boolean }) {
           title="your counter price"
           hint={
             counterTarget.offered_price != null
-              ? `they offered ₹${counterTarget.offered_price} — name your price`
+              ? `they offered ${moneyIn(Number(counterTarget.offered_price), "INR")} — name your price`
               : "name your price for this job"
           }
           initial={counterTarget.counter_price ?? counterTarget.offered_price}

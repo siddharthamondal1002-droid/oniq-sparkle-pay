@@ -1,3 +1,4 @@
+import { moneyIn } from "@/lib/format";
 import { useEffect, useId, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -35,7 +36,6 @@ import {
   CustomizeButton,
   useHiddenTiles,
   useUserTheme,
-  type TileKey,
 } from "@/components/customize/CustomizeSheet";
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useCountry } from "@/lib/country";
@@ -43,7 +43,7 @@ import { isAvailable } from "@/data/countryRegistry";
 import { RegionBanner } from "@/components/home/RegionBanner";
 import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { resolveTileLabel } from "@/lib/i18n/tileLabel";
+import { resolveTileLabel, tileName, type TileKey } from "@/lib/i18n/tileLabel";
 import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
 import { recordSignal } from "@/lib/personalisation";
 
@@ -155,17 +155,18 @@ function HomeScreen() {
           </div>
           <AlsoInOniqRow
             tiles={[
-              { key: "ting", to: "/app/ai", label: "Ting ✨", labelHi: "टिंग" },
-              { key: "learn", to: "/app/learn", label: "Scout 🧠", labelHi: "भाव" },
-              { key: "rides", to: "/app/rides", label: "Rides 🚗", labelHi: "सवारी" },
-              { key: "miniapps", to: "/app/miniapps", label: "Hacks 🔌", labelHi: "जुगाड़" },
-              { key: "official", to: "/app/official", label: "Official 🏛️", labelHi: "सरकारी" },
-              { key: "pulse", to: "/app/news", label: "Pulse", labelHi: "खबर" },
-              { key: "watch", to: "/app/news", search: { tab: "watch" as const }, label: "Watch", labelHi: "देखो" },
-              { key: "faith", to: "/app/faith", label: "Blessed 🙏", labelHi: "आस्था" },
-              { key: "vitals", to: "/app/vitals", label: "Vitals 🫀", labelHi: "सेहत", color: vitalsColor },
-              { key: "wander", to: "/app/travel", label: "touch grass ✈️", labelHi: "सफ़र" },
-              { key: "earn", to: "/app/earn", label: "earn 💸", labelHi: "कमाई" },
+              // Names come from the shared table (tileLabel.ts) — never inline.
+              { key: "ting", to: "/app/ai" },
+              { key: "learn", to: "/app/learn" },
+              { key: "rides", to: "/app/rides" },
+              { key: "miniapps", to: "/app/miniapps" },
+              { key: "official", to: "/app/official" },
+              { key: "pulse", to: "/app/news" },
+              { key: "watch", to: "/app/news", search: { tab: "watch" as const } },
+              { key: "faith", to: "/app/faith" },
+              { key: "vitals", to: "/app/vitals", color: vitalsColor },
+              { key: "wander", to: "/app/travel" },
+              { key: "earn", to: "/app/earn" },
             ]}
             hidden={hidden}
           />
@@ -1033,13 +1034,13 @@ function GlanceCard() {
         <div className="grid flex-1 grid-cols-2 gap-2">
           <StatBox
             label="24K Gold"
-            value={gold ? `₹${gold.toLocaleString("en-IN")}` : "—"}
+            value={gold ? moneyIn(gold, "INR") : "—"}
             unit="/g"
             accent="#F59E0B"
           />
           <StatBox
             label="Silver"
-            value={silver ? `₹${silver.toLocaleString("en-IN")}` : "—"}
+            value={silver ? moneyIn(silver, "INR") : "—"}
             unit="/g"
             accent="#94A3B8"
           />
@@ -1426,7 +1427,7 @@ function AlsoInOniqRow({
   tiles,
   hidden,
 }: {
-  tiles: { key: string; to: string; label: string; labelHi?: string; color?: string; search?: Record<string, unknown> }[];
+  tiles: { key: TileKey; to: string; color?: string; search?: Record<string, unknown> }[];
   hidden: Set<TileKey>;
 }) {
   const { lang } = useT();
@@ -1457,7 +1458,7 @@ function AlsoInOniqRow({
               style={{ background: t.color }}
             />
           )}
-          {resolveTileLabel(lang, t.label, t.labelHi)}
+          {tileName(lang, t.key)}
         </Link>
       ))}
     </div>
@@ -1499,10 +1500,10 @@ function HomeMediaBanner() {
   }, [mode, hidden]);
 
   const tabs: { id: BannerMode; label: string }[] = [
-    { id: "watch", label: resolveTileLabel(lang, "Watch", "देखो") },
-    { id: "study", label: resolveTileLabel(lang, "Study", "पढ़ाई") },
-    { id: "moments", label: resolveTileLabel(lang, "Moments", "पल") },
-    { id: "mast", label: resolveTileLabel(lang, "Mast 🎬", "मस्त 🎬") },
+    { id: "watch", label: tileName(lang, "watch") },
+    { id: "study", label: tileName(lang, "study") },
+    { id: "moments", label: tileName(lang, "moments") },
+    { id: "mast", label: tileName(lang, "mast") },
   ];
   const visibleTabs = tabs.filter((tb) => !hidden.has(tb.id));
 

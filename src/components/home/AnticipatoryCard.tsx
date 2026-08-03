@@ -6,6 +6,8 @@
  * dismissed recently. It never acts on the user's behalf — it is a shortcut
  * plus the sentence explaining why it appeared.
  */
+import { tileName } from "@/lib/i18n/tileLabel";
+import { useT } from "@/lib/i18n/LanguageProvider";
 import { useEffect, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { bandLabel, pickSuggestion, type Signal, type Suggestion } from "@/lib/adaptive";
@@ -21,6 +23,7 @@ export function AnticipatoryCard() {
   const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
   const [gone, setGone] = useState(false);
   const [why, setWhy] = useState(false);
+  const { lang } = useT();
 
   useEffect(() => {
     let alive = true;
@@ -61,19 +64,21 @@ export function AnticipatoryCard() {
     setGone(true);
   };
 
+  const name = suggestion.tile ? tileName(lang, suggestion.tile) : suggestion.label;
+
   return (
     <div className="mt-3 rounded-2xl border border-border bg-card/85 p-3 fade-up">
       <div className="flex items-center gap-2">
         <button
           onClick={open}
           className="press flex-1 text-left"
-          aria-label={`Open ${suggestion.label}`}
+          aria-label={`Open ${name}`}
         >
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
             picking up where you left off
           </div>
           <div className="font-display text-sm font-semibold">
-            Jump back into {suggestion.label}
+            Jump back into {name}
           </div>
         </button>
         <button
