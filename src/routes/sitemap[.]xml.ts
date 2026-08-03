@@ -19,6 +19,7 @@ export const Route = createFileRoute("/sitemap.xml")({
           { path: "/", changefreq: "weekly", priority: "1.0" },
           { path: "/auth", changefreq: "monthly", priority: "0.5" },
           { path: "/blog/what-is-a-super-app", changefreq: "monthly", priority: "0.8" },
+          { path: "/blog/super-apps-in-india", changefreq: "monthly", priority: "0.8" },
           { path: "/privacy", changefreq: "yearly", priority: "0.3" },
           { path: "/terms", changefreq: "yearly", priority: "0.3" },
           { path: "/child-safety", changefreq: "yearly", priority: "0.3" },

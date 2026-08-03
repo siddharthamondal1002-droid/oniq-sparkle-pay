@@ -24,6 +24,7 @@ import { Route as UUserIdRouteImport } from './routes/u.$userId'
 import { Route as RClipIdRouteImport } from './routes/r.$clipId'
 import { Route as MPostIdRouteImport } from './routes/m.$postId'
 import { Route as BlogWhatIsASuperAppRouteImport } from './routes/blog.what-is-a-super-app'
+import { Route as BlogSuperAppsInIndiaRouteImport } from './routes/blog.super-apps-in-india'
 import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
 import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
 import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
@@ -135,6 +136,11 @@ const MPostIdRoute = MPostIdRouteImport.update({
 const BlogWhatIsASuperAppRoute = BlogWhatIsASuperAppRouteImport.update({
   id: '/blog/what-is-a-super-app',
   path: '/blog/what-is-a-super-app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogSuperAppsInIndiaRoute = BlogSuperAppsInIndiaRouteImport.update({
+  id: '/blog/super-apps-in-india',
+  path: '/blog/super-apps-in-india',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
@@ -358,6 +364,7 @@ export interface FileRoutesByFullPath {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/app': typeof AuthenticatedAppRouteWithChildren
+  '/blog/super-apps-in-india': typeof BlogSuperAppsInIndiaRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
   '/m/$postId': typeof MPostIdRoute
   '/r/$clipId': typeof RClipIdRoute
@@ -411,6 +418,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  '/blog/super-apps-in-india': typeof BlogSuperAppsInIndiaRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
   '/m/$postId': typeof MPostIdRoute
   '/r/$clipId': typeof RClipIdRoute
@@ -466,6 +474,7 @@ export interface FileRoutesById {
   '/.mcp/list-tools': typeof Char91DotmcpChar93ListToolsRoute
   '/.well-known/oauth-protected-resource': typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
   '/_authenticated/app': typeof AuthenticatedAppRouteWithChildren
+  '/blog/super-apps-in-india': typeof BlogSuperAppsInIndiaRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
   '/m/$postId': typeof MPostIdRoute
   '/r/$clipId': typeof RClipIdRoute
@@ -522,6 +531,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/app'
+    | '/blog/super-apps-in-india'
     | '/blog/what-is-a-super-app'
     | '/m/$postId'
     | '/r/$clipId'
@@ -575,6 +585,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
+    | '/blog/super-apps-in-india'
     | '/blog/what-is-a-super-app'
     | '/m/$postId'
     | '/r/$clipId'
@@ -629,6 +640,7 @@ export interface FileRouteTypes {
     | '/.mcp/list-tools'
     | '/.well-known/oauth-protected-resource'
     | '/_authenticated/app'
+    | '/blog/super-apps-in-india'
     | '/blog/what-is-a-super-app'
     | '/m/$postId'
     | '/r/$clipId'
@@ -684,6 +696,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   Char91DotmcpChar93ListToolsRoute: typeof Char91DotmcpChar93ListToolsRoute
   Char91DotwellKnownChar93OauthProtectedResourceRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRoute
+  BlogSuperAppsInIndiaRoute: typeof BlogSuperAppsInIndiaRoute
   BlogWhatIsASuperAppRoute: typeof BlogWhatIsASuperAppRoute
   MPostIdRoute: typeof MPostIdRoute
   RClipIdRoute: typeof RClipIdRoute
@@ -798,6 +811,13 @@ declare module '@tanstack/react-router' {
       path: '/blog/what-is-a-super-app'
       fullPath: '/blog/what-is-a-super-app'
       preLoaderRoute: typeof BlogWhatIsASuperAppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/super-apps-in-india': {
+      id: '/blog/super-apps-in-india'
+      path: '/blog/super-apps-in-india'
+      fullPath: '/blog/super-apps-in-india'
+      preLoaderRoute: typeof BlogSuperAppsInIndiaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app': {
@@ -1179,6 +1199,7 @@ const rootRouteChildren: RootRouteChildren = {
   Char91DotmcpChar93ListToolsRoute: Char91DotmcpChar93ListToolsRoute,
   Char91DotwellKnownChar93OauthProtectedResourceRoute:
     Char91DotwellKnownChar93OauthProtectedResourceRoute,
+  BlogSuperAppsInIndiaRoute: BlogSuperAppsInIndiaRoute,
   BlogWhatIsASuperAppRoute: BlogWhatIsASuperAppRoute,
   MPostIdRoute: MPostIdRoute,
   RClipIdRoute: RClipIdRoute,
