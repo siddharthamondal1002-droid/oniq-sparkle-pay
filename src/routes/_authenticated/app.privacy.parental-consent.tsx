@@ -7,6 +7,7 @@ import {
   approveParentalConsent,
   getAgeGateStatus,
   requestParentalConsent,
+  setMyDateOfBirth,
   submitDigilockerToken,
 } from "@/lib/ageGate";
 
