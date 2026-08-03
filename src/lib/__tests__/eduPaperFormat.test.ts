@@ -48,7 +48,8 @@ function indiaBaseSystem(a: {
 const INDIA_SNAPSHOT =
   `You are writing a real 80-mark practice examination paper for a Class 10 student studying under CBSE in India. Follows NCERT.\n` +
   `Subject: Physics.\n` +
-  `\n` +
+  // NOTE: the "" spacer line is removed by .filter(Boolean) in the real
+  // function — this snapshot reflects the actual pre-Phase-2 output.
   `Rules:\n` +
   `- Age-appropriate, syllabus-aligned, non-trivial but fair. Test understanding, not tricks.\n` +
   `- Spread across the subject's key topics for this class. Don't cluster around one narrow topic.\n` +
