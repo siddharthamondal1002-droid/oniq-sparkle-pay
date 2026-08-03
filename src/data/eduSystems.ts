@@ -78,6 +78,7 @@ export type EduSystem = {
   paperFormat?: {
     unit: "marks" | "points";
     commandWords: string[];
+    /** Closing line printed at the foot of a paper, e.g. "End of paper". */
     terminator: string;
     spelling: "en-GB" | "en-US" | "en-AU" | "en-CA" | "en-IN";
   };
@@ -159,7 +160,7 @@ export const EDU_SYSTEMS: EduSystem[] = [
         "Give reasons",
         "Draw a labelled diagram",
       ],
-      terminator: "marks",
+      terminator: "End of paper",
       spelling: "en-IN",
     },
     licence: ownFactsLicence(
@@ -207,7 +208,7 @@ export const EDU_SYSTEMS: EduSystem[] = [
         "Solve",
         "Cite evidence",
       ],
-      terminator: "points",
+      terminator: "End of exam",
       spelling: "en-US",
     },
     licence: {
@@ -264,7 +265,7 @@ export const EDU_SYSTEMS: EduSystem[] = [
         "Calculate",
         "Suggest",
       ],
-      terminator: "marks",
+      terminator: "End of questions",
       spelling: "en-GB",
     },
     licence: {
@@ -317,7 +318,7 @@ export const EDU_SYSTEMS: EduSystem[] = [
         "Calculate",
         "Show that",
       ],
-      terminator: "marks",
+      terminator: "End of questions",
       spelling: "en-GB",
     },
     licence: ownFactsLicence(
@@ -352,7 +353,7 @@ export const EDU_SYSTEMS: EduSystem[] = [
     paperFormat: {
       unit: "marks",
       commandWords: ["Define", "State", "Explain", "Describe", "Calculate", "Compare"],
-      terminator: "marks",
+      terminator: "End of paper",
       spelling: "en-GB",
     },
     licence: ownFactsLicence(
@@ -398,7 +399,7 @@ export const EDU_SYSTEMS: EduSystem[] = [
         "Justify",
         "Calculate",
       ],
-      terminator: "marks",
+      terminator: "End of paper",
       spelling: "en-CA",
     },
     licence: ownFactsLicence(
@@ -442,7 +443,7 @@ export const EDU_SYSTEMS: EduSystem[] = [
         "Justify",
         "Calculate",
       ],
-      terminator: "marks",
+      terminator: "End of examination",
       spelling: "en-AU",
     },
     licence: {
@@ -498,7 +499,7 @@ export const EDU_SYSTEMS: EduSystem[] = [
         "Calculate",
         "Deduce",
       ],
-      terminator: "marks",
+      terminator: "End of paper",
       spelling: "en-GB",
     },
     licence: ownFactsLicence(
@@ -543,7 +544,7 @@ export const EDU_SYSTEMS: EduSystem[] = [
         "Compare and contrast",
         "Determine",
       ],
-      terminator: "marks",
+      terminator: "End of paper",
       spelling: "en-GB",
     },
     licence: ownFactsLicence(
@@ -587,7 +588,7 @@ export const EDU_SYSTEMS: EduSystem[] = [
         "Compare",
         "Justify",
       ],
-      terminator: "marks",
+      terminator: "End of paper",
       spelling: "en-GB",
     },
     licence: ownFactsLicence(
