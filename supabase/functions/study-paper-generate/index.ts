@@ -179,25 +179,69 @@ Deno.serve(async (req) => {
   const shortSec = structure.find((s) => s.type === "short")!;
   const longSec = structure.find((s) => s.type === "long")!;
 
-  const baseSystem = [
-    `You are writing a real ${totalMarks}-mark practice examination paper for ${gradeStr} studying under ${boardLabel} in India. ${cur}`,
-    `Subject: ${subject}.`,
-    chapter
-      ? `Chapter scope: "${chapter}". EVERY question — MCQ, short, and long — must come from this chapter's content only. Do NOT draw from other chapters. Spread across sub-topics WITHIN this chapter for variety.`
-      : "",
-    "",
-    "Rules:",
-    "- Age-appropriate, syllabus-aligned, non-trivial but fair. Test understanding, not tricks.",
-    chapter
-      ? `- Stay strictly within the "${chapter}" chapter — no cross-chapter integration questions.`
-      : "- Spread across the subject's key topics for this class. Don't cluster around one narrow topic.",
-    "- Honesty: never invent facts, dates, formulas, chapter references, or past-paper citations. If unsure, use safely-known content.",
-    "- No personal data, no politics, no religion, no adult content.",
-  ].filter(Boolean).join("\n") + langInstruction(body.lang);
+  // Unit vocabulary. India (and any request without an eduSystem) keeps
+  // "mark(s)" exactly as before.
+  const unit: "marks" | "points" = edu ? edu.unit : "marks";
+  const unitOne = unit === "points" ? "point" : "mark";
+  const unitMany = unit;
 
-  const userMsg = chapter
-    ? `Generate the questions for the ${totalMarks}-mark ${subject} paper — chapter "${chapter}" only — for a ${boardLabel} ${gradeStr}.`
-    : `Generate the questions for the ${totalMarks}-mark ${subject} paper for a ${boardLabel} ${gradeStr}.`;
+  function spellingLine(code: string): string {
+    if (code === "en-US") return "Use American English spelling throughout (color, organize, analyze, meter).";
+    if (code === "en-AU") return "Use Australian English spelling throughout (colour, organise, analyse, metre).";
+    if (code === "en-CA") return "Use Canadian English spelling throughout (colour, organize, analyze, metre).";
+    if (code === "en-IN") return "Use Indian English conventions throughout (colour, organise, lakh/crore where natural).";
+    return "Use British English spelling throughout (colour, organise, analyse, metre).";
+  }
+
+  const eduLabel = edu ? edu.authority : "";
+  const stageLabel = edu ? `a learner at stage "${classLevel}"` : "";
+
+  const baseSystem = (edu
+    ? [
+      `You are writing a real ${totalMarks}-${unitMany} original practice examination paper, in the style of the system overseen by ${eduLabel}, for ${stageLabel}.`,
+      `Subject: ${subject}.`,
+      chapter
+        ? `Topic scope: "${chapter}". EVERY question — MCQ, short, and long — must come from this topic only. Do NOT draw from other topics. Spread across sub-topics WITHIN it for variety.`
+        : "",
+      "",
+      "Rules:",
+      `- Every question must be ORIGINAL. Never reproduce, paraphrase or cite any real past paper, syllabus text or awarding-body wording.`,
+      edu.commandWords.length
+        ? `- Use this system's usual command words where natural: ${edu.commandWords.join(", ")}.`
+        : "",
+      `- ${spellingLine(edu.spelling)}`,
+      `- Marks are expressed in ${unitMany}. The paper closes with "${edu.terminator}".`,
+      "- Age-appropriate, curriculum-aligned, non-trivial but fair. Test understanding, not tricks.",
+      chapter
+        ? `- Stay strictly within "${chapter}" — no cross-topic integration questions.`
+        : "- Spread across the subject's key topics for this stage. Don't cluster around one narrow topic.",
+      "- Honesty: never invent facts, dates, formulas, chapter references, or past-paper citations. If unsure, use safely-known content.",
+      "- No personal data, no politics, no religion, no adult content.",
+    ]
+    : [
+      `You are writing a real ${totalMarks}-mark practice examination paper for ${gradeStr} studying under ${boardLabel} in India. ${cur}`,
+      `Subject: ${subject}.`,
+      chapter
+        ? `Chapter scope: "${chapter}". EVERY question — MCQ, short, and long — must come from this chapter's content only. Do NOT draw from other chapters. Spread across sub-topics WITHIN this chapter for variety.`
+        : "",
+      "",
+      "Rules:",
+      "- Age-appropriate, syllabus-aligned, non-trivial but fair. Test understanding, not tricks.",
+      chapter
+        ? `- Stay strictly within the "${chapter}" chapter — no cross-chapter integration questions.`
+        : "- Spread across the subject's key topics for this class. Don't cluster around one narrow topic.",
+      "- Honesty: never invent facts, dates, formulas, chapter references, or past-paper citations. If unsure, use safely-known content.",
+      "- No personal data, no politics, no religion, no adult content.",
+    ]
+  ).filter(Boolean).join("\n") + langInstruction(body.lang);
+
+  const userMsg = edu
+    ? (chapter
+      ? `Generate the questions for the ${totalMarks}-${unitMany} ${subject} paper — topic "${chapter}" only — for ${stageLabel} under ${eduLabel}.`
+      : `Generate the questions for the ${totalMarks}-${unitMany} ${subject} paper for ${stageLabel} under ${eduLabel}.`)
+    : (chapter
+      ? `Generate the questions for the ${totalMarks}-mark ${subject} paper — chapter "${chapter}" only — for a ${boardLabel} ${gradeStr}.`
+      : `Generate the questions for the ${totalMarks}-mark ${subject} paper for a ${boardLabel} ${gradeStr}.`);
 
   async function genSection(
     kind: "mcq" | "short" | "long",
@@ -209,17 +253,17 @@ Deno.serve(async (req) => {
     let toolName = "";
     let maxTokens = 2000;
     if (kind === "mcq") {
-      instr = `Produce EXACTLY ${count} multiple-choice questions, 1 mark each, 4 options each with exactly one correct answer. Wrong options should be plausible common mistakes. Keep each question concise.`;
+      instr = `Produce EXACTLY ${count} multiple-choice questions, 1 ${unitOne} each, 4 options each with exactly one correct answer. Wrong options should be plausible common mistakes. Keep each question concise.`;
       schema = MCQ_SECTION_SCHEMA;
       toolName = "return_mcq";
       maxTokens = Math.max(1500, count * 180);
     } else if (kind === "short") {
-      instr = `Produce EXACTLY ${count} short-answer questions, ${marks} marks each. Provide a concise model_answer (40–120 words) and 2–4 concrete, answer-specific rubric_points (e.g. "defines momentum as p = mv", not "good explanation").`;
+      instr = `Produce EXACTLY ${count} short-answer questions, ${marks} ${unitMany} each. Provide a concise model_answer (40–120 words) and 2–4 concrete, answer-specific rubric_points (e.g. "defines momentum as p = mv", not "good explanation").`;
       schema = SHORT_SECTION_SCHEMA;
       toolName = "return_short";
       maxTokens = Math.max(3500, count * 450);
     } else {
-      instr = `Produce EXACTLY ${count} long-answer questions, ${marks} marks each. Provide a fuller model_answer (120–300 words) and 2–4 concrete, answer-specific rubric_points.`;
+      instr = `Produce EXACTLY ${count} long-answer questions, ${marks} ${unitMany} each. Provide a fuller model_answer (120–300 words) and 2–4 concrete, answer-specific rubric_points.`;
       schema = LONG_SECTION_SCHEMA;
       toolName = "return_long";
       maxTokens = Math.max(6000, count * 900);
