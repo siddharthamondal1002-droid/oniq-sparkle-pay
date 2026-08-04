@@ -53,6 +53,9 @@ export function CvPdfPreviewDialog({
   const [shareSubject, setShareSubject] = useState("");
   const [shareText, setShareText] = useState("");
   const [editingMessage, setEditingMessage] = useState(false);
+  // Build progress for the PDF bytes (0–100) plus a "taking a while" hint.
+  const [progress, setProgress] = useState(0);
+  const [slow, setSlow] = useState(false);
   // Android/iOS WebViews cannot render a PDF in an iframe — no plugin behind it.
   const canEmbed = !Capacitor.isNativePlatform();
   const defaults = defaultCvShareMessage(declared.fullName);
