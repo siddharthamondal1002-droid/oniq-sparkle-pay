@@ -170,7 +170,61 @@ export function CvPdfPreviewDialog({
         )}
       </div>
 
+      <div className="mx-3 mt-3 rounded-2xl bg-[#16181E] p-3">
+        <button
+          type="button"
+          onClick={() => setEditingMessage((v) => !v)}
+          className="flex w-full items-center justify-between gap-2 text-left"
+          aria-expanded={editingMessage}
+        >
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold text-white">Share message</span>
+            <span className="block truncate text-[11px] text-white/45">
+              {shareSubject || defaults.title}
+            </span>
+          </span>
+          <Pencil className="size-4 shrink-0 text-white/50" />
+        </button>
+
+        {editingMessage && (
+          <div className="mt-3 space-y-2">
+            <label className="block">
+              <span className="mb-1 block text-[11px] text-white/45">Subject</span>
+              <input
+                value={shareSubject}
+                onChange={(e) => setShareSubject(e.target.value)}
+                maxLength={120}
+                placeholder={defaults.title}
+                className="w-full rounded-xl bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/25 outline-none focus:ring-1 focus:ring-[#00D4B8]"
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-[11px] text-white/45">Short message</span>
+              <textarea
+                value={shareText}
+                onChange={(e) => setShareText(e.target.value)}
+                maxLength={280}
+                rows={2}
+                placeholder={defaults.text}
+                className="w-full resize-none rounded-xl bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/25 outline-none focus:ring-1 focus:ring-[#00D4B8]"
+              />
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setShareSubject(defaults.title);
+                setShareText(defaults.text);
+              }}
+              className="text-[11px] font-medium text-[#00D4B8]"
+            >
+              Reset to default
+            </button>
+          </div>
+        )}
+      </div>
+
       <div className="flex gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+
         <button
           type="button"
           disabled={!built || busy !== null}
