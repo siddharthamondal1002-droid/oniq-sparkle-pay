@@ -141,7 +141,6 @@ export async function buildCvPdf(declared: CvDeclared, cv: CvGenerated) {
   }
   section = null;
 
-
   const total = doc.getNumberOfPages();
   for (let p = 1; p <= total; p++) {
     doc.setPage(p);
@@ -174,9 +173,14 @@ export async function shareCvPdf(
   const doc = await buildCvPdf(declared, cv);
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
-  const how = await shareFile(filename, "application/pdf", new Blob([buf], { type: "application/pdf" }), {
-    title: declared.fullName ? `${declared.fullName} — CV` : "My CV",
-    text: "My CV",
-  });
+  const how = await shareFile(
+    filename,
+    "application/pdf",
+    new Blob([buf], { type: "application/pdf" }),
+    {
+      title: declared.fullName ? `${declared.fullName} — CV` : "My CV",
+      text: "My CV",
+    },
+  );
   return { filename, how };
 }
