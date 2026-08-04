@@ -121,7 +121,7 @@ function AttributionCard({ a }: { a: Attribution }) {
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
             Not covered by that licence
           </div>
-          <ul className="mt-1 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+          <ul className="mt-1 list-disc space-y-1 ps-4 text-xs text-muted-foreground">
             {a.exclusions.map((e) => (
               <li key={e}>{e}</li>
             ))}

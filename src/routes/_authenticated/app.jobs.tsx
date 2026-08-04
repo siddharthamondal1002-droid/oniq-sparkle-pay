@@ -480,7 +480,7 @@ function CvWorkbench({
       {/* Formatting */}
       <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
         <h2 className="text-sm font-semibold">How it will be formatted</h2>
-        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-relaxed text-white/55">
+        <ul className="mt-2 list-disc space-y-1 ps-4 text-xs leading-relaxed text-white/55">
           {ATS_RULES.map((r) => (
             <li key={r}>{r}</li>
           ))}
@@ -552,7 +552,7 @@ function CvWorkbench({
               <p className="text-[11px] text-white/40">
                 {r.start} – {r.end || "present"}
               </p>
-              <ul className="mt-1 list-disc pl-4 text-xs text-white/60">
+              <ul className="mt-1 list-disc ps-4 text-xs text-white/60">
                 {r.bullets.map((b, j) => (
                   <li key={j}>{b}</li>
                 ))}
