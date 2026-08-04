@@ -175,7 +175,7 @@ function Sheet({
   const sections: Record<CvSectionKey, ReactNode> = {
     summary: cv.summary?.trim() ? (
       <>
-        <Heading text="Summary" />
+        <Heading text="Summary" tpl={tpl} />
         <Line size={10} gap={4.6}>
           {cv.summary.trim()}
         </Line>
@@ -184,7 +184,7 @@ function Sheet({
     experience:
       roles.length > 0 ? (
         <>
-          <Heading text="Experience" />
+          <Heading text="Experience" tpl={tpl} />
           {roles.map((r, i) => (
             <div key={i} style={{ paddingBottom: "2.5mm" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: "4mm" }}>
@@ -205,7 +205,7 @@ function Sheet({
                 <div key={j} style={{ display: "flex" }}>
                   <div style={{ width: "5mm", flexShrink: 0 }}>
                     <Line size={10} gap={4.6}>
-                      •
+
                     </Line>
                   </div>
                   <div style={{ flex: 1 }}>
@@ -222,7 +222,7 @@ function Sheet({
     qualifications:
       credentials.length > 0 ? (
         <>
-          <Heading text="Qualifications" />
+          <Heading text="Qualifications" tpl={tpl} />
           {credentials.map((c, i) => (
             <Line key={i} size={10} gap={4.6}>
               {[c.name, c.issuer, c.year].filter(Boolean).join(", ")}
@@ -233,7 +233,7 @@ function Sheet({
     skills:
       skills.length > 0 ? (
         <>
-          <Heading text="Skills" />
+          <Heading text="Skills" tpl={tpl} />
           <Line size={10} gap={4.6}>
             {skills.join(" · ")}
           </Line>
