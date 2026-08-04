@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   FileText,
   Loader2,
