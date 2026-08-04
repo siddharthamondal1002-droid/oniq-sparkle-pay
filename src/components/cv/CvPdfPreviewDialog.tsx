@@ -67,6 +67,31 @@ export function CvPdfPreviewDialog({
   const [zoom, setZoom] = useState(1);
   const viewportRef = useRef<HTMLDivElement | null>(null);
 
+  // Page navigation for the embedded preview.
+  const pageCount = built?.pages ?? 1;
+  const [page, setPage] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
+
+  const goToPage = useCallback(
+    (target: number) => {
+      const clamped = Math.min(Math.max(1, Math.round(target)), Math.max(1, pageCount));
+      setPage(clamped);
+      setPageInput(String(clamped));
+    },
+    [pageCount],
+  );
+
+  // A rebuild can shorten the document — never leave the view past the end.
+  useEffect(() => {
+    setPage((p) => {
+      const clamped = Math.min(Math.max(1, p), Math.max(1, pageCount));
+      setPageInput(String(clamped));
+      return clamped;
+    });
+  }, [pageCount]);
+
+
+
   const zoomBy = useCallback((factor: number) => {
     setZoom((prev) => {
       const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * factor));
