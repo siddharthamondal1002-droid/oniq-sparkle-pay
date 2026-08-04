@@ -6,6 +6,8 @@ import { defaultCvShareMessage } from "@/lib/cvShareMessage";
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
 import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
+import { getCvTemplate, type CvTemplateId } from "@/lib/cvTemplates";
+
 
 const A4_W = 210;
 const A4_H = 297;
@@ -38,9 +40,13 @@ export async function buildCvPdf(
   declaredIn: CvDeclared,
   cvIn: CvGenerated,
   order?: readonly CvSectionKey[],
+  templateId?: CvTemplateId,
 ) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  // Decoration only — never changes vertical advances, so pagination is
+  // identical across templates.
+  const tpl = getCvTemplate(templateId);
 
   // Export exactly the declared content: placeholders ("not declared", "N/A",
   // "—") and empty rows are stripped, and any section left empty is skipped
@@ -56,10 +62,17 @@ export async function buildCvPdf(
   const drawHeading = (text: string) => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
+    doc.setTextColor(tpl.headingColor[0], tpl.headingColor[1], tpl.headingColor[2]);
+    doc.setCharSpace(tpl.headingCharSpace);
     doc.text(text.toUpperCase(), M, y);
+    doc.setCharSpace(0);
+    doc.setTextColor(0);
     y += 2;
-    doc.setLineWidth(0.3);
+    doc.setLineWidth(tpl.ruleWidth);
+    doc.setDrawColor(tpl.ruleColor[0], tpl.ruleColor[1], tpl.ruleColor[2]);
+
     doc.line(M, y, A4_W - M, y);
+    doc.setDrawColor(0);
     y += 5;
   };
   const page = () => {
@@ -93,14 +106,18 @@ export async function buildCvPdf(
     section = text;
   };
 
+
   // ---- header ----
   if (declared.fullName) {
     for (const line of wrap(declared.fullName, 18, "bold", CONTENT_W)) {
       ensure(10);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(18);
+      doc.setTextColor(tpl.nameColor[0], tpl.nameColor[1], tpl.nameColor[2]);
       doc.text(line, M, y + 4);
+      doc.setTextColor(0);
       y += 10;
+
     }
   }
   if (declared.headline) para(declared.headline, 11, "normal", 5);
@@ -148,7 +165,7 @@ export async function buildCvPdf(
             ensure(4.6);
             doc.setFont("helvetica", "normal");
             doc.setFontSize(10);
-            if (i === 0) doc.text("•", M, y);
+            if (i === 0) doc.text(tpl.bullet, M, y);
             doc.text(line, M + 5, y);
             y += 4.6;
           });
@@ -192,8 +209,10 @@ export async function buildCvPdfBlob(
   declared: CvDeclared,
   cv: CvGenerated,
   order?: readonly CvSectionKey[],
+  templateId?: CvTemplateId,
 ): Promise<{ blob: Blob; filename: string; pages: number }> {
-  const doc = await buildCvPdf(declared, cv, order);
+  const doc = await buildCvPdf(declared, cv, order, templateId);
+
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   return {
     blob: new Blob([buf], { type: "application/pdf" }),
@@ -233,8 +252,9 @@ export async function exportCvPdf(
   declared: CvDeclared,
   cv: CvGenerated,
   order?: readonly CvSectionKey[],
+  templateId?: CvTemplateId,
 ): Promise<{ filename: string }> {
-  const doc = await buildCvPdf(declared, cv, order);
+  const doc = await buildCvPdf(declared, cv, order, templateId);
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   await deliverFile(filename, "application/pdf", new Blob([buf], { type: "application/pdf" }));
@@ -246,8 +266,10 @@ export async function shareCvPdf(
   declared: CvDeclared,
   cv: CvGenerated,
   order?: readonly CvSectionKey[],
+  templateId?: CvTemplateId,
 ): Promise<{ filename: string; how: "shared" | "downloaded" }> {
-  const doc = await buildCvPdf(declared, cv, order);
+  const doc = await buildCvPdf(declared, cv, order, templateId);
+
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   const how = await shareFile(

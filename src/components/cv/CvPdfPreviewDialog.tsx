@@ -10,6 +10,7 @@ import { defaultCvShareMessage } from "@/lib/cvShareMessage";
 
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import type { CvSectionKey } from "@/lib/cvSections";
+import type { CvTemplateId } from "@/lib/cvTemplates";
 
 type Built = { blob: Blob; filename: string; pages: number };
 
@@ -17,14 +18,18 @@ export function CvPdfPreviewDialog({
   declared,
   cv,
   order,
+  template,
   onClose,
 }: {
   declared: CvDeclared;
   cv: CvGenerated;
   /** Section order chosen in the workbench. */
   order?: readonly CvSectionKey[];
+  /** Layout template chosen in the workbench. */
+  template?: CvTemplateId;
   onClose: () => void;
 }) {
+
   const [built, setBuilt] = useState<Built | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
@@ -52,7 +57,7 @@ export function CvPdfPreviewDialog({
     (async () => {
       try {
         const { buildCvPdfBlob } = await import("@/lib/cvPdf");
-        const result = await buildCvPdfBlob(declared, cv, order);
+        const result = await buildCvPdfBlob(declared, cv, order, template);
         if (cancelled) return;
         setBuilt(result);
         if (canEmbed) {
@@ -67,7 +72,7 @@ export function CvPdfPreviewDialog({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [declared, cv, order, canEmbed]);
+  }, [declared, cv, order, template, canEmbed]);
 
   const download = async () => {
     if (!built) return;
@@ -91,7 +96,7 @@ export function CvPdfPreviewDialog({
       // Always regenerate from the latest fields so the shared file can never
       // be a stale build from an earlier edit.
       const { buildCvPdfBlob, shareCvPdfBlob } = await import("@/lib/cvPdf");
-      const fresh = await buildCvPdfBlob(declared, cv, order);
+      const fresh = await buildCvPdfBlob(declared, cv, order, template);
       filename = fresh.filename;
       setBuilt(fresh);
       if (canEmbed) {

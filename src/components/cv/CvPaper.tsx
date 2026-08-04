@@ -11,6 +11,7 @@ import { CV_PAGE, PT } from "@/lib/cvPdf";
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
 import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
+import { getCvTemplate, rgbCss, type CvTemplate, type CvTemplateId } from "@/lib/cvTemplates";
 
 /** pt -> mm, matching jsPDF's text metrics. */
 const mm = (pt: number) => `${(pt * PT).toFixed(3)}mm`;
@@ -21,6 +22,7 @@ function Line({
   gap,
   children,
   align,
+  color,
 }: {
   size: number;
   bold?: boolean;
@@ -28,6 +30,7 @@ function Line({
   gap: number;
   children: ReactNode;
   align?: "right";
+  color?: string;
 }) {
   return (
     <div
@@ -36,6 +39,7 @@ function Line({
         lineHeight: `${gap}mm`,
         fontWeight: bold ? 700 : 400,
         textAlign: align,
+        color,
       }}
     >
       {children}
@@ -43,7 +47,7 @@ function Line({
   );
 }
 
-function Heading({ text }: { text: string }) {
+function Heading({ text, tpl }: { text: string; tpl: CvTemplate }) {
   return (
     <div style={{ paddingTop: "3mm" }}>
       <div
@@ -52,14 +56,23 @@ function Heading({ text }: { text: string }) {
           fontWeight: 700,
           lineHeight: "4mm",
           textTransform: "uppercase",
+          color: rgbCss(tpl.headingColor),
+          letterSpacing: `${tpl.headingCharSpace}mm`,
         }}
       >
         {text}
       </div>
-      <div style={{ borderTop: "0.3mm solid #000", marginTop: "0.6mm", marginBottom: "2.6mm" }} />
+      <div
+        style={{
+          borderTop: `${tpl.ruleWidth}mm solid ${rgbCss(tpl.ruleColor)}`,
+          marginTop: "0.6mm",
+          marginBottom: "2.6mm",
+        }}
+      />
     </div>
   );
 }
+
 
 export type CvPaperDoc = Pick<CvGenerated, "summary" | "roles" | "credentials" | "skills">;
 
@@ -118,14 +131,18 @@ function Sheet({
   cv: cvIn,
   order,
   pageBreaks = true,
+  template,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
   order?: readonly CvSectionKey[];
   pageBreaks?: boolean;
+  template?: CvTemplateId;
 }) {
+  const tpl = getCvTemplate(template);
   const sheetEl = useRef<HTMLDivElement>(null);
   const [sheetMm, setSheetMm] = useState(0);
+
 
   // Measure the rendered sheet so the break rules land where the exporter
   // actually runs out of page. CSS mm is a fixed 96/25.4 px, and offsetHeight
@@ -158,7 +175,7 @@ function Sheet({
   const sections: Record<CvSectionKey, ReactNode> = {
     summary: cv.summary?.trim() ? (
       <>
-        <Heading text="Summary" />
+        <Heading text="Summary" tpl={tpl} />
         <Line size={10} gap={4.6}>
           {cv.summary.trim()}
         </Line>
@@ -167,7 +184,7 @@ function Sheet({
     experience:
       roles.length > 0 ? (
         <>
-          <Heading text="Experience" />
+          <Heading text="Experience" tpl={tpl} />
           {roles.map((r, i) => (
             <div key={i} style={{ paddingBottom: "2.5mm" }}>
               <div style={{ display: "flex", alignItems: "baseline", gap: "4mm" }}>
@@ -188,7 +205,8 @@ function Sheet({
                 <div key={j} style={{ display: "flex" }}>
                   <div style={{ width: "5mm", flexShrink: 0 }}>
                     <Line size={10} gap={4.6}>
-                      •
+                      {tpl.bullet}
+
                     </Line>
                   </div>
                   <div style={{ flex: 1 }}>
@@ -205,7 +223,7 @@ function Sheet({
     qualifications:
       credentials.length > 0 ? (
         <>
-          <Heading text="Qualifications" />
+          <Heading text="Qualifications" tpl={tpl} />
           {credentials.map((c, i) => (
             <Line key={i} size={10} gap={4.6}>
               {[c.name, c.issuer, c.year].filter(Boolean).join(", ")}
@@ -216,7 +234,7 @@ function Sheet({
     skills:
       skills.length > 0 ? (
         <>
-          <Heading text="Skills" />
+          <Heading text="Skills" tpl={tpl} />
           <Line size={10} gap={4.6}>
             {skills.join(" · ")}
           </Line>
@@ -242,10 +260,11 @@ function Sheet({
       {pageBreaks && <PageBreaks sheetHeight={sheetMm} />}
 
       {declared.fullName && (
-        <Line size={18} bold gap={10}>
+        <Line size={18} bold gap={10} color={rgbCss(tpl.nameColor)}>
           {declared.fullName}
         </Line>
       )}
+
       {declared.headline && (
         <Line size={11} gap={5}>
           {declared.headline}
@@ -292,12 +311,15 @@ export function CvPaper({
   cv,
   order,
   pageBreaks = true,
+  template,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
   order?: readonly CvSectionKey[];
   /** Show dashed rules where the export will split pages. Default on. */
   pageBreaks?: boolean;
+  /** Layout style; matches the template used by the PDF export. */
+  template?: CvTemplateId;
 }) {
 
   const box = useRef<HTMLDivElement>(null);
@@ -320,7 +342,7 @@ export function CvPaper({
     if (box.current) ro.observe(box.current);
     if (sheet.current) ro.observe(sheet.current);
     return () => ro.disconnect();
-  }, [declared, cv, order]);
+  }, [declared, cv, order, template]);
 
   return (
     <div ref={box} className="w-full overflow-hidden" style={{ height: height || undefined }}>
@@ -328,8 +350,15 @@ export function CvPaper({
         ref={sheet}
         style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: "fit-content" }}
       >
-        <Sheet declared={declared} cv={cv} order={order} pageBreaks={pageBreaks} />
+        <Sheet
+          declared={declared}
+          cv={cv}
+          order={order}
+          pageBreaks={pageBreaks}
+          template={template}
+        />
       </div>
     </div>
   );
+
 }
