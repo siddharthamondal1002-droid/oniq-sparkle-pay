@@ -117,9 +117,14 @@ describe("jobs & gig directory", () => {
 
   it("government entries sit on a government domain", () => {
     for (const a of jobsish.filter((a) => a.government)) {
-      expect(/\.gov(\.[a-z]{2})?(\/|$)|\.gc\.ca|\.gov\.uk|service\.gov\.uk/.test(a.webUrl), a.id).toBe(
-        true,
-      );
+      const host = new URL(a.webUrl).hostname;
+      const ok =
+        /(^|\.)gov(\.[a-z]{2})?$/.test(host) ||
+        /(^|\.)gc\.ca$/.test(host) ||
+        /(^|\.)canada\.ca$/.test(host) ||
+        /(^|\.)service\.gov\.uk$/.test(host) ||
+        /(^|\.)gov\.[a-z]{2}$/.test(host);
+      expect(ok, `${a.id}: ${host}`).toBe(true);
     }
   });
 
