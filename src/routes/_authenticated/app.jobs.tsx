@@ -1149,12 +1149,14 @@ function Field({
   onChange,
   placeholder,
   error,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   error?: string | null;
+  hint?: string;
 }) {
   return (
     <label className="block">
@@ -1171,10 +1173,15 @@ function Field({
             : "border-white/10 focus:border-[#00D4B8]/60"
         }`}
       />
-      {error && <span className="mt-1 block text-[11px] text-rose-300">{error}</span>}
+      {error ? (
+        <span className="mt-1 block text-[11px] text-rose-300">{error}</span>
+      ) : hint ? (
+        <span className="mt-1 block text-[11px] text-white/35">{hint}</span>
+      ) : null}
     </label>
   );
 }
+
 
 /**
  * Live, un-AI'd preview of the CV as it is typed. Purely presentational: it
