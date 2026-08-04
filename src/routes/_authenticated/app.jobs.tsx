@@ -626,6 +626,7 @@ function CvWorkbench({
                 hint="Name the degree, class or certificate — no marks or grades here."
                 value={c.name}
                 error={credErrors[i]?.name ?? null}
+                normalize={normalizeQualification}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { name: v })}
               />
               <Field
@@ -634,8 +635,10 @@ function CvWorkbench({
                 hint="Who awarded it: school board, university, or the company behind the certificate."
                 value={c.issuer}
                 error={credErrors[i]?.issuer ?? null}
+                normalize={normalizeIssuer}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { issuer: v })}
               />
+
               <Field
                 label="Year"
                 placeholder="e.g. 2024 · 2020-2024 · 2023-present"
