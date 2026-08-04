@@ -32,6 +32,7 @@ import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppWeatherRouteImport } from './routes/_authenticated/app.weather'
 import { Route as AuthenticatedAppVitalsRouteImport } from './routes/_authenticated/app.vitals'
 import { Route as AuthenticatedAppUpiRouteImport } from './routes/_authenticated/app.upi'
+import { Route as AuthenticatedAppUniversityRouteImport } from './routes/_authenticated/app.university'
 import { Route as AuthenticatedAppTravelRouteImport } from './routes/_authenticated/app.travel'
 import { Route as AuthenticatedAppStudyRouteImport } from './routes/_authenticated/app.study'
 import { Route as AuthenticatedAppScanRouteImport } from './routes/_authenticated/app.scan'
@@ -182,6 +183,12 @@ const AuthenticatedAppUpiRoute = AuthenticatedAppUpiRouteImport.update({
   path: '/upi',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppUniversityRoute =
+  AuthenticatedAppUniversityRouteImport.update({
+    id: '/university',
+    path: '/university',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppTravelRoute = AuthenticatedAppTravelRouteImport.update({
   id: '/travel',
   path: '/travel',
@@ -401,6 +408,7 @@ export interface FileRoutesByFullPath {
   '/app/scan': typeof AuthenticatedAppScanRoute
   '/app/study': typeof AuthenticatedAppStudyRoute
   '/app/travel': typeof AuthenticatedAppTravelRoute
+  '/app/university': typeof AuthenticatedAppUniversityRoute
   '/app/upi': typeof AuthenticatedAppUpiRoute
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
@@ -456,6 +464,7 @@ export interface FileRoutesByTo {
   '/app/scan': typeof AuthenticatedAppScanRoute
   '/app/study': typeof AuthenticatedAppStudyRoute
   '/app/travel': typeof AuthenticatedAppTravelRoute
+  '/app/university': typeof AuthenticatedAppUniversityRoute
   '/app/upi': typeof AuthenticatedAppUpiRoute
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
@@ -515,6 +524,7 @@ export interface FileRoutesById {
   '/_authenticated/app/scan': typeof AuthenticatedAppScanRoute
   '/_authenticated/app/study': typeof AuthenticatedAppStudyRoute
   '/_authenticated/app/travel': typeof AuthenticatedAppTravelRoute
+  '/_authenticated/app/university': typeof AuthenticatedAppUniversityRoute
   '/_authenticated/app/upi': typeof AuthenticatedAppUpiRoute
   '/_authenticated/app/vitals': typeof AuthenticatedAppVitalsRoute
   '/_authenticated/app/weather': typeof AuthenticatedAppWeatherRoute
@@ -574,6 +584,7 @@ export interface FileRouteTypes {
     | '/app/scan'
     | '/app/study'
     | '/app/travel'
+    | '/app/university'
     | '/app/upi'
     | '/app/vitals'
     | '/app/weather'
@@ -629,6 +640,7 @@ export interface FileRouteTypes {
     | '/app/scan'
     | '/app/study'
     | '/app/travel'
+    | '/app/university'
     | '/app/upi'
     | '/app/vitals'
     | '/app/weather'
@@ -687,6 +699,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/scan'
     | '/_authenticated/app/study'
     | '/_authenticated/app/travel'
+    | '/_authenticated/app/university'
     | '/_authenticated/app/upi'
     | '/_authenticated/app/vitals'
     | '/_authenticated/app/weather'
@@ -893,6 +906,13 @@ declare module '@tanstack/react-router' {
       path: '/upi'
       fullPath: '/app/upi'
       preLoaderRoute: typeof AuthenticatedAppUpiRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/university': {
+      id: '/_authenticated/app/university'
+      path: '/university'
+      fullPath: '/app/university'
+      preLoaderRoute: typeof AuthenticatedAppUniversityRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/travel': {
@@ -1170,6 +1190,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppScanRoute: typeof AuthenticatedAppScanRoute
   AuthenticatedAppStudyRoute: typeof AuthenticatedAppStudyRoute
   AuthenticatedAppTravelRoute: typeof AuthenticatedAppTravelRoute
+  AuthenticatedAppUniversityRoute: typeof AuthenticatedAppUniversityRoute
   AuthenticatedAppUpiRoute: typeof AuthenticatedAppUpiRoute
   AuthenticatedAppVitalsRoute: typeof AuthenticatedAppVitalsRoute
   AuthenticatedAppWeatherRoute: typeof AuthenticatedAppWeatherRoute
@@ -1200,6 +1221,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppScanRoute: AuthenticatedAppScanRoute,
   AuthenticatedAppStudyRoute: AuthenticatedAppStudyRoute,
   AuthenticatedAppTravelRoute: AuthenticatedAppTravelRoute,
+  AuthenticatedAppUniversityRoute: AuthenticatedAppUniversityRoute,
   AuthenticatedAppUpiRoute: AuthenticatedAppUpiRoute,
   AuthenticatedAppVitalsRoute: AuthenticatedAppVitalsRoute,
   AuthenticatedAppWeatherRoute: AuthenticatedAppWeatherRoute,
