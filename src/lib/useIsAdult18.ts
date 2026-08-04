@@ -13,13 +13,18 @@ export function useIsAdult18(): boolean {
   const { data } = useQuery({
     queryKey: ["is-adult-18"],
     queryFn: async () => {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) return false;
-      const { data, error } = await supabase.rpc("is_adult_18" as never, {
-        _uid: auth.user.id,
-      } as never);
-      if (error) return false;
-      return data === true;
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        if (!auth.user) return false;
+        const { data, error } = await supabase.rpc("is_adult_18" as never, {
+          _uid: auth.user.id,
+        } as never);
+        if (error) return false;
+        return data === true;
+      } catch {
+        // Any failure (no session, offline, RPC missing) fails closed.
+        return false;
+      }
     },
     staleTime: 60_000,
   });
