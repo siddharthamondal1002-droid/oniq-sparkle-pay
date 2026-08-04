@@ -250,6 +250,10 @@ function CvWorkbench({
   const [previewing, setPreviewing] = useState(false);
   // Drag-to-reorder section sequence; drives both the preview and the PDF.
   const [sectionOrder, setSectionOrder] = useState<CvSectionKey[]>([...CV_SECTION_ORDER_DEFAULT]);
+  // Layout style for the exported PDF and the live preview. Templates change
+  // decoration only — pagination is identical across them.
+  const [template, setTemplate] = useState<CvTemplateId>(CV_TEMPLATE_DEFAULT);
+
 
   useEffect(() => {
     setGenerated(null);
