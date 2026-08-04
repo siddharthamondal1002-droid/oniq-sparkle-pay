@@ -148,7 +148,8 @@ export function declaredFactsBlock(d: CvDeclared, country: Country): string {
 
 export type ScreenResult = { allowed: true } | { allowed: false; reason: string };
 
-const ADD_VERBS = /\b(add|include|put|insert|invent|make up|say i (have|had|worked)|claim|pretend)\b/i;
+const ADD_VERBS =
+  /\b(add|include|put|insert|invent|make up|say i (have|had|worked)|claim|pretend)\b/i;
 const CREDENTIAL_WORDS =
   /\b(degree|bachelor'?s?|master'?s?|mba|phd|doctorate|b\.?tech|m\.?tech|diploma|certification|certificate|licen[cs]e)\b/i;
 const EMPLOYER_WORDS = /\b(at|for|with)\s+[A-Z][\w&.\- ]{1,40}/;
@@ -165,7 +166,9 @@ export function screenInstruction(instruction: string, declared: CvDeclared): Sc
   const asksToAdd = ADD_VERBS.test(text);
 
   if (asksToAdd && CREDENTIAL_WORDS.test(text)) {
-    const known = declared.credentials.some((c) => mentions(text, c.name) || mentions(text, c.issuer));
+    const known = declared.credentials.some(
+      (c) => mentions(text, c.name) || mentions(text, c.issuer),
+    );
     if (!known) {
       return {
         allowed: false,
@@ -279,7 +282,9 @@ export function validateGenerated(
   const norm = (s: string) => (s ?? "").trim().toLowerCase();
   const employers = new Set(declared.roles.map((r) => norm(r.employer)));
   const titles = new Set(declared.roles.map((r) => norm(r.title)));
-  const dates = new Set(declared.roles.flatMap((r) => [norm(r.start), norm(r.end)]).filter(Boolean));
+  const dates = new Set(
+    declared.roles.flatMap((r) => [norm(r.start), norm(r.end)]).filter(Boolean),
+  );
   const creds = new Set(declared.credentials.map((c) => norm(c.name)));
 
   for (const r of generated.roles ?? []) {
@@ -291,7 +296,11 @@ export function validateGenerated(
       });
     }
     if (r.title && !titles.has(norm(r.title))) {
-      flags.push({ kind: "title", value: r.title, message: `The job title "${r.title}" is not one you entered.` });
+      flags.push({
+        kind: "title",
+        value: r.title,
+        message: `The job title "${r.title}" is not one you entered.`,
+      });
     }
     for (const d of [r.start, r.end]) {
       if (d && !dates.has(norm(d))) {
@@ -337,7 +346,10 @@ export function validateGenerated(
 }
 
 /** Strips locally-forbidden personal fields before the document is produced. */
-export function applyCountryRules<T extends { personal?: CvPersonal }>(doc: T, country: Country): T {
+export function applyCountryRules<T extends { personal?: CvPersonal }>(
+  doc: T,
+  country: Country,
+): T {
   const excluded = new Set(excludedFields(country));
   const personal: CvPersonal = {};
   for (const [k, v] of Object.entries(doc.personal ?? {})) {
@@ -366,7 +378,8 @@ const HAS_LETTER = /\p{L}/u;
 export function validateQualification(raw: string): string | null {
   const v = raw.trim();
   if (!v) return null;
-  if (v.length < 2) return "Too short — write the qualification out, e.g. Class 12 or B.Sc Physics.";
+  if (v.length < 2)
+    return "Too short — write the qualification out, e.g. Class 12 or B.Sc Physics.";
   if (v.length > 120) return "Keep this under 120 characters — put detail in the summary instead.";
   if (!HAS_LETTER.test(v)) return "This needs the name of the qualification, not just numbers.";
   if (URLISH.test(v)) return "Links and email addresses don't belong here.";
