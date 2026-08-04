@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -11,6 +11,7 @@ import {
   Check,
   FileText,
   Flag,
+  GripVertical,
   Plus,
   Sparkles,
   X,
