@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   Briefcase,
   Check,
+  Download,
   FileText,
   Flag,
   Plus,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { isShareCancelled } from "@/lib/saveFile";
 import { COUNTRIES, useCountry } from "@/lib/country";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { tileName } from "@/lib/i18n/tileLabel";
@@ -232,6 +234,7 @@ function CvWorkbench({
   const [flags, setFlags] = useState<ValidationFlag[]>([]);
   const [attested, setAttested] = useState(false);
   const [cvId, setCvId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     setGenerated(null);
