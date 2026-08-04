@@ -22,15 +22,17 @@ export default defineTool({
     const supabase = supabaseForUser(ctx);
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, username, display_name, bio, country_code, avatar_url")
+      .select("id, username, display_name, bio, avatar_url")
       .eq("id", ctx.getUserId())
       .maybeSingle();
     if (error) {
       return { content: [{ type: "text", text: error.message }], isError: true };
     }
+    const { data: meta } = await supabase.rpc("get_my_profile_meta").maybeSingle();
+    const profile = data ? { ...data, country_code: meta?.country_code ?? null } : null;
     return {
-      content: [{ type: "text", text: JSON.stringify(data) }],
-      structuredContent: { profile: data },
+      content: [{ type: "text", text: JSON.stringify(profile) }],
+      structuredContent: { profile },
     };
   },
 });
