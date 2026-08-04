@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 
 import { CvPaper } from "@/components/cv/CvPaper";
+import { SkillChips } from "@/components/cv/SkillChips";
 import { supabase } from "@/integrations/supabase/client";
 import { CvPdfPreviewDialog } from "@/components/cv/CvPdfPreviewDialog";
 import { COUNTRIES, useCountry } from "@/lib/country";
@@ -688,14 +689,17 @@ function CvWorkbench({
               })
             }
           />
-          {clean.skills.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {clean.skills.map((s) => (
-                <span key={s} className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/70">
-                  {s}
-                </span>
-              ))}
-            </div>
+          {declared.skills.length > 0 && (
+            <>
+              <p className="mt-3 text-[11px] text-white/40">
+                Drag a chip (or focus it and press ← / →) to set priority order — the first ones
+                land first on your {cvWord}.
+              </p>
+              <SkillChips
+                skills={declared.skills}
+                onChange={(skills) => setDeclared({ ...declared, skills })}
+              />
+            </>
           )}
         </section>
       )}
