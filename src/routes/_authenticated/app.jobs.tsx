@@ -964,6 +964,7 @@ function CvWorkbench({
             <CvPdfPreviewDialog
               declared={cleanDeclared(declared)}
               cv={generated}
+              order={sectionOrder}
               onClose={() => setPreviewing(false)}
             />
           )}
@@ -1083,7 +1084,15 @@ function Field({
  * Live, un-AI'd preview of the CV as it is typed. Purely presentational: it
  * reads the cleaned declared facts, so blank rows never appear.
  */
-function CvLivePreview({ declared, cvWord }: { declared: CvDeclared; cvWord: string }) {
+function CvLivePreview({
+  declared,
+  cvWord,
+  order,
+}: {
+  declared: CvDeclared;
+  cvWord: string;
+  order?: readonly CvSectionKey[];
+}) {
   const contact = [declared.email, declared.phone, declared.location].filter(Boolean);
   const empty =
     !declared.fullName &&
