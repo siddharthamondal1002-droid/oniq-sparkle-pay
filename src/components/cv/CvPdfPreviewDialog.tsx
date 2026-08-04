@@ -50,7 +50,9 @@ export function CvPdfPreviewDialog({
   const [built, setBuilt] = useState<Built | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
-  const [busy, setBusy] = useState<null | "download" | "share">(null);
+  const [busy, setBusy] = useState<null | "download" | "share" | "print">(null);
+  // Hidden iframe used to hand the PDF to the browser's print dialog.
+  const printFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [shareSubject, setShareSubject] = useState("");
   const [shareText, setShareText] = useState("");
   const [editingMessage, setEditingMessage] = useState(false);
