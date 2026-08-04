@@ -1114,10 +1114,28 @@ function CvLivePreview({
           and the rest.
         </p>
       ) : (
-        <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-white">
+        <>
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <p className="text-[11px] text-white/40">
+              Dashed lines show where the PDF splits onto the next page.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowBreaks((v) => !v)}
+              aria-pressed={showBreaks}
+              className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-semibold ${
+                showBreaks ? "bg-[#00D4B8] text-black" : "bg-white/10 text-white/70"
+              }`}
+            >
+              Page breaks
+            </button>
+          </div>
+          <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-white">
           <CvPaper
             order={order}
+            pageBreaks={showBreaks}
             declared={declared}
+
             cv={{
               summary: declared.summary,
               roles: declared.roles.map((r) => ({
