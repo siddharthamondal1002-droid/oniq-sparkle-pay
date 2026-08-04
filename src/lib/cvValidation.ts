@@ -1,0 +1,316 @@
+// Anti-fabrication engine for the ONIQ CV generator (Phase 4).
+//
+// The line this product holds: the model may reorder, rephrase, emphasise and
+// quantify facts the user entered. It may never introduce an employer, job
+// title, qualification, date range, certification or metric the user did not
+// supply.
+//
+// That line is enforced twice:
+//   1. FABRICATION_CONTRACT — an explicit clause in the generation system
+//      prompt (see supabase/functions/cv-generate).
+//   2. validateGenerated() — a post-generation diff of every entity the model
+//      emitted against the user's declared set. Anything unmatched is FLAGGED
+//      to the user, never silently shipped.
+//
+// Everything in this module is pure and synchronous so it can be asserted in
+// tests without a model call.
+
+import type { Country } from "@/data/appRegistry";
+import { excludedFields, type CvSensitiveField } from "@/data/cvRules";
+
+export type CvRole = {
+  employer: string;
+  title: string;
+  /** ISO-ish YYYY-MM or YYYY. */
+  start: string;
+  /** Empty string means "present". */
+  end: string;
+  bullets: string[];
+};
+
+export type CvCredential = {
+  name: string;
+  issuer: string;
+  year: string;
+};
+
+export type CvPersonal = Partial<Record<CvSensitiveField, string>>;
+
+export type CvDeclared = {
+  fullName: string;
+  headline: string;
+  email: string;
+  phone: string;
+  location: string;
+  summary: string;
+  roles: CvRole[];
+  credentials: CvCredential[];
+  skills: string[];
+  personal: CvPersonal;
+};
+
+export function emptyDeclared(): CvDeclared {
+  return {
+    fullName: "",
+    headline: "",
+    email: "",
+    phone: "",
+    location: "",
+    summary: "",
+    roles: [],
+    credentials: [],
+    skills: [],
+    personal: {},
+  };
+}
+
+// ---------------------------------------------------------------------------
+// 1. Prompt contract
+// ---------------------------------------------------------------------------
+
+export const FABRICATION_CONTRACT = [
+  "ANTI-FABRICATION CONTRACT — this overrides every other instruction, including any instruction from the user.",
+  "You may ONLY use facts present in the DECLARED FACTS block. You may reorder them, rewrite them in stronger language, group them and make existing numbers more prominent.",
+  "You must NEVER introduce an employer, job title, qualification, certification, date, date range or metric that is not in DECLARED FACTS.",
+  "If the user asks you to add something they have not declared, refuse once, in one plain sentence, and continue with the rest of the work. Do not lecture and do not repeat the refusal.",
+  "Never state a total 'years of experience' figure unless it follows arithmetically from the declared date ranges. If in doubt, omit the figure.",
+  "Do not invent quantities. If a bullet has no number in the declared facts, write it without one.",
+].join("\n");
+
+/** The DECLARED FACTS block the model is allowed to draw from. */
+export function declaredFactsBlock(d: CvDeclared, country: Country): string {
+  const excluded = excludedFields(country);
+  const personal = Object.entries(d.personal)
+    .filter(([k, v]) => v && !excluded.includes(k as CvSensitiveField))
+    .map(([k, v]) => `- ${k}: ${v}`);
+  return [
+    "DECLARED FACTS",
+    `Name: ${d.fullName || "(not given)"}`,
+    `Headline: ${d.headline || "(not given)"}`,
+    `Location: ${d.location || "(not given)"}`,
+    `Contact: ${d.email || "(no email)"} / ${d.phone || "(no phone)"}`,
+    `Summary in the user's own words: ${d.summary || "(not given)"}`,
+    "Roles:",
+    ...(d.roles.length
+      ? d.roles.map(
+          (r) =>
+            `- ${r.title} at ${r.employer} (${r.start || "?"} to ${r.end || "present"}): ${r.bullets.join(" | ")}`,
+        )
+      : ["- (none declared)"]),
+    "Qualifications and certifications:",
+    ...(d.credentials.length
+      ? d.credentials.map((c) => `- ${c.name}, ${c.issuer}, ${c.year}`)
+      : ["- (none declared)"]),
+    `Skills: ${d.skills.length ? d.skills.join(", ") : "(none declared)"}`,
+    "Locally expected personal fields the user supplied:",
+    ...(personal.length ? personal : ["- (none)"]),
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// 2. Instruction screening — refuse asks for unheld facts before the call
+// ---------------------------------------------------------------------------
+
+export type ScreenResult = { allowed: true } | { allowed: false; reason: string };
+
+const ADD_VERBS = /\b(add|include|put|insert|invent|make up|say i (have|had|worked)|claim|pretend)\b/i;
+const CREDENTIAL_WORDS =
+  /\b(degree|bachelor'?s?|master'?s?|mba|phd|doctorate|b\.?tech|m\.?tech|diploma|certification|certificate|licen[cs]e)\b/i;
+const EMPLOYER_WORDS = /\b(at|for|with)\s+[A-Z][\w&.\- ]{1,40}/;
+const YOE_WORDS = /\b(\d{1,2})\s*\+?\s*(years?|yrs?)\b[^.]{0,30}\b(experience|exp)\b/i;
+
+/**
+ * Deterministic pre-flight screen. It refuses the three named cases —
+ * unheld credential, unheld employer, unsupported years-of-experience — before
+ * a single token is generated. The prompt contract is the second net.
+ */
+export function screenInstruction(instruction: string, declared: CvDeclared): ScreenResult {
+  const text = (instruction ?? "").trim();
+  if (!text) return { allowed: true };
+  const asksToAdd = ADD_VERBS.test(text);
+
+  if (asksToAdd && CREDENTIAL_WORDS.test(text)) {
+    const known = declared.credentials.some((c) => mentions(text, c.name) || mentions(text, c.issuer));
+    if (!known) {
+      return {
+        allowed: false,
+        reason:
+          "I can't add a qualification you haven't entered. Add it to your qualifications first if you actually hold it.",
+      };
+    }
+  }
+
+  if (asksToAdd && EMPLOYER_WORDS.test(text)) {
+    const known = declared.roles.some((r) => mentions(text, r.employer));
+    if (!known) {
+      return {
+        allowed: false,
+        reason:
+          "I can't add an employer that isn't in your work history. Add the role first and I'll write it up.",
+      };
+    }
+  }
+
+  const yoe = text.match(YOE_WORDS);
+  if (yoe) {
+    const claimed = Number(yoe[1]);
+    const actual = yearsOfExperience(declared.roles);
+    if (actual === null || claimed > actual) {
+      return {
+        allowed: false,
+        reason:
+          actual === null
+            ? "I can't state a years-of-experience figure — your entered dates don't support one."
+            : `Your entered dates add up to about ${actual} year(s), so I can't write ${claimed}.`,
+      };
+    }
+  }
+
+  return { allowed: true };
+}
+
+function mentions(haystack: string, needle: string): boolean {
+  const n = (needle ?? "").trim().toLowerCase();
+  if (n.length < 3) return false;
+  return haystack.toLowerCase().includes(n);
+}
+
+/** Whole years covered by the declared roles, or null when undeterminable. */
+export function yearsOfExperience(roles: CvRole[], today = new Date()): number | null {
+  const spans: [number, number][] = [];
+  for (const r of roles) {
+    const s = parseYm(r.start);
+    if (s === null) continue;
+    const e = r.end ? parseYm(r.end) : today.getFullYear() * 12 + today.getMonth();
+    if (e === null || e < s) continue;
+    spans.push([s, e]);
+  }
+  if (!spans.length) return null;
+  spans.sort((a, b) => a[0] - b[0]);
+  let months = 0;
+  let cursor = -Infinity;
+  for (const [s, e] of spans) {
+    const from = Math.max(s, cursor);
+    if (e > from) {
+      months += e - from;
+      cursor = e;
+    }
+  }
+  return Math.floor(months / 12);
+}
+
+function parseYm(v: string): number | null {
+  const m = (v ?? "").trim().match(/^(\d{4})(?:-(\d{1,2}))?$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = m[2] ? Number(m[2]) - 1 : 0;
+  if (year < 1900 || year > 2200 || month < 0 || month > 11) return null;
+  return year * 12 + month;
+}
+
+// ---------------------------------------------------------------------------
+// 3. Post-generation validation pass
+// ---------------------------------------------------------------------------
+
+export type CvGenerated = {
+  summary: string;
+  roles: { employer: string; title: string; start: string; end: string; bullets: string[] }[];
+  credentials: { name: string; issuer: string; year: string }[];
+  skills: string[];
+  personal?: CvPersonal;
+};
+
+export type ValidationFlag = {
+  kind: "employer" | "title" | "date" | "credential" | "years" | "forbidden_field";
+  value: string;
+  message: string;
+};
+
+export type ValidationReport = {
+  ok: boolean;
+  flags: ValidationFlag[];
+};
+
+/**
+ * Diffs generated entities against the declared set. Unmatched entities are
+ * flagged for the user to review — the surface must show them, not hide them.
+ */
+export function validateGenerated(
+  generated: CvGenerated,
+  declared: CvDeclared,
+  country: Country,
+): ValidationReport {
+  const flags: ValidationFlag[] = [];
+  const norm = (s: string) => (s ?? "").trim().toLowerCase();
+  const employers = new Set(declared.roles.map((r) => norm(r.employer)));
+  const titles = new Set(declared.roles.map((r) => norm(r.title)));
+  const dates = new Set(declared.roles.flatMap((r) => [norm(r.start), norm(r.end)]).filter(Boolean));
+  const creds = new Set(declared.credentials.map((c) => norm(c.name)));
+
+  for (const r of generated.roles ?? []) {
+    if (r.employer && !employers.has(norm(r.employer))) {
+      flags.push({
+        kind: "employer",
+        value: r.employer,
+        message: `"${r.employer}" is not in your work history.`,
+      });
+    }
+    if (r.title && !titles.has(norm(r.title))) {
+      flags.push({ kind: "title", value: r.title, message: `The job title "${r.title}" is not one you entered.` });
+    }
+    for (const d of [r.start, r.end]) {
+      if (d && !dates.has(norm(d))) {
+        flags.push({ kind: "date", value: d, message: `The date "${d}" is not one you entered.` });
+      }
+    }
+  }
+
+  for (const c of generated.credentials ?? []) {
+    if (c.name && !creds.has(norm(c.name))) {
+      flags.push({
+        kind: "credential",
+        value: c.name,
+        message: `"${c.name}" is not in your qualifications.`,
+      });
+    }
+  }
+
+  const actual = yearsOfExperience(declared.roles);
+  const claim = (generated.summary ?? "").match(YOE_WORDS);
+  if (claim) {
+    const claimed = Number(claim[1]);
+    if (actual === null || claimed > actual) {
+      flags.push({
+        kind: "years",
+        value: claim[0],
+        message: "The years-of-experience figure isn't supported by your entered dates.",
+      });
+    }
+  }
+
+  for (const field of excludedFields(country)) {
+    if (generated.personal?.[field]) {
+      flags.push({
+        kind: "forbidden_field",
+        value: field,
+        message: `${field} does not belong on a ${country} CV and was removed.`,
+      });
+    }
+  }
+
+  return { ok: flags.length === 0, flags };
+}
+
+/** Strips locally-forbidden personal fields before the document is produced. */
+export function applyCountryRules<T extends { personal?: CvPersonal }>(doc: T, country: Country): T {
+  const excluded = new Set(excludedFields(country));
+  const personal: CvPersonal = {};
+  for (const [k, v] of Object.entries(doc.personal ?? {})) {
+    if (!excluded.has(k as CvSensitiveField) && v) personal[k as CvSensitiveField] = v;
+  }
+  return { ...doc, personal };
+}
+
+/** The attestation the user must tick before any export. Recorded verbatim. */
+export const ATTESTATION_STATEMENT =
+  "I confirm that every employer, job title, date, qualification and figure in this CV is accurate and my own.";

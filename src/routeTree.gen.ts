@@ -43,6 +43,7 @@ import { Route as AuthenticatedAppOfficialRouteImport } from './routes/_authenti
 import { Route as AuthenticatedAppNewsRouteImport } from './routes/_authenticated/app.news'
 import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenticated/app.miniapps'
 import { Route as AuthenticatedAppLearnRouteImport } from './routes/_authenticated/app.learn'
+import { Route as AuthenticatedAppJobsRouteImport } from './routes/_authenticated/app.jobs'
 import { Route as AuthenticatedAppFaithRouteImport } from './routes/_authenticated/app.faith'
 import { Route as AuthenticatedAppEarnRouteImport } from './routes/_authenticated/app.earn'
 import { Route as AuthenticatedAppClipsRouteImport } from './routes/_authenticated/app.clips'
@@ -242,6 +243,11 @@ const AuthenticatedAppLearnRoute = AuthenticatedAppLearnRouteImport.update({
   path: '/learn',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppJobsRoute = AuthenticatedAppJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
 const AuthenticatedAppFaithRoute = AuthenticatedAppFaithRouteImport.update({
   id: '/faith',
   path: '/faith',
@@ -398,6 +404,7 @@ export interface FileRoutesByFullPath {
   '/app/clips': typeof AuthenticatedAppClipsRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
   '/app/faith': typeof AuthenticatedAppFaithRoute
+  '/app/jobs': typeof AuthenticatedAppJobsRoute
   '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/news': typeof AuthenticatedAppNewsRoute
@@ -454,6 +461,7 @@ export interface FileRoutesByTo {
   '/app/clips': typeof AuthenticatedAppClipsRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
   '/app/faith': typeof AuthenticatedAppFaithRoute
+  '/app/jobs': typeof AuthenticatedAppJobsRoute
   '/app/learn': typeof AuthenticatedAppLearnRoute
   '/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/app/news': typeof AuthenticatedAppNewsRoute
@@ -514,6 +522,7 @@ export interface FileRoutesById {
   '/_authenticated/app/clips': typeof AuthenticatedAppClipsRoute
   '/_authenticated/app/earn': typeof AuthenticatedAppEarnRoute
   '/_authenticated/app/faith': typeof AuthenticatedAppFaithRoute
+  '/_authenticated/app/jobs': typeof AuthenticatedAppJobsRoute
   '/_authenticated/app/learn': typeof AuthenticatedAppLearnRoute
   '/_authenticated/app/miniapps': typeof AuthenticatedAppMiniappsRoute
   '/_authenticated/app/news': typeof AuthenticatedAppNewsRoute
@@ -574,6 +583,7 @@ export interface FileRouteTypes {
     | '/app/clips'
     | '/app/earn'
     | '/app/faith'
+    | '/app/jobs'
     | '/app/learn'
     | '/app/miniapps'
     | '/app/news'
@@ -630,6 +640,7 @@ export interface FileRouteTypes {
     | '/app/clips'
     | '/app/earn'
     | '/app/faith'
+    | '/app/jobs'
     | '/app/learn'
     | '/app/miniapps'
     | '/app/news'
@@ -689,6 +700,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/clips'
     | '/_authenticated/app/earn'
     | '/_authenticated/app/faith'
+    | '/_authenticated/app/jobs'
     | '/_authenticated/app/learn'
     | '/_authenticated/app/miniapps'
     | '/_authenticated/app/news'
@@ -985,6 +997,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppLearnRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/jobs': {
+      id: '/_authenticated/app/jobs'
+      path: '/jobs'
+      fullPath: '/app/jobs'
+      preLoaderRoute: typeof AuthenticatedAppJobsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/faith': {
       id: '/_authenticated/app/faith'
       path: '/faith'
@@ -1180,6 +1199,7 @@ interface AuthenticatedAppRouteChildren {
   AuthenticatedAppClipsRoute: typeof AuthenticatedAppClipsRoute
   AuthenticatedAppEarnRoute: typeof AuthenticatedAppEarnRoute
   AuthenticatedAppFaithRoute: typeof AuthenticatedAppFaithRoute
+  AuthenticatedAppJobsRoute: typeof AuthenticatedAppJobsRoute
   AuthenticatedAppLearnRoute: typeof AuthenticatedAppLearnRoute
   AuthenticatedAppMiniappsRoute: typeof AuthenticatedAppMiniappsRoute
   AuthenticatedAppNewsRoute: typeof AuthenticatedAppNewsRoute
@@ -1211,6 +1231,7 @@ const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppClipsRoute: AuthenticatedAppClipsRoute,
   AuthenticatedAppEarnRoute: AuthenticatedAppEarnRoute,
   AuthenticatedAppFaithRoute: AuthenticatedAppFaithRoute,
+  AuthenticatedAppJobsRoute: AuthenticatedAppJobsRoute,
   AuthenticatedAppLearnRoute: AuthenticatedAppLearnRoute,
   AuthenticatedAppMiniappsRoute: AuthenticatedAppMiniappsRoute,
   AuthenticatedAppNewsRoute: AuthenticatedAppNewsRoute,
