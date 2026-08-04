@@ -54,6 +54,11 @@ import {
   applyCountryRules,
   declaredFactsBlock,
   emptyDeclared,
+  normalizeIssuer,
+  normalizeQualification,
+  normalizeSkills,
+  normalizeYear,
+
   screenInstruction,
   validateGenerated,
   validateIssuer,
