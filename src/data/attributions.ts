@@ -159,7 +159,7 @@ export const ATTRIBUTIONS: Attribution[] = [
     ],
     sourceUrl: "https://ror.org/",
     notes:
-      "No attribution is legally required for the registry data. ROR asks to be cited as a courtesy, and this credit is that courtesy — not a licence condition.",
+      "No attribution is legally required for the registry data. ROR asks to be cited as a courtesy, and this credit is that courtesy — not a licence condition. ROR is not currently the source of any shipped institution row; only individually verified ROR IDs are recorded.",
   },
   {
     id: "wikidata",
