@@ -645,7 +645,9 @@ function CvWorkbench({
                 hint="4-digit year, or a range like 2020-2024. Use 'present' if ongoing."
                 value={c.year}
                 error={credErrors[i]?.year ?? null}
+                normalize={normalizeYear}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { year: v })}
+
               />
 
               <button
