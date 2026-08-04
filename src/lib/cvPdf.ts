@@ -32,7 +32,11 @@ export function cvFilename(fullName: string): string {
   return `${slug}-cv-${new Date().toISOString().slice(0, 10)}.pdf`;
 }
 
-export async function buildCvPdf(declaredIn: CvDeclared, cvIn: CvGenerated) {
+export async function buildCvPdf(
+  declaredIn: CvDeclared,
+  cvIn: CvGenerated,
+  order?: readonly CvSectionKey[],
+) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
 
