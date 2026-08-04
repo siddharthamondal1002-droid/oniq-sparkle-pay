@@ -6,8 +6,10 @@ import {
   ArrowLeft,
   BadgeCheck,
   Briefcase,
+  Check,
   FileText,
   Flag,
+  Plus,
   Sparkles,
   X,
 } from "lucide-react";
@@ -93,9 +95,12 @@ function JobsScreen() {
     queryFn: async () => {
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) return false;
-      const { data, error } = await supabase.rpc("is_adult_18" as never, {
-        _uid: auth.user.id,
-      } as never);
+      const { data, error } = await supabase.rpc(
+        "is_adult_18" as never,
+        {
+          _uid: auth.user.id,
+        } as never,
+      );
       if (error) return false;
       return data === true;
     },
@@ -137,7 +142,12 @@ function JobsScreen() {
           }}
         />
       ) : (
-        <CvWorkbench target={target} setTarget={setTarget} rulesKey={rules.country} />
+        <CvWorkbench
+          target={target}
+          setTarget={setTarget}
+          rulesKey={rules.country}
+          cvWord={cvWord}
+        />
       )}
     </div>
   );
@@ -152,8 +162,8 @@ function AgeGateCard({ hasDob, onSaved }: { hasDob: boolean; onSaved: () => void
     <div className="mx-4 mt-6 rounded-2xl border border-white/10 bg-[#16181E] p-4">
       <h2 className="text-base font-semibold">The CV tools are for 18 and over</h2>
       <p className="mt-2 text-sm leading-relaxed text-white/60">
-        Job tools process career data and push opportunities, so we hold them to 18 everywhere —
-        not to the lower digital-consent age some countries use.
+        Job tools process career data and push opportunities, so we hold them to 18 everywhere — not
+        to the lower digital-consent age some countries use.
       </p>
       {hasDob ? (
         <p className="mt-3 text-sm text-white/50">
@@ -196,15 +206,20 @@ function AgeGateCard({ hasDob, onSaved }: { hasDob: boolean; onSaved: () => void
   );
 }
 
+type TabKey = "basics" | "education" | "work" | "skills" | "rules";
+
 function CvWorkbench({
   target,
   setTarget,
+  cvWord,
 }: {
   target: Country;
   setTarget: (c: Country) => void;
   rulesKey: Country;
+  cvWord: string;
 }) {
   const rules = cvRulesFor(target);
+  const [tab, setTab] = useState<TabKey>("basics");
   const [declared, setDeclared] = useState<CvDeclared>(() => ({
     ...emptyDeclared(),
     roles: [{ employer: "", title: "", start: "", end: "", bullets: [] }],
@@ -226,9 +241,20 @@ function CvWorkbench({
 
   const years = yearsOfExperience(declared.roles);
   const prompted = promptedFields(target);
+  // Work with whatever the user gave us: blank rows are dropped, never demanded.
+  const clean = useMemo(() => cleanDeclared(declared), [declared]);
+  const hasAnything =
+    Boolean(clean.fullName || clean.headline || clean.summary) ||
+    clean.roles.length > 0 ||
+    clean.credentials.length > 0 ||
+    clean.skills.length > 0;
 
   async function generate() {
-    const screen = screenInstruction(instruction, declared);
+    if (!hasAnything) {
+      toast.error("Add at least one thing — a name, a skill, a course or a role.");
+      return;
+    }
+    const screen = screenInstruction(instruction, clean);
     if (!screen.allowed) {
       toast.error(screen.reason);
       setRefusals([screen.reason]);
@@ -238,9 +264,11 @@ function CvWorkbench({
     try {
       const { data, error } = await supabase.functions.invoke("cv-generate", {
         body: {
-          declaredFacts: declaredFactsBlock(declared, target),
+          declaredFacts: declaredFactsBlock(clean, target),
           countryContract: countryPromptContract(target),
-          instruction,
+          instruction:
+            (instruction.trim() ? instruction.trim() + "\n\n" : "") +
+            "Work with whatever facts are present. Skip any section the user left empty instead of asking for more.",
         },
       });
       if (error) throw error;
@@ -314,6 +342,14 @@ function CvWorkbench({
     }
   }
 
+  const tabs: { key: TabKey; label: string; done: boolean }[] = [
+    { key: "basics", label: "About you", done: Boolean(clean.fullName || clean.headline) },
+    { key: "education", label: "Qualifications", done: clean.credentials.length > 0 },
+    { key: "work", label: "Work", done: clean.roles.length > 0 },
+    { key: "skills", label: "Skills", done: clean.skills.length > 0 },
+    { key: "rules", label: `${target} rules`, done: true },
+  ];
+
   return (
     <div className="space-y-4 px-4 pt-5">
       {/* Country */}
@@ -333,166 +369,331 @@ function CvWorkbench({
             </button>
           ))}
         </div>
-        <p className="mt-3 text-xs leading-relaxed text-white/50">{rules.length.note}</p>
-        <p className="mt-2 text-xs leading-relaxed text-white/50">{rules.referencesNote}</p>
-        {rules.context.map((c) => (
-          <p key={c} className="mt-2 text-xs leading-relaxed text-amber-200/80">
-            {c}
-          </p>
-        ))}
+        <p className="mt-3 text-xs leading-relaxed text-white/50">
+          Fill in whatever you have. Every tab is optional — we write the CV from what you give us.
+        </p>
       </section>
 
-      {/* Your facts */}
-      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-        <h2 className="text-sm font-semibold">Your details</h2>
-        <div className="mt-3 grid gap-2">
-          <Field label="Full name" value={declared.fullName} onChange={(v) => setDeclared({ ...declared, fullName: v })} />
-          <Field label="Headline" value={declared.headline} onChange={(v) => setDeclared({ ...declared, headline: v })} />
-          <Field label="Email" value={declared.email} onChange={(v) => setDeclared({ ...declared, email: v })} />
-          <Field label="Phone" value={declared.phone} onChange={(v) => setDeclared({ ...declared, phone: v })} />
-          <Field label="Location" value={declared.location} onChange={(v) => setDeclared({ ...declared, location: v })} />
+      {/* Tabs */}
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        {tabs.map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => setTab(t.key)}
+            className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium ${
+              tab === t.key ? "bg-[#00D4B8] text-black" : "bg-white/5 text-white/70"
+            }`}
+          >
+            {t.label}
+            {t.done && <Check className={`size-3.5 ${tab === t.key ? "" : "text-[#00D4B8]"}`} />}
+          </button>
+        ))}
+      </div>
+
+      {tab === "basics" && (
+        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+          <h2 className="text-sm font-semibold">About you</h2>
+          <div className="mt-3 grid gap-2">
+            <Field
+              label="Full name"
+              value={declared.fullName}
+              onChange={(v) => setDeclared({ ...declared, fullName: v })}
+            />
+            <Field
+              label="Headline (optional)"
+              placeholder="e.g. Final-year B.Com student"
+              value={declared.headline}
+              onChange={(v) => setDeclared({ ...declared, headline: v })}
+            />
+            <Field
+              label="Email"
+              value={declared.email}
+              onChange={(v) => setDeclared({ ...declared, email: v })}
+            />
+            <Field
+              label="Phone"
+              value={declared.phone}
+              onChange={(v) => setDeclared({ ...declared, phone: v })}
+            />
+            <Field
+              label="Location"
+              value={declared.location}
+              onChange={(v) => setDeclared({ ...declared, location: v })}
+            />
+            <Field
+              label="Summary in your own words (optional)"
+              value={declared.summary}
+              onChange={(v) => setDeclared({ ...declared, summary: v })}
+            />
+          </div>
+
+          {prompted.length > 0 && (
+            <div className="mt-4 border-t border-white/5 pt-3">
+              <h3 className="text-xs font-semibold text-white/70">
+                Usually expected on a {target} CV
+              </h3>
+              <div className="mt-2 grid gap-2">
+                {prompted.map((f) => (
+                  <div key={f}>
+                    <Field
+                      label={`${FIELD_LABEL[f]} (optional)`}
+                      value={declared.personal[f] ?? ""}
+                      onChange={(v) =>
+                        setDeclared({ ...declared, personal: { ...declared.personal, [f]: v } })
+                      }
+                    />
+                    <p className="px-1 pb-1 text-[11px] leading-relaxed text-white/40">
+                      {rules[f].note}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {tab === "education" && (
+        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+          <h2 className="text-sm font-semibold">Qualifications</h2>
+          <p className="mt-1 text-xs text-white/50">
+            Degree, diploma, board exam or certificate — add whatever you actually hold.
+          </p>
+          {declared.credentials.length === 0 && (
+            <p className="mt-3 text-xs text-white/40">
+              Nothing added yet. That's fine — you can skip this.
+            </p>
+          )}
+          {declared.credentials.map((c, i) => (
+            <div key={i} className="mt-3 rounded-xl border border-white/5 bg-black/20 p-3">
+              <Field
+                label="Qualification"
+                placeholder="e.g. Class 12, B.Sc Physics, AWS Cloud Practitioner"
+                value={c.name}
+                onChange={(v) => patchCredential(declared, setDeclared, i, { name: v })}
+              />
+              <Field
+                label="Board / university / issuer"
+                placeholder="e.g. CBSE, Delhi University, Amazon"
+                value={c.issuer}
+                onChange={(v) => patchCredential(declared, setDeclared, i, { issuer: v })}
+              />
+              <Field
+                label="Year"
+                placeholder="e.g. 2024"
+                value={c.year}
+                onChange={(v) => patchCredential(declared, setDeclared, i, { year: v })}
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setDeclared({
+                    ...declared,
+                    credentials: declared.credentials.filter((_, j) => j !== i),
+                  })
+                }
+                className="mt-2 rounded-full bg-white/5 px-3 py-1 text-[11px] text-white/60"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              setDeclared({
+                ...declared,
+                credentials: [...declared.credentials, { name: "", issuer: "", year: "" }],
+              })
+            }
+            className="mt-3 flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-xs"
+          >
+            <Plus className="size-3.5" /> Add a qualification
+          </button>
+        </section>
+      )}
+
+      {tab === "work" && (
+        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Work history</h2>
+            {years !== null && (
+              <span className="text-xs text-white/40">≈ {years} yr from your dates</span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-white/50">
+            No experience yet? Leave this empty — we'll write a fresher CV from your qualifications
+            and skills.
+          </p>
+          {declared.roles.map((r, i) => (
+            <div key={i} className="mt-3 rounded-xl border border-white/5 bg-black/20 p-3">
+              <Field
+                label="Employer"
+                value={r.employer}
+                onChange={(v) => patchRole(declared, setDeclared, i, { employer: v })}
+              />
+              <Field
+                label="Title"
+                value={r.title}
+                onChange={(v) => patchRole(declared, setDeclared, i, { title: v })}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <Field
+                  label="Start (YYYY-MM)"
+                  value={r.start}
+                  onChange={(v) => patchRole(declared, setDeclared, i, { start: v })}
+                />
+                <Field
+                  label="End (blank = present)"
+                  value={r.end}
+                  onChange={(v) => patchRole(declared, setDeclared, i, { end: v })}
+                />
+              </div>
+              <Field
+                label="What you did (one per line)"
+                value={r.bullets.join("\n")}
+                onChange={(v) =>
+                  patchRole(declared, setDeclared, i, { bullets: v.split("\n").filter(Boolean) })
+                }
+              />
+              <button
+                type="button"
+                onClick={() =>
+                  setDeclared({ ...declared, roles: declared.roles.filter((_, j) => j !== i) })
+                }
+                className="mt-2 rounded-full bg-white/5 px-3 py-1 text-[11px] text-white/60"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              setDeclared({
+                ...declared,
+                roles: [
+                  ...declared.roles,
+                  { employer: "", title: "", start: "", end: "", bullets: [] },
+                ],
+              })
+            }
+            className="mt-3 flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-xs"
+          >
+            <Plus className="size-3.5" /> Add a role
+          </button>
+        </section>
+      )}
+
+      {tab === "skills" && (
+        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+          <h2 className="text-sm font-semibold">Skills</h2>
           <Field
-            label="Summary in your own words"
-            value={declared.summary}
-            onChange={(v) => setDeclared({ ...declared, summary: v })}
-          />
-          <Field
-            label="Skills (comma separated)"
+            label="Comma separated"
+            placeholder="e.g. Excel, Tally, spoken English"
             value={declared.skills.join(", ")}
             onChange={(v) =>
-              setDeclared({ ...declared, skills: v.split(",").map((s) => s.trim()).filter(Boolean) })
+              setDeclared({
+                ...declared,
+                skills: v
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              })
             }
           />
-        </div>
-      </section>
-
-      {/* Roles */}
-      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Work history</h2>
-          {years !== null && <span className="text-xs text-white/40">≈ {years} yr from your dates</span>}
-        </div>
-        {declared.roles.map((r, i) => (
-          <div key={i} className="mt-3 rounded-xl border border-white/5 bg-black/20 p-3">
-            <Field
-              label="Employer"
-              value={r.employer}
-              onChange={(v) => patchRole(declared, setDeclared, i, { employer: v })}
-            />
-            <Field label="Title" value={r.title} onChange={(v) => patchRole(declared, setDeclared, i, { title: v })} />
-            <div className="grid grid-cols-2 gap-2">
-              <Field
-                label="Start (YYYY-MM)"
-                value={r.start}
-                onChange={(v) => patchRole(declared, setDeclared, i, { start: v })}
-              />
-              <Field
-                label="End (blank = present)"
-                value={r.end}
-                onChange={(v) => patchRole(declared, setDeclared, i, { end: v })}
-              />
+          {clean.skills.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {clean.skills.map((s) => (
+                <span key={s} className="rounded-full bg-white/5 px-3 py-1 text-xs text-white/70">
+                  {s}
+                </span>
+              ))}
             </div>
-            <Field
-              label="What you did (one per line)"
-              value={r.bullets.join("\n")}
-              onChange={(v) =>
-                patchRole(declared, setDeclared, i, { bullets: v.split("\n").filter(Boolean) })
-              }
-            />
-          </div>
-        ))}
-        <button
-          type="button"
-          onClick={() =>
-            setDeclared({
-              ...declared,
-              roles: [...declared.roles, { employer: "", title: "", start: "", end: "", bullets: [] }],
-            })
-          }
-          className="mt-3 rounded-full bg-white/5 px-3 py-1.5 text-xs"
-        >
-          Add a role
-        </button>
-      </section>
-
-      {/* Country-expected extras */}
-      {prompted.length > 0 && (
-        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-          <h2 className="text-sm font-semibold">Expected on a {target} CV</h2>
-          <div className="mt-3 grid gap-2">
-            {prompted.map((f) => (
-              <div key={f}>
-                <Field
-                  label={FIELD_LABEL[f]}
-                  value={declared.personal[f] ?? ""}
-                  onChange={(v) =>
-                    setDeclared({ ...declared, personal: { ...declared.personal, [f]: v } })
-                  }
-                />
-                <p className="px-1 pb-1 text-[11px] leading-relaxed text-white/40">{rules[f].note}</p>
-              </div>
-            ))}
-          </div>
+          )}
         </section>
       )}
 
-      {/* Why we leave things off */}
-      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-        <h2 className="text-sm font-semibold">What we leave off, and why</h2>
-        <ul className="mt-2 space-y-2 text-xs leading-relaxed text-white/55">
-          {(["photo", "dobAge", "maritalReligion", "nationalId", "salary"] as CvSensitiveField[])
-            .filter((f) => rules[f].stance === "never" || rules[f].stance === "avoid" || rules[f].stance === "discouraged")
-            .map((f) => (
-              <li key={f}>
-                <span className="text-white/80">{FIELD_LABEL[f]}:</span> {rules[f].note}
-              </li>
+      {tab === "rules" && (
+        <>
+          <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+            <h2 className="text-sm font-semibold">Local conventions</h2>
+            <p className="mt-2 text-xs leading-relaxed text-white/50">{rules.length.note}</p>
+            <p className="mt-2 text-xs leading-relaxed text-white/50">{rules.referencesNote}</p>
+            {rules.context.map((c) => (
+              <p key={c} className="mt-2 text-xs leading-relaxed text-amber-200/80">
+                {c}
+              </p>
             ))}
-        </ul>
-      </section>
+          </section>
 
-      {/* Special cases */}
-      {rules.specials.includes("au_public_sector_star") && (
-        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-          <h2 className="text-sm font-semibold">Australian public sector: selection criteria</h2>
-          <p className="mt-2 text-xs leading-relaxed text-white/55">
-            Government roles usually want separate written responses. Answer each criterion in STAR
-            order:
-          </p>
-          <ul className="mt-2 space-y-1 text-xs text-white/55">
-            {STAR_STEPS.map((s) => (
-              <li key={s.key}>
-                <span className="text-white/80">{s.label}</span> — {s.hint}
-              </li>
-            ))}
-          </ul>
-        </section>
+          <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+            <h2 className="text-sm font-semibold">What we leave off, and why</h2>
+            <ul className="mt-2 space-y-2 text-xs leading-relaxed text-white/55">
+              {(
+                ["photo", "dobAge", "maritalReligion", "nationalId", "salary"] as CvSensitiveField[]
+              )
+                .filter(
+                  (f) =>
+                    rules[f].stance === "never" ||
+                    rules[f].stance === "avoid" ||
+                    rules[f].stance === "discouraged",
+                )
+                .map((f) => (
+                  <li key={f}>
+                    <span className="text-white/80">{FIELD_LABEL[f]}:</span> {rules[f].note}
+                  </li>
+                ))}
+            </ul>
+          </section>
+
+          {rules.specials.includes("au_public_sector_star") && (
+            <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+              <h2 className="text-sm font-semibold">
+                Australian public sector: selection criteria
+              </h2>
+              <p className="mt-2 text-xs leading-relaxed text-white/55">
+                Government roles usually want separate written responses. Answer each criterion in
+                STAR order:
+              </p>
+              <ul className="mt-2 space-y-1 text-xs text-white/55">
+                {STAR_STEPS.map((s) => (
+                  <li key={s.key}>
+                    <span className="text-white/80">{s.label}</span> — {s.hint}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+          {rules.specials.includes("in_psu_category") && (
+            <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+              <h2 className="text-sm font-semibold">PSU and government forms</h2>
+              <p className="mt-2 text-xs leading-relaxed text-white/55">
+                These forms require a category declaration — {IN_PSU_CATEGORIES.join(", ")} — and
+                often a father's name. That belongs on the prescribed form, not on a private-sector
+                CV.
+              </p>
+            </section>
+          )}
+
+          <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+            <h2 className="text-sm font-semibold">How it will be formatted</h2>
+            <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-relaxed text-white/55">
+              {ATS_RULES.map((r) => (
+                <li key={r}>{r}</li>
+              ))}
+            </ul>
+            <p className="mt-2 text-[11px] text-white/40">{ATS_HONESTY_LINE}</p>
+          </section>
+        </>
       )}
-      {rules.specials.includes("in_psu_category") && (
-        <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-          <h2 className="text-sm font-semibold">PSU and government forms</h2>
-          <p className="mt-2 text-xs leading-relaxed text-white/55">
-            These forms require a category declaration — {IN_PSU_CATEGORIES.join(", ")} — and often a
-            father's name. That belongs on the prescribed form, not on a private-sector CV.
-          </p>
-        </section>
-      )}
 
-      {/* Formatting */}
-      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-        <h2 className="text-sm font-semibold">How it will be formatted</h2>
-        <ul className="mt-2 list-disc space-y-1 pl-4 text-xs leading-relaxed text-white/55">
-          {ATS_RULES.map((r) => (
-            <li key={r}>{r}</li>
-          ))}
-        </ul>
-        <p className="mt-2 text-[11px] text-white/40">{ATS_HONESTY_LINE}</p>
-      </section>
-
-      {/* Assistant */}
+      {/* Assistant — always visible, works with whatever is filled in */}
       <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
         <div className="flex items-center justify-between">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <Sparkles className="size-4 text-[#00D4B8]" /> AI writing help
+            <Sparkles className="size-4 text-[#00D4B8]" /> Write my {cvWord}
           </h2>
           <button
             type="button"
@@ -505,25 +706,30 @@ function CvWorkbench({
           </button>
         </div>
         <p className="mt-2 text-xs leading-relaxed text-white/50">
-          The assistant can only rewrite what you entered. It cannot add an employer, title, date or
-          qualification you have not given it.
+          It writes from whatever you've filled in and skips the rest. It can only rewrite your own
+          facts — it cannot add an employer, title, date or qualification you haven't given it.
         </p>
         {aiEnabled && (
           <>
             <Field
-              label="What should it do?"
+              label="Anything specific? (optional)"
               value={instruction}
               onChange={setInstruction}
               placeholder="e.g. make my bullets more concrete"
             />
             <button
               type="button"
-              disabled={busy}
+              disabled={busy || !hasAnything}
               onClick={generate}
               className="mt-2 w-full rounded-xl bg-[#00D4B8] px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
             >
-              {busy ? "Writing…" : "Rewrite my CV"}
+              {busy ? "Writing…" : `Generate my ${cvWord}`}
             </button>
+            {!hasAnything && (
+              <p className="mt-2 text-[11px] text-white/40">
+                Add a name, a skill, a qualification or a role and this turns on.
+              </p>
+            )}
           </>
         )}
       </section>
@@ -559,6 +765,25 @@ function CvWorkbench({
               </ul>
             </div>
           ))}
+          {generated.credentials.length > 0 && (
+            <div className="mt-3 border-t border-white/5 pt-3">
+              <p className="text-xs font-semibold text-white/70">Qualifications</p>
+              <ul className="mt-1 list-disc pl-4 text-xs text-white/60">
+                {generated.credentials.map((c, i) => (
+                  <li key={i}>
+                    {c.name}
+                    {c.issuer ? `, ${c.issuer}` : ""}
+                    {c.year ? `, ${c.year}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {generated.skills.length > 0 && (
+            <p className="mt-3 border-t border-white/5 pt-3 text-xs text-white/60">
+              {generated.skills.join(" · ")}
+            </p>
+          )}
 
           {flags.length > 0 && (
             <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3">
@@ -605,6 +830,43 @@ function CvWorkbench({
       )}
     </div>
   );
+}
+
+/** Drops blank rows so a half-filled form still generates cleanly. */
+function cleanDeclared(d: CvDeclared): CvDeclared {
+  const t = (s: string) => (s ?? "").trim();
+  return {
+    ...d,
+    fullName: t(d.fullName),
+    headline: t(d.headline),
+    email: t(d.email),
+    phone: t(d.phone),
+    location: t(d.location),
+    summary: t(d.summary),
+    roles: d.roles
+      .filter((r) => t(r.employer) || t(r.title) || r.bullets.some((b) => t(b)))
+      .map((r) => ({
+        employer: t(r.employer),
+        title: t(r.title),
+        start: t(r.start),
+        end: t(r.end),
+        bullets: r.bullets.map(t).filter(Boolean),
+      })),
+    credentials: d.credentials
+      .filter((c) => t(c.name) || t(c.issuer))
+      .map((c) => ({ name: t(c.name), issuer: t(c.issuer), year: t(c.year) })),
+    skills: d.skills.map(t).filter(Boolean),
+  };
+}
+
+function patchCredential(
+  declared: CvDeclared,
+  set: (d: CvDeclared) => void,
+  index: number,
+  patch: Partial<CvDeclared["credentials"][number]>,
+) {
+  const credentials = declared.credentials.map((c, i) => (i === index ? { ...c, ...patch } : c));
+  set({ ...declared, credentials });
 }
 
 function patchRole(
