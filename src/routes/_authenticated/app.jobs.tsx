@@ -280,6 +280,7 @@ function CvWorkbench({
   // Drag-to-reorder for qualification rows. Pointer events (not HTML5 DnD) so
   // touch works too; the row order is the order used by preview and PDF.
   const [dragCred, setDragCred] = useState<number | null>(null);
+  const [showCsvImport, setShowCsvImport] = useState(false);
   const dragCredIndex = useRef<number | null>(null);
 
 
