@@ -3130,6 +3130,17 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_my_profile_meta: {
+        Args: never
+        Returns: {
+          country_code: string
+          is_admin: boolean
+          language: string
+          last_policy_notice_at: string
+          oniq_pay_enabled: boolean
+          show_view_identity: boolean
+        }[]
+      }
       get_my_profile_private: {
         Args: never
         Returns: {
@@ -3383,6 +3394,10 @@ export type Database = {
           recipient_id: string
           status: string
         }[]
+      }
+      storage_object_name: {
+        Args: { bucket: string; url: string }
+        Returns: string
       }
       submit_digilocker_parental_consent: {
         Args: { _token_ref: string }

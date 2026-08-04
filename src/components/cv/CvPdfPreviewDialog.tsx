@@ -27,6 +27,12 @@ import type { CvTemplateId } from "@/lib/cvTemplates";
 
 type Built = { blob: Blob; filename: string; pages: number };
 
+/** Real failure reason, so a broken export is diagnosable from the toast. */
+function errText(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e ?? "");
+  return msg ? msg.slice(0, 120) : "Try again.";
+}
+
 const MIN_ZOOM = 0.5;
 const MAX_ZOOM = 4;
 
@@ -177,7 +183,7 @@ export function CvPdfPreviewDialog({
       toast.success(`Exported ${built.filename}`);
       onClose();
     } catch (e) {
-      if (!isShareCancelled(e)) toast.error("Couldn't export the PDF. Try again.");
+      if (!isShareCancelled(e)) toast.error(`Couldn't export the PDF. ${errText(e)}`);
     } finally {
       setBusy(null);
     }
@@ -231,14 +237,18 @@ export function CvPdfPreviewDialog({
       });
 
       toast.success(`Print dialog opened for ${filename}`);
-    } catch {
+    } catch (e) {
+      if (isShareCancelled(e)) {
+        setBusy(null);
+        return;
+      }
       // Some browsers refuse to print a PDF from an iframe — open it in a tab
       // so the built-in viewer's own print button is available.
       if (canEmbed && url) {
         window.open(url, "_blank", "noopener,noreferrer");
         toast(`Opened ${filename} in a new tab — use your viewer's print button`);
       } else {
-        toast.error(`Couldn't print ${filename}. Try downloading it instead.`);
+        toast.error(`Couldn't print ${filename}. ${errText(e)}`);
       }
     } finally {
       setBusy(null);
@@ -278,7 +288,7 @@ export function CvPdfPreviewDialog({
       if (isShareCancelled(e)) {
         toast(`Sharing cancelled — ${filename} wasn't sent`);
       } else {
-        toast.error(`Couldn't share ${filename}. Try again.`);
+        toast.error(`Couldn't share ${filename}. ${errText(e)}`);
       }
     } finally {
       setBusy(null);
