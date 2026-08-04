@@ -24,6 +24,9 @@ import type { CvTemplateId } from "@/lib/cvTemplates";
 
 type Built = { blob: Blob; filename: string; pages: number };
 
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4;
+
 export function CvPdfPreviewDialog({
   declared,
   cv,
