@@ -532,7 +532,7 @@ function tidyPunctuation(raw: string): string {
       .replace(/[–—]/g, "-")
       .replace(/\s*,\s*/g, ", ")
       .replace(/\s*\/\s*/g, "/")
-      .replace(/\s*-\s*/g, "-")
+      .replace(/\s*-\s*(?=\d)/g, "-")
       .replace(/[,;]+$/g, ""),
   );
 }
