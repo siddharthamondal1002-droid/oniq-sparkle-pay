@@ -157,6 +157,7 @@ function HomeScreen() {
             <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               also in ONIQ
             </div>
+            <SafeMount name="AlsoInOniqRow">
             <AlsoInOniqRow
               tiles={[
                 // Names come from the shared table (tileLabel.ts) — never inline.
@@ -178,6 +179,7 @@ function HomeScreen() {
               ]}
               hidden={hidden}
             />
+            </SafeMount>
           </div>
         </div>
       </div>
