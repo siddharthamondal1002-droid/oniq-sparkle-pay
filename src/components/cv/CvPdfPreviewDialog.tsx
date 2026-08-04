@@ -74,10 +74,19 @@ export function CvPdfPreviewDialog({
     try {
       const { shareCvPdfBlob } = await import("@/lib/cvPdf");
       const how = await shareCvPdfBlob(built.filename, built.blob, declared.fullName);
-      toast.success(how === "shared" ? "Share sheet opened" : `Saved ${built.filename}`);
+      toast.success(
+        how === "shared"
+          ? `Shared ${built.filename}`
+          : `Saved ${built.filename}`,
+      );
       onClose();
     } catch (e) {
-      if (!isShareCancelled(e)) toast.error("Couldn't share the PDF. Try again.");
+      if (isShareCancelled(e)) {
+        toast(`Sharing cancelled — ${built.filename} wasn't sent`);
+      } else {
+        toast.error(`Couldn't share ${built.filename}. Try again.`);
+      }
+
     } finally {
       setBusy(null);
     }
