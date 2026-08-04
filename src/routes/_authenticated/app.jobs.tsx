@@ -1214,6 +1214,7 @@ function Field({
   placeholder,
   error,
   hint,
+  normalize,
 }: {
   label: string;
   value: string;
@@ -1221,6 +1222,8 @@ function Field({
   placeholder?: string;
   error?: string | null;
   hint?: string;
+  /** Optional tidy-up applied when the field loses focus. */
+  normalize?: (v: string) => string;
 }) {
   return (
     <label className="block">
@@ -1231,12 +1234,18 @@ function Field({
         placeholder={placeholder}
         aria-invalid={error ? true : undefined}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={() => {
+          if (!normalize) return;
+          const next = normalize(value);
+          if (next !== value) onChange(next);
+        }}
         className={`w-full resize-y rounded-xl border bg-black/30 px-3 py-2 text-sm outline-none ${
           error
             ? "border-rose-400/70 focus:border-rose-400"
             : "border-white/10 focus:border-[#00D4B8]/60"
         }`}
       />
+
       {error ? (
         <span className="mt-1 block text-[11px] text-rose-300">{error}</span>
       ) : hint ? (
