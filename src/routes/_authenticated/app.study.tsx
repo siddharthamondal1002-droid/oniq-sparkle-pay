@@ -386,6 +386,8 @@ function StudyScreen() {
   }, [allProfiles, activeId]);
 
   const active = allProfiles.find((p) => p.id === activeId) ?? null;
+  // Hook must precede the loading/empty early returns below.
+  const { t } = useT();
 
   if (isLoading) {
     return (
@@ -400,7 +402,6 @@ function StudyScreen() {
   }
 
   const activeIsGovt = active ? isGovtBoard(active.board) : false;
-  const { t } = useT();
   const headerName = active?.name ?? t("study.header.default", "Study Buddy");
   const headerSub = active
     ? `${profileSystemLabel(active)} · ${profileStageLabel(active)}`
