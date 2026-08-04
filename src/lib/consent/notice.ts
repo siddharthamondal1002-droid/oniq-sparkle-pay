@@ -9,7 +9,7 @@
 
 import type { LegalRegime } from "@/data/countryRegistry";
 
-export const NOTICE_VERSION = "2026-08-03.1";
+export const NOTICE_VERSION = "2026-08-04.1";
 
 /** Locales the notice exists in. English and Hindi at minimum. */
 export const NOTICE_LOCALES = ["en", "hi"] as const;
@@ -102,6 +102,48 @@ export const CONSENT_PURPOSES: ConsentPurpose[] = [
     categories: [
       { id: "checkins", label: { en: "Daily check-ins you enter", hi: "आपकी दैनिक जाँच प्रविष्टियाँ" } },
       { id: "cycle", label: { en: "Cycle log dates you enter", hi: "आपके दर्ज चक्र लॉग की तिथियाँ" } },
+    ],
+  },
+  {
+    id: "career",
+    title: { en: "CV builder and career data", hi: "सीवी बिल्डर और करियर डेटा" },
+    purpose: {
+      en: "To generate only the CVs you ask for, from the career facts you type yourself. This data is used for nothing else: it never personalises your home screen, never trains suggestions, and is never shared or sold. A CV can reveal a lot about you by inference, so it is kept apart from every other part of ONIQ, and it is available only to accounts aged 18 or over.",
+      hi: "केवल वही सीवी बनाने के लिए जो आप माँगते हैं, उन्हीं करियर तथ्यों से जो आप स्वयं लिखते हैं। इस डेटा का और कोई उपयोग नहीं होता: यह न आपकी होम स्क्रीन को निजी बनाता है, न सुझावों को सिखाता है, और न कभी साझा या बेचा जाता है। सीवी से बहुत कुछ अनुमान लगाया जा सकता है, इसलिए इसे ONIQ के हर दूसरे हिस्से से अलग रखा जाता है, और यह केवल 18 वर्ष या उससे अधिक आयु के खातों के लिए उपलब्ध है।",
+    },
+    categories: [
+      {
+        id: "employment",
+        label: {
+          en: "Employment history you enter (employers, job titles, dates, what you did)",
+          hi: "आपके दर्ज रोज़गार विवरण (नियोक्ता, पद, तिथियाँ, आपने क्या किया)",
+        },
+      },
+      {
+        id: "education",
+        label: {
+          en: "Education history you enter (institutions, qualifications, dates)",
+          hi: "आपका दर्ज शिक्षा विवरण (संस्थान, योग्यताएँ, तिथियाँ)",
+        },
+      },
+      {
+        id: "skills",
+        label: { en: "Skills and languages you list", hi: "आपके बताए कौशल और भाषाएँ" },
+      },
+      {
+        id: "cv_documents",
+        label: {
+          en: "The CV documents generated for you, and the country each was written for",
+          hi: "आपके लिए बने सीवी दस्तावेज़, और हर एक किस देश के लिए लिखा गया",
+        },
+      },
+      {
+        id: "attestations",
+        label: {
+          en: "Your accuracy attestation — that you confirmed each CV is true — with its timestamp",
+          hi: "आपका सटीकता प्रमाणन — कि आपने हर सीवी को सही माना — उसके समय के साथ",
+        },
+      },
     ],
   },
 ];
