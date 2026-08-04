@@ -6,6 +6,8 @@ import { Capacitor } from "@capacitor/core";
 import { Download, FileText, Loader2, Share2, X } from "lucide-react";
 import { toast } from "sonner";
 import { isShareCancelled } from "@/lib/saveFile";
+import { defaultCvShareMessage } from "@/lib/cvShareMessage";
+
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import type { CvSectionKey } from "@/lib/cvSections";
 
