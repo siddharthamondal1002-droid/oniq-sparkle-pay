@@ -7,7 +7,7 @@ const A4_W = 210;
 const A4_H = 297;
 const M = 16;
 const CONTENT_W = A4_W - M * 2;
-const BOTTOM = A4_H - M;
+const BOTTOM = A4_H - 18; // leaves room for the page-number footer
 
 export function cvFilename(fullName: string): string {
   const slug =
@@ -23,25 +23,11 @@ export async function buildCvPdf(declared: CvDeclared, cv: CvGenerated) {
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
 
   let y = M;
-  const page = () => {
-    doc.addPage();
-    y = M;
-  };
-  const ensure = (needed: number) => {
-    if (y + needed > BOTTOM) page();
-  };
-  const para = (text: string, size: number, style: "normal" | "bold" | "italic", gap = 4.6) => {
-    doc.setFont("helvetica", style);
-    doc.setFontSize(size);
-    for (const line of doc.splitTextToSize(text, CONTENT_W) as string[]) {
-      ensure(gap);
-      doc.text(line, M, y);
-      y += gap;
-    }
-  };
-  const heading = (text: string) => {
-    ensure(12);
-    y += 3;
+  // Section currently being emitted — repeated as "… (cont.)" after a break so
+  // a split Experience/Skills block never looks orphaned.
+  let section: string | null = null;
+
+  const drawHeading = (text: string) => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.text(text.toUpperCase(), M, y);
@@ -50,13 +36,46 @@ export async function buildCvPdf(declared: CvDeclared, cv: CvGenerated) {
     doc.line(M, y, A4_W - M, y);
     y += 5;
   };
+  const page = () => {
+    doc.addPage();
+    y = M;
+    if (section) drawHeading(`${section} (cont.)`);
+  };
+  const ensure = (needed: number) => {
+    if (y + needed > BOTTOM) page();
+  };
+  const wrap = (text: string, size: number, style: "normal" | "bold" | "italic", width: number) => {
+    doc.setFont("helvetica", style);
+    doc.setFontSize(size);
+    return doc.splitTextToSize(text, width) as string[];
+  };
+  const para = (text: string, size: number, style: "normal" | "bold" | "italic", gap = 4.6) => {
+    for (const line of wrap(text, size, style, CONTENT_W)) {
+      ensure(gap);
+      doc.setFont("helvetica", style);
+      doc.setFontSize(size);
+      doc.text(line, M, y);
+      y += gap;
+    }
+  };
+  const heading = (text: string) => {
+    section = null;
+    // Keep the rule with at least one line of its section.
+    ensure(3 + 7 + 5);
+    y += 3;
+    drawHeading(text);
+    section = text;
+  };
 
   // ---- header ----
   if (declared.fullName) {
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text(declared.fullName, M, y + 4);
-    y += 10;
+    for (const line of wrap(declared.fullName, 18, "bold", CONTENT_W)) {
+      ensure(10);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text(line, M, y + 4);
+      y += 10;
+    }
   }
   if (declared.headline) para(declared.headline, 11, "normal", 5);
   const contact = [declared.email, declared.phone, declared.location].filter(Boolean).join("  ·  ");
@@ -74,22 +93,31 @@ export async function buildCvPdf(declared: CvDeclared, cv: CvGenerated) {
   if (cv.roles?.length) {
     heading("Experience");
     for (const r of cv.roles) {
-      ensure(10);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
-      doc.text(`${r.title}${r.employer ? ` — ${r.employer}` : ""}`, M, y);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.text(`${r.start}${r.start || r.end ? " – " : ""}${r.end || "present"}`, A4_W - M, y, {
-        align: "right",
+      const titleText = `${r.title}${r.employer ? ` — ${r.employer}` : ""}`;
+      const dates = `${r.start}${r.start || r.end ? " – " : ""}${r.end || "present"}`;
+      const dateW = dates ? doc.getStringUnitWidth(dates) * 9 * 0.3528 + 4 : 0;
+      const titleLines = wrap(titleText, 10.5, "bold", CONTENT_W - dateW);
+      // Never strand a role header at the foot of a page: it needs its own
+      // lines plus the first line of its first bullet.
+      ensure(titleLines.length * 5 + (r.bullets?.length ? 4.6 : 0));
+      titleLines.forEach((line, i) => {
+        ensure(5);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10.5);
+        doc.text(line, M, y);
+        if (i === 0 && dates) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(9);
+          doc.text(dates, A4_W - M, y, { align: "right" });
+        }
+        y += 5;
       });
-      y += 5;
       for (const b of r.bullets ?? []) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(10);
-        const lines = doc.splitTextToSize(b, CONTENT_W - 5) as string[];
+        const lines = wrap(b, 10, "normal", CONTENT_W - 5);
         lines.forEach((line, i) => {
           ensure(4.6);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(10);
           if (i === 0) doc.text("•", M, y);
           doc.text(line, M + 5, y);
           y += 4.6;
@@ -111,6 +139,7 @@ export async function buildCvPdf(declared: CvDeclared, cv: CvGenerated) {
     heading("Skills");
     para(cv.skills.join(" · "), 10, "normal");
   }
+  section = null;
 
   const total = doc.getNumberOfPages();
   for (let p = 1; p <= total; p++) {
@@ -144,9 +173,14 @@ export async function shareCvPdf(
   const doc = await buildCvPdf(declared, cv);
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
-  const how = await shareFile(filename, "application/pdf", new Blob([buf], { type: "application/pdf" }), {
-    title: declared.fullName ? `${declared.fullName} — CV` : "My CV",
-    text: "My CV",
-  });
+  const how = await shareFile(
+    filename,
+    "application/pdf",
+    new Blob([buf], { type: "application/pdf" }),
+    {
+      title: declared.fullName ? `${declared.fullName} — CV` : "My CV",
+      text: "My CV",
+    },
+  );
   return { filename, how };
 }
