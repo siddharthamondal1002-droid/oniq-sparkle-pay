@@ -156,6 +156,69 @@ export function CvPdfPreviewDialog({
     }
   };
 
+  // One-click print. On the web the freshly built bytes are loaded into a
+  // hidden iframe and handed to the browser's print dialog; inside the native
+  // app there is no print API, so the OS share sheet (which offers Print /
+  // AirPrint) is used instead.
+  const print = async () => {
+    setBusy("print");
+    let filename = built?.filename ?? "cv.pdf";
+    try {
+      const { buildCvPdfBlob, shareCvPdfBlob } = await import("@/lib/cvPdf");
+      // Always print the latest fields, never a stale build.
+      const fresh = await buildCvPdfBlob(declared, cv, order, template, include);
+      filename = fresh.filename;
+      setBuilt(fresh);
+
+      if (!canEmbed) {
+        await shareCvPdfBlob(fresh.filename, fresh.blob, declared.fullName, {
+          title: shareSubject,
+          text: shareText,
+        });
+        toast.success(`Choose Print in the sheet to print ${filename}`);
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(fresh.blob);
+      setUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return objectUrl;
+      });
+
+      const frame = printFrameRef.current;
+      if (!frame) throw new Error("print frame missing");
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error("print timeout")), 15000);
+        frame.onload = () => {
+          window.clearTimeout(timeout);
+          try {
+            frame.contentWindow?.focus();
+            frame.contentWindow?.print();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        };
+        frame.src = objectUrl;
+      });
+
+      toast.success(`Print dialog opened for ${filename}`);
+    } catch {
+      // Some browsers refuse to print a PDF from an iframe — open it in a tab
+      // so the built-in viewer's own print button is available.
+      if (canEmbed && url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        toast(`Opened ${filename} in a new tab — use your viewer's print button`);
+      } else {
+        toast.error(`Couldn't print ${filename}. Try downloading it instead.`);
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
+
   const share = async () => {
     setBusy("share");
     let filename = built?.filename ?? "cv.pdf";
