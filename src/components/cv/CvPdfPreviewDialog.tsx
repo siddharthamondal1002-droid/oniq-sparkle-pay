@@ -34,6 +34,16 @@ export function CvPdfPreviewDialog({
   const [editingMessage, setEditingMessage] = useState(false);
   // Android/iOS WebViews cannot render a PDF in an iframe — no plugin behind it.
   const canEmbed = !Capacitor.isNativePlatform();
+  const defaults = defaultCvShareMessage(declared.fullName);
+
+  // Prefill the editable share message from the CV's name, once per name change.
+  useEffect(() => {
+    const d = defaultCvShareMessage(declared.fullName);
+    setShareSubject(d.title);
+    setShareText(d.text);
+  }, [declared.fullName]);
+
+
 
 
   useEffect(() => {
