@@ -17,6 +17,7 @@ import {
   type CvSectionKey,
 } from "@/lib/cvSections";
 import { getCvTemplate, rgbCss, type CvTemplate, type CvTemplateId } from "@/lib/cvTemplates";
+import { CONTACT_SEP, contactParts } from "@/lib/cvLinks";
 
 /** pt -> mm, matching jsPDF's text metrics. */
 const mm = (pt: number) => `${(pt * PT).toFixed(3)}mm`;
@@ -170,9 +171,8 @@ function Sheet({
   // reach the page, in the preview or the export.
   const declared = pruneDeclaredForExport(declaredIn);
   const pruned = pruneGenerated({ ...cvIn, personal: undefined } as CvGenerated);
-  const contact = inc.contact
-    ? [declared.email, declared.phone, declared.location].filter(Boolean).join("  ·  ")
-    : "";
+  // Same parts, same separator and same link targets the PDF writes.
+  const parts = inc.contact ? contactParts(declared) : [];
   const personal = Object.values(declared.personal ?? {})
     .filter(Boolean)
     .join("  ·  ");
@@ -280,9 +280,25 @@ function Sheet({
           {declared.headline}
         </Line>
       )}
-      {contact && (
+      {parts.length > 0 && (
         <Line size={9} gap={5}>
-          {contact}
+          {parts.map((part, i) => (
+            <span key={`${part.kind}-${i}`}>
+              {i > 0 && <span style={{ whiteSpace: "pre" }}>{CONTACT_SEP}</span>}
+              {part.href ? (
+                <a
+                  href={part.href}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "inherit", textDecoration: "underline" }}
+                >
+                  {part.text}
+                </a>
+              ) : (
+                part.text
+              )}
+            </span>
+          ))}
         </Line>
       )}
       {personal && (

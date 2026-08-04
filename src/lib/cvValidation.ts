@@ -41,6 +41,7 @@ export type CvDeclared = {
   headline: string;
   email: string;
   phone: string;
+  website: string;
   location: string;
   summary: string;
   roles: CvRole[];
@@ -55,6 +56,7 @@ export function emptyDeclared(): CvDeclared {
     headline: "",
     email: "",
     phone: "",
+    website: "",
     location: "",
     summary: "",
     roles: [],
@@ -419,6 +421,7 @@ export function pruneDeclaredForExport<
     headline?: string;
     email?: string;
     phone?: string;
+    website?: string;
     location?: string;
     personal?: CvPersonal;
   },
@@ -433,6 +436,7 @@ export function pruneDeclaredForExport<
     headline: keep(d.headline),
     email: keep(d.email),
     phone: keep(d.phone),
+    website: keep(d.website),
     location: keep(d.location),
     personal,
   };
