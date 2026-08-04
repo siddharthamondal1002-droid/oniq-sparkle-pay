@@ -165,7 +165,7 @@ export async function buildCvPdf(
             ensure(4.6);
             doc.setFont("helvetica", "normal");
             doc.setFontSize(10);
-            if (i === 0) doc.text("•", M, y);
+            if (i === 0) doc.text(tpl.bullet, M, y);
             doc.text(line, M + 5, y);
             y += 4.6;
           });
