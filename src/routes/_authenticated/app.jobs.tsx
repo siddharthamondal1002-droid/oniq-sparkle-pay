@@ -76,6 +76,9 @@ const FIELD_LABEL: Record<CvSensitiveField, string> = {
 
 function JobsScreen() {
   const [country] = useCountry();
+  const { lang } = useT();
+  // "Résumé" in the US, "CV" elsewhere, "सीवी" in Hindi — one resolution rule.
+  const cvWord = tileName(lang, "cv", (country as Country) ?? undefined);
   const [target, setTarget] = useState<Country>((country as Country) ?? "IN");
   const rules = useMemo(() => cvRulesFor(target), [target]);
 
