@@ -14,6 +14,7 @@ import {
   Flag,
   GripVertical,
   Plus,
+  ShieldAlert,
   Sparkles,
   X,
 } from "lucide-react";
@@ -36,6 +37,13 @@ import { CV_TEMPLATES, CV_TEMPLATE_DEFAULT, type CvTemplateId } from "@/lib/cvTe
 
 import { SkillChips } from "@/components/cv/SkillChips";
 import { supabase } from "@/integrations/supabase/client";
+import { useCurrentRegion } from "@/lib/region";
+import {
+  LEAD_WARNING,
+  SCAM_PATTERNS,
+  reportingFor,
+  sourceFor,
+} from "@/data/jobScamAlerts";
 import { CvPdfPreviewDialog } from "@/components/cv/CvPdfPreviewDialog";
 import { COUNTRIES, useCountry } from "@/lib/country";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -256,6 +264,12 @@ function CvWorkbench({
   cvWord: string;
 }) {
   const rules = cvRulesFor(target);
+  // Scam reporting follows CURRENT REGION — the helpline has to be the one
+  // that works from where the user is standing. Hook stays above every early
+  // return in this component.
+  const [scamRegion] = useCurrentRegion();
+  const scamReporting = reportingFor(scamRegion, target);
+  const scamSource = sourceFor(scamRegion, target);
   const [tab, setTab] = useState<TabKey>("basics");
   const [declared, setDeclared] = useState<CvDeclared>(() => ({
     ...emptyDeclared(),
@@ -901,6 +915,63 @@ function CvWorkbench({
 
       {tab === "rules" && (
         <>
+          {/*
+            Job-scam alerts. ONIQ's own words, written from the official
+            advisory named at the bottom of the card — the advisory itself is
+            linked, never re-hosted. Reporting channels follow CURRENT REGION,
+            because a helpline has to be the one that works from where the user
+            is standing: an Indian user in Dubai needs eCrime, not 1930.
+          */}
+          <section className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-rose-200">
+              <ShieldAlert className="size-4" /> Before you apply
+            </h2>
+            <p className="mt-2 text-sm font-semibold text-white/90">{LEAD_WARNING}</p>
+            {SCAM_PATTERNS.map((pat) => (
+              <div key={pat.id} className="mt-3">
+                <h3 className="text-xs font-semibold text-white/80">{pat.title}</h3>
+                <ol className="mt-1 list-decimal space-y-0.5 ps-4 text-xs leading-relaxed text-white/55">
+                  {pat.steps.map((st) => (
+                    <li key={st}>{st}</li>
+                  ))}
+                </ol>
+                <p className="mt-1 text-xs font-medium text-rose-200/90">{pat.tell}</p>
+              </div>
+            ))}
+            {scamReporting.length > 0 && (
+              <div className="mt-4 border-t border-white/10 pt-3">
+                <h3 className="text-xs font-semibold text-white/80">Report it</h3>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {scamReporting.map((ch) => (
+                    <a
+                      key={ch.name}
+                      href={ch.phone ? `tel:${ch.phone}` : ch.url}
+                      target={ch.url ? "_blank" : undefined}
+                      rel={ch.url ? "noopener noreferrer" : undefined}
+                      className="rounded-full border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100"
+                    >
+                      {ch.name}
+                      {ch.phone ? ` · ${ch.phone}` : " ↗"}
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
+            {scamSource && (
+              <p className="mt-3 text-[11px] text-white/40">
+                Written from guidance published by {scamSource.authority}.{" "}
+                <a
+                  href={scamSource.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2"
+                >
+                  Read the original ↗
+                </a>
+              </p>
+            )}
+          </section>
+
           <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
             <h2 className="text-sm font-semibold">Local conventions</h2>
             <p className="mt-2 text-xs leading-relaxed text-white/50">{rules.length.note}</p>
