@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *.ts|*.tsx) cd \"$CLAUDE_PROJECT_DIR\" && npm run lint:ci --silent -- \"$f\" >&2 || exit 2 ;; esac; exit 0",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}

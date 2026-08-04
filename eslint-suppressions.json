@@ -1,0 +1,325 @@
+{
+  "src/components/chat/CallOverlay.tsx": {
+    "no-empty": {
+      "count": 9
+    },
+    "react-hooks/immutability": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/chat/GlobalIncomingCall.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "no-empty": {
+      "count": 4
+    }
+  },
+  "src/components/chat/IncomingCallScreen.tsx": {
+    "react-hooks/refs": {
+      "count": 1
+    },
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/components/chat/MessageNotifier.tsx": {
+    "no-empty": {
+      "count": 1
+    }
+  },
+  "src/components/customize/CustomizeSheet.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/landing/LiveNewsSection.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 6
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    },
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/components/moments/MomentsFeed.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    },
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/components/onboarding/FullScreenIntentPrompt.tsx": {
+    "no-empty": {
+      "count": 4
+    }
+  },
+  "src/components/onboarding/PermissionsOnboarding.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/components/photo/PhotoStudio.tsx": {
+    "prefer-const": {
+      "count": 2
+    },
+    "react-hooks/refs": {
+      "count": 1
+    },
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/components/profile/AvatarEditorSheet.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    }
+  },
+  "src/components/reels/ReelOwnerSheet.tsx": {
+    "react-hooks/static-components": {
+      "count": 5
+    }
+  },
+  "src/components/reels/ReelTile.tsx": {
+    "react-hooks/immutability": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/safety/DobPrompt.tsx": {
+    "react-hooks/purity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/ui/carousel.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/components/ui/sidebar.tsx": {
+    "react-hooks/purity": {
+      "count": 1
+    }
+  },
+  "src/components/vitals/BreathingCard.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/hooks/use-mobile.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/lib/callSounds.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "no-empty": {
+      "count": 14
+    }
+  },
+  "src/lib/miniapps.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/routes/_authenticated/app.admin.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    }
+  },
+  "src/routes/_authenticated/app.chat.$conversationId.tsx": {
+    "no-constant-binary-expression": {
+      "count": 1
+    },
+    "no-empty": {
+      "count": 2
+    },
+    "react-hooks/purity": {
+      "count": 3
+    },
+    "react-hooks/refs": {
+      "count": 3
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 3
+    }
+  },
+  "src/routes/_authenticated/app.chat.index.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    },
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.chat.reels.tsx": {
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.clips.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "no-empty": {
+      "count": 1
+    },
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.earn.tsx": {
+    "react-hooks/purity": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.faith.tsx": {
+    "react-hooks/immutability": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/routes/_authenticated/app.food.index.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.index.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 3
+    },
+    "react-hooks/purity": {
+      "count": 2
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 4
+    },
+    "unused-imports/no-unused-imports": {
+      "count": 8
+    }
+  },
+  "src/routes/_authenticated/app.jobs.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.learn.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 29
+    },
+    "no-empty": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 3
+    }
+  },
+  "src/routes/_authenticated/app.privacy.data-rights.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 3
+    }
+  },
+  "src/routes/_authenticated/app.privacy.notice.tsx": {
+    "oniq/currency-fence": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.profile.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 2
+    }
+  },
+  "src/routes/_authenticated/app.rides.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 4
+    }
+  },
+  "src/routes/_authenticated/app.safety-plan.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.study.tsx": {
+    "no-control-regex": {
+      "count": 1
+    },
+    "react-hooks/immutability": {
+      "count": 1
+    },
+    "react-hooks/preserve-manual-memoization": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 7
+    },
+    "react-hooks/use-memo": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.travel.tsx": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    },
+    "oniq/currency-fence": {
+      "count": 1
+    },
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.upi.tsx": {
+    "react-hooks/preserve-manual-memoization": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.vitals.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.weather.tsx": {
+    "react-hooks/set-state-in-effect": {
+      "count": 1
+    },
+    "react-hooks/static-components": {
+      "count": 1
+    }
+  },
+  "src/routes/auth.tsx": {
+    "no-constant-binary-expression": {
+      "count": 1
+    },
+    "react-hooks/purity": {
+      "count": 1
+    }
+  },
+  "src/routes/lovable/email/queue/process.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    }
+  }
+}

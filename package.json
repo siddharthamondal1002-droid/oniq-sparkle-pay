@@ -9,9 +9,13 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
+    "lint:ci": "node scripts/lint-ci.mjs",
     "format:check": "prettier --check .",
+    "format:check:changed": "node scripts/format-check-changed.mjs",
     "format": "prettier --write .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "check:deps": "node scripts/check-deps-exist.mjs",
+    "prepare": "husky"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
@@ -100,9 +104,12 @@
     "eslint": "^9.32.0",
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-prettier": "^5.2.6",
-    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.4.20",
+    "eslint-plugin-unused-imports": "^4.4.1",
     "globals": "^15.15.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
     "nitro": "3.0.260603-beta",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
@@ -127,5 +134,10 @@
     "tar": "^7.5.22",
     "fast-uri": "^4.1.1",
     "@hono/node-server": "^2.0.11"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "npm run lint:ci --"
+    ]
   }
 }

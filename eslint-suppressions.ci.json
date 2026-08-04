@@ -1,0 +1,52 @@
+{
+  "src/components/chat/IncomingCallScreen.tsx": {
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/components/landing/LiveNewsSection.tsx": {
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/components/moments/MomentsFeed.tsx": {
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/components/photo/PhotoStudio.tsx": {
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.chat.index.tsx": {
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.chat.reels.tsx": {
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.clips.tsx": {
+    "unused-imports/no-unused-imports": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.index.tsx": {
+    "unused-imports/no-unused-imports": {
+      "count": 8
+    }
+  },
+  "src/routes/_authenticated/app.privacy.notice.tsx": {
+    "oniq/currency-fence": {
+      "count": 1
+    }
+  },
+  "src/routes/_authenticated/app.travel.tsx": {
+    "oniq/currency-fence": {
+      "count": 1
+    }
+  }
+}

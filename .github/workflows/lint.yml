@@ -1,0 +1,56 @@
+name: lint
+
+# The blocking lint gate. Runs the exact same command as the pre-commit hook
+# and the Claude Code PostToolUse hook: `npm run lint:ci`.
+#
+# Why this workflow exists: on 2026-08-04 three react-hooks/rules-of-hooks
+# violations reached production. tsc was clean, 275 tests were green, and a
+# signed-in walk of the live app found nothing — the app threw to the root
+# error boundary only once a personalisation suggestion appeared. ESLint would
+# have caught all three, but the run reported 6,630 errors (91% of them
+# Prettier formatting) so nobody read it. Formatting is now Prettier's job and
+# this gate reports only things that break the app.
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Suppressions in eslint-suppressions.ci.json are applied automatically:
+      # the pre-existing tail is frozen, only NEW violations fail.
+      - name: Blocking lint gate
+        run: npm run lint:ci
+
+      # Every declared dependency must resolve to a real, registry-published
+      # package whose own name matches. No lint rule catches a hallucinated or
+      # typosquatted package name, and this codebase is agent-written.
+      - name: Dependencies exist
+        run: npm run check:deps
+
+      # Advisory, not blocking. 199 files predate Prettier being enforced;
+      # formatting them would be one commit rewriting nearly the whole repo.
+      # Run `npm run format:check:changed` locally before pushing.
+      - name: Formatting (advisory)
+        run: npm run format:check:changed
+        continue-on-error: true
+
+      - name: Types
+        run: npx tsc --noEmit
+
+      - name: Tests
+        run: npm test
