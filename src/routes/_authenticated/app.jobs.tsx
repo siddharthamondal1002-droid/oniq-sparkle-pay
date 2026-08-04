@@ -305,6 +305,23 @@ function CvWorkbench({
   const firstError =
     credErrors.flatMap((e) => [e.name, e.issuer, e.year]).find(Boolean) ?? skillsError ?? null;
   const hasErrors = Boolean(firstError);
+  // Compact list of every invalid field, so nothing is hidden behind a tab.
+  const issues = useMemo(() => {
+    const list: { tab: TabKey; where: string; message: string }[] = [];
+    credErrors.forEach((e, i) => {
+      const rowLabels: [string | null, string][] = [
+        [e.name, "Qualification"],
+        [e.issuer, "Board / university / issuer"],
+        [e.year, "Year"],
+      ];
+      rowLabels.forEach(([msg, label]) => {
+        if (msg) list.push({ tab: "education", where: `Qualification ${i + 1} · ${label}`, message: msg });
+      });
+    });
+    if (skillsError) list.push({ tab: "skills", where: "Skills", message: skillsError });
+    return list;
+  }, [credErrors, skillsError]);
+
 
   async function generate() {
     if (hasErrors) {
@@ -459,6 +476,37 @@ function CvWorkbench({
           </button>
         ))}
       </div>
+
+      {/* Validation summary — every invalid field in one place, before export */}
+      {issues.length > 0 && (
+        <section
+          role="alert"
+          aria-live="polite"
+          className="rounded-2xl border border-rose-400/30 bg-rose-500/10 p-3"
+        >
+          <p className="flex items-center gap-2 text-xs font-semibold text-rose-200">
+            <AlertTriangle className="size-3.5 shrink-0" />
+            {issues.length} field{issues.length === 1 ? "" : "s"} need
+            {issues.length === 1 ? "s" : ""} a fix before you generate
+          </p>
+          <ul className="mt-2 space-y-1">
+            {issues.map((it, i) => (
+              <li key={i}>
+                <button
+                  type="button"
+                  onClick={() => setTab(it.tab)}
+                  className="w-full rounded-lg px-2 py-1 text-left text-[11px] leading-snug text-rose-100/90 hover:bg-white/5"
+                >
+                  <span className="font-medium text-rose-200">{it.where}</span>
+                  <span className="text-rose-100/70"> — {it.message}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-1 px-2 text-[10px] text-rose-100/50">Tap any line to jump to that tab.</p>
+        </section>
+      )}
+
 
       {tab === "basics" && (
         <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
