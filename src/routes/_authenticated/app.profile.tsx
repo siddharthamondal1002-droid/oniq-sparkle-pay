@@ -369,6 +369,13 @@ function SafetySection() {
             My data rights
           </Link>
         </div>
+        <Link
+          to="/app/attributions"
+          className="mt-2 block rounded-xl border border-border bg-muted/30 py-2 text-center text-xs font-semibold hover:bg-muted/50"
+        >
+          Attributions &amp; licences
+        </Link>
+
       </div>
       <ViewIdentityToggle />
       <div className="flex gap-2">
