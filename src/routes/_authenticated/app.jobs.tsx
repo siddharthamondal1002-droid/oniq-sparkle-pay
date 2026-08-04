@@ -1155,8 +1155,10 @@ function CvLivePreview({
               skills: declared.skills,
             }}
           />
-        </div>
+          </div>
+        </>
       )}
+
     </section>
   );
 }
