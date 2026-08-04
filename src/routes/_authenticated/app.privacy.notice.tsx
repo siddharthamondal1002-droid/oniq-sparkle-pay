@@ -57,11 +57,7 @@ function ConsentNoticePage() {
   const load = useCallback(async () => {
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) return;
-    const { data: prof } = await supabase
-      .from("profiles")
-      .select("country_code")
-      .eq("id", auth.user.id)
-      .maybeSingle();
+    const { data: prof } = await supabase.rpc("get_my_profile_meta").maybeSingle();
     setHome((prof?.country_code as Country | null) ?? null);
     try {
       const list = await listMyConsents();

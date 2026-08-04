@@ -16,11 +16,7 @@ export function PolicyNoticeBanner() {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const { data: p, error } = await supabase
-        .from("profiles")
-        .select("last_policy_notice_at")
-        .eq("id", u.user.id)
-        .maybeSingle();
+      const { data: p, error } = await supabase.rpc("get_my_profile_meta").maybeSingle();
       // If the read itself fails, stay quiet rather than nagging forever.
       if (error) return;
       const last = p?.last_policy_notice_at ? new Date(p.last_policy_notice_at).getTime() : 0;
