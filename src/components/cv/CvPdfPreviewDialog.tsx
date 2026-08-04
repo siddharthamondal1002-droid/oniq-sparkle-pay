@@ -3,7 +3,7 @@
 // share sheet, so what you see is exactly what leaves the app.
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { Download, FileText, Loader2, Share2, X } from "lucide-react";
+import { Download, FileText, Loader2, Pencil, Share2, X } from "lucide-react";
 import { toast } from "sonner";
 import { isShareCancelled } from "@/lib/saveFile";
 import { defaultCvShareMessage } from "@/lib/cvShareMessage";
