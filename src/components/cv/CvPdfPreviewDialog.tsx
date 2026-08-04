@@ -89,7 +89,11 @@ export function CvPdfPreviewDialog({
           return objectUrl;
         });
       }
-      const how = await shareCvPdfBlob(fresh.filename, fresh.blob, declared.fullName);
+      const how = await shareCvPdfBlob(fresh.filename, fresh.blob, declared.fullName, {
+        title: shareSubject,
+        text: shareText,
+      });
+
       toast.success(
         how === "shared"
           ? `Shared ${fresh.filename}`
