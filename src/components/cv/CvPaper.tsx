@@ -311,12 +311,15 @@ export function CvPaper({
   cv,
   order,
   pageBreaks = true,
+  template,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
   order?: readonly CvSectionKey[];
   /** Show dashed rules where the export will split pages. Default on. */
   pageBreaks?: boolean;
+  /** Layout style; matches the template used by the PDF export. */
+  template?: CvTemplateId;
 }) {
 
   const box = useRef<HTMLDivElement>(null);
@@ -339,7 +342,7 @@ export function CvPaper({
     if (box.current) ro.observe(box.current);
     if (sheet.current) ro.observe(sheet.current);
     return () => ro.disconnect();
-  }, [declared, cv, order]);
+  }, [declared, cv, order, template]);
 
   return (
     <div ref={box} className="w-full overflow-hidden" style={{ height: height || undefined }}>
@@ -347,8 +350,15 @@ export function CvPaper({
         ref={sheet}
         style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: "fit-content" }}
       >
-        <Sheet declared={declared} cv={cv} order={order} pageBreaks={pageBreaks} />
+        <Sheet
+          declared={declared}
+          cv={cv}
+          order={order}
+          pageBreaks={pageBreaks}
+          template={template}
+        />
       </div>
     </div>
   );
+
 }
