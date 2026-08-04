@@ -3,7 +3,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   BadgeCheck,
   Briefcase,
   Check,
@@ -227,6 +229,7 @@ function CvWorkbench({
   const [tab, setTab] = useState<TabKey>("basics");
   const [declared, setDeclared] = useState<CvDeclared>(() => ({
     ...emptyDeclared(),
+    credentials: [{ name: "", issuer: "", year: "" }],
     roles: [{ employer: "", title: "", start: "", end: "", bullets: [] }],
   }));
   const [instruction, setInstruction] = useState("");
@@ -256,15 +259,23 @@ function CvWorkbench({
     clean.skills.length > 0;
 
   // Inline validation: blank is never an error, a filled-but-unusable field is.
-  const credErrors = useMemo(
-    () =>
-      declared.credentials.map((c) => ({
-        name: validateQualification(c.name),
+  const credErrors = useMemo(() => {
+    const seen = new Map<string, number>();
+    return declared.credentials.map((c, i) => {
+      const key = [c.name, c.issuer, c.year].map((x) => x.trim().toLowerCase()).join("|");
+      let dup: string | null = null;
+      if (c.name.trim()) {
+        const first = seen.get(key);
+        if (first !== undefined) dup = `Same as qualification ${first + 1} — edit or remove it.`;
+        else seen.set(key, i);
+      }
+      return {
+        name: validateQualification(c.name) ?? dup,
         issuer: validateIssuer(c.issuer),
         year: validateYear(c.year),
-      })),
-    [declared.credentials],
-  );
+      };
+    });
+  }, [declared.credentials]);
   const skillsError = useMemo(() => validateSkills(declared.skills), [declared.skills]);
   const educationInvalid = credErrors.some((e) => e.name || e.issuer || e.year);
   const firstError =
@@ -501,6 +512,31 @@ function CvWorkbench({
           )}
           {declared.credentials.map((c, i) => (
             <div key={i} className="mt-3 rounded-xl border border-white/5 bg-black/20 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                  Qualification {i + 1}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label="Move up"
+                    disabled={i === 0}
+                    onClick={() => moveCredential(declared, setDeclared, i, -1)}
+                    className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/60 disabled:opacity-30"
+                  >
+                    <ArrowUp className="size-3" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Move down"
+                    disabled={i === declared.credentials.length - 1}
+                    onClick={() => moveCredential(declared, setDeclared, i, 1)}
+                    className="rounded-full bg-white/5 px-2 py-1 text-[11px] text-white/60 disabled:opacity-30"
+                  >
+                    <ArrowDown className="size-3" />
+                  </button>
+                </div>
+              </div>
               <Field
                 label="Qualification"
                 placeholder="e.g. Class 12, B.Sc Physics, AWS Cloud Practitioner"
@@ -546,8 +582,17 @@ function CvWorkbench({
             }
             className="mt-3 flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-xs"
           >
-            <Plus className="size-3.5" /> Add a qualification
+            <Plus className="size-3.5" />{" "}
+            {declared.credentials.length === 0
+              ? "Add a qualification"
+              : "Add another qualification"}
           </button>
+          {clean.credentials.length > 0 && (
+            <p className="mt-2 text-[11px] text-white/40">
+              {clean.credentials.length} qualification
+              {clean.credentials.length === 1 ? "" : "s"} will appear on your {cvWord}.
+            </p>
+          )}
         </section>
       )}
 
@@ -931,6 +976,21 @@ function patchCredential(
   set({ ...declared, credentials });
 }
 
+/** Reorder a qualification row by one position; the CV keeps this order. */
+function moveCredential(
+  declared: CvDeclared,
+  set: (d: CvDeclared) => void,
+  index: number,
+  delta: number,
+) {
+  const target = index + delta;
+  if (target < 0 || target >= declared.credentials.length) return;
+  const credentials = [...declared.credentials];
+  const [row] = credentials.splice(index, 1);
+  credentials.splice(target, 0, row);
+  set({ ...declared, credentials });
+}
+
 function patchRole(
   declared: CvDeclared,
   set: (d: CvDeclared) => void,
@@ -985,7 +1045,7 @@ function CvLivePreview({ declared, cvWord }: { declared: CvDeclared; cvWord: str
     !declared.headline &&
     !declared.summary &&
     contact.length === 0 &&
-    declared.credentials.length === 0 &&
+    declared.credentials.every((c) => !c.name.trim() && !c.issuer.trim() && !c.year.trim()) &&
     declared.roles.length === 0 &&
     declared.skills.length === 0;
 
@@ -1017,15 +1077,22 @@ function CvLivePreview({ declared, cvWord }: { declared: CvDeclared; cvWord: str
             </p>
           )}
 
-          {declared.credentials.length > 0 && (
+          {declared.credentials.some((c) => c.name.trim() || c.issuer.trim() || c.year.trim()) && (
             <div className="mt-3 border-t border-white/5 pt-3">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
                 Qualifications
               </p>
               <ul className="mt-1 space-y-0.5 text-xs text-white/70">
-                {declared.credentials.map((c, i) => (
-                  <li key={i}>{[c.name, c.issuer, c.year].filter(Boolean).join(", ")}</li>
-                ))}
+                {declared.credentials
+                  .filter((c) => c.name.trim() || c.issuer.trim() || c.year.trim())
+                  .map((c, i) => (
+                    <li key={i}>
+                      {[c.name, c.issuer, c.year]
+                        .map((x) => x.trim())
+                        .filter(Boolean)
+                        .join(", ")}
+                    </li>
+                  ))}
               </ul>
             </div>
           )}
