@@ -205,6 +205,7 @@ function Sheet({
                 <div key={j} style={{ display: "flex" }}>
                   <div style={{ width: "5mm", flexShrink: 0 }}>
                     <Line size={10} gap={4.6}>
+                      {tpl.bullet}
 
                     </Line>
                   </div>
