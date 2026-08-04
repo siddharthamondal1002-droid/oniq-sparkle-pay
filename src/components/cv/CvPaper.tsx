@@ -260,10 +260,11 @@ function Sheet({
       {pageBreaks && <PageBreaks sheetHeight={sheetMm} />}
 
       {declared.fullName && (
-        <Line size={18} bold gap={10}>
+        <Line size={18} bold gap={10} color={rgbCss(tpl.nameColor)}>
           {declared.fullName}
         </Line>
       )}
+
       {declared.headline && (
         <Line size={11} gap={5}>
           {declared.headline}
