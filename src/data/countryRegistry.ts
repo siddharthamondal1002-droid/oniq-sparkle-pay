@@ -203,6 +203,9 @@ export const FEATURES: Feature[] = [
   { id: "ting", supportedCountries: "*" },
   { id: "learn", supportedCountries: "*" },
   { id: "study", supportedCountries: ["IN"] },
+  // University & admissions surface — every supported country has a route,
+  // institutions and a calendar (Education & Careers loop, Phase 3).
+  { id: "university", supportedCountries: "*" },
   { id: "faith", supportedCountries: "*" },
   { id: "pulse", supportedCountries: "*" },
   { id: "watch", supportedCountries: "*" },
