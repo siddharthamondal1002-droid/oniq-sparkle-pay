@@ -9,6 +9,7 @@ import {
   Loader2,
   Maximize2,
   Pencil,
+  Printer,
   Share2,
   X,
   ZoomIn,
