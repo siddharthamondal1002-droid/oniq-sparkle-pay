@@ -86,15 +86,18 @@ function AppShell() {
 
       {CALLS_ENABLED && <GlobalIncomingCall />}
       {CALLS_ENABLED && <GlobalCallHost />}
-      <PolicyNoticeBanner />
-      <RestrictedBanner />
-      <DobPrompt />
-      <MiniAppReturnWatcher />
-      <MessageNotifier />
-      <PermissionsOnboarding />
-      <FullScreenIntentPrompt />
-      <CallReminderWatcher />
-      <HealthDataWatcher />
+      {/* Non-call global mounts are individually contained: a throw inside a
+          banner/prompt/watcher must never reach the root error boundary. Call
+          mounts are deliberately left untouched. */}
+      <SafeMount name="PolicyNoticeBanner"><PolicyNoticeBanner /></SafeMount>
+      <SafeMount name="RestrictedBanner"><RestrictedBanner /></SafeMount>
+      <SafeMount name="DobPrompt"><DobPrompt /></SafeMount>
+      <SafeMount name="MiniAppReturnWatcher"><MiniAppReturnWatcher /></SafeMount>
+      <SafeMount name="MessageNotifier"><MessageNotifier /></SafeMount>
+      <SafeMount name="PermissionsOnboarding"><PermissionsOnboarding /></SafeMount>
+      <SafeMount name="FullScreenIntentPrompt"><FullScreenIntentPrompt /></SafeMount>
+      <SafeMount name="CallReminderWatcher"><CallReminderWatcher /></SafeMount>
+      <SafeMount name="HealthDataWatcher"><HealthDataWatcher /></SafeMount>
 
 
 
