@@ -13,6 +13,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { bandLabel, pickSuggestion, type Signal, type Suggestion } from "@/lib/adaptive";
 import { getPersonalisationConsent, listMySignals, recordSignal } from "@/lib/personalisation";
 import { rememberValue } from "@/lib/memory";
+import { useCountry } from "@/lib/country";
 
 export function AnticipatoryCard() {
   const navigate = useNavigate();
@@ -46,6 +47,7 @@ export function AnticipatoryCard() {
   }, []);
 
   if (!suggestion || gone) return null;
+  const [home] = useCountry();
 
   const open = () => {
     void recordSignal("card_tap", suggestion.hub);
@@ -59,7 +61,7 @@ export function AnticipatoryCard() {
     setGone(true);
   };
 
-  const name = suggestion.tile ? tileName(lang, suggestion.tile) : suggestion.label;
+  const name = suggestion.tile ? tileName(lang, suggestion.tile, home) : suggestion.label;
 
   return (
     <div className="mt-3 rounded-2xl border border-border bg-card/85 p-3 fade-up">
