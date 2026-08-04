@@ -63,16 +63,84 @@ function Heading({ text }: { text: string }) {
 
 export type CvPaperDoc = Pick<CvGenerated, "summary" | "roles" | "credentials" | "skills">;
 
+/** Usable content height per printed page, in mm — the same window
+ * buildCvPdf() fills before it calls doc.addPage(). */
+const PAGE_CONTENT_H = CV_PAGE.bottom - CV_PAGE.margin;
+
+/**
+ * Dashed rules drawn where the exporter will break the page, so long
+ * Experience / Qualifications / Skills blocks show their split up front.
+ */
+function PageBreaks({ sheetHeight }: { sheetHeight: number }) {
+  if (!sheetHeight) return null;
+  // sheetHeight is in mm; content starts at the top margin.
+  const breaks: number[] = [];
+  for (let k = 1; k * PAGE_CONTENT_H + CV_PAGE.margin < sheetHeight - 2; k++) {
+    breaks.push(k);
+  }
+  if (breaks.length === 0) return null;
+  return (
+    <>
+      {breaks.map((k) => (
+        <div
+          key={k}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: `${CV_PAGE.margin + k * PAGE_CONTENT_H}mm`,
+            borderTop: "0.4mm dashed #d11a6b",
+            pointerEvents: "none",
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              right: `${CV_PAGE.margin}mm`,
+              top: "0.8mm",
+              fontSize: mm(7.5),
+              color: "#d11a6b",
+              fontWeight: 700,
+              letterSpacing: "0.2mm",
+            }}
+          >
+            {`page ${k} ends · page ${k + 1} starts`}
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
 /** The A4 sheet itself, drawn at true size; the parent scales it. */
 function Sheet({
   declared: declaredIn,
   cv: cvIn,
   order,
+  pageBreaks = true,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
   order?: readonly CvSectionKey[];
+  pageBreaks?: boolean;
 }) {
+  const sheetEl = useRef<HTMLDivElement>(null);
+  const [sheetMm, setSheetMm] = useState(0);
+
+  // Measure the rendered sheet so the break rules land where the exporter
+  // actually runs out of page. CSS mm is a fixed 96/25.4 px, and offsetHeight
+  // is pre-transform, so the parent's scale doesn't skew this.
+  useEffect(() => {
+    const el = sheetEl.current;
+    if (!el) return;
+    const measure = () => setSheetMm(el.offsetHeight / (96 / 25.4));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+
   // Identical pruning to buildCvPdf(): placeholders and empty rows never
   // reach the page, in the preview or the export.
   const declared = pruneDeclaredForExport(declaredIn);
@@ -158,6 +226,7 @@ function Sheet({
 
   return (
     <div
+      ref={sheetEl}
       style={{
         width: `${CV_PAGE.width}mm`,
         minHeight: `${CV_PAGE.height}mm`,
@@ -170,6 +239,8 @@ function Sheet({
         boxSizing: "border-box",
       }}
     >
+      {pageBreaks && <PageBreaks sheetHeight={sheetMm} />}
+
       {declared.fullName && (
         <Line size={18} bold gap={10}>
           {declared.fullName}
@@ -220,11 +291,15 @@ export function CvPaper({
   declared,
   cv,
   order,
+  pageBreaks = true,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
   order?: readonly CvSectionKey[];
+  /** Show dashed rules where the export will split pages. Default on. */
+  pageBreaks?: boolean;
 }) {
+
   const box = useRef<HTMLDivElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -253,7 +328,7 @@ export function CvPaper({
         ref={sheet}
         style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: "fit-content" }}
       >
-        <Sheet declared={declared} cv={cv} order={order} />
+        <Sheet declared={declared} cv={cv} order={order} pageBreaks={pageBreaks} />
       </div>
     </div>
   );
