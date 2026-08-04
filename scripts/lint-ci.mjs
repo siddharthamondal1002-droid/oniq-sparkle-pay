@@ -45,6 +45,13 @@ const result = spawnSync(
     // never be run this way.
     "--max-warnings",
     "0",
+    // Without this, passing an explicitly-ignored path emits "File ignored
+    // because of a matching ignore pattern" as a WARNING, which --max-warnings 0
+    // then turns into a failure. lint-staged hands us whatever is staged, so
+    // any commit touching src/routeTree.gen.ts (i.e. every route change) was
+    // blocked by its own gate. Ignoring a file is the intended outcome, not a
+    // problem to report.
+    "--no-warn-ignored",
     ...targets,
   ],
   { stdio: "inherit", shell: process.platform === "win32" },

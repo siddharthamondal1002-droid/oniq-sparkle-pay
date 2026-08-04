@@ -216,8 +216,39 @@ function Landing() {
             <span>·</span>
             <Link to="/privacy" className="hover:text-primary">Privacy</Link>
             <span>·</span>
+            <Link to="/dmca" className="hover:text-primary">Copyright</Link>
+            <span>·</span>
             <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="hover:text-primary">Grievance officer</a>
           </div>
+          {/*
+            DMCA.com verification badge. Deliberately hotlinked rather than
+            vendored into /public: the image is served by dmca.com so the badge
+            cannot be faked or outlive a lapsed subscription — self-hosting it
+            would keep asserting compliance after the fact. The cost is that
+            loading it sends the viewer's IP to dmca.com, which is a
+            third-party request and must be declared in Play Data safety.
+            referrerPolicy keeps the page URL out of it.
+
+            This badge is a private vendor's product. It is NOT a U.S.
+            Copyright Office §512(c)(2) agent designation and confers no safe
+            harbour — see /dmca, which states ONIQ's actual position.
+          */}
+          <a
+            href="https://www.dmca.com/compliance/oniq-sparkle-pay.lovable.app"
+            title="DMCA compliance information for ONIQ"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-block opacity-70 transition-opacity hover:opacity-100"
+          >
+            <img
+              src="https://www.dmca.com/img/dmca-compliant-grayscale.png"
+              alt="DMCA compliance status for ONIQ"
+              width={121}
+              height={24}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
+          </a>
           <p className="mt-2 text-xs text-muted-foreground">
             © {new Date().getFullYear()} ONIQ. All rights reserved.
           </p>
