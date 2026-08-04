@@ -1120,6 +1120,7 @@ function CvLivePreview({
       ) : (
         <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-white">
           <CvPaper
+            order={order}
             declared={declared}
             cv={{
               summary: declared.summary,
