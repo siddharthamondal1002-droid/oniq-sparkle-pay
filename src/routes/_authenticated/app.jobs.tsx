@@ -707,8 +707,10 @@ function CvWorkbench({
           <h2 className="text-sm font-semibold">Skills</h2>
           <Field
             label="Comma separated"
-            placeholder="e.g. Excel, Tally, spoken English"
+            placeholder="e.g. Excel, Tally, spoken English, Python, customer support"
+            hint="Separate each skill with a comma — short phrases work best (2-3 words)."
             error={skillsError}
+
             value={declared.skills.join(", ")}
             onChange={(v) =>
               setDeclared({
