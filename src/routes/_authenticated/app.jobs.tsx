@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 
 import { CvPaper } from "@/components/cv/CvPaper";
+import { SkillChips } from "@/components/cv/SkillChips";
 import { supabase } from "@/integrations/supabase/client";
 import { CvPdfPreviewDialog } from "@/components/cv/CvPdfPreviewDialog";
 import { COUNTRIES, useCountry } from "@/lib/country";
