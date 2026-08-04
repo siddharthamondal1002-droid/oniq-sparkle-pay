@@ -234,7 +234,7 @@ function Landing() {
             harbour — see /dmca, which states ONIQ's actual position.
           */}
           <a
-            href="https://www.dmca.com/compliance/oniq-sparkle-pay.lovable.app"
+            href="https://www.dmca.com/compliance/oniqhub.com"
             title="DMCA compliance information for ONIQ"
             target="_blank"
             rel="noopener noreferrer"
