@@ -111,6 +111,16 @@ function JobsScreen() {
         </div>
       </header>
 
+      <div className="px-4 pt-3">
+        <Link
+          to="/app/jobs-apps"
+          className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#16181E] px-4 py-3 text-sm"
+        >
+          <span>Browse real job & gig apps</span>
+          <span className="text-[#00D4B8]">Open</span>
+        </Link>
+      </div>
+
       {isAdult === false ? (
         <AgeGateCard
           hasDob={gate?.has_dob ?? true}
