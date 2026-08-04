@@ -30,9 +30,15 @@ export function cvFilename(fullName: string): string {
   return `${slug}-cv-${new Date().toISOString().slice(0, 10)}.pdf`;
 }
 
-export async function buildCvPdf(declared: CvDeclared, cv: CvGenerated) {
+export async function buildCvPdf(declaredIn: CvDeclared, cvIn: CvGenerated) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+
+  // Export exactly the declared content: placeholders ("not declared", "N/A",
+  // "—") and empty rows are stripped, and any section left empty is skipped
+  // entirely rather than printing a bare heading.
+  const declared = pruneDeclaredForExport(declaredIn);
+  const cv = pruneGenerated(cvIn);
 
   let y = M;
   // Section currently being emitted — repeated as "… (cont.)" after a break so
