@@ -252,8 +252,9 @@ export async function exportCvPdf(
   declared: CvDeclared,
   cv: CvGenerated,
   order?: readonly CvSectionKey[],
+  templateId?: CvTemplateId,
 ): Promise<{ filename: string }> {
-  const doc = await buildCvPdf(declared, cv, order);
+  const doc = await buildCvPdf(declared, cv, order, templateId);
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   await deliverFile(filename, "application/pdf", new Blob([buf], { type: "application/pdf" }));
@@ -265,8 +266,10 @@ export async function shareCvPdf(
   declared: CvDeclared,
   cv: CvGenerated,
   order?: readonly CvSectionKey[],
+  templateId?: CvTemplateId,
 ): Promise<{ filename: string; how: "shared" | "downloaded" }> {
-  const doc = await buildCvPdf(declared, cv, order);
+  const doc = await buildCvPdf(declared, cv, order, templateId);
+
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   const how = await shareFile(
