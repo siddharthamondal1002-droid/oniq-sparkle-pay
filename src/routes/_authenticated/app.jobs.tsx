@@ -10,6 +10,7 @@ import {
   Briefcase,
   Check,
   FileText,
+  FileUp,
   Flag,
   GripVertical,
   Plus,
@@ -19,6 +20,7 @@ import {
 import { toast } from "sonner";
 
 import { CvPaper } from "@/components/cv/CvPaper";
+import CredentialCsvImport from "@/components/cv/CredentialCsvImport";
 import { SectionOrderList } from "@/components/cv/SectionOrderList";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -279,6 +281,7 @@ function CvWorkbench({
   // Drag-to-reorder for qualification rows. Pointer events (not HTML5 DnD) so
   // touch works too; the row order is the order used by preview and PDF.
   const [dragCred, setDragCred] = useState<number | null>(null);
+  const [showCsvImport, setShowCsvImport] = useState(false);
   const dragCredIndex = useRef<number | null>(null);
 
 
@@ -729,21 +732,54 @@ function CvWorkbench({
               </button>
             </div>
           ))}
-          <button
-            type="button"
-            onClick={() =>
-              setDeclared({
-                ...declared,
-                credentials: [...declared.credentials, { name: "", issuer: "", year: "" }],
-              })
-            }
-            className="mt-3 flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-xs"
-          >
-            <Plus className="size-3.5" />{" "}
-            {declared.credentials.length === 0
-              ? "Add a qualification"
-              : "Add another qualification"}
-          </button>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setDeclared({
+                  ...declared,
+                  credentials: [...declared.credentials, { name: "", issuer: "", year: "" }],
+                })
+              }
+              className="flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-xs"
+            >
+              <Plus className="size-3.5" />{" "}
+              {declared.credentials.length === 0
+                ? "Add a qualification"
+                : "Add another qualification"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCsvImport((v) => !v)}
+              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs ${
+                showCsvImport ? "bg-[#00D4B8]/20 text-[#00D4B8]" : "bg-white/5"
+              }`}
+            >
+              <FileUp className="size-3.5" /> Import CSV
+            </button>
+          </div>
+          {showCsvImport && (
+            <CredentialCsvImport
+              existingCount={
+                declared.credentials.filter((c) => c.name.trim() || c.issuer.trim() || c.year.trim())
+                  .length
+              }
+              onClose={() => setShowCsvImport(false)}
+              onImport={(rows, mode) => {
+                const kept =
+                  mode === "append"
+                    ? declared.credentials.filter(
+                        (c) => c.name.trim() || c.issuer.trim() || c.year.trim(),
+                      )
+                    : [];
+                setDeclared({ ...declared, credentials: [...kept, ...rows] });
+                setShowCsvImport(false);
+                toast.success(
+                  `${rows.length} qualification${rows.length === 1 ? "" : "s"} imported ✨`,
+                );
+              }}
+            />
+          )}
           {clean.credentials.length > 0 && (
             <p className="mt-2 text-[11px] text-white/40">
               {clean.credentials.length} qualification
