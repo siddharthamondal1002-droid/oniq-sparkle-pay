@@ -131,14 +131,18 @@ function Sheet({
   cv: cvIn,
   order,
   pageBreaks = true,
+  template,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
   order?: readonly CvSectionKey[];
   pageBreaks?: boolean;
+  template?: CvTemplateId;
 }) {
+  const tpl = getCvTemplate(template);
   const sheetEl = useRef<HTMLDivElement>(null);
   const [sheetMm, setSheetMm] = useState(0);
+
 
   // Measure the rendered sheet so the break rules land where the exporter
   // actually runs out of page. CSS mm is a fixed 96/25.4 px, and offsetHeight
