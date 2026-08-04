@@ -230,8 +230,9 @@ export async function exportCvPdf(
 export async function shareCvPdf(
   declared: CvDeclared,
   cv: CvGenerated,
+  order?: readonly CvSectionKey[],
 ): Promise<{ filename: string; how: "shared" | "downloaded" }> {
-  const doc = await buildCvPdf(declared, cv);
+  const doc = await buildCvPdf(declared, cv, order);
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   const how = await shareFile(
