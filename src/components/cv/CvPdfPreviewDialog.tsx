@@ -446,12 +446,33 @@ export function CvPdfPreviewDialog({
         <button
           type="button"
           disabled={!built || busy !== null}
+          onClick={print}
+          aria-label="Print CV"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40"
+        >
+          <Printer className="size-4" /> {busy === "print" ? "Printing…" : "Print"}
+        </button>
+        <button
+          type="button"
+          disabled={!built || busy !== null}
           onClick={share}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#00D4B8] px-4 py-3 text-sm font-semibold text-black disabled:opacity-40"
         >
           <Share2 className="size-4" /> {busy === "share" ? "Preparing…" : "Share"}
         </button>
       </div>
+
+      {/* Off-screen target for the browser print dialog. */}
+      {canEmbed && (
+        <iframe
+          ref={printFrameRef}
+          title="CV print"
+          aria-hidden="true"
+          tabIndex={-1}
+          className="pointer-events-none fixed left-[-9999px] top-0 size-px opacity-0"
+        />
+      )}
+
     </div>
   );
 }
