@@ -1258,6 +1258,30 @@ function moveCredential(
   set({ ...declared, credentials });
 }
 
+/** Move a qualification row to an absolute position (drag + keyboard reorder). */
+function moveCredentialTo(
+  declared: CvDeclared,
+  set: (d: CvDeclared) => void,
+  from: number,
+  to: number,
+) {
+  if (from === to || to < 0 || to >= declared.credentials.length) return;
+  const credentials = [...declared.credentials];
+  const [row] = credentials.splice(from, 1);
+  credentials.splice(to, 0, row);
+  set({ ...declared, credentials });
+}
+
+/** Which qualification row sits under the pointer, if any. */
+function credIndexAtPoint(x: number, y: number): number | null {
+  const row = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-cred-index]");
+  if (!row) return null;
+  const i = Number(row.dataset["credIndex"]);
+  return Number.isFinite(i) ? i : null;
+}
+
+
+
 function patchRole(
   declared: CvDeclared,
   set: (d: CvDeclared) => void,
