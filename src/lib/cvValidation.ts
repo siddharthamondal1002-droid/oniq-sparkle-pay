@@ -78,33 +78,68 @@ export const FABRICATION_CONTRACT = [
 ].join("\n");
 
 /** The DECLARED FACTS block the model is allowed to draw from. */
+/**
+ * The facts block is deliberately SPARSE: only what the user actually gave us
+ * is listed. Empty fields are named once at the end as "not declared" so the
+ * model omits those sections instead of inventing filler or placeholders.
+ */
 export function declaredFactsBlock(d: CvDeclared, country: Country): string {
   const excluded = excludedFields(country);
   const personal = Object.entries(d.personal)
     .filter(([k, v]) => v && !excluded.includes(k as CvSensitiveField))
     .map(([k, v]) => `- ${k}: ${v}`);
-  return [
-    "DECLARED FACTS",
-    `Name: ${d.fullName || "(not given)"}`,
-    `Headline: ${d.headline || "(not given)"}`,
-    `Location: ${d.location || "(not given)"}`,
-    `Contact: ${d.email || "(no email)"} / ${d.phone || "(no phone)"}`,
-    `Summary in the user's own words: ${d.summary || "(not given)"}`,
-    "Roles:",
-    ...(d.roles.length
-      ? d.roles.map(
-          (r) =>
-            `- ${r.title} at ${r.employer} (${r.start || "?"} to ${r.end || "present"}): ${r.bullets.join(" | ")}`,
-        )
-      : ["- (none declared)"]),
-    "Qualifications and certifications:",
-    ...(d.credentials.length
-      ? d.credentials.map((c) => `- ${c.name}, ${c.issuer}, ${c.year}`)
-      : ["- (none declared)"]),
-    `Skills: ${d.skills.length ? d.skills.join(", ") : "(none declared)"}`,
-    "Locally expected personal fields the user supplied:",
-    ...(personal.length ? personal : ["- (none)"]),
-  ].join("\n");
+
+  const lines: string[] = ["DECLARED FACTS"];
+  const missing: string[] = [];
+  const put = (label: string, value: string) => {
+    if (value) lines.push(`${label}: ${value}`);
+    else missing.push(label.toLowerCase());
+  };
+
+  put("Name", d.fullName);
+  put("Headline", d.headline);
+  put("Location", d.location);
+  put("Contact", [d.email, d.phone].filter(Boolean).join(" / "));
+  put("Summary in the user's own words", d.summary);
+
+  if (d.roles.length) {
+    lines.push("Roles:");
+    for (const r of d.roles) {
+      const who = [r.title, r.employer].filter(Boolean).join(" at ");
+      const when = r.start || r.end ? ` (${r.start || "?"} to ${r.end || "present"})` : "";
+      const what = r.bullets.length ? `: ${r.bullets.join(" | ")}` : "";
+      lines.push(`- ${who}${when}${what}`);
+    }
+  } else {
+    missing.push("work history");
+  }
+
+  if (d.credentials.length) {
+    lines.push("Qualifications and certifications:");
+    for (const c of d.credentials) {
+      // Only the parts given — a qualification with no board or year is fine.
+      lines.push(`- ${[c.name, c.issuer, c.year].filter(Boolean).join(", ")}`);
+    }
+  } else {
+    missing.push("qualifications");
+  }
+
+  if (d.skills.length) lines.push(`Skills: ${d.skills.join(", ")}`);
+  else missing.push("skills");
+
+  if (personal.length) {
+    lines.push("Locally expected personal fields the user supplied:");
+    lines.push(...personal);
+  }
+
+  if (missing.length) {
+    lines.push(
+      "",
+      `NOT DECLARED: ${missing.join(", ")}.`,
+      "Write the CV from the declared facts alone. Omit any section with nothing declared — do not add placeholders, do not ask the user for more, and never invent content to fill a gap.",
+    );
+  }
+  return lines.join("\n");
 }
 
 // ---------------------------------------------------------------------------

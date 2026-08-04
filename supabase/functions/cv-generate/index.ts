@@ -26,6 +26,8 @@ const HARD_CONTRACT = [
   "Never state a total years-of-experience figure unless it follows arithmetically from the declared date ranges. If in doubt, omit it.",
   "Never claim the CV is 'ATS-optimised', 'guaranteed' to pass, or that it 'beats' any system.",
   "This is the user's own CV. Never rank, score or compare them against anyone else.",
+  "PARTIAL INPUT IS NORMAL. Work with whatever the user declared, however little that is. Never demand more fields, never emit placeholder text such as '(not given)', 'TBD' or 'Company Name', and never refuse simply because a section is thin.",
+  "Return an empty array for any section with nothing declared (no roles, no credentials, no skills) and an empty summary if there is nothing to summarise. Inside a role or qualification, return an empty string for a part the user did not give (e.g. no board, no year, no end date) rather than guessing it.",
 ].join("\n");
 
 const CV_TOOL = {
@@ -141,7 +143,7 @@ Deno.serve(async (req) => {
         role: "user",
         content:
           instruction.trim() ||
-          "Rewrite my CV for the target country using only my declared facts.",
+          "Write my CV for the target country using only my declared facts. Use whatever is there and leave out the rest.",
       },
     ],
     tools: [CV_TOOL],
