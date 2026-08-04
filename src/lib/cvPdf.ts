@@ -1,6 +1,8 @@
 // One-click CV export. Vector text via jsPDF — never a DOM rasterisation
 // (html2canvas blocks the WebView main thread and ANRs on multi-page docs).
 import { deliverFile, shareFile } from "@/lib/saveFile";
+import { defaultCvShareMessage } from "@/lib/cvShareMessage";
+
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
 import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
