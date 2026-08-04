@@ -1,9 +1,19 @@
 // Preview-before-export step for the generated CV.
 // The bytes are built once and reused for the preview, the download and the
 // share sheet, so what you see is exactly what leaves the app.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { Download, FileText, Loader2, Pencil, Share2, X } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Loader2,
+  Maximize2,
+  Pencil,
+  Share2,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { toast } from "sonner";
 import { isShareCancelled } from "@/lib/saveFile";
 import { defaultCvShareMessage } from "@/lib/cvShareMessage";
@@ -13,6 +23,9 @@ import type { CvInclude, CvSectionKey } from "@/lib/cvSections";
 import type { CvTemplateId } from "@/lib/cvTemplates";
 
 type Built = { blob: Blob; filename: string; pages: number };
+
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4;
 
 export function CvPdfPreviewDialog({
   declared,
@@ -43,6 +56,34 @@ export function CvPdfPreviewDialog({
   // Android/iOS WebViews cannot render a PDF in an iframe — no plugin behind it.
   const canEmbed = !Capacitor.isNativePlatform();
   const defaults = defaultCvShareMessage(declared.fullName);
+
+  // Zoom for the embedded preview so fine details can be inspected.
+  const [zoom, setZoom] = useState(1);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+
+  const zoomBy = useCallback((factor: number) => {
+    setZoom((prev) => {
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * factor));
+      const el = viewportRef.current;
+      if (el && next !== prev) {
+        // Keep the centre of the visible area anchored while zooming.
+        const k = next / prev;
+        const cx = el.scrollLeft + el.clientWidth / 2;
+        const cy = el.scrollTop + el.clientHeight / 2;
+        requestAnimationFrame(() => {
+          el.scrollLeft = cx * k - el.clientWidth / 2;
+          el.scrollTop = cy * k - el.clientHeight / 2;
+        });
+      }
+      return next;
+    });
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    setZoom(1);
+    const el = viewportRef.current;
+    if (el) requestAnimationFrame(() => el.scrollTo({ top: 0, left: 0 }));
+  }, []);
 
   // Prefill the editable share message from the CV's name, once per name change.
   useEffect(() => {
@@ -163,7 +204,20 @@ export function CvPdfPreviewDialog({
             <Loader2 className="size-4 animate-spin" /> Preparing preview…
           </div>
         ) : canEmbed && url ? (
-          <iframe title="CV PDF preview" src={url} className="size-full bg-white" />
+          <div ref={viewportRef} className="size-full overflow-auto">
+            {/* The iframe is laid out at 1/zoom of the viewport and scaled up,
+                so zooming grows the scrollable area instead of cropping it. */}
+            <div
+              style={{
+                width: `${100 / zoom}%`,
+                height: `${100 / zoom}%`,
+                transform: `scale(${zoom})`,
+                transformOrigin: "0 0",
+              }}
+            >
+              <iframe title="CV PDF preview" src={url} className="size-full bg-white" />
+            </div>
+          </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
             <FileText className="size-8 text-white/40" />
@@ -177,6 +231,42 @@ export function CvPdfPreviewDialog({
           </div>
         )}
       </div>
+
+      {canEmbed && url && !error && (
+        <div className="mx-3 mt-2 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => zoomBy(1 / 1.25)}
+            disabled={zoom <= MIN_ZOOM + 0.001}
+            aria-label="Zoom out"
+            className="rounded-full bg-white/10 p-2 text-white disabled:opacity-40"
+          >
+            <ZoomOut className="size-4" />
+          </button>
+          <span className="min-w-[3.5rem] text-center text-xs tabular-nums text-white/60">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            onClick={() => zoomBy(1.25)}
+            disabled={zoom >= MAX_ZOOM - 0.001}
+            aria-label="Zoom in"
+            className="rounded-full bg-white/10 p-2 text-white disabled:opacity-40"
+          >
+            <ZoomIn className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={resetZoom}
+            aria-label="Reset zoom to fit"
+            className="ml-1 flex items-center gap-1 rounded-full bg-white/10 px-3 py-2 text-[11px] font-medium text-white"
+          >
+            <Maximize2 className="size-3.5" /> Fit
+          </button>
+        </div>
+      )}
+
+
 
       <div className="mx-3 mt-3 rounded-2xl bg-[#16181E] p-3">
         <button
