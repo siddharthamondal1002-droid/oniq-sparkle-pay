@@ -10,6 +10,7 @@ import {
   Briefcase,
   Check,
   FileText,
+  FileUp,
   Flag,
   GripVertical,
   Plus,
