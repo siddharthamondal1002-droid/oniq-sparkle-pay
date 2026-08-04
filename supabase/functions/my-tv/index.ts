@@ -65,22 +65,37 @@ function extractHandleOrId(input: string): { channelId?: string; handle?: string
   return null;
 }
 
+/**
+ * Resolve a user-pasted channel reference WITHOUT scraping.
+ *
+ * This used to fetch the channel or @handle page and regex externalId /
+ * channelId / og:title out of the markup. YouTube's ToS require the Data API
+ * for that, so it is gone.
+ *
+ * A URL containing a channel id needs no lookup — the id is right there. The
+ * channel NAME then comes from YouTube's official RSS feed
+ * (feeds/videos.xml?channel_id=...), which is a published syndication
+ * endpoint, the same basis Pulse stands on.
+ *
+ * A bare @handle cannot be turned into a channel id without either the Data
+ * API (no key is configured on this project) or a scrape, so it is refused
+ * with a message telling the user what to paste instead. Refusing is the
+ * honest failure: silently scraping was the bug.
+ */
 async function resolveChannel(input: string): Promise<{ channelId: string; name: string } | null> {
   const parsed = extractHandleOrId(input);
-  if (!parsed) return null;
-  const url = parsed.channelId
-    ? `https://www.youtube.com/channel/${parsed.channelId}`
-    : `https://www.youtube.com/@${parsed.handle}`;
-  const html = await fetchText(url, 8000);
-  if (!html) return null;
-  const idMatch = html.match(/"externalId":"(UC[A-Za-z0-9_-]{22})"/) ||
-    html.match(/"channelId":"(UC[A-Za-z0-9_-]{22})"/);
-  const channelId = idMatch ? idMatch[1] : parsed.channelId;
-  if (!channelId) return null;
-  const nameMatch = html.match(/<meta property="og:title" content="([^"]+)"/) ||
-    html.match(/<title>([^<]+)<\/title>/);
-  let name = nameMatch ? nameMatch[1] : (parsed.handle ?? channelId);
-  name = name.replace(/\s*-\s*YouTube\s*$/i, "").trim();
+  if (!parsed?.channelId) return null;
+  const channelId = parsed.channelId;
+
+  let name = channelId;
+  const xml = await fetchText(
+    `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`,
+    8000,
+  );
+  if (xml) {
+    const authorName = xml.match(/<author>[\s\S]*?<name>([^<]+)<\/name>/);
+    if (authorName) name = authorName[1].trim();
+  }
   return { channelId, name };
 }
 

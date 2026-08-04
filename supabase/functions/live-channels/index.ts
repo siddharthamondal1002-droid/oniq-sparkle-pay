@@ -217,35 +217,25 @@ async function fetchText(url: string, timeoutMs = 6000): Promise<string | null> 
   }
 }
 
-async function resolveLiveVideoId(channelId: string): Promise<string | null> {
-  const html = await fetchText(`https://www.youtube.com/channel/${channelId}/live?hl=en&persist_hl=1`);
-  if (!html) return null;
-  const isLive = /"hlsManifestUrl"|"isLiveNow":true|"isLive":true/.test(html);
-  if (!isLive) return null;
-  let m = html.match(/<link rel="canonical" href="https?:\/\/[^"]*[?&]v=([A-Za-z0-9_-]{11})/);
-  if (m) return m[1];
-  const vdIdx = html.indexOf('"videoDetails"');
-  if (vdIdx >= 0) {
-    const slice = html.slice(vdIdx, vdIdx + 4000);
-    const vm = slice.match(/"videoId":"([A-Za-z0-9_-]{11})"/);
-    if (vm) return vm[1];
-  }
-  const og = html.match(/<meta property="og:url" content="[^"]*[?&]v=([A-Za-z0-9_-]{11})/);
-  return og ? og[1] : null;
-}
+// resolveLiveVideoId() is GONE. It fetched
+// https://www.youtube.com/channel/<id>/live and regexed the markup for
+// hlsManifestUrl / videoDetails to pull out a video id. That breaches
+// YouTube's ToS, which require the Data API rather than scraping — and it
+// resolved "whatever is live" with no idea what territory that stream was
+// licensed for, which is how ONIQ ended up serving geo-restricted feeds to
+// anyone who asked.
+//
+// Live channels are now served client-side from src/data/watchChannels.ts,
+// filtered by CURRENT REGION, and embedded through YouTube's own endpoint:
+//   https://www.youtube.com/embed/live_stream?channel=<CHANNEL_ID>
+// YouTube resolves the live video itself and applies its own geo-restrictions.
+// No scrape, no Data API key, and zero quota — so the search.list trap
+// (100 units/call) cannot arise here at all.
 
-async function resolveHandleToChannelId(handle: string): Promise<string | null> {
-  const cached = handleToChannelId.get(handle);
-  if (cached) return cached;
-  const html = await fetchText(`https://www.youtube.com/@${handle}`, 8000);
-  if (!html) return null;
-  const m = html.match(/"externalId":"(UC[A-Za-z0-9_-]{22})"/) ||
-    html.match(/"channelId":"(UC[A-Za-z0-9_-]{22})"/) ||
-    html.match(/<meta itemprop="channelId" content="(UC[A-Za-z0-9_-]{22})"/);
-  if (!m) return null;
-  handleToChannelId.set(handle, m[1]);
-  return m[1];
-}
+// resolveHandleToChannelId() is GONE for the same reason: it fetched
+// https://www.youtube.com/@<handle> and regexed externalId/channelId out of
+// the markup. Candidates must now carry a real channel id. A handle-only
+// candidate is skipped rather than scraped for — see resolveUploads().
 
 function parseRssUploads(xml: string, fallbackChannelName: string, cap: number): Video[] {
   const entries = xml.match(/<entry\b[\s\S]*?<\/entry>/g) ?? [];
@@ -272,8 +262,12 @@ function parseRssUploads(xml: string, fallbackChannelName: string, cap: number):
 }
 
 async function resolveUploads(c: Candidate): Promise<Video[]> {
-  let channelId = c.id ?? null;
-  if (!channelId && c.handle) channelId = await resolveHandleToChannelId(c.handle);
+  // Official public RSS feed — a published syndication endpoint, not scraping.
+  // This is the same basis Pulse stands on.
+  const channelId = c.id ?? null;
+  // Handle-only candidates are skipped: resolving a handle to an id needs
+  // either the Data API (no key on this project) or a scrape (forbidden).
+  // Add the channel id to the candidate to bring one back.
   if (!channelId) return [];
   const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
   let xml = await fetchText(rssUrl);
@@ -283,17 +277,10 @@ async function resolveUploads(c: Candidate): Promise<Video[]> {
 }
 
 
-async function resolveNewsChannel(c: Candidate): Promise<Video | null> {
-  if (!c.id) return null;
-  const vid = await resolveLiveVideoId(c.id);
-  if (!vid) return null;
-  return {
-    videoId: vid,
-    title: `${c.name} LIVE`,
-    channelName: c.name,
-    publishedAt: new Date().toISOString(),
-    thumbnail: `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`,
-  };
+// Live resolution has moved to the client, region-filtered, via YouTube's
+// live_stream embed. Nothing here resolves a live video any more.
+async function resolveNewsChannel(_c: Candidate): Promise<Video | null> {
+  return null;
 }
 
 async function resolveGenre(g: GenreDef): Promise<ResolvedGenre | null> {

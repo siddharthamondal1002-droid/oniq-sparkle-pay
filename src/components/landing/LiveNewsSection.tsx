@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowRight, Pencil, Plus, Radio, Settings, SkipForward, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useCurrentRegion } from "@/lib/region";
+import { liveEmbedUrl, watchChannelsFor } from "@/data/watchChannels";
 
 
 type NewsItem = {
@@ -127,17 +129,13 @@ export function CompactLiveNews() {
 }
 
 // ---- Watch Live (YouTube official live embeds) ----
+// The hardcoded LIVE_CHANNELS list that used to sit here was region-blind:
+// every viewer got every broadcaster regardless of where they were standing.
+// Streaming rights are territorial, so that made ONIQ — not the viewer — the
+// infringing party. Live channels now come from src/data/watchChannels.ts,
+// filtered by CURRENT REGION, and fail closed to worldwide public-service
+// streams when no region is known.
 type Channel = { id: string; name: string };
-const LIVE_CHANNELS: Channel[] = [
-  { id: "UCNye-wNBqNL5ZzHSJj3l8Bg", name: "Al Jazeera" },
-  { id: "UCknLrEdhRCp1aegoMqRaCZg", name: "DW News" },
-  { id: "UCQfwfsi5VrQ8yKZ-UWmAEFg", name: "France 24" },
-  { id: "UCoMdktPbSTixAyNGwb-UYkQ", name: "Sky News" },
-  { id: "UC83jt4dlz1Gjl58fzQrrKZg", name: "CNA" },
-  { id: "UC_gUM8rL-Lrg6O3adPW9K1g", name: "WION" },
-  { id: "UCZFMm1mMw0F81Z37aaEzTUA", name: "NDTV 24x7" },
-  { id: "UCYPvAwZP8pZhSMW8qs7cVCw", name: "India Today" },
-];
 
 const YT_API_SRC = "https://www.youtube.com/iframe_api";
 
@@ -312,6 +310,8 @@ export function WatchLive() {
   const failStreakRef = useRef(0);
   const advanceTimerRef = useRef<number | null>(null);
   const userId = useSession();
+  // MUST stay above every early return in this component.
+  const [region] = useCurrentRegion();
   const { videos: myTvVideos } = useMyTv();
   const userGenresQ = useUserGenres(userId);
   const queryClient = useQueryClient();
@@ -357,8 +357,29 @@ export function WatchLive() {
     return merged;
   }, [baseGenres, myTvVideos, userGenresQ.data, activeUserGenreId, activeUserChannelsQ.data]);
 
+  // CURRENT REGION, deliberately not Home: a GB user standing in Dubai is not
+  // licensed for a UK stream. `channel:` refs are embedded through YouTube's
+  // own live_stream endpoint — no scrape, no Data API key, zero quota.
+  const regionalLive: LiveGenre = {
+    id: "news",
+    name: "News",
+    emoji: "📰",
+    live: true,
+    videos: watchChannelsFor(region).map((c) => ({
+      videoId: `channel:${c.channelId}`,
+      title: `${c.name} LIVE`,
+      channelName: c.name,
+      publishedAt: "",
+      thumbnail: "",
+    })),
+  };
+  const genresWithRegion = (genres ?? []).map((g) => (g.live && g.id === "news" ? regionalLive : g));
+  const withNews = genresWithRegion.some((g) => g.id === "news")
+    ? genresWithRegion
+    : [regionalLive, ...genresWithRegion];
+
   const activeGenre =
-    (genres ?? []).find((g) => g.id === genreId) ?? (genres ?? [])[0] ?? null;
+    withNews.find((g) => g.id === genreId) ?? withNews[0] ?? null;
   const videos = activeGenre?.videos ?? [];
   const isLiveGenre = !!activeGenre?.live;
   const isUserGenre = typeof activeGenre?.id === "string" && activeGenre.id.startsWith("ug:");
@@ -464,6 +485,39 @@ export function WatchLive() {
 
     const isList = current.videoId.startsWith("list:");
     const listId = isList ? current.videoId.slice(5) : null;
+
+    // A channel ref embeds YouTube's own live_stream endpoint. YouTube picks
+    // the live video AND applies its geo-restrictions server-side, so a stream
+    // the viewer is not entitled to simply does not play — ONIQ never resolves
+    // or serves one. This is still the official IFrame player; the JS API is
+    // attached to it so error auto-advance keeps working.
+    if (current.videoId.startsWith("channel:")) {
+      const channelId = current.videoId.slice(8);
+      const frame = document.createElement("iframe");
+      frame.src = liveEmbedUrl(channelId, window.location.origin);
+      frame.title = `${current.channelName} live`;
+      frame.allow = "encrypted-media; picture-in-picture; fullscreen";
+      frame.allowFullscreen = true;
+      // >= 200x200 viewport is an embed-terms condition; the frame fills an
+      // aspect-video box that is never narrower than the phone content column.
+      frame.style.cssText = "width:100%;height:100%;border:0;min-width:200px;min-height:200px";
+      div.replaceWith(frame);
+      loadYouTubeApi().then((YT) => {
+        if (cancelled || !YT) return;
+        try {
+          playerRef.current = new YT.Player(frame, {
+            events: { onError: () => advance("error") },
+          });
+        } catch { /* the embed still plays without JS control */ }
+      });
+      return () => {
+        cancelled = true;
+        if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
+        try { playerRef.current?.destroy?.(); } catch { /* noop */ }
+        playerRef.current = null;
+        if (host) host.innerHTML = "";
+      };
+    }
 
     loadYouTubeApi().then((YT) => {
       if (cancelled || !YT) return;
@@ -580,20 +634,16 @@ export function WatchLive() {
       )}
 
 
-      <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black">
-        {loading ? (
-          <div className="absolute inset-0 animate-pulse bg-surface" />
-        ) : allDead || !current ? (
-          <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted-foreground">
-            {isUserGenre && activeUserChannelRows.length === 0
-              ? "no channels yet — add ur first 📺"
-              : "streams are napping — try later 📺"}
-          </div>
-        ) : (
-          <div ref={mountRef} className="h-full w-full" />
-        )}
-        {current && (
-          <span className={`absolute top-2 left-2 z-10 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/20 text-red-300" : "border-primary/50 bg-primary/20 text-primary"}`}>
+      {/*
+        YouTube's embed terms forbid rendering anything in front of ANY part
+        of the player, controls included. This LIVE/NEW badge used to sit
+        `absolute top-2 left-2 z-10` over the top-left of the video, which
+        voids the grant. It now sits ABOVE the frame. The loading and error
+        states inside the frame are fine — they replace the player rather
+        than cover it. Enforced by src/data/__tests__/watchChannels.test.ts.
+      */}
+      {current && (
+          <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/20 text-red-300" : "border-primary/50 bg-primary/20 text-primary"}`}>
             {isLiveGenre ? (
               <>
                 <span className="relative flex h-1.5 w-1.5">
@@ -606,6 +656,18 @@ export function WatchLive() {
               "NEW"
             )}
           </span>
+        )}
+      <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black">
+        {loading ? (
+          <div className="absolute inset-0 animate-pulse bg-surface" />
+        ) : allDead || !current ? (
+          <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted-foreground">
+            {isUserGenre && activeUserChannelRows.length === 0
+              ? "no channels yet — add ur first 📺"
+              : "streams are napping — try later 📺"}
+          </div>
+        ) : (
+          <div ref={mountRef} className="h-full w-full" />
         )}
       </div>
 
