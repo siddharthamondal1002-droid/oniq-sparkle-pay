@@ -98,11 +98,24 @@ export function CvPdfPreviewDialog({
   useEffect(() => {
     let objectUrl: string | null = null;
     let cancelled = false;
+    // Drive a visible progress bar while the bytes are built. The build is a
+    // single synchronous jsPDF pass, so this is a time-based estimate that
+    // never claims completion until the blob actually exists.
+    const started = Date.now();
+    setProgress(4);
+    setSlow(false);
+    const tick = window.setInterval(() => {
+      const elapsed = Date.now() - started;
+      setSlow(elapsed > 6000);
+      // Ease towards 92% and stop; the final jump to 100% is real.
+      setProgress((p) => (p >= 92 ? p : p + Math.max(1, (92 - p) * 0.12)));
+    }, 160);
     (async () => {
       try {
         const { buildCvPdfBlob } = await import("@/lib/cvPdf");
         const result = await buildCvPdfBlob(declared, cv, order, template, include);
         if (cancelled) return;
+        setProgress(100);
         setBuilt(result);
         if (canEmbed) {
           objectUrl = URL.createObjectURL(result.blob);
@@ -110,9 +123,13 @@ export function CvPdfPreviewDialog({
         }
       } catch {
         if (!cancelled) setError(true);
+      } finally {
+        window.clearInterval(tick);
       }
     })();
     return () => {
+      window.clearInterval(tick);
+
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
