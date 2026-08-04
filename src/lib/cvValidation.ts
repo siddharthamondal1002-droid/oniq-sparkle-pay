@@ -581,9 +581,9 @@ export function normalizeSkills(skills: string[]): string[] {
 
 
 
-/** Qualification / course name. */
+/** Qualification / course name. Validates the normalised value. */
 export function validateQualification(raw: string): string | null {
-  const v = raw.trim();
+  const v = normalizeQualification(raw);
   if (!v) return null;
   if (v.length < 2)
     return "Too short — write the qualification out, e.g. Class 12 or B.Sc Physics.";
@@ -593,9 +593,9 @@ export function validateQualification(raw: string): string | null {
   return null;
 }
 
-/** Board / university / issuer. */
+/** Board / university / issuer. Validates the normalised value. */
 export function validateIssuer(raw: string): string | null {
-  const v = raw.trim();
+  const v = normalizeIssuer(raw);
   if (!v) return null;
   if (v.length < 2) return "Too short — e.g. CBSE, Delhi University, Amazon.";
   if (v.length > 120) return "Keep the issuer name under 120 characters.";
@@ -606,13 +606,13 @@ export function validateIssuer(raw: string): string | null {
 
 /**
  * Year of the qualification. Accepts a single year (2024) or a range
- * (2020-2024, 2020–2024, 2020 - 2024). Rejects impossible years.
+ * (2020-2024, 2020–2024, 2020 to 2024). Rejects impossible years.
  */
 export function validateYear(raw: string, today = new Date()): string | null {
-  const v = raw.trim();
+  const v = normalizeYear(raw);
   if (!v) return null;
   const max = today.getFullYear() + 8;
-  const m = v.match(/^(\d{4})(?:\s*[-–—/]\s*(\d{4}|present|now))?$/i);
+  const m = v.match(/^(\d{4})(?:-(\d{4}|present))?$/i);
   if (!m) return "Use a 4-digit year, e.g. 2024 — or a range like 2020-2024.";
   const start = Number(m[1]);
   if (start < 1950 || start > max) return `Year should be between 1950 and ${max}.`;
@@ -629,7 +629,12 @@ export const MAX_SKILLS = 40;
 
 /** Comma-separated skills box. Returns one combined, actionable message. */
 export function validateSkills(skills: string[]): string | null {
-  const list = skills.map((s) => s.trim()).filter(Boolean);
+  // Split and tidy exactly like normalizeSkills, but keep duplicates so we
+  // can still tell the user about them.
+  const list = skills
+    .flatMap((chunk) => chunk.split(/[,;|\n•·]+/))
+    .map((s) => smartCase(s.replace(/^[\s\-–—]+|[\s\-–—.]+$/g, "")))
+    .filter(Boolean);
   if (list.length === 0) return null;
   if (list.length > MAX_SKILLS)
     return `That's ${list.length} skills — keep it to your best ${MAX_SKILLS}.`;
@@ -648,3 +653,4 @@ export function validateSkills(skills: string[]): string | null {
   }
   return null;
 }
+
