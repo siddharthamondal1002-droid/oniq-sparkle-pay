@@ -349,3 +349,82 @@ export function applyCountryRules<T extends { personal?: CvPersonal }>(doc: T, c
 /** The attestation the user must tick before any export. Recorded verbatim. */
 export const ATTESTATION_STATEMENT =
   "I confirm that every employer, job title, date, qualification and figure in this CV is accurate and my own.";
+
+/* ------------------------------------------------------------------ *
+ * Inline input validation (Qualification / Board / Year / Skills)
+ *
+ * Pure string checks used by the CV workbench to show helpful errors as
+ * the user types. Deliberately permissive: a blank field is never an
+ * error (blank rows are dropped by cleanDeclared) — only a filled field
+ * in a shape we cannot use is flagged.
+ * ------------------------------------------------------------------ */
+
+const URLISH = /(https?:\/\/|www\.|\S+@\S+\.\S+)/i;
+const HAS_LETTER = /\p{L}/u;
+
+/** Qualification / course name. */
+export function validateQualification(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (v.length < 2) return "Too short — write the qualification out, e.g. Class 12 or B.Sc Physics.";
+  if (v.length > 120) return "Keep this under 120 characters — put detail in the summary instead.";
+  if (!HAS_LETTER.test(v)) return "This needs the name of the qualification, not just numbers.";
+  if (URLISH.test(v)) return "Links and email addresses don't belong here.";
+  return null;
+}
+
+/** Board / university / issuer. */
+export function validateIssuer(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (v.length < 2) return "Too short — e.g. CBSE, Delhi University, Amazon.";
+  if (v.length > 120) return "Keep the issuer name under 120 characters.";
+  if (!HAS_LETTER.test(v)) return "Write who awarded it, e.g. CBSE or Delhi University.";
+  if (URLISH.test(v)) return "Links and email addresses don't belong here.";
+  return null;
+}
+
+/**
+ * Year of the qualification. Accepts a single year (2024) or a range
+ * (2020-2024, 2020–2024, 2020 - 2024). Rejects impossible years.
+ */
+export function validateYear(raw: string, today = new Date()): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  const max = today.getFullYear() + 8;
+  const m = v.match(/^(\d{4})(?:\s*[-–—/]\s*(\d{4}|present|now))?$/i);
+  if (!m) return "Use a 4-digit year, e.g. 2024 — or a range like 2020-2024.";
+  const start = Number(m[1]);
+  if (start < 1950 || start > max) return `Year should be between 1950 and ${max}.`;
+  const endRaw = m[2];
+  if (endRaw && /^\d{4}$/.test(endRaw)) {
+    const end = Number(endRaw);
+    if (end < 1950 || end > max) return `Year should be between 1950 and ${max}.`;
+    if (end < start) return "The end year can't be before the start year.";
+  }
+  return null;
+}
+
+export const MAX_SKILLS = 40;
+
+/** Comma-separated skills box. Returns one combined, actionable message. */
+export function validateSkills(skills: string[]): string | null {
+  const list = skills.map((s) => s.trim()).filter(Boolean);
+  if (list.length === 0) return null;
+  if (list.length > MAX_SKILLS)
+    return `That's ${list.length} skills — keep it to your best ${MAX_SKILLS}.`;
+
+  const seen = new Set<string>();
+  for (const s of list) {
+    const key = s.toLowerCase();
+    if (seen.has(key)) return `"${s}" is listed twice — remove the duplicate.`;
+    seen.add(key);
+    if (s.length < 2) return `"${s}" is too short to be a skill.`;
+    if (s.length > 40) return `"${s.slice(0, 24)}…" is too long — one skill per comma.`;
+    if (!HAS_LETTER.test(s)) return `"${s}" doesn't look like a skill.`;
+    if (URLISH.test(s)) return "Links and email addresses don't belong in skills.";
+    if (s.split(/\s+/).length > 6)
+      return `"${s.slice(0, 24)}…" reads like a sentence — list skills, e.g. Excel, Tally.`;
+  }
+  return null;
+}
