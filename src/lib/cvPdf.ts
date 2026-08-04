@@ -11,7 +11,10 @@ const BOTTOM = A4_H - M;
 
 export function cvFilename(fullName: string): string {
   const slug =
-    (fullName || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "my";
+    (fullName || "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "my";
   return `${slug}-cv-${new Date().toISOString().slice(0, 10)}.pdf`;
 }
 
@@ -58,7 +61,9 @@ export async function buildCvPdf(declared: CvDeclared, cv: CvGenerated) {
   if (declared.headline) para(declared.headline, 11, "normal", 5);
   const contact = [declared.email, declared.phone, declared.location].filter(Boolean).join("  ·  ");
   if (contact) para(contact, 9, "normal", 5);
-  const personal = Object.values(declared.personal ?? {}).filter(Boolean).join("  ·  ");
+  const personal = Object.values(declared.personal ?? {})
+    .filter(Boolean)
+    .join("  ·  ");
   if (personal) para(personal, 9, "normal", 5);
 
   if (cv.summary?.trim()) {
