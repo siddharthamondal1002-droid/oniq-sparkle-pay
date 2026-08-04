@@ -85,7 +85,9 @@ export function CvPdfPreviewDialog({
         <div className="min-w-0">
           <p className="text-sm font-semibold text-white">Preview your CV</p>
           <p className="truncate text-[11px] text-white/50">
-            {built ? `${built.filename} · ${built.pages} page${built.pages > 1 ? "s" : ""}` : "Building the PDF…"}
+            {built
+              ? `${built.filename} · ${built.pages} page${built.pages > 1 ? "s" : ""}`
+              : "Building the PDF…"}
           </p>
         </div>
         <button
