@@ -9,6 +9,18 @@ const M = 16;
 const CONTENT_W = A4_W - M * 2;
 const BOTTOM = A4_H - 18; // leaves room for the page-number footer
 
+/** Page geometry, shared with the on-screen paper preview (CvPaper.tsx). */
+export const CV_PAGE = {
+  width: A4_W,
+  height: A4_H,
+  margin: M,
+  contentWidth: CONTENT_W,
+  bottom: BOTTOM,
+} as const;
+
+/** Points -> millimetres, matching jsPDF's text metrics. */
+export const PT = 0.3528;
+
 export function cvFilename(fullName: string): string {
   const slug =
     (fullName || "")

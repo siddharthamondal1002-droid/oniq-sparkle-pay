@@ -16,6 +16,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+
+import { CvPaper } from "@/components/cv/CvPaper";
 import { supabase } from "@/integrations/supabase/client";
 import { CvPdfPreviewDialog } from "@/components/cv/CvPdfPreviewDialog";
 import { COUNTRIES, useCountry } from "@/lib/country";
@@ -1064,83 +1066,28 @@ function CvLivePreview({ declared, cvWord }: { declared: CvDeclared; cvWord: str
           and the rest.
         </p>
       ) : (
-        <div className="mt-3 rounded-xl bg-white/[0.03] p-4">
-          {declared.fullName && <p className="text-base font-semibold">{declared.fullName}</p>}
-          {declared.headline && <p className="text-xs text-white/60">{declared.headline}</p>}
-          {contact.length > 0 && (
-            <p className="mt-1 text-[11px] text-white/40">{contact.join("  ·  ")}</p>
-          )}
-
-          {declared.summary && (
-            <p className="mt-3 whitespace-pre-wrap text-xs leading-relaxed text-white/70">
-              {declared.summary}
-            </p>
-          )}
-
-          {declared.credentials.some((c) => c.name.trim() || c.issuer.trim() || c.year.trim()) && (
-            <div className="mt-3 border-t border-white/5 pt-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
-                Qualifications
-              </p>
-              <ul className="mt-1 space-y-0.5 text-xs text-white/70">
-                {declared.credentials
-                  .filter((c) => c.name.trim() || c.issuer.trim() || c.year.trim())
-                  .map((c, i) => (
-                    <li key={i}>
-                      {[c.name, c.issuer, c.year]
-                        .map((x) => x.trim())
-                        .filter(Boolean)
-                        .join(", ")}
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          )}
-
-          {declared.roles.length > 0 && (
-            <div className="mt-3 border-t border-white/5 pt-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
-                Work
-              </p>
-              {declared.roles.map((r, i) => (
-                <div key={i} className="mt-1.5">
-                  <p className="text-xs font-medium text-white/80">
-                    {[r.title, r.employer].filter(Boolean).join(" — ")}
-                  </p>
-                  {(r.start || r.end) && (
-                    <p className="text-[11px] text-white/40">
-                      {r.start} – {r.end || "present"}
-                    </p>
-                  )}
-                  {r.bullets.length > 0 && (
-                    <ul className="mt-0.5 list-disc pl-4 text-xs text-white/60">
-                      {r.bullets.map((b, j) => (
-                        <li key={j}>{b}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {declared.skills.length > 0 && (
-            <div className="mt-3 border-t border-white/5 pt-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
-                Skills
-              </p>
-              <div className="mt-1.5 flex flex-wrap gap-1.5">
-                {declared.skills.map((s) => (
-                  <span
-                    key={s}
-                    className="rounded-full bg-white/8 px-2.5 py-1 text-[11px] text-white/70"
-                  >
-                    {s}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+        <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-white">
+          <CvPaper
+            declared={declared}
+            cv={{
+              summary: declared.summary,
+              roles: declared.roles.map((r) => ({
+                employer: r.employer,
+                title: r.title,
+                start: r.start,
+                end: r.end,
+                bullets: r.bullets,
+              })),
+              credentials: declared.credentials
+                .filter((c) => c.name.trim() || c.issuer.trim() || c.year.trim())
+                .map((c) => ({
+                  name: c.name.trim(),
+                  issuer: c.issuer.trim(),
+                  year: c.year.trim(),
+                })),
+              skills: declared.skills,
+            }}
+          />
         </div>
       )}
     </section>
