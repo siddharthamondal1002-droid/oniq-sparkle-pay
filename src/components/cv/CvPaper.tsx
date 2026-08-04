@@ -246,7 +246,7 @@ export function CvPaper({
     if (box.current) ro.observe(box.current);
     if (sheet.current) ro.observe(sheet.current);
     return () => ro.disconnect();
-  }, [declared, cv]);
+  }, [declared, cv, order]);
 
   return (
     <div ref={box} className="w-full overflow-hidden" style={{ height: height || undefined }}>
@@ -254,7 +254,7 @@ export function CvPaper({
         ref={sheet}
         style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: "fit-content" }}
       >
-        <Sheet declared={declared} cv={cv} />
+        <Sheet declared={declared} cv={cv} order={order} />
       </div>
     </div>
   );
