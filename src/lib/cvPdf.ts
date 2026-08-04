@@ -1,6 +1,8 @@
 // One-click CV export. Vector text via jsPDF — never a DOM rasterisation
 // (html2canvas blocks the WebView main thread and ANRs on multi-page docs).
 import { deliverFile, shareFile } from "@/lib/saveFile";
+import { defaultCvShareMessage } from "@/lib/cvShareMessage";
+
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
 import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
@@ -205,13 +207,26 @@ export function deliverCvPdfBlob(filename: string, blob: Blob) {
   return deliverFile(filename, "application/pdf", blob);
 }
 
-/** Hand an already-built CV PDF to the platform share sheet. */
-export function shareCvPdfBlob(filename: string, blob: Blob, fullName?: string) {
+/** Default share-sheet subject/body for a CV, used when the user hasn't
+ * customised the message. Re-exported from the light module. */
+export { defaultCvShareMessage } from "@/lib/cvShareMessage";
+
+
+/** Hand an already-built CV PDF to the platform share sheet.
+ * `message` lets the caller override the share-sheet subject and body. */
+export function shareCvPdfBlob(
+  filename: string,
+  blob: Blob,
+  fullName?: string,
+  message?: { title?: string; text?: string },
+) {
+  const fallback = defaultCvShareMessage(fullName);
   return shareFile(filename, "application/pdf", blob, {
-    title: fullName ? `${fullName} — CV` : "My CV",
-    text: "My CV",
+    title: message?.title?.trim() || fallback.title,
+    text: message?.text?.trim() || fallback.text,
   });
 }
+
 
 /** Build + hand to the OS. Returns the filename written. */
 export async function exportCvPdf(
