@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CV_PAGE, PT } from "@/lib/cvPdf";
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
+import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
 
 /** pt -> mm, matching jsPDF's text metrics. */
 const mm = (pt: number) => `${(pt * PT).toFixed(3)}mm`;
