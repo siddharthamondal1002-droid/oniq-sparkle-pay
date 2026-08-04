@@ -6,6 +6,8 @@ import { defaultCvShareMessage } from "@/lib/cvShareMessage";
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
 import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
+import { getCvTemplate, type CvTemplateId } from "@/lib/cvTemplates";
+
 
 const A4_W = 210;
 const A4_H = 297;
