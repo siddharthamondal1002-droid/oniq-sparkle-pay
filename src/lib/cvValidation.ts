@@ -655,7 +655,8 @@ export function validateSkills(skills: string[]): string | null {
     if (seen.has(key)) return `"${s}" is listed twice — remove the duplicate.`;
     seen.add(key);
     if (s.length < 2) return `"${s}" is too short to be a skill.`;
-    if (s.length > 40) return `"${s.slice(0, 24)}…" is too long — one skill per comma.`;
+    if (s.length > MAX_SKILL_LEN)
+      return `"${s.slice(0, 24)}…" is too long — one skill per comma.`;
     if (!HAS_LETTER.test(s)) return `"${s}" doesn't look like a skill.`;
     if (URLISH.test(s)) return "Links and email addresses don't belong in skills.";
     if (s.split(/\s+/).length > 6)
