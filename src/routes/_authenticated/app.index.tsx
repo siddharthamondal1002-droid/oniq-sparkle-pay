@@ -40,6 +40,7 @@ import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useCountry } from "@/lib/country";
 import { isAvailable } from "@/data/countryRegistry";
 import { useIsAdult18 } from "@/lib/useIsAdult18";
+import { SafeMount } from "@/components/SafeMount";
 import { RegionBanner } from "@/components/home/RegionBanner";
 import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
