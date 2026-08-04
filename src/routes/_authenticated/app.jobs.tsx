@@ -1000,6 +1000,8 @@ function CvWorkbench({
               declared={cleanDeclared(declared)}
               cv={generated}
               order={sectionOrder}
+              template={template}
+
               onClose={() => setPreviewing(false)}
             />
           )}
