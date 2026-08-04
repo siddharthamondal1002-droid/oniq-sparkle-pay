@@ -217,8 +217,9 @@ export function shareCvPdfBlob(filename: string, blob: Blob, fullName?: string) 
 export async function exportCvPdf(
   declared: CvDeclared,
   cv: CvGenerated,
+  order?: readonly CvSectionKey[],
 ): Promise<{ filename: string }> {
-  const doc = await buildCvPdf(declared, cv);
+  const doc = await buildCvPdf(declared, cv, order);
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   await deliverFile(filename, "application/pdf", new Blob([buf], { type: "application/pdf" }));
