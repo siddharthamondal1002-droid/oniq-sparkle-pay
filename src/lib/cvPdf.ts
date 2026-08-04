@@ -113,8 +113,11 @@ export async function buildCvPdf(
       ensure(10);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(18);
+      doc.setTextColor(tpl.nameColor[0], tpl.nameColor[1], tpl.nameColor[2]);
       doc.text(line, M, y + 4);
+      doc.setTextColor(0);
       y += 10;
+
     }
   }
   if (declared.headline) para(declared.headline, 11, "normal", 5);
