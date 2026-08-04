@@ -1123,11 +1123,14 @@ function CvLivePreview({
   declared,
   cvWord,
   order,
+  template,
 }: {
   declared: CvDeclared;
   cvWord: string;
   order?: readonly CvSectionKey[];
+  template?: CvTemplateId;
 }) {
+
   const [showBreaks, setShowBreaks] = useState(true);
   const contact = [declared.email, declared.phone, declared.location].filter(Boolean);
 
