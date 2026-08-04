@@ -768,18 +768,19 @@ function CvWorkbench({
             placeholder="e.g. Excel, Tally, spoken English, Python, customer support"
             hint="Separate each skill with a comma — short phrases work best (2-3 words)."
             error={skillsError}
-
             value={declared.skills.join(", ")}
+            normalize={(v) => normalizeSkills([v]).join(", ")}
             onChange={(v) =>
               setDeclared({
                 ...declared,
                 skills: v
-                  .split(",")
+                  .split(/[,;|\n•·]/)
                   .map((s) => s.trim())
                   .filter(Boolean),
               })
             }
           />
+
           {declared.skills.length > 0 && (
             <>
               <p className="mt-3 text-[11px] text-white/40">
