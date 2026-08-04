@@ -3395,6 +3395,10 @@ export type Database = {
           status: string
         }[]
       }
+      storage_object_name: {
+        Args: { bucket: string; url: string }
+        Returns: string
+      }
       submit_digilocker_parental_consent: {
         Args: { _token_ref: string }
         Returns: Json
