@@ -69,7 +69,7 @@ export const ATTRIBUTIONS: Attribution[] = [
     ],
     sourceUrl: "https://data.gov.au/",
     notes:
-      "Licensing here is per dataset, not blanket CC BY. No shipped ONIQ row is currently sourced from data.gov.au; if one is added, the specific dataset and its own licence must be named here.",
+      "Licensing here is per dataset, not blanket CC BY. It is not currently the source of any shipped institution row; if one is added, the specific dataset and its own licence must be named here.",
   },
   {
     id: "data-gov-sg",
