@@ -281,7 +281,21 @@ export function validateGenerated(
   country: Country,
 ): ValidationReport {
   const flags: ValidationFlag[] = [];
-  const norm = (s: string) => (s ?? "").trim().toLowerCase();
+  // Comparison key, NOT a display value. Case, spacing and punctuation are
+  // folded away because the model is explicitly asked to tidy the user's
+  // typing: someone entering "Class12" gets back "Class 12", which a
+  // trim+lowercase comparison read as an invented qualification and flagged
+  // as fabrication. Same for "b.sc"/"BSc" and "State  Bank of India".
+  //
+  // This does NOT weaken the anti-fabrication guarantee. The only new matches
+  // are strings identical apart from whitespace, punctuation and case —
+  // "Class 12" still cannot match "Class 10", and "Infosys" still cannot
+  // match "TCS". Anything genuinely invented differs by more than separators.
+  const norm = (s: string) =>
+    (s ?? "")
+      .normalize("NFKD")
+      .replace(/[^\p{L}\p{N}]/gu, "")
+      .toLowerCase();
   const employers = new Set(declared.roles.map((r) => norm(r.employer)));
   const titles = new Set(declared.roles.map((r) => norm(r.title)));
   const dates = new Set(
