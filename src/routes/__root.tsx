@@ -103,7 +103,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         name: "google-site-verification",
         content: "TGtlOMz3P5zLi4a1ToyRj6VfsKO6sRwkiU250lMRKOI",
       },
-
+      // dmca.com ownership verification. In the root head so it is served on
+      // every route — their crawler checks the document it is pointed at, and
+      // the badge in the footer links to the compliance page this unlocks.
+      // Verification only; it is not a §512 agent designation. See /dmca.
+      {
+        name: "dmca-site-verification",
+        content: "Z2lNaU14WW9FenlZMStGbXpKS3JPd1F2NXovZUpxVmlscTdLSFZWUE1FUT01",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
