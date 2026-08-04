@@ -14,6 +14,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { COUNTRIES, useCountry } from "@/lib/country";
+import { useT } from "@/lib/i18n/LanguageProvider";
+import { tileName } from "@/lib/i18n/tileLabel";
 import type { Country } from "@/data/appRegistry";
 import { getAgeGateStatus, setMyDateOfBirth } from "@/lib/ageGate";
 import {
@@ -74,6 +76,9 @@ const FIELD_LABEL: Record<CvSensitiveField, string> = {
 
 function JobsScreen() {
   const [country] = useCountry();
+  const { lang } = useT();
+  // "Résumé" in the US, "CV" elsewhere, "सीवी" in Hindi — one resolution rule.
+  const cvWord = tileName(lang, "cv", (country as Country) ?? undefined);
   const [target, setTarget] = useState<Country>((country as Country) ?? "IN");
   const rules = useMemo(() => cvRulesFor(target), [target]);
 
@@ -104,9 +109,11 @@ function JobsScreen() {
           <ArrowLeft className="size-5" />
         </Link>
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-white/40">your CV, your facts</p>
+          <p className="text-[11px] uppercase tracking-wide text-white/40">
+            your {cvWord}, your facts
+          </p>
           <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <Briefcase className="size-5 text-[#00D4B8]" /> CV Builder
+            <Briefcase className="size-5 text-[#00D4B8]" /> {cvWord} Builder
           </h1>
         </div>
       </header>
