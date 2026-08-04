@@ -9,6 +9,7 @@ import { CALLS_ENABLED } from "@/lib/flags";
 import { PolicyNoticeBanner } from "@/components/safety/PolicyNoticeBanner";
 import { RestrictedBanner } from "@/components/safety/RestrictedBanner";
 import { DobPrompt } from "@/components/safety/DobPrompt";
+import { SafeMount } from "@/components/SafeMount";
 import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher";
 import { MessageNotifier } from "@/components/chat/MessageNotifier";
 import { usePresenceTracker } from "@/hooks/usePresence";
