@@ -27,8 +27,12 @@ export function CvPdfPreviewDialog({
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState<null | "download" | "share">(null);
+  const [shareSubject, setShareSubject] = useState("");
+  const [shareText, setShareText] = useState("");
+  const [editingMessage, setEditingMessage] = useState(false);
   // Android/iOS WebViews cannot render a PDF in an iframe — no plugin behind it.
   const canEmbed = !Capacitor.isNativePlatform();
+
 
   useEffect(() => {
     let objectUrl: string | null = null;
