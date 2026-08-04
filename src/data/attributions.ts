@@ -240,3 +240,20 @@ export const LICENCE_FAMILIES: { title: string; blurb: string; ids: string[] }[]
     ids: ["common-core"],
   },
 ];
+
+/**
+ * Reconciliation with Phase 3's institution registry: every external
+ * `InstitutionSource` value maps to an attributions entry. "hand-curated"
+ * is ONIQ's own work and owes no third-party credit.
+ */
+export const INSTITUTION_SOURCE_TO_ATTRIBUTION: Record<string, string | null> = {
+  ROR: "ror",
+  IPEDS: "ipeds",
+  "College Scorecard": "college-scorecard",
+  "HESA Discover Uni": "hesa-discover-uni",
+  AISHE: "aishe",
+  StatCan: "statcan",
+  "data.gov.au": "data-gov-au",
+  "data.gov.sg": "data-gov-sg",
+  "hand-curated": null,
+};
