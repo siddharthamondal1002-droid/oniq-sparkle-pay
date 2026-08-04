@@ -117,15 +117,17 @@ function Sheet({
   declared: declaredIn,
   cv: cvIn,
   order,
-  pageBreaks,
-  onHeight,
+  pageBreaks = true,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
   order?: readonly CvSectionKey[];
   pageBreaks?: boolean;
-  onHeight?: (mmHeight: number) => void;
 }) {
+  const sheetEl = useRef<HTMLDivElement>(null);
+  const [sheetMm, setSheetMm] = useState(0);
+
+
 
   // Identical pruning to buildCvPdf(): placeholders and empty rows never
   // reach the page, in the preview or the export.
