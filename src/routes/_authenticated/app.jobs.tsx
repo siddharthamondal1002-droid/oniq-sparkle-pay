@@ -14,6 +14,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { COUNTRIES, useCountry } from "@/lib/country";
+import { useT } from "@/lib/i18n/LanguageProvider";
+import { tileName } from "@/lib/i18n/tileLabel";
 import type { Country } from "@/data/appRegistry";
 import { getAgeGateStatus, setMyDateOfBirth } from "@/lib/ageGate";
 import {
