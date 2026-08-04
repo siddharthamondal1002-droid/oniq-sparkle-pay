@@ -21,6 +21,12 @@ export function AnticipatoryCard() {
   const [gone, setGone] = useState(false);
   const [why, setWhy] = useState(false);
   const { lang } = useT();
+  // MUST stay above every early return. This hook previously sat below the
+  // `if (!suggestion || gone) return null` guard, so the hook count changed
+  // the moment a suggestion appeared — React threw "Rendered more hooks than
+  // during the previous render" and the root error boundary took the whole
+  // app down. Types and tests both passed; only a real render caught it.
+  const [home] = useCountry();
 
   useEffect(() => {
     let alive = true;
@@ -47,7 +53,6 @@ export function AnticipatoryCard() {
   }, []);
 
   if (!suggestion || gone) return null;
-  const [home] = useCountry();
 
   const open = () => {
     void recordSignal("card_tap", suggestion.hub);
