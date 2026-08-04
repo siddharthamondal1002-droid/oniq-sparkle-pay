@@ -6,8 +6,10 @@ import {
   ArrowLeft,
   BadgeCheck,
   Briefcase,
+  Check,
   FileText,
   Flag,
+  Plus,
   Sparkles,
   X,
 } from "lucide-react";
@@ -137,7 +139,7 @@ function JobsScreen() {
           }}
         />
       ) : (
-        <CvWorkbench target={target} setTarget={setTarget} rulesKey={rules.country} />
+        <CvWorkbench target={target} setTarget={setTarget} rulesKey={rules.country} cvWord={cvWord} />
       )}
     </div>
   );
@@ -196,15 +198,20 @@ function AgeGateCard({ hasDob, onSaved }: { hasDob: boolean; onSaved: () => void
   );
 }
 
+type TabKey = "basics" | "education" | "work" | "skills" | "rules";
+
 function CvWorkbench({
   target,
   setTarget,
+  cvWord,
 }: {
   target: Country;
   setTarget: (c: Country) => void;
   rulesKey: Country;
+  cvWord: string;
 }) {
   const rules = cvRulesFor(target);
+  const [tab, setTab] = useState<TabKey>("basics");
   const [declared, setDeclared] = useState<CvDeclared>(() => ({
     ...emptyDeclared(),
     roles: [{ employer: "", title: "", start: "", end: "", bullets: [] }],
