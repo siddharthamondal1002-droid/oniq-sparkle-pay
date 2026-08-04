@@ -220,9 +220,35 @@ export function CvPdfPreviewDialog({
             Couldn&apos;t build the preview. Close this and try again.
           </div>
         ) : !built ? (
-          <div className="flex h-full items-center justify-center gap-2 text-sm text-white/60">
-            <Loader2 className="size-4 animate-spin" /> Preparing preview…
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center"
+          >
+            <Loader2 className="size-6 animate-spin text-[#00D4B8]" />
+            <p className="text-sm font-medium text-white/80">
+              Generating your PDF… {Math.round(progress)}%
+            </p>
+            <div
+              className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-white/10"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progress)}
+              aria-label="PDF generation progress"
+            >
+              <div
+                className="h-full rounded-full bg-[#00D4B8] transition-[width] duration-200 ease-out"
+                style={{ width: `${Math.max(4, Math.min(100, progress))}%` }}
+              />
+            </div>
+            <p className="text-[11px] leading-relaxed text-white/45">
+              {slow
+                ? "Still working — long CVs with lots of sections take a few extra seconds."
+                : "Laying out pages and embedding fonts."}
+            </p>
           </div>
+
         ) : canEmbed && url ? (
           <div ref={viewportRef} className="size-full overflow-auto">
             {/* The iframe is laid out at 1/zoom of the viewport and scaled up,
