@@ -10,6 +10,7 @@ import { defaultCvShareMessage } from "@/lib/cvShareMessage";
 
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import type { CvSectionKey } from "@/lib/cvSections";
+import type { CvTemplateId } from "@/lib/cvTemplates";
 
 type Built = { blob: Blob; filename: string; pages: number };
 
@@ -17,14 +18,18 @@ export function CvPdfPreviewDialog({
   declared,
   cv,
   order,
+  template,
   onClose,
 }: {
   declared: CvDeclared;
   cv: CvGenerated;
   /** Section order chosen in the workbench. */
   order?: readonly CvSectionKey[];
+  /** Layout template chosen in the workbench. */
+  template?: CvTemplateId;
   onClose: () => void;
 }) {
+
   const [built, setBuilt] = useState<Built | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
