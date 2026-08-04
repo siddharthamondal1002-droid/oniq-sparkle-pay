@@ -11,6 +11,7 @@ import { CV_PAGE, PT } from "@/lib/cvPdf";
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
 import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
+import { getCvTemplate, rgbCss, type CvTemplate, type CvTemplateId } from "@/lib/cvTemplates";
 
 /** pt -> mm, matching jsPDF's text metrics. */
 const mm = (pt: number) => `${(pt * PT).toFixed(3)}mm`;
@@ -21,6 +22,7 @@ function Line({
   gap,
   children,
   align,
+  color,
 }: {
   size: number;
   bold?: boolean;
@@ -28,6 +30,7 @@ function Line({
   gap: number;
   children: ReactNode;
   align?: "right";
+  color?: string;
 }) {
   return (
     <div
@@ -36,6 +39,7 @@ function Line({
         lineHeight: `${gap}mm`,
         fontWeight: bold ? 700 : 400,
         textAlign: align,
+        color,
       }}
     >
       {children}
@@ -43,7 +47,7 @@ function Line({
   );
 }
 
-function Heading({ text }: { text: string }) {
+function Heading({ text, tpl }: { text: string; tpl: CvTemplate }) {
   return (
     <div style={{ paddingTop: "3mm" }}>
       <div
@@ -52,14 +56,23 @@ function Heading({ text }: { text: string }) {
           fontWeight: 700,
           lineHeight: "4mm",
           textTransform: "uppercase",
+          color: rgbCss(tpl.headingColor),
+          letterSpacing: `${tpl.headingCharSpace}mm`,
         }}
       >
         {text}
       </div>
-      <div style={{ borderTop: "0.3mm solid #000", marginTop: "0.6mm", marginBottom: "2.6mm" }} />
+      <div
+        style={{
+          borderTop: `${tpl.ruleWidth}mm solid ${rgbCss(tpl.ruleColor)}`,
+          marginTop: "0.6mm",
+          marginBottom: "2.6mm",
+        }}
+      />
     </div>
   );
 }
+
 
 export type CvPaperDoc = Pick<CvGenerated, "summary" | "roles" | "credentials" | "skills">;
 
