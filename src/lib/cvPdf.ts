@@ -209,8 +209,10 @@ export async function buildCvPdfBlob(
   declared: CvDeclared,
   cv: CvGenerated,
   order?: readonly CvSectionKey[],
+  templateId?: CvTemplateId,
 ): Promise<{ blob: Blob; filename: string; pages: number }> {
-  const doc = await buildCvPdf(declared, cv, order);
+  const doc = await buildCvPdf(declared, cv, order, templateId);
+
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   return {
     blob: new Blob([buf], { type: "application/pdf" }),
