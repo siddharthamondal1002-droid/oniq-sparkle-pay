@@ -692,6 +692,9 @@ function CvWorkbench({
         </>
       )}
 
+      {/* Live preview — reflects what you type, before any AI is involved */}
+      <CvLivePreview declared={clean} cvWord={cvWord} />
+
       {/* Assistant — always visible, works with whatever is filled in */}
       <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
         <div className="flex items-center justify-between">
