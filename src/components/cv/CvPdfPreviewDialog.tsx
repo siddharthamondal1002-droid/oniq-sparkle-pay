@@ -410,6 +410,58 @@ export function CvPdfPreviewDialog({
         </div>
       )}
 
+      {canEmbed && url && !error && pageCount > 1 && (
+        <div className="mx-3 mt-2 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => goToPage(page - 1)}
+            disabled={page <= 1}
+            aria-label="Previous page"
+            className="rounded-full bg-white/10 p-2 text-white disabled:opacity-40"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const n = Number(pageInput);
+              if (Number.isFinite(n)) goToPage(n);
+              else setPageInput(String(page));
+            }}
+            className="flex items-center gap-1.5"
+          >
+            <input
+              value={pageInput}
+              onChange={(e) => setPageInput(e.target.value.replace(/[^\d]/g, ""))}
+              onBlur={() => {
+                const n = Number(pageInput);
+                if (Number.isFinite(n) && pageInput !== "") goToPage(n);
+                else setPageInput(String(page));
+              }}
+              inputMode="numeric"
+              aria-label={`Page number, 1 to ${pageCount}`}
+              className="w-12 rounded-lg bg-white/5 px-2 py-1.5 text-center text-xs tabular-nums text-white outline-none focus:ring-1 focus:ring-[#00D4B8]"
+            />
+            <span className="text-xs tabular-nums text-white/50">of {pageCount}</span>
+            <button type="submit" className="sr-only">
+              Go to page
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => goToPage(page + 1)}
+            disabled={page >= pageCount}
+            aria-label="Next page"
+            className="rounded-full bg-white/10 p-2 text-white disabled:opacity-40"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+      )}
+
+
 
 
       <div className="mx-3 mt-3 rounded-2xl bg-[#16181E] p-3">
