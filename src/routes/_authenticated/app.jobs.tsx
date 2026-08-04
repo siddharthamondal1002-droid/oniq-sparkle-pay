@@ -270,6 +270,11 @@ function CvWorkbench({
   const [template, setTemplate] = useState<CvTemplateId>(CV_TEMPLATE_DEFAULT);
   // Per-section switches — an excluded section is printed nowhere.
   const [include, setInclude] = useState<CvInclude>({ ...CV_INCLUDE_DEFAULT });
+  // Drag-to-reorder for qualification rows. Pointer events (not HTML5 DnD) so
+  // touch works too; the row order is the order used by preview and PDF.
+  const [dragCred, setDragCred] = useState<number | null>(null);
+  const dragCredIndex = useRef<number | null>(null);
+
 
 
   useEffect(() => {
