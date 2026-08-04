@@ -130,11 +130,7 @@ export function useCountry(): [CountryCode, (c: CountryCode) => void] {
         const { supabase } = await import("@/integrations/supabase/client");
         const { data } = await supabase.auth.getUser();
         if (!data.user) return;
-        const { data: row } = await supabase
-          .from("profiles")
-          .select("country_code")
-          .eq("id", data.user.id)
-          .maybeSingle();
+        const { data: row } = await supabase.rpc("get_my_profile_meta").maybeSingle();
         if (isCode(row?.country_code)) {
           setState(row.country_code);
           try {

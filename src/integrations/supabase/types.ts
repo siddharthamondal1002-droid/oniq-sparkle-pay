@@ -3130,6 +3130,17 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_my_profile_meta: {
+        Args: never
+        Returns: {
+          country_code: string
+          is_admin: boolean
+          language: string
+          last_policy_notice_at: string
+          oniq_pay_enabled: boolean
+          show_view_identity: boolean
+        }[]
+      }
       get_my_profile_private: {
         Args: never
         Returns: {

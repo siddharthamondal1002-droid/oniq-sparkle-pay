@@ -28,11 +28,7 @@ export function HomeCountryPrompt() {
       try {
         const { data } = await supabase.auth.getUser();
         if (!data.user) return;
-        const { data: row } = await supabase
-          .from("profiles")
-          .select("country_code")
-          .eq("id", data.user.id)
-          .maybeSingle();
+        const { data: row } = await supabase.rpc("get_my_profile_meta").maybeSingle();
         if (!cancelled && !row?.country_code) setShow(true);
       } catch {
         /* offline — ask again next time */
