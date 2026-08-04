@@ -221,30 +221,39 @@ function Landing() {
             <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="hover:text-primary">Grievance officer</a>
           </div>
           {/*
-            DMCA.com verification badge. Deliberately hotlinked rather than
-            vendored into /public: the image is served by dmca.com so the badge
-            cannot be faked or outlive a lapsed subscription — self-hosting it
-            would keep asserting compliance after the fact. The cost is that
-            loading it sends the viewer's IP to dmca.com, which is a
-            third-party request and must be declared in Play Data safety.
-            referrerPolicy keeps the page URL out of it.
+            DMCA.com Protection Status badge (Pro). Hotlinked on purpose: the
+            image is served by dmca.com against the protection ID, so it cannot
+            be faked and it stops asserting protection if the subscription
+            lapses. Self-hosting the PNG would keep claiming it forever.
 
-            This badge is a private vendor's product. It is NOT a U.S.
-            Copyright Office §512(c)(2) agent designation and confers no safe
-            harbour — see /dmca, which states ONIQ's actual position.
+            The supplied snippet also loads
+            https://images.dmca.com/Badges/DMCABadgeHelper.min.js — omitted.
+            The badge links and renders without it; the helper only adds
+            click-through wiring. A third-party SCRIPT is a different order of
+            risk from a third-party image: it executes in the page with full DOM
+            access, on an app carrying a consent ledger and health data. Say the
+            word and it goes in, but it would then need disclosing in Play Data
+            safety alongside the image.
+
+            Two things this badge is not: a U.S. Copyright Office §512(c)(2)
+            agent designation, and any kind of safe harbour. /dmca states
+            ONIQ's actual position.
+
+            The image request still carries the viewer's IP to dmca.com —
+            declare it in Data safety. referrerPolicy keeps the page URL out.
           */}
           <a
-            href="https://www.dmca.com/compliance/oniqhub.com"
-            title="DMCA compliance information for ONIQ"
+            href="https://www.dmca.com/Protection/Status.aspx?ID=1cdf7ab8-a10a-404c-a1f9-7f651e746222"
+            title="DMCA.com Protection Status"
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-4 inline-block opacity-70 transition-opacity hover:opacity-100"
+            className="dmca-badge mt-4 inline-block opacity-70 transition-opacity hover:opacity-100"
           >
             <img
-              src="https://www.dmca.com/img/dmca-compliant-grayscale.png"
-              alt="DMCA compliance status for ONIQ"
-              width={121}
-              height={24}
+              src="https://images.dmca.com/Badges/DMCA_logo-bw180w.png?ID=1cdf7ab8-a10a-404c-a1f9-7f651e746222"
+              alt="DMCA.com Protection Status"
+              width={180}
+              height={40}
               loading="lazy"
               referrerPolicy="no-referrer"
             />
