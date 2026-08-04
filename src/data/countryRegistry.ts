@@ -209,6 +209,8 @@ export const FEATURES: Feature[] = [
   // Candidate-side CV builder (Education & Careers loop, Phase 4). Gated at
   // 18+ in the data layer by public.is_adult_18(), not by country.
   { id: "jobs", supportedCountries: "*" },
+  // Country-aware directory of real hiring/gig apps. Same 18+ render gate.
+  { id: "jobsApps", supportedCountries: "*" },
   { id: "faith", supportedCountries: "*" },
   { id: "pulse", supportedCountries: "*" },
   { id: "watch", supportedCountries: "*" },
