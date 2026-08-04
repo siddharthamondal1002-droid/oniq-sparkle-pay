@@ -486,6 +486,12 @@ function CvWorkbench({
               onChange={(v) => setDeclared({ ...declared, phone: v })}
             />
             <Field
+              label="Website or profile (optional)"
+              placeholder="e.g. linkedin.com/in/you"
+              value={declared.website}
+              onChange={(v) => setDeclared({ ...declared, website: v })}
+            />
+            <Field
               label="Location"
               value={declared.location}
               onChange={(v) => setDeclared({ ...declared, location: v })}
@@ -1083,6 +1089,7 @@ function cleanDeclared(d: CvDeclared): CvDeclared {
     headline: t(d.headline),
     email: t(d.email),
     phone: t(d.phone),
+    website: t(d.website),
     location: t(d.location),
     summary: t(d.summary),
     roles: d.roles
@@ -1188,7 +1195,9 @@ function CvLivePreview({
 }) {
 
   const [showBreaks, setShowBreaks] = useState(true);
-  const contact = [declared.email, declared.phone, declared.location].filter(Boolean);
+  const contact = [declared.email, declared.phone, declared.website, declared.location].filter(
+    Boolean,
+  );
 
   const empty =
     !declared.fullName &&
