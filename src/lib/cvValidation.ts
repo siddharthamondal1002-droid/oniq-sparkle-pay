@@ -358,6 +358,86 @@ export function applyCountryRules<T extends { personal?: CvPersonal }>(
   return { ...doc, personal };
 }
 
+/* ------------------------------------------------------------------ *
+ * Export pruning
+ * ------------------------------------------------------------------ */
+
+// Placeholders the model (or a half-filled form) can leave behind. A CV must
+// never print "Not declared" or an empty heading — if we have nothing for a
+// field, the field simply doesn't exist on the page.
+const PLACEHOLDER =
+  /^(n\/?a|na|none|nil|null|undefined|tbd|tba|unknown|not\s+(declared|provided|specified|available|applicable|given)|no\s+(data|information)|omit(ted)?|-+|—+|–+|\.+|\[.*\]|<.*>)$/i;
+
+/** True when a value carries no real content and must be omitted from export. */
+export function isDeclaredValue(raw: string | undefined | null): boolean {
+  const v = (raw ?? "").trim();
+  return v.length > 0 && !PLACEHOLDER.test(v);
+}
+
+const keep = (raw: string | undefined | null): string => (isDeclaredValue(raw) ? raw!.trim() : "");
+
+/**
+ * Reduces a generated CV to exactly what was declared: placeholder strings are
+ * blanked, empty bullets/rows dropped, and any section left with nothing is
+ * removed so no bare heading is rendered. Used by both the PDF builder and the
+ * on-screen paper preview so the two never diverge.
+ */
+export function pruneGenerated(cv: CvGenerated): CvGenerated {
+  const roles = (cv.roles ?? [])
+    .map((r) => ({
+      employer: keep(r.employer),
+      title: keep(r.title),
+      start: keep(r.start),
+      end: keep(r.end),
+      bullets: (r.bullets ?? []).map(keep).filter(Boolean),
+    }))
+    // A role with no title, no employer and no bullets is not a role.
+    .filter((r) => r.title || r.employer || r.bullets.length > 0);
+
+  const credentials = (cv.credentials ?? [])
+    .map((c) => ({ name: keep(c.name), issuer: keep(c.issuer), year: keep(c.year) }))
+    .filter((c) => c.name || c.issuer || c.year);
+
+  const personal: CvPersonal = {};
+  for (const [k, v] of Object.entries(cv.personal ?? {})) {
+    if (isDeclaredValue(v)) personal[k as CvSensitiveField] = v!.trim();
+  }
+
+  return {
+    summary: keep(cv.summary),
+    roles,
+    credentials,
+    skills: (cv.skills ?? []).map(keep).filter(Boolean),
+    ...(Object.keys(personal).length > 0 ? { personal } : {}),
+  };
+}
+
+/** Same pruning for the user-declared header fields (name, contact, personal). */
+export function pruneDeclaredForExport<
+  T extends {
+    fullName: string;
+    headline?: string;
+    email?: string;
+    phone?: string;
+    location?: string;
+    personal?: CvPersonal;
+  },
+>(d: T): T {
+  const personal: CvPersonal = {};
+  for (const [k, v] of Object.entries(d.personal ?? {})) {
+    if (isDeclaredValue(v)) personal[k as CvSensitiveField] = v!.trim();
+  }
+  return {
+    ...d,
+    fullName: keep(d.fullName),
+    headline: keep(d.headline),
+    email: keep(d.email),
+    phone: keep(d.phone),
+    location: keep(d.location),
+    personal,
+  };
+}
+
 /** The attestation the user must tick before any export. Recorded verbatim. */
 export const ATTESTATION_STATEMENT =
   "I confirm that every employer, job title, date, qualification and figure in this CV is accurate and my own.";
