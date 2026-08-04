@@ -307,8 +307,9 @@ export const SPELLING_INSTRUCTION: Record<CvSpelling, string> = {
 /**
  * ATS formatting rules. Deliberately modest claims: verified recruiter
  * surveys find roughly 92% of applicant tracking systems do NOT auto-reject —
- * they rank and sort for a human to read. The often-quoted 75% auto-rejection
- * figure is a 2012 vendor claim from a company that closed in 2013. This
+ * they rank and sort for a human to read. The often-quoted auto-rejection
+ * figure is a debunked 2012 vendor claim from a company that closed in 2013.
+ * This
  * codebase never says "ATS-optimised", "beats the ATS" or "guaranteed".
  */
 export const ATS_RULES: string[] = [
