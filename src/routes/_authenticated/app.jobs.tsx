@@ -95,9 +95,12 @@ function JobsScreen() {
     queryFn: async () => {
       const { data: auth } = await supabase.auth.getUser();
       if (!auth.user) return false;
-      const { data, error } = await supabase.rpc("is_adult_18" as never, {
-        _uid: auth.user.id,
-      } as never);
+      const { data, error } = await supabase.rpc(
+        "is_adult_18" as never,
+        {
+          _uid: auth.user.id,
+        } as never,
+      );
       if (error) return false;
       return data === true;
     },
@@ -139,7 +142,12 @@ function JobsScreen() {
           }}
         />
       ) : (
-        <CvWorkbench target={target} setTarget={setTarget} rulesKey={rules.country} cvWord={cvWord} />
+        <CvWorkbench
+          target={target}
+          setTarget={setTarget}
+          rulesKey={rules.country}
+          cvWord={cvWord}
+        />
       )}
     </div>
   );
@@ -154,8 +162,8 @@ function AgeGateCard({ hasDob, onSaved }: { hasDob: boolean; onSaved: () => void
     <div className="mx-4 mt-6 rounded-2xl border border-white/10 bg-[#16181E] p-4">
       <h2 className="text-base font-semibold">The CV tools are for 18 and over</h2>
       <p className="mt-2 text-sm leading-relaxed text-white/60">
-        Job tools process career data and push opportunities, so we hold them to 18 everywhere —
-        not to the lower digital-consent age some countries use.
+        Job tools process career data and push opportunities, so we hold them to 18 everywhere — not
+        to the lower digital-consent age some countries use.
       </p>
       {hasDob ? (
         <p className="mt-3 text-sm text-white/50">
@@ -387,16 +395,32 @@ function CvWorkbench({
         <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
           <h2 className="text-sm font-semibold">About you</h2>
           <div className="mt-3 grid gap-2">
-            <Field label="Full name" value={declared.fullName} onChange={(v) => setDeclared({ ...declared, fullName: v })} />
+            <Field
+              label="Full name"
+              value={declared.fullName}
+              onChange={(v) => setDeclared({ ...declared, fullName: v })}
+            />
             <Field
               label="Headline (optional)"
               placeholder="e.g. Final-year B.Com student"
               value={declared.headline}
               onChange={(v) => setDeclared({ ...declared, headline: v })}
             />
-            <Field label="Email" value={declared.email} onChange={(v) => setDeclared({ ...declared, email: v })} />
-            <Field label="Phone" value={declared.phone} onChange={(v) => setDeclared({ ...declared, phone: v })} />
-            <Field label="Location" value={declared.location} onChange={(v) => setDeclared({ ...declared, location: v })} />
+            <Field
+              label="Email"
+              value={declared.email}
+              onChange={(v) => setDeclared({ ...declared, email: v })}
+            />
+            <Field
+              label="Phone"
+              value={declared.phone}
+              onChange={(v) => setDeclared({ ...declared, phone: v })}
+            />
+            <Field
+              label="Location"
+              value={declared.location}
+              onChange={(v) => setDeclared({ ...declared, location: v })}
+            />
             <Field
               label="Summary in your own words (optional)"
               value={declared.summary}
@@ -406,7 +430,9 @@ function CvWorkbench({
 
           {prompted.length > 0 && (
             <div className="mt-4 border-t border-white/5 pt-3">
-              <h3 className="text-xs font-semibold text-white/70">Usually expected on a {target} CV</h3>
+              <h3 className="text-xs font-semibold text-white/70">
+                Usually expected on a {target} CV
+              </h3>
               <div className="mt-2 grid gap-2">
                 {prompted.map((f) => (
                   <div key={f}>
@@ -417,7 +443,9 @@ function CvWorkbench({
                         setDeclared({ ...declared, personal: { ...declared.personal, [f]: v } })
                       }
                     />
-                    <p className="px-1 pb-1 text-[11px] leading-relaxed text-white/40">{rules[f].note}</p>
+                    <p className="px-1 pb-1 text-[11px] leading-relaxed text-white/40">
+                      {rules[f].note}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -433,7 +461,9 @@ function CvWorkbench({
             Degree, diploma, board exam or certificate — add whatever you actually hold.
           </p>
           {declared.credentials.length === 0 && (
-            <p className="mt-3 text-xs text-white/40">Nothing added yet. That's fine — you can skip this.</p>
+            <p className="mt-3 text-xs text-white/40">
+              Nothing added yet. That's fine — you can skip this.
+            </p>
           )}
           {declared.credentials.map((c, i) => (
             <div key={i} className="mt-3 rounded-xl border border-white/5 bg-black/20 p-3">
@@ -488,10 +518,13 @@ function CvWorkbench({
         <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
           <div className="flex items-center justify-between">
             <h2 className="text-sm font-semibold">Work history</h2>
-            {years !== null && <span className="text-xs text-white/40">≈ {years} yr from your dates</span>}
+            {years !== null && (
+              <span className="text-xs text-white/40">≈ {years} yr from your dates</span>
+            )}
           </div>
           <p className="mt-1 text-xs text-white/50">
-            No experience yet? Leave this empty — we'll write a fresher CV from your qualifications and skills.
+            No experience yet? Leave this empty — we'll write a fresher CV from your qualifications
+            and skills.
           </p>
           {declared.roles.map((r, i) => (
             <div key={i} className="mt-3 rounded-xl border border-white/5 bg-black/20 p-3">
@@ -500,7 +533,11 @@ function CvWorkbench({
                 value={r.employer}
                 onChange={(v) => patchRole(declared, setDeclared, i, { employer: v })}
               />
-              <Field label="Title" value={r.title} onChange={(v) => patchRole(declared, setDeclared, i, { title: v })} />
+              <Field
+                label="Title"
+                value={r.title}
+                onChange={(v) => patchRole(declared, setDeclared, i, { title: v })}
+              />
               <div className="grid grid-cols-2 gap-2">
                 <Field
                   label="Start (YYYY-MM)"
@@ -522,7 +559,9 @@ function CvWorkbench({
               />
               <button
                 type="button"
-                onClick={() => setDeclared({ ...declared, roles: declared.roles.filter((_, j) => j !== i) })}
+                onClick={() =>
+                  setDeclared({ ...declared, roles: declared.roles.filter((_, j) => j !== i) })
+                }
                 className="mt-2 rounded-full bg-white/5 px-3 py-1 text-[11px] text-white/60"
               >
                 Remove
@@ -534,7 +573,10 @@ function CvWorkbench({
             onClick={() =>
               setDeclared({
                 ...declared,
-                roles: [...declared.roles, { employer: "", title: "", start: "", end: "", bullets: [] }],
+                roles: [
+                  ...declared.roles,
+                  { employer: "", title: "", start: "", end: "", bullets: [] },
+                ],
               })
             }
             className="mt-3 flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-xs"
@@ -552,7 +594,13 @@ function CvWorkbench({
             placeholder="e.g. Excel, Tally, spoken English"
             value={declared.skills.join(", ")}
             onChange={(v) =>
-              setDeclared({ ...declared, skills: v.split(",").map((s) => s.trim()).filter(Boolean) })
+              setDeclared({
+                ...declared,
+                skills: v
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+              })
             }
           />
           {clean.skills.length > 0 && (
@@ -583,7 +631,9 @@ function CvWorkbench({
           <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
             <h2 className="text-sm font-semibold">What we leave off, and why</h2>
             <ul className="mt-2 space-y-2 text-xs leading-relaxed text-white/55">
-              {(["photo", "dobAge", "maritalReligion", "nationalId", "salary"] as CvSensitiveField[])
+              {(
+                ["photo", "dobAge", "maritalReligion", "nationalId", "salary"] as CvSensitiveField[]
+              )
                 .filter(
                   (f) =>
                     rules[f].stance === "never" ||
@@ -600,10 +650,12 @@ function CvWorkbench({
 
           {rules.specials.includes("au_public_sector_star") && (
             <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
-              <h2 className="text-sm font-semibold">Australian public sector: selection criteria</h2>
+              <h2 className="text-sm font-semibold">
+                Australian public sector: selection criteria
+              </h2>
               <p className="mt-2 text-xs leading-relaxed text-white/55">
-                Government roles usually want separate written responses. Answer each criterion in STAR
-                order:
+                Government roles usually want separate written responses. Answer each criterion in
+                STAR order:
               </p>
               <ul className="mt-2 space-y-1 text-xs text-white/55">
                 {STAR_STEPS.map((s) => (
@@ -618,8 +670,9 @@ function CvWorkbench({
             <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
               <h2 className="text-sm font-semibold">PSU and government forms</h2>
               <p className="mt-2 text-xs leading-relaxed text-white/55">
-                These forms require a category declaration — {IN_PSU_CATEGORIES.join(", ")} — and often a
-                father's name. That belongs on the prescribed form, not on a private-sector CV.
+                These forms require a category declaration — {IN_PSU_CATEGORIES.join(", ")} — and
+                often a father's name. That belongs on the prescribed form, not on a private-sector
+                CV.
               </p>
             </section>
           )}
