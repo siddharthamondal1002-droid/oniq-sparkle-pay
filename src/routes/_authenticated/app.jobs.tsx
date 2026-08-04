@@ -778,6 +778,8 @@ function CvWorkbench({
             placeholder="e.g. Excel, Tally, spoken English, Python, customer support"
             hint="Separate each skill with a comma — short phrases work best (2-3 words)."
             error={skillsError}
+            maxLength={MAX_SKILLS_CHARS}
+            counter={`${declared.skills.length} / ${MAX_SKILLS} skills`}
             value={declared.skills.join(", ")}
             normalize={(v) => normalizeSkills([v]).join(", ")}
             onChange={(v) =>
