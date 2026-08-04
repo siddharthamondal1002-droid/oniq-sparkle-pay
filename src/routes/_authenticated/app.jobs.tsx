@@ -819,8 +819,41 @@ function CvWorkbench({
         )}
       </section>
 
+      {/* PDF template — style only; page splits stay exactly the same */}
+      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+        <h2 className="text-sm font-semibold">PDF template</h2>
+        <p className="mt-1 text-xs leading-relaxed text-white/50">
+          Pick a layout style. Spacing and page breaks are identical in every template — only the
+          styling changes.
+        </p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          {CV_TEMPLATES.map((t) => {
+            const active = t.id === template;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTemplate(t.id)}
+                aria-pressed={active}
+                className={`rounded-xl border p-3 text-left ${
+                  active
+                    ? "border-[#00D4B8] bg-[#00D4B8]/10"
+                    : "border-white/10 bg-white/5"
+                }`}
+              >
+                <span className="block text-xs font-semibold text-white">{t.label}</span>
+                <span className="mt-1 block text-[11px] leading-relaxed text-white/45">
+                  {t.description}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       {/* Live preview — reflects what you type, before any AI is involved */}
-      <CvLivePreview declared={clean} cvWord={cvWord} order={sectionOrder} />
+      <CvLivePreview declared={clean} cvWord={cvWord} order={sectionOrder} template={template} />
+
 
       {/* Assistant — always visible, works with whatever is filled in */}
       <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
