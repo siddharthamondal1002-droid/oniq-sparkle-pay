@@ -62,14 +62,19 @@ function Heading({ text }: { text: string }) {
 export type CvPaperDoc = Pick<CvGenerated, "summary" | "roles" | "credentials" | "skills">;
 
 /** The A4 sheet itself, drawn at true size; the parent scales it. */
-function Sheet({ declared, cv }: { declared: CvDeclared; cv: CvPaperDoc }) {
+function Sheet({ declared: declaredIn, cv: cvIn }: { declared: CvDeclared; cv: CvPaperDoc }) {
+  // Identical pruning to buildCvPdf(): placeholders and empty rows never
+  // reach the page, in the preview or the export.
+  const declared = pruneDeclaredForExport(declaredIn);
+  const pruned = pruneGenerated({ ...cvIn, personal: undefined } as CvGenerated);
   const contact = [declared.email, declared.phone, declared.location].filter(Boolean).join("  ·  ");
   const personal = Object.values(declared.personal ?? {})
     .filter(Boolean)
     .join("  ·  ");
-  const roles = cv.roles ?? [];
-  const credentials = (cv.credentials ?? []).filter((c) => c.name || c.issuer || c.year);
-  const skills = cv.skills ?? [];
+  const cv = pruned;
+  const roles = pruned.roles;
+  const credentials = pruned.credentials;
+  const skills = pruned.skills;
 
   return (
     <div
