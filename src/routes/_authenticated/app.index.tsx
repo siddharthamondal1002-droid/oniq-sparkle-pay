@@ -1783,6 +1783,8 @@ function HomeMediaBanner() {
     }
   }, [mode]);
 
+  const [home] = useCountry();
+
   // If the current tab is hidden (persisted or just toggled), fall back to
   // the first tab that's still visible.
   useEffect(() => {
