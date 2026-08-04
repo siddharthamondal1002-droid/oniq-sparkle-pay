@@ -54,10 +54,16 @@ import {
   applyCountryRules,
   declaredFactsBlock,
   emptyDeclared,
+  MAX_ISSUER_LEN,
+  MAX_QUALIFICATION_LEN,
+  MAX_SKILLS,
+  MAX_SKILLS_CHARS,
+  MAX_YEAR_LEN,
   normalizeIssuer,
   normalizeQualification,
   normalizeSkills,
   normalizeYear,
+
 
   screenInstruction,
   validateGenerated,
