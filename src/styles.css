@@ -369,3 +369,60 @@ html, body {
   nav, header[data-app-chrome], [data-no-print] { display: none !important; }
   .print-question, .q { page-break-inside: avoid; break-inside: avoid; }
 }
+
+/* ---------------------------------------------------------------------------
+ * Every modal is bounded. One rule, app-wide.
+ *
+ * A `fixed inset-0` overlay that centres or bottom-aligns its card gives that
+ * card no height limit. When the content is taller than the viewport the card
+ * is clipped at BOTH ends with nothing to scroll — the user simply cannot
+ * reach the bottom. The Study learner-setup card hit this: expanding "State
+ * Boards" made it 20 options tall and the last eight (Maharashtra through
+ * Telangana, West Bengal among them) were unreachable on a phone. A sweep
+ * found 48 overlays of that shape and not one of them was bounded.
+ *
+ * Rather than edit 48 call sites — an unreviewable diff across files including
+ * the call path — this bounds the card from the one place they all share.
+ *
+ * Matching is on layout intent, which is what separates a modal from a
+ * full-screen surface:
+ *   caught  — the overlay aligns its child: place-items-center / items-center
+ *             / items-end / justify-end / justify-center  (i.e. a CARD)
+ *   ignored — an overlay with no alignment at all, whose child is meant to
+ *             fill: CallOverlay, PhotoStudio, UpiScannerOverlay, the chat
+ *             media viewer, plain backdrops. Every guardrailed file is here.
+ *
+ * Wrapped in :where() so the whole thing has ZERO specificity. That is
+ * deliberate — it is a floor, not an override. Any card that already sets its
+ * own `max-h-*` or `overflow-*` utility keeps it (app.clips keeps max-h-[75vh]
+ * and merely gains the scrolling it was missing; MomentsFeed keeps both of
+ * its own). Cards that set nothing get a sane bound for free.
+ *
+ * Escape hatch: `data-full-bleed` on the overlay, for a full-screen surface
+ * that does happen to centre its child.
+ *
+ * dvh, not vh, so mobile browser chrome is accounted for.
+ * ------------------------------------------------------------------------ */
+:where(
+    .fixed.inset-0:not([data-full-bleed]):is(
+        .place-items-center,
+        .items-center,
+        .items-end,
+        .justify-end,
+        .justify-center
+      )
+      > *:not([data-full-bleed])
+  ) {
+  max-height: calc(100dvh - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Bottom sheets sit flush against the edge, so their last row needs the
+ * gesture bar cleared. Centred dialogs already have the overlay's padding. */
+:where(
+    .fixed.inset-0:not([data-full-bleed]):is(.items-end, .justify-end)
+      > *:not([data-full-bleed])
+  ) {
+  padding-bottom: env(safe-area-inset-bottom);
+}

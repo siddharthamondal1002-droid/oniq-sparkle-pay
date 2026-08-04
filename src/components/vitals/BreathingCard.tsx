@@ -97,6 +97,9 @@ function BreathingOverlay({ pattern, onClose }: { pattern: Pattern; onClose: () 
 
   return (
     <div
+      // Full-screen breathing exercise, not a card — opts out of the app-wide
+      // modal bounding in styles.css.
+      data-full-bleed
       className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-background/95 p-6"
       role="dialog"
       aria-label={`${pattern.name} breathing exercise`}

@@ -2142,8 +2142,11 @@ function ChatThread() {
       )}
 
 
+      {/* Full-bleed image viewer, not a card — `data-full-bleed` opts it out of
+          the app-wide modal bounding in styles.css so the image keeps filling
+          the screen instead of gaining a scrollbar. */}
       {viewerUrl && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black" onClick={() => setViewerUrl(null)}>
+        <div data-full-bleed className="fixed inset-0 z-[80] flex items-center justify-center bg-black" onClick={() => setViewerUrl(null)}>
           <button type="button" aria-label="Close" onClick={() => setViewerUrl(null)} className="absolute right-4 top-10 grid h-10 w-10 place-items-center rounded-full bg-white/10 text-white">
             <X className="h-5 w-5" />
           </button>
