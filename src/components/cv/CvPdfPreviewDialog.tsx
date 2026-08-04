@@ -327,7 +327,14 @@ export function CvPdfPreviewDialog({
                 transformOrigin: "0 0",
               }}
             >
-              <iframe title="CV PDF preview" src={url} className="size-full bg-white" />
+              {/* #page=N is honoured by the browser's built-in PDF viewer, so
+                  the jump controls below drive the embedded preview. */}
+              <iframe
+                title="CV PDF preview"
+                src={`${url}#page=${page}`}
+                className="size-full bg-white"
+              />
+
             </div>
           </div>
         ) : (
