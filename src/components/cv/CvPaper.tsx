@@ -291,11 +291,15 @@ export function CvPaper({
   declared,
   cv,
   order,
+  pageBreaks = true,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
   order?: readonly CvSectionKey[];
+  /** Show dashed rules where the export will split pages. Default on. */
+  pageBreaks?: boolean;
 }) {
+
   const box = useRef<HTMLDivElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
