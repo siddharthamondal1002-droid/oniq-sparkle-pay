@@ -817,6 +817,25 @@ function CvWorkbench({
           </button>
           <button
             type="button"
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                const { exportCvPdf } = await import("@/lib/cvPdf");
+                const { filename } = await exportCvPdf(cleanDeclared(declared), generated);
+                toast.success(`Exported ${filename}`);
+              } catch (e) {
+                if (!isShareCancelled(e)) toast.error("Couldn't export the PDF. Try again.");
+              } finally {
+                setExporting(false);
+              }
+            }}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            <Download className="size-4" /> {exporting ? "Preparing…" : "Export as PDF"}
+          </button>
+          <button
+            type="button"
             onClick={reportOutput}
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs text-white/70"
           >
