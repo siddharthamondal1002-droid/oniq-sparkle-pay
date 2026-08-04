@@ -18,6 +18,8 @@ import {
 import { toast } from "sonner";
 
 import { CvPaper } from "@/components/cv/CvPaper";
+import { SectionOrderList } from "@/components/cv/SectionOrderList";
+import { CV_SECTION_ORDER_DEFAULT, CV_SECTION_LABEL, type CvSectionKey } from "@/lib/cvSections";
 import { SkillChips } from "@/components/cv/SkillChips";
 import { supabase } from "@/integrations/supabase/client";
 import { CvPdfPreviewDialog } from "@/components/cv/CvPdfPreviewDialog";
@@ -244,6 +246,8 @@ function CvWorkbench({
   const [attested, setAttested] = useState(false);
   const [cvId, setCvId] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  // Drag-to-reorder section sequence; drives both the preview and the PDF.
+  const [sectionOrder, setSectionOrder] = useState<CvSectionKey[]>([...CV_SECTION_ORDER_DEFAULT]);
 
   useEffect(() => {
     setGenerated(null);
@@ -778,8 +782,39 @@ function CvWorkbench({
         </>
       )}
 
+      {/* Section order — drag to decide what a recruiter reads first */}
+      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+        <h2 className="text-sm font-semibold">Section order</h2>
+        <p className="mt-1 text-xs leading-relaxed text-white/50">
+          Drag a section (or focus it and press ↑ / ↓) to set the order on your {cvWord}. Empty
+          sections are never printed.
+        </p>
+        <SectionOrderList
+          order={sectionOrder}
+          onChange={setSectionOrder}
+          emptyKeys={(
+            [
+              ["summary", Boolean(clean.summary || generated?.summary)],
+              ["experience", clean.roles.length > 0 || Boolean(generated?.roles?.length)],
+              [
+                "qualifications",
+                clean.credentials.length > 0 || Boolean(generated?.credentials?.length),
+              ],
+              ["skills", clean.skills.length > 0 || Boolean(generated?.skills?.length)],
+            ] as [CvSectionKey, boolean][]
+          )
+            .filter(([, filled]) => !filled)
+            .map(([key]) => key)}
+        />
+        {sectionOrder[0] && (
+          <p className="mt-2 text-[11px] text-white/40">
+            {CV_SECTION_LABEL[sectionOrder[0]]} appears first.
+          </p>
+        )}
+      </section>
+
       {/* Live preview — reflects what you type, before any AI is involved */}
-      <CvLivePreview declared={clean} cvWord={cvWord} />
+      <CvLivePreview declared={clean} cvWord={cvWord} order={sectionOrder} />
 
       {/* Assistant — always visible, works with whatever is filled in */}
       <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
@@ -925,6 +960,7 @@ function CvWorkbench({
             <CvPdfPreviewDialog
               declared={cleanDeclared(declared)}
               cv={generated}
+              order={sectionOrder}
               onClose={() => setPreviewing(false)}
             />
           )}
@@ -1044,7 +1080,15 @@ function Field({
  * Live, un-AI'd preview of the CV as it is typed. Purely presentational: it
  * reads the cleaned declared facts, so blank rows never appear.
  */
-function CvLivePreview({ declared, cvWord }: { declared: CvDeclared; cvWord: string }) {
+function CvLivePreview({
+  declared,
+  cvWord,
+  order,
+}: {
+  declared: CvDeclared;
+  cvWord: string;
+  order?: readonly CvSectionKey[];
+}) {
   const contact = [declared.email, declared.phone, declared.location].filter(Boolean);
   const empty =
     !declared.fullName &&
@@ -1072,6 +1116,7 @@ function CvLivePreview({ declared, cvWord }: { declared: CvDeclared; cvWord: str
       ) : (
         <div className="mt-3 overflow-hidden rounded-xl border border-white/10 bg-white">
           <CvPaper
+            order={order}
             declared={declared}
             cv={{
               summary: declared.summary,

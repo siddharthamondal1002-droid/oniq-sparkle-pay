@@ -3,6 +3,7 @@
 import { deliverFile, shareFile } from "@/lib/saveFile";
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
+import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
 
 const A4_W = 210;
 const A4_H = 297;
@@ -31,7 +32,11 @@ export function cvFilename(fullName: string): string {
   return `${slug}-cv-${new Date().toISOString().slice(0, 10)}.pdf`;
 }
 
-export async function buildCvPdf(declaredIn: CvDeclared, cvIn: CvGenerated) {
+export async function buildCvPdf(
+  declaredIn: CvDeclared,
+  cvIn: CvGenerated,
+  order?: readonly CvSectionKey[],
+) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
 
@@ -104,60 +109,67 @@ export async function buildCvPdf(declaredIn: CvDeclared, cvIn: CvGenerated) {
     .join("  ·  ");
   if (personal) para(personal, 9, "normal", 5);
 
-  if (cv.summary?.trim()) {
-    heading("Summary");
-    para(cv.summary.trim(), 10, "normal");
-  }
-
-  if (cv.roles?.length) {
-    heading("Experience");
-    for (const r of cv.roles) {
-      const titleText = `${r.title}${r.employer ? ` — ${r.employer}` : ""}`;
-      const dates = `${r.start}${r.start || r.end ? " – " : ""}${r.end || "present"}`;
-      const dateW = dates ? doc.getStringUnitWidth(dates) * 9 * 0.3528 + 4 : 0;
-      const titleLines = wrap(titleText, 10.5, "bold", CONTENT_W - dateW);
-      // Never strand a role header at the foot of a page: it needs its own
-      // lines plus the first line of its first bullet.
-      ensure(titleLines.length * 5 + (r.bullets?.length ? 4.6 : 0));
-      titleLines.forEach((line, i) => {
-        ensure(5);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10.5);
-        doc.text(line, M, y);
-        if (i === 0 && dates) {
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(9);
-          doc.text(dates, A4_W - M, y, { align: "right" });
-        }
-        y += 5;
-      });
-      for (const b of r.bullets ?? []) {
-        const lines = wrap(b, 10, "normal", CONTENT_W - 5);
-        lines.forEach((line, i) => {
-          ensure(4.6);
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(10);
-          if (i === 0) doc.text("•", M, y);
-          doc.text(line, M + 5, y);
-          y += 4.6;
+  // Body sections print in the user's chosen order (drag-and-drop in the CV
+  // workbench); anything empty is still skipped entirely.
+  const emit: Record<CvSectionKey, () => void> = {
+    summary: () => {
+      if (!cv.summary?.trim()) return;
+      heading("Summary");
+      para(cv.summary.trim(), 10, "normal");
+    },
+    experience: () => {
+      if (!cv.roles?.length) return;
+      heading("Experience");
+      for (const r of cv.roles) {
+        const titleText = `${r.title}${r.employer ? ` — ${r.employer}` : ""}`;
+        const dates = `${r.start}${r.start || r.end ? " – " : ""}${r.end || "present"}`;
+        const dateW = dates ? doc.getStringUnitWidth(dates) * 9 * 0.3528 + 4 : 0;
+        const titleLines = wrap(titleText, 10.5, "bold", CONTENT_W - dateW);
+        // Never strand a role header at the foot of a page: it needs its own
+        // lines plus the first line of its first bullet.
+        ensure(titleLines.length * 5 + (r.bullets?.length ? 4.6 : 0));
+        titleLines.forEach((line, i) => {
+          ensure(5);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10.5);
+          doc.text(line, M, y);
+          if (i === 0 && dates) {
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.text(dates, A4_W - M, y, { align: "right" });
+          }
+          y += 5;
         });
+        for (const b of r.bullets ?? []) {
+          const lines = wrap(b, 10, "normal", CONTENT_W - 5);
+          lines.forEach((line, i) => {
+            ensure(4.6);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            if (i === 0) doc.text("•", M, y);
+            doc.text(line, M + 5, y);
+            y += 4.6;
+          });
+        }
+        y += 2.5;
       }
-      y += 2.5;
-    }
-  }
+    },
+    qualifications: () => {
+      if (!cv.credentials?.length) return;
+      heading("Qualifications");
+      for (const c of cv.credentials) {
+        const text = [c.name, c.issuer, c.year].filter(Boolean).join(", ");
+        if (text) para(text, 10, "normal");
+      }
+    },
+    skills: () => {
+      if (!cv.skills?.length) return;
+      heading("Skills");
+      para(cv.skills.join(" · "), 10, "normal");
+    },
+  };
+  for (const key of normalizeSectionOrder(order)) emit[key]();
 
-  if (cv.credentials?.length) {
-    heading("Qualifications");
-    for (const c of cv.credentials) {
-      const text = [c.name, c.issuer, c.year].filter(Boolean).join(", ");
-      if (text) para(text, 10, "normal");
-    }
-  }
-
-  if (cv.skills?.length) {
-    heading("Skills");
-    para(cv.skills.join(" · "), 10, "normal");
-  }
   section = null;
 
   const total = doc.getNumberOfPages();
@@ -177,8 +189,9 @@ export async function buildCvPdf(declaredIn: CvDeclared, cvIn: CvGenerated) {
 export async function buildCvPdfBlob(
   declared: CvDeclared,
   cv: CvGenerated,
+  order?: readonly CvSectionKey[],
 ): Promise<{ blob: Blob; filename: string; pages: number }> {
-  const doc = await buildCvPdf(declared, cv);
+  const doc = await buildCvPdf(declared, cv, order);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   return {
     blob: new Blob([buf], { type: "application/pdf" }),
@@ -204,8 +217,9 @@ export function shareCvPdfBlob(filename: string, blob: Blob, fullName?: string) 
 export async function exportCvPdf(
   declared: CvDeclared,
   cv: CvGenerated,
+  order?: readonly CvSectionKey[],
 ): Promise<{ filename: string }> {
-  const doc = await buildCvPdf(declared, cv);
+  const doc = await buildCvPdf(declared, cv, order);
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   await deliverFile(filename, "application/pdf", new Blob([buf], { type: "application/pdf" }));
@@ -216,8 +230,9 @@ export async function exportCvPdf(
 export async function shareCvPdf(
   declared: CvDeclared,
   cv: CvGenerated,
+  order?: readonly CvSectionKey[],
 ): Promise<{ filename: string; how: "shared" | "downloaded" }> {
-  const doc = await buildCvPdf(declared, cv);
+  const doc = await buildCvPdf(declared, cv, order);
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   const how = await shareFile(

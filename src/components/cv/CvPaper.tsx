@@ -10,6 +10,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CV_PAGE, PT } from "@/lib/cvPdf";
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
+import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
 
 /** pt -> mm, matching jsPDF's text metrics. */
 const mm = (pt: number) => `${(pt * PT).toFixed(3)}mm`;
@@ -63,7 +64,15 @@ function Heading({ text }: { text: string }) {
 export type CvPaperDoc = Pick<CvGenerated, "summary" | "roles" | "credentials" | "skills">;
 
 /** The A4 sheet itself, drawn at true size; the parent scales it. */
-function Sheet({ declared: declaredIn, cv: cvIn }: { declared: CvDeclared; cv: CvPaperDoc }) {
+function Sheet({
+  declared: declaredIn,
+  cv: cvIn,
+  order,
+}: {
+  declared: CvDeclared;
+  cv: CvPaperDoc;
+  order?: readonly CvSectionKey[];
+}) {
   // Identical pruning to buildCvPdf(): placeholders and empty rows never
   // reach the page, in the preview or the export.
   const declared = pruneDeclaredForExport(declaredIn);
@@ -76,6 +85,76 @@ function Sheet({ declared: declaredIn, cv: cvIn }: { declared: CvDeclared; cv: C
   const roles = pruned.roles;
   const credentials = pruned.credentials;
   const skills = pruned.skills;
+
+  // Same order the PDF prints in.
+  const sections: Record<CvSectionKey, ReactNode> = {
+    summary: cv.summary?.trim() ? (
+      <>
+        <Heading text="Summary" />
+        <Line size={10} gap={4.6}>
+          {cv.summary.trim()}
+        </Line>
+      </>
+    ) : null,
+    experience:
+      roles.length > 0 ? (
+        <>
+          <Heading text="Experience" />
+          {roles.map((r, i) => (
+            <div key={i} style={{ paddingBottom: "2.5mm" }}>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "4mm" }}>
+                <div style={{ flex: 1 }}>
+                  <Line size={10.5} bold gap={5}>
+                    {`${r.title}${r.employer ? ` — ${r.employer}` : ""}`}
+                  </Line>
+                </div>
+                {(r.start || r.end) && (
+                  <div style={{ whiteSpace: "nowrap" }}>
+                    <Line size={9} gap={5} align="right">
+                      {`${r.start}${r.start || r.end ? " – " : ""}${r.end || "present"}`}
+                    </Line>
+                  </div>
+                )}
+              </div>
+              {(r.bullets ?? []).map((b, j) => (
+                <div key={j} style={{ display: "flex" }}>
+                  <div style={{ width: "5mm", flexShrink: 0 }}>
+                    <Line size={10} gap={4.6}>
+                      •
+                    </Line>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <Line size={10} gap={4.6}>
+                      {b}
+                    </Line>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </>
+      ) : null,
+    qualifications:
+      credentials.length > 0 ? (
+        <>
+          <Heading text="Qualifications" />
+          {credentials.map((c, i) => (
+            <Line key={i} size={10} gap={4.6}>
+              {[c.name, c.issuer, c.year].filter(Boolean).join(", ")}
+            </Line>
+          ))}
+        </>
+      ) : null,
+    skills:
+      skills.length > 0 ? (
+        <>
+          <Heading text="Skills" />
+          <Line size={10} gap={4.6}>
+            {skills.join(" · ")}
+          </Line>
+        </>
+      ) : null,
+  };
 
   return (
     <div
@@ -112,72 +191,9 @@ function Sheet({ declared: declaredIn, cv: cvIn }: { declared: CvDeclared; cv: C
         </Line>
       )}
 
-      {cv.summary?.trim() && (
-        <>
-          <Heading text="Summary" />
-          <Line size={10} gap={4.6}>
-            {cv.summary.trim()}
-          </Line>
-        </>
-      )}
-
-      {roles.length > 0 && (
-        <>
-          <Heading text="Experience" />
-          {roles.map((r, i) => (
-            <div key={i} style={{ paddingBottom: "2.5mm" }}>
-              <div style={{ display: "flex", alignItems: "baseline", gap: "4mm" }}>
-                <div style={{ flex: 1 }}>
-                  <Line size={10.5} bold gap={5}>
-                    {`${r.title}${r.employer ? ` — ${r.employer}` : ""}`}
-                  </Line>
-                </div>
-                {(r.start || r.end) && (
-                  <div style={{ whiteSpace: "nowrap" }}>
-                    <Line size={9} gap={5} align="right">
-                      {`${r.start}${r.start || r.end ? " – " : ""}${r.end || "present"}`}
-                    </Line>
-                  </div>
-                )}
-              </div>
-              {(r.bullets ?? []).map((b, j) => (
-                <div key={j} style={{ display: "flex" }}>
-                  <div style={{ width: "5mm", flexShrink: 0 }}>
-                    <Line size={10} gap={4.6}>
-                      •
-                    </Line>
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <Line size={10} gap={4.6}>
-                      {b}
-                    </Line>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
-        </>
-      )}
-
-      {credentials.length > 0 && (
-        <>
-          <Heading text="Qualifications" />
-          {credentials.map((c, i) => (
-            <Line key={i} size={10} gap={4.6}>
-              {[c.name, c.issuer, c.year].filter(Boolean).join(", ")}
-            </Line>
-          ))}
-        </>
-      )}
-
-      {skills.length > 0 && (
-        <>
-          <Heading text="Skills" />
-          <Line size={10} gap={4.6}>
-            {skills.join(" · ")}
-          </Line>
-        </>
-      )}
+      {normalizeSectionOrder(order).map((key) => (
+        <div key={key}>{sections[key]}</div>
+      ))}
 
       <div
         style={{
@@ -200,7 +216,15 @@ function Sheet({ declared: declaredIn, cv: cvIn }: { declared: CvDeclared; cv: C
  * Scales the true-size A4 sheet down to the available width, so the preview
  * is the exported page rather than an approximation of it.
  */
-export function CvPaper({ declared, cv }: { declared: CvDeclared; cv: CvPaperDoc }) {
+export function CvPaper({
+  declared,
+  cv,
+  order,
+}: {
+  declared: CvDeclared;
+  cv: CvPaperDoc;
+  order?: readonly CvSectionKey[];
+}) {
   const box = useRef<HTMLDivElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
@@ -221,7 +245,7 @@ export function CvPaper({ declared, cv }: { declared: CvDeclared; cv: CvPaperDoc
     if (box.current) ro.observe(box.current);
     if (sheet.current) ro.observe(sheet.current);
     return () => ro.disconnect();
-  }, [declared, cv]);
+  }, [declared, cv, order]);
 
   return (
     <div ref={box} className="w-full overflow-hidden" style={{ height: height || undefined }}>
@@ -229,7 +253,7 @@ export function CvPaper({ declared, cv }: { declared: CvDeclared; cv: CvPaperDoc
         ref={sheet}
         style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: "fit-content" }}
       >
-        <Sheet declared={declared} cv={cv} />
+        <Sheet declared={declared} cv={cv} order={order} />
       </div>
     </div>
   );

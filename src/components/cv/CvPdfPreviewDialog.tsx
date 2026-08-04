@@ -7,16 +7,20 @@ import { Download, FileText, Loader2, Share2, X } from "lucide-react";
 import { toast } from "sonner";
 import { isShareCancelled } from "@/lib/saveFile";
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
+import type { CvSectionKey } from "@/lib/cvSections";
 
 type Built = { blob: Blob; filename: string; pages: number };
 
 export function CvPdfPreviewDialog({
   declared,
   cv,
+  order,
   onClose,
 }: {
   declared: CvDeclared;
   cv: CvGenerated;
+  /** Section order chosen in the workbench. */
+  order?: readonly CvSectionKey[];
   onClose: () => void;
 }) {
   const [built, setBuilt] = useState<Built | null>(null);
@@ -32,7 +36,7 @@ export function CvPdfPreviewDialog({
     (async () => {
       try {
         const { buildCvPdfBlob } = await import("@/lib/cvPdf");
-        const result = await buildCvPdfBlob(declared, cv);
+        const result = await buildCvPdfBlob(declared, cv, order);
         if (cancelled) return;
         setBuilt(result);
         if (canEmbed) {
@@ -47,7 +51,7 @@ export function CvPdfPreviewDialog({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [declared, cv, canEmbed]);
+  }, [declared, cv, order, canEmbed]);
 
   const download = async () => {
     if (!built) return;
