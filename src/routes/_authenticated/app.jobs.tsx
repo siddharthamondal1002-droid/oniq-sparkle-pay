@@ -19,11 +19,7 @@ import { toast } from "sonner";
 
 import { CvPaper } from "@/components/cv/CvPaper";
 import { SectionOrderList } from "@/components/cv/SectionOrderList";
-import {
-  CV_SECTION_ORDER_DEFAULT,
-  CV_SECTION_LABEL,
-  type CvSectionKey,
-} from "@/lib/cvSections";
+import { CV_SECTION_ORDER_DEFAULT, CV_SECTION_LABEL, type CvSectionKey } from "@/lib/cvSections";
 import { SkillChips } from "@/components/cv/SkillChips";
 import { supabase } from "@/integrations/supabase/client";
 import { CvPdfPreviewDialog } from "@/components/cv/CvPdfPreviewDialog";

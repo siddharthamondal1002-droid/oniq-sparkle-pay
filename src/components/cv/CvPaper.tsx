@@ -212,7 +212,6 @@ function Sheet({
   );
 }
 
-
 /**
  * Scales the true-size A4 sheet down to the available width, so the preview
  * is the exported page rather than an approximation of it.

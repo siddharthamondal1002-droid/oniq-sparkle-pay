@@ -7,11 +7,7 @@
 import { useRef, useState } from "react";
 import { GripVertical } from "lucide-react";
 
-import {
-  CV_SECTION_LABEL,
-  moveSection,
-  type CvSectionKey,
-} from "@/lib/cvSections";
+import { CV_SECTION_LABEL, moveSection, type CvSectionKey } from "@/lib/cvSections";
 
 export function SectionOrderList({
   order,
