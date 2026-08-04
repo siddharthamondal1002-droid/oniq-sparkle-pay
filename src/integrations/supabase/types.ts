@@ -664,6 +664,68 @@ export type Database = {
           },
         ]
       }
+      cv_attestations: {
+        Row: {
+          attested_at: string
+          cv_id: string
+          id: string
+          statement: string
+          user_id: string
+        }
+        Insert: {
+          attested_at?: string
+          cv_id: string
+          id?: string
+          statement: string
+          user_id: string
+        }
+        Update: {
+          attested_at?: string
+          cv_id?: string
+          id?: string
+          statement?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "cv_attestations_cv_id_fkey"
+            columns: ["cv_id"]
+            isOneToOne: false
+            referencedRelation: "cv_documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      cv_documents: {
+        Row: {
+          content: Json
+          created_at: string
+          id: string
+          target_country: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          content?: Json
+          created_at?: string
+          id?: string
+          target_country?: string
+          title?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          content?: Json
+          created_at?: string
+          id?: string
+          target_country?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       cycle_logs: {
         Row: {
           created_at: string
@@ -3073,6 +3135,7 @@ export type Database = {
       health_data_allowed: { Args: { _user_id: string }; Returns: boolean }
       health_request_region_ok: { Args: never; Returns: boolean }
       is_admin: { Args: { _uid: string }; Returns: boolean }
+      is_adult_18: { Args: { _uid: string }; Returns: boolean }
       is_conversation_member: {
         Args: { _conv: string; _user: string }
         Returns: boolean
