@@ -19,6 +19,7 @@ import {
 import { toast } from "sonner";
 
 import { CvPaper } from "@/components/cv/CvPaper";
+import CredentialCsvImport from "@/components/cv/CredentialCsvImport";
 import { SectionOrderList } from "@/components/cv/SectionOrderList";
 import { Switch } from "@/components/ui/switch";
 import {
