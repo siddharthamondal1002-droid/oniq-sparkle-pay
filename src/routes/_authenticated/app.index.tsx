@@ -175,6 +175,7 @@ function HomeScreen() {
                 { key: "vitals", to: "/app/vitals", color: vitalsColor },
                 { key: "wander", to: "/app/travel" },
                 { key: "earn", to: "/app/earn" },
+                { key: "glance", to: "/app/glance" },
                 { key: "university", to: "/app/university" },
                 // 18+ only — hidden entirely for minors and null-DOB accounts.
                 { key: "jobs", to: "/app/jobs", adultOnly: true },

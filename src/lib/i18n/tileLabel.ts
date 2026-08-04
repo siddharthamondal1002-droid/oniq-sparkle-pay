@@ -13,6 +13,7 @@ import type { Country } from "@/data/appRegistry";
 
 /** Every tile ONIQ can render. Source of truth for the label tables below. */
 export type TileKey =
+  | "glance"
   | "watch"
   | "study"
   | "moments"
@@ -54,6 +55,7 @@ export const TILE_LABELS: Record<TileKey, string> = {
   official: "Official 🏛️",
   earn: "earn 💸",
   moots: "Moots",
+  glance: "Glance",
   university: "Campus",
   jobs: "Jobs",
   jobsApps: "Job apps",
@@ -91,6 +93,7 @@ export const TILE_LABELS_HI: Record<TileKey, string> = {
   official: "सरकारी 🏛️",
   earn: "कमाई 💸",
   moots: "दोस्त",
+  glance: "एक नज़र",
   university: "कैंपस",
   jobs: "नौकरी",
   jobsApps: "नौकरी ऐप्स",
