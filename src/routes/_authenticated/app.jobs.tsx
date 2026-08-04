@@ -1089,7 +1089,9 @@ function CvLivePreview({
   cvWord: string;
   order?: readonly CvSectionKey[];
 }) {
+  const [showBreaks, setShowBreaks] = useState(true);
   const contact = [declared.email, declared.phone, declared.location].filter(Boolean);
+
   const empty =
     !declared.fullName &&
     !declared.headline &&
