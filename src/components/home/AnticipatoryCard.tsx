@@ -21,6 +21,9 @@ export function AnticipatoryCard() {
   const [gone, setGone] = useState(false);
   const [why, setWhy] = useState(false);
   const { lang } = useT();
+  // Must stay above every early return — a hook below `if (!suggestion) return null`
+  // changes the hook count the moment a suggestion appears and crashes the tree.
+  const [home] = useCountry();
 
   useEffect(() => {
     let alive = true;
@@ -47,7 +50,6 @@ export function AnticipatoryCard() {
   }, []);
 
   if (!suggestion || gone) return null;
-  const [home] = useCountry();
 
   const open = () => {
     void recordSignal("card_tap", suggestion.hub);

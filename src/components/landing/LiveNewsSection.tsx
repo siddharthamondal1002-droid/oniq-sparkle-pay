@@ -62,7 +62,8 @@ function useLiveNews() {
 export function CompactLiveNews() {
   const { items, failed, idx } = useLiveNews();
   const navigate = useNavigate();
-  if (failed) return null;
+  // Hooks first, unconditionally — the `failed` early return used to sit above
+  // these two useMemo calls and changed the hook count between renders.
   const current = items?.[idx];
   const others = useMemo(
     () => (items ? items.filter((_, i) => i !== idx) : []),
@@ -72,6 +73,7 @@ export function CompactLiveNews() {
     () => others.map((it) => `${it.title}  ·  ${it.source}`).join("   •   "),
     [others],
   );
+  if (failed) return null;
   return (
     <button
       onClick={() => navigate({ to: "/app/news", search: { tab: undefined } })}
