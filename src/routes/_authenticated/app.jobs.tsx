@@ -10,6 +10,7 @@ import {
   Download,
   FileText,
   Flag,
+  Share2,
   Plus,
   Sparkles,
   X,
@@ -235,6 +236,7 @@ function CvWorkbench({
   const [attested, setAttested] = useState(false);
   const [cvId, setCvId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [sharing, setSharing] = useState(false);
 
   useEffect(() => {
     setGenerated(null);
@@ -839,6 +841,25 @@ function CvWorkbench({
             className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
           >
             <Download className="size-4" /> {exporting ? "Preparing…" : "Export as PDF"}
+          </button>
+          <button
+            type="button"
+            disabled={sharing}
+            onClick={async () => {
+              setSharing(true);
+              try {
+                const { shareCvPdf } = await import("@/lib/cvPdf");
+                const { filename, how } = await shareCvPdf(cleanDeclared(declared), generated);
+                toast.success(how === "shared" ? "Share sheet opened" : `Saved ${filename}`);
+              } catch (e) {
+                if (!isShareCancelled(e)) toast.error("Couldn't share the PDF. Try again.");
+              } finally {
+                setSharing(false);
+              }
+            }}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            <Share2 className="size-4" /> {sharing ? "Preparing…" : "Share PDF"}
           </button>
           <button
             type="button"
