@@ -217,7 +217,15 @@ function Sheet({
  * Scales the true-size A4 sheet down to the available width, so the preview
  * is the exported page rather than an approximation of it.
  */
-export function CvPaper({ declared, cv }: { declared: CvDeclared; cv: CvPaperDoc }) {
+export function CvPaper({
+  declared,
+  cv,
+  order,
+}: {
+  declared: CvDeclared;
+  cv: CvPaperDoc;
+  order?: readonly CvSectionKey[];
+}) {
   const box = useRef<HTMLDivElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
