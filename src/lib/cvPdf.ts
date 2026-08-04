@@ -153,6 +153,34 @@ export async function buildCvPdf(declared: CvDeclared, cv: CvGenerated) {
   return doc;
 }
 
+/** Build once, keep the bytes — lets the preview, download and share reuse
+ * the exact same document instead of regenerating it three times. */
+export async function buildCvPdfBlob(
+  declared: CvDeclared,
+  cv: CvGenerated,
+): Promise<{ blob: Blob; filename: string; pages: number }> {
+  const doc = await buildCvPdf(declared, cv);
+  const buf = doc.output("arraybuffer") as ArrayBuffer;
+  return {
+    blob: new Blob([buf], { type: "application/pdf" }),
+    filename: cvFilename(declared.fullName),
+    pages: doc.getNumberOfPages(),
+  };
+}
+
+/** Hand an already-built CV PDF to the OS (save/download). */
+export function deliverCvPdfBlob(filename: string, blob: Blob) {
+  return deliverFile(filename, "application/pdf", blob);
+}
+
+/** Hand an already-built CV PDF to the platform share sheet. */
+export function shareCvPdfBlob(filename: string, blob: Blob, fullName?: string) {
+  return shareFile(filename, "application/pdf", blob, {
+    title: fullName ? `${fullName} — CV` : "My CV",
+    text: "My CV",
+  });
+}
+
 /** Build + hand to the OS. Returns the filename written. */
 export async function exportCvPdf(
   declared: CvDeclared,
