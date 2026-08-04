@@ -23,7 +23,9 @@ export type CategoryId =
   | "shopping"
   | "beauty"
   | "fashion"
-  | "entertainment";
+  | "entertainment"
+  | "jobs"
+  | "gig";
 
 export type AppEntry = {
   id: string;
@@ -40,6 +42,8 @@ export type AppEntry = {
   status: "active" | "rebranded" | "merged" | "shutdown" | "withdrawn";
   replacedBy?: string; // id of successor when status !== "active"
   hidden?: boolean; // present in data but never rendered (e.g. Pay-by-UPI shortcut)
+  freeToApply?: boolean; // jobs/gig only: applying to listings costs the worker nothing
+  government?: boolean; // jobs/gig only: run by a government body, badged as official
   color: string;
   letter: string;
   emoji?: string;
@@ -2362,6 +2366,8 @@ export const CATEGORY_LABELS: Record<CategoryId, TileLabel> = {
   beauty: { label: "Beauty 💄", labelHi: "ब्यूटी 💄" },
   fashion: { label: "Fashion 👗", labelHi: "फ़ैशन 👗" },
   entertainment: { label: "Entertainment 🍿", labelHi: "मनोरंजन 🍿" },
+  jobs: { label: "Jobs & hiring 💼", labelHi: "नौकरी 💼" },
+  gig: { label: "Gig & delivery work 🛵", labelHi: "गिग काम 🛵" },
 };
 
 /** True when `entry` is offered in `country`. */
