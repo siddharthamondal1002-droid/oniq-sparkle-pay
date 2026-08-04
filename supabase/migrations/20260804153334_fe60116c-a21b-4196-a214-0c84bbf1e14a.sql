@@ -1,0 +1,1 @@
+ALTER FUNCTION public.storage_object_name(text, text) SET search_path = public;
