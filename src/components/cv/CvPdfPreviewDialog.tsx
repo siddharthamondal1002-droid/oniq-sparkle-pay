@@ -57,7 +57,7 @@ export function CvPdfPreviewDialog({
     (async () => {
       try {
         const { buildCvPdfBlob } = await import("@/lib/cvPdf");
-        const result = await buildCvPdfBlob(declared, cv, order);
+        const result = await buildCvPdfBlob(declared, cv, order, template);
         if (cancelled) return;
         setBuilt(result);
         if (canEmbed) {
@@ -72,7 +72,7 @@ export function CvPdfPreviewDialog({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [declared, cv, order, canEmbed]);
+  }, [declared, cv, order, template, canEmbed]);
 
   const download = async () => {
     if (!built) return;
@@ -96,7 +96,7 @@ export function CvPdfPreviewDialog({
       // Always regenerate from the latest fields so the shared file can never
       // be a stale build from an earlier edit.
       const { buildCvPdfBlob, shareCvPdfBlob } = await import("@/lib/cvPdf");
-      const fresh = await buildCvPdfBlob(declared, cv, order);
+      const fresh = await buildCvPdfBlob(declared, cv, order, template);
       filename = fresh.filename;
       setBuilt(fresh);
       if (canEmbed) {
