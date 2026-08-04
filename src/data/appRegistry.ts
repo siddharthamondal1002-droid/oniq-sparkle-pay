@@ -25,7 +25,10 @@ export type CategoryId =
   | "fashion"
   | "entertainment"
   | "jobs"
-  | "gig";
+  | "gig"
+  // Exchanges, brokers and market regulators. Link-out destinations only —
+  // ONIQ displays no quote, index level or chart. See src/data/marketApps.ts.
+  | "markets";
 
 export type AppEntry = {
   id: string;
@@ -2368,6 +2371,7 @@ export const CATEGORY_LABELS: Record<CategoryId, TileLabel> = {
   entertainment: { label: "Entertainment 🍿", labelHi: "मनोरंजन 🍿" },
   jobs: { label: "Jobs & hiring 💼", labelHi: "नौकरी 💼" },
   gig: { label: "Gig & delivery work 🛵", labelHi: "गिग काम 🛵" },
+  markets: { label: "Markets 📈", labelHi: "बाज़ार 📈" },
 };
 
 /** True when `entry` is offered in `country`. */

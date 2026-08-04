@@ -1,4 +1,3 @@
-import { moneyIn } from "@/lib/format";
 import { useEffect, useId, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -38,6 +37,9 @@ import {
 } from "@/components/customize/CustomizeSheet";
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useCountry } from "@/lib/country";
+import { launchAppEntry } from "@/lib/miniapps";
+import { marketAppsFor } from "@/data/marketApps";
+import type { Country } from "@/data/appRegistry";
 import { isAvailable } from "@/data/countryRegistry";
 import { useIsAdult18 } from "@/lib/useIsAdult18";
 import { SafeMount } from "@/components/SafeMount";
@@ -1136,13 +1138,6 @@ function useInstallPrompt() {
   };
 }
 
-type MarketData = {
-  gold: { pricePerGram: number; currency: string } | null;
-  silver: { pricePerGram: number; currency: string } | null;
-  repoRate: { value: number; asOf: string } | null;
-  bankRates: Array<{ bank: string; rate: number; type: string }>;
-};
-
 type NewsItem = {
   title: string;
   link: string;
@@ -1176,17 +1171,10 @@ function useGlanceCollapsed() {
 function GlanceCard() {
   const [collapsed, setCollapsed] = useGlanceCollapsed();
   const [openTab, setOpenTab] = useState<LoanCategory["type"] | null>(null);
+  // MUST stay above the `if (collapsed) return` below. A hook placed after an
+  // early return took production down on 2026-08-04.
+  const [home] = useCountry();
 
-  const { data: market } = useQuery<MarketData | null>({
-    queryKey: ["market-ticker"],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("market-ticker");
-      if (error) return null;
-      return data as MarketData;
-    },
-    staleTime: 15 * 60 * 1000,
-    refetchInterval: 15 * 60 * 1000,
-  });
 
   const {
     data: loans,
@@ -1218,8 +1206,14 @@ function GlanceCard() {
     );
   }
 
-  const gold = market?.gold?.pricePerGram ?? null;
-  const silver = market?.silver?.pricePerGram ?? null;
+  // Markets are a link-out, never a display. The two boxes that used to sit
+  // here showed 24K gold and silver per gram, scraped from ibjarates.com and
+  // topped up from two APIs whose licences were never established. No free
+  // source permits commercial display of exchange or bullion quotes, and a
+  // disclaimer does not cure an unlicensed redistribution — so ONIQ shows no
+  // number and opens the exchange instead. Axis is the user's HOME market, not
+  // Current Region: an Indian user in Dubai still tracks the Nifty.
+  const marketDestinations = marketAppsFor((home as Country) ?? "IN").slice(0, 2);
 
   const tabs: { t: LoanCategory["type"]; emoji: string; label: string }[] = [
     { t: "home", emoji: "🏠", label: "Home" },
@@ -1243,18 +1237,20 @@ function GlanceCard() {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="grid flex-1 grid-cols-2 gap-2">
-          <StatBox
-            label="24K Gold"
-            value={gold ? moneyIn(gold, "INR") : "—"}
-            unit="/g"
-            accent="#F59E0B"
-          />
-          <StatBox
-            label="Silver"
-            value={silver ? moneyIn(silver, "INR") : "—"}
-            unit="/g"
-            accent="#94A3B8"
-          />
+          {marketDestinations.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => void launchAppEntry(m)}
+              className="press rounded-xl border border-border bg-black/20 p-2 text-start"
+              aria-label={`Open ${m.name} — opens outside ONIQ`}
+            >
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                {m.kind === "exchange" ? "Exchange" : m.kind === "broker" ? "Broker" : "Regulator"}
+              </div>
+              <div className="mt-0.5 truncate text-sm font-semibold">{m.name}</div>
+              <div className="text-[10px] text-muted-foreground">Open ↗</div>
+            </button>
+          ))}
         </div>
         <button
           onClick={() => setCollapsed(true)}
