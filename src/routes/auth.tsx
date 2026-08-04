@@ -7,6 +7,7 @@ import { ArrowLeft, Mail, Lock, Phone } from "lucide-react";
 import { OTP_LOGIN_ENABLED } from "@/lib/flags";
 import { COUNTRIES, toWidgetFormat, nextResendDelay, MAX_RESENDS, OTP_EXPIRY_MINUTES } from "@/lib/phoneAuth";
 import { NOTICE_VERSION } from "@/lib/consent/notice";
+import { DOB_REASON } from "@/lib/dobNotice";
 
 
 export const Route = createFileRoute("/auth")({
@@ -106,13 +107,15 @@ async function persistSignupCompliance(
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  const { error: sErr } = await supabase.rpc("set_signup_profile", {
+  const { data: sRes, error: sErr } = await supabase.rpc("set_signup_profile", {
     _dob: dob,
     _parent_name: parentName || undefined,
     _parent_email: parentEmail || undefined,
     _parent_phone: parentPhone || undefined,
   });
   if (sErr) throw sErr;
+  const sJson = sRes as { ok?: boolean; message?: string } | null;
+  if (sJson && sJson.ok === false) throw new Error(sJson.message ?? "Date of birth was refused.");
   // Consent is recorded into the tamper-evident ledger (record_consent writes
   // consent_records and mirrors the legacy table). An under-age account cannot
   // self-consent: the database refuses these rows until a verified parent
@@ -642,8 +645,12 @@ function AuthPage() {
                 {mode === "signup" && (
                   <div className="space-y-3 rounded-2xl border border-border bg-card/40 p-3">
                     <div className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                      Age check (DPDP Act, 2023)
+                      Date of birth · required
                     </div>
+                    <p className="text-[11px] text-muted-foreground">{DOB_REASON.en}</p>
+                    <p className="text-[11px] text-muted-foreground" lang="hi">
+                      {DOB_REASON.hi}
+                    </p>
                     <input
                       type="date"
                       value={dob}
