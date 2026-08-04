@@ -1,9 +1,19 @@
 // Preview-before-export step for the generated CV.
 // The bytes are built once and reused for the preview, the download and the
 // share sheet, so what you see is exactly what leaves the app.
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { Download, FileText, Loader2, Pencil, Share2, X } from "lucide-react";
+import {
+  Download,
+  FileText,
+  Loader2,
+  Maximize2,
+  Pencil,
+  Share2,
+  X,
+  ZoomIn,
+  ZoomOut,
+} from "lucide-react";
 import { toast } from "sonner";
 import { isShareCancelled } from "@/lib/saveFile";
 import { defaultCvShareMessage } from "@/lib/cvShareMessage";
