@@ -458,6 +458,129 @@ export const ATTESTATION_STATEMENT =
 const URLISH = /(https?:\/\/|www\.|\S+@\S+\.\S+)/i;
 const HAS_LETTER = /\p{L}/u;
 
+/* ------------------------------------------------------------------ *
+ * Input normalisation
+ *
+ * Runs BEFORE validation and before the CV is generated/exported, so
+ * what the user sees, what we validate and what lands in the PDF are the
+ * same string. Deliberately conservative: it never invents or drops
+ * meaning, it only tidies whitespace, separators and casing.
+ * ------------------------------------------------------------------ */
+
+/** Acronyms that must stay upper-case when we re-case a field. */
+const ACRONYMS = new Set([
+  "CBSE", "ICSE", "ISC", "IB", "IGCSE", "NIOS", "SSC", "HSC", "CIE", "GCSE",
+  "IIT", "NIT", "IIM", "AIIMS", "JEE", "NEET", "CLAT", "CAT", "GATE", "UPSC",
+  "BA", "BSC", "BCA", "BBA", "BCOM", "BTECH", "BE", "MA", "MSC", "MCA", "MBA",
+  "MCOM", "MTECH", "ME", "PHD", "LLB", "LLM", "CA", "CS", "CMA", "MBBS", "BDS",
+  "AWS", "GCP", "IBM", "SAP", "ERP", "CRM", "SEO", "SEM", "API", "UI", "UX",
+  "SQL", "HTML", "CSS", "JS", "TS", "PHP", "XML", "JSON", "ETL", "QA", "HR",
+  "IT", "AI", "ML", "GST", "TDS", "MS", "PC", "OS", "VBA", "SAS", "SPSS", "R",
+]);
+
+/** Words kept lower-case inside a title-cased phrase (never first word). */
+const MINOR_WORDS = new Set([
+  "of", "the", "and", "in", "for", "with", "on", "at", "to", "by", "a", "an", "de", "van",
+]);
+
+/** Strips zero-width junk and collapses every run of whitespace to one space. */
+export function normalizeSpaces(raw: string): string {
+  return raw
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** True when the user has clearly chosen their own casing (e.g. "BSc Physics"). */
+function isMixedCase(s: string): boolean {
+  return /\p{Ll}/u.test(s) && /\p{Lu}/u.test(s);
+}
+
+/** Cases one word, honouring acronyms and dotted abbreviations (b.sc → B.Sc). */
+function caseWord(word: string, isFirst: boolean): string {
+  const bare = word.replace(/[^\p{L}\p{N}]/gu, "");
+  if (!bare) return word;
+  if (ACRONYMS.has(bare.toUpperCase())) {
+    return word.replace(bare, bare.toUpperCase());
+  }
+  if (word.includes(".")) {
+    // b.sc → B.Sc, ph.d → Ph.D
+    return word
+      .split(".")
+      .map((part) => (part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : part))
+      .join(".");
+  }
+  const lower = word.toLowerCase();
+  if (!isFirst && MINOR_WORDS.has(lower)) return lower;
+  return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+/**
+ * Applies consistent casing only when the input is all-lower or all-upper.
+ * Anything the user has deliberately mixed-cased is left untouched.
+ */
+export function smartCase(raw: string): string {
+  const v = normalizeSpaces(raw);
+  if (!v || isMixedCase(v)) return v;
+  return v.split(" ").map((w, i) => caseWord(w, i === 0)).join(" ");
+}
+
+/** Tidies punctuation spacing shared by the free-text credential fields. */
+function tidyPunctuation(raw: string): string {
+  return normalizeSpaces(
+    raw
+      .replace(/[–—]/g, "-")
+      .replace(/\s*,\s*/g, ", ")
+      .replace(/\s*\/\s*/g, "/")
+      .replace(/\s*-\s*/g, "-")
+      .replace(/[,;]+$/g, ""),
+  );
+}
+
+/** Qualification / course name: tidy separators, consistent casing. */
+export function normalizeQualification(raw: string): string {
+  return smartCase(tidyPunctuation(raw));
+}
+
+/** Board / university / issuer: same treatment as the qualification name. */
+export function normalizeIssuer(raw: string): string {
+  return smartCase(tidyPunctuation(raw));
+}
+
+/**
+ * Year: unifies every dash/word separator to "-", drops padding spaces and
+ * lower-cases an open end ("Present"/"NOW" → "present").
+ */
+export function normalizeYear(raw: string): string {
+  let v = normalizeSpaces(raw).replace(/[–—]/g, "-");
+  v = v.replace(/\s*(?:-|to|till|until|\/)\s*/gi, "-");
+  v = v.replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return v.replace(/\b(present|now|ongoing|current)\b/gi, "present");
+}
+
+/**
+ * Skills: accepts commas, semicolons, pipes, bullets or newlines as the
+ * separator, tidies each entry, applies consistent casing and removes
+ * case-insensitive duplicates (first spelling wins).
+ */
+export function normalizeSkills(skills: string[]): string[] {
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const chunk of skills) {
+    for (const piece of chunk.split(/[,;|\n•·]+/)) {
+      const s = smartCase(piece.replace(/^[\s\-–—]+|[\s\-–—.]+$/g, ""));
+      if (!s) continue;
+      const key = s.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(s);
+    }
+  }
+  return out;
+}
+
+
+
 /** Qualification / course name. */
 export function validateQualification(raw: string): string | null {
   const v = raw.trim();
