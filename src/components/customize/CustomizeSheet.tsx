@@ -4,7 +4,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Palette, Upload, RotateCcw, X, Eye, EyeOff } from "lucide-react";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { resolveTileLabel, TILE_LABELS_HI, TILE_LABELS, type TileKey } from "@/lib/i18n/tileLabel";
+import {
+  resolveTileLabel,
+  TILE_LABELS_HI,
+  TILE_LABELS,
+  TILE_LABELS_BY_COUNTRY,
+  type TileKey,
+} from "@/lib/i18n/tileLabel";
+import { useCountry } from "@/lib/country";
 
 export type { TileKey };
 export { TILE_LABELS };
@@ -231,6 +238,7 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const [home] = useCountry();
   const tileKeys = (Object.keys(TILE_LABELS) as TileKey[]).filter(
     (k) => !BANNER_ONLY_TILES.includes(k),
   );
@@ -323,7 +331,10 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
                   )}
                 </div>
                 <span className="flex-1 text-sm font-medium">
-                  {resolveTileLabel(lang, TILE_LABELS[k], TILE_LABELS_HI[k])}
+                  {resolveTileLabel(lang, TILE_LABELS[k], TILE_LABELS_HI[k], {
+                    country: home,
+                    labelByCountry: TILE_LABELS_BY_COUNTRY[k],
+                  })}
                 </span>
                 <button
                   type="button"
