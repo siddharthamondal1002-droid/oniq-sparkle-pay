@@ -41,6 +41,7 @@ export type CvDeclared = {
   headline: string;
   email: string;
   phone: string;
+  website: string;
   location: string;
   summary: string;
   roles: CvRole[];
@@ -55,6 +56,7 @@ export function emptyDeclared(): CvDeclared {
     headline: "",
     email: "",
     phone: "",
+    website: "",
     location: "",
     summary: "",
     roles: [],
@@ -78,33 +80,68 @@ export const FABRICATION_CONTRACT = [
 ].join("\n");
 
 /** The DECLARED FACTS block the model is allowed to draw from. */
+/**
+ * The facts block is deliberately SPARSE: only what the user actually gave us
+ * is listed. Empty fields are named once at the end as "not declared" so the
+ * model omits those sections instead of inventing filler or placeholders.
+ */
 export function declaredFactsBlock(d: CvDeclared, country: Country): string {
   const excluded = excludedFields(country);
   const personal = Object.entries(d.personal)
     .filter(([k, v]) => v && !excluded.includes(k as CvSensitiveField))
     .map(([k, v]) => `- ${k}: ${v}`);
-  return [
-    "DECLARED FACTS",
-    `Name: ${d.fullName || "(not given)"}`,
-    `Headline: ${d.headline || "(not given)"}`,
-    `Location: ${d.location || "(not given)"}`,
-    `Contact: ${d.email || "(no email)"} / ${d.phone || "(no phone)"}`,
-    `Summary in the user's own words: ${d.summary || "(not given)"}`,
-    "Roles:",
-    ...(d.roles.length
-      ? d.roles.map(
-          (r) =>
-            `- ${r.title} at ${r.employer} (${r.start || "?"} to ${r.end || "present"}): ${r.bullets.join(" | ")}`,
-        )
-      : ["- (none declared)"]),
-    "Qualifications and certifications:",
-    ...(d.credentials.length
-      ? d.credentials.map((c) => `- ${c.name}, ${c.issuer}, ${c.year}`)
-      : ["- (none declared)"]),
-    `Skills: ${d.skills.length ? d.skills.join(", ") : "(none declared)"}`,
-    "Locally expected personal fields the user supplied:",
-    ...(personal.length ? personal : ["- (none)"]),
-  ].join("\n");
+
+  const lines: string[] = ["DECLARED FACTS"];
+  const missing: string[] = [];
+  const put = (label: string, value: string) => {
+    if (value) lines.push(`${label}: ${value}`);
+    else missing.push(label.toLowerCase());
+  };
+
+  put("Name", d.fullName);
+  put("Headline", d.headline);
+  put("Location", d.location);
+  put("Contact", [d.email, d.phone].filter(Boolean).join(" / "));
+  put("Summary in the user's own words", d.summary);
+
+  if (d.roles.length) {
+    lines.push("Roles:");
+    for (const r of d.roles) {
+      const who = [r.title, r.employer].filter(Boolean).join(" at ");
+      const when = r.start || r.end ? ` (${r.start || "?"} to ${r.end || "present"})` : "";
+      const what = r.bullets.length ? `: ${r.bullets.join(" | ")}` : "";
+      lines.push(`- ${who}${when}${what}`);
+    }
+  } else {
+    missing.push("work history");
+  }
+
+  if (d.credentials.length) {
+    lines.push("Qualifications and certifications:");
+    for (const c of d.credentials) {
+      // Only the parts given — a qualification with no board or year is fine.
+      lines.push(`- ${[c.name, c.issuer, c.year].filter(Boolean).join(", ")}`);
+    }
+  } else {
+    missing.push("qualifications");
+  }
+
+  if (d.skills.length) lines.push(`Skills: ${d.skills.join(", ")}`);
+  else missing.push("skills");
+
+  if (personal.length) {
+    lines.push("Locally expected personal fields the user supplied:");
+    lines.push(...personal);
+  }
+
+  if (missing.length) {
+    lines.push(
+      "",
+      `NOT DECLARED: ${missing.join(", ")}.`,
+      "Write the CV from the declared facts alone. Omit any section with nothing declared — do not add placeholders, do not ask the user for more, and never invent content to fill a gap.",
+    );
+  }
+  return lines.join("\n");
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +150,8 @@ export function declaredFactsBlock(d: CvDeclared, country: Country): string {
 
 export type ScreenResult = { allowed: true } | { allowed: false; reason: string };
 
-const ADD_VERBS = /\b(add|include|put|insert|invent|make up|say i (have|had|worked)|claim|pretend)\b/i;
+const ADD_VERBS =
+  /\b(add|include|put|insert|invent|make up|say i (have|had|worked)|claim|pretend)\b/i;
 const CREDENTIAL_WORDS =
   /\b(degree|bachelor'?s?|master'?s?|mba|phd|doctorate|b\.?tech|m\.?tech|diploma|certification|certificate|licen[cs]e)\b/i;
 const EMPLOYER_WORDS = /\b(at|for|with)\s+[A-Z][\w&.\- ]{1,40}/;
@@ -130,7 +168,9 @@ export function screenInstruction(instruction: string, declared: CvDeclared): Sc
   const asksToAdd = ADD_VERBS.test(text);
 
   if (asksToAdd && CREDENTIAL_WORDS.test(text)) {
-    const known = declared.credentials.some((c) => mentions(text, c.name) || mentions(text, c.issuer));
+    const known = declared.credentials.some(
+      (c) => mentions(text, c.name) || mentions(text, c.issuer),
+    );
     if (!known) {
       return {
         allowed: false,
@@ -244,7 +284,9 @@ export function validateGenerated(
   const norm = (s: string) => (s ?? "").trim().toLowerCase();
   const employers = new Set(declared.roles.map((r) => norm(r.employer)));
   const titles = new Set(declared.roles.map((r) => norm(r.title)));
-  const dates = new Set(declared.roles.flatMap((r) => [norm(r.start), norm(r.end)]).filter(Boolean));
+  const dates = new Set(
+    declared.roles.flatMap((r) => [norm(r.start), norm(r.end)]).filter(Boolean),
+  );
   const creds = new Set(declared.credentials.map((c) => norm(c.name)));
 
   for (const r of generated.roles ?? []) {
@@ -256,7 +298,11 @@ export function validateGenerated(
       });
     }
     if (r.title && !titles.has(norm(r.title))) {
-      flags.push({ kind: "title", value: r.title, message: `The job title "${r.title}" is not one you entered.` });
+      flags.push({
+        kind: "title",
+        value: r.title,
+        message: `The job title "${r.title}" is not one you entered.`,
+      });
     }
     for (const d of [r.start, r.end]) {
       if (d && !dates.has(norm(d))) {
@@ -302,7 +348,10 @@ export function validateGenerated(
 }
 
 /** Strips locally-forbidden personal fields before the document is produced. */
-export function applyCountryRules<T extends { personal?: CvPersonal }>(doc: T, country: Country): T {
+export function applyCountryRules<T extends { personal?: CvPersonal }>(
+  doc: T,
+  country: Country,
+): T {
   const excluded = new Set(excludedFields(country));
   const personal: CvPersonal = {};
   for (const [k, v] of Object.entries(doc.personal ?? {})) {
@@ -311,6 +360,168 @@ export function applyCountryRules<T extends { personal?: CvPersonal }>(doc: T, c
   return { ...doc, personal };
 }
 
+/* ------------------------------------------------------------------ *
+ * Export pruning
+ * ------------------------------------------------------------------ */
+
+// Placeholders the model (or a half-filled form) can leave behind. A CV must
+// never print "Not declared" or an empty heading — if we have nothing for a
+// field, the field simply doesn't exist on the page.
+const PLACEHOLDER =
+  /^(n\/?a|na|none|nil|null|undefined|tbd|tba|unknown|not\s+(declared|provided|specified|available|applicable|given)|no\s+(data|information)|omit(ted)?|-+|—+|–+|\.+|\[.*\]|<.*>)$/i;
+
+/** True when a value carries no real content and must be omitted from export. */
+export function isDeclaredValue(raw: string | undefined | null): boolean {
+  const v = (raw ?? "").trim();
+  return v.length > 0 && !PLACEHOLDER.test(v);
+}
+
+const keep = (raw: string | undefined | null): string => (isDeclaredValue(raw) ? raw!.trim() : "");
+
+/**
+ * Reduces a generated CV to exactly what was declared: placeholder strings are
+ * blanked, empty bullets/rows dropped, and any section left with nothing is
+ * removed so no bare heading is rendered. Used by both the PDF builder and the
+ * on-screen paper preview so the two never diverge.
+ */
+export function pruneGenerated(cv: CvGenerated): CvGenerated {
+  const roles = (cv.roles ?? [])
+    .map((r) => ({
+      employer: keep(r.employer),
+      title: keep(r.title),
+      start: keep(r.start),
+      end: keep(r.end),
+      bullets: (r.bullets ?? []).map(keep).filter(Boolean),
+    }))
+    // A role with no title, no employer and no bullets is not a role.
+    .filter((r) => r.title || r.employer || r.bullets.length > 0);
+
+  const credentials = (cv.credentials ?? [])
+    .map((c) => ({ name: keep(c.name), issuer: keep(c.issuer), year: keep(c.year) }))
+    .filter((c) => c.name || c.issuer || c.year);
+
+  const personal: CvPersonal = {};
+  for (const [k, v] of Object.entries(cv.personal ?? {})) {
+    if (isDeclaredValue(v)) personal[k as CvSensitiveField] = v!.trim();
+  }
+
+  return {
+    summary: keep(cv.summary),
+    roles,
+    credentials,
+    skills: (cv.skills ?? []).map(keep).filter(Boolean),
+    ...(Object.keys(personal).length > 0 ? { personal } : {}),
+  };
+}
+
+/** Same pruning for the user-declared header fields (name, contact, personal). */
+export function pruneDeclaredForExport<
+  T extends {
+    fullName: string;
+    headline?: string;
+    email?: string;
+    phone?: string;
+    website?: string;
+    location?: string;
+    personal?: CvPersonal;
+  },
+>(d: T): T {
+  const personal: CvPersonal = {};
+  for (const [k, v] of Object.entries(d.personal ?? {})) {
+    if (isDeclaredValue(v)) personal[k as CvSensitiveField] = v!.trim();
+  }
+  return {
+    ...d,
+    fullName: keep(d.fullName),
+    headline: keep(d.headline),
+    email: keep(d.email),
+    phone: keep(d.phone),
+    website: keep(d.website),
+    location: keep(d.location),
+    personal,
+  };
+}
+
 /** The attestation the user must tick before any export. Recorded verbatim. */
 export const ATTESTATION_STATEMENT =
   "I confirm that every employer, job title, date, qualification and figure in this CV is accurate and my own.";
+
+/* ------------------------------------------------------------------ *
+ * Inline input validation (Qualification / Board / Year / Skills)
+ *
+ * Pure string checks used by the CV workbench to show helpful errors as
+ * the user types. Deliberately permissive: a blank field is never an
+ * error (blank rows are dropped by cleanDeclared) — only a filled field
+ * in a shape we cannot use is flagged.
+ * ------------------------------------------------------------------ */
+
+const URLISH = /(https?:\/\/|www\.|\S+@\S+\.\S+)/i;
+const HAS_LETTER = /\p{L}/u;
+
+/** Qualification / course name. */
+export function validateQualification(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (v.length < 2)
+    return "Too short — write the qualification out, e.g. Class 12 or B.Sc Physics.";
+  if (v.length > 120) return "Keep this under 120 characters — put detail in the summary instead.";
+  if (!HAS_LETTER.test(v)) return "This needs the name of the qualification, not just numbers.";
+  if (URLISH.test(v)) return "Links and email addresses don't belong here.";
+  return null;
+}
+
+/** Board / university / issuer. */
+export function validateIssuer(raw: string): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  if (v.length < 2) return "Too short — e.g. CBSE, Delhi University, Amazon.";
+  if (v.length > 120) return "Keep the issuer name under 120 characters.";
+  if (!HAS_LETTER.test(v)) return "Write who awarded it, e.g. CBSE or Delhi University.";
+  if (URLISH.test(v)) return "Links and email addresses don't belong here.";
+  return null;
+}
+
+/**
+ * Year of the qualification. Accepts a single year (2024) or a range
+ * (2020-2024, 2020–2024, 2020 - 2024). Rejects impossible years.
+ */
+export function validateYear(raw: string, today = new Date()): string | null {
+  const v = raw.trim();
+  if (!v) return null;
+  const max = today.getFullYear() + 8;
+  const m = v.match(/^(\d{4})(?:\s*[-–—/]\s*(\d{4}|present|now))?$/i);
+  if (!m) return "Use a 4-digit year, e.g. 2024 — or a range like 2020-2024.";
+  const start = Number(m[1]);
+  if (start < 1950 || start > max) return `Year should be between 1950 and ${max}.`;
+  const endRaw = m[2];
+  if (endRaw && /^\d{4}$/.test(endRaw)) {
+    const end = Number(endRaw);
+    if (end < 1950 || end > max) return `Year should be between 1950 and ${max}.`;
+    if (end < start) return "The end year can't be before the start year.";
+  }
+  return null;
+}
+
+export const MAX_SKILLS = 40;
+
+/** Comma-separated skills box. Returns one combined, actionable message. */
+export function validateSkills(skills: string[]): string | null {
+  const list = skills.map((s) => s.trim()).filter(Boolean);
+  if (list.length === 0) return null;
+  if (list.length > MAX_SKILLS)
+    return `That's ${list.length} skills — keep it to your best ${MAX_SKILLS}.`;
+
+  const seen = new Set<string>();
+  for (const s of list) {
+    const key = s.toLowerCase();
+    if (seen.has(key)) return `"${s}" is listed twice — remove the duplicate.`;
+    seen.add(key);
+    if (s.length < 2) return `"${s}" is too short to be a skill.`;
+    if (s.length > 40) return `"${s.slice(0, 24)}…" is too long — one skill per comma.`;
+    if (!HAS_LETTER.test(s)) return `"${s}" doesn't look like a skill.`;
+    if (URLISH.test(s)) return "Links and email addresses don't belong in skills.";
+    if (s.split(/\s+/).length > 6)
+      return `"${s.slice(0, 24)}…" reads like a sentence — list skills, e.g. Excel, Tally.`;
+  }
+  return null;
+}
