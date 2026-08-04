@@ -634,6 +634,8 @@ export function validateYear(raw: string, today = new Date()): string | null {
 }
 
 export const MAX_SKILLS = 40;
+/** Cap for the whole comma-separated skills box. */
+export const MAX_SKILLS_CHARS = MAX_SKILLS * (MAX_SKILL_LEN + 2);
 
 /** Comma-separated skills box. Returns one combined, actionable message. */
 export function validateSkills(skills: string[]): string | null {
