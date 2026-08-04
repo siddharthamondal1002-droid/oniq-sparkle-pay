@@ -7,7 +7,7 @@ const A4_W = 210;
 const A4_H = 297;
 const M = 16;
 const CONTENT_W = A4_W - M * 2;
-const BOTTOM = A4_H - M;
+const BOTTOM = A4_H - 18; // leaves room for the page-number footer
 
 export function cvFilename(fullName: string): string {
   const slug =
