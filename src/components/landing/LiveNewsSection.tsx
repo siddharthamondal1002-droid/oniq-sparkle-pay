@@ -62,8 +62,9 @@ function useLiveNews() {
 export function CompactLiveNews() {
   const { items, failed, idx } = useLiveNews();
   const navigate = useNavigate();
-  if (failed) return null;
-  const current = items?.[idx];
+  // Both useMemo calls MUST stay above the `failed` early return. Below it the
+  // hook count dropped to zero the moment the fetch failed, and React threw
+  // "Rendered fewer hooks than expected".
   const others = useMemo(
     () => (items ? items.filter((_, i) => i !== idx) : []),
     [items, idx],
@@ -72,6 +73,8 @@ export function CompactLiveNews() {
     () => others.map((it) => `${it.title}  ·  ${it.source}`).join("   •   "),
     [others],
   );
+  if (failed) return null;
+  const current = items?.[idx];
   return (
     <button
       onClick={() => navigate({ to: "/app/news", search: { tab: undefined } })}

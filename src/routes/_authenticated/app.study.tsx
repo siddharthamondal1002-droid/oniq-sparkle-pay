@@ -376,6 +376,10 @@ function StudyScreen() {
   const [editing, setEditing] = useState<LearnerProfile | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [showProgress, setShowProgress] = useState(false);
+  // MUST stay above the `isLoading` / empty-profiles early returns below.
+  // Called after them, the hook count grew the moment loading finished and
+  // React threw "Rendered more hooks than during the previous render".
+  const { t } = useT();
 
   const allProfiles = profiles ?? [];
 
@@ -400,7 +404,6 @@ function StudyScreen() {
   }
 
   const activeIsGovt = active ? isGovtBoard(active.board) : false;
-  const { t } = useT();
   const headerName = active?.name ?? t("study.header.default", "Study Buddy");
   const headerSub = active
     ? `${profileSystemLabel(active)} · ${profileStageLabel(active)}`
