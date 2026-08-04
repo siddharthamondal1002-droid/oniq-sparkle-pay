@@ -214,6 +214,7 @@ function Sheet({
 
   return (
     <div
+      ref={sheetEl}
       style={{
         width: `${CV_PAGE.width}mm`,
         minHeight: `${CV_PAGE.height}mm`,
@@ -226,6 +227,8 @@ function Sheet({
         boxSizing: "border-box",
       }}
     >
+      {pageBreaks && <PageBreaks sheetHeight={sheetMm} />}
+
       {declared.fullName && (
         <Line size={18} bold gap={10}>
           {declared.fullName}
