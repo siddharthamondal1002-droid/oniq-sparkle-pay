@@ -38,9 +38,13 @@ export async function buildCvPdf(
   declaredIn: CvDeclared,
   cvIn: CvGenerated,
   order?: readonly CvSectionKey[],
+  templateId?: CvTemplateId,
 ) {
   const { jsPDF } = await import("jspdf");
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
+  // Decoration only — never changes vertical advances, so pagination is
+  // identical across templates.
+  const tpl = getCvTemplate(templateId);
 
   // Export exactly the declared content: placeholders ("not declared", "N/A",
   // "—") and empty rows are stripped, and any section left empty is skipped
@@ -56,10 +60,16 @@ export async function buildCvPdf(
   const drawHeading = (text: string) => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
+    doc.setTextColor(...tpl.headingColor);
+    doc.setCharSpace(tpl.headingCharSpace);
     doc.text(text.toUpperCase(), M, y);
+    doc.setCharSpace(0);
+    doc.setTextColor(0);
     y += 2;
-    doc.setLineWidth(0.3);
+    doc.setLineWidth(tpl.ruleWidth);
+    doc.setDrawColor(...tpl.ruleColor);
     doc.line(M, y, A4_W - M, y);
+    doc.setDrawColor(0);
     y += 5;
   };
   const page = () => {
@@ -92,6 +102,7 @@ export async function buildCvPdf(
     drawHeading(text);
     section = text;
   };
+
 
   // ---- header ----
   if (declared.fullName) {
