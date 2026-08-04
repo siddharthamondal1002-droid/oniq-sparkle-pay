@@ -109,9 +109,11 @@ function JobsScreen() {
           <ArrowLeft className="size-5" />
         </Link>
         <div>
-          <p className="text-[11px] uppercase tracking-wide text-white/40">your CV, your facts</p>
+          <p className="text-[11px] uppercase tracking-wide text-white/40">
+            your {cvWord}, your facts
+          </p>
           <h1 className="flex items-center gap-2 text-xl font-semibold">
-            <Briefcase className="size-5 text-[#00D4B8]" /> CV Builder
+            <Briefcase className="size-5 text-[#00D4B8]" /> {cvWord} Builder
           </h1>
         </div>
       </header>
