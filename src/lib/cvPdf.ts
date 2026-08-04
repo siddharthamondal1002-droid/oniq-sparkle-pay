@@ -12,6 +12,7 @@ import {
   type CvSectionKey,
 } from "@/lib/cvSections";
 import { getCvTemplate, type CvTemplateId } from "@/lib/cvTemplates";
+import { CONTACT_SEP, contactParts } from "@/lib/cvLinks";
 
 
 const A4_W = 210;
@@ -129,10 +130,43 @@ export async function buildCvPdf(
     }
   }
   if (declared.headline) para(declared.headline, 11, "normal", 5);
-  const contact = inc.contact
-    ? [declared.email, declared.phone, declared.location].filter(Boolean).join("  ·  ")
-    : "";
-  if (contact) para(contact, 9, "normal", 5);
+  // Contact line: email / phone / website print as real PDF link annotations
+  // (mailto:, tel:, https:) so they are tappable in any viewer; plain values
+  // such as the location are drawn as ordinary text.
+  const parts = inc.contact ? contactParts(declared) : [];
+  if (parts.length) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const w = (t: string) => doc.getStringUnitWidth(t) * 9 * PT;
+    const sepW = w(CONTACT_SEP);
+    let x = M;
+    ensure(5);
+    parts.forEach((part, i) => {
+      const partW = w(part.text);
+      if (i > 0) {
+        if (x + sepW + partW > M + CONTENT_W) {
+          y += 5;
+          ensure(5);
+          x = M;
+        } else {
+          doc.text(CONTACT_SEP, x, y);
+          x += sepW;
+        }
+      }
+      if (part.href) {
+        doc.textWithLink(part.text, x, y, { url: part.href });
+        // Faint underline: the only visual cue a PDF viewer gives for a link.
+        doc.setLineWidth(0.15);
+        doc.setDrawColor(120);
+        doc.line(x, y + 0.9, x + partW, y + 0.9);
+        doc.setDrawColor(0);
+      } else {
+        doc.text(part.text, x, y);
+      }
+      x += partW;
+    });
+    y += 5;
+  }
   const personal = Object.values(declared.personal ?? {})
     .filter(Boolean)
     .join("  ·  ");
