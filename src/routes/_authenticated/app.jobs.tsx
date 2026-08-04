@@ -7,6 +7,7 @@ import {
   BadgeCheck,
   Briefcase,
   Check,
+  Download,
   FileText,
   Flag,
   Plus,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { isShareCancelled } from "@/lib/saveFile";
 import { COUNTRIES, useCountry } from "@/lib/country";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { tileName } from "@/lib/i18n/tileLabel";
@@ -232,6 +234,7 @@ function CvWorkbench({
   const [flags, setFlags] = useState<ValidationFlag[]>([]);
   const [attested, setAttested] = useState(false);
   const [cvId, setCvId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     setGenerated(null);
@@ -814,6 +817,25 @@ function CvWorkbench({
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#00D4B8] px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
           >
             <BadgeCheck className="size-4" /> Save and confirm accuracy
+          </button>
+          <button
+            type="button"
+            disabled={exporting}
+            onClick={async () => {
+              setExporting(true);
+              try {
+                const { exportCvPdf } = await import("@/lib/cvPdf");
+                const { filename } = await exportCvPdf(cleanDeclared(declared), generated);
+                toast.success(`Exported ${filename}`);
+              } catch (e) {
+                if (!isShareCancelled(e)) toast.error("Couldn't export the PDF. Try again.");
+              } finally {
+                setExporting(false);
+              }
+            }}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+          >
+            <Download className="size-4" /> {exporting ? "Preparing…" : "Export as PDF"}
           </button>
           <button
             type="button"
