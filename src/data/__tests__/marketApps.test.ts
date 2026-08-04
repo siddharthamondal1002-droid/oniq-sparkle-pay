@@ -30,7 +30,13 @@ function walk(dir: string, out: string[] = []): string[] {
 /** Source files, excluding this test and the registry's own explanatory prose. */
 function sourceFiles(): { path: string; text: string }[] {
   return [...walk(join(ROOT, "src")), ...walk(join(ROOT, "supabase"))]
-    .filter((p) => !p.endsWith("marketApps.test.ts"))
+    // Two exclusions, both for the same reason: naming a forbidden source in
+    // order to forbid it is the opposite of calling it.
+    //   - tests assert "we never call X", so they contain X;
+    //   - openDataSources.ts records WHY each source was rejected.
+    // Scanning either flagged our own due diligence as a violation.
+    .filter((p) => !p.includes("__tests__"))
+    .filter((p) => !p.endsWith("openDataSources.ts"))
     .map((path) => ({ path: path.slice(ROOT.length + 1), text: readFileSync(path, "utf8") }));
 }
 

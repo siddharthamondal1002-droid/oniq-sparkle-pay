@@ -28,6 +28,86 @@ export const ONIQ_OWN_CONTENT =
   "The education-system structural facts, command-word explanations, admissions-route explainers, CV guidance and every generated practice question in ONIQ are ONIQ's own original content. None of it is reproduced from an examination authority's materials, and none of it is a past paper.";
 
 export const ATTRIBUTIONS: Attribution[] = [
+  // ---- Free & Legal Surfaces loop -----------------------------------------
+  // Watch, Pulse, scam alerts and Glance. Each of these is referenced, never
+  // republished: ONIQ stores pointers and its own words, not other people's
+  // content. The machine-readable twins of the last two live in
+  // src/data/openDataSources.ts, which also records what was REJECTED.
+  {
+    id: "nager-date",
+    usedFor:
+      "Public holiday dates in Glance, including Indian state-level observances resolved from the ISO 3166-2 subdivision codes the API returns.",
+    source: "Nager.Date",
+    licence: "MIT",
+    licenceUrl: "https://github.com/nager/Nager.Date/blob/master/LICENSE.md",
+    requiredNotice: null,
+    exclusions: [],
+    sourceUrl: "https://date.nager.at",
+    notes: "Open source, no API key, no rate limit. Commercial use permitted.",
+  },
+  {
+    id: "ecb-frankfurter",
+    usedFor:
+      "Currency reference rates in Glance. Displayed as reference rates with their publication date, never as tradable quotes.",
+    source: "European Central Bank euro foreign exchange reference rates, via Frankfurter",
+    licence: "Open data (ECB) · Frankfurter service is MIT",
+    licenceUrl: "https://github.com/lineofflight/frankfurter/blob/main/LICENSE",
+    requiredNotice: null,
+    exclusions: [
+      "The ECB publishes these once each working day for information purposes. They are not transaction rates and ONIQ does not present them as such.",
+    ],
+    sourceUrl: "https://www.ecb.europa.eu/stats/eurofxref/",
+    notes: "No API key. Rates carry the ECB publication date and are flagged when stale.",
+  },
+  {
+    id: "youtube-embeds",
+    usedFor:
+      "Live broadcaster streams in Watch, played in YouTube's own IFrame player via the official channel live_stream embed, filtered by current region.",
+    source: "YouTube (Google LLC)",
+    licence: "YouTube Terms of Service — embed permission",
+    licenceUrl: "https://www.youtube.com/t/terms",
+    requiredNotice: null,
+    exclusions: [
+      "Nothing may be rendered in front of any part of the player, controls included.",
+      "The player viewport must be at least 200x200px.",
+      "Stream URLs are never cached, downloaded or extracted, and YouTube is never scraped.",
+    ],
+    sourceUrl: "https://developers.google.com/youtube/terms/required-minimum-functionality",
+    notes:
+      "ONIQ embeds; it does not restream, proxy or re-host. Broadcaster availability is set by YouTube per region, not by ONIQ.",
+  },
+  {
+    id: "publisher-rss",
+    usedFor:
+      "Pulse headlines. Publisher-provided RSS/Atom feeds rendered as headline, one-line snippet, source name and a link out.",
+    source: "Individual publishers (BBC, The Hindu, NDTV, Times of India and others)",
+    licence: "Publisher-provided syndication feeds",
+    licenceUrl: "https://www.rssboard.org/rss-specification",
+    requiredNotice: null,
+    exclusions: [
+      "No article body is stored or displayed.",
+      "No ONIQ-written summary restates an article's claims — that would be adoption, and adoption costs the intermediary position.",
+      "Images are used only where the publisher's own feed provides them.",
+    ],
+    sourceUrl: "https://www.rssboard.org/rss-specification",
+    notes:
+      "A publisher that publishes an open feed is offering it for syndication. No feed is served into the UAE.",
+  },
+  {
+    id: "scam-advisories",
+    usedFor:
+      "Job-scam warnings in Jobs. ONIQ's own wording, written from official government advisories and linked back to them.",
+    source:
+      "I4C (India), FTC and FBI IC3 (US), Action Fraud (UK), Canadian Anti-Fraud Centre, Scamwatch (Australia), ScamShield (Singapore), Dubai Police eCrime (UAE)",
+    licence: "Factual public-interest safety guidance, attributed and linked",
+    licenceUrl: "https://consumer.ftc.gov/articles/job-scams",
+    requiredNotice: null,
+    exclusions: [
+      "No government dataset is re-hosted. The advisories are paraphrased in ONIQ's words, attributed, and linked to the original.",
+    ],
+    sourceUrl: "https://cybercrime.gov.in",
+    notes: "Reporting channels follow the user's current region, not their home country.",
+  },
   // ---- Open Government Licence family -------------------------------------
   {
     id: "uk-national-curriculum",
@@ -238,6 +318,18 @@ export const LICENCE_FAMILIES: { title: string; blurb: string; ids: string[] }[]
     title: "Verbatim-only licences",
     blurb: "Usable only exactly as published — no editing, no recasting, no sale.",
     ids: ["common-core"],
+  },
+  {
+    title: "Open source and open data — no notice required",
+    blurb:
+      "Permissively licensed and free for commercial use with no notice owed. Credited anyway, and the conditions that DO apply are listed against each.",
+    ids: ["nager-date", "ecb-frankfurter"],
+  },
+  {
+    title: "Referenced, not republished",
+    blurb:
+      "ONIQ stores pointers and its own words here — an embed, a headline and a link, or a warning written from a public advisory. Nothing on this list is re-hosted, and the conditions attached to each are what keep it that way.",
+    ids: ["youtube-embeds", "publisher-rss", "scam-advisories"],
   },
 ];
 
