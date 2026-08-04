@@ -95,6 +95,55 @@ describe("app registry integrity", () => {
   });
 });
 
+describe("jobs & gig directory", () => {
+  const jobsish = APP_REGISTRY.filter((a) => a.category === "jobs" || a.category === "gig");
+
+  it("ships jobs entries for every country and gig entries for the major ones", () => {
+    for (const c of ALL_COUNTRIES) {
+      expect(visibleApps(c, "jobs").length, `${c}/jobs`).toBeGreaterThan(0);
+    }
+    for (const c of ["IN", "US", "GB", "AE", "CA", "AU"] as const) {
+      expect(visibleApps(c, "gig").length, `${c}/gig`).toBeGreaterThan(0);
+    }
+  });
+
+  it("never uses a custom scheme — package or https only", () => {
+    for (const a of jobsish) {
+      expect(a.scheme, a.id).toBeUndefined();
+      expect(a.launchType === "package" || a.launchType === "webOnly", a.id).toBe(true);
+      expect(a.webUrl.startsWith("https://"), a.id).toBe(true);
+    }
+  });
+
+  it("government entries sit on a government domain", () => {
+    for (const a of jobsish.filter((a) => a.government)) {
+      expect(/\.gov(\.[a-z]{2})?(\/|$)|\.gc\.ca|\.gov\.uk|service\.gov\.uk/.test(a.webUrl), a.id).toBe(
+        true,
+      );
+    }
+  });
+
+  it("never lists paid coaching, resume-writing or pay-to-apply products", () => {
+    const BAD = ["coaching", "unacademy", "byjus", "resumewriting", "payperapply", "testbook"];
+    for (const a of jobsish) {
+      const hay = `${a.id} ${a.name} ${a.packageId ?? ""} ${a.webUrl}`.toLowerCase();
+      for (const bad of BAD) expect(hay.includes(bad), `${a.id} vs ${bad}`).toBe(false);
+    }
+  });
+
+  it("labels every entry with a fee posture that the UI can render", () => {
+    for (const a of jobsish.filter((a) => a.status === "active")) {
+      expect(typeof (a.freeToApply ?? false), a.id).toBe("boolean");
+    }
+  });
+
+  it("USAJOBS is web-only — no impostor package is ever mapped", () => {
+    const us = APP_REGISTRY.find((a) => a.id === "usajobs")!;
+    expect(us.packageId).toBeUndefined();
+    expect(effectiveLaunchType(us)).toBe("webOnly");
+  });
+});
+
 describe("official (government) directory", () => {
   it("every government URL passes the host allowlist", () => {
     for (const l of OFFICIAL_LINKS.filter((l) => l.kind === "gov")) {
