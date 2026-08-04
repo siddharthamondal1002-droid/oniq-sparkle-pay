@@ -104,13 +104,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         content: "TGtlOMz3P5zLi4a1ToyRj6VfsKO6sRwkiU250lMRKOI",
       },
       // dmca.com ownership verification. In the root head so it is served on
-      // every route — their crawler checks the document it is pointed at, and
-      // the badge in the footer links to the compliance page this unlocks.
-      // Verification only; it is not a §512 agent designation. See /dmca.
-      {
-        name: "dmca-site-verification",
-        content: "Z2lNaU14WW9FenlZMStGbXpKS3JPd1F2NXovZUpxVmlscTdLSFZWUE1FUT01",
-      },
+      // every route — their crawler checks whichever document it is pointed at,
+      // and the badge in the footer links to the compliance page this unlocks.
+      //
+      // One tag per registered property: ONIQ is reachable on both oniqhub.com
+      // and oniq-sparkle-pay.lovable.app, each of which gets its own token.
+      // Multiple meta tags of the same name are valid, and dmca.com matches on
+      // the content string, so both verify independently. Do not delete a token
+      // to "tidy up" — that un-verifies whichever property it belongs to.
+      //
+      // Verification of ownership only. NOT a 17 U.S.C. §512(c)(2) agent
+      // designation, and confers no safe harbour. See /dmca.
+      ...[
+        "Z2lNaU14WW9FenlZMStGbXpKS3JPd1F2NXovZUpxVmlscTdLSFZWUE1FUT01",
+        "cEw5dXpzUUQ1eGNYZytybEFXamhpQT090",
+      ].map((content) => ({ name: "dmca-site-verification", content })),
     ],
     links: [
       { rel: "stylesheet", href: appCss },
