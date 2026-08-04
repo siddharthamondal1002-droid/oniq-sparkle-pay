@@ -39,3 +39,42 @@ export function moveSection<T>(list: T[], from: number, to: number): T[] {
   next.splice(to, 0, row);
   return next;
 }
+
+// --- Section inclusion --------------------------------------------------
+// Independent of order: a section can be present in the order list but
+// switched off, in which case neither the preview nor the PDF prints it.
+export type CvIncludeKey = "contact" | "experience" | "qualifications" | "skills";
+
+export const CV_INCLUDE_KEYS: readonly CvIncludeKey[] = [
+  "contact",
+  "experience",
+  "qualifications",
+  "skills",
+] as const;
+
+export const CV_INCLUDE_LABEL: Record<CvIncludeKey, string> = {
+  contact: "Contact details",
+  experience: "Experience",
+  qualifications: "Qualifications",
+  skills: "Skills",
+};
+
+export type CvInclude = Record<CvIncludeKey, boolean>;
+
+/** Everything on — the safe default when the caller passes nothing. */
+export const CV_INCLUDE_DEFAULT: CvInclude = {
+  contact: true,
+  experience: true,
+  qualifications: true,
+  skills: true,
+};
+
+/** Any partial/undefined map becomes a complete one, defaulting to included. */
+export function normalizeInclude(include?: Partial<CvInclude>): CvInclude {
+  return {
+    contact: include?.contact !== false,
+    experience: include?.experience !== false,
+    qualifications: include?.qualifications !== false,
+    skills: include?.skills !== false,
+  };
+}
