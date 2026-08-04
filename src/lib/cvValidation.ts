@@ -581,13 +581,20 @@ export function normalizeSkills(skills: string[]): string[] {
 
 
 
+/** Hard character caps, shared with the form's live remaining-count UI. */
+export const MAX_QUALIFICATION_LEN = 120;
+export const MAX_ISSUER_LEN = 120;
+export const MAX_YEAR_LEN = 24;
+export const MAX_SKILL_LEN = 40;
+
 /** Qualification / course name. Validates the normalised value. */
 export function validateQualification(raw: string): string | null {
   const v = normalizeQualification(raw);
   if (!v) return null;
   if (v.length < 2)
     return "Too short — write the qualification out, e.g. Class 12 or B.Sc Physics.";
-  if (v.length > 120) return "Keep this under 120 characters — put detail in the summary instead.";
+  if (v.length > MAX_QUALIFICATION_LEN)
+    return `Keep this under ${MAX_QUALIFICATION_LEN} characters — put detail in the summary instead.`;
   if (!HAS_LETTER.test(v)) return "This needs the name of the qualification, not just numbers.";
   if (URLISH.test(v)) return "Links and email addresses don't belong here.";
   return null;
@@ -598,7 +605,8 @@ export function validateIssuer(raw: string): string | null {
   const v = normalizeIssuer(raw);
   if (!v) return null;
   if (v.length < 2) return "Too short — e.g. CBSE, Delhi University, Amazon.";
-  if (v.length > 120) return "Keep the issuer name under 120 characters.";
+  if (v.length > MAX_ISSUER_LEN)
+    return `Keep the issuer name under ${MAX_ISSUER_LEN} characters.`;
   if (!HAS_LETTER.test(v)) return "Write who awarded it, e.g. CBSE or Delhi University.";
   if (URLISH.test(v)) return "Links and email addresses don't belong here.";
   return null;
