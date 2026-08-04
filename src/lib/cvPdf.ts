@@ -62,14 +62,15 @@ export async function buildCvPdf(
   const drawHeading = (text: string) => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.setTextColor(...tpl.headingColor);
+    doc.setTextColor(tpl.headingColor[0], tpl.headingColor[1], tpl.headingColor[2]);
     doc.setCharSpace(tpl.headingCharSpace);
     doc.text(text.toUpperCase(), M, y);
     doc.setCharSpace(0);
     doc.setTextColor(0);
     y += 2;
     doc.setLineWidth(tpl.ruleWidth);
-    doc.setDrawColor(...tpl.ruleColor);
+    doc.setDrawColor(tpl.ruleColor[0], tpl.ruleColor[1], tpl.ruleColor[2]);
+
     doc.line(M, y, A4_W - M, y);
     doc.setDrawColor(0);
     y += 5;
