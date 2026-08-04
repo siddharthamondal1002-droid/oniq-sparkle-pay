@@ -248,8 +248,8 @@ describe("honest claims", () => {
         r.referencesNote,
         ...r.context,
         ...Object.values(r)
-          .filter((v): v is { stance: string; note: string } => typeof v === "object" && v !== null && "note" in v)
-          .map((v) => v.note),
+          .filter((v) => typeof v === "object" && v !== null && "note" in v)
+          .map((v) => String((v as { note?: string }).note ?? "")),
       ]),
     ].join(" ");
     for (const banned of ["ATS-optimised", "ATS-optimized", "guaranteed", "beat the ATS", "88%", "75%"]) {
