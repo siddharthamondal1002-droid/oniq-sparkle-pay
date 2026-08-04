@@ -19,7 +19,16 @@ import { toast } from "sonner";
 
 import { CvPaper } from "@/components/cv/CvPaper";
 import { SectionOrderList } from "@/components/cv/SectionOrderList";
-import { CV_SECTION_ORDER_DEFAULT, CV_SECTION_LABEL, type CvSectionKey } from "@/lib/cvSections";
+import { Switch } from "@/components/ui/switch";
+import {
+  CV_INCLUDE_DEFAULT,
+  CV_INCLUDE_KEYS,
+  CV_INCLUDE_LABEL,
+  CV_SECTION_ORDER_DEFAULT,
+  CV_SECTION_LABEL,
+  type CvInclude,
+  type CvSectionKey,
+} from "@/lib/cvSections";
 import { CV_TEMPLATES, CV_TEMPLATE_DEFAULT, type CvTemplateId } from "@/lib/cvTemplates";
 
 import { SkillChips } from "@/components/cv/SkillChips";
@@ -253,6 +262,8 @@ function CvWorkbench({
   // Layout style for the exported PDF and the live preview. Templates change
   // decoration only — pagination is identical across them.
   const [template, setTemplate] = useState<CvTemplateId>(CV_TEMPLATE_DEFAULT);
+  // Per-section switches — an excluded section is printed nowhere.
+  const [include, setInclude] = useState<CvInclude>({ ...CV_INCLUDE_DEFAULT });
 
 
   useEffect(() => {
@@ -819,6 +830,40 @@ function CvWorkbench({
         )}
       </section>
 
+      {/* Include in PDF — switch whole sections on or off */}
+      <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
+        <h2 className="text-sm font-semibold">Include in PDF</h2>
+        <p className="mt-1 text-xs leading-relaxed text-white/50">
+          Switch a section off to leave it out of the preview and the exported {cvWord}.
+        </p>
+        <ul className="mt-3 space-y-2">
+          {CV_INCLUDE_KEYS.map((key) => (
+            <li
+              key={key}
+              className="flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2.5"
+            >
+              <label htmlFor={`include-${key}`} className="text-sm text-white/85">
+                {CV_INCLUDE_LABEL[key]}
+              </label>
+              <Switch
+                id={`include-${key}`}
+                checked={include[key]}
+                onCheckedChange={(v) => setInclude((prev) => ({ ...prev, [key]: v }))}
+              />
+            </li>
+          ))}
+        </ul>
+        {CV_INCLUDE_KEYS.some((k) => !include[k]) && (
+          <p className="mt-2 text-[11px] text-white/40">
+            Left out:{" "}
+            {CV_INCLUDE_KEYS.filter((k) => !include[k])
+              .map((k) => CV_INCLUDE_LABEL[k])
+              .join(", ")}
+            .
+          </p>
+        )}
+      </section>
+
       {/* PDF template — style only; page splits stay exactly the same */}
       <section className="rounded-2xl border border-white/10 bg-[#16181E] p-4">
         <h2 className="text-sm font-semibold">PDF template</h2>
@@ -852,7 +897,13 @@ function CvWorkbench({
       </section>
 
       {/* Live preview — reflects what you type, before any AI is involved */}
-      <CvLivePreview declared={clean} cvWord={cvWord} order={sectionOrder} template={template} />
+      <CvLivePreview
+        declared={clean}
+        cvWord={cvWord}
+        order={sectionOrder}
+        template={template}
+        include={include}
+      />
 
 
       {/* Assistant — always visible, works with whatever is filled in */}
@@ -1001,6 +1052,7 @@ function CvWorkbench({
               cv={generated}
               order={sectionOrder}
               template={template}
+              include={include}
 
               onClose={() => setPreviewing(false)}
             />
@@ -1126,11 +1178,13 @@ function CvLivePreview({
   cvWord,
   order,
   template,
+  include,
 }: {
   declared: CvDeclared;
   cvWord: string;
   order?: readonly CvSectionKey[];
   template?: CvTemplateId;
+  include?: Partial<CvInclude>;
 }) {
 
   const [showBreaks, setShowBreaks] = useState(true);
@@ -1180,6 +1234,7 @@ function CvLivePreview({
           <CvPaper
             order={order}
             template={template}
+            include={include}
             pageBreaks={showBreaks}
 
             declared={declared}
