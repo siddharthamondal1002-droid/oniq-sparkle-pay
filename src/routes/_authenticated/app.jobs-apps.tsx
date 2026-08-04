@@ -259,6 +259,9 @@ function AppTile({ app }: { app: AppEntry }) {
     <button
       type="button"
       onClick={() => void launchAppEntry(app)}
+      // Play requires it be obvious a tap leaves the app — in the accessible
+      // name as well as on screen, so a screen-reader user is told too.
+      aria-label={`Open ${app.name} — opens outside ONIQ`}
       className="flex items-start gap-3 rounded-2xl border border-white/10 bg-[#16181E] p-3 text-start"
     >
       <span
@@ -274,6 +277,7 @@ function AppTile({ app }: { app: AppEntry }) {
           {app.government ? <BadgeCheck className="size-3.5 shrink-0 text-[#00D4B8]" /> : null}
         </span>
         <span className="mt-0.5 block text-[11px] leading-snug text-white/50">{app.tagline}</span>
+        <span className="mt-0.5 block text-[10px] text-white/35">Open in browser ↗</span>
         {app.freeToApply ? (
           <span className="mt-1 inline-block rounded-full bg-[#00D4B8]/15 px-2 py-0.5 text-[10px] font-medium text-[#00D4B8]">
             Free to apply

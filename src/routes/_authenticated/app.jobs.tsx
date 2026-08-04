@@ -11,7 +11,6 @@ import {
   Check,
   FileText,
   FileUp,
-  Flag,
   GripVertical,
   Plus,
   ShieldAlert,
@@ -37,6 +36,7 @@ import { CV_TEMPLATES, CV_TEMPLATE_DEFAULT, type CvTemplateId } from "@/lib/cvTe
 
 import { SkillChips } from "@/components/cv/SkillChips";
 import { supabase } from "@/integrations/supabase/client";
+import { AiOutputReport, AI_OUTPUT_LABEL } from "@/components/safety/AiOutputReport";
 import { useCurrentRegion } from "@/lib/region";
 import {
   LEAD_WARNING,
@@ -433,24 +433,6 @@ function CvWorkbench({
       toast.success("Saved. Export as DOCX and check it once more before you send it.");
     } catch (e) {
       toast.error((e as Error)?.message ?? "Could not save");
-    }
-  }
-
-  async function reportOutput() {
-    try {
-      const { data: auth } = await supabase.auth.getUser();
-      if (!auth.user) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).from("reports").insert({
-        reporter_id: auth.user.id,
-        target_type: "cv_ai_output",
-        target_id: cvId ?? "unsaved",
-        reason: "bad_ai_output",
-        details: JSON.stringify({ target, flags }).slice(0, 2000),
-      });
-      toast.success("Reported. Thank you — we read these.");
-    } catch {
-      toast.error("Could not send that report");
     }
   }
 
@@ -1302,13 +1284,13 @@ function CvWorkbench({
               onClose={() => setPreviewing(false)}
             />
           )}
-          <button
-            type="button"
-            onClick={reportOutput}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs text-white/70"
-          >
-            <Flag className="size-3.5" /> Report bad output
-          </button>
+          <p className="mt-3 text-[11px] text-white/40">{AI_OUTPUT_LABEL}</p>
+          <AiOutputReport
+            surface="cv_ai_output"
+            targetId={cvId}
+            context={{ target, flagCount: flags.length }}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/5 px-4 py-2 text-xs text-white/70 disabled:opacity-50"
+          />
           <p className="mt-3 flex items-start gap-2 text-[11px] leading-relaxed text-white/35">
             <FileText className="mt-0.5 size-3.5 shrink-0" />
             Export as DOCX unless the posting asks for something else.

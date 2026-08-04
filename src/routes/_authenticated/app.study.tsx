@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { compressToJpeg } from "@/lib/imageCompress";
 import { useT } from "@/lib/i18n/LanguageProvider";
+import { AiOutputReport, AI_OUTPUT_LABEL } from "@/components/safety/AiOutputReport";
 import { useCountry } from "@/lib/country";
 import { getEduSystem } from "@/data/eduSystems";
 import { eduSystemPayload, eduSystemLabel, unitLabel } from "@/lib/eduPaperFormat";
@@ -1159,6 +1160,21 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                       }`}
                     >
                       {m.content}
+                    </div>
+                  )}
+                  {/*
+                    Play's AI-Generated Content policy: generative output must
+                    be labelled and reportable from inside the app.
+                  */}
+                  {m.role === "assistant" && m.content && (
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-muted-foreground">{AI_OUTPUT_LABEL}</span>
+                      <AiOutputReport
+                        surface="study_ai_output"
+                        targetId={profile?.id ?? "unsaved"}
+                        context={{ board: profile?.board, classLevel: profile?.class_level }}
+                        className="flex items-center gap-1 rounded-full px-2 py-1 text-[10px] text-muted-foreground disabled:opacity-50"
+                      />
                     </div>
                   )}
                   {m.role === "assistant" && m.usedVault && (

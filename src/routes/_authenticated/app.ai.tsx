@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { compressToJpeg } from "@/lib/imageCompress";
 import { guardTingPrompt, CRISIS_RESPONSE, HEALTH_DISCLAIMER } from "@/lib/tingGuard";
+import { AiOutputReport, AI_OUTPUT_LABEL } from "@/components/safety/AiOutputReport";
 import { CrisisCard } from "@/components/vitals/CrisisCard";
 
 export const Route = createFileRoute("/_authenticated/app/ai")({
@@ -320,6 +321,22 @@ function TingScreen() {
                       }`}
                     >
                       {m.content}
+                    </div>
+                  )}
+                  {/*
+                    Play's AI-Generated Content policy requires generative
+                    output to be labelled AND reportable from inside the app.
+                    An email address in a policy page does not satisfy it.
+                  */}
+                  {m.role === "assistant" && m.content && (
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="text-[10px] text-muted-foreground">{AI_OUTPUT_LABEL}</span>
+                      <AiOutputReport
+                        surface="ting_ai_output"
+                        targetId={`msg-${i}`}
+                        context={{ hasSources: (m.sources ?? []).length > 0 }}
+                        className="flex items-center gap-1 rounded-full px-2 py-1 text-[10px] text-muted-foreground disabled:opacity-50"
+                      />
                     </div>
                   )}
                   {m.role === "assistant" && m.crisis && (
