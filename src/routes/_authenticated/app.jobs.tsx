@@ -1221,6 +1221,8 @@ function Field({
   error,
   hint,
   normalize,
+  maxLength,
+  counter,
 }: {
   label: string;
   value: string;
@@ -1230,20 +1232,47 @@ function Field({
   hint?: string;
   /** Optional tidy-up applied when the field loses focus. */
   normalize?: (v: string) => string;
+  /** Hard character cap — typing stops here instead of failing validation later. */
+  maxLength?: number;
+  /** Extra live count shown next to the character count, e.g. "12 / 40 skills". */
+  counter?: string;
 }) {
+  const remaining = maxLength ? maxLength - value.length : null;
+  const tight = remaining !== null && remaining <= Math.max(10, Math.round(maxLength! * 0.1));
   return (
     <label className="block">
-      <span className="mb-1 block text-[11px] text-white/40">{label}</span>
+      <span className="mb-1 flex items-center justify-between gap-2 text-[11px] text-white/40">
+        <span>{label}</span>
+        {(counter || remaining !== null) && (
+          <span
+            aria-live="polite"
+            className={
+              remaining !== null && remaining <= 0
+                ? "text-rose-300"
+                : tight
+                  ? "text-amber-300"
+                  : "text-white/35"
+            }
+          >
+            {[counter, remaining !== null ? `${remaining} left` : null]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        )}
+      </span>
       <textarea
         rows={value.includes("\n") ? 3 : 1}
         value={value}
         placeholder={placeholder}
+        maxLength={maxLength}
         aria-invalid={error ? true : undefined}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) =>
+          onChange(maxLength ? e.target.value.slice(0, maxLength) : e.target.value)
+        }
         onBlur={() => {
           if (!normalize) return;
           const next = normalize(value);
-          if (next !== value) onChange(next);
+          if (next !== value) onChange(maxLength ? next.slice(0, maxLength) : next);
         }}
         className={`w-full resize-y rounded-xl border bg-black/30 px-3 py-2 text-sm outline-none ${
           error
