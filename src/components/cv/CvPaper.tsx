@@ -328,7 +328,7 @@ export function CvPaper({
         ref={sheet}
         style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: "fit-content" }}
       >
-        <Sheet declared={declared} cv={cv} order={order} />
+        <Sheet declared={declared} cv={cv} order={order} pageBreaks={pageBreaks} />
       </div>
     </div>
   );
