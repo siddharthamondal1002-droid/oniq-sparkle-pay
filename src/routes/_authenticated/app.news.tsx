@@ -3,6 +3,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { ArrowLeft, RotateCw, ChevronRight, Newspaper } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useCurrentRegion } from "@/lib/region";
+import { useCountry } from "@/lib/country";
+import { newsUnavailableReason } from "@/data/newsPolicy";
+import type { Country } from "@/data/appRegistry";
 import { openInApp } from "@/lib/miniapps";
 import { WatchLive } from "@/components/landing/LiveNewsSection";
 
@@ -46,22 +50,36 @@ function NewsScreen() {
   const { tab } = Route.useSearch();
   const [category, setCategory] = useState<string>(tab === "watch" ? "watch" : "top");
   const qc = useQueryClient();
+  // Axis: where you are standing by default, with a Home toggle for diaspora
+  // users. Both hooks stay above every early return.
+  const [region] = useCurrentRegion();
+  const [home] = useCountry();
+  const [useHome, setUseHome] = useState(false);
+  const axisCountry = ((useHome ? home : region) ?? null) as Country | null;
+  // Enforced server-side too — this only decides what to render.
+  const unavailable = newsUnavailableReason(axisCountry);
 
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ["news", category],
+    queryKey: ["news", category, axisCountry],
     queryFn: async () => {
       const { data, error } = await supabase.functions.invoke("news", {
-        body: { category },
+        body: { category, country: axisCountry },
       });
       if (error) throw error;
-      return (data ?? { items: [] }) as { items: NewsItem[]; error?: string };
+      return (data ?? { items: [] }) as {
+        items: NewsItem[];
+        error?: string;
+        unavailable?: string;
+      };
     },
     staleTime: 5 * 60 * 1000,
-    enabled: category !== "watch",
+    enabled: category !== "watch" && !unavailable,
   });
 
   const items = data?.items ?? [];
   const softError = data?.error;
+  // Either side may say no; the server's word wins.
+  const blockedMessage = unavailable ?? data?.unavailable ?? null;
 
   return (
     <div className="min-h-screen pb-6">
@@ -113,6 +131,18 @@ function NewsScreen() {
         {category === "watch" ? (
           <div className="mt-5">
             <WatchLive />
+          </div>
+        ) : blockedMessage ? (
+          <div className="mt-5 rounded-2xl border border-border bg-surface p-6 text-center">
+            <p className="text-sm text-muted-foreground">{blockedMessage}</p>
+            {!useHome && home && home !== region && (
+              <button
+                onClick={() => setUseHome(true)}
+                className="mt-3 rounded-full bg-primary px-5 py-2 text-sm font-medium text-primary-foreground"
+              >
+                Show {home} news instead
+              </button>
+            )}
           </div>
         ) : (
           <div className="mt-5 space-y-3">

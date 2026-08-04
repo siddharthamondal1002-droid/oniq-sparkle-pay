@@ -126,16 +126,36 @@ async function fetchFeed(feed: Feed): Promise<NewsItem[]> {
   }
 }
 
+// Countries where Pulse serves NO feed, enforced here as well as in the
+// client. A client-side check is a rendering decision, not a gate: anyone can
+// call this function directly. Mirrors src/data/newsPolicy.ts — keep the two
+// in step (src/data/__tests__/newsPolicy.test.ts asserts they agree).
+//
+// AE: the 2023/24 UAE Media Law reaches foreign apps serving news into the
+// country, penalties to AED 1M, and there is no intermediary safe harbour to
+// fall back on. Do not add an override.
+const FEED_BLOCKED: Record<string, string> = {
+  AE: "ONIQ doesn't carry a news feed in the UAE. Local media rules reach apps that serve news here, so we'd rather show you nothing than something we can't stand behind.",
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
     let category = "top";
+    let country = "";
     if (req.method === "POST") {
       const body = await req.json().catch(() => ({}));
       if (body?.category) category = String(body.category);
+      if (body?.country) country = String(body.country).toUpperCase();
     } else {
-      category = new URL(req.url).searchParams.get("category") ?? "top";
+      const q = new URL(req.url).searchParams;
+      category = q.get("category") ?? "top";
+      country = (q.get("country") ?? "").toUpperCase();
     }
+
+    const blocked = FEED_BLOCKED[country];
+    if (blocked) return json(200, { items: [], unavailable: blocked, country });
+
     const feeds = FEEDS[category];
     if (!feeds) return json(400, { error: "invalid category" });
 
