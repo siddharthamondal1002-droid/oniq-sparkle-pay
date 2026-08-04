@@ -54,6 +54,34 @@ export function CvPdfPreviewDialog({
   const canEmbed = !Capacitor.isNativePlatform();
   const defaults = defaultCvShareMessage(declared.fullName);
 
+  // Zoom for the embedded preview so fine details can be inspected.
+  const [zoom, setZoom] = useState(1);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+
+  const zoomBy = useCallback((factor: number) => {
+    setZoom((prev) => {
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, prev * factor));
+      const el = viewportRef.current;
+      if (el && next !== prev) {
+        // Keep the centre of the visible area anchored while zooming.
+        const k = next / prev;
+        const cx = el.scrollLeft + el.clientWidth / 2;
+        const cy = el.scrollTop + el.clientHeight / 2;
+        requestAnimationFrame(() => {
+          el.scrollLeft = cx * k - el.clientWidth / 2;
+          el.scrollTop = cy * k - el.clientHeight / 2;
+        });
+      }
+      return next;
+    });
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    setZoom(1);
+    const el = viewportRef.current;
+    if (el) requestAnimationFrame(() => el.scrollTo({ top: 0, left: 0 }));
+  }, []);
+
   // Prefill the editable share message from the CV's name, once per name change.
   useEffect(() => {
     const d = defaultCvShareMessage(declared.fullName);
