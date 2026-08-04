@@ -247,9 +247,17 @@ function DataRightsPage() {
           </RightsCard>
         </div>
 
+        <Link
+          to="/app/attributions"
+          className="mt-6 block rounded-xl border border-border bg-card py-2.5 text-center text-sm font-semibold hover:bg-muted"
+        >
+          Attributions &amp; licences
+        </Link>
+
         <p className="mt-6 text-[11px] text-muted-foreground">
           Some records (anonymised transactions, grievance correspondence) may be retained up to 90 days as required by Indian law.
         </p>
+
       </div>
 
       {confirmOpen && (
