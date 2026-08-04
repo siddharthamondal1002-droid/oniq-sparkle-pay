@@ -9,6 +9,7 @@ import {
   Loader2,
   Maximize2,
   Pencil,
+  Printer,
   Share2,
   X,
   ZoomIn,
@@ -49,7 +50,9 @@ export function CvPdfPreviewDialog({
   const [built, setBuilt] = useState<Built | null>(null);
   const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState(false);
-  const [busy, setBusy] = useState<null | "download" | "share">(null);
+  const [busy, setBusy] = useState<null | "download" | "share" | "print">(null);
+  // Hidden iframe used to hand the PDF to the browser's print dialog.
+  const printFrameRef = useRef<HTMLIFrameElement | null>(null);
   const [shareSubject, setShareSubject] = useState("");
   const [shareText, setShareText] = useState("");
   const [editingMessage, setEditingMessage] = useState(false);
@@ -152,6 +155,69 @@ export function CvPdfPreviewDialog({
       setBusy(null);
     }
   };
+
+  // One-click print. On the web the freshly built bytes are loaded into a
+  // hidden iframe and handed to the browser's print dialog; inside the native
+  // app there is no print API, so the OS share sheet (which offers Print /
+  // AirPrint) is used instead.
+  const print = async () => {
+    setBusy("print");
+    let filename = built?.filename ?? "cv.pdf";
+    try {
+      const { buildCvPdfBlob, shareCvPdfBlob } = await import("@/lib/cvPdf");
+      // Always print the latest fields, never a stale build.
+      const fresh = await buildCvPdfBlob(declared, cv, order, template, include);
+      filename = fresh.filename;
+      setBuilt(fresh);
+
+      if (!canEmbed) {
+        await shareCvPdfBlob(fresh.filename, fresh.blob, declared.fullName, {
+          title: shareSubject,
+          text: shareText,
+        });
+        toast.success(`Choose Print in the sheet to print ${filename}`);
+        return;
+      }
+
+      const objectUrl = URL.createObjectURL(fresh.blob);
+      setUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev);
+        return objectUrl;
+      });
+
+      const frame = printFrameRef.current;
+      if (!frame) throw new Error("print frame missing");
+
+      await new Promise<void>((resolve, reject) => {
+        const timeout = window.setTimeout(() => reject(new Error("print timeout")), 15000);
+        frame.onload = () => {
+          window.clearTimeout(timeout);
+          try {
+            frame.contentWindow?.focus();
+            frame.contentWindow?.print();
+            resolve();
+          } catch (err) {
+            reject(err);
+          }
+        };
+        frame.src = objectUrl;
+      });
+
+      toast.success(`Print dialog opened for ${filename}`);
+    } catch {
+      // Some browsers refuse to print a PDF from an iframe — open it in a tab
+      // so the built-in viewer's own print button is available.
+      if (canEmbed && url) {
+        window.open(url, "_blank", "noopener,noreferrer");
+        toast(`Opened ${filename} in a new tab — use your viewer's print button`);
+      } else {
+        toast.error(`Couldn't print ${filename}. Try downloading it instead.`);
+      }
+    } finally {
+      setBusy(null);
+    }
+  };
+
 
   const share = async () => {
     setBusy("share");
@@ -380,12 +446,33 @@ export function CvPdfPreviewDialog({
         <button
           type="button"
           disabled={!built || busy !== null}
+          onClick={print}
+          aria-label="Print CV"
+          className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40"
+        >
+          <Printer className="size-4" /> {busy === "print" ? "Printing…" : "Print"}
+        </button>
+        <button
+          type="button"
+          disabled={!built || busy !== null}
           onClick={share}
           className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#00D4B8] px-4 py-3 text-sm font-semibold text-black disabled:opacity-40"
         >
           <Share2 className="size-4" /> {busy === "share" ? "Preparing…" : "Share"}
         </button>
       </div>
+
+      {/* Off-screen target for the browser print dialog. */}
+      {canEmbed && (
+        <iframe
+          ref={printFrameRef}
+          title="CV print"
+          aria-hidden="true"
+          tabIndex={-1}
+          className="pointer-events-none fixed left-[-9999px] top-0 size-px opacity-0"
+        />
+      )}
+
     </div>
   );
 }
