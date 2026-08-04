@@ -1177,7 +1177,9 @@ function CvLivePreview({
           <div className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-white">
           <CvPaper
             order={order}
+            template={template}
             pageBreaks={showBreaks}
+
             declared={declared}
 
             cv={{
