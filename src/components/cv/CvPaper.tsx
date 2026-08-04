@@ -127,6 +127,18 @@ function Sheet({
   const sheetEl = useRef<HTMLDivElement>(null);
   const [sheetMm, setSheetMm] = useState(0);
 
+  // Measure the rendered sheet so the break rules land where the exporter
+  // actually runs out of page. CSS mm is a fixed 96/25.4 px, and offsetHeight
+  // is pre-transform, so the parent's scale doesn't skew this.
+  useEffect(() => {
+    const el = sheetEl.current;
+    if (!el) return;
+    const measure = () => setSheetMm(el.offsetHeight / (96 / 25.4));
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
 
   // Identical pruning to buildCvPdf(): placeholders and empty rows never
