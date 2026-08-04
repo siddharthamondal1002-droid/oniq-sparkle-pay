@@ -173,7 +173,20 @@ export function CvPdfPreviewDialog({
             <Loader2 className="size-4 animate-spin" /> Preparing preview…
           </div>
         ) : canEmbed && url ? (
-          <iframe title="CV PDF preview" src={url} className="size-full bg-white" />
+          <div ref={viewportRef} className="size-full overflow-auto">
+            {/* The iframe is laid out at 1/zoom of the viewport and scaled up,
+                so zooming grows the scrollable area instead of cropping it. */}
+            <div
+              style={{
+                width: `${100 / zoom}%`,
+                height: `${100 / zoom}%`,
+                transform: `scale(${zoom})`,
+                transformOrigin: "0 0",
+              }}
+            >
+              <iframe title="CV PDF preview" src={url} className="size-full bg-white" />
+            </div>
+          </div>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
             <FileText className="size-8 text-white/40" />
@@ -187,6 +200,42 @@ export function CvPdfPreviewDialog({
           </div>
         )}
       </div>
+
+      {canEmbed && url && !error && (
+        <div className="mx-3 mt-2 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => zoomBy(1 / 1.25)}
+            disabled={zoom <= MIN_ZOOM + 0.001}
+            aria-label="Zoom out"
+            className="rounded-full bg-white/10 p-2 text-white disabled:opacity-40"
+          >
+            <ZoomOut className="size-4" />
+          </button>
+          <span className="min-w-[3.5rem] text-center text-xs tabular-nums text-white/60">
+            {Math.round(zoom * 100)}%
+          </span>
+          <button
+            type="button"
+            onClick={() => zoomBy(1.25)}
+            disabled={zoom >= MAX_ZOOM - 0.001}
+            aria-label="Zoom in"
+            className="rounded-full bg-white/10 p-2 text-white disabled:opacity-40"
+          >
+            <ZoomIn className="size-4" />
+          </button>
+          <button
+            type="button"
+            onClick={resetZoom}
+            aria-label="Reset zoom to fit"
+            className="ml-1 flex items-center gap-1 rounded-full bg-white/10 px-3 py-2 text-[11px] font-medium text-white"
+          >
+            <Maximize2 className="size-3.5" /> Fit
+          </button>
+        </div>
+      )}
+
+
 
       <div className="mx-3 mt-3 rounded-2xl bg-[#16181E] p-3">
         <button
