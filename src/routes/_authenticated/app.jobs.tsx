@@ -38,6 +38,10 @@ import {
   emptyDeclared,
   screenInstruction,
   validateGenerated,
+  validateIssuer,
+  validateQualification,
+  validateSkills,
+  validateYear,
   yearsOfExperience,
   type CvDeclared,
   type CvGenerated,
@@ -251,7 +255,27 @@ function CvWorkbench({
     clean.credentials.length > 0 ||
     clean.skills.length > 0;
 
+  // Inline validation: blank is never an error, a filled-but-unusable field is.
+  const credErrors = useMemo(
+    () =>
+      declared.credentials.map((c) => ({
+        name: validateQualification(c.name),
+        issuer: validateIssuer(c.issuer),
+        year: validateYear(c.year),
+      })),
+    [declared.credentials],
+  );
+  const skillsError = useMemo(() => validateSkills(declared.skills), [declared.skills]);
+  const educationInvalid = credErrors.some((e) => e.name || e.issuer || e.year);
+  const firstError =
+    credErrors.flatMap((e) => [e.name, e.issuer, e.year]).find(Boolean) ?? skillsError ?? null;
+  const hasErrors = Boolean(firstError);
+
   async function generate() {
+    if (hasErrors) {
+      toast.error(firstError ?? "Fix the highlighted fields first.");
+      return;
+    }
     if (!hasAnything) {
       toast.error("Add at least one thing — a name, a skill, a course or a role.");
       return;
@@ -346,9 +370,17 @@ function CvWorkbench({
 
   const tabs: { key: TabKey; label: string; done: boolean }[] = [
     { key: "basics", label: "About you", done: Boolean(clean.fullName || clean.headline) },
-    { key: "education", label: "Qualifications", done: clean.credentials.length > 0 },
+    {
+      key: "education",
+      label: educationInvalid ? "Qualifications ⚠" : "Qualifications",
+      done: clean.credentials.length > 0 && !educationInvalid,
+    },
     { key: "work", label: "Work", done: clean.roles.length > 0 },
-    { key: "skills", label: "Skills", done: clean.skills.length > 0 },
+    {
+      key: "skills",
+      label: skillsError ? "Skills ⚠" : "Skills",
+      done: clean.skills.length > 0 && !skillsError,
+    },
     { key: "rules", label: `${target} rules`, done: true },
   ];
 
@@ -473,18 +505,21 @@ function CvWorkbench({
                 label="Qualification"
                 placeholder="e.g. Class 12, B.Sc Physics, AWS Cloud Practitioner"
                 value={c.name}
+                error={credErrors[i]?.name ?? null}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { name: v })}
               />
               <Field
                 label="Board / university / issuer"
                 placeholder="e.g. CBSE, Delhi University, Amazon"
                 value={c.issuer}
+                error={credErrors[i]?.issuer ?? null}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { issuer: v })}
               />
               <Field
                 label="Year"
-                placeholder="e.g. 2024"
+                placeholder="e.g. 2024 or 2020-2024"
                 value={c.year}
+                error={credErrors[i]?.year ?? null}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { year: v })}
               />
               <button
@@ -594,6 +629,7 @@ function CvWorkbench({
           <Field
             label="Comma separated"
             placeholder="e.g. Excel, Tally, spoken English"
+            error={skillsError}
             value={declared.skills.join(", ")}
             onChange={(v) =>
               setDeclared({
@@ -724,16 +760,20 @@ function CvWorkbench({
             />
             <button
               type="button"
-              disabled={busy || !hasAnything}
+              disabled={busy || !hasAnything || hasErrors}
               onClick={generate}
               className="mt-2 w-full rounded-xl bg-[#00D4B8] px-4 py-2 text-sm font-semibold text-black disabled:opacity-40"
             >
               {busy ? "Writing…" : `Generate my ${cvWord}`}
             </button>
-            {!hasAnything && (
-              <p className="mt-2 text-[11px] text-white/40">
-                Add a name, a skill, a qualification or a role and this turns on.
-              </p>
+            {hasErrors ? (
+              <p className="mt-2 text-[11px] text-rose-300">{firstError}</p>
+            ) : (
+              !hasAnything && (
+                <p className="mt-2 text-[11px] text-white/40">
+                  Add a name, a skill, a qualification or a role and this turns on.
+                </p>
+              )
             )}
           </>
         )}
@@ -906,11 +946,13 @@ function Field({
   value,
   onChange,
   placeholder,
+  error,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  error?: string | null;
 }) {
   return (
     <label className="block">
@@ -919,9 +961,15 @@ function Field({
         rows={value.includes("\n") ? 3 : 1}
         value={value}
         placeholder={placeholder}
+        aria-invalid={error ? true : undefined}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full resize-y rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-[#00D4B8]/60"
+        className={`w-full resize-y rounded-xl border bg-black/30 px-3 py-2 text-sm outline-none ${
+          error
+            ? "border-rose-400/70 focus:border-rose-400"
+            : "border-white/10 focus:border-[#00D4B8]/60"
+        }`}
       />
+      {error && <span className="mt-1 block text-[11px] text-rose-300">{error}</span>}
     </label>
   );
 }
