@@ -80,10 +80,27 @@ export async function submitDigilockerToken(tokenRef: string): Promise<void> {
  * `trg_prevent_is_minor_self_change` locks it permanently, which is what stops
  * a restricted minor from re-declaring themselves an adult.
  */
-export async function setMyDateOfBirth(dob: string): Promise<void> {
-  const { error } = await supabase.rpc("set_signup_profile", { _dob: dob });
+export async function setMyDateOfBirth(
+  dob: string,
+  parent?: { parentName?: string; parentEmail?: string; parentPhone?: string },
+): Promise<void> {
+  const { data, error } = await supabase.rpc("set_signup_profile", {
+    _dob: dob,
+    _parent_name: parent?.parentName || undefined,
+    _parent_email: parent?.parentEmail || undefined,
+    _parent_phone: parent?.parentPhone || undefined,
+  });
   if (error) throw error;
+  // The RPC answers a refusal (rate limit, or a change that would lift child
+  // mode) as a structured result rather than an exception, so the attempt can
+  // be written to the tamper-evident audit ledger before returning. Surface it
+  // as readable copy, never a raw SQLSTATE.
+  const res = data as { ok?: boolean; message?: string } | null;
+  if (res && res.ok === false) {
+    throw new Error(res.message ?? "That change was refused.");
+  }
 }
+
 
 /** True when an error came from the restricted-state guard. */
 export function isRestrictedError(err: unknown): boolean {

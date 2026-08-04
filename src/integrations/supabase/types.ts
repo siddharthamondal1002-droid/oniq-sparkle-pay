@@ -832,6 +832,24 @@ export type Database = {
           },
         ]
       }
+      dob_change_events: {
+        Row: {
+          created_at: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       dsr_requests: {
         Row: {
           cancelled_at: string | null
