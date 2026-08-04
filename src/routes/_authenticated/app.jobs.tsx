@@ -305,6 +305,23 @@ function CvWorkbench({
   const firstError =
     credErrors.flatMap((e) => [e.name, e.issuer, e.year]).find(Boolean) ?? skillsError ?? null;
   const hasErrors = Boolean(firstError);
+  // Compact list of every invalid field, so nothing is hidden behind a tab.
+  const issues = useMemo(() => {
+    const list: { tab: TabKey; where: string; message: string }[] = [];
+    credErrors.forEach((e, i) => {
+      const rowLabels: [string | null, string][] = [
+        [e.name, "Qualification"],
+        [e.issuer, "Board / university / issuer"],
+        [e.year, "Year"],
+      ];
+      rowLabels.forEach(([msg, label]) => {
+        if (msg) list.push({ tab: "education", where: `Qualification ${i + 1} · ${label}`, message: msg });
+      });
+    });
+    if (skillsError) list.push({ tab: "skills", where: "Skills", message: skillsError });
+    return list;
+  }, [credErrors, skillsError]);
+
 
   async function generate() {
     if (hasErrors) {
