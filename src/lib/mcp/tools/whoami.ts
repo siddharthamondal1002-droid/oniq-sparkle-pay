@@ -29,7 +29,8 @@ export default defineTool({
       return { content: [{ type: "text", text: error.message }], isError: true };
     }
     const { data: meta } = await supabase.rpc("get_my_profile_meta").maybeSingle();
-    const profile = data ? { ...data, country_code: meta?.country_code ?? null } : null;
+    const country_code = (meta as { country_code?: string | null } | null)?.country_code ?? null;
+    const profile = data ? { ...data, country_code } : null;
     return {
       content: [{ type: "text", text: JSON.stringify(profile) }],
       structuredContent: { profile },
