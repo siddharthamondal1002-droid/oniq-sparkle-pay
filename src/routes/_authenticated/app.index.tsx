@@ -40,6 +40,7 @@ import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useCountry } from "@/lib/country";
 import { isAvailable } from "@/data/countryRegistry";
 import { useIsAdult18 } from "@/lib/useIsAdult18";
+import { SafeMount } from "@/components/SafeMount";
 import { RegionBanner } from "@/components/home/RegionBanner";
 import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -157,6 +158,7 @@ function HomeScreen() {
             <div className="mt-7 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               also in ONIQ
             </div>
+            <SafeMount name="AlsoInOniqRow">
             <AlsoInOniqRow
               tiles={[
                 // Names come from the shared table (tileLabel.ts) — never inline.
@@ -178,6 +180,7 @@ function HomeScreen() {
               ]}
               hidden={hidden}
             />
+            </SafeMount>
           </div>
         </div>
       </div>
