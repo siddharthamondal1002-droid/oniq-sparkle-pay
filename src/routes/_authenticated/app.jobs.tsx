@@ -1157,8 +1157,13 @@ function cleanDeclared(d: CvDeclared): CvDeclared {
       })),
     credentials: d.credentials
       .filter((c) => t(c.name) || t(c.issuer))
-      .map((c) => ({ name: t(c.name), issuer: t(c.issuer), year: t(c.year) })),
-    skills: d.skills.map(t).filter(Boolean),
+      .map((c) => ({
+        name: normalizeQualification(c.name),
+        issuer: normalizeIssuer(c.issuer),
+        year: normalizeYear(c.year),
+      })),
+    skills: normalizeSkills(d.skills),
+
   };
 }
 
