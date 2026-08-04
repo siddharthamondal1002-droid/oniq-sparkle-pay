@@ -48,6 +48,7 @@ import { Route as AuthenticatedAppFaithRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedAppEarnRouteImport } from './routes/_authenticated/app.earn'
 import { Route as AuthenticatedAppClipsRouteImport } from './routes/_authenticated/app.clips'
 import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
+import { Route as AuthenticatedAppAttributionsRouteImport } from './routes/_authenticated/app.attributions'
 import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/app.ai'
 import { Route as AuthenticatedAppAdminRouteImport } from './routes/_authenticated/app.admin'
 import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
@@ -268,6 +269,12 @@ const AuthenticatedAppChatRoute = AuthenticatedAppChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const AuthenticatedAppAttributionsRoute =
+  AuthenticatedAppAttributionsRouteImport.update({
+    id: '/attributions',
+    path: '/attributions',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
 const AuthenticatedAppAiRoute = AuthenticatedAppAiRouteImport.update({
   id: '/ai',
   path: '/ai',
@@ -400,6 +407,7 @@ export interface FileRoutesByFullPath {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/app/admin': typeof AuthenticatedAppAdminRoute
   '/app/ai': typeof AuthenticatedAppAiRoute
+  '/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/app/clips': typeof AuthenticatedAppClipsRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
@@ -458,6 +466,7 @@ export interface FileRoutesByTo {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/app/admin': typeof AuthenticatedAppAdminRoute
   '/app/ai': typeof AuthenticatedAppAiRoute
+  '/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/app/clips': typeof AuthenticatedAppClipsRoute
   '/app/earn': typeof AuthenticatedAppEarnRoute
   '/app/faith': typeof AuthenticatedAppFaithRoute
@@ -518,6 +527,7 @@ export interface FileRoutesById {
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
   '/_authenticated/app/admin': typeof AuthenticatedAppAdminRoute
   '/_authenticated/app/ai': typeof AuthenticatedAppAiRoute
+  '/_authenticated/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
   '/_authenticated/app/clips': typeof AuthenticatedAppClipsRoute
   '/_authenticated/app/earn': typeof AuthenticatedAppEarnRoute
@@ -579,6 +589,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/app/admin'
     | '/app/ai'
+    | '/app/attributions'
     | '/app/chat'
     | '/app/clips'
     | '/app/earn'
@@ -637,6 +648,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/app/admin'
     | '/app/ai'
+    | '/app/attributions'
     | '/app/clips'
     | '/app/earn'
     | '/app/faith'
@@ -696,6 +708,7 @@ export interface FileRouteTypes {
     | '/.mcp/invoke-tool/$tool'
     | '/_authenticated/app/admin'
     | '/_authenticated/app/ai'
+    | '/_authenticated/app/attributions'
     | '/_authenticated/app/chat'
     | '/_authenticated/app/clips'
     | '/_authenticated/app/earn'
@@ -1032,6 +1045,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppChatRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/_authenticated/app/attributions': {
+      id: '/_authenticated/app/attributions'
+      path: '/attributions'
+      fullPath: '/app/attributions'
+      preLoaderRoute: typeof AuthenticatedAppAttributionsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
     '/_authenticated/app/ai': {
       id: '/_authenticated/app/ai'
       path: '/ai'
@@ -1195,6 +1215,7 @@ const AuthenticatedAppChatRouteWithChildren =
 interface AuthenticatedAppRouteChildren {
   AuthenticatedAppAdminRoute: typeof AuthenticatedAppAdminRoute
   AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
+  AuthenticatedAppAttributionsRoute: typeof AuthenticatedAppAttributionsRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
   AuthenticatedAppClipsRoute: typeof AuthenticatedAppClipsRoute
   AuthenticatedAppEarnRoute: typeof AuthenticatedAppEarnRoute
@@ -1227,6 +1248,7 @@ interface AuthenticatedAppRouteChildren {
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
   AuthenticatedAppAdminRoute: AuthenticatedAppAdminRoute,
   AuthenticatedAppAiRoute: AuthenticatedAppAiRoute,
+  AuthenticatedAppAttributionsRoute: AuthenticatedAppAttributionsRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,
   AuthenticatedAppClipsRoute: AuthenticatedAppClipsRoute,
   AuthenticatedAppEarnRoute: AuthenticatedAppEarnRoute,
