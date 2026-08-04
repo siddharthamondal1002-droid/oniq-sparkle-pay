@@ -206,14 +206,9 @@ export function deliverCvPdfBlob(filename: string, blob: Blob) {
 }
 
 /** Default share-sheet subject/body for a CV, used when the user hasn't
- * customised the message. */
-export function defaultCvShareMessage(fullName?: string): { title: string; text: string } {
-  const name = (fullName ?? "").trim();
-  return {
-    title: name ? `${name} — CV` : "My CV",
-    text: name ? `Hi, please find ${name}'s CV attached.` : "Hi, please find my CV attached.",
-  };
-}
+ * customised the message. Re-exported from the light module. */
+export { defaultCvShareMessage } from "@/lib/cvShareMessage";
+
 
 /** Hand an already-built CV PDF to the platform share sheet.
  * `message` lets the caller override the share-sheet subject and body. */
