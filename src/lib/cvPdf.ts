@@ -205,13 +205,31 @@ export function deliverCvPdfBlob(filename: string, blob: Blob) {
   return deliverFile(filename, "application/pdf", blob);
 }
 
-/** Hand an already-built CV PDF to the platform share sheet. */
-export function shareCvPdfBlob(filename: string, blob: Blob, fullName?: string) {
+/** Default share-sheet subject/body for a CV, used when the user hasn't
+ * customised the message. */
+export function defaultCvShareMessage(fullName?: string): { title: string; text: string } {
+  const name = (fullName ?? "").trim();
+  return {
+    title: name ? `${name} — CV` : "My CV",
+    text: name ? `Hi, please find ${name}'s CV attached.` : "Hi, please find my CV attached.",
+  };
+}
+
+/** Hand an already-built CV PDF to the platform share sheet.
+ * `message` lets the caller override the share-sheet subject and body. */
+export function shareCvPdfBlob(
+  filename: string,
+  blob: Blob,
+  fullName?: string,
+  message?: { title?: string; text?: string },
+) {
+  const fallback = defaultCvShareMessage(fullName);
   return shareFile(filename, "application/pdf", blob, {
-    title: fullName ? `${fullName} — CV` : "My CV",
-    text: "My CV",
+    title: message?.title?.trim() || fallback.title,
+    text: message?.text?.trim() || fallback.text,
   });
 }
+
 
 /** Build + hand to the OS. Returns the filename written. */
 export async function exportCvPdf(
