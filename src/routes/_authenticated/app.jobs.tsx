@@ -583,7 +583,9 @@ function CvWorkbench({
             className="mt-3 flex items-center gap-1.5 rounded-full bg-white/5 px-3 py-1.5 text-xs"
           >
             <Plus className="size-3.5" />{" "}
-            {declared.credentials.length === 0 ? "Add a qualification" : "Add another qualification"}
+            {declared.credentials.length === 0
+              ? "Add a qualification"
+              : "Add another qualification"}
           </button>
           {clean.credentials.length > 0 && (
             <p className="mt-2 text-[11px] text-white/40">
@@ -1085,7 +1087,10 @@ function CvLivePreview({ declared, cvWord }: { declared: CvDeclared; cvWord: str
                   .filter((c) => c.name.trim() || c.issuer.trim() || c.year.trim())
                   .map((c, i) => (
                     <li key={i}>
-                      {[c.name, c.issuer, c.year].map((x) => x.trim()).filter(Boolean).join(", ")}
+                      {[c.name, c.issuer, c.year]
+                        .map((x) => x.trim())
+                        .filter(Boolean)
+                        .join(", ")}
                     </li>
                   ))}
               </ul>
