@@ -89,7 +89,7 @@ function PageBreaks({ sheetHeight }: { sheetHeight: number }) {
             left: 0,
             right: 0,
             top: `${CV_PAGE.margin + k * PAGE_CONTENT_H}mm`,
-            borderTop: "0.4mm dashed #00A furthest".slice(0, 0) || "0.4mm dashed #d11a6b",
+            borderTop: "0.4mm dashed #d11a6b",
             pointerEvents: "none",
           }}
         >
