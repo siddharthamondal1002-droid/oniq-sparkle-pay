@@ -53,6 +53,9 @@ export function CvPdfPreviewDialog({
   const [shareSubject, setShareSubject] = useState("");
   const [shareText, setShareText] = useState("");
   const [editingMessage, setEditingMessage] = useState(false);
+  // Build progress for the PDF bytes (0–100) plus a "taking a while" hint.
+  const [progress, setProgress] = useState(0);
+  const [slow, setSlow] = useState(false);
   // Android/iOS WebViews cannot render a PDF in an iframe — no plugin behind it.
   const canEmbed = !Capacitor.isNativePlatform();
   const defaults = defaultCvShareMessage(declared.fullName);
@@ -98,11 +101,24 @@ export function CvPdfPreviewDialog({
   useEffect(() => {
     let objectUrl: string | null = null;
     let cancelled = false;
+    // Drive a visible progress bar while the bytes are built. The build is a
+    // single synchronous jsPDF pass, so this is a time-based estimate that
+    // never claims completion until the blob actually exists.
+    const started = Date.now();
+    setProgress(4);
+    setSlow(false);
+    const tick = window.setInterval(() => {
+      const elapsed = Date.now() - started;
+      setSlow(elapsed > 6000);
+      // Ease towards 92% and stop; the final jump to 100% is real.
+      setProgress((p) => (p >= 92 ? p : p + Math.max(1, (92 - p) * 0.12)));
+    }, 160);
     (async () => {
       try {
         const { buildCvPdfBlob } = await import("@/lib/cvPdf");
         const result = await buildCvPdfBlob(declared, cv, order, template, include);
         if (cancelled) return;
+        setProgress(100);
         setBuilt(result);
         if (canEmbed) {
           objectUrl = URL.createObjectURL(result.blob);
@@ -110,9 +126,13 @@ export function CvPdfPreviewDialog({
         }
       } catch {
         if (!cancelled) setError(true);
+      } finally {
+        window.clearInterval(tick);
       }
     })();
     return () => {
+      window.clearInterval(tick);
+
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
@@ -200,9 +220,35 @@ export function CvPdfPreviewDialog({
             Couldn&apos;t build the preview. Close this and try again.
           </div>
         ) : !built ? (
-          <div className="flex h-full items-center justify-center gap-2 text-sm text-white/60">
-            <Loader2 className="size-4 animate-spin" /> Preparing preview…
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex h-full flex-col items-center justify-center gap-3 px-8 text-center"
+          >
+            <Loader2 className="size-6 animate-spin text-[#00D4B8]" />
+            <p className="text-sm font-medium text-white/80">
+              Generating your PDF… {Math.round(progress)}%
+            </p>
+            <div
+              className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-white/10"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(progress)}
+              aria-label="PDF generation progress"
+            >
+              <div
+                className="h-full rounded-full bg-[#00D4B8] transition-[width] duration-200 ease-out"
+                style={{ width: `${Math.max(4, Math.min(100, progress))}%` }}
+              />
+            </div>
+            <p className="text-[11px] leading-relaxed text-white/45">
+              {slow
+                ? "Still working — long CVs with lots of sections take a few extra seconds."
+                : "Laying out pages and embedding fonts."}
+            </p>
           </div>
+
         ) : canEmbed && url ? (
           <div ref={viewportRef} className="size-full overflow-auto">
             {/* The iframe is laid out at 1/zoom of the viewport and scaled up,
