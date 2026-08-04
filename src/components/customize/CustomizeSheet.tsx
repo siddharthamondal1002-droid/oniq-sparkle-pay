@@ -58,7 +58,8 @@ const SIGNED_TTL_SECONDS = 60 * 60 * 24 * 365 * 100; // ~100 years
 // Feed-banner tabs are hideable but have no skin surface of their own.
 // `earn`/`moots` are named in the shared label table for other renderers but
 // are not customizable tiles here.
-const BANNER_ONLY_TILES: TileKey[] = ["study", "moments", "mast", "earn", "moots"];
+// `cv` is a label used inside the Jobs surface, not a home tile of its own.
+const BANNER_ONLY_TILES: TileKey[] = ["study", "moments", "mast", "earn", "moots", "cv"];
 
 
 export type UserTheme = {
