@@ -69,28 +69,40 @@ export function CvPdfPreviewDialog({
   };
 
   const share = async () => {
-    if (!built) return;
     setBusy("share");
+    let filename = built?.filename ?? "cv.pdf";
     try {
-      const { shareCvPdfBlob } = await import("@/lib/cvPdf");
-      const how = await shareCvPdfBlob(built.filename, built.blob, declared.fullName);
+      // Always regenerate from the latest fields so the shared file can never
+      // be a stale build from an earlier edit.
+      const { buildCvPdfBlob, shareCvPdfBlob } = await import("@/lib/cvPdf");
+      const fresh = await buildCvPdfBlob(declared, cv, order);
+      filename = fresh.filename;
+      setBuilt(fresh);
+      if (canEmbed) {
+        const objectUrl = URL.createObjectURL(fresh.blob);
+        setUrl((prev) => {
+          if (prev) URL.revokeObjectURL(prev);
+          return objectUrl;
+        });
+      }
+      const how = await shareCvPdfBlob(fresh.filename, fresh.blob, declared.fullName);
       toast.success(
         how === "shared"
-          ? `Shared ${built.filename}`
-          : `Saved ${built.filename}`,
+          ? `Shared ${fresh.filename}`
+          : `Saved ${fresh.filename}`,
       );
       onClose();
     } catch (e) {
       if (isShareCancelled(e)) {
-        toast(`Sharing cancelled — ${built.filename} wasn't sent`);
+        toast(`Sharing cancelled — ${filename} wasn't sent`);
       } else {
-        toast.error(`Couldn't share ${built.filename}. Try again.`);
+        toast.error(`Couldn't share ${filename}. Try again.`);
       }
-
     } finally {
       setBusy(null);
     }
   };
+
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/80 backdrop-blur-sm">
