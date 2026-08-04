@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   FileText,
   Loader2,
@@ -66,6 +68,31 @@ export function CvPdfPreviewDialog({
   // Zoom for the embedded preview so fine details can be inspected.
   const [zoom, setZoom] = useState(1);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+
+  // Page navigation for the embedded preview.
+  const pageCount = built?.pages ?? 1;
+  const [page, setPage] = useState(1);
+  const [pageInput, setPageInput] = useState("1");
+
+  const goToPage = useCallback(
+    (target: number) => {
+      const clamped = Math.min(Math.max(1, Math.round(target)), Math.max(1, pageCount));
+      setPage(clamped);
+      setPageInput(String(clamped));
+    },
+    [pageCount],
+  );
+
+  // A rebuild can shorten the document — never leave the view past the end.
+  useEffect(() => {
+    setPage((p) => {
+      const clamped = Math.min(Math.max(1, p), Math.max(1, pageCount));
+      setPageInput(String(clamped));
+      return clamped;
+    });
+  }, [pageCount]);
+
+
 
   const zoomBy = useCallback((factor: number) => {
     setZoom((prev) => {
@@ -327,7 +354,14 @@ export function CvPdfPreviewDialog({
                 transformOrigin: "0 0",
               }}
             >
-              <iframe title="CV PDF preview" src={url} className="size-full bg-white" />
+              {/* #page=N is honoured by the browser's built-in PDF viewer, so
+                  the jump controls below drive the embedded preview. */}
+              <iframe
+                title="CV PDF preview"
+                src={`${url}#page=${page}`}
+                className="size-full bg-white"
+              />
+
             </div>
           </div>
         ) : (
@@ -377,6 +411,58 @@ export function CvPdfPreviewDialog({
           </button>
         </div>
       )}
+
+      {canEmbed && url && !error && pageCount > 1 && (
+        <div className="mx-3 mt-2 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => goToPage(page - 1)}
+            disabled={page <= 1}
+            aria-label="Previous page"
+            className="rounded-full bg-white/10 p-2 text-white disabled:opacity-40"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              const n = Number(pageInput);
+              if (Number.isFinite(n)) goToPage(n);
+              else setPageInput(String(page));
+            }}
+            className="flex items-center gap-1.5"
+          >
+            <input
+              value={pageInput}
+              onChange={(e) => setPageInput(e.target.value.replace(/[^\d]/g, ""))}
+              onBlur={() => {
+                const n = Number(pageInput);
+                if (Number.isFinite(n) && pageInput !== "") goToPage(n);
+                else setPageInput(String(page));
+              }}
+              inputMode="numeric"
+              aria-label={`Page number, 1 to ${pageCount}`}
+              className="w-12 rounded-lg bg-white/5 px-2 py-1.5 text-center text-xs tabular-nums text-white outline-none focus:ring-1 focus:ring-[#00D4B8]"
+            />
+            <span className="text-xs tabular-nums text-white/50">of {pageCount}</span>
+            <button type="submit" className="sr-only">
+              Go to page
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={() => goToPage(page + 1)}
+            disabled={page >= pageCount}
+            aria-label="Next page"
+            className="rounded-full bg-white/10 p-2 text-white disabled:opacity-40"
+          >
+            <ChevronRight className="size-4" />
+          </button>
+        </div>
+      )}
+
 
 
 
