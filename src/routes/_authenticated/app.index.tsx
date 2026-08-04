@@ -39,6 +39,7 @@ import {
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useCountry } from "@/lib/country";
 import { isAvailable } from "@/data/countryRegistry";
+import { useIsAdult18 } from "@/lib/useIsAdult18";
 import { RegionBanner } from "@/components/home/RegionBanner";
 import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -170,6 +171,10 @@ function HomeScreen() {
                 { key: "vitals", to: "/app/vitals", color: vitalsColor },
                 { key: "wander", to: "/app/travel" },
                 { key: "earn", to: "/app/earn" },
+                { key: "university", to: "/app/university" },
+                // 18+ only — hidden entirely for minors and null-DOB accounts.
+                { key: "jobs", to: "/app/jobs", adultOnly: true },
+                { key: "jobsApps", to: "/app/jobs-apps", adultOnly: true },
               ]}
               hidden={hidden}
             />
@@ -1699,15 +1704,25 @@ function AlsoInOniqRow({
   tiles,
   hidden,
 }: {
-  tiles: { key: TileKey; to: string; color?: string; search?: Record<string, unknown> }[];
+  tiles: {
+    key: TileKey;
+    to: string;
+    color?: string;
+    search?: Record<string, unknown>;
+    adultOnly?: boolean;
+  }[];
   hidden: Set<TileKey>;
 }) {
   const { lang } = useT();
   const [home] = useCountry();
+  const isAdult = useIsAdult18();
   // Unsupported in this Home country => the tile does not render at all.
   // No greyed-out state, no disabled tile, no "coming soon".
   const visible = tiles.filter(
-    (t) => !(hidden as Set<string>).has(t.key) && isAvailable(t.key, home),
+    (t) =>
+      !(hidden as Set<string>).has(t.key) &&
+      isAvailable(t.key, home) &&
+      (!t.adultOnly || isAdult),
   );
   if (visible.length === 0) return null;
   return (
@@ -1730,7 +1745,7 @@ function AlsoInOniqRow({
               style={{ background: t.color }}
             />
           )}
-          {tileName(lang, t.key)}
+          {tileName(lang, t.key, home)}
         </Link>
       ))}
     </div>
@@ -1768,6 +1783,8 @@ function HomeMediaBanner() {
     }
   }, [mode]);
 
+  const [home] = useCountry();
+
   // If the current tab is hidden (persisted or just toggled), fall back to
   // the first tab that's still visible.
   useEffect(() => {
@@ -1778,10 +1795,10 @@ function HomeMediaBanner() {
   }, [mode, hidden]);
 
   const tabs: { id: BannerMode; label: string }[] = [
-    { id: "watch", label: tileName(lang, "watch") },
-    { id: "study", label: tileName(lang, "study") },
-    { id: "moments", label: tileName(lang, "moments") },
-    { id: "mast", label: tileName(lang, "mast") },
+    { id: "watch", label: tileName(lang, "watch", home) },
+    { id: "study", label: tileName(lang, "study", home) },
+    { id: "moments", label: tileName(lang, "moments", home) },
+    { id: "mast", label: tileName(lang, "mast", home) },
   ];
   const visibleTabs = tabs.filter((tb) => !hidden.has(tb.id));
 

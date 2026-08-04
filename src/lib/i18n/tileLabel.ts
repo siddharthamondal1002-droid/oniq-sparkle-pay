@@ -29,7 +29,11 @@ export type TileKey =
   | "vitals"
   | "official"
   | "earn"
-  | "moots";
+  | "moots"
+  | "university"
+  | "jobs"
+  | "jobsApps"
+  | "cv";
 
 /** International English — shown for every locale except `hi`. */
 export const TILE_LABELS: Record<TileKey, string> = {
@@ -50,6 +54,22 @@ export const TILE_LABELS: Record<TileKey, string> = {
   official: "Official 🏛️",
   earn: "earn 💸",
   moots: "Moots",
+  university: "Campus",
+  jobs: "Jobs",
+  jobsApps: "Job apps",
+  cv: "CV",
+};
+
+/**
+ * Rare per-country English overrides. Hindi always wins over these — a Hindi
+ * speaker in the US still reads सीवी. Keep this table tiny: it exists for
+ * words that are genuinely different in a market, not for flavour.
+ */
+export const TILE_LABELS_BY_COUNTRY: Partial<
+  Record<TileKey, Partial<Record<Country, string>>>
+> = {
+  // Americans say résumé (one page); everywhere else says CV.
+  cv: { US: "Résumé" },
 };
 
 /** Hindi tile names — rendered only when the active locale is `hi`. */
@@ -71,6 +91,10 @@ export const TILE_LABELS_HI: Record<TileKey, string> = {
   official: "सरकारी 🏛️",
   earn: "कमाई 💸",
   moots: "दोस्त",
+  university: "कैंपस",
+  jobs: "नौकरी",
+  jobsApps: "नौकरी ऐप्स",
+  cv: "सीवी",
 };
 
 export function resolveTileLabel(
@@ -88,6 +112,9 @@ export function resolveTileLabel(
  * The one call every renderer should make: name a tile by key and the locale
  * decides. Keeps label copies out of individual screens.
  */
-export function tileName(lang: string, key: TileKey): string {
-  return resolveTileLabel(lang, TILE_LABELS[key], TILE_LABELS_HI[key]);
+export function tileName(lang: string, key: TileKey, country?: Country): string {
+  return resolveTileLabel(lang, TILE_LABELS[key], TILE_LABELS_HI[key], {
+    country,
+    labelByCountry: TILE_LABELS_BY_COUNTRY[key],
+  });
 }
