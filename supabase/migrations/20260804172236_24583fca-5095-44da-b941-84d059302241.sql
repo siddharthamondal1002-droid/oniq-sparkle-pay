@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "owner reads views of own status" ON public.status_views;
