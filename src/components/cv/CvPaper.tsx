@@ -10,7 +10,12 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CV_PAGE, PT } from "@/lib/cvPdf";
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
-import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
+import {
+  normalizeInclude,
+  normalizeSectionOrder,
+  type CvInclude,
+  type CvSectionKey,
+} from "@/lib/cvSections";
 import { getCvTemplate, rgbCss, type CvTemplate, type CvTemplateId } from "@/lib/cvTemplates";
 
 /** pt -> mm, matching jsPDF's text metrics. */
@@ -132,14 +137,17 @@ function Sheet({
   order,
   pageBreaks = true,
   template,
+  include,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
   order?: readonly CvSectionKey[];
   pageBreaks?: boolean;
   template?: CvTemplateId;
+  include?: Partial<CvInclude>;
 }) {
   const tpl = getCvTemplate(template);
+  const inc = normalizeInclude(include);
   const sheetEl = useRef<HTMLDivElement>(null);
   const [sheetMm, setSheetMm] = useState(0);
 
@@ -162,7 +170,9 @@ function Sheet({
   // reach the page, in the preview or the export.
   const declared = pruneDeclaredForExport(declaredIn);
   const pruned = pruneGenerated({ ...cvIn, personal: undefined } as CvGenerated);
-  const contact = [declared.email, declared.phone, declared.location].filter(Boolean).join("  ·  ");
+  const contact = inc.contact
+    ? [declared.email, declared.phone, declared.location].filter(Boolean).join("  ·  ")
+    : "";
   const personal = Object.values(declared.personal ?? {})
     .filter(Boolean)
     .join("  ·  ");
@@ -182,7 +192,7 @@ function Sheet({
       </>
     ) : null,
     experience:
-      roles.length > 0 ? (
+      inc.experience && roles.length > 0 ? (
         <>
           <Heading text="Experience" tpl={tpl} />
           {roles.map((r, i) => (
@@ -221,7 +231,7 @@ function Sheet({
         </>
       ) : null,
     qualifications:
-      credentials.length > 0 ? (
+      inc.qualifications && credentials.length > 0 ? (
         <>
           <Heading text="Qualifications" tpl={tpl} />
           {credentials.map((c, i) => (
@@ -232,7 +242,7 @@ function Sheet({
         </>
       ) : null,
     skills:
-      skills.length > 0 ? (
+      inc.skills && skills.length > 0 ? (
         <>
           <Heading text="Skills" tpl={tpl} />
           <Line size={10} gap={4.6}>
@@ -312,6 +322,7 @@ export function CvPaper({
   order,
   pageBreaks = true,
   template,
+  include,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
@@ -320,6 +331,8 @@ export function CvPaper({
   pageBreaks?: boolean;
   /** Layout style; matches the template used by the PDF export. */
   template?: CvTemplateId;
+  /** Sections switched on/off in the workbench; matches the PDF export. */
+  include?: Partial<CvInclude>;
 }) {
 
   const box = useRef<HTMLDivElement>(null);
@@ -342,7 +355,7 @@ export function CvPaper({
     if (box.current) ro.observe(box.current);
     if (sheet.current) ro.observe(sheet.current);
     return () => ro.disconnect();
-  }, [declared, cv, order, template]);
+  }, [declared, cv, order, template, include]);
 
   return (
     <div ref={box} className="w-full overflow-hidden" style={{ height: height || undefined }}>
@@ -356,6 +369,7 @@ export function CvPaper({
           order={order}
           pageBreaks={pageBreaks}
           template={template}
+          include={include}
         />
       </div>
     </div>

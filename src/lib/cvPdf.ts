@@ -5,7 +5,12 @@ import { defaultCvShareMessage } from "@/lib/cvShareMessage";
 
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 import { pruneDeclaredForExport, pruneGenerated } from "@/lib/cvValidation";
-import { normalizeSectionOrder, type CvSectionKey } from "@/lib/cvSections";
+import {
+  normalizeInclude,
+  normalizeSectionOrder,
+  type CvInclude,
+  type CvSectionKey,
+} from "@/lib/cvSections";
 import { getCvTemplate, type CvTemplateId } from "@/lib/cvTemplates";
 
 
@@ -41,8 +46,11 @@ export async function buildCvPdf(
   cvIn: CvGenerated,
   order?: readonly CvSectionKey[],
   templateId?: CvTemplateId,
+  include?: Partial<CvInclude>,
 ) {
   const { jsPDF } = await import("jspdf");
+  // Sections the user switched off are skipped entirely — no heading, no rule.
+  const inc = normalizeInclude(include);
   const doc = new jsPDF({ unit: "mm", format: "a4", compress: true });
   // Decoration only — never changes vertical advances, so pagination is
   // identical across templates.
@@ -121,7 +129,9 @@ export async function buildCvPdf(
     }
   }
   if (declared.headline) para(declared.headline, 11, "normal", 5);
-  const contact = [declared.email, declared.phone, declared.location].filter(Boolean).join("  ·  ");
+  const contact = inc.contact
+    ? [declared.email, declared.phone, declared.location].filter(Boolean).join("  ·  ")
+    : "";
   if (contact) para(contact, 9, "normal", 5);
   const personal = Object.values(declared.personal ?? {})
     .filter(Boolean)
@@ -137,7 +147,7 @@ export async function buildCvPdf(
       para(cv.summary.trim(), 10, "normal");
     },
     experience: () => {
-      if (!cv.roles?.length) return;
+      if (!inc.experience || !cv.roles?.length) return;
       heading("Experience");
       for (const r of cv.roles) {
         const titleText = `${r.title}${r.employer ? ` — ${r.employer}` : ""}`;
@@ -174,7 +184,7 @@ export async function buildCvPdf(
       }
     },
     qualifications: () => {
-      if (!cv.credentials?.length) return;
+      if (!inc.qualifications || !cv.credentials?.length) return;
       heading("Qualifications");
       for (const c of cv.credentials) {
         const text = [c.name, c.issuer, c.year].filter(Boolean).join(", ");
@@ -182,7 +192,7 @@ export async function buildCvPdf(
       }
     },
     skills: () => {
-      if (!cv.skills?.length) return;
+      if (!inc.skills || !cv.skills?.length) return;
       heading("Skills");
       para(cv.skills.join(" · "), 10, "normal");
     },
@@ -210,8 +220,9 @@ export async function buildCvPdfBlob(
   cv: CvGenerated,
   order?: readonly CvSectionKey[],
   templateId?: CvTemplateId,
+  include?: Partial<CvInclude>,
 ): Promise<{ blob: Blob; filename: string; pages: number }> {
-  const doc = await buildCvPdf(declared, cv, order, templateId);
+  const doc = await buildCvPdf(declared, cv, order, templateId, include);
 
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   return {
@@ -253,8 +264,9 @@ export async function exportCvPdf(
   cv: CvGenerated,
   order?: readonly CvSectionKey[],
   templateId?: CvTemplateId,
+  include?: Partial<CvInclude>,
 ): Promise<{ filename: string }> {
-  const doc = await buildCvPdf(declared, cv, order, templateId);
+  const doc = await buildCvPdf(declared, cv, order, templateId, include);
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   await deliverFile(filename, "application/pdf", new Blob([buf], { type: "application/pdf" }));
@@ -267,8 +279,9 @@ export async function shareCvPdf(
   cv: CvGenerated,
   order?: readonly CvSectionKey[],
   templateId?: CvTemplateId,
+  include?: Partial<CvInclude>,
 ): Promise<{ filename: string; how: "shared" | "downloaded" }> {
-  const doc = await buildCvPdf(declared, cv, order, templateId);
+  const doc = await buildCvPdf(declared, cv, order, templateId, include);
 
   const filename = cvFilename(declared.fullName);
   const buf = doc.output("arraybuffer") as ArrayBuffer;

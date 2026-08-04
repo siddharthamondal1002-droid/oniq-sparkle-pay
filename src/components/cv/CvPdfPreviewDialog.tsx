@@ -9,7 +9,7 @@ import { isShareCancelled } from "@/lib/saveFile";
 import { defaultCvShareMessage } from "@/lib/cvShareMessage";
 
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
-import type { CvSectionKey } from "@/lib/cvSections";
+import type { CvInclude, CvSectionKey } from "@/lib/cvSections";
 import type { CvTemplateId } from "@/lib/cvTemplates";
 
 type Built = { blob: Blob; filename: string; pages: number };
@@ -19,6 +19,7 @@ export function CvPdfPreviewDialog({
   cv,
   order,
   template,
+  include,
   onClose,
 }: {
   declared: CvDeclared;
@@ -27,6 +28,8 @@ export function CvPdfPreviewDialog({
   order?: readonly CvSectionKey[];
   /** Layout template chosen in the workbench. */
   template?: CvTemplateId;
+  /** Sections switched on/off in the workbench. */
+  include?: Partial<CvInclude>;
   onClose: () => void;
 }) {
 
@@ -57,7 +60,7 @@ export function CvPdfPreviewDialog({
     (async () => {
       try {
         const { buildCvPdfBlob } = await import("@/lib/cvPdf");
-        const result = await buildCvPdfBlob(declared, cv, order, template);
+        const result = await buildCvPdfBlob(declared, cv, order, template, include);
         if (cancelled) return;
         setBuilt(result);
         if (canEmbed) {
@@ -72,7 +75,7 @@ export function CvPdfPreviewDialog({
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [declared, cv, order, template, canEmbed]);
+  }, [declared, cv, order, template, include, canEmbed]);
 
   const download = async () => {
     if (!built) return;
@@ -96,7 +99,7 @@ export function CvPdfPreviewDialog({
       // Always regenerate from the latest fields so the shared file can never
       // be a stale build from an earlier edit.
       const { buildCvPdfBlob, shareCvPdfBlob } = await import("@/lib/cvPdf");
-      const fresh = await buildCvPdfBlob(declared, cv, order, template);
+      const fresh = await buildCvPdfBlob(declared, cv, order, template, include);
       filename = fresh.filename;
       setBuilt(fresh);
       if (canEmbed) {
