@@ -7,17 +7,15 @@ import {
   BadgeCheck,
   Briefcase,
   Check,
-  Download,
   FileText,
   Flag,
-  Share2,
   Plus,
   Sparkles,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { isShareCancelled } from "@/lib/saveFile";
+import { CvPdfPreviewDialog } from "@/components/cv/CvPdfPreviewDialog";
 import { COUNTRIES, useCountry } from "@/lib/country";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { tileName } from "@/lib/i18n/tileLabel";
@@ -235,8 +233,7 @@ function CvWorkbench({
   const [flags, setFlags] = useState<ValidationFlag[]>([]);
   const [attested, setAttested] = useState(false);
   const [cvId, setCvId] = useState<string | null>(null);
-  const [exporting, setExporting] = useState(false);
-  const [sharing, setSharing] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
 
   useEffect(() => {
     setGenerated(null);
@@ -825,42 +822,21 @@ function CvWorkbench({
           </button>
           <button
             type="button"
-            disabled={exporting}
-            onClick={async () => {
-              setExporting(true);
-              try {
-                const { exportCvPdf } = await import("@/lib/cvPdf");
-                const { filename } = await exportCvPdf(cleanDeclared(declared), generated);
-                toast.success(`Exported ${filename}`);
-              } catch (e) {
-                if (!isShareCancelled(e)) toast.error("Couldn't export the PDF. Try again.");
-              } finally {
-                setExporting(false);
-              }
-            }}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            onClick={() => setPreviewing(true)}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white"
           >
-            <Download className="size-4" /> {exporting ? "Preparing…" : "Export as PDF"}
+            <FileText className="size-4" /> Preview PDF
           </button>
-          <button
-            type="button"
-            disabled={sharing}
-            onClick={async () => {
-              setSharing(true);
-              try {
-                const { shareCvPdf } = await import("@/lib/cvPdf");
-                const { filename, how } = await shareCvPdf(cleanDeclared(declared), generated);
-                toast.success(how === "shared" ? "Share sheet opened" : `Saved ${filename}`);
-              } catch (e) {
-                if (!isShareCancelled(e)) toast.error("Couldn't share the PDF. Try again.");
-              } finally {
-                setSharing(false);
-              }
-            }}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
-          >
-            <Share2 className="size-4" /> {sharing ? "Preparing…" : "Share PDF"}
-          </button>
+          <p className="mt-1 text-center text-[11px] text-white/40">
+            Check the layout, then download or share from the preview.
+          </p>
+          {previewing && (
+            <CvPdfPreviewDialog
+              declared={cleanDeclared(declared)}
+              cv={generated}
+              onClose={() => setPreviewing(false)}
+            />
+          )}
           <button
             type="button"
             onClick={reportOutput}
