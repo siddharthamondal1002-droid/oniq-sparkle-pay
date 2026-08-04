@@ -400,7 +400,13 @@ function StudyScreen() {
   }
 
   if (!profiles || profiles.length === 0) {
-    return <SetupCard onCreated={(p) => setActiveId(p.id)} first />;
+    // Same reason as ModalCard: with State Boards expanded this card is far
+    // taller than the phone, so the first-run path needs its own scroll too.
+    return (
+      <div className="h-screen overflow-y-auto overscroll-contain pb-[max(2rem,env(safe-area-inset-bottom))]">
+        <SetupCard onCreated={(p) => setActiveId(p.id)} first />
+      </div>
+    );
   }
 
   const activeIsGovt = active ? isGovtBoard(active.board) : false;
@@ -591,7 +597,19 @@ function BoardPicker({
 function ModalCard({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4" onClick={onClose}>
-      <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+      {/*
+        The card MUST be able to scroll. `place-items-center` on a card taller
+        than the viewport clips it at BOTH ends with nothing to grab: the Study
+        setup card with State Boards expanded is 20 options long, and the last
+        eight (Maharashtra through Telangana, including West Bengal) were
+        simply unreachable. dvh, not vh, so mobile browser chrome is accounted
+        for; the safe-area padding keeps the final row clear of the gesture bar.
+      */}
+      <div
+        className="max-h-[90dvh] w-full max-w-sm overflow-y-auto overscroll-contain"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {children}
       </div>
     </div>
