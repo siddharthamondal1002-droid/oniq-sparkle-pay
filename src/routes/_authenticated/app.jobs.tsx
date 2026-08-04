@@ -73,7 +73,7 @@ const FIELD_LABEL: Record<CvSensitiveField, string> = {
 };
 
 function JobsScreen() {
-  const { country } = useCountry();
+  const [country] = useCountry();
   const [target, setTarget] = useState<Country>((country as Country) ?? "IN");
   const rules = useMemo(() => cvRulesFor(target), [target]);
 
