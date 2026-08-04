@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
@@ -11,6 +11,7 @@ import {
   Check,
   FileText,
   Flag,
+  GripVertical,
   Plus,
   Sparkles,
   X,
@@ -275,6 +276,11 @@ function CvWorkbench({
   const [template, setTemplate] = useState<CvTemplateId>(CV_TEMPLATE_DEFAULT);
   // Per-section switches — an excluded section is printed nowhere.
   const [include, setInclude] = useState<CvInclude>({ ...CV_INCLUDE_DEFAULT });
+  // Drag-to-reorder for qualification rows. Pointer events (not HTML5 DnD) so
+  // touch works too; the row order is the order used by preview and PDF.
+  const [dragCred, setDragCred] = useState<number | null>(null);
+  const dragCredIndex = useRef<number | null>(null);
+
 
 
   useEffect(() => {
@@ -600,12 +606,61 @@ function CvWorkbench({
             </p>
           )}
           {declared.credentials.map((c, i) => (
-            <div key={i} className="mt-3 rounded-xl border border-white/5 bg-black/20 p-3">
+            <div
+              key={i}
+              data-cred-index={i}
+              className={`mt-3 rounded-xl border bg-black/20 p-3 ${
+                dragCred === i ? "border-[#00D4B8]/60 bg-[#00D4B8]/5" : "border-white/5"
+              }`}
+            >
               <div className="mb-2 flex items-center justify-between">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/50">
+                  <button
+                    type="button"
+                    data-cred-handle={i}
+                    aria-label={`Reorder qualification ${i + 1} of ${declared.credentials.length}. Drag, or use up and down arrow keys.`}
+                    className="cursor-grab touch-none rounded-md p-0.5 text-white/30 outline-none ring-[#00D4B8]/60 hover:text-white/60 focus-visible:ring-2 active:cursor-grabbing"
+                    onPointerDown={(e) => {
+                      dragCredIndex.current = i;
+                      setDragCred(i);
+                      e.currentTarget.setPointerCapture(e.pointerId);
+                    }}
+                    onPointerMove={(e) => {
+                      const from = dragCredIndex.current;
+                      if (from === null) return;
+                      const over = credIndexAtPoint(e.clientX, e.clientY);
+                      if (over === null || over === from) return;
+                      dragCredIndex.current = over;
+                      setDragCred(over);
+                      moveCredentialTo(declared, setDeclared, from, over);
+                    }}
+                    onPointerUp={() => {
+                      dragCredIndex.current = null;
+                      setDragCred(null);
+                    }}
+                    onPointerCancel={() => {
+                      dragCredIndex.current = null;
+                      setDragCred(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+                      e.preventDefault();
+                      const to = i + (e.key === "ArrowUp" ? -1 : 1);
+                      if (to < 0 || to >= declared.credentials.length) return;
+                      moveCredentialTo(declared, setDeclared, i, to);
+                      requestAnimationFrame(() => {
+                        document
+                          .querySelector<HTMLElement>(`[data-cred-handle="${to}"]`)
+                          ?.focus({ preventScroll: true });
+                      });
+                    }}
+                  >
+                    <GripVertical className="size-3.5" />
+                  </button>
                   Qualification {i + 1}
                 </span>
                 <div className="flex items-center gap-1">
+
                   <button
                     type="button"
                     aria-label="Move up"
@@ -1214,6 +1269,30 @@ function moveCredential(
   credentials.splice(target, 0, row);
   set({ ...declared, credentials });
 }
+
+/** Move a qualification row to an absolute position (drag + keyboard reorder). */
+function moveCredentialTo(
+  declared: CvDeclared,
+  set: (d: CvDeclared) => void,
+  from: number,
+  to: number,
+) {
+  if (from === to || to < 0 || to >= declared.credentials.length) return;
+  const credentials = [...declared.credentials];
+  const [row] = credentials.splice(from, 1);
+  credentials.splice(to, 0, row);
+  set({ ...declared, credentials });
+}
+
+/** Which qualification row sits under the pointer, if any. */
+function credIndexAtPoint(x: number, y: number): number | null {
+  const row = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-cred-index]");
+  if (!row) return null;
+  const i = Number(row.dataset["credIndex"]);
+  return Number.isFinite(i) ? i : null;
+}
+
+
 
 function patchRole(
   declared: CvDeclared,
