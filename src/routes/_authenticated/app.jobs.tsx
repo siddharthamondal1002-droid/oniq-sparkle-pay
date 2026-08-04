@@ -226,9 +226,20 @@ function CvWorkbench({
 
   const years = yearsOfExperience(declared.roles);
   const prompted = promptedFields(target);
+  // Work with whatever the user gave us: blank rows are dropped, never demanded.
+  const clean = useMemo(() => cleanDeclared(declared), [declared]);
+  const hasAnything =
+    Boolean(clean.fullName || clean.headline || clean.summary) ||
+    clean.roles.length > 0 ||
+    clean.credentials.length > 0 ||
+    clean.skills.length > 0;
 
   async function generate() {
-    const screen = screenInstruction(instruction, declared);
+    if (!hasAnything) {
+      toast.error("Add at least one thing — a name, a skill, a course or a role.");
+      return;
+    }
+    const screen = screenInstruction(instruction, clean);
     if (!screen.allowed) {
       toast.error(screen.reason);
       setRefusals([screen.reason]);
@@ -238,9 +249,11 @@ function CvWorkbench({
     try {
       const { data, error } = await supabase.functions.invoke("cv-generate", {
         body: {
-          declaredFacts: declaredFactsBlock(declared, target),
+          declaredFacts: declaredFactsBlock(clean, target),
           countryContract: countryPromptContract(target),
-          instruction,
+          instruction:
+            (instruction.trim() ? instruction.trim() + "\n\n" : "") +
+            "Work with whatever facts are present. Skip any section the user left empty instead of asking for more.",
         },
       });
       if (error) throw error;
