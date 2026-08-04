@@ -54,6 +54,11 @@ import {
   applyCountryRules,
   declaredFactsBlock,
   emptyDeclared,
+  normalizeIssuer,
+  normalizeQualification,
+  normalizeSkills,
+  normalizeYear,
+
   screenInstruction,
   validateGenerated,
   validateIssuer,
@@ -621,6 +626,7 @@ function CvWorkbench({
                 hint="Name the degree, class or certificate — no marks or grades here."
                 value={c.name}
                 error={credErrors[i]?.name ?? null}
+                normalize={normalizeQualification}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { name: v })}
               />
               <Field
@@ -629,15 +635,19 @@ function CvWorkbench({
                 hint="Who awarded it: school board, university, or the company behind the certificate."
                 value={c.issuer}
                 error={credErrors[i]?.issuer ?? null}
+                normalize={normalizeIssuer}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { issuer: v })}
               />
+
               <Field
                 label="Year"
                 placeholder="e.g. 2024 · 2020-2024 · 2023-present"
                 hint="4-digit year, or a range like 2020-2024. Use 'present' if ongoing."
                 value={c.year}
                 error={credErrors[i]?.year ?? null}
+                normalize={normalizeYear}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { year: v })}
+
               />
 
               <button
@@ -758,18 +768,19 @@ function CvWorkbench({
             placeholder="e.g. Excel, Tally, spoken English, Python, customer support"
             hint="Separate each skill with a comma — short phrases work best (2-3 words)."
             error={skillsError}
-
             value={declared.skills.join(", ")}
+            normalize={(v) => normalizeSkills([v]).join(", ")}
             onChange={(v) =>
               setDeclared({
                 ...declared,
                 skills: v
-                  .split(",")
+                  .split(/[,;|\n•·]/)
                   .map((s) => s.trim())
                   .filter(Boolean),
               })
             }
           />
+
           {declared.skills.length > 0 && (
             <>
               <p className="mt-3 text-[11px] text-white/40">
@@ -1157,8 +1168,13 @@ function cleanDeclared(d: CvDeclared): CvDeclared {
       })),
     credentials: d.credentials
       .filter((c) => t(c.name) || t(c.issuer))
-      .map((c) => ({ name: t(c.name), issuer: t(c.issuer), year: t(c.year) })),
-    skills: d.skills.map(t).filter(Boolean),
+      .map((c) => ({
+        name: normalizeQualification(c.name),
+        issuer: normalizeIssuer(c.issuer),
+        year: normalizeYear(c.year),
+      })),
+    skills: normalizeSkills(d.skills),
+
   };
 }
 
@@ -1204,6 +1220,7 @@ function Field({
   placeholder,
   error,
   hint,
+  normalize,
 }: {
   label: string;
   value: string;
@@ -1211,6 +1228,8 @@ function Field({
   placeholder?: string;
   error?: string | null;
   hint?: string;
+  /** Optional tidy-up applied when the field loses focus. */
+  normalize?: (v: string) => string;
 }) {
   return (
     <label className="block">
@@ -1221,12 +1240,18 @@ function Field({
         placeholder={placeholder}
         aria-invalid={error ? true : undefined}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={() => {
+          if (!normalize) return;
+          const next = normalize(value);
+          if (next !== value) onChange(next);
+        }}
         className={`w-full resize-y rounded-xl border bg-black/30 px-3 py-2 text-sm outline-none ${
           error
             ? "border-rose-400/70 focus:border-rose-400"
             : "border-white/10 focus:border-[#00D4B8]/60"
         }`}
       />
+
       {error ? (
         <span className="mt-1 block text-[11px] text-rose-300">{error}</span>
       ) : hint ? (
