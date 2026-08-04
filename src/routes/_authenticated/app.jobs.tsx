@@ -569,25 +569,29 @@ function CvWorkbench({
               </div>
               <Field
                 label="Qualification"
-                placeholder="e.g. Class 12, B.Sc Physics, AWS Cloud Practitioner"
+                placeholder="e.g. Class 12 (Science) · B.Sc Physics · AWS Cloud Practitioner"
+                hint="Name the degree, class or certificate — no marks or grades here."
                 value={c.name}
                 error={credErrors[i]?.name ?? null}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { name: v })}
               />
               <Field
                 label="Board / university / issuer"
-                placeholder="e.g. CBSE, Delhi University, Amazon"
+                placeholder="e.g. CBSE · Maharashtra State Board · Delhi University · Amazon"
+                hint="Who awarded it: school board, university, or the company behind the certificate."
                 value={c.issuer}
                 error={credErrors[i]?.issuer ?? null}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { issuer: v })}
               />
               <Field
                 label="Year"
-                placeholder="e.g. 2024 or 2020-2024"
+                placeholder="e.g. 2024 · 2020-2024 · 2023-present"
+                hint="4-digit year, or a range like 2020-2024. Use 'present' if ongoing."
                 value={c.year}
                 error={credErrors[i]?.year ?? null}
                 onChange={(v) => patchCredential(declared, setDeclared, i, { year: v })}
               />
+
               <button
                 type="button"
                 onClick={() =>
