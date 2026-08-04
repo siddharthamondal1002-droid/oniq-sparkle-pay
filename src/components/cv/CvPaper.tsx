@@ -63,16 +63,70 @@ function Heading({ text }: { text: string }) {
 
 export type CvPaperDoc = Pick<CvGenerated, "summary" | "roles" | "credentials" | "skills">;
 
+/** Usable content height per printed page, in mm — the same window
+ * buildCvPdf() fills before it calls doc.addPage(). */
+const PAGE_CONTENT_H = CV_PAGE.bottom - CV_PAGE.margin;
+
+/**
+ * Dashed rules drawn where the exporter will break the page, so long
+ * Experience / Qualifications / Skills blocks show their split up front.
+ */
+function PageBreaks({ sheetHeight }: { sheetHeight: number }) {
+  if (!sheetHeight) return null;
+  // sheetHeight is in mm; content starts at the top margin.
+  const breaks: number[] = [];
+  for (let k = 1; k * PAGE_CONTENT_H + CV_PAGE.margin < sheetHeight - 2; k++) {
+    breaks.push(k);
+  }
+  if (breaks.length === 0) return null;
+  return (
+    <>
+      {breaks.map((k) => (
+        <div
+          key={k}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: `${CV_PAGE.margin + k * PAGE_CONTENT_H}mm`,
+            borderTop: "0.4mm dashed #00A furthest".slice(0, 0) || "0.4mm dashed #d11a6b",
+            pointerEvents: "none",
+          }}
+        >
+          <span
+            style={{
+              position: "absolute",
+              right: `${CV_PAGE.margin}mm`,
+              top: "0.8mm",
+              fontSize: mm(7.5),
+              color: "#d11a6b",
+              fontWeight: 700,
+              letterSpacing: "0.2mm",
+            }}
+          >
+            {`page ${k} ends · page ${k + 1} starts`}
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
 /** The A4 sheet itself, drawn at true size; the parent scales it. */
 function Sheet({
   declared: declaredIn,
   cv: cvIn,
   order,
+  pageBreaks,
+  onHeight,
 }: {
   declared: CvDeclared;
   cv: CvPaperDoc;
   order?: readonly CvSectionKey[];
+  pageBreaks?: boolean;
+  onHeight?: (mmHeight: number) => void;
 }) {
+
   // Identical pruning to buildCvPdf(): placeholders and empty rows never
   // reach the page, in the preview or the export.
   const declared = pruneDeclaredForExport(declaredIn);
