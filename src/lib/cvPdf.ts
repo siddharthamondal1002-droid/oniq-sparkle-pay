@@ -1,6 +1,6 @@
 // One-click CV export. Vector text via jsPDF — never a DOM rasterisation
 // (html2canvas blocks the WebView main thread and ANRs on multi-page docs).
-import { deliverFile } from "@/lib/saveFile";
+import { deliverFile, shareFile } from "@/lib/saveFile";
 import type { CvDeclared, CvGenerated } from "@/lib/cvValidation";
 
 const A4_W = 210;
@@ -134,4 +134,19 @@ export async function exportCvPdf(
   const buf = doc.output("arraybuffer") as ArrayBuffer;
   await deliverFile(filename, "application/pdf", new Blob([buf], { type: "application/pdf" }));
   return { filename };
+}
+
+/** Build + open the platform share sheet. Returns how the file was handed off. */
+export async function shareCvPdf(
+  declared: CvDeclared,
+  cv: CvGenerated,
+): Promise<{ filename: string; how: "shared" | "downloaded" }> {
+  const doc = await buildCvPdf(declared, cv);
+  const filename = cvFilename(declared.fullName);
+  const buf = doc.output("arraybuffer") as ArrayBuffer;
+  const how = await shareFile(filename, "application/pdf", new Blob([buf], { type: "application/pdf" }), {
+    title: declared.fullName ? `${declared.fullName} — CV` : "My CV",
+    text: "My CV",
+  });
+  return { filename, how };
 }

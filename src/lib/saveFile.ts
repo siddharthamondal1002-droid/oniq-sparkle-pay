@@ -61,3 +61,35 @@ export async function deliverFile(
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
   return "downloaded";
 }
+
+/**
+ * Hand a file to the platform share sheet.
+ *
+ * Native: Capacitor Share (same path as deliverFile).
+ * Web: navigator.share with files when supported; otherwise falls back to a
+ * plain download so the button is never a dead end.
+ *
+ * Errors propagate — the caller decides what to tell the user.
+ */
+export async function shareFile(
+  filename: string,
+  mime: string,
+  blob: Blob,
+  opts?: { title?: string; text?: string },
+): Promise<"shared" | "downloaded"> {
+  if (Capacitor.isNativePlatform()) {
+    return deliverFile(filename, mime, blob);
+  }
+
+  const file = new File([blob], filename, { type: mime });
+  const nav = navigator as Navigator & {
+    canShare?: (data: ShareData) => boolean;
+    share?: (data: ShareData) => Promise<void>;
+  };
+  if (nav.share && nav.canShare?.({ files: [file] })) {
+    await nav.share({ files: [file], title: opts?.title ?? filename, text: opts?.text });
+    return "shared";
+  }
+
+  return deliverFile(filename, mime, blob);
+}
