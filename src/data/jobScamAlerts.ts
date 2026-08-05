@@ -12,9 +12,16 @@
 // republishing. Each warning carries the source it was written from and a link
 // to it, so a reader can check ONIQ against the original.
 //
-// AXIS: CURRENT REGION. A reporting number has to be the one that works from
-// where the user is standing. An Indian user in Dubai who is being scammed
-// needs Dubai Police eCrime, not 1930 — 1930 will not help them today.
+// AXES: CURRENT REGION, THEN THE MARKET APPLIED TO. A reporting number has to
+// be the one that works from where the user is standing — an Indian user in
+// Dubai who is being scammed needs Dubai Police eCrime, not 1930, because 1930
+// will not help them today. So region leads.
+//
+// But the market the user picked on the screen above is the jurisdiction the
+// fake employer claims to sit in, and that is a real second channel. Showing
+// only the first one also made the panel appear frozen: everything else on the
+// tab moves with the chips and the numbers did not. See reportingGroups.
+//
 // Contrast markets, which follow Home.
 
 import type { Country } from "@/data/appRegistry";
@@ -145,4 +152,54 @@ export function reportingFor(region: Country | null, home: Country | null): Repo
 export function sourceFor(region: Country | null, home: Country | null): ScamSource | null {
   const c = region ?? home;
   return c ? (SOURCES[c] ?? null) : null;
+}
+
+/**
+ * TWO AXES, SHOWN AS TWO — not silently collapsed into one.
+ *
+ * The single-axis version of this was wrong on screen even though it was right
+ * in principle. The panel sits under a chip row headed "Where are you
+ * applying?", and the tab beside it renders "AE rules" — so a user who picks a
+ * different market watches everything change except the reporting numbers, and
+ * reasonably concludes the feature is broken.
+ *
+ * Both axes are real, and they are different questions:
+ *
+ *   region — where you are standing. This is the channel that can act on you
+ *            being defrauded today. It stays first for that reason.
+ *   target — the market you are applying into, and therefore the jurisdiction
+ *            the fake employer is claiming to sit in. Cross-border recruitment
+ *            fraud is the common shape here: the "Dubai employer" advertising
+ *            to someone in India is a matter for eCrime, whoever reports it.
+ *
+ * When they agree, this returns one group and the surface looks as it always
+ * did. When they differ, it returns both, in that order, and the caller labels
+ * each one so the user can see why it is being shown.
+ */
+export type ReportingAxis = "region" | "target";
+
+export type ReportingGroup = {
+  axis: ReportingAxis;
+  country: Country;
+  channels: ReportingChannel[];
+  source: ScamSource | null;
+};
+
+export function reportingGroups(
+  region: Country | null,
+  target: Country | null,
+): ReportingGroup[] {
+  const groups: ReportingGroup[] = [];
+  const push = (axis: ReportingAxis, c: Country | null) => {
+    if (!c || groups.some((g) => g.country === c)) return;
+    const channels = REPORTING[c] ?? [];
+    if (channels.length === 0) return;
+    groups.push({ axis, country: c, channels, source: SOURCES[c] ?? null });
+  };
+  // Region first: it is the one that helps today. `push` de-duplicates, so
+  // when the two axes agree the target group collapses into the region one
+  // rather than printing the same numbers twice.
+  push("region", region);
+  push("target", target);
+  return groups;
 }

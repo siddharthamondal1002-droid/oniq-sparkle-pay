@@ -38,12 +38,7 @@ import { SkillChips } from "@/components/cv/SkillChips";
 import { supabase } from "@/integrations/supabase/client";
 import { AiOutputReport, AI_OUTPUT_LABEL } from "@/components/safety/AiOutputReport";
 import { useCurrentRegion } from "@/lib/region";
-import {
-  LEAD_WARNING,
-  SCAM_PATTERNS,
-  reportingFor,
-  sourceFor,
-} from "@/data/jobScamAlerts";
+import { LEAD_WARNING, SCAM_PATTERNS, reportingGroups } from "@/data/jobScamAlerts";
 import { CvPdfPreviewDialog } from "@/components/cv/CvPdfPreviewDialog";
 import { COUNTRIES, useCountry } from "@/lib/country";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -264,12 +259,12 @@ function CvWorkbench({
   cvWord: string;
 }) {
   const rules = cvRulesFor(target);
-  // Scam reporting follows CURRENT REGION — the helpline has to be the one
-  // that works from where the user is standing. Hook stays above every early
-  // return in this component.
+  // Scam reporting shows BOTH axes when they differ: where the user is
+  // standing (the channel that can act today) and the market they are applying
+  // into (the jurisdiction the fake employer claims). Collapses to one group
+  // when they agree. Hook stays above every early return in this component.
   const [scamRegion] = useCurrentRegion();
-  const scamReporting = reportingFor(scamRegion, target);
-  const scamSource = sourceFor(scamRegion, target);
+  const scamGroups = reportingGroups(scamRegion, target);
   const [tab, setTab] = useState<TabKey>("basics");
   const [declared, setDeclared] = useState<CvDeclared>(() => ({
     ...emptyDeclared(),
@@ -900,9 +895,14 @@ function CvWorkbench({
           {/*
             Job-scam alerts. ONIQ's own words, written from the official
             advisory named at the bottom of the card — the advisory itself is
-            linked, never re-hosted. Reporting channels follow CURRENT REGION,
-            because a helpline has to be the one that works from where the user
-            is standing: an Indian user in Dubai needs eCrime, not 1930.
+            linked, never re-hosted.
+
+            Reporting channels show BOTH axes when they differ. Current region
+            comes first, because a helpline has to be the one that works from
+            where the user is standing: an Indian user in Dubai needs eCrime,
+            not 1930. But the market chosen above is the jurisdiction the fake
+            employer is claiming, so it is shown too — and showing only the
+            first one made the whole panel look frozen when the chips changed.
           */}
           <section className="rounded-2xl border border-rose-500/30 bg-rose-500/5 p-4">
             <h2 className="flex items-center gap-2 text-sm font-semibold text-rose-200">
@@ -920,36 +920,61 @@ function CvWorkbench({
                 <p className="mt-1 text-xs font-medium text-rose-200/90">{pat.tell}</p>
               </div>
             ))}
-            {scamReporting.length > 0 && (
+            {scamGroups.length > 0 && (
               <div className="mt-4 border-t border-white/10 pt-3">
                 <h3 className="text-xs font-semibold text-white/80">Report it</h3>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {scamReporting.map((ch) => (
-                    <a
-                      key={ch.name}
-                      href={ch.phone ? `tel:${ch.phone}` : ch.url}
-                      target={ch.url ? "_blank" : undefined}
-                      rel={ch.url ? "noopener noreferrer" : undefined}
-                      className="rounded-full border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100"
-                    >
-                      {ch.name}
-                      {ch.phone ? ` · ${ch.phone}` : " ↗"}
-                    </a>
-                  ))}
-                </div>
+                {scamGroups.map((g) => {
+                  const name = COUNTRIES.find((c) => c.code === g.country)?.label ?? g.country;
+                  return (
+                    <div key={`${g.axis}-${g.country}`} className="mt-2">
+                      {/* Say which question each set of numbers answers. Without
+                          this the second group looks like a duplicate. */}
+                      <p className="text-[11px] text-white/45">
+                        {g.axis === "region"
+                          ? `Where you are — ${name}`
+                          : `Where you're applying — ${name}`}
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap gap-2">
+                        {g.channels.map((ch) => (
+                          <a
+                            key={ch.name}
+                            href={ch.phone ? `tel:${ch.phone}` : ch.url}
+                            target={ch.url ? "_blank" : undefined}
+                            rel={ch.url ? "noopener noreferrer" : undefined}
+                            className="rounded-full border border-rose-400/40 bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-100"
+                          >
+                            {ch.name}
+                            {ch.phone ? ` · ${ch.phone}` : " ↗"}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
-            {scamSource && (
+            {scamGroups.length > 0 && (
               <p className="mt-3 text-[11px] text-white/40">
-                Written from guidance published by {scamSource.authority}.{" "}
-                <a
-                  href={scamSource.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="underline underline-offset-2"
-                >
-                  Read the original ↗
-                </a>
+                Written from guidance published by{" "}
+                {scamGroups
+                  .map((g) => g.source?.authority)
+                  .filter(Boolean)
+                  .join(" and ")}
+                .{" "}
+                {scamGroups.map(
+                  (g) =>
+                    g.source && (
+                      <a
+                        key={g.country}
+                        href={g.source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="me-2 underline underline-offset-2"
+                      >
+                        Read the {g.country} original ↗
+                      </a>
+                    ),
+                )}
               </p>
             )}
           </section>

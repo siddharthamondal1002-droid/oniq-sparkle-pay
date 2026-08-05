@@ -16,6 +16,7 @@ import {
   SCAM_PATTERNS,
   SOURCES,
   reportingFor,
+  reportingGroups,
   sourceFor,
 } from "@/data/jobScamAlerts";
 
@@ -63,6 +64,65 @@ describe("axis is where the user is standing", () => {
   it("returns nothing rather than a wrong number when neither is known", () => {
     expect(reportingFor(null, null)).toEqual([]);
     expect(sourceFor(null, null)).toBeNull();
+  });
+});
+
+describe("the panel responds to the market the user picks", () => {
+  // The reported bug: changing "Where are you applying?" changed the tab label
+  // and the local conventions, but the reporting numbers never moved, because
+  // current region always won. Both axes are real; showing one silently made
+  // the surface look dead.
+  it("shows the applied-to market as well as the current region", () => {
+    const groups = reportingGroups("IN", "AE");
+    expect(groups.map((g) => g.country)).toEqual(["IN", "AE"]);
+    expect(groups[0].axis).toBe("region");
+    expect(groups[1].axis).toBe("target");
+  });
+
+  it("keeps the number that works today first", () => {
+    // Region leads whichever market is chosen — this is the property the
+    // single-axis version was protecting, and it must survive the fix.
+    for (const target of ALL_COUNTRIES) {
+      const groups = reportingGroups("AE", target);
+      expect(groups[0].country, `target ${target} displaced the region`).toBe("AE");
+      expect(groups[0].axis).toBe("region");
+    }
+  });
+
+  it("changing the market changes what is rendered", () => {
+    // Straight statement of the user-visible symptom: two different chips must
+    // not produce identical output.
+    const inAe = JSON.stringify(reportingGroups("IN", "AE"));
+    const inUs = JSON.stringify(reportingGroups("IN", "US"));
+    expect(inAe).not.toEqual(inUs);
+    expect(inAe).toContain("ecrime.ae");
+    expect(inUs).toContain("reportfraud.ftc.gov");
+  });
+
+  it("does not print the same country twice when both axes agree", () => {
+    const groups = reportingGroups("IN", "IN");
+    expect(groups).toHaveLength(1);
+    expect(groups[0].country).toBe("IN");
+    expect(groups[0].axis).toBe("region");
+  });
+
+  it("still works when the region is unknown — the market alone carries it", () => {
+    const groups = reportingGroups(null, "SG");
+    expect(groups).toHaveLength(1);
+    expect(groups[0].axis).toBe("target");
+    expect(JSON.stringify(groups)).toContain("1799");
+  });
+
+  it("returns nothing when neither axis is known", () => {
+    expect(reportingGroups(null, null)).toEqual([]);
+  });
+
+  it("carries attribution on every group it returns", () => {
+    for (const g of reportingGroups("IN", "GB")) {
+      expect(g.source, `${g.country} group has no source`).not.toBeNull();
+      expect(g.source!.url).toMatch(/^https:\/\//);
+      expect(g.channels.length).toBeGreaterThan(0);
+    }
   });
 });
 
