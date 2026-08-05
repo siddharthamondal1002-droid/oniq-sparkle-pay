@@ -293,12 +293,6 @@ export const LICENCE_FAMILIES: { title: string; blurb: string; ids: string[] }[]
     ids: ["common-core"],
   },
   {
-    title: "Open source and open data — no notice required",
-    blurb:
-      "Permissively licensed and free for commercial use with no notice owed. Credited anyway, and the conditions that DO apply are listed against each.",
-    ids: ["nager-date", "ecb-frankfurter"],
-  },
-  {
     title: "Referenced, not republished",
     blurb:
       "ONIQ stores pointers and its own words here — an embed, a headline and a link, or a warning written from a public advisory. Nothing on this list is re-hosted, and the conditions attached to each are what keep it that way.",

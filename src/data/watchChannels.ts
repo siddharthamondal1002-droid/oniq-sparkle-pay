@@ -37,7 +37,7 @@
 //
 // This is the one surface where the wrong axis creates direct copyright
 // liability. A user whose Home is GB but who is standing in Dubai is not
-// licensed for a UK stream. Contrast markets (src/data/marketApps.ts), which
+// licensed for a UK stream. Contrast market link-outs, which
 // follow HOME precisely because an Indian user in Dubai still wants the Nifty.
 
 import type { Country } from "@/data/appRegistry";
