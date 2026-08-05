@@ -8,7 +8,6 @@ import {
   Lock,
   Clapperboard,
   Film,
-  Tv,
   Play,
   Heart,
   BookOpen,
@@ -154,7 +153,6 @@ function HomeScreen() {
                 { key: "miniapps", to: "/app/miniapps" },
                 { key: "official", to: "/app/official" },
                 { key: "pulse", to: "/app/news" },
-                { key: "watch", to: "/app/news", search: { tab: "watch" as const } },
                 { key: "faith", to: "/app/faith" },
                 { key: "vitals", to: "/app/vitals", color: vitalsColor },
                 { key: "wander", to: "/app/travel" },
@@ -250,83 +248,6 @@ function Tile({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     <Link to={to as any} className={`${base} hover:brightness-110`} style={style}>
       {inner}
-    </Link>
-  );
-}
-
-// The Watch hero tile used to embed a second YouTube IFrame player right here
-// on the home screen: a muted autoplaying stream behind the tile, with a genre
-// picker, a devotional loop timer and MediaProvider coordination so it did not
-// fight BrainrotBanner for audio. All of it is gone.
-//
-// ONIQ does not stream, embed, proxy, resolve or channel live TV. The tile is
-// now an ordinary Link into Watch, which is itself a link-out directory. The
-// devotional loop timer went with it — it existed to keep a stream playing
-// unattended for up to 24 hours, which is the single furthest thing from
-// "ONIQ does not stream".
-//
-// localStorage keys oniq.watch.devotionalLoopStartedAt and
-// oniq.watch.devotionalLoopDurationSec are simply abandoned; nothing reads
-// them, and they hold a timestamp and an integer, so there is nothing to
-// migrate or purge.
-
-function HeroTile({
-  to,
-  search,
-  icon: Icon,
-  label,
-  tagline,
-  gradient,
-  skin,
-  delay = 0,
-}: {
-  tileKey: TileKey;
-  to: string;
-  search?: Record<string, unknown>;
-  icon: typeof Send;
-  label: string;
-  tagline: string;
-  gradient: string;
-  skin?: string;
-  delay?: number;
-}) {
-  const [skinError, setSkinError] = useState(false);
-  const showSkin = skin && !skinError;
-
-  return (
-    <Link
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      to={to as any}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      search={search as any}
-      style={{ animationDelay: `${delay}ms` }}
-      className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
-    >
-      {showSkin ? (
-        <>
-          <img
-            src={skin!}
-            alt=""
-            onError={() => setSkinError(true)}
-            className="absolute inset-0 h-full w-full object-cover"
-          />
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-        </>
-      ) : (
-        <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
-      )}
-      <div className="relative">
-        <div
-          className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}
-        >
-          {tagline}
-        </div>
-        <div
-          className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}
-        >
-          {label}
-        </div>
-      </div>
     </Link>
   );
 }
@@ -636,35 +557,6 @@ function SectionRow({
   );
 }
 
-// ---------- Media banner (Watch-only) ----------
-
-function MediaBanner({
-  watchHidden,
-  watchSkin,
-}: {
-  watchHidden: boolean;
-  clipsHidden?: boolean;
-  watchSkin?: string;
-  clipsSkin?: string;
-}) {
-  if (watchHidden) return null;
-  return (
-    <div className="relative">
-      <HeroTile
-        tileKey="watch"
-        skin={watchSkin}
-        to="/app/news"
-        search={{ tab: "watch" as const }}
-        icon={Tv}
-        label="Watch"
-        tagline="mast on tap 📺"
-        gradient="from-primary/30 via-primary/10 to-accent/30"
-        delay={0}
-      />
-    </div>
-  );
-}
-
 // ---------- Study hero (Study-first home) ----------
 
 type LearnerProfileLite = { id: string; name: string; board: string; class_level: string };
@@ -867,12 +759,12 @@ function AlsoInOniqRow({
   );
 }
 
-// ---------- Home media banner: 4-way Watch / Study / Moments / Mast ----------
+// ---------- Home media banner: Study / Moments / Mast ----------
 
-type BannerMode = "watch" | "study" | "moments" | "mast";
+type BannerMode = "study" | "moments" | "mast";
 const BANNER_MODE_KEY = "oniq.home.banner.mode";
 
-const BANNER_MODES: BannerMode[] = ["watch", "study", "moments", "mast"];
+const BANNER_MODES: BannerMode[] = ["study", "moments", "mast"];
 
 function HomeMediaBanner() {
   const [hidden] = useHiddenTiles();
@@ -884,7 +776,7 @@ function HomeMediaBanner() {
     if (typeof window === "undefined") return "study";
     try {
       const v = localStorage.getItem(BANNER_MODE_KEY);
-      if (v === "watch" || v === "study" || v === "moments" || v === "mast") return v;
+      if (v === "study" || v === "moments" || v === "mast") return v;
     } catch {
       /* noop */
     }
@@ -910,7 +802,6 @@ function HomeMediaBanner() {
   }, [mode, hidden]);
 
   const tabs: { id: BannerMode; label: string }[] = [
-    { id: "watch", label: tileName(lang, "watch", home) },
     { id: "study", label: tileName(lang, "study", home) },
     { id: "moments", label: tileName(lang, "moments", home) },
     { id: "mast", label: tileName(lang, "mast", home) },
@@ -948,9 +839,6 @@ function HomeMediaBanner() {
         })}
       </div>
 
-      {mode === "watch" && !hidden.has("watch") && (
-        <MediaBanner watchHidden={false} watchSkin={skins.watch} />
-      )}
       {mode === "study" && !hidden.has("study") && <StudyHero />}
       {mode === "moments" && !hidden.has("moments") && <MomentsPreview />}
       {mode === "mast" && !hidden.has("mast") && <MastPreview />}
