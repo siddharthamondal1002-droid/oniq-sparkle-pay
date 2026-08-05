@@ -205,8 +205,6 @@ export const FEATURES: Feature[] = [
   { id: "study", supportedCountries: ["IN"] },
   // University & admissions surface — every supported country has a route,
   // institutions and a calendar (Education & Careers loop, Phase 3).
-  // Open-data glance: holidays, an ECB reference rate and market link-outs.
-  { id: "glance", supportedCountries: "*" },
   { id: "university", supportedCountries: "*" },
   // Candidate-side CV builder (Education & Careers loop, Phase 4). Gated at
   // 18+ in the data layer by public.is_adult_18(), not by country.

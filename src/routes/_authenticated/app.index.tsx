@@ -7,7 +7,6 @@ import {
   Send,
   Car,
   LayoutGrid,
-  IndianRupee,
   Lock,
   Clapperboard,
   Film,
@@ -37,7 +36,6 @@ import {
 } from "@/components/customize/CustomizeSheet";
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useCountry } from "@/lib/country";
-import type { Country } from "@/data/appRegistry";
 import { isAvailable } from "@/data/countryRegistry";
 import { useIsAdult18 } from "@/lib/useIsAdult18";
 import { SafeMount } from "@/components/SafeMount";
