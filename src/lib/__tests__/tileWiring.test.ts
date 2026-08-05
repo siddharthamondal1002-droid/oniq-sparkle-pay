@@ -32,7 +32,7 @@ describe("Phase 4a tile wiring", () => {
   });
 
   it("leaves existing labels unchanged when country is omitted or passed", () => {
-    for (const k of ["watch", "study", "rides", "vitals", "pulse"] as TileKey[]) {
+    for (const k of ["study", "rides", "vitals", "pulse"] as TileKey[]) {
       expect(tileName("en", k)).toBe(TILE_LABELS[k]);
       expect(tileName("en", k, "US")).toBe(TILE_LABELS[k]);
       expect(tileName("hi", k, "US")).toBe(TILE_LABELS_HI[k]);

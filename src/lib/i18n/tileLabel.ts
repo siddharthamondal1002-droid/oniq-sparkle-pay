@@ -13,7 +13,6 @@ import type { Country } from "@/data/appRegistry";
 
 /** Every tile ONIQ can render. Source of truth for the label tables below. */
 export type TileKey =
-  | "watch"
   | "study"
   | "moments"
   | "mast"
@@ -37,7 +36,6 @@ export type TileKey =
 
 /** International English — shown for every locale except `hi`. */
 export const TILE_LABELS: Record<TileKey, string> = {
-  watch: "Watch",
   study: "Study 📚",
   moments: "Moments ✨",
   mast: "Mast 🎬",
@@ -74,7 +72,6 @@ export const TILE_LABELS_BY_COUNTRY: Partial<
 
 /** Hindi tile names — rendered only when the active locale is `hi`. */
 export const TILE_LABELS_HI: Record<TileKey, string> = {
-  watch: "देखो",
   study: "पढ़ाई",
   moments: "पल",
   mast: "मस्त 🎬",

@@ -1039,7 +1039,7 @@ function MastPreview() {
   }, [idx, pickNonce, clips.length]);
 
   // Register the current video with the single-audio-source coordinator so
-  // Watch and Mast never play audio simultaneously.
+  // Only one media surface plays audio at a time.
   useEffect(() => {
     if (videoRef.current) media.register(videoRef.current);
   }, [idx, media]);

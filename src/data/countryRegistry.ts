@@ -213,7 +213,6 @@ export const FEATURES: Feature[] = [
   { id: "jobsApps", supportedCountries: "*" },
   { id: "faith", supportedCountries: "*" },
   { id: "pulse", supportedCountries: "*" },
-  { id: "watch", supportedCountries: "*" },
   { id: "miniapps", supportedCountries: "*" },
   { id: "rides", supportedCountries: "*" },
   { id: "official", supportedCountries: "*" },

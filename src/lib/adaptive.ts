@@ -52,7 +52,6 @@ export const SUGGESTABLE: Record<
   rides: { tile: "rides", label: TILE_LABELS.rides, to: "/app/rides" },
   faith: { tile: "faith", label: TILE_LABELS.faith, to: "/app/faith" },
   pulse: { tile: "pulse", label: TILE_LABELS.pulse, to: "/app/news" },
-  watch: { tile: "watch", label: TILE_LABELS.watch, to: "/app/news", search: { tab: "watch" } },
   miniapps: { tile: "miniapps", label: TILE_LABELS.miniapps, to: "/app/miniapps" },
   official: { tile: "official", label: TILE_LABELS.official, to: "/app/official" },
   wander: { tile: "wander", label: TILE_LABELS.wander, to: "/app/travel" },
