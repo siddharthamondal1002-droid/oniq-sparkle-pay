@@ -157,10 +157,14 @@ describe("every entry is a link that leaves the app", () => {
     expect(WATCH_NOTICE.toLowerCase()).toContain("does not play");
   });
 
-  it("the Watch surface renders link rows and no player mount", () => {
-    const src = readFileSync(join(ROOT, "src/components/landing/LiveNewsSection.tsx"), "utf8");
-    expect(src).toMatch(/openInApp/);
-    expect(src).not.toMatch(/mountRef|playerRef|aspect-video/);
+  it("the Watch surface is gone entirely — only the faith directory consumes this data", () => {
+    let exists = true;
+    try {
+      statSync(join(ROOT, "src/components/landing/LiveNewsSection.tsx"));
+    } catch {
+      exists = false;
+    }
+    expect(exists, "the Watch surface still exists").toBe(false);
   });
 
   it("the faith surface renders link rows, with no iframe and no audio element", () => {
@@ -172,9 +176,10 @@ describe("every entry is a link that leaves the app", () => {
     expect(codeOf(path)).not.toMatch(/<iframe|new Audio\(/);
   });
 
-  it("the home tile no longer previews a stream", () => {
+  it("the home screen has no Watch tile or stream preview at all", () => {
     const src = readFileSync(join(ROOT, "src/routes/_authenticated/app.index.tsx"), "utf8");
     expect(src).not.toMatch(/livePreview|loadYouTubeApi|useLiveGenres/);
+    expect(src).not.toMatch(/"watch"/);
   });
 });
 
