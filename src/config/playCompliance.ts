@@ -15,7 +15,16 @@
  */
 export const NATIVE_CAPABILITIES = [
   "Two-axis country model: home country drives identity, currency and legal regime; current region drives emergency numbers, crisis lines and territorial availability.",
-  "On-device health data with a region gate — health readings never leave the device.",
+  // DO NOT restore the old wording here: "On-device health data — health
+  // readings never leave the device." That was false, and falsest in the place
+  // it mattered most. app.vitals.tsx writes mood, sleep and cycle logs to the
+  // health_profiles, health_checkins and cycle_logs tables, and there is real
+  // data in them in production. Health data IS collected and MUST be declared
+  // as such in Play Data safety. The safety plan is the only genuinely
+  // device-only health surface (localStorage, oniq.safetyplan.v1).
+  "Health tracking with a two-axis UAE block enforced in the database — health_data_allowed() combines the home-country check with a cf-ipcountry region check read off the request itself, so a client that lies about its region still cannot persist a reading.",
+  "Row-level security on every health table: a user can read and write only their own rows, enforced in Postgres rather than in the UI.",
+  "A safety plan that is genuinely device-only — held in localStorage and wiped whenever health data becomes barred.",
   "Hash-chained, append-only consent and audit ledgers with cryptographic verification.",
   "DPDP age gate: is_adult_18 enforced in RESTRICTIVE row-level security, not just in the UI.",
   "Data-subject-request handling with a 30-day SLA, soft delete and a 30-day grace hard purge.",

@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -40,6 +40,7 @@ import { AiOutputReport, AI_OUTPUT_LABEL } from "@/components/safety/AiOutputRep
 import { useCurrentRegion } from "@/lib/region";
 import { LEAD_WARNING, SCAM_PATTERNS, reportingGroups } from "@/data/jobScamAlerts";
 import { CvPdfPreviewDialog } from "@/components/cv/CvPdfPreviewDialog";
+import { JobAppsDirectory } from "@/components/jobs/JobAppsDirectory";
 import { COUNTRIES, useCountry } from "@/lib/country";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { tileName } from "@/lib/i18n/tileLabel";
@@ -84,9 +85,15 @@ import {
 } from "@/lib/cvValidation";
 
 export const Route = createFileRoute("/_authenticated/app/jobs")({
+  // `tab` selects which half of Jobs is showing. Kept in the URL rather than
+  // component state so /app/jobs?tab=apps is linkable — the retired
+  // /app/jobs-apps route redirects straight to it.
+  validateSearch: (s: Record<string, unknown>) => ({
+    tab: s.tab === "apps" ? ("apps" as const) : ("cv" as const),
+  }),
   head: () => ({
     meta: [
-      { title: "CV Builder — ONIQ Jobs" },
+      { title: "Jobs — CV builder and job apps — ONIQ" },
       {
         name: "description",
         content:
@@ -117,6 +124,8 @@ const FIELD_LABEL: Record<CvSensitiveField, string> = {
 };
 
 function JobsScreen() {
+  const { tab: mode } = Route.useSearch();
+  const navigate = useNavigate();
   const [country] = useCountry();
   const { lang } = useT();
   // "Résumé" in the US, "CV" elsewhere, "सीवी" in Hindi — one resolution rule.
@@ -163,16 +172,11 @@ function JobsScreen() {
         </div>
       </header>
 
-      <div className="px-4 pt-3">
-        <Link
-          to="/app/jobs-apps"
-          className="flex items-center justify-between rounded-2xl border border-white/10 bg-[#16181E] px-4 py-3 text-sm"
-        >
-          <span>Browse real job & gig apps</span>
-          <span className="text-[#00D4B8]">Open</span>
-        </Link>
-      </div>
-
+      {/*
+        ONE gate, then a mode switch. Both halves of Jobs are 18+ for the same
+        reason and were previously guarded by two identical copies of the same
+        check on two separate routes.
+      */}
       {isAdult === false ? (
         <AgeGateCard
           hasDob={gate?.has_dob ?? true}
@@ -182,12 +186,38 @@ function JobsScreen() {
           }}
         />
       ) : (
-        <CvWorkbench
-          target={target}
-          setTarget={setTarget}
-          rulesKey={rules.country}
-          cvWord={cvWord}
-        />
+        <>
+          <div className="no-scrollbar mt-4 flex gap-2 overflow-x-auto px-4">
+            {(
+              [
+                { id: "cv" as const, label: `${cvWord} builder` },
+                { id: "apps" as const, label: "Job & gig apps" },
+              ]
+            ).map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => navigate({ to: "/app/jobs", search: { tab: m.id } })}
+                className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-medium ${
+                  mode === m.id ? "bg-[#00D4B8] text-black" : "bg-white/5 text-white/70"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          {mode === "apps" ? (
+            <JobAppsDirectory target={target} setTarget={setTarget} />
+          ) : (
+            <CvWorkbench
+              target={target}
+              setTarget={setTarget}
+              rulesKey={rules.country}
+              cvWord={cvWord}
+            />
+          )}
+        </>
       )}
     </div>
   );

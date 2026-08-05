@@ -10,27 +10,42 @@ function visible(tiles: { key: TileKey; adultOnly?: boolean }[], isAdult: boolea
   return tiles.filter((t) => !t.adultOnly || isAdult).map((t) => t.key);
 }
 
+// Jobs and the job/gig directory were two adult-only tiles pointing at two
+// routes. They are one screen now — /app/jobs with a ?tab switch — so there is
+// a single adult-only tile. The gate itself is unchanged and still the thing
+// under test.
 const TILES: { key: TileKey; adultOnly?: boolean }[] = [
   { key: "university" },
   { key: "jobs", adultOnly: true },
-  { key: "jobsApps", adultOnly: true },
 ];
 
 describe("age-gated tile rendering", () => {
-  it("hides jobs and jobsApps when is_adult_18 is false", () => {
+  it("hides jobs when is_adult_18 is false", () => {
     expect(visible(TILES, false)).toEqual(["university"]);
   });
 
   it("shows them for an adult", () => {
-    expect(visible(TILES, true)).toEqual(["university", "jobs", "jobsApps"]);
+    expect(visible(TILES, true)).toEqual(["university", "jobs"]);
   });
 
   it("wires each tile to its route and uses the 18+ gate, never is_minor_account", () => {
     expect(home).toContain('{ key: "university", to: "/app/university" }');
     expect(home).toContain('key: "jobs", to: "/app/jobs", adultOnly: true');
-    expect(home).toContain('key: "jobsApps", to: "/app/jobs-apps", adultOnly: true');
     expect(home).toContain("useIsAdult18");
     expect(home).not.toContain("is_minor_account");
+  });
+
+  it("no longer renders a second, separate job-apps tile", () => {
+    expect(home).not.toContain('key: "jobsApps"');
+    expect(home).not.toContain("/app/jobs-apps");
+  });
+
+  it("the retired jobs-apps route redirects instead of 404ing", () => {
+    // It shipped in the Android build already on phones, so it has to keep
+    // resolving.
+    const retired = readFileSync("src/routes/_authenticated/app.jobs-apps.tsx", "utf8");
+    expect(retired).toMatch(/redirect\(/);
+    expect(retired).toMatch(/tab: "apps"/);
   });
 
   it("CustomizeSheet lists the new tiles but not cv", () => {
@@ -40,7 +55,6 @@ describe("age-gated tile rendering", () => {
     );
     expect(keys).toContain("university");
     expect(keys).toContain("jobs");
-    expect(keys).toContain("jobsApps");
     expect(keys).not.toContain("cv");
   });
 });

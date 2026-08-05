@@ -19,6 +19,12 @@ import {
   type Institution,
 } from "@/data/institutions";
 import { calendarFor } from "@/data/admissionsCalendar";
+import {
+  PRACTICE_DISCLAIMER,
+  TEST_DISCLAIMER,
+  testsForDestination,
+  type EnglishTest,
+} from "@/data/englishTests";
 import { POLICY_STATUS_LABEL, policiesFor } from "@/data/policyWatch";
 import {
   ELIGIBILITY_DISCLAIMER,
@@ -48,11 +54,12 @@ export const Route = createFileRoute("/_authenticated/app/university")({
   component: UniversityScreen,
 });
 
-type Tab = "route" | "institutions" | "calendar" | "policy" | "check";
+type Tab = "route" | "institutions" | "english" | "calendar" | "policy" | "check";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "route", label: "How it works" },
   { id: "institutions", label: "Institutions" },
+  { id: "english", label: "English tests" },
   { id: "calendar", label: "Deadlines" },
   { id: "policy", label: "Policy watch" },
   { id: "check", label: "Quick check" },
@@ -225,7 +232,144 @@ function UniversityScreen() {
         </section>
       )}
 
+      {tab === "english" && <EnglishTests destination={country} />}
+
       {tab === "check" && <QuickCheck destination={country} />}
+    </div>
+  );
+}
+
+/**
+ * English-proficiency tests: ONIQ's own study notes and ONIQ's own practice
+ * prompts. Read src/data/englishTests.ts before changing anything here — the
+ * legal boundary that makes this shippable is written out at the top of it.
+ *
+ * The short version: format facts and ONIQ-written prompts are fine, real exam
+ * items and official rubrics are not, and nothing may imply endorsement or
+ * predict a score. The disclaimers below are load-bearing, not decoration.
+ */
+function EnglishTests({ destination }: { destination: string }) {
+  const tests = useMemo(() => testsForDestination(destination), [destination]);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  return (
+    <section className="mt-5 space-y-3">
+      <Note>{TEST_DISCLAIMER}</Note>
+
+      {tests.map((t) => (
+        <TestCard
+          key={t.id}
+          test={t}
+          open={openId === t.id}
+          onToggle={() => setOpenId(openId === t.id ? null : t.id)}
+        />
+      ))}
+    </section>
+  );
+}
+
+function TestCard({
+  test,
+  open,
+  onToggle,
+}: {
+  test: EnglishTest;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-start justify-between gap-3 text-start"
+      >
+        <div className="min-w-0">
+          {/* Text only. No logo, no imitation of any owner's lettering. */}
+          <h2 className="font-semibold">{test.name}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">{test.totalMinutes}</p>
+        </div>
+        <span className="shrink-0 text-xs text-primary">{open ? "Close" : "Open"}</span>
+      </button>
+
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{test.acceptedFor}</p>
+
+      {open && (
+        <div className="mt-4 space-y-4">
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Scoring
+            </h3>
+            <p className="mt-1 text-sm leading-relaxed">{test.scoring}</p>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Structure
+            </h3>
+            <ul className="mt-2 space-y-2">
+              {test.sections.map((sec) => (
+                <li key={sec.name} className="rounded-xl border border-border bg-muted/30 p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-medium">{sec.name}</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {[sec.minutes ? `${sec.minutes} min` : null, sec.questions]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{sec.what}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Notes
+            </h3>
+            <ul className="mt-2 list-disc space-y-1.5 ps-4 text-sm leading-relaxed text-muted-foreground">
+              {test.notes.map((n) => (
+                <li key={n}>{n}</li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Practice prompts
+            </h3>
+            <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground/80">
+              {PRACTICE_DISCLAIMER}
+            </p>
+            <ul className="mt-2 space-y-2">
+              {test.practice.map((p) => (
+                <li key={p.id} className="rounded-xl border border-primary/25 bg-primary/5 p-3">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-xs font-semibold text-primary">{p.section}</span>
+                    <span className="shrink-0 text-[11px] text-muted-foreground">
+                      {p.minutes} min
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-sm leading-relaxed">{p.prompt}</p>
+                  <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                    <span className="font-medium text-foreground/80">What a strong answer does:</span>{" "}
+                    {p.lookFor}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <OfficialLinkRow url={test.officialUrl} label={`Register and check the current format`} />
+
+          <p className="text-[11px] text-muted-foreground/70">
+            Structure above checked on {test.verifiedOn}. Owned by {test.owner}. Formats change —
+            the official page is the authority, not this screen.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

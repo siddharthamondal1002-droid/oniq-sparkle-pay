@@ -135,6 +135,42 @@ describe("Data safety declaration matches reality", () => {
   });
 });
 
+describe("health claims match where the data actually goes", () => {
+  // NATIVE_CAPABILITIES used to say "health readings never leave the device".
+  // app.vitals.tsx writes to health_profiles, health_checkins and cycle_logs,
+  // and those tables hold real rows in production — so the claim was false,
+  // and false in the worst direction: it would have gone into Play Data safety
+  // as "no health data collected", and onto the marketing site as the
+  // headline privacy promise.
+  //
+  // The rule this encodes: you may not claim health data stays on the device
+  // while any surface writes it to a server table.
+  const vitals = readFileSync(join(ROOT, "src/routes/_authenticated/app.vitals.tsx"), "utf8");
+  const writesToServer = /from\("(health_profiles|health_checkins|cycle_logs)"\)/.test(vitals);
+
+  it("vitals really does write health data to the server (premise check)", () => {
+    // If this ever goes false, the guard below can be relaxed — but only then.
+    expect(writesToServer).toBe(true);
+  });
+
+  it("claims no device-only storage for health while the server tables are written", () => {
+    const claims = NATIVE_CAPABILITIES.join(" ").toLowerCase();
+    if (writesToServer) {
+      expect(claims, "health data is claimed to stay on-device but is written to Postgres").not.toMatch(
+        /health[^.]*never leave|never leave[^.]*device[^.]*health|on-device health/,
+      );
+    }
+  });
+
+  it("still says something true and specific about health privacy", () => {
+    // Removing a false claim must not leave the section empty — the real
+    // controls (RLS, the database-enforced UAE block) are the substitute.
+    const claims = NATIVE_CAPABILITIES.join(" ");
+    expect(claims).toMatch(/row-level security/i);
+    expect(claims).toMatch(/health_data_allowed|UAE block/i);
+  });
+});
+
 describe("Minimum Functionality", () => {
   it("records enough native capability to answer a webview-spam review", () => {
     expect(NATIVE_CAPABILITIES.length).toBeGreaterThanOrEqual(8);
@@ -145,7 +181,7 @@ describe("Minimum Functionality", () => {
     // Sampled on the two newest link-out surfaces; both must say so in the
     // visible label and in the accessible name.
     for (const f of [
-      "src/routes/_authenticated/app.jobs-apps.tsx",
+      "src/components/jobs/JobAppsDirectory.tsx",
     ]) {
       const src = readFileSync(join(ROOT, f), "utf8");
       expect(src, `${f} does not label its link-outs`).toMatch(

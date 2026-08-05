@@ -159,8 +159,10 @@ function HomeScreen() {
                 { key: "earn", to: "/app/earn" },
                 { key: "university", to: "/app/university" },
                 // 18+ only — hidden entirely for minors and null-DOB accounts.
+                // Jobs is one screen now: the CV builder and the job & gig
+                // directory are tabs of /app/jobs behind a single 18+ gate.
+                // The separate "Job apps" tile is gone.
                 { key: "jobs", to: "/app/jobs", adultOnly: true },
-                { key: "jobsApps", to: "/app/jobs-apps", adultOnly: true },
               ]}
               hidden={hidden}
             />
