@@ -37,8 +37,6 @@ import {
 } from "@/components/customize/CustomizeSheet";
 import { MediaProvider, useMediaCoordinator } from "@/lib/MediaProvider";
 import { useCountry } from "@/lib/country";
-import { launchAppEntry } from "@/lib/miniapps";
-import { marketAppsFor } from "@/data/marketApps";
 import type { Country } from "@/data/appRegistry";
 import { isAvailable } from "@/data/countryRegistry";
 import { useIsAdult18 } from "@/lib/useIsAdult18";
@@ -136,8 +134,6 @@ function HomeScreen() {
               </div>
             )}
 
-            <GlanceCard />
-
             <AnticipatoryCard />
 
             <div className="mt-7 px-1 flex items-center justify-between">
@@ -175,7 +171,6 @@ function HomeScreen() {
                 { key: "vitals", to: "/app/vitals", color: vitalsColor },
                 { key: "wander", to: "/app/travel" },
                 { key: "earn", to: "/app/earn" },
-                { key: "glance", to: "/app/glance" },
                 { key: "university", to: "/app/university" },
                 // 18+ only — hidden entirely for minors and null-DOB accounts.
                 { key: "jobs", to: "/app/jobs", adultOnly: true },
@@ -1146,224 +1141,6 @@ type NewsItem = {
   publishedAt: string;
   image?: string;
 };
-
-const GLANCE_COLLAPSE_KEY = "oniq.home.glance.collapsed";
-
-function useGlanceCollapsed() {
-  const [collapsed, setCollapsed] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return localStorage.getItem(GLANCE_COLLAPSE_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
-  const set = (v: boolean) => {
-    setCollapsed(v);
-    try {
-      localStorage.setItem(GLANCE_COLLAPSE_KEY, v ? "1" : "0");
-    } catch {
-      /* noop */
-    }
-  };
-  return [collapsed, set] as const;
-}
-
-function GlanceCard() {
-  const [collapsed, setCollapsed] = useGlanceCollapsed();
-  const [openTab, setOpenTab] = useState<LoanCategory["type"] | null>(null);
-  // MUST stay above the `if (collapsed) return` below. A hook placed after an
-  // early return took production down on 2026-08-04.
-  const [home] = useCountry();
-
-
-  const {
-    data: loans,
-    isLoading: loansLoading,
-    isError: loansError,
-  } = useQuery<LoanRatesPayload | null>({
-    queryKey: ["loan-rates", "v2"],
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("loan-rates");
-      if (error) throw error;
-      return data as LoanRatesPayload;
-    },
-    enabled: openTab !== null,
-    staleTime: 12 * 60 * 60 * 1000,
-  });
-
-  if (collapsed) {
-    return (
-      <div className="mt-4 flex items-center justify-between rounded-full border border-border bg-card/60 px-3 py-1.5 text-[11px] text-muted-foreground">
-        <span>glance card hidden</span>
-        <button
-          onClick={() => setCollapsed(false)}
-          className="press rounded-full bg-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary"
-          aria-label="Show glance card"
-        >
-          show
-        </button>
-      </div>
-    );
-  }
-
-  // Markets are a link-out, never a display. The two boxes that used to sit
-  // here showed 24K gold and silver per gram, scraped from ibjarates.com and
-  // topped up from two APIs whose licences were never established. No free
-  // source permits commercial display of exchange or bullion quotes, and a
-  // disclaimer does not cure an unlicensed redistribution — so ONIQ shows no
-  // number and opens the exchange instead. Axis is the user's HOME market, not
-  // Current Region: an Indian user in Dubai still tracks the Nifty.
-  const marketDestinations = marketAppsFor((home as Country) ?? "IN").slice(0, 2);
-
-  const tabs: { t: LoanCategory["type"]; emoji: string; label: string }[] = [
-    { t: "home", emoji: "🏠", label: "Home" },
-    { t: "gold", emoji: "🪙", label: "Gold" },
-    { t: "car", emoji: "🚗", label: "Car" },
-    { t: "fd", emoji: "🏦", label: "FD" },
-    { t: "personal", emoji: "🏦", label: "Personal" },
-  ];
-  const active = openTab
-    ? ((loans?.categories ?? []).find((c) => c.type === openTab) ?? null)
-    : null;
-
-  return (
-    <div
-      className="mt-4 rounded-2xl border border-primary/20 p-3 fade-up"
-      style={{
-        background:
-          "linear-gradient(135deg, rgba(0,212,184,0.10) 0%, rgba(245,158,11,0.06) 60%, rgba(255,255,255,0.02) 100%), var(--gradient-card)",
-        boxShadow: "0 0 18px rgba(0,212,184,0.12), inset 0 1px 0 rgba(255,255,255,0.05)",
-      }}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div className="grid flex-1 grid-cols-2 gap-2">
-          {marketDestinations.map((m) => (
-            <button
-              key={m.id}
-              onClick={() => void launchAppEntry(m)}
-              className="press rounded-xl border border-border bg-black/20 p-2 text-start"
-              aria-label={`Open ${m.name} — opens outside ONIQ`}
-            >
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                {m.kind === "exchange" ? "Exchange" : m.kind === "broker" ? "Broker" : "Regulator"}
-              </div>
-              <div className="mt-0.5 truncate text-sm font-semibold">{m.name}</div>
-              <div className="text-[10px] text-muted-foreground">Open ↗</div>
-            </button>
-          ))}
-        </div>
-        <button
-          onClick={() => setCollapsed(true)}
-          aria-label="Hide glance card"
-          className="press grid h-7 w-7 shrink-0 place-items-center rounded-full border border-border bg-black/30 text-muted-foreground hover:text-foreground"
-        >
-          <span className="text-[13px] leading-none">×</span>
-        </button>
-      </div>
-
-      <div className="mt-3 grid grid-cols-4 gap-1.5">
-        {tabs.map((c) => {
-          const isOn = openTab === c.t;
-          return (
-            <button
-              key={c.t}
-              onClick={() => setOpenTab(isOn ? null : c.t)}
-              aria-expanded={isOn}
-              className={`press rounded-lg border px-2 py-1.5 text-[11px] font-semibold transition-colors ${
-                isOn
-                  ? "border-primary bg-primary/20 text-primary"
-                  : "border-white/10 bg-black/25 text-foreground hover:border-primary/40 hover:bg-primary/10"
-              }`}
-            >
-              <span className="mr-1">{c.emoji}</span>
-              {c.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {openTab && (
-        <div className="mt-2 max-h-72 overflow-y-auto rounded-xl border border-white/5 bg-black/30 p-2">
-          {loansLoading && (
-            <div className="py-6 text-center text-xs text-muted-foreground">loading rates…</div>
-          )}
-          {loansError && !loansLoading && (
-            <div className="py-6 text-center text-xs text-muted-foreground">
-              couldn't load rates right now — try again in a moment.
-            </div>
-          )}
-          {!loansLoading && !loansError && active && (
-            <div className="space-y-1.5">
-              {active.banks.map((b) => (
-                <div
-                  key={b.bank}
-                  className="rounded-lg border border-white/5 bg-black/25 px-3 py-2"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-foreground">{b.bank}</div>
-                    <div className="font-display text-sm font-bold text-primary">{b.rateRange}</div>
-                  </div>
-                  {b.note && (
-                    <div className="mt-0.5 text-[10px] leading-snug text-muted-foreground">
-                      {b.note}
-                    </div>
-                  )}
-                </div>
-              ))}
-              <div className="pt-1 text-[10px] leading-snug text-muted-foreground">
-                {loans?.disclaimer ?? DEFAULT_LOAN_DISCLAIMER}
-              </div>
-            </div>
-          )}
-          {!loansLoading && !loansError && !active && (
-            <div className="py-6 text-center text-xs text-muted-foreground">rates unavailable.</div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-type LoanBank = { bank: string; rateRange: string; note?: string };
-type LoanCategory = {
-  type: "home" | "gold" | "car" | "fd" | "personal";
-  label: string;
-  banks: LoanBank[];
-};
-type LoanRatesPayload = { asOf: string; categories: LoanCategory[]; disclaimer: string };
-
-const DEFAULT_LOAN_DISCLAIMER =
-  "Rates vary by CIBIL score, loan amount, tenure, and individual bank policy. 750+ CIBIL typically qualifies for the lower end of each range. Confirm your exact rate with the bank directly.";
-
-function StatBox({
-  label,
-  value,
-  unit,
-  accent,
-}: {
-  label: string;
-  value: string;
-  unit: string;
-  accent: string;
-}) {
-  return (
-    <div
-      className="min-w-0 rounded-xl border border-white/5 bg-black/25 px-3 py-2"
-      style={{ boxShadow: `inset 0 0 0 1px ${accent}18` }}
-    >
-      <div className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
-      <div className="mt-0.5 flex items-baseline gap-1 whitespace-nowrap">
-        <span className="font-display text-base font-bold tabular-nums" style={{ color: accent }}>
-          {value}
-        </span>
-        {unit && <span className="text-[10px] text-muted-foreground">{unit}</span>}
-      </div>
-    </div>
-  );
-}
 
 // ---------- Primary tiles ----------
 
