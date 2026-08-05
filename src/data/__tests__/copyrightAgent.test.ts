@@ -76,17 +76,29 @@ describe("a claim of registration must be fully specified", () => {
     );
   });
 
-  it("keeps publishing the operational mailbox while it differs from the register", () => {
-    // The register carries a personal address and the site routes notices to a
-    // role address. Publishing only one of them is wrong in both directions:
-    // the role address alone contradicts the register, and the personal one
-    // alone sends statutory notices to an individual's inbox. So while they
-    // differ, both appear — and when the register is amended to the role
-    // address this test stops applying on its own.
+  it("publishes both mailboxes while the register's is an alias of the role one", () => {
+    // agentEmail is an alias of email with forwarding active — the same
+    // mailbox by two names. Both are published: the register's address so the
+    // two records agree, and the role address because it is the durable way
+    // in. The page's claim that either reaches the agent is therefore a fact
+    // about forwarding, not a hope.
     if (!DMCA_AGENT.registeredWithCopyrightOffice) return;
     if (DMCA_AGENT.agentEmail === DMCA_AGENT.email) return;
     expect(page).toMatch(/DMCA_AGENT\.agentEmail !== DMCA_AGENT\.email/);
     expect(page).toMatch(/reaches the designated agent/i);
+  });
+
+  it("keeps both mailboxes on the same domain, so the alias claim is plausible", () => {
+    // A forwarding alias lives on the domain ONIQ controls. If agentEmail ever
+    // moved to a domain ONIQ does not run, the forwarding guarantee — and the
+    // page's "either address" claim — would stop being something this project
+    // can vouch for.
+    if (!DMCA_AGENT.agentEmail) return;
+    const domain = (a: string) => a.split("@")[1];
+    expect(
+      domain(DMCA_AGENT.agentEmail),
+      "the register's agent address left the domain ONIQ controls",
+    ).toBe(domain(DMCA_AGENT.email));
   });
 
   it("gives the phone a country code that agrees with the agent's country", () => {

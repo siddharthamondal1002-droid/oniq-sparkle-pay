@@ -105,21 +105,32 @@ export const DMCA_AGENT = {
 
   /**
    * The agent mailbox ON THE REGISTER. Published verbatim, because a
-   * rights-holder comparing the two must find the same answer.
+   * rights-holder comparing the site against the register must find the same
+   * answer.
+   *
+   * It is an ALIAS of `email` below, with forwarding active — not a separate
+   * personal inbox. So the usual objection to a named-individual address on a
+   * §512 register does not apply here: notices do not depend on one person
+   * reading their own mail, and they survive a staffing change, because they
+   * land in the role mailbox either way. No amendment to the register is
+   * needed on this account.
+   *
+   * The obligation that DOES follow: this alias must stay alive and forwarding
+   * for as long as the register names it. A §512 designation that points at a
+   * dead address is worse than no designation, because the Office's directory
+   * will keep telling rights-holders to write there. If the alias is ever
+   * retired, amend the register in the same change.
    */
   agentEmail: "poojabiswas@oniqhub.com" as string | null,
 
   /**
-   * ONIQ's operational notice mailbox — what the rest of the page tells people
-   * to write to.
+   * ONIQ's operational notice mailbox, and the destination the alias above
+   * forwards to. This is what the rest of the page tells people to write to.
    *
-   * It differs from agentEmail, and the register is the side that should
-   * move: a role address outlives whoever currently holds the role, and §512
-   * notices have to keep arriving after a staffing change. Until the register
-   * is amended both are published, because publishing only the role address
-   * would contradict the register and publishing only the personal one would
-   * route statutory notices into an individual's inbox. When they converge,
-   * collapse these two fields back into one.
+   * Both are published: the register's address so the two records agree, and
+   * this one because it is the durable, role-based way in. They are the same
+   * mailbox, which is why the page can say a notice to either reaches the
+   * agent without that being a hopeful claim.
    */
   email: "copyright@oniqhub.com",
   directoryUrl: "https://dmca.copyright.gov/osp/",
