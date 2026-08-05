@@ -72,20 +72,6 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
       "Plays the broadcaster's stream. YouTube applies its own geo-restrictions server-side; ONIQ never resolves or serves a stream URL.",
     avoidable: false,
   },
-  {
-    host: "date.nager.at",
-    triggeredBy: "Glance — public holidays.",
-    sends: "IP address and the requested country code. No user identifier.",
-    purpose: "Public holiday dates.",
-    avoidable: false,
-  },
-  {
-    host: "api.frankfurter.dev",
-    triggeredBy: "Glance — currency reference rate.",
-    sends: "IP address and the requested currency pair. No user identifier.",
-    purpose: "ECB reference rates.",
-    avoidable: false,
-  },
   // The three below send LOCATION, not just an IP, which is a different and
   // heavier Data safety category. They were undeclared until the compliance
   // test went looking for automatic requests rather than link destinations.
