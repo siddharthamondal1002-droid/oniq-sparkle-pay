@@ -1,87 +1,129 @@
 /**
  * Phase 3a — durable guard for the Jobs/career 18+ data gate.
  *
- * This does NOT read source files: a grep would miss a table created by a
- * future migration, which is exactly the failure this test exists to catch.
- * It queries the LIVE schema (pg_class / pg_policy) through psql and asserts
- * that every career/jobs-shaped table has RLS enabled and at least one
- * RESTRICTIVE policy referencing `is_adult_18`.
+ * WHY THIS WAS REWRITTEN
  *
- * The same assertion is committed as scripts/jobs-age-gate-check.sql so it can
- * be run by hand (or in a DB-connected CI job) where these tests run without
- * database credentials. When PGHOST is absent the suite skips rather than
- * pretending to have checked.
+ * The previous version shelled out to `psql` and read pg_class / pg_policy
+ * from a live database. That was the right idea — a grep over source can miss
+ * a table created by a future migration, which is exactly the failure this
+ * exists to catch — but it was gated on `process.env.PGHOST`, and PGHOST is
+ * never set here. The whole suite skipped, every run, silently. Three tests
+ * that never execute are worse than no tests: they show up in the count and
+ * nobody looks again.
+ *
+ * The live schema was verified by hand on 2026-08-05 through the database MCP:
+ * cv_attestations and cv_documents both have RLS enabled and a RESTRICTIVE
+ * is_adult_18 policy. So the gate itself is correct — it simply was not being
+ * checked by anything automatic.
+ *
+ * WHAT IT CHECKS NOW
+ *
+ * The migrations directory: the source of truth for the schema, and — unlike a
+ * live connection — present on every machine that can run the tests. Every
+ * career/jobs-shaped table created by any migration must, in some migration,
+ * get RLS enabled AND a RESTRICTIVE policy referencing is_adult_18.
+ *
+ * That is strictly better for the case that mattered. A new migration adding
+ * an ungated table now fails at commit time, before it reaches a database,
+ * rather than after deploy when somebody remembers to run a script.
+ *
+ * scripts/jobs-age-gate-check.sql still holds the live-schema assertion for
+ * running against production directly, and remains the way to catch drift
+ * applied outside the migration history.
  */
-import { execFileSync } from "node:child_process";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 
-const NAME_PATTERNS = [
-  String.raw`c.relname LIKE 'cv\_%'`,
-  String.raw`c.relname LIKE 'job\_%'`,
-  String.raw`c.relname LIKE '%\_jobs'`,
-  String.raw`c.relname LIKE 'career\_%'`,
-  String.raw`c.relname LIKE '%alert\_subscription%'`,
-  String.raw`c.relname LIKE 'saved\_job%'`,
-].join(" OR ");
+const MIGRATIONS = join(process.cwd(), "supabase/migrations");
 
-const QUERY = `
-SELECT c.relname,
-       c.relrowsecurity,
-       EXISTS (
-         SELECT 1 FROM pg_policy p
-         WHERE p.polrelid = c.oid
-           AND p.polpermissive = false
-           AND (
-             coalesce(pg_get_expr(p.polqual, p.polrelid), '') ILIKE '%is_adult_18%'
-             OR coalesce(pg_get_expr(p.polwithcheck, p.polrelid), '') ILIKE '%is_adult_18%'
-           )
-       ) AS has_adult_gate
-FROM pg_class c
-JOIN pg_namespace n ON n.oid = c.relnamespace
-WHERE n.nspname = 'public' AND c.relkind = 'r' AND (${NAME_PATTERNS})
-ORDER BY c.relname;
-`;
+/**
+ * Table-name shapes that carry career or jobs data. Deliberately broad: the
+ * point is to catch a table nobody thought to gate, so a false positive here
+ * (a matching table holding nothing sensitive) is cheap, and a false negative
+ * is the bug.
+ */
+const CAREER_TABLE = /^(cv_|job_|career_|saved_job)|_jobs$|alert_subscription/;
 
-type Row = { table: string; rls: boolean; gated: boolean };
+const sql = readdirSync(MIGRATIONS)
+  .filter((f) => f.endsWith(".sql"))
+  .map((f) => readFileSync(join(MIGRATIONS, f), "utf8"))
+  .join("\n");
 
-function readSchema(): Row[] {
-  const out = execFileSync("psql", ["-At", "-F", "|", "-c", QUERY], {
-    encoding: "utf8",
-  });
-  return out
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [table, rls, gated] = line.split("|");
-      return { table: table!, rls: rls === "t", gated: gated === "t" };
-    });
+/** Strip SQL comments, so a commented-out policy cannot satisfy the check. */
+const code = sql
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n");
+
+function createdTables(): string[] {
+  const found = new Set<string>();
+  const re = /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?"?([a-z0-9_]+)"?/gi;
+  for (const m of code.matchAll(re)) found.add(m[1].toLowerCase());
+  return [...found];
 }
 
-const hasDb = Boolean(process.env["PGHOST"]);
+const careerTables = createdTables().filter((t) => CAREER_TABLE.test(t));
 
-describe.skipIf(!hasDb)("career/jobs tables are 18+ gated at the data layer", () => {
-  const rows = hasDb ? readSchema() : [];
+function hasRls(table: string): boolean {
+  return new RegExp(
+    String.raw`alter\s+table\s+(?:public\.)?"?${table}"?\s+enable\s+row\s+level\s+security`,
+    "i",
+  ).test(code);
+}
 
+function hasAdultGate(table: string): boolean {
+  // A RESTRICTIVE policy ON THIS TABLE whose body references is_adult_18.
+  // Matched within a single statement so a RESTRICTIVE policy on table A
+  // cannot be credited to table B just because both sit in the same file.
+  return new RegExp(
+    String.raw`create\s+policy[^;]*?\son\s+(?:public\.)?"?${table}"?\s[^;]*?as\s+restrictive[^;]*?is_adult_18[^;]*?;`,
+    "is",
+  ).test(code);
+}
+
+describe("career/jobs tables are 18+ gated at the data layer", () => {
   it("matches at least one career/jobs table (a pattern matching nothing is a broken test)", () => {
-    expect(rows.length).toBeGreaterThan(0);
+    expect(
+      careerTables.length,
+      "no career/jobs table found in migrations — the pattern has gone stale",
+    ).toBeGreaterThan(0);
   });
 
   it("today matches exactly the known CV tables", () => {
-    expect(rows.map((r) => r.table)).toEqual(["cv_attestations", "cv_documents"]);
+    // A new name here is not a failure in itself — it is a prompt to confirm
+    // the new table is gated, which the next test then enforces.
+    expect([...careerTables].sort()).toEqual(["cv_attestations", "cv_documents"]);
   });
 
   it("has RLS enabled and a RESTRICTIVE is_adult_18 policy on every match", () => {
-    const offenders = rows.filter((r) => !r.rls || !r.gated);
-    expect(
-      offenders.map(
-        (r) =>
-          `public.${r.table}: ${!r.rls ? "RLS is DISABLED" : "no RESTRICTIVE is_adult_18 policy"}. ` +
-          `Add: ALTER TABLE public.${r.table} ENABLE ROW LEVEL SECURITY; ` +
-          `CREATE POLICY "${r.table} adults only" ON public.${r.table} AS RESTRICTIVE FOR ALL ` +
+    const offenders = careerTables
+      .filter((t) => !hasRls(t) || !hasAdultGate(t))
+      .map(
+        (t) =>
+          `public.${t}: ${!hasRls(t) ? "RLS is never enabled" : "no RESTRICTIVE is_adult_18 policy"}. ` +
+          `Add: ALTER TABLE public.${t} ENABLE ROW LEVEL SECURITY; ` +
+          `CREATE POLICY "${t} adults only" ON public.${t} AS RESTRICTIVE FOR ALL ` +
           `TO authenticated USING (public.is_adult_18(auth.uid())) ` +
           `WITH CHECK (public.is_adult_18(auth.uid()));`,
-      ),
-    ).toEqual([]);
+      );
+    expect(offenders).toEqual([]);
+  });
+
+  it("the gate function itself is not executable by anonymous callers", () => {
+    // A RESTRICTIVE policy calling is_adult_18 is only as good as the function
+    // it calls. Revoking anon is what stops an unauthenticated probe.
+    expect(code).toMatch(/revoke\s+execute\s+on\s+function\s+public\.is_adult_18[^;]*anon/i);
+  });
+
+  it("bites when a gate is removed", () => {
+    // Proof the matcher is real rather than vacuously true: the same check
+    // against SQL with RESTRICTIVE downgraded must stop passing.
+    const weakened = code.replace(/as\s+restrictive/gi, "as permissive");
+    const stillGated = new RegExp(
+      String.raw`create\s+policy[^;]*?\son\s+(?:public\.)?"?cv_documents"?\s[^;]*?as\s+restrictive[^;]*?is_adult_18[^;]*?;`,
+      "is",
+    ).test(weakened);
+    expect(stillGated).toBe(false);
   });
 });
