@@ -29,36 +29,9 @@ export const ONIQ_OWN_CONTENT =
 
 export const ATTRIBUTIONS: Attribution[] = [
   // ---- Free & Legal Surfaces loop -----------------------------------------
-  // Watch, Pulse, scam alerts and Glance. Each of these is referenced, never
+  // Watch, Pulse and scam alerts. Each of these is referenced, never
   // republished: ONIQ stores pointers and its own words, not other people's
-  // content. The machine-readable twins of the last two live in
-  // src/data/openDataSources.ts, which also records what was REJECTED.
-  {
-    id: "nager-date",
-    usedFor:
-      "Public holiday dates in Glance, including Indian state-level observances resolved from the ISO 3166-2 subdivision codes the API returns.",
-    source: "Nager.Date",
-    licence: "MIT",
-    licenceUrl: "https://github.com/nager/Nager.Date/blob/master/LICENSE.md",
-    requiredNotice: null,
-    exclusions: [],
-    sourceUrl: "https://date.nager.at",
-    notes: "Open source, no API key, no rate limit. Commercial use permitted.",
-  },
-  {
-    id: "ecb-frankfurter",
-    usedFor:
-      "Currency reference rates in Glance. Displayed as reference rates with their publication date, never as tradable quotes.",
-    source: "European Central Bank euro foreign exchange reference rates, via Frankfurter",
-    licence: "Open data (ECB) · Frankfurter service is MIT",
-    licenceUrl: "https://github.com/lineofflight/frankfurter/blob/main/LICENSE",
-    requiredNotice: null,
-    exclusions: [
-      "The ECB publishes these once each working day for information purposes. They are not transaction rates and ONIQ does not present them as such.",
-    ],
-    sourceUrl: "https://www.ecb.europa.eu/stats/eurofxref/",
-    notes: "No API key. Rates carry the ECB publication date and are flagged when stale.",
-  },
+  // content.
   {
     id: "youtube-embeds",
     usedFor:
@@ -318,12 +291,6 @@ export const LICENCE_FAMILIES: { title: string; blurb: string; ids: string[] }[]
     title: "Verbatim-only licences",
     blurb: "Usable only exactly as published — no editing, no recasting, no sale.",
     ids: ["common-core"],
-  },
-  {
-    title: "Open source and open data — no notice required",
-    blurb:
-      "Permissively licensed and free for commercial use with no notice owed. Credited anyway, and the conditions that DO apply are listed against each.",
-    ids: ["nager-date", "ecb-frankfurter"],
   },
   {
     title: "Referenced, not republished",

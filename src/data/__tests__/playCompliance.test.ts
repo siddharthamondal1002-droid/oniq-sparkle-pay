@@ -145,7 +145,6 @@ describe("Minimum Functionality", () => {
     // Sampled on the two newest link-out surfaces; both must say so in the
     // visible label and in the accessible name.
     for (const f of [
-      "src/routes/_authenticated/app.glance.tsx",
       "src/routes/_authenticated/app.jobs-apps.tsx",
     ]) {
       const src = readFileSync(join(ROOT, f), "utf8");

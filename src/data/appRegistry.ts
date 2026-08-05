@@ -27,7 +27,7 @@ export type CategoryId =
   | "jobs"
   | "gig"
   // Exchanges, brokers and market regulators. Link-out destinations only —
-  // ONIQ displays no quote, index level or chart. See src/data/marketApps.ts.
+  // ONIQ displays no quote, index level or chart — link-outs only.
   | "markets";
 
 export type AppEntry = {
