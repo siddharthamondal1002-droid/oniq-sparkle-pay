@@ -75,8 +75,23 @@
  */
 export const DMCA_AGENT = {
   registeredWithCopyrightOffice: true,
-  /** Effective date on the register. */
+  /** Effective date of the original designation. */
   registrationDate: "2026-08-05" as string | null,
+  /**
+   * Effective date of the most recent AMENDMENT, or null if never amended.
+   *
+   * This is not bookkeeping. The three-year renewal period runs from when the
+   * designation was most recently submitted OR amended, and the directory
+   * models an amendment as a new dated version — the old one becomes Inactive
+   * and the new one becomes Active from its own effective date. So an
+   * amendment moves the deadline, and pinning renewal to the original
+   * registration date would put the diary entry too early at best and, if a
+   * later amendment were ever mistaken for the original, too late.
+   *
+   * Too late is the one that matters: a lapsed designation voids the harbour
+   * and the Office does not warn you.
+   */
+  lastAmendedDate: null as string | null,
   /** §512 designations lapse after 3 years. An expired one voids immunity. */
   renewalDueDate: "2029-08-05" as string | null,
   /** As issued by the Office. */

@@ -45,15 +45,27 @@ describe("a claim of registration must be fully specified", () => {
   });
 
   it("sets renewal three years out, because a lapse voids the harbour", () => {
+    // Measured from the LAST amendment where there is one, not from the
+    // original filing. The three-year period restarts each time the
+    // designation is submitted or amended, and the directory models an
+    // amendment as a new dated version. Anchoring to the original date would
+    // silently understate the deadline the moment anything is corrected.
     if (!DMCA_AGENT.registeredWithCopyrightOffice) return;
-    const from = new Date(`${DMCA_AGENT.registrationDate}T00:00:00Z`);
-    const due = new Date(`${DMCA_AGENT.renewalDueDate}T00:00:00Z`);
-    const expected = new Date(from);
+    const anchor = DMCA_AGENT.lastAmendedDate ?? DMCA_AGENT.registrationDate;
+    const expected = new Date(`${anchor}T00:00:00Z`);
     expected.setUTCFullYear(expected.getUTCFullYear() + 3);
     expect(
-      due.toISOString().slice(0, 10),
-      "§512 designations lapse after 3 years — the renewal date must match",
+      DMCA_AGENT.renewalDueDate,
+      `renewal must be 3 years after ${DMCA_AGENT.lastAmendedDate ? "the last amendment" : "registration"} (${anchor})`,
     ).toBe(expected.toISOString().slice(0, 10));
+  });
+
+  it("never dates an amendment before the registration it amends", () => {
+    if (!DMCA_AGENT.lastAmendedDate || !DMCA_AGENT.registrationDate) return;
+    expect(
+      DMCA_AGENT.lastAmendedDate >= DMCA_AGENT.registrationDate,
+      `amended ${DMCA_AGENT.lastAmendedDate} but registered ${DMCA_AGENT.registrationDate}`,
+    ).toBe(true);
   });
 
   it("publishes all four items §512(c)(2)(A) names, not just an email", () => {
