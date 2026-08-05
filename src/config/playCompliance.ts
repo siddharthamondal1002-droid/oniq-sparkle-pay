@@ -133,13 +133,55 @@ export const DATA_COLLECTED: CollectedData[] = [
     protection: "Deleted with the account; reportable in-app.",
   },
   {
-    category: "Approximate location",
-    playType: "Approximate location",
-    what: "A typed address or coordinates, sent when the user uses address search or a ride/delivery hand-off.",
-    purpose: "Turning a place name into coordinates so a hand-off has somewhere to go.",
+    // PRECISE, not approximate. The manifest declares ACCESS_FINE_LOCATION and
+    // the code asks for it: miniapps.ts and app.learn.tsx both call
+    // getCurrentPosition with enableHighAccuracy:true and read
+    // coords.latitude/longitude. Declaring this as merely "approximate" was
+    // wrong, and Play's 15 July 2026 announcement specifically called out
+    // precise-versus-approximate disclosure as an area it is tightening.
+    category: "Precise location",
+    playType: "Precise location",
+    what: "Exact latitude and longitude, read only when the user taps to use their current location for a ride, delivery or nearby lookup.",
+    purpose:
+      "Setting a pickup point or finding what is nearby. Never used for advertising, never sold, never stored on ONIQ's servers.",
     optional: true,
     protection:
-      "Only on an explicit search. The country-level region signal used elsewhere comes from the Cloudflare edge header, is used for the decision and discarded, and is never stored.",
+      "Requested at the moment of use, not at launch. The coordinates go to the geocoder to resolve a place and are not persisted by ONIQ.",
+  },
+  {
+    category: "Approximate location",
+    playType: "Approximate location",
+    what: "A typed address, and the country-level region signal.",
+    purpose: "Turning a place name into coordinates, and showing country-correct content.",
+    optional: true,
+    protection:
+      "The country-level signal comes from the Cloudflare edge header, is used for the decision and discarded, and is never stored.",
+  },
+  {
+    // READ_CONTACTS is in the manifest and getNativeContacts() uses it. It was
+    // undeclared, which is the same class of error as the health claim.
+    category: "Contacts",
+    playType: "Contacts",
+    what: "Phone numbers from the device address book, when the user chooses to find friends already on ONIQ.",
+    purpose: "Matching contacts to existing ONIQ accounts.",
+    optional: true,
+    protection:
+      "Only on an explicit tap — never read at launch or in the background. Numbers are normalised and matched, and the address book is not uploaded wholesale or retained as a contact graph.",
+  },
+  {
+    // Play's 15 July 2026 clarification: the User Data policy applies to
+    // third-party AI integrations, and the developer stays responsible for
+    // limited use, disclosure and consent. ONIQ's generative surfaces send
+    // user input to Anthropic. That has to be disclosed like any other
+    // third-party processing, because it is.
+    category: "AI processing",
+    playType: "App activity / user-generated content",
+    what: "What the user types into Ting, Study Buddy, or the CV builder — including the facts they enter about themselves for a CV — is sent to Anthropic's API to generate a response.",
+    purpose:
+      "Producing the answer, the practice paper or the CV the user asked for. Not used to train a model, not used for advertising, not sold.",
+    optional: true,
+    protection:
+      "Health data is never sent to any AI surface. Output is labelled AI-generated and reportable in-app. Disclosed in the privacy notice.",
   },
 ];
 

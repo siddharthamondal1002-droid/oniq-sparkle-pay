@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 import {
   AI_SURFACES,
   ALLOWED_REMOTE_IMAGE_HOSTS,
+  DATA_COLLECTED,
   NATIVE_CAPABILITIES,
   THIRD_PARTY_REQUESTS,
 } from "@/config/playCompliance";
@@ -156,9 +157,10 @@ describe("health claims match where the data actually goes", () => {
   it("claims no device-only storage for health while the server tables are written", () => {
     const claims = NATIVE_CAPABILITIES.join(" ").toLowerCase();
     if (writesToServer) {
-      expect(claims, "health data is claimed to stay on-device but is written to Postgres").not.toMatch(
-        /health[^.]*never leave|never leave[^.]*device[^.]*health|on-device health/,
-      );
+      expect(
+        claims,
+        "health data is claimed to stay on-device but is written to Postgres",
+      ).not.toMatch(/health[^.]*never leave|never leave[^.]*device[^.]*health|on-device health/);
     }
   });
 
@@ -171,6 +173,85 @@ describe("health claims match where the data actually goes", () => {
   });
 });
 
+describe("Data safety covers every sensitive permission the app requests", () => {
+  // The manifest is the ground truth for what ONIQ can reach. Twice now a
+  // permission was live while the declaration said nothing about it —
+  // ACCESS_FINE_LOCATION was declared in the manifest and used with
+  // enableHighAccuracy, while DATA_COLLECTED claimed only "approximate", and
+  // READ_CONTACTS was missing entirely. Play's 15 July 2026 announcement
+  // singles out precise-vs-approximate location disclosure specifically.
+  const manifest = readFileSync(join(ROOT, "android/app/src/main/AndroidManifest.xml"), "utf8");
+  const declared = DATA_COLLECTED.map((d) => `${d.category} ${d.playType} ${d.what}`)
+    .join(" ")
+    .toLowerCase();
+
+  const SENSITIVE: [string, RegExp][] = [
+    ["ACCESS_FINE_LOCATION", /precise location/],
+    ["ACCESS_COARSE_LOCATION", /approximate location/],
+    ["READ_CONTACTS", /contacts/],
+    ["CAMERA", /photo|video|camera|scan/],
+    ["RECORD_AUDIO", /call|audio|message/],
+  ];
+
+  it.each(SENSITIVE)("%s is declared in Data safety", (perm, expected) => {
+    if (!manifest.includes(`android.permission.${perm}`)) return; // not requested
+    expect(declared, `${perm} is in the manifest but undeclared`).toMatch(expected);
+  });
+
+  it("declares precise location, since the code asks for high accuracy", () => {
+    const miniapps = readFileSync(join(ROOT, "src/lib/miniapps.ts"), "utf8");
+    if (/enableHighAccuracy:\s*true/.test(miniapps)) {
+      expect(DATA_COLLECTED.some((d) => /precise/i.test(d.playType))).toBe(true);
+    }
+  });
+
+  it("requests no SMS or call-log permission", () => {
+    // Play's July 2026 change removed phone-call account verification as a
+    // permitted READ_CALL_LOG use case. ONIQ never used it; this keeps it so.
+    for (const perm of ["READ_CALL_LOG", "READ_SMS", "RECEIVE_SMS", "SEND_SMS"]) {
+      expect(manifest, `${perm} would now need a permitted use case`).not.toContain(perm);
+    }
+  });
+
+  it("targets an API level Play still accepts", () => {
+    const vars = readFileSync(join(ROOT, "android/variables.gradle"), "utf8");
+    const target = Number(vars.match(/targetSdkVersion\s*=\s*(\d+)/)?.[1] ?? 0);
+    expect(target, "targetSdk is below Play's 2026 floor").toBeGreaterThanOrEqual(35);
+  });
+});
+
+describe("third-party AI integrations are disclosed", () => {
+  // 15 July 2026 clarification: the User Data policy applies to third-party AI
+  // integrations, and the developer remains responsible for limited use,
+  // disclosure and consent. ONIQ's generative surfaces send user input to
+  // Anthropic, which was previously disclosed nowhere.
+  const privacyPage = readFileSync(join(ROOT, "src/routes/privacy.tsx"), "utf8");
+
+  it("names the provider in the public privacy notice", () => {
+    expect(privacyPage).toMatch(/Anthropic/);
+  });
+
+  it("states the limited-use position", () => {
+    const lower = privacyPage.toLowerCase();
+    expect(lower).toMatch(/not.{0,20}used to train/);
+    expect(lower).toMatch(/not.{0,20}sold/);
+  });
+
+  it("says health data never reaches a model, and means it", () => {
+    expect(privacyPage.toLowerCase()).toMatch(/health data is never sent to any ai/);
+    // Verified rather than asserted: no edge function reads a health table.
+    const fnDir = join(ROOT, "supabase/functions");
+    const offenders = walk(fnDir).filter((p) =>
+      /health_checkins|cycle_logs|health_profiles/.test(readFileSync(p, "utf8")),
+    );
+    expect(offenders.map((p) => p.slice(ROOT.length + 1))).toEqual([]);
+  });
+
+  it("declares the AI processing in Data safety too", () => {
+    expect(DATA_COLLECTED.some((d) => /ai processing/i.test(d.category))).toBe(true);
+  });
+});
+
 describe("Minimum Functionality", () => {
   it("records enough native capability to answer a webview-spam review", () => {
     expect(NATIVE_CAPABILITIES.length).toBeGreaterThanOrEqual(8);
@@ -180,9 +261,7 @@ describe("Minimum Functionality", () => {
   it("labels link-outs as leaving the app", () => {
     // Sampled on the two newest link-out surfaces; both must say so in the
     // visible label and in the accessible name.
-    for (const f of [
-      "src/components/jobs/JobAppsDirectory.tsx",
-    ]) {
+    for (const f of ["src/components/jobs/JobAppsDirectory.tsx"]) {
       const src = readFileSync(join(ROOT, f), "utf8");
       expect(src, `${f} does not label its link-outs`).toMatch(
         /Open in browser|opens outside ONIQ|Open ↗/,
