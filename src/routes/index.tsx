@@ -10,6 +10,7 @@ import {
   Languages,
   Tv,
   Film,
+  BookOpen,
   Grid3x3,
   ShieldCheck,
   Globe2,
@@ -45,7 +46,7 @@ const features = [
   { icon: Plane, title: "Wanderlust", desc: "Compare buses, trains, flights and hotels in one hub." },
   { icon: Sparkles, title: "Ting AI", desc: "Live-web AI assistant that actually answers what's happening now." },
   { icon: Languages, title: "Scout", desc: "25-language translator plus Bengali lessons in ONIQ Learn." },
-  { icon: Tv, title: "Pulse & Watch", desc: "News headlines, plus a directory of channels that opens each one on its own platform." },
+  { icon: Tv, title: "Pulse", desc: "Headlines from publisher feeds, each one linking out to the publisher." },
   { icon: Grid3x3, title: "25+ Mini Apps", desc: "A growing hub of partner apps that open right inside ONIQ." },
   { icon: ShieldCheck, title: "Yours to skin", desc: "Install as a PWA, add wallpapers and tile skins." },
 ];
@@ -188,7 +189,7 @@ function Landing() {
           <div className="grid grid-cols-2 gap-4">
             <WorldCard icon={MessageCircle} label="Chat" tint="from-primary to-blue-500" />
             <WorldCard icon={QrCode} label="Pay (UPI)" tint="from-neon to-primary" />
-            <WorldCard icon={Tv} label="Watch" tint="from-magenta to-primary" />
+            <WorldCard icon={BookOpen} label="Study" tint="from-magenta to-primary" />
             <WorldCard icon={Sparkles} label="Ting AI" tint="from-primary to-magenta" />
             <WorldCard icon={Plane} label="Wanderlust" tint="from-amber to-magenta" />
             <WorldCard icon={Car} label="Ride" tint="from-primary to-neon" />
@@ -316,7 +317,7 @@ function PhoneMockup() {
             <div className="mt-2 text-xs text-neon">Scan QR · My QR · Pay a friend</div>
           </div>
           <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-            {["Chat", "Pay", "Watch", "Ride"].map((t) => (
+            {["Chat", "Pay", "Study", "Ride"].map((t) => (
               <div
                 key={t}
                 className="rounded-xl border border-border bg-card/50 py-3 text-xs text-muted-foreground"

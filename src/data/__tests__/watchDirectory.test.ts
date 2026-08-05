@@ -176,6 +176,15 @@ describe("every entry is a link that leaves the app", () => {
     expect(codeOf(path)).not.toMatch(/<iframe|new Audio\(/);
   });
 
+  it("the public landing page does not advertise Watch", () => {
+    // Watch was removed from the app entirely. The landing page kept selling
+    // it in three places — a feature card, a "world" card and a chip in the
+    // phone mockup — which is the same advertise-what-you-do-not-ship problem
+    // the live-TV copy had, just reintroduced by the removal itself.
+    const landing = readFileSync(join(ROOT, "src/routes/index.tsx"), "utf8");
+    expect(landing, "landing page still mentions Watch").not.toMatch(/\bWatch\b/);
+  });
+
   it("the home screen has no Watch tile or stream preview at all", () => {
     const src = readFileSync(join(ROOT, "src/routes/_authenticated/app.index.tsx"), "utf8");
     expect(src).not.toMatch(/livePreview|loadYouTubeApi|useLiveGenres/);
