@@ -83,7 +83,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "description",
         content:
-          "Chat, pay, ride, travel, learn — ONIQ is one app for every world.",
+          "Chat with voice and video, study for your boards, compare rides and travel, learn a language and ask an AI. One app for every world.",
       },
 
       { name: "author", content: "ONIQ" },
@@ -135,7 +135,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           name: "ONIQ",
           url: "https://oniqhub.com",
           description:
-            "Chat, pay, ride, travel, learn — ONIQ is one app for every world.",
+            "Chat with voice and video, study for your boards, compare rides and travel, learn a language and ask an AI. One app for every world.",
 
           sameAs: [] as string[],
         }),

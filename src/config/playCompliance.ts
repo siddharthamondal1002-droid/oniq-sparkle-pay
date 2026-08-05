@@ -31,7 +31,12 @@ export const NATIVE_CAPABILITIES = [
   "CV builder with anti-fabrication validation against the user's own declared facts.",
   "Country-aware exam-paper generation with vector PDF export.",
   "Real-time chat with WebRTC voice and video.",
-  "UPI scan-and-pay through the user's own payment apps.",
+  // Built and working, but WITHHELD from users pending this compliance pass —
+  // `oniq-upi` carries hidden:true in the app registry and the site lists Scan
+  // & Pay as coming soon. Kept on this list because the code is real native
+  // work, but flagged, because citing a capability a reviewer cannot reach
+  // would undermine the rest of the list rather than strengthen it.
+  "UPI scan-and-pay through the user's own payment apps — implemented, currently withheld from the UI.",
   "Job-scam alerts with region-correct reporting channels.",
 ] as const;
 
@@ -43,19 +48,104 @@ export const NATIVE_CAPABILITIES = [
  * surface here renders AI_OUTPUT_LABEL and an <AiOutputReport />.
  */
 export const AI_SURFACES = [
-  { id: "cv_ai_output", screen: "Jobs — CV builder", file: "src/routes/_authenticated/app.jobs.tsx" },
-  { id: "study_ai_output", screen: "Study Buddy tutor", file: "src/routes/_authenticated/app.study.tsx" },
+  {
+    id: "cv_ai_output",
+    screen: "Jobs — CV builder",
+    file: "src/routes/_authenticated/app.jobs.tsx",
+  },
+  {
+    id: "study_ai_output",
+    screen: "Study Buddy tutor",
+    file: "src/routes/_authenticated/app.study.tsx",
+  },
   { id: "ting_ai_output", screen: "Ting assistant", file: "src/routes/_authenticated/app.ai.tsx" },
 ] as const;
 
 /**
- * DATA SAFETY.
+ * DATA SAFETY — WHAT ONIQ ACTUALLY COLLECTS, as the Play form, in code.
  *
  * The declaration must match reality. Data that never leaves the device is not
  * "collected" — but anything that does leave has to be listed, including
  * third-party requests made by decorative elements, which is the part people
  * forget.
+ *
+ * This exists because the form was about to be filled in from a false premise.
+ * NATIVE_CAPABILITIES used to claim health readings never left the device,
+ * which would have become a "no health data collected" declaration while
+ * health_profiles, health_checkins and cycle_logs held real rows.
+ *
+ * A wrong Data safety declaration is not a paperwork error. Play treats it as
+ * a policy violation in its own right, independently of whatever the app does
+ * — you can be removed for declaring incorrectly even where the underlying
+ * processing would have been fine if declared.
+ *
+ * So: declare it, then say honestly what protects it. The protections here are
+ * real and checkable, which is the only kind worth listing.
  */
+export type CollectedData = {
+  category: string;
+  /** Play's own taxonomy word, so the form can be filled straight from this. */
+  playType: string;
+  what: string;
+  /** Why it leaves the device at all. */
+  purpose: string;
+  /** True where the user can use ONIQ without providing it. */
+  optional: boolean;
+  /** The controls that actually apply. No aspirations. */
+  protection: string;
+};
+
+export const DATA_COLLECTED: CollectedData[] = [
+  {
+    category: "Health and fitness",
+    playType: "Health info",
+    what: "Mood, sleep, energy, water and exercise check-ins, and cycle logs.",
+    purpose:
+      "Rendering the user's own history back to them. Never used for advertising, never sold, never shared with a third party.",
+    optional: true,
+    protection:
+      "Row-level security: readable and writable only by the account that created it. A two-axis UAE block enforced in Postgres by health_data_allowed() refuses the write outright where the data would be generated in the UAE. Included in data export and account deletion.",
+  },
+  {
+    category: "Personal identifiers",
+    playType: "Personal info",
+    what: "Display name, username, avatar, country, and date of birth where given.",
+    purpose: "Account identity, the 18+ gate, and country-correct content.",
+    optional: false,
+    protection:
+      "Date of birth is write-once and drives is_adult_18, which is enforced in RESTRICTIVE row-level security rather than only in the UI.",
+  },
+  {
+    category: "Messages",
+    playType: "Messages",
+    what: "Chat messages, call metadata and any media the user attaches.",
+    purpose: "Delivering the conversation.",
+    optional: true,
+    protection:
+      "Readable only by conversation participants. WebRTC voice and video are peer-to-peer and are not recorded.",
+  },
+  {
+    category: "User content",
+    playType: "Photos and videos",
+    what: "Moments, clips and profile images the user uploads.",
+    purpose: "Showing them to the audience the user chose.",
+    optional: true,
+    protection: "Deleted with the account; reportable in-app.",
+  },
+  {
+    category: "Approximate location",
+    playType: "Approximate location",
+    what: "A typed address or coordinates, sent when the user uses address search or a ride/delivery hand-off.",
+    purpose: "Turning a place name into coordinates so a hand-off has somewhere to go.",
+    optional: true,
+    protection:
+      "Only on an explicit search. The country-level region signal used elsewhere comes from the Cloudflare edge header, is used for the decision and discarded, and is never stored.",
+  },
+];
+
+/** Health data IS collected. Anything claiming otherwise is a bug — see the test. */
+export const HEALTH_DATA_IS_COLLECTED = true;
+
 export type ThirdPartyRequest = {
   host: string;
   triggeredBy: string;
@@ -107,7 +197,7 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
   {
     host: "api.openweathermap.org",
     triggeredBy:
-      "Legacy weather screen (src/lib/weather.functions.ts). Currently DEAD — OPENWEATHER_API_KEY is unset, so the screen renders \"Weather isn't configured yet\" and no request is ever made.",
+      'Legacy weather screen (src/lib/weather.functions.ts). Currently DEAD — OPENWEATHER_API_KEY is unset, so the screen renders "Weather isn\'t configured yet" and no request is ever made.',
     sends:
       "Would send latitude and longitude, or a city name, from the server. Sends nothing today.",
     purpose: "Was the weather forecast. No weather source survived the licence review.",

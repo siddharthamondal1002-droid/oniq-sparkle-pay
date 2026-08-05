@@ -1,17 +1,23 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { GRIEVANCE_OFFICER } from "@/config/privacy";
 import {
+  COUNTRIES_SUPPORTED,
+  FEATURE_CARDS,
+  HERO,
+  NOT_AFFILIATED,
+  PRIVACY_BAND,
+  SCOUT_LANGUAGES,
+  WORLDS_LIVE,
+  type FeatureCard,
+} from "@/data/marketingCopy";
+import {
   MessageCircle,
   Sparkles,
 
-  QrCode,
+  Newspaper,
   Car,
   Plane,
-  Languages,
-  Tv,
-  Film,
   BookOpen,
-  Grid3x3,
   ShieldCheck,
   Globe2,
   ArrowRight,
@@ -19,7 +25,7 @@ import {
 } from "lucide-react";
 
 const LANDING_DESCRIPTION =
-  "Chat, pay, ride, travel, learn — ONIQ is one app for every world.";
+  "Chat with voice and video, study for your boards, compare rides and travel, learn a language and ask an AI. One app for every world.";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -37,19 +43,8 @@ export const Route = createFileRoute("/")({
   component: Landing,
 });
 
-const features = [
-  { icon: MessageCircle, title: "Chat", desc: "Real-time messaging with voice & video calls." },
-  { icon: Sparkles, title: "Moments", desc: "A private social feed for you and your circle." },
-  { icon: Film, title: "Clips", desc: "Endless short videos in a swipeable feed." },
-  { icon: QrCode, title: "Scan & Pay (UPI)", desc: "Scan any UPI QR, show your own — payments run through your own UPI apps." },
-  { icon: Car, title: "Rides", desc: "Compare ride prices across providers before you book." },
-  { icon: Plane, title: "Wanderlust", desc: "Compare buses, trains, flights and hotels in one hub." },
-  { icon: Sparkles, title: "Ting AI", desc: "Live-web AI assistant that actually answers what's happening now." },
-  { icon: Languages, title: "Scout", desc: "25-language translator plus Bengali lessons in ONIQ Learn." },
-  { icon: Tv, title: "Pulse", desc: "Headlines from publisher feeds, each one linking out to the publisher." },
-  { icon: Grid3x3, title: "25+ Mini Apps", desc: "A growing hub of partner apps that open right inside ONIQ." },
-  { icon: ShieldCheck, title: "Yours to skin", desc: "Install as a PWA, add wallpapers and tile skins." },
-];
+// The feature list lives in src/data/marketingCopy.ts now, where the tests
+// can check that every live card points at a route that exists.
 
 function Landing() {
   return (
@@ -98,11 +93,7 @@ function Landing() {
                 <br />
                 <span className="bg-gradient-to-r from-[#00D4B8] via-[#8B5CF6] to-[#F59E0B] bg-clip-text text-transparent">Every world.</span>
               </h1>
-              <p className="mt-6 max-w-xl text-lg text-muted-foreground">
-                Chat with voice &amp; video, scan &amp; pay any UPI QR, compare rides
-                and travel, find the channels worth watching, learn a language and ask
-                an AI — all in one beautifully fast app.
-              </p>
+              <p className="mt-6 max-w-xl text-lg text-muted-foreground">{HERO.body}</p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
                   to="/auth"
@@ -123,10 +114,15 @@ function Landing() {
                   Open app →
                 </Link>
               </div>
+              {/*
+                Every number is counted, not inherited. "12 worlds" survived
+                two surface removals unchanged, which is how a stat becomes a
+                lie by attrition — WORLDS_LIVE is derived from the card list.
+              */}
               <div className="mt-10 grid grid-cols-3 gap-6 text-sm">
-                <Stat value="12" label="Worlds in one app" />
-                <Stat value="25" label="Languages in Scout" />
-                <Stat value="6" label="Channel genres listed" />
+                <Stat value={String(COUNTRIES_SUPPORTED)} label="Countries supported" />
+                <Stat value={String(SCOUT_LANGUAGES)} label="Languages in Scout" />
+                <Stat value={String(WORLDS_LIVE)} label="Worlds in one app" />
               </div>
             </div>
 
@@ -139,7 +135,7 @@ function Landing() {
       <section id="features" style={{ scrollMarginTop: "5rem" }} className="mx-auto max-w-6xl px-5 py-24">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="font-display text-4xl font-bold md:text-5xl">
-            Twelve worlds. <span className="text-gradient-accent">One login.</span>
+            {WORLDS_LIVE} worlds. <span className="text-gradient-accent">One login.</span>
           </h2>
           <p className="mt-4 text-muted-foreground">
             Stop juggling apps. ONIQ brings everyday life into a single, unified surface.
@@ -147,19 +143,45 @@ function Landing() {
         </div>
 
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {features.map((f) => (
-            <div
-              key={f.title}
-              className="group relative overflow-hidden rounded-3xl border border-border bg-[image:var(--gradient-card)] p-6 transition-all duration-300 hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_10px_40px_-10px_hsl(var(--primary)/0.35)]"
-            >
-              <div className="grid h-11 w-11 place-items-center rounded-xl bg-primary/10 text-primary">
-                <f.icon className="h-5 w-5" />
-              </div>
-              <h3 className="mt-4 font-display text-lg font-semibold">{f.title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">{f.desc}</p>
-              <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary/10 opacity-0 blur-2xl transition group-hover:opacity-100" />
-            </div>
+          {FEATURE_CARDS.filter((c) => c.status === "live").map((c) => (
+            <FeatureTile key={c.title} card={c} />
           ))}
+        </div>
+
+        {/*
+          Coming soon, visibly so. Dimmed, badged, and rendered as a <div>
+          rather than a link — a card that looks live and is not is worse than
+          no card, and worst of all for a payment feature.
+        */}
+        <div className="mt-14">
+          <h3 className="text-center text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+            Coming soon
+          </h3>
+          <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURE_CARDS.filter((c) => c.status === "soon").map((c) => (
+              <FeatureTile key={c.title} card={c} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/*
+        THE PRIVACY BAND. Read src/data/marketingCopy.ts → PRIVACY_BAND before
+        editing a word of this. The version in the original copy deck claimed
+        health logs were "encrypted on your device. Not on our servers." That
+        was false — Vitals writes to Postgres — and it would have put a false
+        statement about sensitive personal data on the front page. Every clause
+        below is checkable.
+      */}
+      <section className="border-y border-border bg-[image:var(--gradient-card)]">
+        <div className="mx-auto max-w-4xl px-5 py-20 text-center">
+          <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <ShieldCheck className="h-3.5 w-3.5" /> Privacy
+          </div>
+          <h2 className="mt-5 font-display text-3xl font-bold leading-tight md:text-4xl">
+            {PRIVACY_BAND.heading}
+          </h2>
+          <p className="mx-auto mt-5 max-w-2xl text-muted-foreground">{PRIVACY_BAND.body}</p>
         </div>
       </section>
 
@@ -176,7 +198,7 @@ function Landing() {
             </h2>
             <p className="mt-5 text-muted-foreground">
               Multi-language, multi-provider, multi-everything. Whether you're sending a
-              voice note across timezones or paying a friend over UPI — ONIQ
+              voice note across timezones or revising for a board exam — ONIQ
               just works.
             </p>
             <ul className="mt-6 space-y-3 text-sm">
@@ -188,7 +210,7 @@ function Landing() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <WorldCard icon={MessageCircle} label="Chat" tint="from-primary to-blue-500" />
-            <WorldCard icon={QrCode} label="Pay (UPI)" tint="from-neon to-primary" />
+            <WorldCard icon={Newspaper} label="Pulse" tint="from-neon to-primary" />
             <WorldCard icon={BookOpen} label="Study" tint="from-magenta to-primary" />
             <WorldCard icon={Sparkles} label="Ting AI" tint="from-primary to-magenta" />
             <WorldCard icon={Plane} label="Wanderlust" tint="from-amber to-magenta" />
@@ -213,14 +235,32 @@ function Landing() {
             Get started — it's free
           </Link>
           <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
+            {/*
+              Child Safety and Delete Account were public routes that nothing
+              linked to. Play wants an account-deletion URL a reviewer can
+              reach without installing the app, and the child-safety policy is
+              a condition of the social features — an unlinked page satisfies
+              neither.
+            */}
             <Link to="/terms" className="hover:text-primary">Terms</Link>
             <span>·</span>
             <Link to="/privacy" className="hover:text-primary">Privacy</Link>
             <span>·</span>
-            <Link to="/dmca" className="hover:text-primary">Copyright</Link>
+            <Link to="/child-safety" className="hover:text-primary">Child Safety</Link>
             <span>·</span>
-            <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="hover:text-primary">Grievance officer</a>
+            <Link to="/delete-account" className="hover:text-primary">Delete Account</Link>
+            <span>·</span>
+            <Link to="/dmca" className="hover:text-primary">Copyright</Link>
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Grievance Officer: {GRIEVANCE_OFFICER.name} —{" "}
+            <a href={`mailto:${GRIEVANCE_OFFICER.email}`} className="hover:text-primary">
+              {GRIEVANCE_OFFICER.email}
+            </a>
+          </p>
+          <p className="mx-auto mt-3 max-w-2xl text-[11px] leading-relaxed text-muted-foreground/80">
+            {NOT_AFFILIATED}
+          </p>
           {/*
             DMCA.com Protection Status badge (Pro). Hotlinked on purpose: the
             image is served by dmca.com against the protection ID, so it cannot
@@ -264,6 +304,44 @@ function Landing() {
           </p>
         </div>
       </footer>
+    </div>
+  );
+}
+
+/**
+ * One feature card. `soon` cards are deliberately a different object: dimmed,
+ * badged, and not a link, so the difference survives a glance rather than
+ * needing to be read.
+ */
+function FeatureTile({ card }: { card: FeatureCard }) {
+  const soon = card.status === "soon";
+  return (
+    <div
+      className={`group relative overflow-hidden rounded-3xl border p-6 transition-all duration-300 ${
+        soon
+          ? "border-dashed border-border/70 bg-muted/20 opacity-60"
+          : "border-border bg-[image:var(--gradient-card)] hover:-translate-y-1 hover:border-primary/40 hover:shadow-[0_10px_40px_-10px_hsl(var(--primary)/0.35)]"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <h3 className="font-display text-lg font-semibold">{card.title}</h3>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {soon && (
+            <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Coming soon
+            </span>
+          )}
+          {card.adultOnly && (
+            <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+              18+
+            </span>
+          )}
+        </div>
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground">{card.copy}</p>
+      {!soon && (
+        <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-primary/10 opacity-0 blur-2xl transition group-hover:opacity-100" />
+      )}
     </div>
   );
 }
@@ -312,12 +390,12 @@ function PhoneMockup() {
           <div className="text-xs text-muted-foreground">Good morning</div>
           <div className="font-display text-2xl font-bold">Alex</div>
           <div className="mt-4 rounded-2xl border border-border bg-card/70 p-4 backdrop-blur">
-            <div className="text-xs text-muted-foreground">Scan &amp; Pay</div>
-            <div className="mt-1 font-display text-2xl font-semibold">UPI ready 💳</div>
-            <div className="mt-2 text-xs text-neon">Scan QR · My QR · Pay a friend</div>
+            <div className="text-xs text-muted-foreground">Study</div>
+            <div className="mt-1 font-display text-2xl font-semibold">Papers ready 📚</div>
+            <div className="mt-2 text-xs text-neon">Your board · Your class · Print it</div>
           </div>
           <div className="mt-4 grid grid-cols-4 gap-2 text-center">
-            {["Chat", "Pay", "Study", "Ride"].map((t) => (
+            {["Chat", "Study", "Ting", "Ride"].map((t) => (
               <div
                 key={t}
                 className="rounded-xl border border-border bg-card/50 py-3 text-xs text-muted-foreground"
