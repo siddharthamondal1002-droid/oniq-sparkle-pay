@@ -664,6 +664,66 @@ export type Database = {
           },
         ]
       }
+      copyright_notices: {
+        Row: {
+          actioned_at: string | null
+          complainant_email: string
+          complainant_name: string
+          complainant_org: string | null
+          counts_as_strike: boolean
+          id: string
+          notes: string | null
+          notice_kind: string
+          purge_after: string | null
+          received_at: string
+          respondent_id: string | null
+          status: string
+          sworn_statement: boolean
+          target_row_id: string | null
+          target_table: string | null
+          target_url: string | null
+          work_described: string
+        }
+        Insert: {
+          actioned_at?: string | null
+          complainant_email: string
+          complainant_name: string
+          complainant_org?: string | null
+          counts_as_strike?: boolean
+          id?: string
+          notes?: string | null
+          notice_kind?: string
+          purge_after?: string | null
+          received_at?: string
+          respondent_id?: string | null
+          status?: string
+          sworn_statement?: boolean
+          target_row_id?: string | null
+          target_table?: string | null
+          target_url?: string | null
+          work_described: string
+        }
+        Update: {
+          actioned_at?: string | null
+          complainant_email?: string
+          complainant_name?: string
+          complainant_org?: string | null
+          counts_as_strike?: boolean
+          id?: string
+          notes?: string | null
+          notice_kind?: string
+          purge_after?: string | null
+          received_at?: string
+          respondent_id?: string | null
+          status?: string
+          sworn_statement?: boolean
+          target_row_id?: string | null
+          target_table?: string | null
+          target_url?: string | null
+          work_described?: string
+        }
+        Relationships: []
+      }
       cv_attestations: {
         Row: {
           attested_at: string
@@ -1050,32 +1110,44 @@ export type Database = {
       }
       grievances: {
         Row: {
+          acknowledge_due_at: string | null
+          acknowledged_at: string | null
           complaint_type: string
           created_at: string
           email: string
           id: string
           message: string
           name: string
+          resolve_due_at: string | null
+          resolved_at: string | null
           status: string
           user_id: string | null
         }
         Insert: {
+          acknowledge_due_at?: string | null
+          acknowledged_at?: string | null
           complaint_type: string
           created_at?: string
           email: string
           id?: string
           message: string
           name: string
+          resolve_due_at?: string | null
+          resolved_at?: string | null
           status?: string
           user_id?: string | null
         }
         Update: {
+          acknowledge_due_at?: string | null
+          acknowledged_at?: string | null
           complaint_type?: string
           created_at?: string
           email?: string
           id?: string
           message?: string
           name?: string
+          resolve_due_at?: string | null
+          resolved_at?: string | null
           status?: string
           user_id?: string | null
         }
@@ -3086,6 +3158,7 @@ export type Database = {
         Args: { _lesson_id: string; _score: number }
         Returns: Json
       }
+      copyright_purge_expired: { Args: never; Returns: number }
       create_channel: {
         Args: { _description: string; _is_public: boolean; _name: string }
         Returns: string
@@ -3366,6 +3439,7 @@ export type Database = {
         Args: { _conversation_id: string; _user_id: string }
         Returns: undefined
       }
+      repeat_infringer_strikes: { Args: { _uid: string }; Returns: number }
       request_parental_consent: {
         Args: { _method?: string; _parent_email: string }
         Returns: Json
