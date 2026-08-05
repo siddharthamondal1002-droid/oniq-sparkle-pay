@@ -91,17 +91,9 @@ describe("Watch axis is still current region — but for relevance now", () => {
   // country is the wrong signal for that. What changed is the consequence of
   // getting it wrong — a UX miss instead of infringement.
   const watchSrc = readFileSync(join(ROOT, "src/data/watchDirectory.ts"), "utf8");
-  const surface = readFileSync(join(ROOT, "src/components/landing/LiveNewsSection.tsx"), "utf8");
 
   it("filters on the region argument, never on Home country", () => {
     expect(watchSrc).not.toMatch(/useCountry|homeCountry/);
-  });
-
-  it("the Watch surface feeds the directory from useCurrentRegion", () => {
-    expect(surface).toMatch(/useCurrentRegion/);
-    const call = surface.match(/watchDirectoryFor\(([^,)]*)/);
-    expect(call, "watchDirectoryFor call not found").toBeTruthy();
-    expect(call![1].trim()).toBe("region");
   });
 
   it("current region is still edge-detected and not settable from the UI", () => {
@@ -110,7 +102,6 @@ describe("Watch axis is still current region — but for relevance now", () => {
     // about location privacy, which did not change when the streams went away.
     const region = readFileSync(join(ROOT, "src/lib/region.ts"), "utf8");
     expect(region).toMatch(/cf-ipcountry/i);
-    expect(surface).not.toMatch(/setCurrentRegion/);
   });
 
   it("says in the source that the gate is no longer a legal control", () => {

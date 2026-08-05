@@ -8,19 +8,17 @@ import { useCountry } from "@/lib/country";
 import { newsUnavailableReason } from "@/data/newsPolicy";
 import type { Country } from "@/data/appRegistry";
 import { openInApp } from "@/lib/miniapps";
-import { WatchLive } from "@/components/landing/LiveNewsSection";
 
 export const Route = createFileRoute("/_authenticated/app/news")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    tab: s.tab === "watch" ? ("watch" as const) : undefined,
-  }),
+  // Watch is gone. `?tab=watch` deep links still resolve — the param is
+  // simply ignored and the reader lands on the news feed.
+  validateSearch: () => ({}),
   component: NewsScreen,
 });
 
 type NewsItem = { title: string; link: string; source: string; publishedAt: string; image?: string };
 
 const CATEGORIES = [
-  { id: "watch", label: "Watch 📺" },
   { id: "top", label: "Top" },
   { id: "india", label: "India" },
   { id: "world", label: "World" },
@@ -47,8 +45,7 @@ function relTime(iso: string): string {
 }
 
 function NewsScreen() {
-  const { tab } = Route.useSearch();
-  const [category, setCategory] = useState<string>(tab === "watch" ? "watch" : "top");
+  const [category, setCategory] = useState<string>("top");
   const qc = useQueryClient();
   // Axis: where you are standing by default, with a Home toggle for diaspora
   // users. Both hooks stay above every early return.
@@ -73,7 +70,7 @@ function NewsScreen() {
       };
     },
     staleTime: 5 * 60 * 1000,
-    enabled: category !== "watch" && !unavailable,
+    enabled: !unavailable,
   });
 
   const items = data?.items ?? [];
@@ -128,11 +125,7 @@ function NewsScreen() {
         </div>
 
         {/* Content */}
-        {category === "watch" ? (
-          <div className="mt-5">
-            <WatchLive />
-          </div>
-        ) : blockedMessage ? (
+        {blockedMessage ? (
           <div className="mt-5 rounded-2xl border border-border bg-surface p-6 text-center">
             <p className="text-sm text-muted-foreground">{blockedMessage}</p>
             {!useHome && home && home !== region && (

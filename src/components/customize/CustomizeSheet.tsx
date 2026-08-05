@@ -376,7 +376,6 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
 }
 
 const HERO_TOGGLES: { key: TileKey; label: string }[] = [
-  { key: "watch", label: "Watch feed 📺" },
   { key: "study", label: "Study feed 📚" },
   { key: "moments", label: "Moments feed ✨" },
   { key: "mast", label: "Mast feed 🎬" },
