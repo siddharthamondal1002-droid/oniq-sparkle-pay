@@ -160,8 +160,17 @@ function DmcaPage() {
                 <br />
                 <a href={`tel:${DMCA_AGENT.agentPhone}`}>{DMCA_AGENT.agentPhone}</a>
                 <br />
-                <a href={`mailto:${DMCA_AGENT.email}`}>{DMCA_AGENT.email}</a>
+                <a href={`mailto:${DMCA_AGENT.agentEmail}`}>{DMCA_AGENT.agentEmail}</a>
+                {DMCA_AGENT.agentEmail !== DMCA_AGENT.email && (
+                  <>
+                    {" · "}
+                    <a href={`mailto:${DMCA_AGENT.email}`}>{DMCA_AGENT.email}</a>
+                  </>
+                )}
               </address>
+              <p className="text-sm text-muted-foreground">
+                A notice sent to either address reaches the designated agent.
+              </p>
             </>
           ) : (
             <p>

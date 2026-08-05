@@ -20,17 +20,45 @@
  * a provider that never registered has no harbour no matter how good its
  * policy is (BWP Media v. Hollywood Fan Sites; Oppenheimer v. Allvoices).
  *
- * While this is false, the policy page says so plainly rather than implying a
- * protection ONIQ does not have.
+ * The policy page tracks this flag in both directions: while it is false it
+ * says plainly that ONIQ has no such designation rather than implying a
+ * protection it does not have, and while it is true it publishes the agent
+ * block below. Neither state is allowed to be vague.
  *
- * STATE AS OF 2026-08-05
+ * STATE AS OF 2026-08-05 — ACTIVE
  *
- * A designation has been SUBMITTED — registration number DMCA-1077456, fee
- * paid — but the directory reports its status as "Payment Processing", not
- * "Active". The Office's own explanation of that field is unambiguous: only
- * "Active" means the record "is currently available in the public directory".
- * Card payments clear in minutes, ACH in up to seven days. Until the status
- * reads Active there is no public designation, so the flag below stays false.
+ * Registration number DMCA-1077456, Pay.gov tracking 284QU5S7, fee paid, and
+ * the directory now reports Status: Active, Effective August 5 2026 to
+ * Present. Active is the Office's word for "the service provider's current
+ * designation" — the record is in the public directory. So the flag is true,
+ * and leaving it false would have understated ONIQ's position rather than
+ * overstating it, which is the opposite error but still an inaccurate page.
+ *
+ * TWO DEFECTS ON THE REGISTER ITSELF, NOT YET AMENDED
+ *
+ * Both are confirmed by the Office's own confirmation email, not only by the
+ * directory's rendering, so neither is a misread.
+ *
+ *  1. The agent's phone is recorded as "+7980732371". 7980732371 is a valid
+ *     ten-digit Indian mobile with the +91 dropped, and written with a bare
+ *     "+" it parses as a RUSSIAN number. Anyone dialling it reaches nothing.
+ *     This file publishes the reachable form, +917980732371, because
+ *     publishing an unreachable number to satisfy a byte-match with a typo
+ *     would serve nobody. Amend the register so the two agree.
+ *
+ *     This is the urgent one. The confirmation email states that everything
+ *     EXCEPT the service provider's phone and email is publicly viewable —
+ *     so the agent's number is precisely the one a rights-holder sees, and
+ *     it is the broken one.
+ *
+ *  2. The service provider's phone, "+91877825152", carries nine digits after
+ *     the country code where an Indian number has ten. Not published by the
+ *     Office and not published here — §512(c)(2) asks for the AGENT's number
+ *     — so it is a records defect rather than a reachability one.
+ *
+ * Also worth amending: the register's alternate names are only "Oniq" and
+ * "oniqhub.com". A name not listed is not covered, so the name the app is
+ * published under on Google Play belongs in that list too.
  *
  * THE SECOND HALF OF §512(c)(2), WHICH IS EASY TO MISS
  *
@@ -46,32 +74,52 @@
  * question the statute expects one answer to.
  */
 export const DMCA_AGENT = {
-  registeredWithCopyrightOffice: false,
-  /** Set when the Copyright Office registration completes. */
-  registrationDate: null as string | null,
+  registeredWithCopyrightOffice: true,
+  /** Effective date on the register. */
+  registrationDate: "2026-08-05" as string | null,
   /** §512 designations lapse after 3 years. An expired one voids immunity. */
-  renewalDueDate: null as string | null,
-  /** As issued by the Office, e.g. "DMCA-1077456". Recorded once Active. */
-  registrationNumber: null as string | null,
+  renewalDueDate: "2029-08-05" as string | null,
+  /** As issued by the Office. */
+  registrationNumber: "DMCA-1077456" as string | null,
 
-  // The four items §512(c)(2)(A) requires to be published. Each stays null
-  // until the designation is Active, and the guard test refuses a claim of
-  // registration that leaves any of them unset — an incomplete published
-  // block is the failure this is here to prevent.
-  /** The agent's name exactly as it appears on the register. */
-  agentName: null as string | null,
-  /** The agent's postal address exactly as it appears on the register. */
-  agentAddress: null as string | null,
-  /** E.164, country code included. A bare national number is not reachable. */
-  agentPhone: null as string | null,
+  // The four items §512(c)(2)(A) requires to be published, taken from the
+  // register. The guard test refuses a claim of registration that leaves any
+  // of them unset — an incomplete published block is the failure it exists
+  // to prevent, and filing the register entry is exactly the moment this half
+  // feels already done.
+  /** The agent's name as it appears on the register. */
+  agentName: "Pooja Biswas" as string | null,
+  /** The agent's postal address as it appears on the register. */
+  agentAddress:
+    "Oniqhub.com, Sarsuna Housing Estate (near Sarsuna College), H2/44, Kolkata 700061, India" as
+      string | null,
+  /**
+   * E.164, country code included.
+   *
+   * The register records "+7980732371" — the same digits with +91 dropped,
+   * which reads as a Russian number and reaches nobody. Published here in the
+   * reachable form. This is the one field that does not byte-match the
+   * register, and it is deliberate: amend the register, do not break this.
+   */
+  agentPhone: "+917980732371" as string | null,
 
   /**
-   * The published agent mailbox. This must be the address ON THE REGISTER.
+   * The agent mailbox ON THE REGISTER. Published verbatim, because a
+   * rights-holder comparing the two must find the same answer.
+   */
+  agentEmail: "poojabiswas@oniqhub.com" as string | null,
+
+  /**
+   * ONIQ's operational notice mailbox — what the rest of the page tells people
+   * to write to.
    *
-   * A role address is preferable to a personal one: the designation outlives
-   * whoever currently holds the role, and §512 notices must keep arriving
-   * after a staffing change. If the register carries a personal mailbox,
-   * amend the register rather than repointing this at an individual.
+   * It differs from agentEmail, and the register is the side that should
+   * move: a role address outlives whoever currently holds the role, and §512
+   * notices have to keep arriving after a staffing change. Until the register
+   * is amended both are published, because publishing only the role address
+   * would contradict the register and publishing only the personal one would
+   * route statutory notices into an individual's inbox. When they converge,
+   * collapse these two fields back into one.
    */
   email: "copyright@oniqhub.com",
   directoryUrl: "https://dmca.copyright.gov/osp/",

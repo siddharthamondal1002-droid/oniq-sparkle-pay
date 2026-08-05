@@ -67,9 +67,26 @@ describe("a claim of registration must be fully specified", () => {
     expect(DMCA_AGENT.agentAddress, "no agent postal address published").toBeTruthy();
     expect(DMCA_AGENT.agentPhone, "no agent phone published").toBeTruthy();
     expect(DMCA_AGENT.registrationNumber, "no registration number recorded").toMatch(/^DMCA-\d+$/);
+    expect(DMCA_AGENT.agentEmail, "no registered agent mailbox published").toMatch(/@/);
     expect(page, "the page does not render the published agent block").toMatch(
       /DMCA_AGENT\.agentAddress/,
     );
+    expect(page, "the register's own agent mailbox is not published").toMatch(
+      /DMCA_AGENT\.agentEmail/,
+    );
+  });
+
+  it("keeps publishing the operational mailbox while it differs from the register", () => {
+    // The register carries a personal address and the site routes notices to a
+    // role address. Publishing only one of them is wrong in both directions:
+    // the role address alone contradicts the register, and the personal one
+    // alone sends statutory notices to an individual's inbox. So while they
+    // differ, both appear — and when the register is amended to the role
+    // address this test stops applying on its own.
+    if (!DMCA_AGENT.registeredWithCopyrightOffice) return;
+    if (DMCA_AGENT.agentEmail === DMCA_AGENT.email) return;
+    expect(page).toMatch(/DMCA_AGENT\.agentEmail !== DMCA_AGENT\.email/);
+    expect(page).toMatch(/reaches the designated agent/i);
   });
 
   it("gives the phone a country code that agrees with the agent's country", () => {
