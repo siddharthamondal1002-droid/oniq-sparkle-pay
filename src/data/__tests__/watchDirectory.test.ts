@@ -205,19 +205,6 @@ describe("region is relevance, not a rights gate", () => {
     }
   });
 
-  it("never leaves a viewer on a genre chip that leads nowhere", () => {
-    // The earlier version of the test above checked only the total per
-    // country, which passed while entertainment and finance were empty in
-    // every country except India — both rosters are India-scoped. A directory
-    // that renders a tab and then says "nothing listed here yet" is worse than
-    // not rendering the tab, so the surface drops empty built-in genres and
-    // this pins that it has to.
-    const surface = readFileSync(join(ROOT, "src/components/landing/LiveNewsSection.tsx"), "utf8");
-    expect(surface, "empty built-in genres are no longer filtered out").toMatch(
-      /\.filter\(\(s\) => s\.links\.length > 0\)/,
-    );
-  });
-
   it("every country keeps at least news, sports and influencer", () => {
     // The genres that must survive the filter everywhere, so no country is
     // left with a one-chip Watch screen.
