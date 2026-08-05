@@ -19,6 +19,8 @@
 // explicitly `status: "soon"` or absent entirely. No live TV. No third-party
 // logos. No "guaranteed", "official", "endorsed" or "ATS-optimised".
 
+import { LANGUAGE_COUNT } from "@/data/languages";
+
 export type CardStatus = "live" | "soon";
 
 export type FeatureCard = {
@@ -53,7 +55,13 @@ export const HERO = {
  * rather than typed, so it cannot drift again.
  */
 export const COUNTRIES_SUPPORTED = 7;
-export const SCOUT_LANGUAGES = 25;
+
+/**
+ * Derived, not typed. This said a flat 25 while the picker offered 25 — but
+ * the AI could only answer in 13 of them, and when the list grew the number
+ * would have been wrong in the other direction. It now counts the registry.
+ */
+export const SCOUT_LANGUAGES = LANGUAGE_COUNT;
 
 export const FEATURE_CARDS: FeatureCard[] = [
   // ---- Live ---------------------------------------------------------------
@@ -107,7 +115,7 @@ export const FEATURE_CARDS: FeatureCard[] = [
   },
   {
     title: "Scout",
-    copy: "A 25-language translator, plus Bengali lessons in ONIQ Learn.",
+    copy: `A ${LANGUAGE_COUNT}-language translator, plus Bengali lessons in ONIQ Learn.`,
     status: "live",
     route: "/app/learn",
   },

@@ -25,6 +25,11 @@ import {
   testsForDestination,
   type EnglishTest,
 } from "@/data/englishTests";
+import {
+  PRACTICE_SET_DISCLAIMER,
+  practiceSetsFor,
+  type PracticeSet,
+} from "@/data/admissionPractice";
 import { POLICY_STATUS_LABEL, policiesFor } from "@/data/policyWatch";
 import {
   ELIGIBILITY_DISCLAIMER,
@@ -54,12 +59,13 @@ export const Route = createFileRoute("/_authenticated/app/university")({
   component: UniversityScreen,
 });
 
-type Tab = "route" | "institutions" | "english" | "calendar" | "policy" | "check";
+type Tab = "route" | "institutions" | "english" | "practice" | "calendar" | "policy" | "check";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "route", label: "How it works" },
   { id: "institutions", label: "Institutions" },
   { id: "english", label: "English tests" },
+  { id: "practice", label: "Practice sets" },
   { id: "calendar", label: "Deadlines" },
   { id: "policy", label: "Policy watch" },
   { id: "check", label: "Quick check" },
@@ -234,7 +240,126 @@ function UniversityScreen() {
 
       {tab === "english" && <EnglishTests destination={country} />}
 
+      {tab === "practice" && <PracticeSets destination={country} />}
+
       {tab === "check" && <QuickCheck destination={country} />}
+    </div>
+  );
+}
+
+/**
+ * Admission-test practice sets. Read src/data/admissionPractice.ts before
+ * touching the content — the legal boundary that makes this shippable is
+ * written out at the top of it, and it is the file somebody will be editing
+ * when they are tempted to paste in "a few real questions".
+ */
+function PracticeSets({ destination }: { destination: string }) {
+  const sets = useMemo(() => practiceSetsFor(destination), [destination]);
+  const [openId, setOpenId] = useState<string | null>(null);
+
+  return (
+    <section className="mt-5 space-y-3">
+      <Note>{PRACTICE_SET_DISCLAIMER}</Note>
+      {sets.map((set) => (
+        <PracticeSetCard
+          key={set.id}
+          set={set}
+          open={openId === set.id}
+          onToggle={() => setOpenId(openId === set.id ? null : set.id)}
+        />
+      ))}
+    </section>
+  );
+}
+
+function PracticeSetCard({
+  set,
+  open,
+  onToggle,
+}: {
+  set: PracticeSet;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  // Answers are revealed per question, not scored. ONIQ deliberately produces
+  // no total: a score here would look like a prediction, and predicting a
+  // result off four self-written questions would be dishonest.
+  const [revealed, setRevealed] = useState<Record<string, number>>({});
+
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex w-full items-start justify-between gap-3 text-start"
+      >
+        <div className="min-w-0">
+          <h2 className="font-semibold">{set.title}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {set.test} · {set.section} · {set.questions.length} questions · {set.minutes} min
+          </p>
+        </div>
+        <span className="shrink-0 text-xs text-primary">{open ? "Close" : "Start"}</span>
+      </button>
+
+      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{set.skill}</p>
+
+      {open && (
+        <div className="mt-4 space-y-4">
+          {set.questions.map((q, qi) => {
+            const picked = revealed[q.id];
+            const answered = picked !== undefined;
+            return (
+              <div key={q.id} className="rounded-xl border border-border bg-muted/30 p-3">
+                <p className="text-sm font-medium leading-relaxed">
+                  {qi + 1}. {q.question}
+                </p>
+                <ul className="mt-2 space-y-1.5">
+                  {q.options.map((opt, oi) => {
+                    const isAnswer = oi === q.answer;
+                    const isPicked = picked === oi;
+                    return (
+                      <li key={opt}>
+                        <button
+                          type="button"
+                          disabled={answered}
+                          onClick={() => setRevealed((r) => ({ ...r, [q.id]: oi }))}
+                          className={`w-full rounded-lg border px-3 py-2 text-start text-sm transition-colors ${
+                            !answered
+                              ? "border-border bg-card"
+                              : isAnswer
+                                ? "border-primary bg-primary/10 text-primary"
+                                : isPicked
+                                  ? "border-destructive/50 bg-destructive/10"
+                                  : "border-border bg-card opacity-60"
+                          }`}
+                        >
+                          {opt}
+                          {answered && isAnswer ? " ✓" : ""}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {answered && (
+                  <p className="mt-2 rounded-lg bg-background/60 p-2 text-xs leading-relaxed text-muted-foreground">
+                    {q.explanation}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+
+          <OfficialLinkRow url={set.officialUrl} label="Register and check the current format" />
+
+          <p className="text-[11px] text-muted-foreground/70">
+            Written by ONIQ, checked on {set.verifiedOn}. {set.test} is owned by {set.owner}. ONIQ
+            does not score this set and it does not predict a result — the official page is the
+            authority on format.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

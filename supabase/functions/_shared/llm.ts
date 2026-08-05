@@ -2,20 +2,74 @@
 // Reuses the same secret + model that the ting function already relies on.
 // Never throws; always returns a discriminated union.
 
+// Language names the AI can be instructed to answer in.
+//
+// MIRROR OF src/data/languages.ts — keep them identical. Deno edge functions
+// cannot import from src/, so this is a copy by necessity, and
+// src/data/__tests__/languages.test.ts fails the build if the two drift.
+//
+// This map used to hold English plus twelve Indian languages only. Every other
+// language Scout offered — Arabic, Spanish, French, Chinese, all of them —
+// fell through langInstruction()'s `if (!name) return ""` and produced NO
+// instruction, so the model silently answered in English. The picker offered
+// languages the AI had never been told to speak, and nothing logged it.
 export const SUPPORTED_LANGS: Record<string, string> = {
-  en: "English",
-  hi: "Hindi",
-  bn: "Bengali",
-  te: "Telugu",
-  mr: "Marathi",
-  ta: "Tamil",
-  gu: "Gujarati",
-  kn: "Kannada",
-  ml: "Malayalam",
-  pa: "Punjabi",
-  or: "Odia",
   as: "Assamese",
+  bn: "Bengali",
+  brx: "Bodo",
+  doi: "Dogri",
+  gu: "Gujarati",
+  hi: "Hindi",
+  kn: "Kannada",
+  ks: "Kashmiri",
+  kok: "Konkani",
+  mai: "Maithili",
+  ml: "Malayalam",
+  mni: "Manipuri (Meitei)",
+  mr: "Marathi",
+  ne: "Nepali",
+  or: "Odia",
+  pa: "Punjabi",
+  sa: "Sanskrit",
+  sat: "Santali",
+  sd: "Sindhi",
+  ta: "Tamil",
+  te: "Telugu",
   ur: "Urdu",
+  en: "English",
+  ar: "Arabic",
+  es: "Spanish",
+  fr: "French",
+  zh: "Simplified Chinese",
+  "zh-TW": "Traditional Chinese",
+  ms: "Malay",
+  de: "German",
+  pt: "Portuguese",
+  ru: "Russian",
+  ja: "Japanese",
+  ko: "Korean",
+  it: "Italian",
+  tr: "Turkish",
+  id: "Indonesian",
+  vi: "Vietnamese",
+  th: "Thai",
+  fil: "Filipino",
+  fa: "Persian (Farsi)",
+  he: "Hebrew",
+  nl: "Dutch",
+  pl: "Polish",
+  uk: "Ukrainian",
+  el: "Greek",
+  sv: "Swedish",
+  sw: "Swahili",
+  am: "Amharic",
+  ha: "Hausa",
+  ro: "Romanian",
+  cs: "Czech",
+  hu: "Hungarian",
+  no: "Norwegian",
+  da: "Danish",
+  fi: "Finnish",
 };
 
 export function langInstruction(lang?: string | null): string {

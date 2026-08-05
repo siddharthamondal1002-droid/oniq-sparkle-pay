@@ -21,6 +21,13 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchClearButton } from "@/components/ui/SearchClearButton";
 import { useT } from "@/lib/i18n/LanguageProvider";
+import {
+  ALL_LANGUAGES,
+  INDIAN_LANGUAGES,
+  INTERNATIONAL_LANGUAGES,
+  LANGUAGE_COUNT,
+  speechLocaleFor,
+} from "@/data/languages";
 
 export const Route = createFileRoute("/_authenticated/app/learn")({
   component: LearnScreen,
@@ -29,71 +36,21 @@ export const Route = createFileRoute("/_authenticated/app/learn")({
 type Tab = "scout" | "translate" | "lessons";
 type Lang = string;
 
-const INDIAN_LANGS: Array<{ code: string; label: string }> = [
-  { code: "bn", label: "বাংলা · Bengali" },
-  { code: "hi", label: "हिन्दी · Hindi" },
-  { code: "ta", label: "தமிழ் · Tamil" },
-  { code: "te", label: "తెలుగు · Telugu" },
-  { code: "mr", label: "मराठी · Marathi" },
-  { code: "gu", label: "ગુજરાતી · Gujarati" },
-  { code: "kn", label: "ಕನ್ನಡ · Kannada" },
-  { code: "ml", label: "മലയാളം · Malayalam" },
-  { code: "pa", label: "ਪੰਜਾਬੀ · Punjabi" },
-  { code: "or", label: "ଓଡ଼ିଆ · Odia" },
-  { code: "ur", label: "اردو · Urdu" },
-  { code: "as", label: "অসমীয়া · Assamese" },
-];
-
-const INTL_LANGS: Array<{ code: string; label: string }> = [
-  { code: "en", label: "English" },
-  { code: "es", label: "Español · Spanish" },
-  { code: "fr", label: "Français · French" },
-  { code: "de", label: "Deutsch · German" },
-  { code: "pt", label: "Português · Portuguese" },
-  { code: "ar", label: "العربية · Arabic" },
-  { code: "zh", label: "中文 · Chinese (Simplified)" },
-  { code: "ja", label: "日本語 · Japanese" },
-  { code: "ko", label: "한국어 · Korean" },
-  { code: "ru", label: "Русский · Russian" },
-  { code: "it", label: "Italiano · Italian" },
-  { code: "tr", label: "Türkçe · Turkish" },
-  { code: "id", label: "Bahasa Indonesia · Indonesian" },
-];
+// Languages come from the shared registry (src/data/languages.ts), which the
+// AI edge functions mirror. They used to be two independent lists: this file
+// offered Arabic and a dozen other international languages, while the AI's map
+// held only English plus Indian languages, so those picks silently produced
+// English answers.
+const INDIAN_LANGS = INDIAN_LANGUAGES;
+const INTL_LANGS = INTERNATIONAL_LANGUAGES;
 
 const LANG_LABEL: Record<string, string> = Object.fromEntries([
   ["auto", "Auto detect"],
-  ...INDIAN_LANGS.map((l) => [l.code, l.label] as const),
-  ...INTL_LANGS.map((l) => [l.code, l.label] as const),
+  ...ALL_LANGUAGES.map((l) => [l.code, l.label] as const),
 ]);
 
-const SPEECH_LOCALE: Record<string, string> = {
-  bn: "bn-IN",
-  hi: "hi-IN",
-  ta: "ta-IN",
-  te: "te-IN",
-  mr: "mr-IN",
-  gu: "gu-IN",
-  kn: "kn-IN",
-  ml: "ml-IN",
-  pa: "pa-IN",
-  ur: "ur-IN",
-  en: "en-IN",
-  es: "es-ES",
-  fr: "fr-FR",
-  de: "de-DE",
-  pt: "pt-BR",
-  ar: "ar-SA",
-  zh: "zh-CN",
-  ja: "ja-JP",
-  ko: "ko-KR",
-  ru: "ru-RU",
-  it: "it-IT",
-  tr: "tr-TR",
-  id: "id-ID",
-};
-
 function localeFor(code: string): string {
-  return SPEECH_LOCALE[code] ?? "en-IN";
+  return speechLocaleFor(code);
 }
 
 function LearnScreen() {
@@ -291,7 +248,7 @@ function TranslatePanel() {
     <div className="mt-4 space-y-3">
       <div className="rounded-2xl border border-border bg-card p-4">
         <div className="mb-2 text-xs font-medium uppercase tracking-wider text-primary/80">
-          say it in any lingo — 25 languages, powered by Claude
+          say it in any lingo — {LANGUAGE_COUNT} languages, powered by Claude
         </div>
         <div className="mb-2 flex items-center gap-2">
           <LangSelect value={from} onChange={setFrom} includeAuto />
