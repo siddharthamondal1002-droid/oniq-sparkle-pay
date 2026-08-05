@@ -42,7 +42,17 @@ for (const name of declared) {
     continue;
   }
   if (!/^https:\/\/registry\.npmjs\.org\//.test(entry.resolved)) {
-    problems.push(`${name}: resolved from ${entry.resolved}, not the public npm registry`);
+    problems.push(
+      `${name}: resolved from ${entry.resolved}, not the public npm registry\n` +
+        `      Lovable's build sandbox installs through its own Artifact Registry mirror, so a\n` +
+        `      dependency bump made there rewrites this URL. Do NOT relax this check: confirm the\n` +
+        `      package is public and that its hash is unchanged, then repoint the URL.\n` +
+        `        npm view ${name}@${entry.version} dist.integrity   # must equal the lockfile integrity\n` +
+        `        then set "resolved" to https://registry.npmjs.org/... and run a clean npm ci\n` +
+        `      A clean npm ci verifies the tarball against the recorded hash, which is the proof\n` +
+        `      that the mirror was serving the same bytes. If the hashes differ, stop — that is\n` +
+        `      the supply-chain case this check exists for.`,
+    );
     continue;
   }
   ok += 1;
