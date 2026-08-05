@@ -48,7 +48,7 @@ export const TILE_LABELS: Record<TileKey, string> = {
   miniapps: "Hacks 🔌",
   upi: "tap in 💳",
   learn: "Scout 🧠",
-  wander: "Vanderlust ✈️",
+  wander: "Wanderlust ✈️",
   faith: "Blessed 🙏",
   vitals: "Vitals 🫀",
   official: "Official 🏛️",

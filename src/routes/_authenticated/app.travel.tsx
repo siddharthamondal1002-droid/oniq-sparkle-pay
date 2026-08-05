@@ -424,7 +424,7 @@ function TravelScreen() {
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <div>
-          <h1 className="font-display text-2xl font-bold">Vanderlust 🌍</h1>
+          <h1 className="font-display text-2xl font-bold">Wanderlust 🌍</h1>
           <p className="text-xs text-muted-foreground">wanderlust activated — buses, trains, flights, ferries, stays</p>
         </div>
       </div>
@@ -483,7 +483,7 @@ function TravelScreen() {
       ))}
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
-        Bookings & payments happen in the provider's app — Vanderlust gets you there faster.
+        Bookings & payments happen in the provider's app — Wanderlust gets you there faster.
       </p>
     </div>
   );

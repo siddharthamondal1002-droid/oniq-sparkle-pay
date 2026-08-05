@@ -1,5 +1,23 @@
-// Devotional internet radio via Radio Browser API (community directory).
-// Returns up to ~4 currently-reachable stations per faith.
+// Devotional radio DIRECTORY via Radio Browser API (community directory).
+// Returns up to ~4 currently-reachable stations per faith, as LINKS.
+//
+// NO LIVE CHANNELS loop, Phase 1. This used to return `url_resolved` — the
+// station's actual audio stream URL — which the client then played directly
+// through `new Audio(streamUrl)`. That is a stronger form of the thing the
+// loop removed from Watch, not a weaker one:
+//
+//   - it is literally stream-URL extraction, caching (30 min, in edge memory)
+//     and storage, which is what Phase 1.2 says to delete;
+//   - unlike an embed, no player belonging to the rights-holder sat in
+//     between, so nothing applied the station's own territorial or licensing
+//     rules;
+//   - and Radio Browser is a community-maintained directory. The stream URLs
+//     in it are contributed, not warranted by the stations.
+//
+// It now returns `homepage` instead. The user taps through to the station's
+// own site and presses play there, where the station serves its own audio
+// under its own terms. Stations without a homepage are dropped: a row with
+// nowhere to go is not a directory entry.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,7 +26,7 @@ const corsHeaders = {
 };
 
 type Faith = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jewish";
-type Station = { faith: Faith; name: string; streamUrl: string; favicon: string | null; tags: string[] };
+type Station = { faith: Faith; name: string; homepage: string; favicon: string | null; tags: string[] };
 
 const FAITH_TAGS: Record<Faith, string[]> = {
   hindu: ["bhajan", "kirtan", "devotional"],
@@ -26,10 +44,12 @@ const PER_FAITH_CAP = 4;
 
 let cache: { at: number; stations: Station[] } | null = null;
 
+// `url` / `url_resolved` are deliberately NOT in this type. Radio Browser
+// returns them, but if the field cannot be named here it cannot be read
+// downstream by accident.
 type RBStation = {
   name?: string;
-  url?: string;
-  url_resolved?: string;
+  homepage?: string;
   favicon?: string;
   tags?: string;
   lastcheckok?: number;
@@ -67,17 +87,18 @@ async function collectForFaith(mirror: string, faith: Faith): Promise<Station[]>
     const list = await searchTag(mirror, tag);
     for (const s of list) {
       if (out.length >= PER_FAITH_CAP) break;
-      const stream = (s.url_resolved || s.url || "").trim();
-      if (!stream) continue;
+      const homepage = (s.homepage || "").trim();
+      // No homepage => nowhere to send the user => not a directory entry.
+      if (!homepage || !/^https?:\/\//i.test(homepage)) continue;
       if (s.lastcheckok !== 1) continue;
-      const key = stream;
+      const key = homepage;
       if (seen.has(key)) continue;
       seen.add(key);
       if (s.stationuuid) seen.add(s.stationuuid);
       out.push({
         faith,
         name: (s.name || "Unknown").trim().slice(0, 80),
-        streamUrl: stream,
+        homepage,
         favicon: s.favicon ? s.favicon.trim() : null,
         tags: (s.tags || "").split(",").map((t) => t.trim()).filter(Boolean).slice(0, 6),
       });

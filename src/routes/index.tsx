@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 
 const LANDING_DESCRIPTION =
-  "Chat, pay, watch live TV, ride, travel, learn — ONIQ is one app for every world.";
+  "Chat, pay, ride, travel, learn — ONIQ is one app for every world.";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -42,10 +42,10 @@ const features = [
   { icon: Film, title: "Clips", desc: "Endless short videos in a swipeable feed." },
   { icon: QrCode, title: "Scan & Pay (UPI)", desc: "Scan any UPI QR, show your own — payments run through your own UPI apps." },
   { icon: Car, title: "Rides", desc: "Compare ride prices across providers before you book." },
-  { icon: Plane, title: "Vanderlust", desc: "Compare buses, trains, flights and hotels in one hub." },
+  { icon: Plane, title: "Wanderlust", desc: "Compare buses, trains, flights and hotels in one hub." },
   { icon: Sparkles, title: "Ting AI", desc: "Live-web AI assistant that actually answers what's happening now." },
   { icon: Languages, title: "Scout", desc: "25-language translator plus Bengali lessons in ONIQ Learn." },
-  { icon: Tv, title: "Pulse & Watch", desc: "Live news TV, 6 genre channels, plus My TV for your YouTube picks." },
+  { icon: Tv, title: "Pulse & Watch", desc: "News headlines, plus a directory of channels that opens each one on its own platform." },
   { icon: Grid3x3, title: "25+ Mini Apps", desc: "A growing hub of partner apps that open right inside ONIQ." },
   { icon: ShieldCheck, title: "Yours to skin", desc: "Install as a PWA, add wallpapers and tile skins." },
 ];
@@ -99,8 +99,8 @@ function Landing() {
               </h1>
               <p className="mt-6 max-w-xl text-lg text-muted-foreground">
                 Chat with voice &amp; video, scan &amp; pay any UPI QR, compare rides
-                and travel, watch live TV, learn a language and ask an AI — all in one
-                beautifully fast app.
+                and travel, find the channels worth watching, learn a language and ask
+                an AI — all in one beautifully fast app.
               </p>
               <div className="mt-8 flex flex-wrap items-center gap-3">
                 <Link
@@ -125,7 +125,7 @@ function Landing() {
               <div className="mt-10 grid grid-cols-3 gap-6 text-sm">
                 <Stat value="12" label="Worlds in one app" />
                 <Stat value="25" label="Languages in Scout" />
-                <Stat value="6" label="TV genres live" />
+                <Stat value="6" label="Channel genres listed" />
               </div>
             </div>
 
@@ -190,7 +190,7 @@ function Landing() {
             <WorldCard icon={QrCode} label="Pay (UPI)" tint="from-neon to-primary" />
             <WorldCard icon={Tv} label="Watch" tint="from-magenta to-primary" />
             <WorldCard icon={Sparkles} label="Ting AI" tint="from-primary to-magenta" />
-            <WorldCard icon={Plane} label="Vanderlust" tint="from-amber to-magenta" />
+            <WorldCard icon={Plane} label="Wanderlust" tint="from-amber to-magenta" />
             <WorldCard icon={Car} label="Ride" tint="from-primary to-neon" />
           </div>
         </div>

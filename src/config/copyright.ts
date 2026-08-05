@@ -35,6 +35,35 @@ export const DMCA_AGENT = {
 } as const;
 
 /**
+ * The DMCA.com subscription — a REAL service, and a different thing entirely.
+ *
+ * This is deliberately a separate constant from DMCA_AGENT, because conflating
+ * the two is the exact mistake the badge invites. Naming it
+ * `registeredWithCopyrightOffice` over there and `vendorProtection` here makes
+ * it hard to read one as the other.
+ *
+ * What the subscription actually buys: monitoring for copies of ONIQ's own
+ * pages, takedown assistance when one is found, and a hosted case record.
+ * ONIQ is the *rights-holder* in that arrangement — it is a tool for
+ * protecting ONIQ's material from other people.
+ *
+ * What it does not buy, and cannot: §512(c) safe harbour. That runs the other
+ * way round — it protects a service provider from liability for material its
+ * *users* point to — and it comes only from a designation on the Copyright
+ * Office register. A private vendor cannot confer it. See DMCA_AGENT.
+ */
+export const DMCA_PROTECTION = {
+  vendorProtection: true,
+  vendor: "DMCA.com",
+  plan: "Pro",
+  /** The public status page the footer badge links to. */
+  statusUrl:
+    "https://www.dmca.com/Protection/Status.aspx?ID=1cdf7ab8-a10a-404c-a1f9-7f651e746222",
+  /** Verification of site ownership only. Not a §512 designation. */
+  siteVerified: true,
+} as const;
+
+/**
  * §512(i)(1)(A) conditions the harbour on a repeat-infringer policy that is
  * "reasonably implemented" — courts have denied safe harbour to services that
  * published a policy and never applied it (Capitol Records v. Escape Media;

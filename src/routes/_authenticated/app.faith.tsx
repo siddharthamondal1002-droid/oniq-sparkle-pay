@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import { resolveTileLabel } from "@/lib/i18n/tileLabel";
 import { itemsForFaith, type FaithId } from "@/data/faithContent";
+import { LINK_OUT_LABEL, WATCH_NOTICE, faithChannelsFor } from "@/data/watchDirectory";
+import { openInApp } from "@/lib/miniapps";
 import { useT } from "@/lib/i18n/LanguageProvider";
 
 export const Route = createFileRoute("/_authenticated/app/faith")({
@@ -148,25 +150,19 @@ function FaithPage() {
 }
 
 // ============================================================
-// DEVOTIONAL LIVE — YouTube streams from official public channels
+// DEVOTIONAL — a DIRECTORY of channels and stations. Nothing plays here.
 // ============================================================
-
-type LiveVideo = {
-  videoId: string;
-  title: string;
-  channelName: string;
-  publishedAt: string;
-  thumbnail: string;
-  isLive?: boolean;
-  faith?: FaithId;
-};
-type LiveGenreResp = {
-  id: string;
-  name: string;
-  emoji: string;
-  live: boolean;
-  videos: LiveVideo[];
-};
+//
+// NO LIVE CHANNELS loop, Phase 1. Both sections below used to play media
+// inside ONIQ: Watch embedded a YouTube iframe per video id, and Radio piped a
+// Radio Browser stream URL straight into `new Audio()`. Neither does now.
+//
+// What survives, deliberately and unchanged: STRICT faith-ID equality. A
+// faith with no entries shows ITS OWN empty state and never another faith's
+// content — that was the Jain bleed bug, and the fix holds whether the
+// destination is an embed or a link. No default list, no index-based access.
+//
+// Jain Read is a separate section and is untouched by any of this.
 
 const FAITH_META: { id: FaithId; label: string }[] = [
   { id: "islamic", label: "🕌 Islamic" },
@@ -193,147 +189,98 @@ function religionToFaithId(religion: Religion | null): FaithId | null {
   return null;
 }
 
-function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
-  const [playing, setPlaying] = useState<LiveVideo | null>(null);
+/** One tappable row that leaves ONIQ. Shared by channels and radio stations. */
+function DirectoryRow({
+  name,
+  description,
+  url,
+  emoji,
+  outLabel,
+}: {
+  name: string;
+  description: string;
+  url: string;
+  emoji: string;
+  outLabel: string;
+}) {
+  return (
+    <li>
+      <button
+        type="button"
+        data-testid="faith-link"
+        onClick={() => openInApp(url)}
+        aria-label={`${name} — ${outLabel}`}
+        className="press flex w-full items-start gap-3 rounded-2xl border border-border bg-card p-3 text-left"
+      >
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-2 text-lg">
+          {emoji}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold">{name}</div>
+          <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+            {description}
+          </div>
+          <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-primary">
+            {outLabel} <ExternalLink className="size-3" />
+          </div>
+        </div>
+      </button>
+    </li>
+  );
+}
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["blessed-devotional-live"],
-    staleTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("live-channels", { body: {} });
-      if (error) throw error;
-      const genres: LiveGenreResp[] = Array.isArray(data?.genres) ? data.genres : [];
-      return genres.find((g) => g.id === "devotional") ?? null;
-    },
-  });
+function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
+  // Static, from the bundle. The `live-channels` edge function that used to
+  // serve this roster is retired — with nothing to resolve, a network call
+  // bought nothing.
+  const only = religionToFaithId(religion);
+  const items = faithChannelsFor(only);
 
   return (
     <section className="mt-8">
-      <div className="mb-3 flex items-center justify-between">
-        <div>
-          <div className="text-[11px] uppercase tracking-wider text-primary/80">watch 🙏</div>
-          <h2 className="font-display text-lg font-bold">live darshan · kirtan · bayan</h2>
-        </div>
+      <div className="mb-3">
+        <div className="text-[11px] uppercase tracking-wider text-primary/80">watch 🙏</div>
+        <h2 className="font-display text-lg font-bold">darshan · kirtan · bayan</h2>
       </div>
 
-      {isLoading ? (
+      {items.length === 0 ? (
+        // This faith's OWN empty state. Never a fallback to another faith.
         <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          tuning in…
-        </div>
-      ) : !data || data.videos.length === 0 ? (
-        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          no live streams right now — check back later 🌙
-        </div>
-      ) : playing ? (
-        <div className="overflow-hidden rounded-2xl border border-border bg-black">
-          <div className="relative aspect-video w-full">
-            <iframe
-              src={`https://www.youtube-nocookie.com/embed/${playing.videoId}?autoplay=1&rel=0`}
-              title={playing.title}
-              allow="accelerometer; autoplay; encrypted-media; picture-in-picture"
-              allowFullScreen
-              className="absolute inset-0 h-full w-full"
-            />
-          </div>
-          <div className="flex items-center justify-between gap-3 bg-card p-3">
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{playing.channelName}</div>
-              <div className="truncate text-[11px] text-muted-foreground">{playing.title}</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => setPlaying(null)}
-              className="press rounded-full border border-border bg-surface-2 px-3 py-1.5 text-xs font-medium"
-            >
-              back to list
-            </button>
-          </div>
-          <p className="mt-2 text-[10px] leading-snug text-muted-foreground/70">
-            Video content is hosted by YouTube and owned by the respective creators/channels —
-            played via YouTube's official embedded player. Rights-holders can report a specific
-            video or channel via{" "}
-            <Link to="/app/privacy/grievance" className="underline">
-              Privacy → Grievance
-            </Link>{" "}
-            (category: Content takedown).
-          </p>
+          no {FAITH_META.find((f) => f.id === only)?.label ?? "devotional"} channels listed yet 🌙
         </div>
       ) : (
-        <div className="space-y-5">
-          {/* STRICT faith isolation: only the selected faith's own channels
-              may render here. On a miss, show this faith's empty state —
-              never another faith's content (that was the Jain bleed bug). */}
-          {(() => {
-            const only = religionToFaithId(religion);
-            const items = itemsForFaith(data.videos, only);
-            if (items.length === 0) {
-              return (
-                <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
-                  no {FAITH_META.find((f) => f.id === only)?.label ?? "devotional"} streams right
-                  now — check back later 🌙
-                </div>
-              );
-            }
-            return (
-              <div>
-                <ul className="grid grid-cols-2 gap-2">
-                  {items.map((v) => (
-                    <li key={v.videoId}>
-                      <button
-                        type="button"
-                        onClick={() => setPlaying(v)}
-                        className="press w-full overflow-hidden rounded-2xl border border-border bg-card text-left"
-                      >
-                        <div className="relative aspect-video w-full bg-black">
-                          <img
-                            src={v.thumbnail}
-                            alt=""
-                            className="absolute inset-0 h-full w-full object-cover"
-                            loading="lazy"
-                          />
-                          {v.isLive ? (
-                            <span className="absolute left-2 top-2 rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white">
-                              ● live
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="p-2">
-                          <div className="truncate text-xs font-semibold">{v.channelName}</div>
-                        </div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            );
-          })()}
-        </div>
+        <ul className="space-y-2">
+          {items.map((c) => (
+            <DirectoryRow
+              key={c.channelId}
+              name={c.name}
+              description={c.description}
+              url={`https://www.youtube.com/channel/${c.channelId}`}
+              emoji="📺"
+              outLabel={LINK_OUT_LABEL}
+            />
+          ))}
+        </ul>
       )}
 
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        Live streams from official public YouTube channels. ONIQ does not host or own this content
-        🌐
-      </p>
+      <p className="mt-2 text-[11px] leading-snug text-muted-foreground">{WATCH_NOTICE}</p>
     </section>
   );
 }
 
 // ============================================================
-// DEVOTIONAL RADIO — real internet radio via Radio Browser
+// DEVOTIONAL RADIO — a directory of stations, via Radio Browser
 // ============================================================
 
 type RadioStation = {
   faith: FaithId;
   name: string;
-  streamUrl: string;
+  homepage: string;
   favicon: string | null;
   tags: string[];
 };
 
 function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
-  const [playing, setPlaying] = useState<string | null>(null);
-  const audioRef = useMemo(() => ({ current: null as HTMLAudioElement | null }), []);
-
   const { data, isLoading } = useQuery({
     queryKey: ["blessed-devotional-radio"],
     staleTime: 30 * 60 * 1000,
@@ -345,57 +292,24 @@ function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
     },
   });
 
-  useEffect(
-    () => () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    },
-    [audioRef],
-  );
-
-  const toggle = (s: RadioStation) => {
-    if (playing === s.streamUrl) {
-      audioRef.current?.pause();
-      audioRef.current = null;
-      setPlaying(null);
-      return;
-    }
-    audioRef.current?.pause();
-    const audio = new Audio(s.streamUrl);
-    audio.crossOrigin = "anonymous";
-    audio.play().catch(() => {
-      setPlaying(null);
-    });
-    audioRef.current = audio;
-    setPlaying(s.streamUrl);
-  };
-
   const stations = data ?? [];
-  const hasAny = stations.length > 0;
+  const only = religionToFaithId(religion);
 
   return (
     <section className="mt-10">
       <div className="mb-3">
-        <div className="text-[11px] uppercase tracking-wider text-primary/80">live radio 📻</div>
-        <h2 className="font-display text-lg font-bold">24/7 internet radio</h2>
+        <div className="text-[11px] uppercase tracking-wider text-primary/80">radio 📻</div>
+        <h2 className="font-display text-lg font-bold">stations to tune in to</h2>
       </div>
 
       {isLoading ? (
         <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
           scanning the airwaves…
         </div>
-      ) : !hasAny ? (
-        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          no reachable stations right now 📡
-        </div>
       ) : (
         <div className="space-y-5">
-          {FAITH_META.filter((f) => {
-            const only = religionToFaithId(religion);
-            return only ? f.id === only : true;
-          }).map((f) => {
+          {FAITH_META.filter((f) => (only ? f.id === only : true)).map((f) => {
+            // Same strict equality as the channel list above.
             const items = itemsForFaith(stations, f.id);
             if (items.length === 0)
               return (
@@ -403,54 +317,25 @@ function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
                   key={f.id}
                   className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground"
                 >
-                  no {f.label} stations right now 📡
+                  no {f.label} stations listed right now 📡
                 </div>
               );
             return (
               <div key={f.id}>
                 <div className="mb-2 text-sm font-semibold text-foreground/90">{f.label}</div>
                 <ul className="space-y-2">
-                  {items.map((s) => {
-                    const isPlaying = playing === s.streamUrl;
-                    return (
-                      <li key={s.streamUrl}>
-                        <button
-                          type="button"
-                          onClick={() => toggle(s)}
-                          className="press flex w-full items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left"
-                        >
-                          <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-surface-2">
-                            {s.favicon ? (
-                              <img
-                                src={s.favicon}
-                                alt=""
-                                className="h-full w-full object-cover"
-                                loading="lazy"
-                                onError={(e) => {
-                                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                                }}
-                              />
-                            ) : (
-                              <span className="text-lg">📻</span>
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-semibold">{s.name}</div>
-                            {s.tags.length > 0 && (
-                              <div className="truncate text-[11px] text-muted-foreground">
-                                {s.tags.slice(0, 3).join(" · ")}
-                              </div>
-                            )}
-                          </div>
-                          <div
-                            className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${isPlaying ? "bg-primary text-primary-foreground" : "bg-surface-2"}`}
-                          >
-                            {isPlaying ? "⏸" : "▶"}
-                          </div>
-                        </button>
-                      </li>
-                    );
-                  })}
+                  {items.map((s) => (
+                    <DirectoryRow
+                      key={s.homepage}
+                      name={s.name}
+                      description={
+                        s.tags.length > 0 ? s.tags.slice(0, 3).join(" · ") : "Internet radio station"
+                      }
+                      url={s.homepage}
+                      emoji="📻"
+                      outLabel="Opens in browser"
+                    />
+                  ))}
                 </ul>
               </div>
             );
@@ -458,13 +343,15 @@ function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
         </div>
       )}
 
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        Live internet radio via Radio Browser (community directory). ONIQ does not host or own these
-        streams 🌐
+      <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
+        Station listings come from Radio Browser, a community directory. ONIQ does not host,
+        stream or play these stations — each link opens the station's own site, where it serves
+        its own audio under its own terms.
       </p>
     </section>
   );
 }
+
 
 function TabBtn({
   active,

@@ -79,32 +79,43 @@ describe("the block is enforced server-side, not just in the client", () => {
   });
 });
 
-describe("Watch axis stays physical-location specific", () => {
-  const watchSrc = readFileSync(join(ROOT, "src/data/watchChannels.ts"), "utf8");
-  const player = readFileSync(join(ROOT, "src/components/landing/LiveNewsSection.tsx"), "utf8");
+describe("Watch axis is still current region — but for relevance now", () => {
+  // This block used to assert that Watch's region filter was a TERRITORIAL
+  // RIGHTS control: it existed so ONIQ could not serve a stream outside its
+  // licensed territory. Watch no longer serves streams, so that justification
+  // is gone and the old assertions were checking a property that no longer
+  // means anything.
+  //
+  // The axis itself survives, and is still worth pinning: the directory should
+  // show a user standing in Singapore the channels useful to them, and Home
+  // country is the wrong signal for that. What changed is the consequence of
+  // getting it wrong — a UX miss instead of infringement.
+  const watchSrc = readFileSync(join(ROOT, "src/data/watchDirectory.ts"), "utf8");
+  const surface = readFileSync(join(ROOT, "src/components/landing/LiveNewsSection.tsx"), "utf8");
 
   it("filters on the region argument, never on Home country", () => {
-    expect(watchSrc).not.toMatch(/useCountry|homeCountry|\bhome\b\s*\)/);
+    expect(watchSrc).not.toMatch(/useCountry|homeCountry/);
   });
 
-  it("the player feeds Watch from useCurrentRegion, not useCountry", () => {
-    expect(player).toMatch(/useCurrentRegion/);
-    const call = player.match(/watchChannelsFor\(([^)]*)\)/);
-    expect(call, "watchChannelsFor call not found").toBeTruthy();
+  it("the Watch surface feeds the directory from useCurrentRegion", () => {
+    expect(surface).toMatch(/useCurrentRegion/);
+    const call = surface.match(/watchDirectoryFor\(([^,)]*)/);
+    expect(call, "watchDirectoryFor call not found").toBeTruthy();
     expect(call![1].trim()).toBe("region");
   });
 
-  it("current region is edge-detected and cannot be set from the UI", () => {
+  it("current region is still edge-detected and not settable from the UI", () => {
     // region.ts derives the country from the Cloudflare edge header only — no
-    // GPS, no coordinates, no device-language inference. A user-facing setter
-    // would let someone in Dubai claim GB and pull UK streams, which is
-    // exactly the territorial hole this axis exists to close.
+    // GPS, no coordinates, no device-language inference. That constraint is
+    // about location privacy, which did not change when the streams went away.
     const region = readFileSync(join(ROOT, "src/lib/region.ts"), "utf8");
     expect(region).toMatch(/cf-ipcountry/i);
-    const callers = readFileSync(
-      join(ROOT, "src/components/landing/LiveNewsSection.tsx"),
-      "utf8",
-    );
-    expect(callers).not.toMatch(/setCurrentRegion/);
+    expect(surface).not.toMatch(/setCurrentRegion/);
+  });
+
+  it("says in the source that the gate is no longer a legal control", () => {
+    // Guard against someone re-adding a fail-closed rights gate that now
+    // protects nothing, or deleting the filter thinking it was cosmetic.
+    expect(watchSrc).toMatch(/RELEVANCE ONLY/);
   });
 });

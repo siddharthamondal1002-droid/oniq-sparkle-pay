@@ -1,5 +1,13 @@
 // My TV — user-curated YouTube channels. Authenticated.
-// Actions: "resolve" (URL/handle → { channelId, name }), "videos" (merged uploads from user_channels)
+// Action: "resolve" (channel URL → { channelId, name }).
+//
+// NO LIVE CHANNELS loop, Phase 1. The "videos" action is gone. It merged each
+// saved channel's recent uploads out of RSS so the in-app player had something
+// to play; nothing plays in ONIQ now, so it returned video ids that no caller
+// could use. Removing it also removes the per-user video cache.
+//
+// What is left resolves a channel id to a channel NAME, so the saved row can
+// be labelled with something other than a UC... string. That is the whole job.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -9,19 +17,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const UA =
-  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-
-type Video = {
-  videoId: string;
-  title: string;
-  channelName: string;
-  publishedAt: string;
-  thumbnail: string;
-};
-
-const videoCache = new Map<string, { at: number; videos: Video[] }>();
-const TTL_MS = 5 * 60 * 1000;
+// An honest identifier. The desktop-Chrome string that used to sit here, with
+// a "CONSENT=YES+1" cookie beside it, was camouflage for the page scrape that
+// this function no longer does. The only endpoint it now touches is YouTube's
+// public RSS feed, which wants neither.
+const UA = "ONIQ/1.0 (+https://oniqhub.com)";
 
 function json(status: number, body: unknown) {
   return new Response(JSON.stringify(body), {
@@ -35,11 +35,7 @@ async function fetchText(url: string, timeoutMs = 6000): Promise<string | null> 
   const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
-      headers: {
-        "User-Agent": UA,
-        "Accept-Language": "en-US,en;q=0.9",
-        "Cookie": "CONSENT=YES+1; SOCS=CAI",
-      },
+      headers: { "User-Agent": UA, "Accept": "application/atom+xml, application/xml" },
       redirect: "follow",
       signal: ctl.signal,
     });
@@ -99,38 +95,6 @@ async function resolveChannel(input: string): Promise<{ channelId: string; name:
   return { channelId, name };
 }
 
-function parseRssUploads(xml: string, fallbackName: string, cap: number): Video[] {
-  const entries = xml.match(/<entry\b[\s\S]*?<\/entry>/g) ?? [];
-  const out: Video[] = [];
-  const channelNameMatch = xml.match(/<author>[\s\S]*?<name>([^<]+)<\/name>/);
-  const channelName = channelNameMatch ? channelNameMatch[1].trim() : fallbackName;
-  for (const e of entries) {
-    const vid = e.match(/<yt:videoId>([^<]+)<\/yt:videoId>/)?.[1];
-    if (!vid) continue;
-    const title = e.match(/<title>([^<]+)<\/title>/)?.[1] ?? "";
-    const published = e.match(/<published>([^<]+)<\/published>/)?.[1] ?? "";
-    const thumb = e.match(/<media:thumbnail[^>]*url="([^"]+)"/)?.[1] ||
-      `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
-    out.push({
-      videoId: vid,
-      title: title.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
-      channelName,
-      publishedAt: published,
-      thumbnail: thumb,
-    });
-    if (out.length >= cap) break;
-  }
-  return out;
-}
-
-async function fetchChannelUploads(channelId: string, name: string): Promise<Video[]> {
-  const url = `https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`;
-  let xml = await fetchText(url);
-  if (!xml) xml = await fetchText(url);
-  if (!xml) return [];
-  return parseRssUploads(xml, name, 2);
-}
-
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -158,28 +122,6 @@ Deno.serve(async (req) => {
         return json(404, { error: "Couldn't find that channel — paste the full link" });
       }
       return json(200, resolved);
-    }
-
-    if (action === "videos") {
-      const cached = videoCache.get(userId);
-      if (cached && Date.now() - cached.at < TTL_MS) {
-        return json(200, { videos: cached.videos });
-      }
-      const { data: rows, error } = await supabase
-        .from("user_channels")
-        .select("channel_id, name")
-        .eq("user_id", userId);
-      if (error) throw error;
-      const list = rows ?? [];
-      const settled = await Promise.allSettled(
-        list.map((r) => fetchChannelUploads(r.channel_id, r.name)),
-      );
-      const merged: Video[] = [];
-      for (const s of settled) if (s.status === "fulfilled") merged.push(...s.value);
-      merged.sort((a, b) => (b.publishedAt || "").localeCompare(a.publishedAt || ""));
-      const videos = merged.slice(0, 12);
-      videoCache.set(userId, { at: Date.now(), videos });
-      return json(200, { videos });
     }
 
     return json(400, { error: "unknown action" });

@@ -1,26 +1,16 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Sparkles,
   Send,
-  Car,
-  LayoutGrid,
   Lock,
   Clapperboard,
   Film,
-  GraduationCap,
-  Plane,
-  Newspaper,
   Tv,
   Play,
-  Pause,
-  SkipBack,
-  SkipForward,
-  Maximize2,
   Heart,
-  Briefcase,
   BookOpen,
   Volume2,
   VolumeX,
@@ -28,7 +18,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { useVitalsTileColor } from "@/components/vitals/useVitalsTileColor";
-import { loadYouTubeApi, useMyTv } from "@/components/landing/LiveNewsSection";
+
 import {
   CustomizeButton,
   useHiddenTiles,
@@ -42,7 +32,7 @@ import { SafeMount } from "@/components/SafeMount";
 import { RegionBanner } from "@/components/home/RegionBanner";
 import { HomeCountryPrompt } from "@/components/home/HomeCountryPrompt";
 import { useT } from "@/lib/i18n/LanguageProvider";
-import { resolveTileLabel, tileName, type TileKey } from "@/lib/i18n/tileLabel";
+import { tileName, type TileKey } from "@/lib/i18n/tileLabel";
 import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
 import { recordSignal } from "@/lib/personalisation";
 
@@ -264,64 +254,21 @@ function Tile({
   );
 }
 
-type GenreId =
-  | "news"
-  | "sports"
-  | "entertainment"
-  | "finance"
-  | "influencer"
-  | "lifestyle"
-  | "devotional"
-  | "mytv";
-type FaithId = "islamic" | "sikh" | "hindu" | "christian" | "buddhist" | "jewish";
-type Video = {
-  videoId: string;
-  title: string;
-  channelName: string;
-  publishedAt: string;
-  thumbnail: string;
-  faith?: FaithId;
-};
-type LiveGenre = { id: GenreId; name: string; emoji: string; live: boolean; videos: Video[] };
-
-// Map app.faith.tsx's Religion → live-channels faith id.
-function readDevotionalFaithPref(): FaithId | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const r = localStorage.getItem("oniq.faith.religion.v1");
-    if (r === "islam") return "islamic";
-    if (r === "hindu" || r === "sikh" || r === "christian" || r === "buddhist" || r === "jewish")
-      return r;
-  } catch {
-    /* noop */
-  }
-  return null;
-}
-
-const DEVOTIONAL_LOOP_START_KEY = "oniq.watch.devotionalLoopStartedAt";
-const DEVOTIONAL_LOOP_DUR_KEY = "oniq.watch.devotionalLoopDurationSec";
-const DEVOTIONAL_DURATIONS: { label: string; sec: number }[] = [
-  { label: "10 min", sec: 10 * 60 },
-  { label: "30 min", sec: 30 * 60 },
-  { label: "1 hr", sec: 60 * 60 },
-  { label: "3 hr", sec: 3 * 60 * 60 },
-  { label: "6 hr", sec: 6 * 60 * 60 },
-  { label: "12 hr", sec: 12 * 60 * 60 },
-  { label: "24 hr", sec: 24 * 60 * 60 },
-];
-
-function useLiveGenres(enabled: boolean) {
-  return useQuery({
-    queryKey: ["live-genres"],
-    enabled,
-    staleTime: 10 * 60 * 1000,
-    queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("live-channels", { body: {} });
-      if (error) throw error;
-      return (Array.isArray(data?.genres) ? data.genres : []) as LiveGenre[];
-    },
-  });
-}
+// The Watch hero tile used to embed a second YouTube IFrame player right here
+// on the home screen: a muted autoplaying stream behind the tile, with a genre
+// picker, a devotional loop timer and MediaProvider coordination so it did not
+// fight BrainrotBanner for audio. All of it is gone.
+//
+// ONIQ does not stream, embed, proxy, resolve or channel live TV. The tile is
+// now an ordinary Link into Watch, which is itself a link-out directory. The
+// devotional loop timer went with it — it existed to keep a stream playing
+// unattended for up to 24 hours, which is the single furthest thing from
+// "ONIQ does not stream".
+//
+// localStorage keys oniq.watch.devotionalLoopStartedAt and
+// oniq.watch.devotionalLoopDurationSec are simply abandoned; nothing reads
+// them, and they hold a timestamp and an integer, so there is nothing to
+// migrate or purge.
 
 function HeroTile({
   to,
@@ -332,7 +279,6 @@ function HeroTile({
   gradient,
   skin,
   delay = 0,
-  livePreview = false,
 }: {
   tileKey: TileKey;
   to: string;
@@ -343,650 +289,45 @@ function HeroTile({
   gradient: string;
   skin?: string;
   delay?: number;
-  livePreview?: boolean;
 }) {
-  const navigate = useNavigate();
   const [skinError, setSkinError] = useState(false);
   const showSkin = skin && !skinError;
-  const { data: baseGenres } = useLiveGenres(livePreview && !showSkin);
-  const { videos: myTvVideos } = useMyTv();
-  const genres =
-    livePreview && !showSkin
-      ? [
-          ...(baseGenres ?? []),
-          ...(myTvVideos.length > 0
-            ? [
-                {
-                  id: "mytv" as GenreId,
-                  name: "My TV",
-                  emoji: "📺",
-                  live: false,
-                  videos: myTvVideos,
-                },
-              ]
-            : []),
-        ]
-      : [];
-  const [genreId, setGenreId] = useState<GenreId>(() => {
-    if (typeof window === "undefined") return "news";
-    try {
-      return (localStorage.getItem("oniq.watch.lastGenre") as GenreId) || "news";
-    } catch {
-      return "news";
-    }
-  });
-  const activeGenre = genres.find((g) => g.id === genreId) ?? genres[0] ?? null;
-  const isDevotional = activeGenre?.id === "devotional";
-
-  // Devotional loop state — anchored to real timestamps in localStorage so backgrounding/reopens resume.
-  const [devLoopStart, setDevLoopStart] = useState<number | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const v = localStorage.getItem(DEVOTIONAL_LOOP_START_KEY);
-      return v ? Number(v) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [devLoopDur, setDevLoopDur] = useState<number | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const v = localStorage.getItem(DEVOTIONAL_LOOP_DUR_KEY);
-      return v ? Number(v) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [devJustBrowse, setDevJustBrowse] = useState(false);
-  // Ticks once per second while in devotional loop so "elapsed" flips reactively.
-  const [nowTs, setNowTs] = useState(() => Date.now());
-  useEffect(() => {
-    if (!isDevotional || devLoopStart == null || devLoopDur == null) return;
-    const t = window.setInterval(() => setNowTs(Date.now()), 1000);
-    return () => window.clearInterval(t);
-  }, [isDevotional, devLoopStart, devLoopDur]);
-  const devLoopActive =
-    isDevotional &&
-    devLoopStart != null &&
-    devLoopDur != null &&
-    nowTs - devLoopStart < devLoopDur * 1000;
-  const devLoopEnded =
-    isDevotional &&
-    devLoopStart != null &&
-    devLoopDur != null &&
-    nowTs - devLoopStart >= devLoopDur * 1000;
-  const devFaithPref = isDevotional ? readDevotionalFaithPref() : null;
-  // Reset "just browse" whenever we switch away from devotional so re-entering shows the picker again.
-  useEffect(() => {
-    if (!isDevotional) setDevJustBrowse(false);
-  }, [isDevotional]);
-  const showDevPicker = isDevotional && !devLoopActive && !devJustBrowse;
-
-  const rawVideos = activeGenre?.videos ?? [];
-  const videos =
-    isDevotional && devFaithPref
-      ? rawVideos.filter((v) => (v as Video).faith === devFaithPref)
-      : rawVideos;
-
-  const isLiveGenre = !!activeGenre?.live;
-
-  const [idx, setIdx] = useState(0);
-  // Bumped on every manual channel/genre pick so the auto-tour timer restarts
-  // even when the picked idx equals the current idx (React bails on identical state).
-  const [pickNonce, setPickNonce] = useState(0);
-  const resumedRef = useRef(false);
-  // On first non-empty load, resume last watched video (if we can find it in current genre)
-  useEffect(() => {
-    if (resumedRef.current) return;
-    if (!livePreview || showSkin) return;
-    if (videos.length === 0) return;
-    try {
-      const last = localStorage.getItem("oniq.watch.last");
-      if (last) {
-        const foundIdx = videos.findIndex((v) => v.videoId === last);
-        if (foundIdx >= 0) setIdx(foundIdx);
-      }
-    } catch {
-      /* noop */
-    }
-    resumedRef.current = true;
-  }, [videos, livePreview, showSkin]);
-  const [paused, setPaused] = useState(false);
-  const [controlsVisible, setControlsVisible] = useState(false);
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const playerRef = useRef<any>(null);
-  const hideTimerRef = useRef<number | null>(null);
-  const stopAdvanceRef = useRef(false);
-  useEffect(() => {
-    stopAdvanceRef.current = devLoopEnded;
-  }, [devLoopEnded]);
-
-  // Speaker/mute coordination — start muted (matches autoplay policy),
-  // unmute only on explicit user tap. Registers a controllable wrapper with
-  // MediaProvider so the YouTube player participates in single-audio-source
-  // coordination alongside BrainrotBanner's raw <video>.
-  const media = useMediaCoordinator();
-  const [muted, setMuted] = useState(true);
-  const controllableRef = useRef({
-    pause: () => {
-      try {
-        playerRef.current?.pauseVideo?.();
-      } catch {
-        /* noop */
-      }
-    },
-    mute: () => {
-      try {
-        playerRef.current?.mute?.();
-      } catch {
-        /* noop */
-      }
-      setMuted(true);
-    },
-  });
-  const toggleMute = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const p = playerRef.current;
-    if (!p) return;
-    try {
-      const isMuted = typeof p.isMuted === "function" ? p.isMuted() : muted;
-      if (isMuted) {
-        // Unmuting is the user gesture — claim active audio slot.
-        media.register(controllableRef.current);
-        p.unMute?.();
-        setMuted(false);
-      } else {
-        p.mute?.();
-        setMuted(true);
-      }
-    } catch {
-      /* noop */
-    }
-    bumpHide();
-  };
-
-  const playerHostId = `yt-tile-${useId().replace(/:/g, "")}`;
-  const playerCoverClass =
-    "absolute left-1/2 top-1/2 h-full w-auto -translate-x-1/2 -translate-y-1/2 aspect-video min-h-full min-w-full";
-
-  const current = livePreview && !showSkin && videos.length ? videos[idx % videos.length] : null;
-  const videoId = current?.videoId ?? null;
-  const currentLabel = current ? (isLiveGenre ? current.channelName : current.title) : "";
-
-  // Persist last watched channel + genre for next home load
-  useEffect(() => {
-    if (!livePreview || showSkin) return;
-    try {
-      if (videoId) localStorage.setItem("oniq.watch.last", videoId);
-      if (activeGenre?.id) localStorage.setItem("oniq.watch.lastGenre", activeGenre.id);
-    } catch {
-      /* noop */
-    }
-  }, [videoId, activeGenre?.id, livePreview, showSkin]);
-
-  // 2-minute auto-tour cap (per video); ENDED handler also advances naturally on shorter clips.
-  const vLen = videos.length;
-  useEffect(() => {
-    if (!livePreview || showSkin || vLen < 2) return;
-    if (paused || controlsVisible) return;
-    // Devotional loop: no auto-tour — let each video play to completion (ENDED handler wraps).
-    if (isDevotional && devLoopActive) return;
-    // Devotional with picker shown or timer ended: don't force-advance either.
-    if (isDevotional && (showDevPicker || devLoopEnded)) return;
-    let t: number | null = null;
-    const tick = () => {
-      if (typeof document !== "undefined" && document.hidden) {
-        t = window.setTimeout(tick, 30_000);
-        return;
-      }
-      setIdx((i) => (i + 1) % vLen);
-    };
-    t = window.setTimeout(tick, 120_000);
-    return () => {
-      if (t) window.clearTimeout(t);
-    };
-  }, [
-    idx,
-    pickNonce,
-    vLen,
-    livePreview,
-    showSkin,
-    paused,
-    controlsVisible,
-    isDevotional,
-    devLoopActive,
-    showDevPicker,
-    devLoopEnded,
-  ]);
-
-  const bumpHide = () => {
-    if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = window.setTimeout(() => setControlsVisible(false), 15_000);
-  };
-  const showControls = () => {
-    setControlsVisible(true);
-    bumpHide();
-  };
-  useEffect(
-    () => () => {
-      if (hideTimerRef.current) window.clearTimeout(hideTimerRef.current);
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (!livePreview || showSkin || !videoId) return;
-    let cancelled = false;
-    const host = mountRef.current;
-    if (!host) return;
-
-    if (playerRef.current?.loadVideoById) {
-      try {
-        playerRef.current.loadVideoById(videoId);
-        playerRef.current.getIframe?.()?.setAttribute("class", playerCoverClass);
-      } catch {
-        /* noop */
-      }
-      return;
-    }
-
-    loadYouTubeApi().then((YT) => {
-      if (cancelled || !YT || playerRef.current) return;
-      try {
-        playerRef.current = new YT.Player(playerHostId, {
-          width: "100%",
-          height: "100%",
-          host: "https://www.youtube-nocookie.com",
-          videoId,
-          playerVars: {
-            autoplay: 1,
-            mute: 1,
-            playsinline: 1,
-            controls: 0,
-            rel: 0,
-            modestbranding: 1,
-            cc_load_policy: 1,
-            cc_lang_pref: "en",
-          },
-          events: {
-            onReady: (e: any) => {
-              try {
-                e.target.getIframe?.()?.setAttribute("class", playerCoverClass);
-                e.target
-                  .getIframe?.()
-                  ?.setAttribute("allow", "autoplay; encrypted-media; picture-in-picture");
-                e.target.getIframe?.()?.setAttribute("title", "Live preview");
-                e.target.mute();
-                e.target.playVideo();
-              } catch {
-                /* noop */
-              }
-            },
-            onStateChange: (e: any) => {
-              if (e?.data === 0) {
-                // ENDED → next video (unless devotional loop timer has elapsed)
-                if (stopAdvanceRef.current) return;
-                const total = vLen;
-                if (total > 0) setIdx((i) => (i + 1) % total);
-              }
-            },
-          },
-        });
-      } catch (err) {
-        console.warn("[WatchTile] player init failed", err);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [livePreview, showSkin, videoId, playerHostId, vLen]);
-
-  useEffect(() => {
-    return () => {
-      try {
-        playerRef.current?.destroy?.();
-      } catch {
-        /* noop */
-      }
-      playerRef.current = null;
-    };
-  }, []);
-
-  // Non-live path: unchanged Link
-  if (!videoId) {
-    return (
-      <Link
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        to={to as any}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        search={search as any}
-        style={{ animationDelay: `${delay}ms` }}
-        className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
-      >
-        {showSkin ? (
-          <>
-            <img
-              src={skin!}
-              alt=""
-              onError={() => setSkinError(true)}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-          </>
-        ) : (
-          <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
-        )}
-        <div className="relative">
-          <div
-            className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}
-          >
-            {tagline}
-          </div>
-          <div
-            className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}
-          >
-            {label}
-          </div>
-        </div>
-      </Link>
-    );
-  }
-
-  const onTileClick = () => {
-    if (controlsVisible) setControlsVisible(false);
-    else showControls();
-  };
-  const stop = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    bumpHide();
-  };
-  const gotoIdx = (next: number) => {
-    const total = videos.length;
-    if (total === 0) return;
-    setIdx(((next % total) + total) % total);
-    setPaused(false);
-    setPickNonce((n) => n + 1);
-  };
-  const pickGenre = (g: GenreId) => {
-    if (g === genreId) return;
-    setGenreId(g);
-    setIdx(0);
-    setPaused(false);
-    setPickNonce((n) => n + 1);
-    // Entering devotional freshly → force picker to reappear (unless a live loop is still running).
-    if (g === "devotional") setDevJustBrowse(false);
-    bumpHide();
-  };
-  const startDevLoop = (sec: number) => {
-    const now = Date.now();
-    setDevLoopStart(now);
-    setDevLoopDur(sec);
-    setDevJustBrowse(false);
-    try {
-      localStorage.setItem(DEVOTIONAL_LOOP_START_KEY, String(now));
-      localStorage.setItem(DEVOTIONAL_LOOP_DUR_KEY, String(sec));
-    } catch {
-      /* noop */
-    }
-    setNowTs(Date.now());
-    bumpHide();
-  };
-  const clearDevLoop = () => {
-    setDevLoopStart(null);
-    setDevLoopDur(null);
-    try {
-      localStorage.removeItem(DEVOTIONAL_LOOP_START_KEY);
-      localStorage.removeItem(DEVOTIONAL_LOOP_DUR_KEY);
-    } catch {
-      /* noop */
-    }
-  };
-  const skipDevPicker = () => {
-    clearDevLoop();
-    setDevJustBrowse(true);
-    bumpHide();
-  };
-
-  const pickVideo = (i: number) => {
-    setIdx(i);
-    setPaused(false);
-    setPickNonce((n) => n + 1);
-    bumpHide();
-  };
-
-  const ctrlBtn = "glass press grid h-8 w-8 place-items-center rounded-full text-foreground";
 
   return (
-    <div
-      onClick={onTileClick}
-      role="button"
-      tabIndex={0}
+    <Link
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      to={to as any}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      search={search as any}
       style={{ animationDelay: `${delay}ms` }}
-      className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between cursor-pointer`}
+      className={`press fade-up col-span-4 aspect-video relative overflow-hidden rounded-3xl border border-border bg-card bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}
     >
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div id={playerHostId} ref={mountRef} className={playerCoverClass} />
-      </div>
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/82 via-black/28 to-transparent" />
-
-      {showDevPicker && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-2 bg-black/70 px-3 text-center"
-        >
-          <div className="text-[10px] uppercase tracking-wider text-primary/90">devotional 🙏</div>
-          <div className="text-xs font-semibold text-white">loop for how long?</div>
-          <div className="no-scrollbar flex max-w-full flex-wrap items-center justify-center gap-1 px-2">
-            {DEVOTIONAL_DURATIONS.map((d) => (
-              <button
-                key={d.sec}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  startDevLoop(d.sec);
-                }}
-                className="rounded-full border border-primary/60 bg-primary/20 px-2.5 py-0.5 text-[11px] font-semibold text-white"
-              >
-                {d.label}
-              </button>
-            ))}
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                skipDevPicker();
-              }}
-              className="rounded-full border border-white/25 bg-black/40 px-2.5 py-0.5 text-[11px] font-medium text-white/90"
-            >
-              just browse
-            </button>
-          </div>
-        </div>
+      {showSkin ? (
+        <>
+          <img
+            src={skin!}
+            alt=""
+            onError={() => setSkinError(true)}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+        </>
+      ) : (
+        <Icon className="h-10 w-10 text-foreground/90" strokeWidth={1.6} />
       )}
-
-      {isDevotional && devLoopEnded && !showDevPicker && (
+      <div className="relative">
         <div
-          onClick={(e) => e.stopPropagation()}
-          className="absolute left-1/2 top-2 z-20 -translate-x-1/2 flex items-center gap-1 rounded-full border border-white/20 bg-black/70 px-2 py-1 text-[10px] text-white/95"
+          className={`text-[10px] uppercase tracking-wider ${showSkin ? "text-white/80" : "text-muted-foreground"}`}
         >
-          <span>loop ended</span>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              clearDevLoop();
-              setDevJustBrowse(false);
-            }}
-            className="rounded-full border border-primary/50 bg-primary/25 px-2 py-0.5 font-semibold"
-          >
-            replay
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              clearDevLoop();
-              setDevJustBrowse(true);
-            }}
-            className="rounded-full border border-white/25 bg-black/40 px-2 py-0.5"
-          >
-            keep browsing
-          </button>
+          {tagline}
         </div>
-      )}
-
-      <span
-        className={`relative inline-flex w-fit items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/15 text-red-300" : "border-primary/50 bg-primary/15 text-primary"}`}
-      >
-        {isLiveGenre ? (
-          <>
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
-            </span>
-            LIVE
-          </>
-        ) : (
-          "NEW"
-        )}
-      </span>
-
-      <div
-        className={`absolute inset-x-0 bottom-2 z-10 flex flex-col items-center gap-1 transition-opacity duration-300 ${controlsVisible ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none"}`}
-      >
-        {genres && genres.length > 1 && (
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
-              bumpHide();
-            }}
-            className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto px-3"
-          >
-            {genres.map((g) => {
-              const active = g.id === (activeGenre?.id ?? genreId);
-              return (
-                <button
-                  key={g.id}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    pickGenre(g.id);
-                  }}
-                  className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
-                  aria-label={g.name}
-                >
-                  {g.emoji}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {videos.length > 1 && (
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
-              bumpHide();
-            }}
-            className="no-scrollbar flex max-w-full items-center gap-1 overflow-x-auto px-3"
-          >
-            {videos.map((v, i) => {
-              const active = i === idx % videos.length;
-              const chipLabel = isLiveGenre ? v.channelName : v.title;
-              return (
-                <button
-                  key={v.videoId}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    pickVideo(i);
-                  }}
-                  className={`max-w-[10rem] truncate whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium border transition-colors ${active ? "bg-primary text-primary-foreground border-primary" : "bg-black/40 text-foreground/85 border-white/15"}`}
-                  title={chipLabel}
-                >
-                  {chipLabel}
-                </button>
-              );
-            })}
-          </div>
-        )}
-        {currentLabel && (
-          <span className="glass max-w-[80%] truncate rounded-full px-2 py-0.5 text-[10px] text-foreground/90">
-            {currentLabel}
-          </span>
-        )}
-
-        <div className="glass flex items-center gap-1 rounded-full p-1">
-          <button
-            className={ctrlBtn}
-            aria-label="Previous video"
-            onClick={(e) => {
-              stop(e);
-              gotoIdx(idx - 1);
-            }}
-          >
-            <SkipBack className="h-4 w-4" />
-          </button>
-          <button
-            className={ctrlBtn}
-            aria-label={paused ? "Play" : "Pause"}
-            onClick={(e) => {
-              stop(e);
-              if (paused) {
-                playerRef.current?.playVideo?.();
-                setPaused(false);
-              } else {
-                playerRef.current?.pauseVideo?.();
-                setPaused(true);
-              }
-            }}
-          >
-            {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
-          </button>
-          <button
-            className={ctrlBtn}
-            aria-label="Next video"
-            onClick={(e) => {
-              stop(e);
-              gotoIdx(idx + 1);
-            }}
-          >
-            <SkipForward className="h-4 w-4" />
-          </button>
-          <button
-            className={ctrlBtn}
-            aria-label="Expand to full Watch"
-            onClick={(e) => {
-              stop(e);
-              navigate({ to: "/app/news", search: { tab: "watch" as const } });
-            }}
-          >
-            <Maximize2 className="h-4 w-4" />
-          </button>
+        <div
+          className={`font-display text-2xl font-bold ${showSkin ? "text-white drop-shadow" : ""}`}
+        >
+          {label}
         </div>
       </div>
-
-      {videoId && (
-        <button
-          type="button"
-          onClick={toggleMute}
-          aria-label="Mute"
-          aria-pressed={muted}
-          className="press absolute bottom-3 right-3 z-30 grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-black/60 text-white backdrop-blur"
-        >
-          {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </button>
-      )}
-      {livePreview && !showSkin && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            navigate({ to: "/app/news", search: { tab: "watch" as const } });
-          }}
-          aria-label="Open full Watch"
-          className="press absolute top-3 right-3 z-30 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/60 px-2.5 py-1 text-[10px] font-semibold text-white backdrop-blur"
-        >
-          <Maximize2 className="h-3.5 w-3.5" />
-          <span>full</span>
-        </button>
-      )}
-    </div>
+    </Link>
   );
 }
 
@@ -1319,7 +660,6 @@ function MediaBanner({
         tagline="mast on tap 📺"
         gradient="from-primary/30 via-primary/10 to-accent/30"
         delay={0}
-        livePreview
       />
     </div>
   );

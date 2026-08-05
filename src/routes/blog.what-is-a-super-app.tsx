@@ -71,7 +71,7 @@ export const Route = createFileRoute("/blog/what-is-a-super-app")({
               name: "Is ONIQ a super app?",
               acceptedAnswer: {
                 "@type": "Answer",
-                text: "Yes. ONIQ combines chat, UPI link and QR tools that open your own payment apps, food ordering, rides, travel, live TV, an AI assistant, and a mini apps hub under one account.",
+                text: "Yes. ONIQ combines chat, UPI link and QR tools that open your own payment apps, food ordering, rides, travel, a channel directory, an AI assistant, and a mini apps hub under one account.",
               },
             },
           ],
@@ -197,7 +197,7 @@ function SuperAppGuide() {
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <Pillar icon={<MessageCircle className="h-5 w-5" />} title="Chat" body="Real-time messaging with voice and video calls." />
               <Pillar icon={<QrCode className="h-5 w-5" />} title="UPI tools" body="UPI links, My QR, and scan-to-pay that open your own payment apps — ONIQ never holds funds." />
-              <Pillar icon={<Sparkles className="h-5 w-5" />} title="AI + mini apps" body="An AI assistant plus a hub of partner mini apps for rides, food, travel, and live TV." />
+              <Pillar icon={<Sparkles className="h-5 w-5" />} title="AI + mini apps" body="An AI assistant plus a hub of partner mini apps for rides, food, travel, and a channel directory." />
             </div>
             <p className="mt-4">
               The same account also unlocks food ordering, rides via Uber and Ola deep links, live

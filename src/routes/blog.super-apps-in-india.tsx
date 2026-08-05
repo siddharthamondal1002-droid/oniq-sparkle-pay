@@ -142,7 +142,7 @@ const ROWS: Row[] = [
     name: "ONIQ",
     anchor: "Chat + AI",
     upi: "UPI intents and QR — funds never held by ONIQ",
-    mini: "Mini Apps hub, rides, food, live TV, AI study tutor",
+    mini: "Mini Apps hub, rides, food, channel directory, AI study tutor",
     note: "Chat-first shell with an AI tutor and DPDP-native consent controls.",
   },
 ];
@@ -264,7 +264,7 @@ function IndiaSuperAppsGuide() {
             <p>
               ONIQ is chat-first rather than payments-first. Messaging, calls, Moments, and Reels sit
               at the centre, with an AI study tutor built for CBSE, ICSE, JEE, NEET, and CLAT
-              syllabi, plus rides, food, live TV, and a Mini Apps hub around them. Payments run
+              syllabi, plus rides, food, a channel directory, and a Mini Apps hub around them. Payments run
               through UPI intents and QR codes that open your own UPI app — <strong>ONIQ never holds
               your money</strong>.
             </p>

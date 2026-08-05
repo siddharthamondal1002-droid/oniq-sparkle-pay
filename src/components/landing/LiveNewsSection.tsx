@@ -1,11 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowRight, Pencil, Plus, Radio, Settings, SkipForward, Trash2, X } from "lucide-react";
+import { ArrowRight, ExternalLink, Pencil, Plus, Radio, Settings, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCurrentRegion } from "@/lib/region";
-import { liveEmbedUrl, watchChannelsFor } from "@/data/watchChannels";
+import {
+  LINK_OUT_LABEL,
+  WATCH_NOTICE,
+  channelUrl,
+  watchDirectoryFor,
+  type WatchGenre,
+} from "@/data/watchDirectory";
+import { openInApp } from "@/lib/miniapps";
 
 
 type NewsItem = {
@@ -128,80 +135,52 @@ export function CompactLiveNews() {
   );
 }
 
-// ---- Watch Live (YouTube official live embeds) ----
-// The hardcoded LIVE_CHANNELS list that used to sit here was region-blind:
-// every viewer got every broadcaster regardless of where they were standing.
-// Streaming rights are territorial, so that made ONIQ — not the viewer — the
-// infringing party. Live channels now come from src/data/watchChannels.ts,
-// filtered by CURRENT REGION, and fail closed to worldwide public-service
-// streams when no region is known.
-type Channel = { id: string; name: string };
-
-const YT_API_SRC = "https://www.youtube.com/iframe_api";
-
-export function loadYouTubeApi(): Promise<any> {
-  const w = window as any;
-  if (w.YT && w.YT.Player) return Promise.resolve(w.YT);
-  if (w.__ytApiPromise) return w.__ytApiPromise;
-  w.__ytApiPromise = new Promise((resolve) => {
-    const prev = w.onYouTubeIframeAPIReady;
-    w.onYouTubeIframeAPIReady = () => {
-      if (typeof prev === "function") try { prev(); } catch { /* noop */ }
-      resolve(w.YT);
-    };
-    if (!document.querySelector(`script[src="${YT_API_SRC}"]`)) {
-      const s = document.createElement("script");
-      s.src = YT_API_SRC;
-      s.async = true;
-      document.head.appendChild(s);
-    }
-  });
-  return w.__ytApiPromise;
-}
+// ---- Watch: a LINK-OUT DIRECTORY, not a player ----
+//
+// Everything that used to live here — the IFrame API loader, the embeddable
+// video/playlist ref parser, the Video and LiveGenre shapes — existed to get a
+// stream playing inside ONIQ. Nothing plays inside ONIQ any more, so all of it
+// is gone. See src/data/watchDirectory.ts for the reasoning.
+//
+// What a Watch entry is now: a name, a description, and an https link.
 
 export type GenreId = "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle" | "mytv";
-export type Video = {
-  videoId: string;
-  title: string;
-  channelName: string;
-  publishedAt: string;
-  thumbnail: string;
-};
-export type LiveGenre = { id: GenreId | string; name: string; emoji: string; live: boolean; videos: Video[] };
 
-// Parse a YouTube URL / id into an embeddable ref.
-// Returns { kind: 'video', id } or { kind: 'list', id }, or null if unusable.
-export function parseYouTube(raw: string): { kind: "video" | "list"; id: string } | null {
+/** A single directory row. `url` always leaves the app. */
+export type WatchLink = {
+  key: string;
+  name: string;
+  description: string;
+  url: string;
+};
+
+export type WatchSection = { id: GenreId | string; name: string; emoji: string; links: WatchLink[] };
+
+/**
+ * Validate and canonicalise a user-pasted YouTube link.
+ *
+ * The old parseYouTube() pulled an 11-character video id out so the player
+ * could embed it, and built an i.ytimg.com thumbnail URL from it. Both are
+ * gone: ONIQ neither embeds the video nor scrapes imagery from the
+ * destination. All this needs to establish now is "is this actually a YouTube
+ * URL", so the app never renders a link-out to somewhere unexpected.
+ *
+ * Returns the canonical https URL, or null.
+ */
+export function normalizeYouTubeLink(raw: string): string | null {
   const s = (raw ?? "").trim();
   if (!s) return null;
-  const bare = /^[\w-]{11}$/.exec(s);
-  if (bare) return { kind: "video", id: s };
+  if (/^@[A-Za-z0-9._-]{1,60}$/.test(s)) return `https://www.youtube.com/${s}`;
   try {
     const u = new URL(s.startsWith("http") ? s : `https://${s}`);
-    const host = u.hostname.replace(/^www\./, "");
-    if (host === "youtu.be") {
-      const id = u.pathname.split("/").filter(Boolean)[0];
-      if (id && /^[\w-]{11}$/.test(id)) return { kind: "video", id };
-    }
-    if (host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com")) {
-      const parts = u.pathname.split("/").filter(Boolean);
-      if (parts[0] === "watch") {
-        const v = u.searchParams.get("v");
-        if (v && /^[\w-]{11}$/.test(v)) return { kind: "video", id: v };
-      }
-      if ((parts[0] === "live" || parts[0] === "embed" || parts[0] === "shorts") && parts[1]) {
-        const id = parts[1];
-        if (/^[\w-]{11}$/.test(id)) return { kind: "video", id };
-      }
-      if (parts[0] === "playlist") {
-        const list = u.searchParams.get("list");
-        if (list) return { kind: "list", id: list };
-      }
-      const list = u.searchParams.get("list");
-      if (list && !u.searchParams.get("v")) return { kind: "list", id: list };
-    }
-  } catch { /* noop */ }
-  return null;
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    const host = u.hostname.replace(/^www\./, "").toLowerCase();
+    if (host !== "youtu.be" && host !== "youtube.com" && host !== "m.youtube.com") return null;
+    u.protocol = "https:";
+    return u.toString();
+  } catch {
+    return null;
+  }
 }
 
 export function useSession() {
@@ -219,21 +198,37 @@ export function useSession() {
   return userId;
 }
 
+/**
+ * My TV — the user's own saved channels, as links.
+ *
+ * This used to call the `videos` action, which returned recent uploads parsed
+ * out of each channel's RSS so the player had something to play. Nothing plays
+ * now, so the videos action is gone and this reads the saved channel rows
+ * directly. Fewer moving parts and no video ids anywhere.
+ */
 export function useMyTv() {
   const userId = useSession();
   const q = useQuery({
-    queryKey: ["my-tv-videos", userId],
+    queryKey: ["my-tv-channels", userId],
     enabled: !!userId,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke("my-tv", { body: { action: "videos" } });
+      const { data, error } = await supabase
+        .from("user_channels")
+        .select("channel_id, name")
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return (Array.isArray(data?.videos) ? data.videos : []) as Video[];
+      return (data ?? []) as { channel_id: string; name: string }[];
     },
   });
-  return { videos: q.data ?? [], isLoggedIn: !!userId };
+  const links: WatchLink[] = (q.data ?? []).map((c) => ({
+    key: c.channel_id,
+    name: c.name,
+    description: "Saved to your My TV",
+    url: `https://www.youtube.com/channel/${c.channel_id}`,
+  }));
+  return { links, isLoggedIn: !!userId };
 }
-
 
 type UserGenreRow = { id: string; name: string; position: number };
 type UserChannelRowFull = { id: string; genre_id: string; name: string; youtube_url: string; position: number };
@@ -273,446 +268,252 @@ function useUserChannels(userId: string | null, genreDbId: string | null) {
   });
 }
 
-function channelsToVideos(rows: UserChannelRowFull[]): Video[] {
-  const out: Video[] = [];
+/** User rows → link rows. Anything that isn't a YouTube URL is dropped. */
+function channelsToLinks(rows: UserChannelRowFull[]): WatchLink[] {
+  const out: WatchLink[] = [];
   for (const r of rows) {
-    const parsed = parseYouTube(r.youtube_url);
-    if (!parsed) continue;
-    const videoId = parsed.kind === "list" ? `list:${parsed.id}` : parsed.id;
-    const thumb = parsed.kind === "video"
-      ? `https://i.ytimg.com/vi/${parsed.id}/hqdefault.jpg`
-      : `https://i.ytimg.com/vi/${parsed.id}/hqdefault.jpg`;
-    out.push({
-      videoId,
-      title: r.name,
-      channelName: r.name,
-      publishedAt: "",
-      thumbnail: thumb,
-    });
+    const url = normalizeYouTubeLink(r.youtube_url);
+    if (!url) continue;
+    out.push({ key: r.id, name: r.name, description: "Your channel", url });
   }
   return out;
 }
 
+const BUILT_IN_GENRES: { id: WatchGenre; name: string; emoji: string }[] = [
+  { id: "news", name: "News", emoji: "📰" },
+  { id: "sports", name: "Sports", emoji: "⚽" },
+  { id: "entertainment", name: "Entertainment", emoji: "🎬" },
+  { id: "finance", name: "Finance", emoji: "💹" },
+  { id: "influencer", name: "Influencer", emoji: "🔥" },
+  { id: "lifestyle", name: "Lifestyle", emoji: "🌿" },
+];
+
+/**
+ * One directory row. The whole tile is the link, and it always leaves ONIQ.
+ *
+ * `openInApp` hands the URL to the system browser / destination app rather
+ * than a WebView, so the user lands in a real browser with a real address bar
+ * and YouTube's own session, age-gating and territorial rules apply to them
+ * directly. Nothing about the destination renders inside ONIQ — no thumbnail,
+ * no title scraped from the page, no preview.
+ */
+function WatchLinkRow({ link }: { link: WatchLink }) {
+  return (
+    <li>
+      <button
+        type="button"
+        data-testid="watch-link"
+        onClick={() => openInApp(link.url)}
+        aria-label={`${link.name} — ${LINK_OUT_LABEL}`}
+        className="press flex w-full items-start gap-3 rounded-2xl border border-border bg-card p-3 text-left"
+      >
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-2 text-lg">
+          📺
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold">{link.name}</div>
+          <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+            {link.description}
+          </div>
+          <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-primary">
+            {LINK_OUT_LABEL} <ExternalLink className="size-3" />
+          </div>
+        </div>
+      </button>
+    </li>
+  );
+}
+
 export function WatchLive() {
-  const [baseGenres, setBaseGenres] = useState<LiveGenre[] | null>(null);
   const [genreId, setGenreId] = useState<string>(() => {
     if (typeof window === "undefined") return "news";
     try { return localStorage.getItem("oniq.watch.lastGenre") || "news"; } catch { return "news"; }
   });
-  const [idx, setIdx] = useState(0);
-  const resumedRef = useRef(false);
-  const [allDead, setAllDead] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [addGenreOpen, setAddGenreOpen] = useState(false);
   const [addChannelForGenre, setAddChannelForGenre] = useState<{ id: string; name: string } | null>(null);
-  const mountRef = useRef<HTMLDivElement | null>(null);
-  const playerRef = useRef<any>(null);
-  const failStreakRef = useRef(0);
-  const advanceTimerRef = useRef<number | null>(null);
   const userId = useSession();
-  // MUST stay above every early return in this component.
+  // Region is RELEVANCE ONLY here — see watchDirectoryFor. Hook stays above
+  // every early return.
   const [region] = useCurrentRegion();
-  const { videos: myTvVideos } = useMyTv();
+  const { links: myTvLinks } = useMyTv();
   const userGenresQ = useUserGenres(userId);
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke("live-channels", { body: {} });
-        if (!alive) return;
-        if (error) throw error;
-        const list: LiveGenre[] = Array.isArray(data?.genres) ? data.genres : [];
-        setBaseGenres(list);
-        if (list.length === 0) setAllDead(true);
-      } catch (e) {
-        console.warn("[WatchLive] fetch genres failed", e);
-        if (alive) { setBaseGenres([]); setAllDead(true); }
-      }
-    })();
-    return () => { alive = false; };
-  }, []);
-
-  // active user genre db id (if genreId starts with "ug:")
   const activeUserGenreId = genreId.startsWith("ug:") ? genreId.slice(3) : null;
   const activeUserChannelsQ = useUserChannels(userId, activeUserGenreId);
 
-  const genres = useMemo<LiveGenre[] | null>(() => {
-    if (baseGenres === null) return null;
-    const merged: LiveGenre[] = [...baseGenres];
-    if (myTvVideos.length > 0) {
-      merged.push({ id: "mytv", name: "My TV", emoji: "📺", live: false, videos: myTvVideos });
+  const sections = useMemo<WatchSection[]>(() => {
+    const out: WatchSection[] = BUILT_IN_GENRES.map((g) => ({
+      id: g.id,
+      name: g.name,
+      emoji: g.emoji,
+      links: watchDirectoryFor(region, g.id).map((e) => ({
+        key: e.channelId ?? e.handle ?? e.name,
+        name: e.name,
+        description: e.description,
+        url: channelUrl(e) ?? "",
+      })).filter((l) => l.url !== ""),
+      // A built-in genre with nothing in it is a dead chip, so it is dropped
+      // rather than shown empty. This bites outside India: entertainment and
+      // finance are entirely India-scoped rosters, so a viewer in the US used
+      // to get a tab that led nowhere. Under the old embed model an empty
+      // genre was correct fail-closed behaviour; for a directory it is just a
+      // bad directory. User genres are exempt below — they legitimately start
+      // empty and carry their own "add channel" affordance.
+    })).filter((s) => s.links.length > 0);
+    if (myTvLinks.length > 0) {
+      out.push({ id: "mytv", name: "My TV", emoji: "📺", links: myTvLinks });
     }
     for (const g of userGenresQ.data ?? []) {
       const rows = activeUserGenreId === g.id ? (activeUserChannelsQ.data ?? []) : [];
-      merged.push({
-        id: `ug:${g.id}`,
-        name: g.name,
-        emoji: "🎯",
-        live: false,
-        videos: channelsToVideos(rows),
-      });
+      out.push({ id: `ug:${g.id}`, name: g.name, emoji: "🎯", links: channelsToLinks(rows) });
     }
-    return merged;
-  }, [baseGenres, myTvVideos, userGenresQ.data, activeUserGenreId, activeUserChannelsQ.data]);
+    return out;
+  }, [region, myTvLinks, userGenresQ.data, activeUserGenreId, activeUserChannelsQ.data]);
 
-  // CURRENT REGION, deliberately not Home: a GB user standing in Dubai is not
-  // licensed for a UK stream. `channel:` refs are embedded through YouTube's
-  // own live_stream endpoint — no scrape, no Data API key, zero quota.
-  const regionalLive: LiveGenre = {
-    id: "news",
-    name: "News",
-    emoji: "📰",
-    live: true,
-    videos: watchChannelsFor(region).map((c) => ({
-      videoId: `channel:${c.channelId}`,
-      title: `${c.name} LIVE`,
-      channelName: c.name,
-      publishedAt: "",
-      thumbnail: "",
-    })),
-  };
-  const genresWithRegion = (genres ?? []).map((g) => (g.live && g.id === "news" ? regionalLive : g));
-  const withNews = genresWithRegion.some((g) => g.id === "news")
-    ? genresWithRegion
-    : [regionalLive, ...genresWithRegion];
+  const activeSection = sections.find((s) => s.id === genreId) ?? sections[0] ?? null;
+  const links = activeSection?.links ?? [];
+  const isUserGenre = typeof activeSection?.id === "string" && activeSection.id.startsWith("ug:");
+  const activeUserGenreDbId = isUserGenre ? (activeSection!.id as string).slice(3) : null;
+  const activeUserGenreRow = activeUserGenreDbId
+    ? (userGenresQ.data ?? []).find((g) => g.id === activeUserGenreDbId) ?? null
+    : null;
+  const activeUserChannelRows = isUserGenre ? (activeUserChannelsQ.data ?? []) : [];
 
-  const activeGenre =
-    withNews.find((g) => g.id === genreId) ?? withNews[0] ?? null;
-  const videos = activeGenre?.videos ?? [];
-  const isLiveGenre = !!activeGenre?.live;
-  const isUserGenre = typeof activeGenre?.id === "string" && activeGenre.id.startsWith("ug:");
-  const activeUserGenreDbId = isUserGenre ? (activeGenre!.id as string).slice(3) : null;
-  const current = videos.length ? videos[idx % videos.length] : null;
-
-  // Resume last-watched video from shared home key on first non-empty load.
-  useEffect(() => {
-    if (resumedRef.current) return;
-    if (videos.length === 0) return;
-    try {
-      const last = localStorage.getItem("oniq.watch.last");
-      if (last) {
-        const foundIdx = videos.findIndex((v) => v.videoId === last);
-        if (foundIdx >= 0) setIdx(foundIdx);
-      }
-    } catch { /* noop */ }
-    resumedRef.current = true;
-  }, [videos]);
-
-  // Persist last-watched genre + video so the home banner restores the same state.
   useEffect(() => {
     try {
-      if (current?.videoId) localStorage.setItem("oniq.watch.last", current.videoId);
-      if (activeGenre?.id) localStorage.setItem("oniq.watch.lastGenre", String(activeGenre.id));
+      if (activeSection?.id) localStorage.setItem("oniq.watch.lastGenre", String(activeSection.id));
     } catch { /* noop */ }
-  }, [current?.videoId, activeGenre?.id]);
-
-  const advance = (reason: "error" | "ended") => {
-    const total = videos.length;
-    if (total === 0) { setAllDead(true); return; }
-    failStreakRef.current += reason === "error" ? 1 : 0;
-    if (failStreakRef.current >= total) { setAllDead(true); return; }
-    if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
-    advanceTimerRef.current = window.setTimeout(() => {
-      setIdx((i) => (i + 1) % total);
-    }, 500);
-  };
-
-  const pickVideo = (i: number) => {
-    failStreakRef.current = 0;
-    setAllDead(false);
-    setIdx(i);
-  };
-
-  const pickGenre = (g: string) => {
-    if (g === (activeGenre?.id ?? genreId)) return;
-    failStreakRef.current = 0;
-    setAllDead(false);
-    setGenreId(g);
-    setIdx(0);
-  };
+  }, [activeSection?.id]);
 
   const invalidateUserWatch = () => {
     queryClient.invalidateQueries({ queryKey: ["user-watch-genres"] });
     queryClient.invalidateQueries({ queryKey: ["user-watch-channels"] });
   };
 
-  const renameUserGenre = async (g: UserGenreRow) => {
-    const next = window.prompt("rename genre", g.name)?.trim();
-    if (!next || next === g.name) return;
-    const { error } = await supabase.from("user_watch_genres").update({ name: next.slice(0, 40) }).eq("id", g.id);
+  const renameUserGenre = async (row: UserGenreRow) => {
+    const next = window.prompt("Rename genre", row.name)?.trim();
+    if (!next || next === row.name) return;
+    const { error } = await supabase
+      .from("user_watch_genres")
+      .update({ name: next.slice(0, 40) })
+      .eq("id", row.id);
     if (error) { toast.error("couldn't rename"); return; }
-    toast.success("renamed ✨");
     invalidateUserWatch();
   };
 
-  const deleteUserGenre = async (g: UserGenreRow) => {
-    if (!window.confirm(`delete "${g.name}" and its channels? this is forever fr`)) return;
-    const { error } = await supabase.from("user_watch_genres").delete().eq("id", g.id);
+  const deleteUserGenre = async (row: UserGenreRow) => {
+    if (!window.confirm(`Delete "${row.name}" and its channels?`)) return;
+    const { error } = await supabase.from("user_watch_genres").delete().eq("id", row.id);
     if (error) { toast.error("couldn't delete"); return; }
-    toast("genre deleted 🧹");
-    if (genreId === `ug:${g.id}`) setGenreId("news");
+    setGenreId("news");
     invalidateUserWatch();
   };
 
   const renameUserChannel = async (row: UserChannelRowFull) => {
-    const next = window.prompt("rename channel", row.name)?.trim();
+    const next = window.prompt("Rename channel", row.name)?.trim();
     if (!next || next === row.name) return;
-    const { error } = await supabase.from("user_watch_channels").update({ name: next.slice(0, 80) }).eq("id", row.id);
+    const { error } = await supabase
+      .from("user_watch_channels")
+      .update({ name: next.slice(0, 80) })
+      .eq("id", row.id);
     if (error) { toast.error("couldn't rename"); return; }
-    toast.success("renamed ✨");
     invalidateUserWatch();
   };
 
   const deleteUserChannel = async (row: UserChannelRowFull) => {
-    if (!window.confirm(`remove "${row.name}"?`)) return;
     const { error } = await supabase.from("user_watch_channels").delete().eq("id", row.id);
     if (error) { toast.error("couldn't remove"); return; }
-    toast("removed 🧹");
     invalidateUserWatch();
   };
 
-  useEffect(() => {
-    if (allDead || !current) return;
-    let cancelled = false;
-    const host = mountRef.current;
-    if (!host) return;
-    host.innerHTML = "";
-    const div = document.createElement("div");
-    div.id = `yt-live-${Date.now()}`;
-    host.appendChild(div);
-
-    const isList = current.videoId.startsWith("list:");
-    const listId = isList ? current.videoId.slice(5) : null;
-
-    // A channel ref embeds YouTube's own live_stream endpoint. YouTube picks
-    // the live video AND applies its geo-restrictions server-side, so a stream
-    // the viewer is not entitled to simply does not play — ONIQ never resolves
-    // or serves one. This is still the official IFrame player; the JS API is
-    // attached to it so error auto-advance keeps working.
-    if (current.videoId.startsWith("channel:")) {
-      const channelId = current.videoId.slice(8);
-      const frame = document.createElement("iframe");
-      frame.src = liveEmbedUrl(channelId, window.location.origin);
-      frame.title = `${current.channelName} live`;
-      frame.allow = "encrypted-media; picture-in-picture; fullscreen";
-      frame.allowFullscreen = true;
-      // >= 200x200 viewport is an embed-terms condition; the frame fills an
-      // aspect-video box that is never narrower than the phone content column.
-      frame.style.cssText = "width:100%;height:100%;border:0;min-width:200px;min-height:200px";
-      div.replaceWith(frame);
-      loadYouTubeApi().then((YT) => {
-        if (cancelled || !YT) return;
-        try {
-          playerRef.current = new YT.Player(frame, {
-            events: { onError: () => advance("error") },
-          });
-        } catch { /* the embed still plays without JS control */ }
-      });
-      return () => {
-        cancelled = true;
-        if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
-        try { playerRef.current?.destroy?.(); } catch { /* noop */ }
-        playerRef.current = null;
-        if (host) host.innerHTML = "";
-      };
-    }
-
-    loadYouTubeApi().then((YT) => {
-      if (cancelled || !YT) return;
-      try {
-        playerRef.current = new YT.Player(div.id, {
-          width: "100%",
-          height: "100%",
-          host: "https://www.youtube-nocookie.com",
-          ...(isList ? {} : { videoId: current.videoId }),
-          playerVars: {
-            autoplay: 1,
-            mute: 1,
-            playsinline: 1,
-            rel: 0,
-            modestbranding: 1,
-            controls: 1,
-            cc_load_policy: 1,
-            cc_lang_pref: "en",
-            ...(isList ? { list: listId as string, listType: "playlist" } : {}),
-          },
-          events: {
-            onReady: (e: any) => { try { e.target.playVideo(); } catch { /* noop */ } },
-            onError: () => advance("error"),
-            onStateChange: (e: any) => {
-              if (e?.data === 0) advance("ended");
-              if (e?.data === 1) failStreakRef.current = 0;
-            },
-          },
-        });
-      } catch {
-        advance("error");
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      if (advanceTimerRef.current) window.clearTimeout(advanceTimerRef.current);
-      try { playerRef.current?.destroy?.(); } catch { /* noop */ }
-      playerRef.current = null;
-      if (host) host.innerHTML = "";
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.videoId, allDead]);
-
-  const loading = genres === null;
-  const currentGenreId = activeGenre?.id ?? genreId;
-  const activeUserGenreRow = activeUserGenreDbId
-    ? (userGenresQ.data ?? []).find((g) => g.id === activeUserGenreDbId) ?? null
-    : null;
-  const activeUserChannelRows = isUserGenre ? (activeUserChannelsQ.data ?? []) : [];
-
   return (
     <div>
-      {((genres && genres.length > 1) || userId) && (
-        <div className="no-scrollbar mb-3 flex items-center gap-2 overflow-x-auto">
-          {(genres ?? []).map((g) => {
-            const active = g.id === currentGenreId;
-            const isUser = typeof g.id === "string" && g.id.startsWith("ug:");
-            const userRow = isUser ? (userGenresQ.data ?? []).find((u) => `ug:${u.id}` === g.id) ?? null : null;
-            return (
-              <div key={g.id} className="relative inline-flex">
-                <button
-                  onClick={() => pickGenre(g.id as string)}
-                  className={`press whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold border transition-colors ${
-                    active
-                      ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_var(--primary)]"
-                      : "bg-surface text-muted-foreground border-border hover:text-foreground"
-                  }`}
-                >
-                  {g.emoji} {g.name}
-                </button>
-                {isUser && userRow && active && (
-                  <div className="ml-1 inline-flex items-center gap-0.5">
-                    <button
-                      onClick={() => renameUserGenre(userRow)}
-                      className="press grid h-6 w-6 place-items-center rounded-full bg-surface text-muted-foreground hover:text-foreground border border-border"
-                      aria-label={`Rename ${userRow.name}`}
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => deleteUserGenre(userRow)}
-                      className="press grid h-6 w-6 place-items-center rounded-full bg-surface text-muted-foreground hover:text-red-400 border border-border"
-                      aria-label={`Delete ${userRow.name}`}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-          {userId && (
-            <button
-              data-testid="user-genre-add"
-              onClick={() => setAddGenreOpen(true)}
-              className="press whitespace-nowrap rounded-full border border-dashed border-border bg-surface px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-              aria-label="Add genre"
-            >
-              <Plus className="h-3 w-3" /> genre
-            </button>
-          )}
-          {userId && (
-            <button
-              data-testid="mytv-manage"
-              onClick={() => setManageOpen(true)}
-              className="press whitespace-nowrap rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-              aria-label="Manage My TV"
-            >
-              <Settings className="h-3 w-3" /> My TV
-            </button>
-          )}
-        </div>
-      )}
-
-
-      {/*
-        YouTube's embed terms forbid rendering anything in front of ANY part
-        of the player, controls included. This LIVE/NEW badge used to sit
-        `absolute top-2 left-2 z-10` over the top-left of the video, which
-        voids the grant. It now sits ABOVE the frame. The loading and error
-        states inside the frame are fine — they replace the player rather
-        than cover it. Enforced by src/data/__tests__/watchChannels.test.ts.
-      */}
-      {current && (
-          <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold border ${isLiveGenre ? "border-red-500/50 bg-red-500/20 text-red-300" : "border-primary/50 bg-primary/20 text-primary"}`}>
-            {isLiveGenre ? (
-              <>
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-75" />
-                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-red-500" />
-                </span>
-                LIVE
-              </>
-            ) : (
-              "NEW"
-            )}
-          </span>
+      <div className="no-scrollbar mb-3 flex items-center gap-2 overflow-x-auto">
+        {sections.map((g) => {
+          const active = g.id === activeSection?.id;
+          const isUser = typeof g.id === "string" && g.id.startsWith("ug:");
+          const userRow = isUser ? (userGenresQ.data ?? []).find((u) => `ug:${u.id}` === g.id) ?? null : null;
+          return (
+            <div key={g.id} className="relative inline-flex">
+              <button
+                onClick={() => setGenreId(g.id as string)}
+                className={`press whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold border transition-colors ${
+                  active
+                    ? "bg-primary text-primary-foreground border-primary shadow-[0_0_16px_-4px_var(--primary)]"
+                    : "bg-surface text-muted-foreground border-border hover:text-foreground"
+                }`}
+              >
+                {g.emoji} {g.name}
+              </button>
+              {isUser && userRow && active && (
+                <div className="ms-1 inline-flex items-center gap-0.5">
+                  <button
+                    onClick={() => renameUserGenre(userRow)}
+                    className="press grid h-6 w-6 place-items-center rounded-full bg-surface text-muted-foreground hover:text-foreground border border-border"
+                    aria-label={`Rename ${userRow.name}`}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={() => deleteUserGenre(userRow)}
+                    className="press grid h-6 w-6 place-items-center rounded-full bg-surface text-muted-foreground hover:text-red-400 border border-border"
+                    aria-label={`Delete ${userRow.name}`}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        {userId && (
+          <button
+            data-testid="user-genre-add"
+            onClick={() => setAddGenreOpen(true)}
+            className="press whitespace-nowrap rounded-full border border-dashed border-border bg-surface px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            aria-label="Add genre"
+          >
+            <Plus className="h-3 w-3" /> genre
+          </button>
         )}
-      <div className="relative aspect-video overflow-hidden rounded-2xl border border-border bg-black">
-        {loading ? (
-          <div className="absolute inset-0 animate-pulse bg-surface" />
-        ) : allDead || !current ? (
-          <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted-foreground">
-            {isUserGenre && activeUserChannelRows.length === 0
-              ? "no channels yet — add ur first 📺"
-              : "streams are napping — try later 📺"}
-          </div>
-        ) : (
-          <div ref={mountRef} className="h-full w-full" />
+        {userId && (
+          <button
+            data-testid="mytv-manage"
+            onClick={() => setManageOpen(true)}
+            className="press whitespace-nowrap rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+            aria-label="Manage My TV"
+          >
+            <Settings className="h-3 w-3" /> My TV
+          </button>
         )}
       </div>
 
-      {(videos.length > 0 || (isUserGenre && activeUserGenreRow)) && (
-        <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-1">
-          {isUserGenre && activeUserGenreRow && (
-            <button
-              data-testid="user-channel-add"
-              onClick={() => setAddChannelForGenre({ id: activeUserGenreRow.id, name: activeUserGenreRow.name })}
-              className="press w-40 shrink-0 text-left"
-              aria-label="Add channel"
-            >
-              <div className="relative aspect-video overflow-hidden rounded-lg border border-dashed border-border grid place-items-center bg-surface">
-                <Plus className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <div className="mt-1.5 line-clamp-2 text-xs font-medium text-foreground leading-snug">add channel</div>
-              <div className="mt-0.5 truncate text-[10px] text-muted-foreground">youtube link</div>
-            </button>
-          )}
-          {videos.map((v, i) => {
-            const active = current?.videoId === v.videoId && !allDead;
+      {isUserGenre && activeUserGenreRow && (
+        <button
+          data-testid="user-channel-add"
+          onClick={() => setAddChannelForGenre({ id: activeUserGenreRow.id, name: activeUserGenreRow.name })}
+          className="press mb-2 inline-flex items-center gap-1 rounded-full border border-dashed border-border bg-surface px-3 py-1.5 text-xs font-medium text-muted-foreground"
+          aria-label="Add channel"
+        >
+          <Plus className="h-3 w-3" /> add channel
+        </button>
+      )}
+
+      {links.length === 0 ? (
+        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
+          {isUserGenre ? "no channels yet — add ur first 📺" : "nothing listed here yet 📺"}
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {links.map((l, i) => {
             const row = isUserGenre ? activeUserChannelRows[i] : null;
             return (
-              <div key={v.videoId} className="relative w-40 shrink-0">
-                <button
-                  data-testid="video-card"
-                  onClick={() => pickVideo(i)}
-                  className={`press w-full text-left ${active ? "opacity-100" : "opacity-90 hover:opacity-100"}`}
-                >
-                  <div className={`relative aspect-video overflow-hidden rounded-lg border ${active ? "border-primary" : "border-border"}`}>
-                    <img
-                      src={v.thumbnail}
-                      alt=""
-                      loading="lazy"
-                      className="h-full w-full object-cover"
-                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                    />
-                  </div>
-                  <div className="mt-1.5 line-clamp-2 text-xs font-medium text-foreground leading-snug">
-                    {v.title}
-                  </div>
-                  <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{v.channelName}</div>
-                </button>
+              <div key={l.key} className="relative">
+                <WatchLinkRow link={l} />
                 {row && (
-                  <div className="absolute top-1 right-1 flex gap-1">
+                  <div className="absolute end-2 top-2 flex gap-1">
                     <button
                       onClick={() => renameUserChannel(row)}
                       className="press grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white hover:text-primary"
@@ -723,7 +524,7 @@ export function WatchLive() {
                     <button
                       onClick={() => deleteUserChannel(row)}
                       className="press grid h-6 w-6 place-items-center rounded-full bg-black/60 text-white hover:text-red-400"
-                      aria-label={`Delete ${row.name}`}
+                      aria-label={`Remove ${row.name}`}
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
@@ -732,22 +533,18 @@ export function WatchLive() {
               </div>
             );
           })}
-        </div>
+        </ul>
       )}
 
-      <p className="mt-2 text-xs text-muted-foreground">
-        {isUserGenre
-          ? "Your channels — pick anything you love"
-          : isLiveGenre ? "Live streams by broadcasters via YouTube" : "Latest uploads via YouTube"}
-      </p>
+      <p className="mt-3 text-[11px] leading-snug text-muted-foreground">{WATCH_NOTICE}</p>
       <p className="mt-1 text-[10px] leading-snug text-muted-foreground/70">
-        Video content is hosted by YouTube and owned by the respective creators/channels — played via YouTube's official embedded player. Rights-holders can report a specific video or channel via{" "}
-        <Link to="/app/privacy/grievance" className="underline">Privacy → Grievance</Link> (category: Content takedown).
+        ONIQ is not affiliated with these channels and does not host, stream or embed their
+        content. Rights-holders can reach us via{" "}
+        <Link to="/app/privacy/grievance" className="underline">Privacy → Grievance</Link>{" "}
+        (category: Content takedown).
       </p>
 
-      {manageOpen && userId && (
-        <MyTvManageSheet onClose={() => setManageOpen(false)} />
-      )}
+      {manageOpen && userId && <MyTvManageSheet onClose={() => setManageOpen(false)} />}
       {addGenreOpen && userId && (
         <AddGenreSheet
           userId={userId}
@@ -756,7 +553,6 @@ export function WatchLive() {
           onCreated={(row) => {
             invalidateUserWatch();
             setGenreId(`ug:${row.id}`);
-            setIdx(0);
           }}
         />
       )}
@@ -772,6 +568,7 @@ export function WatchLive() {
     </div>
   );
 }
+
 
 function AddGenreSheet({
   userId, existingCount, onClose, onCreated,
@@ -850,14 +647,15 @@ function AddChannelSheet({
     const u = url.trim();
     if (!nm || !u) return;
     if (existingCount >= 50) { toast.error("50 channels max per genre — trim it 🧹"); return; }
-    const parsed = parseYouTube(u);
-    if (!parsed) { toast.error("drop a video or live link, channel pages can't autoplay 📺"); return; }
+    const link = normalizeYouTubeLink(u);
+    if (!link) { toast.error("paste a YouTube link — it'll open in YouTube 📺"); return; }
     setBusy(true);
     const { error } = await supabase.from("user_watch_channels").insert({
       user_id: userId,
       genre_id: genre.id,
       name: nm.slice(0, 80),
-      youtube_url: u,
+      // Store the canonicalised link, not the raw paste.
+      youtube_url: link,
       position: existingCount,
     });
     setBusy(false);

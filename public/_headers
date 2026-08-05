@@ -1,6 +1,12 @@
+# youtube.com and s.ytimg.com were removed from script-src, and youtube.com /
+# *.youtube-nocookie.com from frame-src, when Watch stopped embedding the
+# IFrame player (NO LIVE CHANNELS loop, Phase 1). Keeping them would have left
+# the door open for an embed to be re-added silently; now the browser refuses
+# to load one. Do not add them back — see src/data/watchDirectory.ts.
+# accounts.google.com stays in frame-src for OAuth.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(self), camera=(self), microphone=(self), payment=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.youtube.com https://s.ytimg.com https://www.googletagmanager.com; frame-src https://www.youtube.com https://*.youtube-nocookie.com https://accounts.google.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com; frame-src https://accounts.google.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'

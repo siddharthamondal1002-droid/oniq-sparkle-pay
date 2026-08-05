@@ -33,21 +33,21 @@ export const ATTRIBUTIONS: Attribution[] = [
   // republished: ONIQ stores pointers and its own words, not other people's
   // content.
   {
-    id: "youtube-embeds",
+    id: "youtube-links",
     usedFor:
-      "Live broadcaster streams in Watch, played in YouTube's own IFrame player via the official channel live_stream embed, filtered by current region.",
+      "Channel names in Watch and in the faith directory. ONIQ lists the channel and links to it; the channel's own page on YouTube is where anything plays.",
     source: "YouTube (Google LLC)",
-    licence: "YouTube Terms of Service — embed permission",
+    licence: "No licence required — a link is not a use of the work",
     licenceUrl: "https://www.youtube.com/t/terms",
     requiredNotice: null,
     exclusions: [
-      "Nothing may be rendered in front of any part of the player, controls included.",
-      "The player viewport must be at least 200x200px.",
-      "Stream URLs are never cached, downloaded or extracted, and YouTube is never scraped.",
+      "No embedding, streaming, proxying or resolving of any video, in any country.",
+      "No thumbnails or other imagery taken from the destination — ONIQ's own iconography only.",
+      "Channel names are used to say where a link goes; ONIQ is not affiliated with any of them.",
     ],
-    sourceUrl: "https://developers.google.com/youtube/terms/required-minimum-functionality",
+    sourceUrl: "https://www.youtube.com/t/terms",
     notes:
-      "ONIQ embeds; it does not restream, proxy or re-host. Broadcaster availability is set by YouTube per region, not by ONIQ.",
+      "Watch used to embed the official IFrame player, which brought the whole of YouTube's embed terms with it — minimum player size, nothing rendered in front of the player, no stream-URL handling. None of that applies to a link, so none of it is relied on any more.",
   },
   {
     id: "publisher-rss",
@@ -295,8 +295,8 @@ export const LICENCE_FAMILIES: { title: string; blurb: string; ids: string[] }[]
   {
     title: "Referenced, not republished",
     blurb:
-      "ONIQ stores pointers and its own words here — an embed, a headline and a link, or a warning written from a public advisory. Nothing on this list is re-hosted, and the conditions attached to each are what keep it that way.",
-    ids: ["youtube-embeds", "publisher-rss", "scam-advisories"],
+      "ONIQ stores pointers and its own words here — a name and a link, a headline and a link, or a warning written from a public advisory. Nothing on this list is re-hosted, streamed or embedded, and the conditions attached to each are what keep it that way.",
+    ids: ["youtube-links", "publisher-rss", "scam-advisories"],
   },
 ];
 

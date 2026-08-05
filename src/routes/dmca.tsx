@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { GRIEVANCE_OFFICER } from "@/config/privacy";
 import {
   DMCA_AGENT,
+  DMCA_PROTECTION,
   IN_INTERMEDIARY,
   REPEAT_INFRINGER,
   SERVICE_PROVIDER,
@@ -45,10 +46,17 @@ function DmcaPage() {
         <section className="prose prose-invert mt-8 max-w-none space-y-6 text-[15px] leading-relaxed">
           <h2 className="mt-8 font-display text-2xl font-semibold">What ONIQ is</h2>
           <p>
-            ONIQ is an information-location tool. Where we show news, live TV or app listings we
-            store a <strong>pointer</strong> — a headline, a channel name, a link — and send you to
-            the publisher, broadcaster or app that owns the material. We do not copy, re-host,
-            mirror, proxy or restream anyone&rsquo;s content, and we do not store article bodies.
+            ONIQ is an information-location tool. Where we show news, channel listings or app
+            listings we store a <strong>pointer</strong> — a headline, a channel name, a link — and
+            send you to the publisher, broadcaster or app that owns the material. We do not copy,
+            re-host, mirror, proxy or restream anyone&rsquo;s content, and we do not store article
+            bodies.
+          </p>
+          <p>
+            ONIQ does not stream or embed live TV or radio in any country. Watch and the faith
+            channel lists are directories: every entry opens the channel or station on its own
+            platform, where that platform applies its own regional availability and age rules.
+            Nothing plays inside ONIQ.
           </p>
           <p>
             If you believe something we link to infringes your copyright, tell us and we will act.
@@ -143,6 +151,36 @@ function DmcaPage() {
               The process above applies regardless, and notices sent to {DMCA_AGENT.email} are
               acted on the same way.
             </p>
+          )}
+
+          {DMCA_PROTECTION.vendorProtection && (
+            <>
+              <h2 className="font-display text-2xl font-semibold">
+                About the {DMCA_PROTECTION.vendor} badge
+              </h2>
+              <p>
+                ONIQ subscribes to {DMCA_PROTECTION.vendor} {DMCA_PROTECTION.plan}, and its badge
+                appears in the footer of our site. It is worth being exact about what that is,
+                because badges of this kind are widely misread.
+              </p>
+              <p>
+                What it is: a commercial monitoring and takedown-assistance service. It watches for
+                copies of <em>ONIQ&rsquo;s own</em> pages appearing elsewhere and helps us get them
+                removed. In that arrangement ONIQ is the rights-holder asking for protection. The
+                badge also links to a{" "}
+                <a href={DMCA_PROTECTION.statusUrl} rel="noopener noreferrer" target="_blank">
+                  public status page
+                </a>{" "}
+                confirming the subscription is current.
+              </p>
+              <p>
+                What it is <strong>not</strong>: a designation under 17 U.S.C. §512(c)(2), and not
+                safe harbour. Those run in the opposite direction — they concern ONIQ&rsquo;s
+                liability for material our users link to — and they come only from the U.S.
+                Copyright Office register. No private company can grant them. The section above
+                states ONIQ&rsquo;s actual position, and the badge does not change it.
+              </p>
+            </>
           )}
 
           <h2 className="font-display text-2xl font-semibold">India — IT Act and IT Rules 2021</h2>

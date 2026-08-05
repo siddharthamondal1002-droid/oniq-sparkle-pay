@@ -64,14 +64,17 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
       "Renders the badge. Hotlinked deliberately — dmca.com serves it against the protection ID so it cannot be faked or outlive a lapsed subscription.",
     avoidable: true,
   },
-  {
-    host: "www.youtube.com / www.youtube-nocookie.com",
-    triggeredBy: "Watch — the official YouTube IFrame player.",
-    sends: "IP address and user-agent when a live stream is opened.",
-    purpose:
-      "Plays the broadcaster's stream. YouTube applies its own geo-restrictions server-side; ONIQ never resolves or serves a stream URL.",
-    avoidable: false,
-  },
+  // Two entries used to sit here and both are deliberately gone.
+  //
+  // YouTube: Watch embedded the IFrame player, so every viewer's IP and
+  // user-agent reached Google the moment a stream opened, with no user
+  // decision involved — a declarable automatic request. Watch is now a list of
+  // links: nothing contacts YouTube until the user taps a row and leaves the
+  // app, and a destination the user chooses to visit is not a request ONIQ
+  // makes. See src/data/watchDirectory.ts.
+  //
+  // date.nager.at and api.frankfurter.dev: both were Glance's, and Glance was
+  // removed from the app. Nothing calls either host now.
   // The three below send LOCATION, not just an IP, which is a different and
   // heavier Data safety category. They were undeclared until the compliance
   // test went looking for automatic requests rather than link destinations.
