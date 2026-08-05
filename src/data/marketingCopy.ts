@@ -285,7 +285,7 @@ ONIQ is not affiliated with, endorsed by, or sponsored by any third-party app, b
   consoleChecklist: [
     "Data deletion: the account-deletion URL must be https://oniqhub.com/delete-account. On 2026-08-05 the store page showed only Play's generic 'developers can provide ways to remove data' boilerplate, which is what renders when no URL is declared — while the route existed and returned 200.",
     "Data safety must NOT declare Financial info. Nothing in this repo collects payment info or purchase history: there is no billing SDK, no Stripe, no Razorpay, no Play Billing, and the UPI surface is hidden. Over-declaring it puts the listing in Play's payments bucket and contradicts the withheld Scan & Pay position.",
-    "Security practices: 'Data is encrypted at rest' is true and should be ticked alongside in-transit, and 'You can request that data be deleted' follows from /delete-account.",
+    "Security practices: the form asks exactly two questions — encryption in transit, and whether users can request deletion. There is NO 'encrypted at rest' option; an earlier version of this checklist said to tick one, and it does not exist. Answering YES to the deletion question is what both surfaces the 'You can request that data be deleted' line on the listing and prompts for the deletion URL above, so that item and this one are the same form field, not two.",
     "Full description in Console must be pasted from PLAY_LISTING.fullDescription. The live one was older copy and read 'moments,clips' with no space.",
   ],
 } as const;
