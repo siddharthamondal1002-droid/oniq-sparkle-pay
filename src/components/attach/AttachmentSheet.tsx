@@ -33,10 +33,7 @@ export interface AttachmentContext {
 
 /** Default context for ONIQ call sites. */
 export function useAttachmentContext(): AttachmentContext {
-  return useMemo(
-    () => ({ isNative: Capacitor.isNativePlatform(), flags: ATTACH_FLAGS }),
-    [],
-  );
+  return useMemo(() => ({ isNative: Capacitor.isNativePlatform(), flags: ATTACH_FLAGS }), []);
 }
 
 /* ------------------------------------------------------------------ *
@@ -250,19 +247,39 @@ export function AttachmentSheet({
         if (!input) return;
         input.value = "";
         input.accept = acceptOverride?.[option.id] ?? option.accept;
-        input.multiple = Boolean(option.multiple);
-        if ((option.id === "camera" || option.id === "camera-video") && context.isNative === false) {
+
+        // `capture` is the ONLY thing that turns a file input into a camera
+        // launch, and it must be set on native as well as web.
+        //
+        // This previously read `&& context.isNative === false`, so on the
+        // Android build — where isNative is true — the attribute was REMOVED
+        // and the Camera tile fell through to the ordinary file picker. Camera
+        // and Gallery opened the same screen and the camera never opened.
+        //
+        // The condition looks like it was written expecting a native plugin
+        // path to exist. There is none: @capacitor/camera is not a dependency,
+        // and Android's WebView honours `capture` exactly as Chrome does. So
+        // the correct behaviour on both platforms is simply to set it.
+        const wantsCamera = option.id === "camera" || option.id === "camera-video";
+        if (wantsCamera) {
           input.setAttribute("capture", "environment");
         } else {
           input.removeAttribute("capture");
         }
+        // `capture` with `multiple` is undefined behaviour and silently drops
+        // back to the picker on some Android builds — a camera shot is one
+        // file regardless, so never combine them.
+        input.multiple = wantsCamera ? false : Boolean(option.multiple);
+
         input.click();
         return;
       }
       onSelect(option);
       onClose();
     },
-    [context.isNative, acceptOverride, onSelect, onClose],
+    // No longer depends on context.isNative — the camera path is identical on
+    // native and web, which was the bug.
+    [acceptOverride, onSelect, onClose],
   );
 
   if (!open) return null;

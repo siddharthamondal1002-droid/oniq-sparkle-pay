@@ -183,11 +183,6 @@ function ChatThread() {
   const [showAttachSheet, setShowAttachSheet] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [recentReactions, setRecentReactions] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const videoInputRef = useRef<HTMLInputElement | null>(null);
-  const anyFileInputRef = useRef<HTMLInputElement | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
-  const cameraVideoRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recChunksRef = useRef<Blob[]>([]);
   const recStreamRef = useRef<MediaStream | null>(null);
@@ -928,25 +923,11 @@ function ChatThread() {
     setUploading(false);
   };
 
-  // Every picked photo goes through PhotoStudio (filters/adjust/crop +
-  // metadata-stripping re-encode) before upload — one at a time for batches.
-  const handlePickImage = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = "";
-    if (files.length === 0) return;
-    studioResults.current = [];
-    setStudioQueue(files);
-  };
-  const handlePickVideo = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = "";
-    void handlePickedFiles(files, "video");
-  };
-  const handlePickAnyFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = "";
-    void handlePickedFiles(files, "file");
-  };
+  // The three onChange handlers that lived here (handlePickImage,
+  // handlePickVideo, handlePickAnyFile) went with the hidden inputs they were
+  // attached to. handleSheetFiles below is the single entry point now, and it
+  // still routes photos through PhotoStudio for the metadata-stripping
+  // re-encode before upload.
 
   const [studioQueue, setStudioQueue] = useState<File[]>([]);
   const studioResults = useRef<File[]>([]);
@@ -2036,11 +2017,14 @@ function ChatThread() {
             </div>
           )}
         <div className="flex items-center gap-2">
-          <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={handlePickImage} data-testid="chat-file-input" />
-          <input ref={videoInputRef} type="file" accept="video/*" multiple hidden onChange={handlePickVideo} data-testid="chat-video-input" />
-          <input ref={anyFileInputRef} type="file" multiple hidden onChange={handlePickAnyFile} data-testid="chat-anyfile-input" />
-          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" hidden onChange={handlePickImage} data-testid="chat-camera-input" />
-          <input ref={cameraVideoRef} type="file" accept="video/*" capture="environment" hidden onChange={handlePickVideo} data-testid="chat-camera-video-input" />
+          {/*
+            Five hidden file inputs used to sit here — including two with
+            capture="environment" that looked exactly like working camera
+            wiring. Nothing ever clicked any of them: they predate the unified
+            AttachmentSheet, which owns its own input and every picker path.
+            They are removed rather than left, because a dead camera input next
+            to a broken camera button is how the bug came back.
+          */}
 
           <div className="relative">
             <button
