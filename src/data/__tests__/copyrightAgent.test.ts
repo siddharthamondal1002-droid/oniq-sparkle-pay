@@ -56,6 +56,42 @@ describe("a claim of registration must be fully specified", () => {
     ).toBe(expected.toISOString().slice(0, 10));
   });
 
+  it("publishes all four items §512(c)(2)(A) names, not just an email", () => {
+    // The statute lists "the name, address, phone number, and electronic mail
+    // address of the agent", and requires them on the website as well as on
+    // the register. Publishing an email alone meets neither requirement, and
+    // it is the natural thing to leave half-done — the register entry feels
+    // like the finished task.
+    if (!DMCA_AGENT.registeredWithCopyrightOffice) return;
+    expect(DMCA_AGENT.agentName, "no agent name published").toBeTruthy();
+    expect(DMCA_AGENT.agentAddress, "no agent postal address published").toBeTruthy();
+    expect(DMCA_AGENT.agentPhone, "no agent phone published").toBeTruthy();
+    expect(DMCA_AGENT.registrationNumber, "no registration number recorded").toMatch(/^DMCA-\d+$/);
+    expect(page, "the page does not render the published agent block").toMatch(
+      /DMCA_AGENT\.agentAddress/,
+    );
+  });
+
+  it("gives the phone a country code that agrees with the agent's country", () => {
+    // A notice sender is by definition somewhere else, so a bare national
+    // number is unreachable. The nastier case is a national number written
+    // with a leading "+": drop the 91 from an Indian mobile and +7980732371
+    // is a syntactically perfect RUSSIAN number that someone will actually
+    // dial. Shape alone cannot catch that — checking the shape was this
+    // test's first version, and it passed the broken number happily. The
+    // dialling code has to be checked against the address.
+    if (!DMCA_AGENT.agentPhone) return;
+    expect(DMCA_AGENT.agentPhone, "not E.164 — needs a leading + and country code").toMatch(
+      /^\+[1-9]\d{7,14}$/,
+    );
+    if (DMCA_AGENT.agentAddress && /\bindia\b/i.test(DMCA_AGENT.agentAddress)) {
+      expect(
+        DMCA_AGENT.agentPhone,
+        `agent is in India but ${DMCA_AGENT.agentPhone} is not a +91 number`,
+      ).toMatch(/^\+91\d{10}$/);
+    }
+  });
+
   it("points at the Copyright Office register, not a vendor", () => {
     expect(DMCA_AGENT.directoryUrl).toMatch(/^https:\/\/dmca\.copyright\.gov\//);
     expect(DMCA_AGENT.email).toMatch(/@oniqhub\.com$/);

@@ -22,6 +22,28 @@
  *
  * While this is false, the policy page says so plainly rather than implying a
  * protection ONIQ does not have.
+ *
+ * STATE AS OF 2026-08-05
+ *
+ * A designation has been SUBMITTED — registration number DMCA-1077456, fee
+ * paid — but the directory reports its status as "Payment Processing", not
+ * "Active". The Office's own explanation of that field is unambiguous: only
+ * "Active" means the record "is currently available in the public directory".
+ * Card payments clear in minutes, ACH in up to seven days. Until the status
+ * reads Active there is no public designation, so the flag below stays false.
+ *
+ * THE SECOND HALF OF §512(c)(2), WHICH IS EASY TO MISS
+ *
+ * The statute requires the agent's details to be available in TWO places:
+ * on the Copyright Office register AND "through its service, including on its
+ * website in a location accessible to the public". And it names four items —
+ * "the name, address, phone number, and electronic mail address of the agent".
+ * Publishing only an email satisfies neither the list nor the second half.
+ *
+ * So the fields below are what /dmca publishes, and they must match the
+ * register entry exactly. A rights-holder who finds one address on the
+ * register and a different one on the site has been given two answers to a
+ * question the statute expects one answer to.
  */
 export const DMCA_AGENT = {
   registeredWithCopyrightOffice: false,
@@ -29,7 +51,28 @@ export const DMCA_AGENT = {
   registrationDate: null as string | null,
   /** §512 designations lapse after 3 years. An expired one voids immunity. */
   renewalDueDate: null as string | null,
-  name: "ONIQ Copyright Agent",
+  /** As issued by the Office, e.g. "DMCA-1077456". Recorded once Active. */
+  registrationNumber: null as string | null,
+
+  // The four items §512(c)(2)(A) requires to be published. Each stays null
+  // until the designation is Active, and the guard test refuses a claim of
+  // registration that leaves any of them unset — an incomplete published
+  // block is the failure this is here to prevent.
+  /** The agent's name exactly as it appears on the register. */
+  agentName: null as string | null,
+  /** The agent's postal address exactly as it appears on the register. */
+  agentAddress: null as string | null,
+  /** E.164, country code included. A bare national number is not reachable. */
+  agentPhone: null as string | null,
+
+  /**
+   * The published agent mailbox. This must be the address ON THE REGISTER.
+   *
+   * A role address is preferable to a personal one: the designation outlives
+   * whoever currently holds the role, and §512 notices must keep arriving
+   * after a staffing change. If the register carries a personal mailbox,
+   * amend the register rather than repointing this at an individual.
+   */
   email: "copyright@oniqhub.com",
   directoryUrl: "https://dmca.copyright.gov/osp/",
 } as const;
@@ -57,8 +100,7 @@ export const DMCA_PROTECTION = {
   vendor: "DMCA.com",
   plan: "Pro",
   /** The public status page the footer badge links to. */
-  statusUrl:
-    "https://www.dmca.com/Protection/Status.aspx?ID=1cdf7ab8-a10a-404c-a1f9-7f651e746222",
+  statusUrl: "https://www.dmca.com/Protection/Status.aspx?ID=1cdf7ab8-a10a-404c-a1f9-7f651e746222",
   /** Verification of site ownership only. Not a §512 designation. */
   siteVerified: true,
 } as const;

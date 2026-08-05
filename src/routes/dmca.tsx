@@ -112,13 +112,13 @@ function DmcaPage() {
 
           <h2 className="font-display text-2xl font-semibold">Counter-notice</h2>
           <p>
-            If your material was removed and you believe that was a mistake or a
-            misidentification, email {DMCA_AGENT.email} with your signature, identification of the
-            removed material and where it appeared, and a statement under penalty of perjury that
-            you have a good-faith belief it was removed in error. Include your name, address and
-            phone number, and a statement that you consent to the jurisdiction of the federal
-            district court for your district (or, if outside the US, any district in which ONIQ may
-            be found), and that you will accept service of process from the complainant.
+            If your material was removed and you believe that was a mistake or a misidentification,
+            email {DMCA_AGENT.email} with your signature, identification of the removed material and
+            where it appeared, and a statement under penalty of perjury that you have a good-faith
+            belief it was removed in error. Include your name, address and phone number, and a
+            statement that you consent to the jurisdiction of the federal district court for your
+            district (or, if outside the US, any district in which ONIQ may be found), and that you
+            will accept service of process from the complainant.
           </p>
 
           <h2 className="font-display text-2xl font-semibold">Repeat infringers</h2>
@@ -133,23 +133,43 @@ function DmcaPage() {
 
           <h2 className="font-display text-2xl font-semibold">Designated agent (United States)</h2>
           {DMCA_AGENT.registeredWithCopyrightOffice ? (
-            <p>
-              ONIQ has designated an agent with the U.S. Copyright Office to receive notifications
-              of claimed infringement, as required by 17 U.S.C. §512(c)(2). Registered{" "}
-              {DMCA_AGENT.registrationDate}; renewal due {DMCA_AGENT.renewalDueDate}. The
-              designation is listed in the{" "}
-              <a href={DMCA_AGENT.directoryUrl} rel="noopener noreferrer" target="_blank">
-                Copyright Office directory
-              </a>
-              .
-            </p>
+            <>
+              <p>
+                ONIQ has designated an agent with the U.S. Copyright Office to receive notifications
+                of claimed infringement, as required by 17 U.S.C. §512(c)(2). Registered{" "}
+                {DMCA_AGENT.registrationDate}
+                {DMCA_AGENT.registrationNumber
+                  ? ` under registration number ${DMCA_AGENT.registrationNumber}`
+                  : ""}
+                ; renewal due {DMCA_AGENT.renewalDueDate}. The designation is listed in the{" "}
+                <a href={DMCA_AGENT.directoryUrl} rel="noopener noreferrer" target="_blank">
+                  Copyright Office directory
+                </a>
+                .
+              </p>
+              {/*
+                §512(c)(2)(A) names four items and requires them on the website as
+                well as on the register: name, address, phone number, email. An
+                email alone satisfies neither. These render from config so the
+                published block and the register cannot drift apart.
+              */}
+              <address className="not-italic">
+                <strong>{DMCA_AGENT.agentName}</strong>
+                <br />
+                {DMCA_AGENT.agentAddress}
+                <br />
+                <a href={`tel:${DMCA_AGENT.agentPhone}`}>{DMCA_AGENT.agentPhone}</a>
+                <br />
+                <a href={`mailto:${DMCA_AGENT.email}`}>{DMCA_AGENT.email}</a>
+              </address>
+            </>
           ) : (
             <p>
               ONIQ has <strong>not yet</strong> designated an agent with the U.S. Copyright Office.
               We are saying so plainly rather than implying a protection we do not have: until that
               registration is made, ONIQ does not claim the §512 safe harbour in the United States.
-              The process above applies regardless, and notices sent to {DMCA_AGENT.email} are
-              acted on the same way.
+              The process above applies regardless, and notices sent to {DMCA_AGENT.email} are acted
+              on the same way.
             </p>
           )}
 
@@ -185,8 +205,8 @@ function DmcaPage() {
 
           <h2 className="font-display text-2xl font-semibold">India — IT Act and IT Rules 2021</h2>
           <p>
-            For complaints under Indian law, contact our Grievance Officer,{" "}
-            {GRIEVANCE_OFFICER.name} ({GRIEVANCE_OFFICER.role}), at{" "}
+            For complaints under Indian law, contact our Grievance Officer, {GRIEVANCE_OFFICER.name}{" "}
+            ({GRIEVANCE_OFFICER.role}), at{" "}
             <a href={`mailto:${GRIEVANCE_OFFICER.email}`}>{GRIEVANCE_OFFICER.email}</a>. We
             acknowledge every complaint within{" "}
             <strong>{IN_INTERMEDIARY.acknowledgeWithinHours} hours</strong> and dispose of it within{" "}
@@ -202,10 +222,7 @@ function DmcaPage() {
             We do not monitor content proactively and have no general obligation to do so. We act
             expeditiously on actual knowledge of unlawful material. Service provider:{" "}
             {SERVICE_PROVIDER.serviceName}, {SERVICE_PROVIDER.site}, contact{" "}
-            <a href={`mailto:${SERVICE_PROVIDER.contactEmail}`}>
-              {SERVICE_PROVIDER.contactEmail}
-            </a>
-            .
+            <a href={`mailto:${SERVICE_PROVIDER.contactEmail}`}>{SERVICE_PROVIDER.contactEmail}</a>.
           </p>
 
           <h2 className="font-display text-2xl font-semibold">Trade marks and names</h2>
