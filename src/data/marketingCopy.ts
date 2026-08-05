@@ -249,14 +249,14 @@ STUDY — Question papers for your board and class, ready to print. Campus adds 
 
 GET AROUND — Compare ride prices across providers before you book, and compare buses, trains, flights and hotels in Wanderlust.
 
-ASK — Ting is a live-web AI assistant that answers what's happening now. Scout translates across 25 languages.
+ASK — Ting is a live-web AI assistant that answers what's happening now. Scout translates across ${SCOUT_LANGUAGES} languages.
 
 EVERYDAY — Pulse for headlines straight to the source, Official for government services and visa portals, Blessed for daily readings and festivals, Plug for the apps that matter in your country, and Vitals for sleep, mood and cycle tracking.
 
 YOUR DATA
 Row-level security means nobody but you can read your health logs — enforced in the database, not just the interface. Your safety plan never leaves your phone. You can export or delete everything, and we hold ourselves to a 30-day deadline.
 
-ONIQ works across seven countries and adapts to yours: currency, emergency numbers, government links and legal regime all follow where you are.
+ONIQ works across ${COUNTRIES_SUPPORTED} countries and adapts to yours: currency, emergency numbers, government links and legal regime all follow where you are.
 
 ONIQ is not affiliated with, endorsed by, or sponsored by any third-party app, board, university, exchange or bank named in the app. All trademarks belong to their owners.`,
   /**
@@ -268,9 +268,25 @@ ONIQ is not affiliated with, endorsed by, or sponsored by any third-party app, b
     "No Watch player or channel grid — the surface is gone.",
     "No Glance card — the surface is gone.",
     "No Scan & Pay or Receive shown as available — both are held back.",
+    "No home-grid screenshot showing the 'tap in' payment tile. The live listing shipped one; oniq-upi carries hidden: true, so the screenshot advertised a surface the app does not open.",
     "No live-TV or streaming wording in any caption or feature graphic.",
     "Category is not Entertainment or Video Players & Editors.",
     "Data safety declares health info as collected — see DATA_COLLECTED in src/config/playCompliance.ts.",
+  ],
+
+  /**
+   * The Console-side half of the listing — the fields no test can reach,
+   * because they live in Play Console rather than in this repo.
+   *
+   * This exists because the live listing was audited on 2026-08-05 against the
+   * declarations above and three things were wrong in Console while being
+   * right here. A checklist in the repo is the only place that survives.
+   */
+  consoleChecklist: [
+    "Data deletion: the account-deletion URL must be https://oniqhub.com/delete-account. On 2026-08-05 the store page showed only Play's generic 'developers can provide ways to remove data' boilerplate, which is what renders when no URL is declared — while the route existed and returned 200.",
+    "Data safety must NOT declare Financial info. Nothing in this repo collects payment info or purchase history: there is no billing SDK, no Stripe, no Razorpay, no Play Billing, and the UPI surface is hidden. Over-declaring it puts the listing in Play's payments bucket and contradicts the withheld Scan & Pay position.",
+    "Security practices: 'Data is encrypted at rest' is true and should be ticked alongside in-transit, and 'You can request that data be deleted' follows from /delete-account.",
+    "Full description in Console must be pasted from PLAY_LISTING.fullDescription. The live one was older copy and read 'moments,clips' with no space.",
   ],
 } as const;
 

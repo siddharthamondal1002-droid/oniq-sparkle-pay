@@ -250,4 +250,61 @@ describe("the numbers are counted, not inherited", () => {
   it("Scout's language count is stated once, in the module", () => {
     expect(SCOUT_LANGUAGES).toBeGreaterThan(0);
   });
+
+  it("the Play description quotes the registry rather than a frozen number", () => {
+    // This is the one that got away. SCOUT_LANGUAGES was derived correctly and
+    // the landing page used it, but PLAY_LISTING.fullDescription — which is
+    // the text pasted into Play Console, read by every user who taps "more" —
+    // still said a flat "25 languages" after the registry grew to 56. The
+    // earlier guard only forbade the string `"A 25-language`, a different
+    // sentence, so it passed while the store listing was wrong.
+    expect(PLAY_LISTING.fullDescription).toContain(`${SCOUT_LANGUAGES} languages`);
+    const counts = PLAY_LISTING.fullDescription.match(/\b\d+\s+languages\b/g) ?? [];
+    for (const claim of counts) {
+      expect(claim, `the listing claims "${claim}" but the registry has ${SCOUT_LANGUAGES}`).toBe(
+        `${SCOUT_LANGUAGES} languages`,
+      );
+    }
+  });
+
+  it("the Play description states the country count the registry actually has", () => {
+    expect(PLAY_LISTING.fullDescription).toContain(`${COUNTRIES_SUPPORTED} countries`);
+  });
+
+  it("the Console checklist names the deletion URL that actually exists", () => {
+    // The route is real and reachable; the declaration was the missing half.
+    const blob = PLAY_LISTING.consoleChecklist.join(" ");
+    expect(blob).toContain("https://oniqhub.com/delete-account");
+    expect(existsSync(join(process.cwd(), "src/routes/delete-account.tsx"))).toBe(true);
+  });
+
+  it("the Console checklist forbids the Financial info declaration", () => {
+    expect(PLAY_LISTING.consoleChecklist.join(" ")).toMatch(/NOT declare Financial info/);
+  });
+
+  it("nothing in the app collects payment or purchase data", () => {
+    // The claim the checklist rests on, asserted rather than assumed. If a
+    // billing SDK ever lands, this fails and the Data safety form must change
+    // in the same breath.
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
+    const deps = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).join(" ");
+    for (const sdk of ["stripe", "razorpay", "braintree", "paypal", "play-billing", "revenuecat"]) {
+      expect(deps, `${sdk} is installed — Data safety must declare Financial info`).not.toContain(
+        sdk,
+      );
+    }
+  });
+
+  it("the Play description promises no payment, wallet or money surface", () => {
+    // Scan & Pay and Receive are held back, oniq-upi carries hidden: true, and
+    // the app takes no payment of any kind. Anything here that reads as a
+    // money feature drags the listing into Play's financial-services surface
+    // and contradicts the Data safety form it should match.
+    const desc = PLAY_LISTING.fullDescription.toLowerCase();
+    for (const bad of ["scan & pay", "scan and pay", "wallet", "send money", "upi", "payment"]) {
+      expect(desc, `the listing promises "${bad}" while the surface is withheld`).not.toContain(
+        bad,
+      );
+    }
+  });
 });
