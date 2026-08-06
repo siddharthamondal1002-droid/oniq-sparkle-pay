@@ -3,6 +3,7 @@
 // sanitized paper (no correct_index / model_answer / rubric_points) to client.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
+import { orderMcqOptions } from "../_shared/mcqOrder.ts";
 
 type Section = { type: "mcq" | "short" | "long"; marks: number; count: number };
 
@@ -253,7 +254,7 @@ Deno.serve(async (req) => {
     let toolName = "";
     let maxTokens = 2000;
     if (kind === "mcq") {
-      instr = `Produce EXACTLY ${count} multiple-choice questions, 1 ${unitOne} each, 4 options each with exactly one correct answer. Wrong options should be plausible common mistakes. Keep each question concise.`;
+      instr = `Produce EXACTLY ${count} multiple-choice questions, 1 ${unitOne} each, 4 options each with exactly one correct answer. Wrong options should be plausible common mistakes. When the four options are quantities, LIST THEM IN ASCENDING NUMERICAL ORDER — scrambled numeric options make the student scan instead of reading down a ladder, which tests attention rather than the subject. Do not place the correct answer in a consistent position. Keep each question concise.`;
       schema = MCQ_SECTION_SCHEMA;
       toolName = "return_mcq";
       maxTokens = Math.max(1500, count * 180);
@@ -341,13 +342,24 @@ Deno.serve(async (req) => {
         console.warn(`study-paper-generate: bad mcq item i=${i} totalMarks=${totalMarks} subject="${subject}"`);
         return json(200, { source: "unavailable", reason: "bad mcq item" });
       }
+      // The prompt asks for ascending numeric options; this makes it true.
+      // Models comply with ordering unreliably — a production Class 9 Maths
+      // paper came back with eight of ten MCQs scrambled — and the correct
+      // order is computable, so it is not left to chance. Text options are
+      // returned untouched: there is no natural order for "in the third
+      // quadrant", and alphabetising prose would be a cue of its own.
+      //
+      // orderMcqOptions moves the key with the options. That remap is the
+      // whole risk here: sorting without it would turn every correct key into
+      // a wrong one, silently, across every paper.
+      const ordered = orderMcqOptions(options, ci);
       stored.push({
         id: `mcq-${i}`,
         type: "mcq",
         marks: 1,
         question: String(q.question).trim(),
-        options,
-        correct_index: ci,
+        options: ordered.options,
+        correct_index: ordered.correctIndex,
         explanation: String(q.explanation ?? "").trim(),
       });
     }

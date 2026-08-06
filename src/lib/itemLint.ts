@@ -26,6 +26,14 @@
 // *good*; it tells you an item is not obviously broken. The key verification
 // gate is what protects correctness — this protects everything else.
 
+// numericOption lives in supabase/functions/_shared/mcqOrder.ts, and is
+// imported rather than copied. The edge generator needs the same parser to
+// sort options at generation time, and two copies of a parser this fiddly —
+// Unicode minus, units, thousands separators — would drift. The file is pure,
+// so Deno and vitest can both import it.
+export { numericOption } from "../../supabase/functions/_shared/mcqOrder.ts";
+import { numericOption } from "../../supabase/functions/_shared/mcqOrder.ts";
+
 export type LintSeverity = "reject" | "review";
 
 export type LintFinding = {
@@ -202,38 +210,6 @@ export function containsAsPhrase(haystack: string, needle: string): boolean {
   const lead = /^\w/.test(n) ? "\\b" : "";
   const tail = /\w$/.test(n) ? "\\b" : "";
   return new RegExp(`${lead}${escapeRe(n)}${tail}`, "i").test(haystack);
-}
-
-/**
- * Read an option as a number plus an optional unit.
- *
- * Exam options are not JavaScript numbers. They are written with the Unicode
- * MINUS SIGN (U+2212) rather than a hyphen, with degree signs, with units
- * ("616 cm²"), and with thousands separators. `Number()` says NaN to every one
- * of those, which is how an ordering check comes to pass a misordered set.
- *
- * Returns null for anything that is not a bare quantity, so genuinely textual
- * options are still recognised as textual.
- */
-export function numericOption(raw: string): { value: number; unit: string } | null {
-  const s = raw
-    .trim()
-    // U+2212 minus, en dash and hyphen-minus all mean the same thing here.
-    .replace(/[−–]/g, "-")
-    .replace(/,/g, "");
-  const m = /^(-?\d+(?:\.\d+)?)\s*(.*)$/.exec(s);
-  if (!m) return null;
-  const value = Number(m[1]);
-  if (!Number.isFinite(value)) return null;
-  const unit = m[2].trim();
-  // A unit is a short symbol run: cm², °, %, km/h. It is NOT arbitrary prose.
-  // The first version accepted anything without a digit, which read "18 or
-  // more" as the quantity 18 with unit "or more" — and since two quantities
-  // are exempt from the independence check, that silently un-flagged a
-  // genuinely non-independent option pair. No whitespace, no punctuation, six
-  // characters at most.
-  if (unit && !/^[\p{L}°%²³/]{1,6}$/u.test(unit)) return null;
-  return { value, unit };
 }
 
 const OPTION_BANNED = [
