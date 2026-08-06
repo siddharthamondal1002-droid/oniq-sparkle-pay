@@ -116,6 +116,189 @@ export type Database = {
           },
         ]
       }
+      assessment_competency: {
+        Row: {
+          bloom_level: string
+          board: string
+          chapter: string | null
+          class_level: string
+          command_word: string | null
+          created_at: string
+          dok_level: number
+          id: string
+          statement: string
+          subject: string
+        }
+        Insert: {
+          bloom_level: string
+          board: string
+          chapter?: string | null
+          class_level: string
+          command_word?: string | null
+          created_at?: string
+          dok_level: number
+          id?: string
+          statement: string
+          subject: string
+        }
+        Update: {
+          bloom_level?: string
+          board?: string
+          chapter?: string | null
+          class_level?: string
+          command_word?: string | null
+          created_at?: string
+          dok_level?: number
+          id?: string
+          statement?: string
+          subject?: string
+        }
+        Relationships: []
+      }
+      assessment_item: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          key_verified_by: string | null
+          options: Json | null
+          provenance: Json
+          quarantine_reason: string | null
+          similarity_matched_against: string | null
+          similarity_score: number | null
+          status: Database["public"]["Enums"]["assessment_item_status"]
+          stem: string
+          task_model_id: string
+          verified_at: string | null
+          verified_by_user: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          key_verified_by?: string | null
+          options?: Json | null
+          provenance?: Json
+          quarantine_reason?: string | null
+          similarity_matched_against?: string | null
+          similarity_score?: number | null
+          status?: Database["public"]["Enums"]["assessment_item_status"]
+          stem: string
+          task_model_id: string
+          verified_at?: string | null
+          verified_by_user?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          key_verified_by?: string | null
+          options?: Json | null
+          provenance?: Json
+          quarantine_reason?: string | null
+          similarity_matched_against?: string | null
+          similarity_score?: number | null
+          status?: Database["public"]["Enums"]["assessment_item_status"]
+          stem?: string
+          task_model_id?: string
+          verified_at?: string | null
+          verified_by_user?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_item_task_model_id_fkey"
+            columns: ["task_model_id"]
+            isOneToOne: false
+            referencedRelation: "assessment_task_model"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessment_response: {
+        Row: {
+          answer: string | null
+          answered_at: string
+          confidence: number | null
+          correct: boolean | null
+          id: string
+          item_id: string
+          user_id: string
+        }
+        Insert: {
+          answer?: string | null
+          answered_at?: string
+          confidence?: number | null
+          correct?: boolean | null
+          id?: string
+          item_id: string
+          user_id: string
+        }
+        Update: {
+          answer?: string | null
+          answered_at?: string
+          confidence?: number | null
+          correct?: boolean | null
+          id?: string
+          item_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_response_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "assessment_item"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      assessment_task_model: {
+        Row: {
+          competency_id: string
+          created_at: string
+          difficulty_target: number | null
+          distractor_rules: Json
+          format: string
+          id: string
+          key_derivation: string
+          marks: number
+          slots: Json
+          stem_template: string
+        }
+        Insert: {
+          competency_id: string
+          created_at?: string
+          difficulty_target?: number | null
+          distractor_rules?: Json
+          format: string
+          id?: string
+          key_derivation: string
+          marks: number
+          slots?: Json
+          stem_template: string
+        }
+        Update: {
+          competency_id?: string
+          created_at?: string
+          difficulty_target?: number | null
+          distractor_rules?: Json
+          format?: string
+          id?: string
+          key_derivation?: string
+          marks?: number
+          slots?: Json
+          stem_template?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "assessment_task_model_competency_id_fkey"
+            columns: ["competency_id"]
+            isOneToOne: false
+            referencedRelation: "assessment_competency"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       audit_log: {
         Row: {
           actor: string
@@ -3503,7 +3686,7 @@ export type Database = {
       wipe_my_moments: { Args: never; Returns: number }
     }
     Enums: {
-      [_ in never]: never
+      assessment_item_status: "draft" | "quarantined" | "approved" | "retired"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3630,6 +3813,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      assessment_item_status: ["draft", "quarantined", "approved", "retired"],
+    },
   },
 } as const
