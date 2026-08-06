@@ -13,6 +13,7 @@ import {
   itemPasses,
   lintItem,
   lintPaperDiversity,
+  numericOption,
   readingGrade,
   syllables,
 } from "@/lib/itemLint";
@@ -109,6 +110,64 @@ describe("Haladyna structural rules", () => {
     expect(
       rules({ ...GOOD, stem: "What is the speed in km/h? How far would it travel in 3 hours?" }),
     ).toContain("multiple-objectives");
+  });
+});
+
+describe("option parsing, as taught by a real generated paper", () => {
+  // Every case below is lifted from a CBSE Class 9 Maths paper this app
+  // generated in production. The first version of the ordering check used
+  // Number(), which returns NaN for all of them, so it stood down silently on
+  // eight of the paper's ten items — including one whose options really were
+  // −5, −11, −1, 3. A check that cannot read the options is not a check.
+  it("reads a Unicode minus sign as a negative number", () => {
+    expect(numericOption("−11")).toEqual({ value: -11, unit: "" });
+    expect(numericOption("–7")).toEqual({ value: -7, unit: "" });
+    expect(numericOption("-3")).toEqual({ value: -3, unit: "" });
+  });
+
+  it("reads a quantity with a unit", () => {
+    expect(numericOption("120°")).toEqual({ value: 120, unit: "°" });
+    expect(numericOption("616 cm²")).toEqual({ value: 616, unit: "cm²" });
+    expect(numericOption("1,232")).toEqual({ value: 1232, unit: "" });
+  });
+
+  it("refuses prose that merely begins with a number", () => {
+    // "18 or more" was read as the quantity 18 with unit "or more" by the
+    // first attempt, which then exempted it from the independence check.
+    expect(numericOption("18 or more")).toBeNull();
+    expect(numericOption("22/7")).toBeNull();
+    expect(numericOption("0.272727...")).toBeNull();
+    expect(numericOption("in the third quadrant")).toBeNull();
+  });
+
+  it("catches misordered options written with a Unicode minus", () => {
+    expect(rejects({ ...GOOD, options: ["−5", "−11", "−1", "3"] })).toContain("options-unordered");
+    expect(rejects({ ...GOOD, options: ["−11", "−5", "−1", "3"] })).not.toContain(
+      "options-unordered",
+    );
+  });
+
+  it("catches misordered options carrying units", () => {
+    expect(rejects({ ...GOOD, options: ["60°", "120°", "110°", "130°"] })).toContain(
+      "options-unordered",
+    );
+    expect(
+      rejects({ ...GOOD, options: ["154 cm²", "308 cm²", "616 cm²", "1232 cm²"] }),
+    ).not.toContain("options-unordered");
+  });
+
+  it("does not call two signed numbers non-independent", () => {
+    // A word boundary sits between "−" and "2", so a naive containment check
+    // finds "2" inside "−2" and flags a perfectly ordinary option pair.
+    expect(rules({ ...GOOD, options: ["−2", "1", "2", "4"] })).not.toContain(
+      "options-not-independent",
+    );
+  });
+
+  it("flags options that mix units", () => {
+    expect(rules({ ...GOOD, options: ["5 cm", "10 kg", "15 cm", "20 cm"] })).toContain(
+      "options-not-homogeneous",
+    );
   });
 });
 

@@ -204,6 +204,38 @@ export function containsAsPhrase(haystack: string, needle: string): boolean {
   return new RegExp(`${lead}${escapeRe(n)}${tail}`, "i").test(haystack);
 }
 
+/**
+ * Read an option as a number plus an optional unit.
+ *
+ * Exam options are not JavaScript numbers. They are written with the Unicode
+ * MINUS SIGN (U+2212) rather than a hyphen, with degree signs, with units
+ * ("616 cm²"), and with thousands separators. `Number()` says NaN to every one
+ * of those, which is how an ordering check comes to pass a misordered set.
+ *
+ * Returns null for anything that is not a bare quantity, so genuinely textual
+ * options are still recognised as textual.
+ */
+export function numericOption(raw: string): { value: number; unit: string } | null {
+  const s = raw
+    .trim()
+    // U+2212 minus, en dash and hyphen-minus all mean the same thing here.
+    .replace(/[−–]/g, "-")
+    .replace(/,/g, "");
+  const m = /^(-?\d+(?:\.\d+)?)\s*(.*)$/.exec(s);
+  if (!m) return null;
+  const value = Number(m[1]);
+  if (!Number.isFinite(value)) return null;
+  const unit = m[2].trim();
+  // A unit is a short symbol run: cm², °, %, km/h. It is NOT arbitrary prose.
+  // The first version accepted anything without a digit, which read "18 or
+  // more" as the quantity 18 with unit "or more" — and since two quantities
+  // are exempt from the independence check, that silently un-flagged a
+  // genuinely non-independent option pair. No whitespace, no punctuation, six
+  // characters at most.
+  if (unit && !/^[\p{L}°%²³/]{1,6}$/u.test(unit)) return null;
+  return { value, unit };
+}
+
 const OPTION_BANNED = [
   /^all of the above\.?$/i,
   /^none of the above\.?$/i,
@@ -308,6 +340,11 @@ export function lintItem(input: LintInput): LintFinding[] {
       if (!trimmed[i]) continue;
       for (let j = 0; j < trimmed.length; j++) {
         if (i === j || trimmed[j].length <= trimmed[i].length) continue;
+        // Two numbers are never "contained" in one another as options, whatever
+        // their text looks like. Without this, "2" is found inside "−2" —
+        // a word boundary sits between the minus sign and the digit — and a
+        // live paper's perfectly independent {2, −2, 4, 1} was flagged.
+        if (numericOption(trimmed[i]) && numericOption(trimmed[j])) continue;
         if (containsAsPhrase(trimmed[j], trimmed[i])) {
           add(
             "options-not-independent",
@@ -333,9 +370,19 @@ export function lintItem(input: LintInput): LintFinding[] {
     }
 
     // Homogeneity and ordering for numeric options.
-    const nums = opts.map((o) => Number(o.trim().replace(/[,\s]/g, "")));
-    const allNumeric = nums.every((n) => Number.isFinite(n));
-    if (allNumeric && nums.length > 2) {
+    //
+    // Parsed with numericOption() rather than Number(). A live CBSE paper is
+    // what proved that necessary: its options are written "−11" with a Unicode
+    // MINUS SIGN, and "120°", and "616 cm²". Number() returns NaN for all
+    // three, so the ordering check silently stood down on exactly the options
+    // most likely to be misordered — one item's options really were −5, −11,
+    // −1, 3 and nothing complained — while the mixed NaN/number result also
+    // raised a bogus "not homogeneous" on a perfectly uniform set.
+    const parsed = opts.map((o) => numericOption(o));
+    const allNumeric = parsed.every((p) => p !== null);
+    const sameUnit = allNumeric && new Set(parsed.map((p) => p!.unit)).size === 1;
+    const nums = parsed.map((p) => p?.value ?? Number.NaN);
+    if (allNumeric && sameUnit && nums.length > 2) {
       const asc = nums.every((n, i) => i === 0 || n >= nums[i - 1]);
       const desc = nums.every((n, i) => i === 0 || n <= nums[i - 1]);
       if (!asc && !desc) {
@@ -345,11 +392,17 @@ export function lintItem(input: LintInput): LintFinding[] {
           "Numeric options must be in ascending or descending order.",
         );
       }
-    } else if (!allNumeric && nums.some((n) => Number.isFinite(n))) {
+    } else if (!allNumeric && parsed.some((p) => p !== null)) {
       add(
         "options-not-homogeneous",
         "review",
         "Options mix numbers and text — they should be the same kind of thing.",
+      );
+    } else if (allNumeric && !sameUnit) {
+      add(
+        "options-not-homogeneous",
+        "review",
+        `Options carry different units (${[...new Set(parsed.map((p) => p!.unit || "none"))].join(", ")}).`,
       );
     }
 
