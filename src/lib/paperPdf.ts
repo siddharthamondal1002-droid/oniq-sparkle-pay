@@ -35,7 +35,11 @@ const yieldToLoop = () => new Promise<void>((r) => setTimeout(r, 0));
 export type PaperProgress = (done: number, total: number) => void;
 
 export function paperFilename(subject: string): string {
-  const slug = subject.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "paper";
+  const slug =
+    subject
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "") || "paper";
   const d = new Date().toISOString().slice(0, 10);
   return `${slug}-question-paper-${d}.pdf`;
 }
@@ -121,7 +125,10 @@ export async function buildPaperPdf(
         doc.setFontSize(10);
         for (let i = 0; i < q.options.length; i++) {
           const label = String.fromCharCode(65 + i);
-          const optLines = doc.splitTextToSize(`${label}. ${q.options[i]}`, CONTENT_W - numW - 6) as string[];
+          const optLines = doc.splitTextToSize(
+            `${label}. ${q.options[i]}`,
+            CONTENT_W - numW - 6,
+          ) as string[];
           for (const ol of optLines) {
             if (y > BOTTOM - 6) await newPage();
             doc.text(ol, M + numW + 4, y);
@@ -168,7 +175,7 @@ export async function buildPaperPdf(
   return doc;
 }
 
-function toBase64(buf: ArrayBuffer): string {
+export function toBase64(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf);
   let bin = "";
   const chunk = 0x8000;
@@ -189,7 +196,7 @@ function toBase64(buf: ArrayBuffer): string {
  *
  * Web: the ordinary anchor download, unchanged.
  */
-async function deliverFile(
+export async function deliverFile(
   filename: string,
   mime: string,
   base64: string,

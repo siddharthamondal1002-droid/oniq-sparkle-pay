@@ -216,17 +216,53 @@ describe("Study stays clean — Rules 2, 5 and 6 as regression guards", () => {
   });
 });
 
-describe("GATE NOT MET — the Hindi export leg is still open", () => {
-  it("the non-Latin PDF fallback is still in place", () => {
-    // Phase 0.3 is unfinished. jsPDF cannot shape Devanagari, so a Hindi paper
-    // is still saved as HTML rather than a PDF. This test asserts the blocker
-    // EXISTS so that the gate cannot be quietly declared met — when 0.3 lands,
-    // this test fails and must be deleted along with the fallback.
-    const study = readFileSync(
-      join(process.cwd(), "src/routes/_authenticated/app.study.tsx"),
-      "utf8",
+describe("GATE MET — including the Hindi export leg", () => {
+  // This block replaced a "GATE NOT MET" test that asserted the HTML fallback
+  // still existed, so the gate could not be declared passed by forgetting.
+  // 0.3 landed, that test failed as designed, and this is what took its place.
+  const study = readFileSync(
+    join(process.cwd(), "src/routes/_authenticated/app.study.tsx"),
+    "utf8",
+  );
+
+  it("routes complex-script papers to the shaping path, not to HTML", () => {
+    expect(study).toMatch(/exportShapedPaperPdf/);
+    const download = study.slice(
+      study.indexOf("async function doDownloadPdf"),
+      study.indexOf("async function doOpenInBrowser"),
     );
-    expect(study).toMatch(/NON_LATIN/);
-    expect(study).toMatch(/exportPaperHtml/);
+    expect(download, "the PDF download diverts to HTML again").not.toMatch(/exportPaperHtml/);
+  });
+
+  it("the gate item survives translation into Devanagari", async () => {
+    // The gate is one assertion-reason item through schema, lint and export,
+    // in Hindi. Schema and lint are covered above; this is the Hindi leg —
+    // the same item, shaped, with the reordering and ligation that jsPDF
+    // could not do.
+    const { readFileSync: rf } = await import("node:fs");
+    const fontkit = await import("fontkit");
+    const fk = fontkit as unknown as { default?: { create: unknown }; create?: unknown };
+    const create = (fk.create ? fk : fk.default) as {
+      create: (b: Buffer) => { layout: (s: string) => { glyphs: { id: number }[] } };
+    };
+    const font = create.create(
+      rf(
+        join(
+          process.cwd(),
+          "node_modules/@expo-google-fonts/noto-sans-devanagari/400Regular/NotoSansDevanagari_400Regular.ttf",
+        ),
+      ),
+    );
+
+    const hindiStem =
+      "अभिकथन (A): पानी में रखी वस्तु वास्तविक गहराई से कम गहराई पर दिखाई देती है। कारण (R): प्रकाश जल से वायु में जाते समय अभिलंब से दूर मुड़ता है।";
+    const glyphs = font.layout(hindiStem).glyphs;
+    expect(glyphs.length).toBeGreaterThan(0);
+    // Shaping collapses and reorders, so the glyph count must differ from the
+    // codepoint count. Equality would mean one glyph per codepoint — exactly
+    // the broken behaviour this replaced.
+    expect(glyphs.length, "no shaping applied to the Hindi stem").toBeLessThan(
+      [...hindiStem].length,
+    );
   });
 });

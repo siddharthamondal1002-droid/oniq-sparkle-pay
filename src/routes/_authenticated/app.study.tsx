@@ -1202,9 +1202,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                     col: string,
                     opts: { ascending: boolean },
                   ) => {
-                    limit: (
-                      n: number,
-                    ) => Promise<{
+                    limit: (n: number) => Promise<{
                       data:
                         | { role: "user" | "assistant"; content: string; used_vault: boolean }[]
                         | null;
@@ -3604,9 +3602,14 @@ function PaperModal({
     if (pdfBusy) return;
     const qs = questions ?? [];
     if (!qs.length) return;
-    // jsPDF's built-in fonts are WinAnsi-only: Indic/Arabic scripts would be
-    // dropped. Route non-Latin papers to the HTML/print path instead, which
-    // renders every script through the OS text stack.
+    // jsPDF is WinAnsi-only and has no shaping engine, so Indic and Arabic
+    // text cannot go down that path: it places one glyph per codepoint in
+    // input order, which detaches matras and breaks conjuncts.
+    //
+    // Complex-script papers now route to paperPdfShaped, which embeds a real
+    // font through fontkit so the glyph run is reordered and ligated before
+    // anything is drawn. Until this landed the branch here saved an HTML
+    // file, so no Hindi, Tamil or Urdu paper had ever exported as a PDF.
     const NON_LATIN = /[^\u0000-\u024F\u2000-\u206F\u20A0-\u20BF\u2190-\u22FF]/;
     const hasNonLatin = qs.some(
       (qq) =>
@@ -3614,31 +3617,6 @@ function PaperModal({
         (qq.type === "mcq" ? qq.options.some((o: string) => NON_LATIN.test(o)) : false),
     );
     setPdfError(null);
-    if (hasNonLatin) {
-      // jsPDF cannot shape Indic/Arabic scripts — save a self-contained HTML
-      // paper instead, which the OS renders (and can print to PDF) correctly.
-      setPdfBusy(true);
-      try {
-        const { exportPaperHtml } = await import("@/lib/paperPdf");
-        const { filename } = await exportPaperHtml(buildPaperHtml(), subject);
-        setDownloadSheet(false);
-        toast.success(`saved ${filename} 📄 — open it to print`);
-      } catch (e) {
-        const msg =
-          e instanceof Error && /cancel|abort/i.test(e.message)
-            ? null
-            : "couldn't save the paper — free up some space and try again";
-        if (msg) {
-          setPdfError(msg);
-          toast.error(msg);
-        } else {
-          setDownloadSheet(false);
-        }
-      } finally {
-        setPdfBusy(false);
-      }
-      return;
-    }
     setPdfBusy(true);
     setPdfProgress({ done: 0, total: qs.length });
     try {
@@ -3656,8 +3634,13 @@ function PaperModal({
             })),
         }))
         .filter((s) => s.items.length > 0);
-      const { exportPaperPdf } = await import("@/lib/paperPdf");
-      const { filename } = await exportPaperPdf(
+      // Same structured input either way; only the renderer differs. The
+      // shaped path is imported lazily so Latin papers never pay for pdf-lib,
+      // fontkit or a 220 KB font.
+      const exporter = hasNonLatin
+        ? (await import("@/lib/paperPdfShaped")).exportShapedPaperPdf
+        : (await import("@/lib/paperPdf")).exportPaperPdf;
+      const { filename } = await exporter(
         {
           board: profileSystemLabel(profile),
           classLabel: clsLbl,
