@@ -2,7 +2,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, Send, Paperclip, X, Camera, Plus, Trash2, Pencil, Check, BarChart3, Loader2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Send,
+  Paperclip,
+  X,
+  Camera,
+  Plus,
+  Trash2,
+  Pencil,
+  Check,
+  BarChart3,
+  Loader2,
+} from "lucide-react";
 import { Capacitor } from "@capacitor/core";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,22 +24,56 @@ import { AiOutputReport, AI_OUTPUT_LABEL } from "@/components/safety/AiOutputRep
 import { useCountry } from "@/lib/country";
 import { getEduSystem } from "@/data/eduSystems";
 import { eduSystemPayload, eduSystemLabel, unitLabel } from "@/lib/eduPaperFormat";
-import { EduSystemFields, eduSelectionResult, eduSubjectsFor, initialEduSelection, type EduSelection } from "@/components/study/EduSystemFields";
+import {
+  EduSystemFields,
+  eduSelectionResult,
+  eduSubjectsFor,
+  initialEduSelection,
+  type EduSelection,
+} from "@/components/study/EduSystemFields";
 
 export const Route = createFileRoute("/_authenticated/app/study")({
   component: StudyScreen,
 });
 
 type Board =
-  | "cbse" | "icse" | "igcse" | "ib" | "college" | "jee" | "neet" | "clat"
-  | "govt_exam" | "govt_railway" | "govt_banking" | "govt_police"
-  | "govt_judiciary" | "govt_ssc" | "govt_psc"
-  | "nios" | "up_board" | "bihar_board" | "rajasthan_board" | "mp_board"
-  | "haryana_board" | "punjab_board" | "uttarakhand_board" | "himachal_board"
-  | "jk_board" | "jharkhand_board" | "chhattisgarh_board"
-  | "maharashtra_board" | "tn_board" | "kerala_board" | "wb_board"
-  | "gujarat_board" | "karnataka_board" | "ap_board" | "telangana_board";
-type ClassLevel = "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg" | "drop" | "aspirant";
+  | "cbse"
+  | "icse"
+  | "igcse"
+  | "ib"
+  | "college"
+  | "jee"
+  | "neet"
+  | "clat"
+  | "govt_exam"
+  | "govt_railway"
+  | "govt_banking"
+  | "govt_police"
+  | "govt_judiciary"
+  | "govt_ssc"
+  | "govt_psc"
+  | "nios"
+  | "up_board"
+  | "bihar_board"
+  | "rajasthan_board"
+  | "mp_board"
+  | "haryana_board"
+  | "punjab_board"
+  | "uttarakhand_board"
+  | "himachal_board"
+  | "jk_board"
+  | "jharkhand_board"
+  | "chhattisgarh_board"
+  | "maharashtra_board"
+  | "tn_board"
+  | "kerala_board"
+  | "wb_board"
+  | "gujarat_board"
+  | "karnataka_board"
+  | "ap_board"
+  | "telangana_board";
+type ClassLevel =
+  "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg" | "drop" | "aspirant";
 
 type LearnerProfile = {
   id: string;
@@ -56,11 +102,15 @@ function profileStageLabel(p: LearnerProfile): string {
     const st = p.edu_stage ?? "";
     return unit === "Grade" || unit === "Year" || unit === "Class" ? `${unit} ${st}` : st;
   }
-  return p.class_level === "ug" ? "UG"
-    : p.class_level === "pg" ? "PG"
-    : p.class_level === "drop" ? "Drop year"
-    : p.class_level === "aspirant" ? "Aspirant"
-    : `Class ${p.class_level}`;
+  return p.class_level === "ug"
+    ? "UG"
+    : p.class_level === "pg"
+      ? "PG"
+      : p.class_level === "drop"
+        ? "Drop year"
+        : p.class_level === "aspirant"
+          ? "Aspirant"
+          : `Class ${p.class_level}`;
 }
 
 // Regional first-language subject enforced by state boards. For any state
@@ -87,9 +137,22 @@ function boardUsesSecondLangPicker(b: Board): boolean {
 }
 
 const SECOND_LANG_OPTIONS = [
-  "Hindi", "Bengali", "Sanskrit", "Tamil", "Telugu", "Marathi", "Gujarati",
-  "Kannada", "Malayalam", "Punjabi", "Odia", "Assamese", "Urdu",
-  "French", "German", "Other",
+  "Hindi",
+  "Bengali",
+  "Sanskrit",
+  "Tamil",
+  "Telugu",
+  "Marathi",
+  "Gujarati",
+  "Kannada",
+  "Malayalam",
+  "Punjabi",
+  "Odia",
+  "Assamese",
+  "Urdu",
+  "French",
+  "German",
+  "Other",
 ];
 
 // Tier-3 (school-specific / low-confidence) subject patterns per research.
@@ -105,7 +168,23 @@ function isTier3Subject(board: Board, cls: ClassLevel, subject: string): boolean
   if (board === "icse" && s === "english") return true;
   // ICSE second-language subjects (any non-English/non-STEM language).
   if (board === "icse") {
-    const langLike = ["hindi","bengali","sanskrit","tamil","telugu","marathi","gujarati","kannada","malayalam","punjabi","odia","assamese","urdu","french","german"];
+    const langLike = [
+      "hindi",
+      "bengali",
+      "sanskrit",
+      "tamil",
+      "telugu",
+      "marathi",
+      "gujarati",
+      "kannada",
+      "malayalam",
+      "punjabi",
+      "odia",
+      "assamese",
+      "urdu",
+      "french",
+      "german",
+    ];
     if (langLike.some((l) => s.includes(l))) return true;
   }
   // IB (MYP any subject; DP English/Language A) and IGCSE/IB literature.
@@ -262,14 +341,41 @@ const BOARD_UPPER: Record<Board, string> = {
 };
 
 const BOARD_EMOJI: Record<Board, string> = {
-  cbse: "", icse: "", igcse: "", ib: "🌐", college: "", jee: "🎯", neet: "🩺", clat: "📖",
-  govt_exam: "🏛️", govt_railway: "🚆", govt_banking: "🏦", govt_police: "👮",
-  govt_judiciary: "⚖️", govt_ssc: "📝", govt_psc: "🏛️",
-  nios: "🏫", up_board: "🗺️", bihar_board: "🗺️", rajasthan_board: "🗺️", mp_board: "🗺️",
-  haryana_board: "🗺️", punjab_board: "🗺️", uttarakhand_board: "🗺️", himachal_board: "🗺️",
-  jk_board: "🗺️", jharkhand_board: "🗺️", chhattisgarh_board: "🗺️",
-  maharashtra_board: "🗺️", tn_board: "🗺️", kerala_board: "🗺️", wb_board: "🗺️",
-  gujarat_board: "🗺️", karnataka_board: "🗺️", ap_board: "🗺️", telangana_board: "🗺️",
+  cbse: "",
+  icse: "",
+  igcse: "",
+  ib: "🌐",
+  college: "",
+  jee: "🎯",
+  neet: "🩺",
+  clat: "📖",
+  govt_exam: "🏛️",
+  govt_railway: "🚆",
+  govt_banking: "🏦",
+  govt_police: "👮",
+  govt_judiciary: "⚖️",
+  govt_ssc: "📝",
+  govt_psc: "🏛️",
+  nios: "🏫",
+  up_board: "🗺️",
+  bihar_board: "🗺️",
+  rajasthan_board: "🗺️",
+  mp_board: "🗺️",
+  haryana_board: "🗺️",
+  punjab_board: "🗺️",
+  uttarakhand_board: "🗺️",
+  himachal_board: "🗺️",
+  jk_board: "🗺️",
+  jharkhand_board: "🗺️",
+  chhattisgarh_board: "🗺️",
+  maharashtra_board: "🗺️",
+  tn_board: "🗺️",
+  kerala_board: "🗺️",
+  wb_board: "🗺️",
+  gujarat_board: "🗺️",
+  karnataka_board: "🗺️",
+  ap_board: "🗺️",
+  telangana_board: "🗺️",
 };
 
 function subjectsFor(board: Board, cls: ClassLevel, secondLanguage?: string | null): string[] {
@@ -285,28 +391,71 @@ function subjectsFor(board: Board, cls: ClassLevel, secondLanguage?: string | nu
     ];
   }
   if (board === "govt_railway") {
-    return ["General Awareness", "Mathematics", "General Intelligence & Reasoning", "General Science"];
+    return [
+      "General Awareness",
+      "Mathematics",
+      "General Intelligence & Reasoning",
+      "General Science",
+    ];
   }
   if (board === "govt_banking") {
-    return ["Quantitative Aptitude", "Reasoning Ability", "English Language", "Banking & General Awareness", "Computer Knowledge"];
+    return [
+      "Quantitative Aptitude",
+      "Reasoning Ability",
+      "English Language",
+      "Banking & General Awareness",
+      "Computer Knowledge",
+    ];
   }
   if (board === "govt_police") {
-    return ["General Knowledge & Current Affairs", "Reasoning", "Numerical Ability", "General English/Hindi"];
+    return [
+      "General Knowledge & Current Affairs",
+      "Reasoning",
+      "Numerical Ability",
+      "General English/Hindi",
+    ];
   }
   if (board === "govt_judiciary") {
-    return ["Constitutional Law", "CPC", "CrPC", "IPC / BNS", "Evidence Act", "Contract Law", "Current Legal Affairs"];
+    return [
+      "Constitutional Law",
+      "CPC",
+      "CrPC",
+      "IPC / BNS",
+      "Evidence Act",
+      "Contract Law",
+      "Current Legal Affairs",
+    ];
   }
   if (board === "govt_ssc") {
-    return ["General Awareness", "Quantitative Aptitude", "English Language", "General Intelligence & Reasoning"];
+    return [
+      "General Awareness",
+      "Quantitative Aptitude",
+      "English Language",
+      "General Intelligence & Reasoning",
+    ];
   }
   if (board === "govt_psc") {
     return ["General Studies", "Current Affairs", "Reasoning & Aptitude"];
   }
   if (board === "govt_exam") {
-    return ["General Knowledge & Current Affairs", "Quantitative Aptitude", "Reasoning", "English Language"];
+    return [
+      "General Knowledge & Current Affairs",
+      "Quantitative Aptitude",
+      "Reasoning",
+      "English Language",
+    ];
   }
   if (cls === "ug" || cls === "pg" || board === "college") {
-    return ["Maths", "Physics", "Chemistry", "Biology", "English", "Economics", "Computer Science", "General"];
+    return [
+      "Maths",
+      "Physics",
+      "Chemistry",
+      "Biology",
+      "English",
+      "Economics",
+      "Computer Science",
+      "General",
+    ];
   }
 
   // Second-language subject slot resolves to:
@@ -315,7 +464,7 @@ function subjectsFor(board: Board, cls: ClassLevel, secondLanguage?: string | nu
   //  - Hindi-belt state boards & everything else → "Hindi"
   const secondLang =
     STATE_REGIONAL_LANG[board] ??
-    (boardUsesSecondLangPicker(board) ? (secondLanguage || "Hindi") : "Hindi");
+    (boardUsesSecondLangPicker(board) ? secondLanguage || "Hindi" : "Hindi");
 
   const n = Number(cls);
   if (n >= 5 && n <= 8) {
@@ -323,18 +472,47 @@ function subjectsFor(board: Board, cls: ClassLevel, secondLanguage?: string | nu
   }
   if (n === 9 || n === 10) {
     if (board === "icse") {
-      return ["Maths", "Physics", "Chemistry", "Biology", "English", "History & Civics", "Geography", secondLang, "Computer"];
+      return [
+        "Maths",
+        "Physics",
+        "Chemistry",
+        "Biology",
+        "English",
+        "History & Civics",
+        "Geography",
+        secondLang,
+        "Computer",
+      ];
     }
     if (board === "igcse") {
       // IGCSE international schools rarely mandate an Indian regional lang;
       // still expose the picked second language when the family added one.
-      const base = ["Maths", "Physics", "Chemistry", "Biology", "English", "Geography", "History", "Computer Science"];
+      const base = [
+        "Maths",
+        "Physics",
+        "Chemistry",
+        "Biology",
+        "English",
+        "Geography",
+        "History",
+        "Computer Science",
+      ];
       return secondLanguage ? [...base, secondLanguage] : base;
     }
     return ["Maths", "Science", "English", secondLang, "Social Science", "Computer"];
   }
   // 11–12
-  return ["Physics", "Chemistry", "Maths", "Biology", "English", "Accounts", "Economics", "Business Studies", "Computer Science"];
+  return [
+    "Physics",
+    "Chemistry",
+    "Maths",
+    "Biology",
+    "English",
+    "Accounts",
+    "Economics",
+    "Business Studies",
+    "Computer Science",
+  ];
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -355,15 +533,22 @@ function useLearnerProfiles() {
     queryKey: ["learner-profiles"],
     queryFn: async (): Promise<LearnerProfile[]> => {
       // Types are generated post-migration; cast here.
-      const { data, error } = await (supabase as unknown as {
-        from: (t: string) => {
-          select: (c: string) => {
-            order: (col: string, opts: { ascending: boolean }) => Promise<{ data: LearnerProfile[] | null; error: Error | null }>;
+      const { data, error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            select: (c: string) => {
+              order: (
+                col: string,
+                opts: { ascending: boolean },
+              ) => Promise<{ data: LearnerProfile[] | null; error: Error | null }>;
+            };
           };
-        };
-      })
+        }
+      )
         .from("learner_profiles")
-        .select("id, name, board, class_level, second_language, created_at, edu_system_id, edu_stage, edu_region")
+        .select(
+          "id, name, board, class_level, second_language, created_at, edu_system_id, edu_stage, edu_region",
+        )
         .order("created_at", { ascending: true });
       if (error) throw error;
       return data ?? [];
@@ -412,17 +597,20 @@ function StudyScreen() {
 
   const activeIsGovt = active ? isGovtBoard(active.board) : false;
   const headerName = active?.name ?? t("study.header.default", "Study Buddy");
-  const headerSub = active
-    ? `${profileSystemLabel(active)} · ${profileStageLabel(active)}`
-    : null;
+  const headerSub = active ? `${profileSystemLabel(active)} · ${profileStageLabel(active)}` : null;
 
   return (
     <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b border-border bg-card/40 px-5 pt-12 pb-3 backdrop-blur">
-        <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
+        <Link
+          to="/app"
+          className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div className={`grid h-9 w-9 place-items-center rounded-xl text-white ${activeIsGovt ? "bg-gradient-to-br from-amber-500 to-yellow-600" : "bg-gradient-to-br from-orange-400 to-pink-500"}`}>
+        <div
+          className={`grid h-9 w-9 place-items-center rounded-xl text-white ${activeIsGovt ? "bg-gradient-to-br from-amber-500 to-yellow-600" : "bg-gradient-to-br from-orange-400 to-pink-500"}`}
+        >
           <span className="text-base">{activeIsGovt ? "🏛️" : "📚"}</span>
         </div>
         <div className="min-w-0 flex-1">
@@ -443,14 +631,15 @@ function StudyScreen() {
         {allProfiles.map((p) => {
           const govt = isGovtBoard(p.board);
           const isActive = p.id === activeId;
-          const base = "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1";
+          const base =
+            "shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1";
           const cls = govt
-            ? (isActive
-                ? `${base} border-amber-500/60 bg-amber-500/20 text-amber-300`
-                : `${base} border-amber-500/30 bg-amber-500/10 text-amber-200/80`)
-            : (isActive
-                ? `${base} border-primary/40 bg-primary/15 text-primary`
-                : `${base} border-border bg-card text-muted-foreground`);
+            ? isActive
+              ? `${base} border-amber-500/60 bg-amber-500/20 text-amber-300`
+              : `${base} border-amber-500/30 bg-amber-500/10 text-amber-200/80`
+            : isActive
+              ? `${base} border-primary/40 bg-primary/15 text-primary`
+              : `${base} border-border bg-card text-muted-foreground`;
           return (
             <button key={p.id} onClick={() => setActiveId(p.id)} className={cls}>
               {govt && <span aria-hidden>{BOARD_EMOJI[p.board] || "🏛️"}</span>}
@@ -507,20 +696,11 @@ function StudyScreen() {
           <ProgressDashboard profiles={profiles} onClose={() => setShowProgress(false)} />
         </ModalCard>
       )}
-
     </div>
   );
 }
 
-
-
-function BoardPicker({
-  board,
-  onChange,
-}: {
-  board: Board;
-  onChange: (b: Board) => void;
-}) {
+function BoardPicker({ board, onChange }: { board: Board; onChange: (b: Board) => void }) {
   const [showGovt, setShowGovt] = useState<boolean>(isGovtBoard(board));
   const [showState, setShowState] = useState<boolean>(isStateBoard(board));
   const govtActive = isGovtBoard(board);
@@ -532,9 +712,15 @@ function BoardPicker({
           <button
             type="button"
             key={b.value}
-            onClick={() => { setShowGovt(false); setShowState(false); onChange(b.value); }}
+            onClick={() => {
+              setShowGovt(false);
+              setShowState(false);
+              onChange(b.value);
+            }}
             className={`rounded-xl border px-3 py-2 text-sm transition ${
-              board === b.value ? "border-primary bg-primary/15 text-primary" : "border-border bg-card"
+              board === b.value
+                ? "border-primary bg-primary/15 text-primary"
+                : "border-border bg-card"
             }`}
           >
             {b.label}
@@ -542,18 +728,28 @@ function BoardPicker({
         ))}
         <button
           type="button"
-          onClick={() => { setShowState(false); setShowGovt((v) => !v || !govtActive); }}
+          onClick={() => {
+            setShowState(false);
+            setShowGovt((v) => !v || !govtActive);
+          }}
           className={`col-span-2 rounded-xl border px-3 py-2 text-sm transition ${
-            govtActive ? "border-amber-500/60 bg-amber-500/15 text-amber-300" : "border-amber-500/30 bg-amber-500/5 text-amber-200/90"
+            govtActive
+              ? "border-amber-500/60 bg-amber-500/15 text-amber-300"
+              : "border-amber-500/30 bg-amber-500/5 text-amber-200/90"
           }`}
         >
           Govt / Competitive Exams 🏛️
         </button>
         <button
           type="button"
-          onClick={() => { setShowGovt(false); setShowState((v) => !v || !stateActive); }}
+          onClick={() => {
+            setShowGovt(false);
+            setShowState((v) => !v || !stateActive);
+          }}
           className={`col-span-2 rounded-xl border px-3 py-2 text-sm transition ${
-            stateActive ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300" : "border-emerald-500/30 bg-emerald-500/5 text-emerald-200/90"
+            stateActive
+              ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-300"
+              : "border-emerald-500/30 bg-emerald-500/5 text-emerald-200/90"
           }`}
         >
           State Boards 🗺️
@@ -567,7 +763,9 @@ function BoardPicker({
               key={b.value}
               onClick={() => onChange(b.value)}
               className={`rounded-lg border px-3 py-1.5 text-xs transition ${
-                board === b.value ? "border-amber-500/70 bg-amber-500/25 text-amber-200" : "border-amber-500/20 bg-card text-muted-foreground"
+                board === b.value
+                  ? "border-amber-500/70 bg-amber-500/25 text-amber-200"
+                  : "border-amber-500/20 bg-card text-muted-foreground"
               }`}
             >
               {b.label}
@@ -583,7 +781,9 @@ function BoardPicker({
               key={b.value}
               onClick={() => onChange(b.value)}
               className={`rounded-lg border px-3 py-1.5 text-xs transition ${
-                board === b.value ? "border-emerald-500/70 bg-emerald-500/25 text-emerald-200" : "border-emerald-500/20 bg-card text-muted-foreground"
+                board === b.value
+                  ? "border-emerald-500/70 bg-emerald-500/25 text-emerald-200"
+                  : "border-emerald-500/20 bg-card text-muted-foreground"
               }`}
             >
               {b.label}
@@ -617,8 +817,13 @@ function ModalCard({ children, onClose }: { children: React.ReactNode; onClose: 
   );
 }
 
-
-function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile) => void; first?: boolean }) {
+function SetupCard({
+  onCreated,
+  first = false,
+}: {
+  onCreated: (p: LearnerProfile) => void;
+  first?: boolean;
+}) {
   const { t: tSetup } = useT();
   const qc = useQueryClient();
   const [name, setName] = useState("");
@@ -637,15 +842,17 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
       if (!isIndia && !edu) throw new Error("that curriculum isn't supported yet — pick another");
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) throw new Error("not signed in");
-      const { data, error } = await (supabase as unknown as {
-        from: (t: string) => {
-          insert: (row: unknown) => {
-            select: (c: string) => {
-              single: () => Promise<{ data: LearnerProfile | null; error: Error | null }>;
+      const { data, error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            insert: (row: unknown) => {
+              select: (c: string) => {
+                single: () => Promise<{ data: LearnerProfile | null; error: Error | null }>;
+              };
             };
           };
-        };
-      })
+        }
+      )
         .from("learner_profiles")
         .insert({
           user_id: u.user.id,
@@ -659,7 +866,9 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
           edu_stage: edu?.stage ?? null,
           edu_region: edu?.region ?? null,
         })
-        .select("id, name, board, class_level, second_language, created_at, edu_system_id, edu_stage, edu_region")
+        .select(
+          "id, name, board, class_level, second_language, created_at, edu_system_id, edu_stage, edu_region",
+        )
         .single();
       if (error || !data) throw error ?? new Error("failed");
       return data;
@@ -673,14 +882,24 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
   });
 
   return (
-    <div className={first ? "mx-auto mt-24 max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl" : "rounded-3xl border border-border bg-card p-6 shadow-2xl"}>
+    <div
+      className={
+        first
+          ? "mx-auto mt-24 max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
+          : "rounded-3xl border border-border bg-card p-6 shadow-2xl"
+      }
+    >
       <div className="text-3xl">🎒</div>
-      <h2 className="mt-2 font-display text-xl font-bold">{tSetup("study.setup.title", "who's studying today?")}</h2>
+      <h2 className="mt-2 font-display text-xl font-bold">
+        {tSetup("study.setup.title", "who's studying today?")}
+      </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Set up a learner profile so Study Buddy teaches at the right level.
       </p>
 
-      <label className="mt-5 block text-xs font-medium text-muted-foreground">{tSetup("study.setup.name", "Learner name")}</label>
+      <label className="mt-5 block text-xs font-medium text-muted-foreground">
+        {tSetup("study.setup.name", "Learner name")}
+      </label>
       <input
         value={name}
         onChange={(e) => setName(e.target.value.slice(0, 40))}
@@ -690,7 +909,9 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
 
       {isIndia ? (
         <>
-          <label className="mt-4 block text-xs font-medium text-muted-foreground">{tSetup("study.setup.board", "Board")}</label>
+          <label className="mt-4 block text-xs font-medium text-muted-foreground">
+            {tSetup("study.setup.board", "Board")}
+          </label>
           <div className="mt-1">
             <BoardPicker
               board={board}
@@ -702,15 +923,18 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
             />
           </div>
 
-
-          <label className="mt-4 block text-xs font-medium text-muted-foreground">{tSetup("study.setup.class", "Class")}</label>
+          <label className="mt-4 block text-xs font-medium text-muted-foreground">
+            {tSetup("study.setup.class", "Class")}
+          </label>
           <select
             value={classLevel}
             onChange={(e) => setClassLevel(e.target.value as ClassLevel)}
             className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
           >
             {classLevelsFor(board).map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
             ))}
           </select>
         </>
@@ -729,7 +953,9 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
             className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
           >
             {SECOND_LANG_OPTIONS.map((l) => (
-              <option key={l} value={l}>{l}</option>
+              <option key={l} value={l}>
+                {l}
+              </option>
             ))}
           </select>
           <p className="mt-1 text-[10px] text-muted-foreground">
@@ -737,7 +963,6 @@ function SetupCard({ onCreated, first = false }: { onCreated: (p: LearnerProfile
           </p>
         </>
       )}
-
 
       <button
         onClick={() => create.mutate()}
@@ -779,13 +1004,15 @@ function EditProfile({
       if (!trimmed) throw new Error("name required");
       const edu = isIndia ? null : eduSelectionResult(home, eduSel);
       if (!isIndia && !edu) throw new Error("that curriculum isn't supported yet — pick another");
-      const { error } = await (supabase as unknown as {
-        from: (t: string) => {
-          update: (row: unknown) => {
-            eq: (col: string, val: string) => Promise<{ error: Error | null }>;
+      const { error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            update: (row: unknown) => {
+              eq: (col: string, val: string) => Promise<{ error: Error | null }>;
+            };
           };
-        };
-      })
+        }
+      )
         .from("learner_profiles")
         .update({
           name: trimmed,
@@ -809,11 +1036,13 @@ function EditProfile({
 
   const remove = useMutation({
     mutationFn: async () => {
-      const { error } = await (supabase as unknown as {
-        from: (t: string) => {
-          delete: () => { eq: (col: string, val: string) => Promise<{ error: Error | null }> };
-        };
-      })
+      const { error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            delete: () => { eq: (col: string, val: string) => Promise<{ error: Error | null }> };
+          };
+        }
+      )
         .from("learner_profiles")
         .delete()
         .eq("id", profile.id);
@@ -862,7 +1091,9 @@ function EditProfile({
               className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
             >
               {classLevelsFor(board).map((c) => (
-                <option key={c.value} value={c.value}>{c.label}</option>
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
               ))}
             </select>
           </>
@@ -881,7 +1112,9 @@ function EditProfile({
               className="mt-1 w-full rounded-xl border border-border bg-input/50 px-3 py-2.5 text-sm focus:outline-none"
             >
               {SECOND_LANG_OPTIONS.map((l) => (
-                <option key={l} value={l}>{l}</option>
+                <option key={l} value={l}>
+                  {l}
+                </option>
               ))}
             </select>
             <p className="mt-1 text-[10px] text-muted-foreground">
@@ -890,7 +1123,6 @@ function EditProfile({
           </>
         )}
       </div>
-
 
       <div className="shrink-0 flex gap-2 border-t border-border bg-card px-6 py-4 rounded-b-3xl">
         <button
@@ -901,10 +1133,7 @@ function EditProfile({
         >
           <Trash2 className="h-4 w-4" />
         </button>
-        <button
-          onClick={onDone}
-          className="flex-1 rounded-xl border border-border py-3 text-sm"
-        >
+        <button onClick={onDone} className="flex-1 rounded-xl border border-border py-3 text-sm">
           Cancel
         </button>
         <button
@@ -927,8 +1156,14 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
   const [hydrating, setHydrating] = useState(true);
   const [notConfigured, setNotConfigured] = useState(false);
   const [attachment, setAttachment] = useState<Attachment | null>(null);
-  const [quizSubject, setQuizSubject] = useState<{ subject: string; chapter?: string } | null>(null);
-  const [paperSpec, setPaperSpec] = useState<{ subject: string; totalMarks: 30 | 80 | 100; chapter?: string } | null>(null);
+  const [quizSubject, setQuizSubject] = useState<{ subject: string; chapter?: string } | null>(
+    null,
+  );
+  const [paperSpec, setPaperSpec] = useState<{
+    subject: string;
+    totalMarks: 30 | 80 | 100;
+    chapter?: string;
+  } | null>(null);
   const [mockSpec, setMockSpec] = useState<{ durationMinutes: 30 | 60 | 90 } | null>(null);
   const [showQuizPicker, setShowQuizPicker] = useState(false);
   const [pickerSubject, setPickerSubject] = useState<string | null>(null);
@@ -955,17 +1190,32 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
     setHydrating(true);
     (async () => {
       try {
-        const { data, error } = await (supabase as unknown as {
-          from: (t: string) => {
-            select: (c: string) => {
-              eq: (col: string, val: string) => {
-                order: (col: string, opts: { ascending: boolean }) => {
-                  limit: (n: number) => Promise<{ data: { role: "user" | "assistant"; content: string; used_vault: boolean }[] | null; error: Error | null }>;
+        const { data, error } = await (
+          supabase as unknown as {
+            from: (t: string) => {
+              select: (c: string) => {
+                eq: (
+                  col: string,
+                  val: string,
+                ) => {
+                  order: (
+                    col: string,
+                    opts: { ascending: boolean },
+                  ) => {
+                    limit: (
+                      n: number,
+                    ) => Promise<{
+                      data:
+                        | { role: "user" | "assistant"; content: string; used_vault: boolean }[]
+                        | null;
+                      error: Error | null;
+                    }>;
+                  };
                 };
               };
             };
-          };
-        })
+          }
+        )
           .from("study_messages")
           .select("role, content, used_vault")
           .eq("profile_id", profile.id)
@@ -974,30 +1224,47 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
         if (cancelled) return;
         if (error) throw error;
         const rows = data ?? [];
-        setMessages(rows.map((r) => ({ role: r.role, content: r.content, usedVault: !!r.used_vault })));
+        setMessages(
+          rows.map((r) => ({ role: r.role, content: r.content, usedVault: !!r.used_vault })),
+        );
       } catch {
         // best-effort — start with empty chat
       } finally {
         if (!cancelled) setHydrating(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [profile.id]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, loading]);
 
-  async function persistExchange(userContent: string, assistantContent: string, usedVault: boolean) {
+  async function persistExchange(
+    userContent: string,
+    assistantContent: string,
+    usedVault: boolean,
+  ) {
     try {
-      await (supabase as unknown as {
-        from: (t: string) => {
-          insert: (rows: unknown) => Promise<{ error: Error | null }>;
-        };
-      }).from("study_messages").insert([
-        { profile_id: profile.id, role: "user", content: userContent, used_vault: false },
-        { profile_id: profile.id, role: "assistant", content: assistantContent, used_vault: usedVault },
-      ]);
+      await (
+        supabase as unknown as {
+          from: (t: string) => {
+            insert: (rows: unknown) => Promise<{ error: Error | null }>;
+          };
+        }
+      )
+        .from("study_messages")
+        .insert([
+          { profile_id: profile.id, role: "user", content: userContent, used_vault: false },
+          {
+            profile_id: profile.id,
+            role: "assistant",
+            content: assistantContent,
+            used_vault: usedVault,
+          },
+        ]);
     } catch {
       // best-effort
     }
@@ -1012,7 +1279,14 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
       if (mime.startsWith("image/")) {
         if (f.size > 5 * 1024 * 1024) return toast.error("images must be under 5MB");
         const { base64, dataUrl } = await compressToJpeg(f, 1024, 0.7);
-        setAttachment({ kind: "image", mime: "image/jpeg", name: f.name, size: f.size, data: base64, previewUrl: dataUrl });
+        setAttachment({
+          kind: "image",
+          mime: "image/jpeg",
+          name: f.name,
+          size: f.size,
+          data: base64,
+          previewUrl: dataUrl,
+        });
       } else if (mime === "application/pdf" || /\.pdf$/i.test(f.name)) {
         if (f.size > 10 * 1024 * 1024) return toast.error("PDFs must be under 10MB");
         const data = await fileToBase64(f);
@@ -1020,7 +1294,13 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
       } else if (mime.startsWith("text/") || /\.(txt|md|csv)$/i.test(f.name)) {
         if (f.size > 1 * 1024 * 1024) return toast.error("text files must be under 1MB");
         const text = await f.text();
-        setAttachment({ kind: "text", mime: mime || "text/plain", name: f.name, size: f.size, text });
+        setAttachment({
+          kind: "text",
+          mime: mime || "text/plain",
+          name: f.name,
+          size: f.size,
+          text,
+        });
       } else {
         toast.error("please attach an image, PDF, or text file");
       }
@@ -1052,7 +1332,12 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
         const raw = (m.content ?? "").trim();
         if (raw) return { role: m.role, content: raw };
         if (m.attachment) {
-          const kind = m.attachment.kind === "pdf" ? "PDF" : m.attachment.kind === "text" ? "text file" : "image";
+          const kind =
+            m.attachment.kind === "pdf"
+              ? "PDF"
+              : m.attachment.kind === "text"
+                ? "text file"
+                : "image";
           return { role: m.role, content: `(shared a ${kind})` };
         }
         return { role: m.role, content: "(no message)" };
@@ -1065,15 +1350,23 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
       try {
         const { getUserLanguage } = await import("@/lib/userLanguage");
         body.lang = await getUserLanguage();
-      } catch { /* English */ }
+      } catch {
+        /* English */
+      }
       if (att) {
-        body.attachment = att.kind === "text"
-          ? { kind: "text", text: att.text }
-          : { kind: att.kind, mime: att.mime, data: att.data };
+        body.attachment =
+          att.kind === "text"
+            ? { kind: "text", text: att.text }
+            : { kind: att.kind, mime: att.mime, data: att.data };
       }
       const { data, error } = await supabase.functions.invoke("study-tutor", { body });
       if (error) throw error;
-      const d = data as { configured?: boolean; reply?: string; error?: string; usedVault?: boolean };
+      const d = data as {
+        configured?: boolean;
+        reply?: string;
+        error?: string;
+        usedVault?: boolean;
+      };
       if (d?.configured === false) {
         setNotConfigured(true);
         setMessages(messages);
@@ -1085,9 +1378,11 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
       setMessages([...next, { role: "assistant", content: reply, usedVault }]);
       // Persist the exchange. For attachments, store a short placeholder
       // in place of binary data — matches the tutor payload convention.
-      const storedUser = text.trim() || (att
-        ? `(shared a ${att.kind === "pdf" ? "PDF" : att.kind === "text" ? "text file" : "image"})`
-        : "(no message)");
+      const storedUser =
+        text.trim() ||
+        (att
+          ? `(shared a ${att.kind === "pdf" ? "PDF" : att.kind === "text" ? "text file" : "image"})`
+          : "(no message)");
       void persistExchange(storedUser, reply, usedVault);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
@@ -1117,7 +1412,8 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             <div className="text-4xl">📚</div>
             <h2 className="mt-2 font-display text-lg font-bold">Study Buddy needs a key</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Add <code className="rounded bg-muted px-1">ANTHROPIC_API_KEY</code> in project secrets.
+              Add <code className="rounded bg-muted px-1">ANTHROPIC_API_KEY</code> in project
+              secrets.
             </p>
           </div>
         ) : hydrating ? (
@@ -1129,7 +1425,12 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             <div className="grid h-16 w-16 place-items-center rounded-3xl bg-gradient-to-br from-orange-400 to-pink-500 text-white">
               <span className="text-3xl">📚</span>
             </div>
-            <h2 className="mt-4 font-display text-2xl font-bold text-white" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}>Hi {profile.name} 👋</h2>
+            <h2
+              className="mt-4 font-display text-2xl font-bold text-white"
+              style={{ textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}
+            >
+              Hi {profile.name} 👋
+            </h2>
             <p className="mt-2 max-w-xs text-sm text-muted-foreground">
               ask me anything from your syllabus — or snap a photo of the problem 📸
             </p>
@@ -1137,12 +1438,19 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
         ) : (
           <div className="space-y-3 pb-4">
             {messages.map((m, i) => (
-              <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                key={i}
+                className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+              >
                 <div className="max-w-[85%]">
                   {m.attachment && (
                     <div className="mb-1 flex justify-end">
                       {m.attachment.kind === "image" && m.attachment.previewUrl ? (
-                        <img src={m.attachment.previewUrl} alt="" className="max-h-40 rounded-xl border border-border object-cover" />
+                        <img
+                          src={m.attachment.previewUrl}
+                          alt=""
+                          className="max-h-40 rounded-xl border border-border object-cover"
+                        />
                       ) : (
                         <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-1.5 text-xs">
                           <span>{m.attachment.kind === "pdf" ? "📄" : "📝"}</span>
@@ -1252,183 +1560,203 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               </button>
             ))}
           </div>
-          {subjectSheet && createPortal(
-            <SubjectSheet
-              profile={profile}
-              subject={subjectSheet}
-              tutorScope={tutorScope}
-              onClose={() => setSubjectSheet(null)}
-              onScopeTutor={(subject, chapter) => {
-                setTutorScope({ subject, chapter });
-                setSubjectSheet(null);
-                toast.success(chapter ? `tutor scoped to “${chapter}” 🎯` : `tutor scoped to whole ${subject} 🎯`);
-              }}
-              onStartQuiz={(subject, chapter) => {
-                setQuizSubject({ subject, chapter });
-                setSubjectSheet(null);
-              }}
-              onStartPaper={(subject, chapter, totalMarks) => {
-                setPaperSpec({ subject, totalMarks, chapter });
-                setSubjectSheet(null);
-              }}
-            />,
-            document.body,
-          )}
-          {showQuizPicker && createPortal(
-            <ModalCard
-              onClose={() => {
-                setShowQuizPicker(false);
-                setPickerSubject(null);
-                setPickerChapter(null);
-                setPickerMode("root");
-              }}
-            >
-              <div className="rounded-3xl border border-border bg-card p-6 shadow-2xl">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice</div>
-                    <div className="font-display text-lg font-bold">
-                      {pickerMode === "mock"
-                        ? "pick a duration 🕐"
-                        : pickerSubject && pickerChapter
-                        ? "pick a format 📝"
-                        : pickerSubject
-                        ? "pick a chapter 📚"
-                        : "pick a subject 📝"}
-                    </div>
-                    {pickerSubject && pickerMode === "root" && (
-                      <div className="mt-0.5 text-[11px] text-muted-foreground">{pickerSubject}</div>
-                    )}
-                    {pickerMode === "mock" && (
-                      <div className="mt-0.5 text-[11px] text-muted-foreground">
-                        all subjects · MCQ only · auto-submit at 0
+          {subjectSheet &&
+            createPortal(
+              <SubjectSheet
+                profile={profile}
+                subject={subjectSheet}
+                tutorScope={tutorScope}
+                onClose={() => setSubjectSheet(null)}
+                onScopeTutor={(subject, chapter) => {
+                  setTutorScope({ subject, chapter });
+                  setSubjectSheet(null);
+                  toast.success(
+                    chapter
+                      ? `tutor scoped to “${chapter}” 🎯`
+                      : `tutor scoped to whole ${subject} 🎯`,
+                  );
+                }}
+                onStartQuiz={(subject, chapter) => {
+                  setQuizSubject({ subject, chapter });
+                  setSubjectSheet(null);
+                }}
+                onStartPaper={(subject, chapter, totalMarks) => {
+                  setPaperSpec({ subject, totalMarks, chapter });
+                  setSubjectSheet(null);
+                }}
+              />,
+              document.body,
+            )}
+          {showQuizPicker &&
+            createPortal(
+              <ModalCard
+                onClose={() => {
+                  setShowQuizPicker(false);
+                  setPickerSubject(null);
+                  setPickerChapter(null);
+                  setPickerMode("root");
+                }}
+              >
+                <div className="rounded-3xl border border-border bg-card p-6 shadow-2xl">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                        practice
                       </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => {
-                      setShowQuizPicker(false);
-                      setPickerSubject(null);
-                      setPickerChapter(null);
-                      setPickerMode("root");
-                    }}
-                    aria-label="Close"
-                    className="grid h-8 w-8 place-items-center rounded-full border border-border"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-
-                {pickerMode === "mock" ? (
-                  <div className="mt-4 space-y-2">
-                    {([30, 60, 90] as const).map((m) => {
-                      const totalQ = m === 30 ? 50 : m === 60 ? 100 : 150;
-                      return (
-                        <button
-                          key={m}
-                          onClick={() => {
-                            setShowQuizPicker(false);
-                            setMockSpec({ durationMinutes: m });
-                            setPickerMode("root");
-                          }}
-                          className="w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-left hover:bg-amber-500/15"
-                        >
-                          <div className="text-sm font-semibold text-amber-200">🕐 {m} min mock</div>
-                          <div className="text-[11px] text-muted-foreground">
-                            {totalQ} MCQs · timed, auto-submits at 0
-                          </div>
-                        </button>
-                      );
-                    })}
-                    <button
-                      onClick={() => setPickerMode("root")}
-                      className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
-                    >
-                      ← back
-                    </button>
-                  </div>
-                ) : !pickerSubject ? (
-                  <div className="mt-4">
-                    {isGovtBoard(profile.board) && (
-                      <button
-                        onClick={() => setPickerMode("mock")}
-                        className="mb-3 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-left hover:bg-amber-500/15"
-                      >
-                        <div className="text-sm font-semibold text-amber-200">🕐 mock test — mixed & timed</div>
-                        <div className="text-[11px] text-muted-foreground">
-                          all subjects, MCQ-only, real timer with auto-submit
+                      <div className="font-display text-lg font-bold">
+                        {pickerMode === "mock"
+                          ? "pick a duration 🕐"
+                          : pickerSubject && pickerChapter
+                            ? "pick a format 📝"
+                            : pickerSubject
+                              ? "pick a chapter 📚"
+                              : "pick a subject 📝"}
+                      </div>
+                      {pickerSubject && pickerMode === "root" && (
+                        <div className="mt-0.5 text-[11px] text-muted-foreground">
+                          {pickerSubject}
                         </div>
-                      </button>
-                    )}
-                    <div className="grid grid-cols-2 gap-2">
-                      {subjects.map((s) => (
-                        <button
-                          key={s}
-                          onClick={() => setPickerSubject(s)}
-                          className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm hover:bg-muted"
-                        >
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : !pickerChapter ? (
-                  <ChapterPickerPanel
-                    profile={profile}
-                    subject={pickerSubject}
-                    onPick={(c) => setPickerChapter(c)}
-                    onBack={() => setPickerSubject(null)}
-                  />
-                ) : (
-                  <div className="mt-4 space-y-2">
-                    <div className="mb-1 text-[11px] text-muted-foreground">
-                      {pickerChapter === "__all__" ? "whole subject" : `chapter: ${pickerChapter}`}
+                      )}
+                      {pickerMode === "mock" && (
+                        <div className="mt-0.5 text-[11px] text-muted-foreground">
+                          all subjects · MCQ only · auto-submit at 0
+                        </div>
+                      )}
                     </div>
                     <button
                       onClick={() => {
-                        const ch = pickerChapter === "__all__" ? undefined : pickerChapter;
                         setShowQuizPicker(false);
-                        setQuizSubject({ subject: pickerSubject, chapter: ch });
                         setPickerSubject(null);
                         setPickerChapter(null);
+                        setPickerMode("root");
                       }}
-                      className="w-full rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-left hover:bg-primary/15"
+                      aria-label="Close"
+                      className="grid h-8 w-8 place-items-center rounded-full border border-border"
                     >
-                      <div className="text-sm font-semibold text-primary">quick quiz</div>
-                      <div className="text-[11px] text-muted-foreground">5 multiple-choice questions</div>
+                      <X className="h-4 w-4" />
                     </button>
-                    {([30, 80, 100] as const).map((m) => (
+                  </div>
+
+                  {pickerMode === "mock" ? (
+                    <div className="mt-4 space-y-2">
+                      {([30, 60, 90] as const).map((m) => {
+                        const totalQ = m === 30 ? 50 : m === 60 ? 100 : 150;
+                        return (
+                          <button
+                            key={m}
+                            onClick={() => {
+                              setShowQuizPicker(false);
+                              setMockSpec({ durationMinutes: m });
+                              setPickerMode("root");
+                            }}
+                            className="w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-left hover:bg-amber-500/15"
+                          >
+                            <div className="text-sm font-semibold text-amber-200">
+                              🕐 {m} min mock
+                            </div>
+                            <div className="text-[11px] text-muted-foreground">
+                              {totalQ} MCQs · timed, auto-submits at 0
+                            </div>
+                          </button>
+                        );
+                      })}
                       <button
-                        key={m}
+                        onClick={() => setPickerMode("root")}
+                        className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
+                      >
+                        ← back
+                      </button>
+                    </div>
+                  ) : !pickerSubject ? (
+                    <div className="mt-4">
+                      {isGovtBoard(profile.board) && (
+                        <button
+                          onClick={() => setPickerMode("mock")}
+                          className="mb-3 w-full rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-left hover:bg-amber-500/15"
+                        >
+                          <div className="text-sm font-semibold text-amber-200">
+                            🕐 mock test — mixed & timed
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            all subjects, MCQ-only, real timer with auto-submit
+                          </div>
+                        </button>
+                      )}
+                      <div className="grid grid-cols-2 gap-2">
+                        {subjects.map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => setPickerSubject(s)}
+                            className="rounded-xl border border-border bg-card px-3 py-2.5 text-sm hover:bg-muted"
+                          >
+                            {s}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : !pickerChapter ? (
+                    <ChapterPickerPanel
+                      profile={profile}
+                      subject={pickerSubject}
+                      onPick={(c) => setPickerChapter(c)}
+                      onBack={() => setPickerSubject(null)}
+                    />
+                  ) : (
+                    <div className="mt-4 space-y-2">
+                      <div className="mb-1 text-[11px] text-muted-foreground">
+                        {pickerChapter === "__all__"
+                          ? "whole subject"
+                          : `chapter: ${pickerChapter}`}
+                      </div>
+                      <button
                         onClick={() => {
                           const ch = pickerChapter === "__all__" ? undefined : pickerChapter;
                           setShowQuizPicker(false);
-                          setPaperSpec({ subject: pickerSubject, totalMarks: m, chapter: ch });
+                          setQuizSubject({ subject: pickerSubject, chapter: ch });
                           setPickerSubject(null);
                           setPickerChapter(null);
                         }}
-                        className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left hover:bg-muted"
+                        className="w-full rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-left hover:bg-primary/15"
                       >
-                        <div className="text-sm font-semibold">full paper · {m} marks</div>
+                        <div className="text-sm font-semibold text-primary">quick quiz</div>
                         <div className="text-[11px] text-muted-foreground">
-                          {m === 30 ? "MCQs, short & long answers · ~30 min"
-                            : m === 80 ? "MCQs, short & long answers · ~2 hr"
-                            : "MCQs, short & long answers · ~3 hr"}
+                          5 multiple-choice questions
                         </div>
                       </button>
-                    ))}
-                    <button
-                      onClick={() => setPickerChapter(null)}
-                      className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
-                    >
-                      ← change chapter
-                    </button>
-                  </div>
-                )}
-              </div>
-            </ModalCard>,
-            document.body,
-          )}
+                      {([30, 80, 100] as const).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => {
+                            const ch = pickerChapter === "__all__" ? undefined : pickerChapter;
+                            setShowQuizPicker(false);
+                            setPaperSpec({ subject: pickerSubject, totalMarks: m, chapter: ch });
+                            setPickerSubject(null);
+                            setPickerChapter(null);
+                          }}
+                          className="w-full rounded-xl border border-border bg-card px-4 py-3 text-left hover:bg-muted"
+                        >
+                          <div className="text-sm font-semibold">full paper · {m} marks</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {m === 30
+                              ? "MCQs, short & long answers · ~30 min"
+                              : m === 80
+                                ? "MCQs, short & long answers · ~2 hr"
+                                : "MCQs, short & long answers · ~3 hr"}
+                          </div>
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setPickerChapter(null)}
+                        className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
+                      >
+                        ← change chapter
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </ModalCard>,
+              document.body,
+            )}
           {quizSubject && (
             <QuizModal
               profile={profile}
@@ -1454,8 +1782,6 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
               onClose={() => setMockSpec(null)}
             />
           )}
-
-
 
           {attachment && (
             <div className="mb-2 flex items-center gap-2 rounded-full border border-border bg-card px-2 py-1 text-xs w-fit">
@@ -1580,7 +1906,9 @@ function ChapterPickerPanel({
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [profile.board, profile.class_level, subject]);
 
   // Private mastery per chapter — %score across this profile's attempts for
@@ -1592,12 +1920,11 @@ function ChapterPickerPanel({
     if (a.subject !== subject) continue;
     const key = a.chapter ?? "";
     if (!key) continue;
-    const num = a.total_marks && a.total_marks > 0
-      ? Math.max(0, a.marks_scored ?? 0)
-      : Math.max(0, a.correct_count ?? 0);
-    const den = a.total_marks && a.total_marks > 0
-      ? a.total_marks
-      : (a.total_questions ?? 0);
+    const num =
+      a.total_marks && a.total_marks > 0
+        ? Math.max(0, a.marks_scored ?? 0)
+        : Math.max(0, a.correct_count ?? 0);
+    const den = a.total_marks && a.total_marks > 0 ? a.total_marks : (a.total_questions ?? 0);
     if (den <= 0) continue;
     const pct = Math.round((num / den) * 100);
     mastery.set(key, (mastery.get(key) ?? 0) + pct);
@@ -1627,32 +1954,40 @@ function ChapterPickerPanel({
           no chapter list available — use whole subject
         </div>
       )}
-      {!loading && chapters && chapters.map((c) => {
-        const pct = avgMastery(c.chapter_title);
-        const badge = pct === null ? null
-          : pct >= 75 ? { label: `${pct}% 🟢`, tone: "text-emerald-400" }
-          : pct >= 50 ? { label: `${pct}% 🟡`, tone: "text-amber-400" }
-          : { label: `${pct}% 🔴`, tone: "text-rose-400" };
-        return (
-          <button
-            key={c.chapter_number}
-            onClick={() => onPick(c.chapter_title)}
-            className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-left text-sm hover:bg-muted"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  ch {c.chapter_number}
+      {!loading &&
+        chapters &&
+        chapters.map((c) => {
+          const pct = avgMastery(c.chapter_title);
+          const badge =
+            pct === null
+              ? null
+              : pct >= 75
+                ? { label: `${pct}% 🟢`, tone: "text-emerald-400" }
+                : pct >= 50
+                  ? { label: `${pct}% 🟡`, tone: "text-amber-400" }
+                  : { label: `${pct}% 🔴`, tone: "text-rose-400" };
+          return (
+            <button
+              key={c.chapter_number}
+              onClick={() => onPick(c.chapter_title)}
+              className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-left text-sm hover:bg-muted"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                    ch {c.chapter_number}
+                  </div>
+                  <div className="truncate font-medium">{c.chapter_title}</div>
                 </div>
-                <div className="truncate font-medium">{c.chapter_title}</div>
+                {badge && (
+                  <div className={`shrink-0 text-[11px] font-semibold ${badge.tone}`}>
+                    {badge.label}
+                  </div>
+                )}
               </div>
-              {badge && (
-                <div className={`shrink-0 text-[11px] font-semibold ${badge.tone}`}>{badge.label}</div>
-              )}
-            </div>
-          </button>
-        );
-      })}
+            </button>
+          );
+        })}
       <button
         onClick={onBack}
         className="w-full rounded-xl border border-border py-2 text-[11px] text-muted-foreground"
@@ -1724,7 +2059,9 @@ function SubjectSheet({
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [profile.board, profile.class_level, profile.id, subject, reloadTick]);
 
   // Mastery per chapter — %score across this profile's attempts for
@@ -1736,12 +2073,11 @@ function SubjectSheet({
     if (a.subject !== subject) continue;
     const key = a.chapter ?? "";
     if (!key) continue;
-    const num = a.total_marks && a.total_marks > 0
-      ? Math.max(0, a.marks_scored ?? 0)
-      : Math.max(0, a.correct_count ?? 0);
-    const den = a.total_marks && a.total_marks > 0
-      ? a.total_marks
-      : (a.total_questions ?? 0);
+    const num =
+      a.total_marks && a.total_marks > 0
+        ? Math.max(0, a.marks_scored ?? 0)
+        : Math.max(0, a.correct_count ?? 0);
+    const den = a.total_marks && a.total_marks > 0 ? a.total_marks : (a.total_questions ?? 0);
     if (den <= 0) continue;
     const pct = Math.round((num / den) * 100);
     mastery.set(key, (mastery.get(key) ?? 0) + pct);
@@ -1753,212 +2089,240 @@ function SubjectSheet({
     return Math.round((mastery.get(title) ?? 0) / c);
   };
   const badgeFor = (pct: number | null) =>
-    pct === null ? null
-    : pct >= 75 ? { label: `${pct}% 🟢`, tone: "text-emerald-400" }
-    : pct >= 50 ? { label: `${pct}% 🟡`, tone: "text-amber-400" }
-    : { label: `${pct}% 🔴`, tone: "text-rose-400" };
+    pct === null
+      ? null
+      : pct >= 75
+        ? { label: `${pct}% 🟢`, tone: "text-emerald-400" }
+        : pct >= 50
+          ? { label: `${pct}% 🟡`, tone: "text-amber-400" }
+          : { label: `${pct}% 🔴`, tone: "text-rose-400" };
 
   const scopedChapter =
-    tutorScope && tutorScope.subject === subject
-      ? (tutorScope.chapter ?? "__all__")
-      : null;
+    tutorScope && tutorScope.subject === subject ? (tutorScope.chapter ?? "__all__") : null;
 
   return (
     <>
-    <ModalCard onClose={onClose}>
-      <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              {profile.name} · {subject}
-            </div>
-            <div className="font-display text-lg font-bold">
-              chapters 📚
-              {chaptersSource === "override" && (
-                <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 align-middle text-[10px] font-semibold text-emerald-400">
-                  your syllabus
-                </span>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={() => setEditingOverride(true)}
-              className="mt-1 text-[11px] font-medium text-primary underline-offset-2 hover:underline"
-            >
-              syllabus different? correct it 📋
-            </button>
-          </div>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        {isTier3Subject(profile.board, profile.class_level, subject) && chaptersSource !== "override" && (
-          <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-200">
-            📋 syllabi for this subject vary by school — check these chapters match your actual textbook, or{" "}
-            <button
-              type="button"
-              onClick={() => setEditingOverride(true)}
-              className="font-semibold underline underline-offset-2"
-            >
-              correct it below
-            </button>.
-          </div>
-        )}
-
-
-        {paperFor && (
-          <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3">
-            <div className="mb-2 text-[11px] text-muted-foreground">
-              {paperFor.chapter ? `paper · ${paperFor.chapter}` : "paper · whole subject"}
-            </div>
-            <div className="flex gap-2">
-              {([30, 80, 100] as const).map((m) => (
-                <button
-                  key={m}
-                  onClick={() => {
-                    const ch = paperFor.chapter;
-                    setPaperFor(null);
-                    onStartPaper(subject, ch, m);
-                  }}
-                  className="flex-1 rounded-xl border border-border bg-card px-2 py-2 text-xs font-semibold hover:bg-muted"
-                >
-                  {m} marks
-                </button>
-              ))}
-            </div>
-            <button
-              onClick={() => setPaperFor(null)}
-              className="mt-2 w-full text-[10px] text-muted-foreground"
-            >
-              cancel
-            </button>
-          </div>
-        )}
-
-        {/* Whole-subject option — kept as first-class alongside chapters. */}
-        <div className="mt-3 rounded-xl border border-border bg-card px-3 py-2.5">
-          <div className="flex items-center justify-between gap-2">
+      <ModalCard onClose={onClose}>
+        <div className="rounded-3xl border border-border bg-card p-5 shadow-2xl max-h-[85vh] overflow-y-auto">
+          <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="text-sm font-semibold">🎯 whole subject</div>
-              <div className="text-[10px] text-muted-foreground">mixed content across every chapter</div>
+              <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {profile.name} · {subject}
+              </div>
+              <div className="font-display text-lg font-bold">
+                chapters 📚
+                {chaptersSource === "override" && (
+                  <span className="ml-2 rounded-full bg-emerald-500/15 px-2 py-0.5 align-middle text-[10px] font-semibold text-emerald-400">
+                    your syllabus
+                  </span>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingOverride(true)}
+                className="mt-1 text-[11px] font-medium text-primary underline-offset-2 hover:underline"
+              >
+                syllabus different? correct it 📋
+              </button>
             </div>
-            <div className="flex shrink-0 gap-1">
-              <SheetActionBtn
-                label="👁️"
-                title="read"
-                onClick={() =>
-                  toast.info("reading mode is chapter-specific — pick a chapter below to open its notes 📖")
-                }
-              />
-              <SheetActionBtn
-                label="💬"
-                title="chat"
-                active={scopedChapter === "__all__"}
-                onClick={() => onScopeTutor(subject, undefined)}
-              />
-              <SheetActionBtn
-                label="📝"
-                title="quick quiz"
-                onClick={() => onStartQuiz(subject, undefined)}
-              />
-              <SheetActionBtn
-                label="📄"
-                title="full paper"
-                onClick={() => setPaperFor({ chapter: undefined })}
-              />
-            </div>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border"
+            >
+              <X className="h-4 w-4" />
+            </button>
           </div>
-        </div>
 
-        <div className="mt-2 space-y-1.5">
-          {loading && (
-            <div className="py-4 text-center text-xs text-muted-foreground">loading chapters…</div>
-          )}
-          {!loading && chapters && chapters.length === 0 && (
-            <div className="py-2 text-center text-[11px] text-muted-foreground">
-              no chapter list available — use whole subject above
+          {isTier3Subject(profile.board, profile.class_level, subject) &&
+            chaptersSource !== "override" && (
+              <div className="mt-3 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-[11px] leading-relaxed text-amber-200">
+                📋 syllabi for this subject vary by school — check these chapters match your actual
+                textbook, or{" "}
+                <button
+                  type="button"
+                  onClick={() => setEditingOverride(true)}
+                  className="font-semibold underline underline-offset-2"
+                >
+                  correct it below
+                </button>
+                .
+              </div>
+            )}
+
+          {paperFor && (
+            <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3">
+              <div className="mb-2 text-[11px] text-muted-foreground">
+                {paperFor.chapter ? `paper · ${paperFor.chapter}` : "paper · whole subject"}
+              </div>
+              <div className="flex gap-2">
+                {([30, 80, 100] as const).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => {
+                      const ch = paperFor.chapter;
+                      setPaperFor(null);
+                      onStartPaper(subject, ch, m);
+                    }}
+                    className="flex-1 rounded-xl border border-border bg-card px-2 py-2 text-xs font-semibold hover:bg-muted"
+                  >
+                    {m} marks
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setPaperFor(null)}
+                className="mt-2 w-full text-[10px] text-muted-foreground"
+              >
+                cancel
+              </button>
             </div>
           )}
-          {!loading && chapters && chapters.map((c) => {
-            const b = badgeFor(avgMastery(c.chapter_title));
-            const isScoped = scopedChapter === c.chapter_title;
-            return (
-              <div key={c.chapter_number} className="rounded-xl border border-border bg-card px-3 py-2.5">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                      ch {c.chapter_number}
-                    </div>
-                    <div className="truncate text-sm font-medium">{c.chapter_title}</div>
-                    {b && (
-                      <div className={`mt-0.5 text-[10px] font-semibold ${b.tone}`}>{b.label}</div>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 gap-1">
-                    <SheetActionBtn
-                      label="👁️"
-                      title="read chapter"
-                      onClick={() => setNotesFor({ chapter: c.chapter_title, number: c.chapter_number })}
-                    />
-                    <SheetActionBtn
-                      label="💬"
-                      title="chat"
-                      active={isScoped}
-                      onClick={() => onScopeTutor(subject, c.chapter_title)}
-                    />
-                    <SheetActionBtn
-                      label="📝"
-                      title="quick quiz"
-                      onClick={() => onStartQuiz(subject, c.chapter_title)}
-                    />
-                    <SheetActionBtn
-                      label="📄"
-                      title="full paper"
-                      onClick={() => setPaperFor({ chapter: c.chapter_title })}
-                    />
-                  </div>
+
+          {/* Whole-subject option — kept as first-class alongside chapters. */}
+          <div className="mt-3 rounded-xl border border-border bg-card px-3 py-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold">🎯 whole subject</div>
+                <div className="text-[10px] text-muted-foreground">
+                  mixed content across every chapter
                 </div>
               </div>
-            );
-          })}
+              <div className="flex shrink-0 gap-1">
+                <SheetActionBtn
+                  label="👁️"
+                  title="read"
+                  onClick={() =>
+                    toast.info(
+                      "reading mode is chapter-specific — pick a chapter below to open its notes 📖",
+                    )
+                  }
+                />
+                <SheetActionBtn
+                  label="💬"
+                  title="chat"
+                  active={scopedChapter === "__all__"}
+                  onClick={() => onScopeTutor(subject, undefined)}
+                />
+                <SheetActionBtn
+                  label="📝"
+                  title="quick quiz"
+                  onClick={() => onStartQuiz(subject, undefined)}
+                />
+                <SheetActionBtn
+                  label="📄"
+                  title="full paper"
+                  onClick={() => setPaperFor({ chapter: undefined })}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 space-y-1.5">
+            {loading && (
+              <div className="py-4 text-center text-xs text-muted-foreground">
+                loading chapters…
+              </div>
+            )}
+            {!loading && chapters && chapters.length === 0 && (
+              <div className="py-2 text-center text-[11px] text-muted-foreground">
+                no chapter list available — use whole subject above
+              </div>
+            )}
+            {!loading &&
+              chapters &&
+              chapters.map((c) => {
+                const b = badgeFor(avgMastery(c.chapter_title));
+                const isScoped = scopedChapter === c.chapter_title;
+                return (
+                  <div
+                    key={c.chapter_number}
+                    className="rounded-xl border border-border bg-card px-3 py-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          ch {c.chapter_number}
+                        </div>
+                        <div className="truncate text-sm font-medium">{c.chapter_title}</div>
+                        {b && (
+                          <div className={`mt-0.5 text-[10px] font-semibold ${b.tone}`}>
+                            {b.label}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <SheetActionBtn
+                          label="👁️"
+                          title="read chapter"
+                          onClick={() =>
+                            setNotesFor({ chapter: c.chapter_title, number: c.chapter_number })
+                          }
+                        />
+                        <SheetActionBtn
+                          label="💬"
+                          title="chat"
+                          active={isScoped}
+                          onClick={() => onScopeTutor(subject, c.chapter_title)}
+                        />
+                        <SheetActionBtn
+                          label="📝"
+                          title="quick quiz"
+                          onClick={() => onStartQuiz(subject, c.chapter_title)}
+                        />
+                        <SheetActionBtn
+                          label="📄"
+                          title="full paper"
+                          onClick={() => setPaperFor({ chapter: c.chapter_title })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
         </div>
-      </div>
-    </ModalCard>
-    {notesFor && createPortal(
-      <NotesReader
-        profile={profile}
-        subject={subject}
-        chapter={notesFor.chapter}
-        chapterNumber={notesFor.number}
-        onClose={() => setNotesFor(null)}
-      />,
-      document.body,
-    )}
-    {editingOverride && createPortal(
-      <OverrideEditor
-        profile={profile}
-        subject={subject}
-        initial={chapters ?? []}
-        onClose={() => setEditingOverride(false)}
-        onSaved={() => {
-          setEditingOverride(false);
-          setReloadTick((t) => t + 1);
-        }}
-      />,
-      document.body,
-    )}
+      </ModalCard>
+      {notesFor &&
+        createPortal(
+          <NotesReader
+            profile={profile}
+            subject={subject}
+            chapter={notesFor.chapter}
+            chapterNumber={notesFor.number}
+            onClose={() => setNotesFor(null)}
+          />,
+          document.body,
+        )}
+      {editingOverride &&
+        createPortal(
+          <OverrideEditor
+            profile={profile}
+            subject={subject}
+            initial={chapters ?? []}
+            onClose={() => setEditingOverride(false)}
+            onSaved={() => {
+              setEditingOverride(false);
+              setReloadTick((t) => t + 1);
+            }}
+          />,
+          document.body,
+        )}
     </>
   );
 }
 
 function SheetActionBtn({
-  label, title, onClick, active,
-}: { label: string; title: string; onClick: () => void; active?: boolean }) {
+  label,
+  title,
+  onClick,
+  active,
+}: {
+  label: string;
+  title: string;
+  onClick: () => void;
+  active?: boolean;
+}) {
   return (
     <button
       type="button"
@@ -2018,19 +2382,23 @@ function OverrideEditor({
         if (!cancelled) setLoadedExisting(true);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [profile.id, subject]);
 
-  const update = (i: number, v: string) => setRows((rs) => rs.map((r, idx) => idx === i ? v : r));
+  const update = (i: number, v: string) => setRows((rs) => rs.map((r, idx) => (idx === i ? v : r)));
   const addRow = () => setRows((rs) => [...rs, ""]);
-  const removeRow = (i: number) => setRows((rs) => rs.length <= 1 ? [""] : rs.filter((_, idx) => idx !== i));
-  const move = (i: number, dir: -1 | 1) => setRows((rs) => {
-    const j = i + dir;
-    if (j < 0 || j >= rs.length) return rs;
-    const copy = rs.slice();
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-    return copy;
-  });
+  const removeRow = (i: number) =>
+    setRows((rs) => (rs.length <= 1 ? [""] : rs.filter((_, idx) => idx !== i)));
+  const move = (i: number, dir: -1 | 1) =>
+    setRows((rs) => {
+      const j = i + dir;
+      if (j < 0 || j >= rs.length) return rs;
+      const copy = rs.slice();
+      [copy[i], copy[j]] = [copy[j], copy[i]];
+      return copy;
+    });
 
   const save = async () => {
     const cleaned = rows.map((r) => r.trim()).filter((r) => r.length > 0);
@@ -2088,7 +2456,11 @@ function OverrideEditor({
   };
 
   return (
-    <div className="fixed inset-0 z-[85] flex items-end justify-center bg-black/60 sm:items-center" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-[85] flex items-end justify-center bg-black/60 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-t-3xl border border-border bg-card shadow-2xl sm:rounded-3xl">
         <div className="flex items-start justify-between border-b border-border px-5 py-4">
           <div className="min-w-0">
@@ -2097,7 +2469,8 @@ function OverrideEditor({
             </div>
             <div className="font-display text-lg font-bold">your school's syllabus 📋</div>
             <div className="mt-0.5 text-[11px] text-muted-foreground">
-              chapter titles in your school's actual order — replaces the generic list for this subject
+              chapter titles in your school's actual order — replaces the generic list for this
+              subject
             </div>
           </div>
           <button
@@ -2116,7 +2489,9 @@ function OverrideEditor({
           )}
           {rows.map((r, i) => (
             <div key={i} className="flex items-center gap-2">
-              <div className="w-6 shrink-0 text-center text-[11px] text-muted-foreground">{i + 1}.</div>
+              <div className="w-6 shrink-0 text-center text-[11px] text-muted-foreground">
+                {i + 1}.
+              </div>
               <input
                 type="text"
                 value={r}
@@ -2132,20 +2507,26 @@ function OverrideEditor({
                   disabled={i === 0}
                   className="grid h-8 w-7 place-items-center rounded-md border border-border text-xs disabled:opacity-30"
                   aria-label="move up"
-                >↑</button>
+                >
+                  ↑
+                </button>
                 <button
                   type="button"
                   onClick={() => move(i, 1)}
                   disabled={i === rows.length - 1}
                   className="grid h-8 w-7 place-items-center rounded-md border border-border text-xs disabled:opacity-30"
                   aria-label="move down"
-                >↓</button>
+                >
+                  ↓
+                </button>
                 <button
                   type="button"
                   onClick={() => removeRow(i)}
                   className="grid h-8 w-7 place-items-center rounded-md border border-border text-xs text-rose-400"
                   aria-label="remove"
-                >✕</button>
+                >
+                  ✕
+                </button>
               </div>
             </div>
           ))}
@@ -2234,7 +2615,10 @@ function NotesReader({
         const d = data as { source?: string; content?: string; source_note?: string };
         if (d?.content && d.content.length > 40) {
           setContent(d.content);
-          setSourceNote(d.source_note ?? "AI-generated study notes — verify against your exact textbook edition");
+          setSourceNote(
+            d.source_note ??
+              "AI-generated study notes — verify against your exact textbook edition",
+          );
         } else {
           setFailed(true);
         }
@@ -2244,17 +2628,25 @@ function NotesReader({
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [profile.board, profile.class_level, subject, chapter]);
 
   return (
-    <div className="fixed inset-0 z-[80] overflow-y-auto bg-[#f5f1e8]" role="dialog" aria-modal="true">
+    <div
+      className="fixed inset-0 z-[80] overflow-y-auto bg-[#f5f1e8]"
+      role="dialog"
+      aria-modal="true"
+    >
       <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-300 bg-[#f5f1e8]/95 px-4 py-3 backdrop-blur">
         <div className="min-w-0">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-stone-500">
             Chapter {chapterNumber} · {subject}
           </div>
-          <div className="truncate font-serif text-base font-semibold text-stone-900">{chapter}</div>
+          <div className="truncate font-serif text-base font-semibold text-stone-900">
+            {chapter}
+          </div>
         </div>
         <button
           type="button"
@@ -2268,8 +2660,12 @@ function NotesReader({
 
       <div className="mx-auto max-w-2xl px-5 py-6 sm:px-8 sm:py-10">
         <div className="mb-6 border-b border-stone-300 pb-4 text-center">
-          <div className="font-serif text-[11px] uppercase tracking-[0.3em] text-stone-500">Study Notes</div>
-          <h1 className="mt-1 font-serif text-2xl font-bold text-stone-900 sm:text-3xl">{chapter}</h1>
+          <div className="font-serif text-[11px] uppercase tracking-[0.3em] text-stone-500">
+            Study Notes
+          </div>
+          <h1 className="mt-1 font-serif text-2xl font-bold text-stone-900 sm:text-3xl">
+            {chapter}
+          </h1>
           <div className="mt-1 font-serif text-xs italic text-stone-600">
             {subject} · Chapter {chapterNumber}
           </div>
@@ -2335,7 +2731,10 @@ function MarkdownLite({ text }: { text: string }) {
       );
     } else if (/^##\s+/.test(line)) {
       out.push(
-        <h2 key={`h2-${i}`} className="mt-6 border-b border-stone-200 pb-1 font-serif text-lg font-bold text-stone-900">
+        <h2
+          key={`h2-${i}`}
+          className="mt-6 border-b border-stone-200 pb-1 font-serif text-lg font-bold text-stone-900"
+        >
           {renderInline(line.replace(/^##\s+/, ""))}
         </h2>,
       );
@@ -2374,12 +2773,7 @@ function renderInline(text: string): React.ReactNode {
   });
 }
 
-
-
 // ------------------------- Quiz -------------------------
-
-
-
 
 type QuizQ = { question: string; options: string[]; correct_index: number; explanation: string };
 
@@ -2437,27 +2831,33 @@ function QuizModal({
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [profile.board, profile.class_level, subject, topic]);
 
   async function saveAttempt(finalCorrect: number) {
     if (insertedRef.current) return;
     insertedRef.current = true;
     try {
-      await (supabase as unknown as {
-        from: (t: string) => {
-          insert: (row: unknown) => Promise<{ error: Error | null }>;
-        };
-      }).from("quiz_attempts").insert({
-        profile_id: profile.id,
-        subject,
-        topic,
-        total_questions: 5,
-        correct_count: finalCorrect,
-        chapter: chapter ?? null,
-        // Per-question sheet so the attempt can be reviewed later.
-        answer_sheet: sheetRef.current.length ? sheetRef.current : null,
-      });
+      await (
+        supabase as unknown as {
+          from: (t: string) => {
+            insert: (row: unknown) => Promise<{ error: Error | null }>;
+          };
+        }
+      )
+        .from("quiz_attempts")
+        .insert({
+          profile_id: profile.id,
+          subject,
+          topic,
+          total_questions: 5,
+          correct_count: finalCorrect,
+          chapter: chapter ?? null,
+          // Per-question sheet so the attempt can be reviewed later.
+          answer_sheet: sheetRef.current.length ? sheetRef.current : null,
+        });
     } catch {
       // best-effort
     }
@@ -2496,7 +2896,9 @@ function QuizModal({
     <div className="rounded-3xl border border-border bg-card p-6 shadow-2xl">
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">practice quiz</div>
+          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            practice quiz
+          </div>
           <div className="font-display text-lg font-bold">{subject}</div>
         </div>
         <button
@@ -2509,9 +2911,7 @@ function QuizModal({
       </div>
 
       {loading && (
-        <div className="mt-8 text-center text-sm text-muted-foreground">
-          quiz is warming up… 📝
-        </div>
+        <div className="mt-8 text-center text-sm text-muted-foreground">quiz is warming up… 📝</div>
       )}
 
       {!loading && errorMsg && (
@@ -2548,10 +2948,10 @@ function QuizModal({
                     isAnswer
                       ? "border-green-500/50 bg-green-500/10 text-green-300"
                       : isWrongPick
-                      ? "border-red-500/50 bg-red-500/10 text-red-300"
-                      : isPicked
-                      ? "border-primary bg-primary/10"
-                      : "border-border bg-card hover:bg-muted"
+                        ? "border-red-500/50 bg-red-500/10 text-red-300"
+                        : isPicked
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-card hover:bg-muted"
                   }`}
                 >
                   {opt}
@@ -2560,9 +2960,13 @@ function QuizModal({
             })}
           </div>
           {picked !== null && (
-            <div className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
-              isCorrect ? "border-green-500/30 bg-green-500/5 text-green-300" : "border-border bg-muted/40 text-muted-foreground"
-            }`}>
+            <div
+              className={`mt-3 rounded-xl border px-3 py-2 text-xs ${
+                isCorrect
+                  ? "border-green-500/30 bg-green-500/5 text-green-300"
+                  : "border-border bg-muted/40 text-muted-foreground"
+              }`}
+            >
               <div className="font-medium">
                 {isCorrect ? "nice one! ✨" : "not this time — here's why"}
               </div>
@@ -2582,18 +2986,14 @@ function QuizModal({
 
       {done && questions && (
         <div className="mt-4 text-center">
-          <div className="text-4xl">
-            {correct === 5 ? "🏆" : correct >= 3 ? "🎉" : "🌱"}
-          </div>
-          <div className="mt-2 font-display text-xl font-bold">
-            you got {correct}/5!
-          </div>
+          <div className="text-4xl">{correct === 5 ? "🏆" : correct >= 3 ? "🎉" : "🌱"}</div>
+          <div className="mt-2 font-display text-xl font-bold">you got {correct}/5!</div>
           <p className="mt-1 text-sm text-muted-foreground">
             {correct === 5
               ? "flawless — a proper study champion."
               : correct >= 3
-              ? "solid work — keep at it, you're building real understanding."
-              : "great start — every attempt makes the next one easier 💪"}
+                ? "solid work — keep at it, you're building real understanding."
+                : "great start — every attempt makes the next one easier 💪"}
           </p>
           <button
             onClick={onClose}
@@ -2648,7 +3048,12 @@ type PaperGradeEntry = {
   usedPhoto?: boolean;
 };
 
-async function gradePool<T, R>(items: T[], limit: number, worker: (item: T, i: number) => Promise<R>, onProgress: () => void): Promise<R[]> {
+async function gradePool<T, R>(
+  items: T[],
+  limit: number,
+  worker: (item: T, i: number) => Promise<R>,
+  onProgress: () => void,
+): Promise<R[]> {
   const results = new Array<R>(items.length);
   let cursor = 0;
   const runners = new Array(Math.min(limit, items.length)).fill(0).map(async () => {
@@ -2700,19 +3105,16 @@ function PaperModal({
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const saveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const [savedTick, setSavedTick] = useState(0);
-  const [resumeOffer, setResumeOffer] = useState<
-    | null
-    | {
-        paperId: string;
-        totalMarks: number;
-        answered: number;
-        total: number;
-        questions: PaperQClient[];
-        drafts: Record<string, PaperDraft>;
-        reattach: Set<string>;
-        updatedAt: string;
-      }
-  >(null);
+  const [resumeOffer, setResumeOffer] = useState<null | {
+    paperId: string;
+    totalMarks: number;
+    answered: number;
+    total: number;
+    questions: PaperQClient[];
+    drafts: Record<string, PaperDraft>;
+    reattach: Set<string>;
+    updatedAt: string;
+  }>(null);
   const [downloadSheet, setDownloadSheet] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfProgress, setPdfProgress] = useState<{ done: number; total: number } | null>(null);
@@ -2768,8 +3170,18 @@ function PaperModal({
         },
       });
       if (error) throw error;
-      const d = data as { source?: string; paper_id?: string; questions?: PaperQClient[]; reason?: string };
-      if (d?.source === "paper" && d.paper_id && Array.isArray(d.questions) && d.questions.length > 0) {
+      const d = data as {
+        source?: string;
+        paper_id?: string;
+        questions?: PaperQClient[];
+        reason?: string;
+      };
+      if (
+        d?.source === "paper" &&
+        d.paper_id &&
+        Array.isArray(d.questions) &&
+        d.questions.length > 0
+      ) {
         setPaperId(d.paper_id);
         setQuestions(d.questions);
         setDrafts({});
@@ -2783,7 +3195,15 @@ function PaperModal({
     } finally {
       setLoading(false);
     }
-  }, [profile.id, profile.board, profile.class_level, profile.edu_system_id, profile.edu_stage, subject, totalMarks]);
+  }, [
+    profile.id,
+    profile.board,
+    profile.class_level,
+    profile.edu_system_id,
+    profile.edu_stage,
+    subject,
+    totalMarks,
+  ]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2837,10 +3257,14 @@ function PaperModal({
           setLoading(false);
           return;
         }
-      } catch { /* resume is best-effort; fall through to generate */ }
+      } catch {
+        /* resume is best-effort; fall through to generate */
+      }
       if (!cancelled) await generateFresh();
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.id, subject, totalMarks]);
 
@@ -2889,7 +3313,9 @@ function PaperModal({
           body: { paper_id: paperId, question_id: qid, draft: payload },
         });
         setSavedTick((n) => n + 1);
-      } catch { /* silent */ }
+      } catch {
+        /* silent */
+      }
     }, 800);
   }
 
@@ -2897,7 +3323,11 @@ function PaperModal({
     setDrafts((prev) => {
       const copy = { ...prev };
       const existing = copy[qid];
-      if (existing && existing.kind === "photo" && (!next || next.kind !== "photo" || next.data !== existing.data)) {
+      if (
+        existing &&
+        existing.kind === "photo" &&
+        (!next || next.kind !== "photo" || next.data !== existing.data)
+      ) {
         URL.revokeObjectURL(existing.previewUrl);
       }
       if (!next) delete copy[qid];
@@ -2949,12 +3379,12 @@ function PaperModal({
       await supabase.functions.invoke("study-paper-finish", {
         body: { paper_id: resumeOffer.paperId, action: "abandon" },
       });
-    } catch { /* best-effort */ }
+    } catch {
+      /* best-effort */
+    }
     setResumeOffer(null);
     await generateFresh();
   }
-
-
 
   async function runBatchGrading() {
     if (!questions || !paperId || phase === "grading") return;
@@ -2972,40 +3402,47 @@ function PaperModal({
       }
     }
 
-    await gradePool(gradable, 3, async (qq) => {
-      const draft = drafts[qq.id];
-      const requestBody: Record<string, unknown> = { paper_id: paperId, question_id: qq.id };
-      let usedPhoto = false;
-      if (qq.type === "mcq") {
-        requestBody.answer = draft && draft.kind === "mcq" ? draft.pick : -1;
-      } else if (draft && draft.kind === "photo") {
-        requestBody.answer_image = { mime: draft.mime, data: draft.data };
-        usedPhoto = true;
-      } else if (draft && draft.kind === "text") {
-        requestBody.answer = draft.value.trim();
-      } else {
-        requestBody.answer = "";
-      }
-      try {
-        const { data, error } = await supabase.functions.invoke("study-paper-grade", { body: requestBody });
-        if (error) throw error;
-        const d = data as GradeResult & { source?: string; reason?: string; transcript?: string };
-        if (typeof d.awarded_marks !== "number") {
-          perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
+    await gradePool(
+      gradable,
+      3,
+      async (qq) => {
+        const draft = drafts[qq.id];
+        const requestBody: Record<string, unknown> = { paper_id: paperId, question_id: qq.id };
+        let usedPhoto = false;
+        if (qq.type === "mcq") {
+          requestBody.answer = draft && draft.kind === "mcq" ? draft.pick : -1;
+        } else if (draft && draft.kind === "photo") {
+          requestBody.answer_image = { mime: draft.mime, data: draft.data };
+          usedPhoto = true;
+        } else if (draft && draft.kind === "text") {
+          requestBody.answer = draft.value.trim();
         } else {
-          perQ[qq.id] = {
-            awarded: d.awarded_marks,
-            max: d.max_marks ?? qq.marks,
-            feedback: d.feedback ?? "",
-            transcript: d.transcript,
-            correct_index: d.correct_index,
-            usedPhoto,
-          };
+          requestBody.answer = "";
         }
-      } catch {
-        perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
-      }
-    }, () => setGradedCount((c) => c + 1));
+        try {
+          const { data, error } = await supabase.functions.invoke("study-paper-grade", {
+            body: requestBody,
+          });
+          if (error) throw error;
+          const d = data as GradeResult & { source?: string; reason?: string; transcript?: string };
+          if (typeof d.awarded_marks !== "number") {
+            perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
+          } else {
+            perQ[qq.id] = {
+              awarded: d.awarded_marks,
+              max: d.max_marks ?? qq.marks,
+              feedback: d.feedback ?? "",
+              transcript: d.transcript,
+              correct_index: d.correct_index,
+              usedPhoto,
+            };
+          }
+        } catch {
+          perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
+        }
+      },
+      () => setGradedCount((c) => c + 1),
+    );
 
     const sum = Object.values(perQ).reduce((acc, r) => acc + r.awarded, 0);
     setResults(perQ);
@@ -3033,21 +3470,37 @@ function PaperModal({
       }
       try {
         await supabase.functions.invoke("study-paper-finish", {
-          body: { paper_id: paperId, marks_scored: sum, total_marks: totalMarks, subject, chapter: chapter ?? undefined, answers: sheet },
+          body: {
+            paper_id: paperId,
+            marks_scored: sum,
+            total_marks: totalMarks,
+            subject,
+            chapter: chapter ?? undefined,
+            answers: sheet,
+          },
         });
         qc.invalidateQueries({ queryKey: QUIZ_ATTEMPTS_KEY });
         qc.invalidateQueries({ queryKey: ["paper-sheets"] });
-      } catch { /* best-effort */ }
-      finally { setFinishing(false); }
+      } catch {
+        /* best-effort */
+      } finally {
+        setFinishing(false);
+      }
     }
 
     setPhase("done");
   }
 
   function requestClose() {
-    if (phase === "done") { onClose(); return; }
+    if (phase === "done") {
+      onClose();
+      return;
+    }
     if (phase === "grading") return; // block close during grading
-    if (Object.keys(drafts).length === 0) { onClose(); return; }
+    if (Object.keys(drafts).length === 0) {
+      onClose();
+      return;
+    }
     setConfirm("close");
   }
 
@@ -3055,23 +3508,32 @@ function PaperModal({
 
   // Palette: group by section for the full grid.
   const paletteSections = questions
-    ? (["mcq", "short", "long"] as const).map((t) => ({
-        t,
-        info: sectionForType(t),
-        items: questions.map((qq, i) => ({ qq, i })).filter((x) => x.qq.type === t),
-      })).filter((s) => s.items.length > 0)
+    ? (["mcq", "short", "long"] as const)
+        .map((t) => ({
+          t,
+          info: sectionForType(t),
+          items: questions.map((qq, i) => ({ qq, i })).filter((x) => x.qq.type === t),
+        }))
+        .filter((s) => s.items.length > 0)
     : [];
 
   // -------- Printable / downloadable paper --------
   function buildPaperHtml(): string {
     const qs = questions ?? [];
-    const fmt = profile.edu_system_id ? getEduSystem(profile.edu_system_id)?.paperFormat : undefined;
+    const fmt = profile.edu_system_id
+      ? getEduSystem(profile.edu_system_id)?.paperFormat
+      : undefined;
     const paperUnit: "marks" | "points" = fmt?.unit ?? "marks";
     const paperTerminator = fmt?.terminator ?? "End of paper";
     const boardLbl = profileSystemLabel(profile);
     const clsLbl = profileStageLabel(profile);
     const time = timeHintFor(totalMarks);
-    const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string));
+    const esc = (s: string) =>
+      String(s).replace(
+        /[&<>"']/g,
+        (c) =>
+          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
+      );
     const sections = (["mcq", "short", "long"] as const)
       .map((t) => ({ t, info: sectionForType(t), items: qs.filter((qq) => qq.type === t) }))
       .filter((s) => s.items.length > 0);
@@ -3126,9 +3588,13 @@ function PaperModal({
   </header>
   ${sectionsHtml}
   <footer>— ${esc(paperTerminator)} —</footer>
-  ${Capacitor.isNativePlatform() ? "" : `<div class="noprint" style="margin-top:16px;text-align:center;">
+  ${
+    Capacitor.isNativePlatform()
+      ? ""
+      : `<div class="noprint" style="margin-top:16px;text-align:center;">
     <button onclick="window.print()" style="padding:10px 18px;font-size:14px;border-radius:8px;border:1px solid #333;background:#111;color:#fff;cursor:pointer">🖨️ Print / Save as PDF</button>
-  </div>`}
+  </div>`
+  }
 </div></body></html>`;
   }
 
@@ -3158,10 +3624,16 @@ function PaperModal({
         setDownloadSheet(false);
         toast.success(`saved ${filename} 📄 — open it to print`);
       } catch (e) {
-        const msg = e instanceof Error && /cancel|abort/i.test(e.message)
-          ? null
-          : "couldn't save the paper — free up some space and try again";
-        if (msg) { setPdfError(msg); toast.error(msg); } else { setDownloadSheet(false); }
+        const msg =
+          e instanceof Error && /cancel|abort/i.test(e.message)
+            ? null
+            : "couldn't save the paper — free up some space and try again";
+        if (msg) {
+          setPdfError(msg);
+          toast.error(msg);
+        } else {
+          setDownloadSheet(false);
+        }
       } finally {
         setPdfBusy(false);
       }
@@ -3174,23 +3646,28 @@ function PaperModal({
       const sections = (["mcq", "short", "long"] as const)
         .map((t) => ({
           label: sectionForType(t).label,
-          items: qs.filter((qq) => qq.type === t).map((qq) => ({
-            marks: qq.marks,
-            question: qq.question,
-            options: qq.type === "mcq" ? qq.options : undefined,
-            answerLines: qq.type === "mcq" ? 0 : qq.type === "short" ? 4 : 10,
-          })),
+          items: qs
+            .filter((qq) => qq.type === t)
+            .map((qq) => ({
+              marks: qq.marks,
+              question: qq.question,
+              options: qq.type === "mcq" ? qq.options : undefined,
+              answerLines: qq.type === "mcq" ? 0 : qq.type === "short" ? 4 : 10,
+            })),
         }))
         .filter((s) => s.items.length > 0);
       const { exportPaperPdf } = await import("@/lib/paperPdf");
-      const { filename } = await exportPaperPdf({
-        board: profileSystemLabel(profile),
-        classLabel: clsLbl,
-        subject,
-        totalMarks,
-        time: timeHintFor(totalMarks),
-        sections,
-      }, (done, total) => setPdfProgress({ done, total }));
+      const { filename } = await exportPaperPdf(
+        {
+          board: profileSystemLabel(profile),
+          classLabel: clsLbl,
+          subject,
+          totalMarks,
+          time: timeHintFor(totalMarks),
+          sections,
+        },
+        (done, total) => setPdfProgress({ done, total }),
+      );
       setDownloadSheet(false);
       toast.success(`saved ${filename} 📄`);
     } catch (e) {
@@ -3210,7 +3687,6 @@ function PaperModal({
       setPdfProgress(null);
     }
   }
-
 
   async function doOpenInBrowser() {
     const html = buildPaperHtml();
@@ -3255,20 +3731,36 @@ function PaperModal({
     <div
       className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-background text-foreground"
       data-testid="paper-modal-overlay"
-      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 999 }}
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100vw",
+        height: "100dvh",
+        zIndex: 999,
+      }}
     >
-
       {/* ---- Sticky top bar ---- */}
       <div
         className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur"
         style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
       >
-        <button onClick={requestClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border">
+        <button
+          onClick={requestClose}
+          aria-label="Close"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border"
+        >
           <X className="h-4 w-4" />
         </button>
         <div className="min-w-0 flex-1 text-center">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">exam mode</div>
-          <div className="truncate font-display text-sm font-bold">{subject} · {totalMarks} marks</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            exam mode
+          </div>
+          <div className="truncate font-display text-sm font-bold">
+            {subject} · {totalMarks} marks
+          </div>
         </div>
         {phase === "answering" ? (
           <div className="flex shrink-0 items-center gap-1.5">
@@ -3279,7 +3771,9 @@ function PaperModal({
               title="Download / print"
               className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card text-muted-foreground disabled:opacity-50"
             >
-              <span aria-hidden className="text-base leading-none">📄</span>
+              <span aria-hidden className="text-base leading-none">
+                📄
+              </span>
             </button>
             <button
               onClick={() => setConfirm("submit")}
@@ -3309,7 +3803,12 @@ function PaperModal({
           <div className="mt-20 px-6 text-center">
             <div className="text-4xl">🌿</div>
             <p className="mt-2 text-sm text-muted-foreground">{errorMsg}</p>
-            <button onClick={onClose} className="mt-4 rounded-xl border border-border px-4 py-2 text-sm">close</button>
+            <button
+              onClick={onClose}
+              className="mt-4 rounded-xl border border-border px-4 py-2 text-sm"
+            >
+              close
+            </button>
           </div>
         )}
 
@@ -3323,10 +3822,14 @@ function PaperModal({
             <div className="mx-auto mt-4 h-2 max-w-xs overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full bg-primary transition-all"
-                style={{ width: `${questions.length ? Math.min(100, (gradedCount / Math.max(1, questions.filter((qq) => isAnswered(qq.id)).length)) * 100) : 0}%` }}
+                style={{
+                  width: `${questions.length ? Math.min(100, (gradedCount / Math.max(1, questions.filter((qq) => isAnswered(qq.id)).length)) * 100) : 0}%`,
+                }}
               />
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">hang tight — reading each answer carefully ✍️</p>
+            <p className="mt-4 text-xs text-muted-foreground">
+              hang tight — reading each answer carefully ✍️
+            </p>
           </div>
         )}
 
@@ -3339,14 +3842,18 @@ function PaperModal({
               </div>
               <div className="text-xs text-muted-foreground">that's {pct}%</div>
               <p className="mt-2 text-sm text-muted-foreground">
-                {pct >= 90 ? "outstanding — you know this cold."
-                  : pct >= 60 ? "solid work — real understanding showing through."
-                  : "great practice — every attempt makes the next one easier 💪"}
+                {pct >= 90
+                  ? "outstanding — you know this cold."
+                  : pct >= 60
+                    ? "solid work — real understanding showing through."
+                    : "great practice — every attempt makes the next one easier 💪"}
               </p>
               {finishing && <div className="mt-2 text-[10px] text-muted-foreground">saving…</div>}
             </div>
 
-            <div className="mt-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">review</div>
+            <div className="mt-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              review
+            </div>
             <div className="mt-2 space-y-2 pb-6">
               {questions.map((qq, i) => {
                 const r = results[qq.id];
@@ -3357,22 +3864,33 @@ function PaperModal({
                   <div
                     key={qq.id}
                     className={`rounded-xl border px-3 py-2.5 text-xs ${
-                      full ? "border-green-500/30 bg-green-500/5"
-                      : partial ? "border-yellow-500/30 bg-yellow-500/5"
-                      : "border-border bg-muted/30"
+                      full
+                        ? "border-green-500/30 bg-green-500/5"
+                        : partial
+                          ? "border-yellow-500/30 bg-yellow-500/5"
+                          : "border-border bg-muted/30"
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div className="font-semibold">Q{i + 1} · {qq.type === "mcq" ? "MCQ" : qq.type === "short" ? "Short" : "Long"}</div>
-                      <div className={`font-mono text-[11px] ${full ? "text-green-300" : partial ? "text-yellow-200" : "text-muted-foreground"}`}>
+                      <div className="font-semibold">
+                        Q{i + 1} ·{" "}
+                        {qq.type === "mcq" ? "MCQ" : qq.type === "short" ? "Short" : "Long"}
+                      </div>
+                      <div
+                        className={`font-mono text-[11px] ${full ? "text-green-300" : partial ? "text-yellow-200" : "text-muted-foreground"}`}
+                      >
                         {r.awarded}/{r.max}
                       </div>
                     </div>
                     <div className="mt-1 line-clamp-2 text-muted-foreground">{qq.question}</div>
                     {r.usedPhoto && r.transcript && (
                       <div className="mt-2 rounded-lg border border-border bg-background/50 px-2 py-1.5">
-                        <div className="text-[10px] font-medium text-muted-foreground">here's what we read from your photo:</div>
-                        <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">{r.transcript}</div>
+                        <div className="text-[10px] font-medium text-muted-foreground">
+                          here's what we read from your photo:
+                        </div>
+                        <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">
+                          {r.transcript}
+                        </div>
                       </div>
                     )}
                     {r.feedback && <div className="mt-1.5 text-foreground/90">{r.feedback}</div>}
@@ -3419,8 +3937,8 @@ function PaperModal({
                             current
                               ? "border-primary bg-primary text-primary-foreground"
                               : answered
-                              ? "border-primary/40 bg-primary/15 text-primary"
-                              : "border-border bg-card text-muted-foreground"
+                                ? "border-primary/40 bg-primary/15 text-primary"
+                                : "border-border bg-card text-muted-foreground"
                           }`}
                           aria-label={`Question ${i + 1}${answered ? " (answered)" : ""}`}
                         >
@@ -3439,7 +3957,8 @@ function PaperModal({
                 </button>
               </div>
               <div className="mt-1.5 text-center text-[10px] text-muted-foreground">
-                {answeredCount}/{totalQuestions} answered {savedTick > 0 && <span className="ml-1 text-primary/70">· saved ✓</span>}
+                {answeredCount}/{totalQuestions} answered{" "}
+                {savedTick > 0 && <span className="ml-1 text-primary/70">· saved ✓</span>}
               </div>
             </div>
 
@@ -3454,16 +3973,26 @@ function PaperModal({
                     {profileSystemLabel(profile)}
                   </div>
                   <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">
-                    {profile.class_level === "ug" ? "Undergraduate"
-                      : profile.class_level === "pg" ? "Postgraduate"
-                      : profile.class_level === "drop" ? "Drop year"
-                      : profile.class_level === "aspirant" ? "Aspirant"
-                      : `Class ${profile.class_level}`}
+                    {profile.class_level === "ug"
+                      ? "Undergraduate"
+                      : profile.class_level === "pg"
+                        ? "Postgraduate"
+                        : profile.class_level === "drop"
+                          ? "Drop year"
+                          : profile.class_level === "aspirant"
+                            ? "Aspirant"
+                            : `Class ${profile.class_level}`}
                   </div>
                   <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-[11px] text-stone-800">
-                    <span><span className="font-semibold">Subject:</span> {subject}</span>
-                    <span><span className="font-semibold">Max Marks:</span> {totalMarks}</span>
-                    <span><span className="font-semibold">Time:</span> {timeHintFor(totalMarks)}</span>
+                    <span>
+                      <span className="font-semibold">Subject:</span> {subject}
+                    </span>
+                    <span>
+                      <span className="font-semibold">Max Marks:</span> {totalMarks}
+                    </span>
+                    <span>
+                      <span className="font-semibold">Time:</span> {timeHintFor(totalMarks)}
+                    </span>
                   </div>
                 </div>
                 <div className="my-3 border-t border-stone-400/60" />
@@ -3473,12 +4002,17 @@ function PaperModal({
                 </div>
 
                 <div className="flex items-baseline justify-between gap-3 text-[11px] text-stone-600">
-                  <span>Question {currentIdx + 1} of {totalQuestions}</span>
-                  <span>[{q.marks} {q.marks === 1 ? "mark" : "marks"}]</span>
+                  <span>
+                    Question {currentIdx + 1} of {totalQuestions}
+                  </span>
+                  <span>
+                    [{q.marks} {q.marks === 1 ? "mark" : "marks"}]
+                  </span>
                 </div>
 
                 <div className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-stone-900">
-                  <span className="font-semibold">Q{currentIdx + 1}. </span>{q.question}
+                  <span className="font-semibold">Q{currentIdx + 1}. </span>
+                  {q.question}
                 </div>
               </div>
 
@@ -3523,15 +4057,27 @@ function PaperModal({
             style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
           >
             <div className="font-display text-sm font-bold">all questions</div>
-            <button onClick={() => setPaletteOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-border">
+            <button
+              onClick={() => setPaletteOpen(false)}
+              className="grid h-9 w-9 place-items-center rounded-full border border-border"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             <div className="mb-3 flex items-center gap-3 text-[11px] text-muted-foreground">
-              <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded border border-primary/40 bg-primary/15" /> answered</span>
-              <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded border border-border bg-card" /> unanswered</span>
-              <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded border border-primary bg-primary" /> current</span>
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded border border-primary/40 bg-primary/15" />{" "}
+                answered
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded border border-border bg-card" />{" "}
+                unanswered
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="inline-block h-3 w-3 rounded border border-primary bg-primary" />{" "}
+                current
+              </span>
             </div>
             {paletteSections.map((sec) => (
               <div key={sec.t} className="mb-4">
@@ -3545,13 +4091,16 @@ function PaperModal({
                     return (
                       <button
                         key={qq.id}
-                        onClick={() => { setCurrentIdx(i); setPaletteOpen(false); }}
+                        onClick={() => {
+                          setCurrentIdx(i);
+                          setPaletteOpen(false);
+                        }}
                         className={`grid h-11 place-items-center rounded-lg border text-sm font-semibold ${
                           current
                             ? "border-primary bg-primary text-primary-foreground"
                             : answered
-                            ? "border-primary/40 bg-primary/15 text-primary"
-                            : "border-border bg-card text-muted-foreground"
+                              ? "border-primary/40 bg-primary/15 text-primary"
+                              : "border-border bg-card text-muted-foreground"
                         }`}
                       >
                         {i + 1}
@@ -3567,8 +4116,14 @@ function PaperModal({
 
       {/* ---- Submit confirm ---- */}
       {confirm === "submit" && questions && (
-        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4" onClick={() => setConfirm(null)}>
-          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4"
+          onClick={() => setConfirm(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="font-display text-lg font-bold">submit your paper?</div>
             <p className="mt-1 text-sm text-muted-foreground">
               {answeredCount} of {totalQuestions} questions answered.
@@ -3579,9 +4134,17 @@ function PaperModal({
               </p>
             )}
             <div className="mt-5 flex gap-2">
-              <button onClick={() => setConfirm(null)} className="flex-1 rounded-xl border border-border py-3 text-sm">keep working</button>
               <button
-                onClick={() => { setConfirm(null); void runBatchGrading(); }}
+                onClick={() => setConfirm(null)}
+                className="flex-1 rounded-xl border border-border py-3 text-sm"
+              >
+                keep working
+              </button>
+              <button
+                onClick={() => {
+                  setConfirm(null);
+                  void runBatchGrading();
+                }}
                 className="flex-1 rounded-xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
               >
                 submit
@@ -3593,14 +4156,28 @@ function PaperModal({
 
       {/* ---- Close confirm ---- */}
       {confirm === "close" && (
-        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4" onClick={() => setConfirm(null)}>
-          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4"
+          onClick={() => setConfirm(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="font-display text-lg font-bold">leave without submitting?</div>
             <p className="mt-1 text-sm text-muted-foreground">your answers won't be saved.</p>
             <div className="mt-5 flex gap-2">
-              <button onClick={() => setConfirm(null)} className="flex-1 rounded-xl border border-border py-3 text-sm">keep working</button>
               <button
-                onClick={() => { setConfirm(null); onClose(); }}
+                onClick={() => setConfirm(null)}
+                className="flex-1 rounded-xl border border-border py-3 text-sm"
+              >
+                keep working
+              </button>
+              <button
+                onClick={() => {
+                  setConfirm(null);
+                  onClose();
+                }}
                 className="flex-1 rounded-xl border border-red-500/40 py-3 text-sm text-red-400"
               >
                 leave
@@ -3617,12 +4194,14 @@ function PaperModal({
             <div className="text-3xl">📄</div>
             <div className="mt-2 font-display text-lg font-bold">resume your paper?</div>
             <p className="mt-1 text-sm text-muted-foreground">
-              you have a <span className="font-semibold text-foreground">{subject}</span> paper
-              ({resumeOffer.totalMarks} marks) in progress — {resumeOffer.answered}/{resumeOffer.total} answered.
+              you have a <span className="font-semibold text-foreground">{subject}</span> paper (
+              {resumeOffer.totalMarks} marks) in progress — {resumeOffer.answered}/
+              {resumeOffer.total} answered.
             </p>
             {resumeOffer.reattach.size > 0 && (
               <p className="mt-1 text-[11px] text-yellow-300/90">
-                {resumeOffer.reattach.size} photo answer{resumeOffer.reattach.size === 1 ? "" : "s"} will need to be reattached.
+                {resumeOffer.reattach.size} photo answer{resumeOffer.reattach.size === 1 ? "" : "s"}{" "}
+                will need to be reattached.
               </p>
             )}
             <div className="mt-5 flex gap-2">
@@ -3645,13 +4224,18 @@ function PaperModal({
 
       {/* ---- Download / print sheet ---- */}
       {downloadSheet && (
-        <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4" onClick={() => setDownloadSheet(false)}>
+        <div
+          className="fixed inset-0 z-[95] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-4"
+          onClick={() => setDownloadSheet(false)}
+        >
           <div
             className="w-full max-w-sm rounded-t-3xl border border-border bg-card p-5 shadow-2xl sm:rounded-3xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="font-display text-lg font-bold">download the paper 📄</div>
-            <p className="mt-1 text-xs text-muted-foreground">questions only — no answers included. save as PDF or print on paper.</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              questions only — no answers included. save as PDF or print on paper.
+            </p>
             <div className="mt-4 space-y-2">
               <button
                 onClick={() => void doDownloadPdf()}
@@ -3674,15 +4258,21 @@ function PaperModal({
                 disabled={pdfBusy}
                 className="w-full rounded-xl border border-border py-3 text-sm disabled:opacity-60"
               >
-                {Capacitor.isNativePlatform() ? "🌐 save as printable page" : "🌐 open in browser to print"}
+                {Capacitor.isNativePlatform()
+                  ? "🌐 save as printable page"
+                  : "🌐 open in browser to print"}
               </button>
               {pdfError && (
-                <p role="alert" className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-[11px] text-destructive">
+                <p
+                  role="alert"
+                  className="rounded-lg border border-destructive/40 bg-destructive/10 p-2 text-[11px] text-destructive"
+                >
                   {pdfError}
                 </p>
               )}
               <p className="text-[10px] leading-relaxed text-muted-foreground">
-                the PDF is a clean A4 question paper with ruled answer space. use "open in browser" if you'd rather print on paper.
+                the PDF is a clean A4 question paper with ruled answer space. use "open in browser"
+                if you'd rather print on paper.
               </p>
 
               <button
@@ -3696,7 +4286,7 @@ function PaperModal({
         </div>
       )}
     </div>,
-    portalHost
+    portalHost,
   );
 }
 
@@ -3729,7 +4319,9 @@ function PaperAnswerArea({
                 picked ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-muted"
               }`}
             >
-              <span className="mr-2 font-semibold text-muted-foreground">{String.fromCharCode(65 + i)}.</span>
+              <span className="mr-2 font-semibold text-muted-foreground">
+                {String.fromCharCode(65 + i)}.
+              </span>
               {opt}
             </button>
           );
@@ -3760,7 +4352,9 @@ function PaperAnswerArea({
           type="button"
           onClick={() => onDraft(value.length > 0 ? { kind: "text", value } : null)}
           className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
-            mode === "text" ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground"
+            mode === "text"
+              ? "border-primary/40 bg-primary/15 text-primary"
+              : "border-border bg-card text-muted-foreground"
           }`}
         >
           ✍️ type it
@@ -3769,7 +4363,9 @@ function PaperAnswerArea({
           type="button"
           onClick={() => photoInputRef.current?.click()}
           className={`rounded-full border px-3 py-1 text-[11px] font-medium transition ${
-            mode === "photo" ? "border-primary/40 bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground"
+            mode === "photo"
+              ? "border-primary/40 bg-primary/15 text-primary"
+              : "border-border bg-card text-muted-foreground"
           }`}
         >
           📸 photo of your written answer
@@ -3797,15 +4393,18 @@ function PaperAnswerArea({
               const v = e.target.value.slice(0, 6000);
               onDraft(v.length > 0 ? { kind: "text", value: v } : null);
             }}
-            placeholder={q.type === "long" ? "write your full answer here…" : "write your short answer here…"}
+            placeholder={
+              q.type === "long" ? "write your full answer here…" : "write your short answer here…"
+            }
             rows={q.type === "long" ? 8 : 5}
             className="w-full rounded-xl border border-border bg-input/40 px-3 py-2.5 text-sm focus:outline-none"
           />
-          <div className="mt-1 text-right text-[10px] text-muted-foreground">{value.length}/6000</div>
+          <div className="mt-1 text-right text-[10px] text-muted-foreground">
+            {value.length}/6000
+          </div>
         </>
       ) : (
         <div>
-
           {photo ? (
             <div className="relative">
               <img
@@ -3870,7 +4469,6 @@ type Attempt = {
   answer_sheet?: QuizSheetItem[] | null;
 };
 
-
 function useAttempts() {
   return useQuery({
     queryKey: QUIZ_ATTEMPTS_KEY,
@@ -3879,15 +4477,22 @@ function useAttempts() {
     refetchOnMount: "always",
     staleTime: 0,
     queryFn: async (): Promise<Attempt[]> => {
-      const { data, error } = await (supabase as unknown as {
-        from: (t: string) => {
-          select: (c: string) => {
-            order: (col: string, opts: { ascending: boolean }) => Promise<{ data: Attempt[] | null; error: Error | null }>;
+      const { data, error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            select: (c: string) => {
+              order: (
+                col: string,
+                opts: { ascending: boolean },
+              ) => Promise<{ data: Attempt[] | null; error: Error | null }>;
+            };
           };
-        };
-      })
+        }
+      )
         .from("quiz_attempts")
-        .select("id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, chapter, created_at, answer_sheet")
+        .select(
+          "id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, chapter, created_at, answer_sheet",
+        )
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
@@ -3947,9 +4552,11 @@ function usePaperSheets() {
     queryKey: ["paper-sheets"],
     staleTime: 30_000,
     queryFn: async (): Promise<SheetListRow[]> => {
-      const { data, error } = await supabase.functions.invoke("study-paper-review", { body: { action: "list" } });
+      const { data, error } = await supabase.functions.invoke("study-paper-review", {
+        body: { action: "list" },
+      });
       if (error) throw error;
-      return ((data as { papers?: SheetListRow[] })?.papers ?? []);
+      return (data as { papers?: SheetListRow[] })?.papers ?? [];
     },
   });
 }
@@ -3962,39 +4569,75 @@ function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () =
         body: { action: "get", paper_id: paperId },
       });
       if (error) throw error;
-      const d = data as { paper?: { id: string; subject: string; total_marks: number; marks_scored: number | null; created_at: string }; questions?: ReviewQ[]; reason?: string };
+      const d = data as {
+        paper?: {
+          id: string;
+          subject: string;
+          total_marks: number;
+          marks_scored: number | null;
+          created_at: string;
+        };
+        questions?: ReviewQ[];
+        reason?: string;
+      };
       if (!d?.paper) throw new Error(d?.reason ?? "couldn't load this answer sheet");
       return d as { paper: NonNullable<typeof d.paper>; questions: ReviewQ[] };
     },
   });
 
-  const when = data ? new Date(data.paper.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" }) : "";
+  const when = data
+    ? new Date(data.paper.created_at).toLocaleDateString(undefined, {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "";
 
   return (
-    <div className="fixed inset-0 z-[95] flex items-end justify-center bg-black/70 sm:items-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[95] flex items-end justify-center bg-black/70 sm:items-center"
+      onClick={onClose}
+    >
       <div
         className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-border bg-background p-4 sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between">
           <div>
-            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">answer sheet 📖</div>
+            <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              answer sheet 📖
+            </div>
             {data && (
               <>
                 <h2 className="font-display text-lg font-bold">{data.paper.subject}</h2>
                 <div className="text-xs text-muted-foreground">
-                  {when} · scored <span className="font-semibold text-foreground">{data.paper.marks_scored ?? 0}/{data.paper.total_marks}</span>
+                  {when} · scored{" "}
+                  <span className="font-semibold text-foreground">
+                    {data.paper.marks_scored ?? 0}/{data.paper.total_marks}
+                  </span>
                 </div>
               </>
             )}
           </div>
-          <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
 
-        {isLoading && <div className="py-10 text-center text-sm text-muted-foreground">opening your answer sheet…</div>}
-        {!!error && <div className="py-10 text-center text-sm text-muted-foreground">{(error as Error).message}</div>}
+        {isLoading && (
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            opening your answer sheet…
+          </div>
+        )}
+        {!!error && (
+          <div className="py-10 text-center text-sm text-muted-foreground">
+            {(error as Error).message}
+          </div>
+        )}
 
         {data && (
           <div className="mt-4 space-y-3 pb-4">
@@ -4006,74 +4649,113 @@ function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () =
               const partial = awarded > 0 && !full;
               const yourMcq =
                 qq.type === "mcq"
-                  ? typeof st.picked === "number" && st.picked >= 0 && qq.options?.[st.picked] != null
+                  ? typeof st.picked === "number" &&
+                    st.picked >= 0 &&
+                    qq.options?.[st.picked] != null
                     ? qq.options[st.picked]
                     : null
                   : null;
               const yourText = st.answer || st.transcript || null;
               const correctMcq =
-                qq.type === "mcq" && typeof qq.correct_index === "number" && qq.options?.[qq.correct_index] != null
+                qq.type === "mcq" &&
+                typeof qq.correct_index === "number" &&
+                qq.options?.[qq.correct_index] != null
                   ? qq.options[qq.correct_index]
                   : null;
               return (
                 <div
                   key={qq.id}
                   className={`rounded-2xl border p-3 text-xs ${
-                    full ? "border-green-500/30 bg-green-500/5"
-                    : partial ? "border-yellow-500/30 bg-yellow-500/5"
-                    : "border-red-500/25 bg-red-500/5"
+                    full
+                      ? "border-green-500/30 bg-green-500/5"
+                      : partial
+                        ? "border-yellow-500/30 bg-yellow-500/5"
+                        : "border-red-500/25 bg-red-500/5"
                   }`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="font-semibold">
-                      Q{i + 1} · {qq.type === "mcq" ? "MCQ" : qq.type === "short" ? "Short" : "Long"}
-                      {qq.subject ? <span className="ml-1 text-[9px] font-normal text-muted-foreground">· {qq.subject}</span> : null}
+                      Q{i + 1} ·{" "}
+                      {qq.type === "mcq" ? "MCQ" : qq.type === "short" ? "Short" : "Long"}
+                      {qq.subject ? (
+                        <span className="ml-1 text-[9px] font-normal text-muted-foreground">
+                          · {qq.subject}
+                        </span>
+                      ) : null}
                     </div>
-                    <div className={`font-mono text-[11px] ${full ? "text-green-300" : partial ? "text-yellow-200" : "text-red-300"}`}>
+                    <div
+                      className={`font-mono text-[11px] ${full ? "text-green-300" : partial ? "text-yellow-200" : "text-red-300"}`}
+                    >
                       {awarded}/{max}
                     </div>
                   </div>
-                  <div className="mt-1.5 whitespace-pre-wrap font-medium text-foreground/95">{qq.question}</div>
+                  <div className="mt-1.5 whitespace-pre-wrap font-medium text-foreground/95">
+                    {qq.question}
+                  </div>
 
                   <div className="mt-2 rounded-xl border border-border bg-background/60 px-2.5 py-2">
-                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">your answer</div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      your answer
+                    </div>
                     {qq.type === "mcq" ? (
                       <div className={`mt-0.5 ${full ? "text-green-300" : "text-foreground/90"}`}>
-                        {yourMcq ?? <span className="italic text-muted-foreground">not answered</span>}
+                        {yourMcq ?? (
+                          <span className="italic text-muted-foreground">not answered</span>
+                        )}
                         {yourMcq && !full && " ✗"}
                         {yourMcq && full && " ✓"}
                       </div>
                     ) : (
                       <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">
-                        {st.used_photo && <span className="mr-1 text-[10px] text-muted-foreground">(from your photo 📷)</span>}
-                        {yourText ?? <span className="italic text-muted-foreground">not answered</span>}
+                        {st.used_photo && (
+                          <span className="mr-1 text-[10px] text-muted-foreground">
+                            (from your photo 📷)
+                          </span>
+                        )}
+                        {yourText ?? (
+                          <span className="italic text-muted-foreground">not answered</span>
+                        )}
                       </div>
                     )}
                   </div>
 
                   {(correctMcq || qq.model_answer) && !full && (
                     <div className="mt-2 rounded-xl border border-green-500/30 bg-green-500/10 px-2.5 py-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-green-300">correct answer</div>
-                      <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">{correctMcq ?? qq.model_answer}</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-green-300">
+                        correct answer
+                      </div>
+                      <div className="mt-0.5 whitespace-pre-wrap text-foreground/90">
+                        {correctMcq ?? qq.model_answer}
+                      </div>
                     </div>
                   )}
                   {qq.model_answer && full && (
                     <div className="mt-2 rounded-xl border border-border bg-background/40 px-2.5 py-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">model answer</div>
-                      <div className="mt-0.5 whitespace-pre-wrap text-foreground/80">{qq.model_answer}</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        model answer
+                      </div>
+                      <div className="mt-0.5 whitespace-pre-wrap text-foreground/80">
+                        {qq.model_answer}
+                      </div>
                     </div>
                   )}
 
                   {qq.rubric_points && qq.rubric_points.length > 0 && (
                     <div className="mt-2">
-                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">marks were given for</div>
+                      <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        marks were given for
+                      </div>
                       <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-foreground/80">
-                        {qq.rubric_points.map((rp, j) => <li key={j}>{rp}</li>)}
+                        {qq.rubric_points.map((rp, j) => (
+                          <li key={j}>{rp}</li>
+                        ))}
                       </ul>
                     </div>
                   )}
 
-                  {st.feedback && <div className="mt-2 italic text-foreground/85">💬 {st.feedback}</div>}
+                  {st.feedback && (
+                    <div className="mt-2 italic text-foreground/85">💬 {st.feedback}</div>
+                  )}
                 </div>
               );
             })}
@@ -4084,7 +4766,13 @@ function AnswerSheetModal({ paperId, onClose }: { paperId: string; onClose: () =
   );
 }
 
-function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; onClose: () => void }) {
+function ProgressDashboard({
+  profiles,
+  onClose,
+}: {
+  profiles: LearnerProfile[];
+  onClose: () => void;
+}) {
   const [quizSheet, setQuizSheet] = useState<Attempt | null>(null);
   const { t: tProgress } = useT();
   const { data: attempts, isLoading } = useAttempts();
@@ -4093,10 +4781,12 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
 
   function statsFor(profileId: string) {
     const rows = (attempts ?? []).filter((a) => a.profile_id === profileId);
-    let totalNum = 0, totalDen = 0;
+    let totalNum = 0,
+      totalDen = 0;
     for (const r of rows) {
       const { num, den } = attemptScore(r);
-      totalNum += num; totalDen += den;
+      totalNum += num;
+      totalDen += den;
     }
     const acc = totalDen > 0 ? Math.round((totalNum / totalDen) * 100) : 0;
 
@@ -4115,35 +4805,42 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
       accuracy: s.den > 0 ? Math.round((s.num / s.den) * 100) : 0,
     }));
 
-    // streak: distinct calendar days in the last 14 days
-    const now = new Date();
-    const cutoff = new Date(now);
-    cutoff.setDate(cutoff.getDate() - 14);
-    const days = new Set<string>();
-    for (const r of rows) {
-      const d = new Date(r.created_at);
-      if (d >= cutoff) days.add(d.toISOString().slice(0, 10));
-    }
+    // There is deliberately no streak here.
+    //
+    // This used to count distinct active days over a fortnight and render it
+    // as "{n} 🔥". Study's users are overwhelmingly under 18, and a flame that
+    // resets when you miss a day is a habit mechanic, not feedback about
+    // learning — it rewards showing up rather than understanding, and it
+    // punishes the week a child is ill. Chapters covered says something true
+    // about progress and says nothing about attendance.
+    const chapters = new Set(rows.map((r) => r.chapter).filter(Boolean));
 
     const recent = rows.slice(0, 5);
     return {
       totalAttempts: rows.length,
       accuracy: acc,
       subjects,
-      streak: days.size,
+      chaptersPractised: chapters.size,
       recent,
     };
   }
-
 
   return (
     <div className="max-h-[85vh] overflow-y-auto rounded-3xl border border-border bg-card p-5 shadow-2xl">
       <div className="flex items-start justify-between">
         <div>
-          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">progress</div>
-          <h2 className="font-display text-lg font-bold">{tProgress("study.progress.title", "learning journey 📊")}</h2>
+          <div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            progress
+          </div>
+          <h2 className="font-display text-lg font-bold">
+            {tProgress("study.progress.title", "learning journey 📊")}
+          </h2>
         </div>
-        <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full border border-border">
+        <button
+          onClick={onClose}
+          aria-label="Close"
+          className="grid h-8 w-8 place-items-center rounded-full border border-border"
+        >
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -4177,8 +4874,8 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
                     <div className="text-[10px] text-muted-foreground">quizzes</div>
                   </div>
                   <div className="rounded-xl border border-border bg-card p-2">
-                    <div className="text-base font-semibold">{s.streak} 🔥</div>
-                    <div className="text-[10px] text-muted-foreground">days (14d)</div>
+                    <div className="text-base font-semibold">{s.chaptersPractised}</div>
+                    <div className="text-[10px] text-muted-foreground">chapters</div>
                   </div>
                   <div className="rounded-xl border border-border bg-card p-2">
                     <div className="text-base font-semibold">{s.subjects.length}</div>
@@ -4197,10 +4894,14 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
                     <div className="text-[11px] font-medium text-muted-foreground">by subject</div>
                     <div className="mt-1 space-y-1">
                       {s.subjects.map((sub) => (
-                        <div key={sub.subject} className="flex items-center justify-between text-xs">
+                        <div
+                          key={sub.subject}
+                          className="flex items-center justify-between text-xs"
+                        >
                           <span>{sub.subject}</span>
                           <span className="text-muted-foreground">
-                            {sub.attempts} {sub.attempts === 1 ? "quiz" : "quizzes"} · {sub.accuracy}%
+                            {sub.attempts} {sub.attempts === 1 ? "quiz" : "quizzes"} ·{" "}
+                            {sub.accuracy}%
                           </span>
                         </div>
                       ))}
@@ -4210,14 +4911,20 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
 
                 {s.recent.length > 0 && (
                   <div className="mt-4">
-                    <div className="text-[11px] font-medium text-muted-foreground">recent attempts</div>
+                    <div className="text-[11px] font-medium text-muted-foreground">
+                      recent attempts
+                    </div>
                     <div className="mt-1 space-y-1">
                       {s.recent.map((r) => {
                         const d = new Date(r.created_at);
-                        const when = d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+                        const when = d.toLocaleDateString(undefined, {
+                          day: "numeric",
+                          month: "short",
+                        });
                         const { num, den } = attemptScore(r);
                         const isPaper = !!(r.total_marks && r.total_marks > 0);
-                        const hasSheet = !isPaper && Array.isArray(r.answer_sheet) && r.answer_sheet.length > 0;
+                        const hasSheet =
+                          !isPaper && Array.isArray(r.answer_sheet) && r.answer_sheet.length > 0;
                         return hasSheet ? (
                           <button
                             key={r.id}
@@ -4235,7 +4942,11 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
                           <div key={r.id} className="flex items-center justify-between text-xs">
                             <span className="truncate">
                               {r.subject}
-                              {isPaper && <span className="ml-1 text-[9px] text-muted-foreground">· paper</span>}
+                              {isPaper && (
+                                <span className="ml-1 text-[9px] text-muted-foreground">
+                                  · paper
+                                </span>
+                              )}
                             </span>
                             <span className="text-muted-foreground">
                               {when} · {num}/{den}
@@ -4249,23 +4960,31 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
 
                 {(sheets ?? []).some((sh) => sh.profile_id === p.id) && (
                   <div className="mt-4">
-                    <div className="text-[11px] font-medium text-muted-foreground">answer sheets 📖 <span className="font-normal">— tap to review mistakes</span></div>
+                    <div className="text-[11px] font-medium text-muted-foreground">
+                      answer sheets 📖 <span className="font-normal">— tap to review mistakes</span>
+                    </div>
                     <div className="mt-1 space-y-1">
-                      {(sheets ?? []).filter((sh) => sh.profile_id === p.id).slice(0, 8).map((sh) => {
-                        const when = new Date(sh.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short" });
-                        return (
-                          <button
-                            key={sh.id}
-                            onClick={() => setOpenSheet(sh.id)}
-                            className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-2.5 py-2 text-left text-xs hover:border-primary/50"
-                          >
-                            <span className="truncate">{sh.subject}</span>
-                            <span className="ml-2 shrink-0 text-muted-foreground">
-                              {when} · {sh.marks_scored ?? 0}/{sh.total_marks} →
-                            </span>
-                          </button>
-                        );
-                      })}
+                      {(sheets ?? [])
+                        .filter((sh) => sh.profile_id === p.id)
+                        .slice(0, 8)
+                        .map((sh) => {
+                          const when = new Date(sh.created_at).toLocaleDateString(undefined, {
+                            day: "numeric",
+                            month: "short",
+                          });
+                          return (
+                            <button
+                              key={sh.id}
+                              onClick={() => setOpenSheet(sh.id)}
+                              className="flex w-full items-center justify-between rounded-lg border border-border bg-card px-2.5 py-2 text-left text-xs hover:border-primary/50"
+                            >
+                              <span className="truncate">{sh.subject}</span>
+                              <span className="ml-2 shrink-0 text-muted-foreground">
+                                {when} · {sh.marks_scored ?? 0}/{sh.total_marks} →
+                              </span>
+                            </button>
+                          );
+                        })}
                     </div>
                   </div>
                 )}
@@ -4285,9 +5004,16 @@ function ProgressDashboard({ profiles, onClose }: { profiles: LearnerProfile[]; 
    pick vs the correct answer, plus the explanation. */
 function QuizSheetModal({ attempt, onClose }: { attempt: Attempt; onClose: () => void }) {
   const items = (attempt.answer_sheet ?? []) as QuizSheetItem[];
-  const when = new Date(attempt.created_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  const when = new Date(attempt.created_at).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
         className="flex max-h-[85dvh] w-full max-w-md flex-col rounded-t-3xl border-t border-border bg-background p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
         onClick={(e) => e.stopPropagation()}
@@ -4295,10 +5021,18 @@ function QuizSheetModal({ attempt, onClose }: { attempt: Attempt; onClose: () =>
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/30" />
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <h3 className="font-display text-base font-semibold">{attempt.subject} — quiz review 📖</h3>
-            <div className="text-[11px] text-muted-foreground">{when} · {attempt.correct_count}/{attempt.total_questions} correct</div>
+            <h3 className="font-display text-base font-semibold">
+              {attempt.subject} — quiz review 📖
+            </h3>
+            <div className="text-[11px] text-muted-foreground">
+              {when} · {attempt.correct_count}/{attempt.total_questions} correct
+            </div>
           </div>
-          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full bg-muted">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-9 w-9 place-items-center rounded-full bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -4306,8 +5040,13 @@ function QuizSheetModal({ attempt, onClose }: { attempt: Attempt; onClose: () =>
           {items.map((q, i) => {
             const right = q.picked === q.correct_index;
             return (
-              <div key={i} className={`rounded-2xl border p-3 text-sm ${right ? "border-emerald-500/40" : "border-red-500/40"}`}>
-                <div className="mb-2 font-medium">Q{i + 1}. {q.question}</div>
+              <div
+                key={i}
+                className={`rounded-2xl border p-3 text-sm ${right ? "border-emerald-500/40" : "border-red-500/40"}`}
+              >
+                <div className="mb-2 font-medium">
+                  Q{i + 1}. {q.question}
+                </div>
                 <div className="space-y-1">
                   {q.options.map((opt, oi) => (
                     <div
@@ -4320,12 +5059,16 @@ function QuizSheetModal({ attempt, onClose }: { attempt: Attempt; onClose: () =>
                             : "text-muted-foreground"
                       }`}
                     >
-                      {oi === q.picked ? "➤ " : ""}{opt}{oi === q.correct_index ? " ✓" : ""}
+                      {oi === q.picked ? "➤ " : ""}
+                      {opt}
+                      {oi === q.correct_index ? " ✓" : ""}
                     </div>
                   ))}
                 </div>
                 {q.explanation && (
-                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">💡 {q.explanation}</p>
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted-foreground">
+                    💡 {q.explanation}
+                  </p>
                 )}
               </div>
             );
@@ -4398,12 +5141,22 @@ function MockPaperModal({
     const host = document.createElement("div");
     host.setAttribute("data-mock-modal-host", "true");
     Object.assign(host.style, {
-      position: "fixed", top: "0", left: "0", right: "0", bottom: "0",
-      width: "100vw", height: "100dvh", zIndex: "999", overflow: "hidden",
+      position: "fixed",
+      top: "0",
+      left: "0",
+      right: "0",
+      bottom: "0",
+      width: "100vw",
+      height: "100dvh",
+      zIndex: "999",
+      overflow: "hidden",
     });
     document.documentElement.appendChild(host);
     setPortalHost(host);
-    return () => { host.remove(); setPortalHost(null); };
+    return () => {
+      host.remove();
+      setPortalHost(null);
+    };
   }, []);
 
   // Wall-clock tick every second (works regardless of tab focus — we anchor
@@ -4414,9 +5167,10 @@ function MockPaperModal({
     return () => clearInterval(id);
   }, []);
 
-  const secondsLeft = startedAtMs && durationSec
-    ? Math.max(0, durationSec - Math.floor((nowMs - startedAtMs) / 1000))
-    : durationSec;
+  const secondsLeft =
+    startedAtMs && durationSec
+      ? Math.max(0, durationSec - Math.floor((nowMs - startedAtMs) / 1000))
+      : durationSec;
 
   const generateFresh = useCallback(async (): Promise<void> => {
     setLoading(true);
@@ -4439,7 +5193,14 @@ function MockPaperModal({
         duration_seconds?: number;
         reason?: string;
       };
-      if (d?.source === "paper" && d.paper_id && Array.isArray(d.questions) && d.questions.length > 0 && d.started_at && d.duration_seconds) {
+      if (
+        d?.source === "paper" &&
+        d.paper_id &&
+        Array.isArray(d.questions) &&
+        d.questions.length > 0 &&
+        d.started_at &&
+        d.duration_seconds
+      ) {
         setPaperId(d.paper_id);
         setQuestions(d.questions);
         setStartedAtMs(new Date(d.started_at).getTime());
@@ -4480,8 +5241,13 @@ function MockPaperModal({
         };
         const expectedDurSec = durationMinutes * 60;
         if (
-          r?.found && r.paper_id && Array.isArray(r.questions) && r.questions.length > 0 &&
-          r.started_at && r.duration_seconds && r.duration_seconds === expectedDurSec
+          r?.found &&
+          r.paper_id &&
+          Array.isArray(r.questions) &&
+          r.questions.length > 0 &&
+          r.started_at &&
+          r.duration_seconds &&
+          r.duration_seconds === expectedDurSec
         ) {
           const startedMs = new Date(r.started_at).getTime();
           const durSec = r.duration_seconds;
@@ -4493,7 +5259,12 @@ function MockPaperModal({
           const nextPicks: Record<string, number> = {};
           for (const [qid, d] of Object.entries(r.draft_answers ?? {})) {
             const dd = d as { kind?: string; value?: unknown };
-            if (dd?.kind === "mcq" && typeof dd.value === "number" && dd.value >= 0 && dd.value <= 3) {
+            if (
+              dd?.kind === "mcq" &&
+              typeof dd.value === "number" &&
+              dd.value >= 0 &&
+              dd.value <= 3
+            ) {
               nextPicks[qid] = dd.value;
             }
           }
@@ -4504,14 +5275,20 @@ function MockPaperModal({
           const elapsed = Math.floor((Date.now() - startedMs) / 1000);
           if (elapsed >= durSec) {
             // eslint-disable-next-line @typescript-eslint/no-use-before-define
-            queueMicrotask(() => { void runBatchGrading(true); });
+            queueMicrotask(() => {
+              void runBatchGrading(true);
+            });
           }
           return;
         }
-      } catch { /* fall through */ }
+      } catch {
+        /* fall through */
+      }
       if (!cancelled) await generateFresh();
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile.id, durationMinutes]);
 
@@ -4524,7 +5301,9 @@ function MockPaperModal({
         await supabase.functions.invoke("study-paper-save-draft", {
           body: { paper_id: paperId, question_id: qid, draft: { kind: "mcq", value: pick } },
         });
-      } catch { /* silent */ }
+      } catch {
+        /* silent */
+      }
     }, 600);
   }
 
@@ -4534,82 +5313,97 @@ function MockPaperModal({
   }
 
   useEffect(() => {
-    return () => { Object.values(saveTimers.current).forEach((t) => clearTimeout(t)); };
+    return () => {
+      Object.values(saveTimers.current).forEach((t) => clearTimeout(t));
+    };
   }, []);
 
-  const runBatchGrading = useCallback(async (timeExpired = false) => {
-    if (!questions || !paperId || phase !== "answering") return;
-    setPhase("grading");
-    setGradedCount(0);
-    setResults({});
-    const perQ: Record<string, PaperGradeEntry> = {};
-    if (timeExpired) toast.message("⏰ time's up! grading your paper…");
+  const runBatchGrading = useCallback(
+    async (timeExpired = false) => {
+      if (!questions || !paperId || phase !== "answering") return;
+      setPhase("grading");
+      setGradedCount(0);
+      setResults({});
+      const perQ: Record<string, PaperGradeEntry> = {};
+      if (timeExpired) toast.message("⏰ time's up! grading your paper…");
 
-    await gradePool(questions, 4, async (qq) => {
-      const answer = picks[qq.id];
-      const requestBody: Record<string, unknown> = {
-        paper_id: paperId,
-        question_id: qq.id,
-        answer: typeof answer === "number" ? answer : -1,
-      };
-      try {
-        const { data, error } = await supabase.functions.invoke("study-paper-grade", { body: requestBody });
-        if (error) throw error;
-        const d = data as GradeResult & { source?: string };
-        if (typeof d.awarded_marks !== "number") {
-          perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
-        } else {
-          perQ[qq.id] = {
-            awarded: d.awarded_marks,
-            max: d.max_marks ?? qq.marks,
-            feedback: d.feedback ?? "",
-            correct_index: d.correct_index,
+      await gradePool(
+        questions,
+        4,
+        async (qq) => {
+          const answer = picks[qq.id];
+          const requestBody: Record<string, unknown> = {
+            paper_id: paperId,
+            question_id: qq.id,
+            answer: typeof answer === "number" ? answer : -1,
+          };
+          try {
+            const { data, error } = await supabase.functions.invoke("study-paper-grade", {
+              body: requestBody,
+            });
+            if (error) throw error;
+            const d = data as GradeResult & { source?: string };
+            if (typeof d.awarded_marks !== "number") {
+              perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
+            } else {
+              perQ[qq.id] = {
+                awarded: d.awarded_marks,
+                max: d.max_marks ?? qq.marks,
+                feedback: d.feedback ?? "",
+                correct_index: d.correct_index,
+              };
+            }
+          } catch {
+            perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
+          }
+        },
+        () => setGradedCount((c) => c + 1),
+      );
+
+      const sum = Object.values(perQ).reduce((acc, r) => acc + r.awarded, 0);
+      setResults(perQ);
+      setTotalScored(sum);
+
+      if (!finishedRef.current && paperId && questions) {
+        finishedRef.current = true;
+        setFinishing(true);
+        const sheet: Record<string, unknown> = {};
+        for (const qq of questions) {
+          const r = perQ[qq.id];
+          sheet[qq.id] = {
+            kind: "mcq",
+            picked: typeof picks[qq.id] === "number" ? picks[qq.id] : null,
+            answer: null,
+            transcript: null,
+            used_photo: false,
+            awarded: r?.awarded ?? 0,
+            max: r?.max ?? qq.marks,
+            feedback: (r?.feedback ?? "").slice(0, 600),
           };
         }
-      } catch {
-        perQ[qq.id] = { awarded: 0, max: qq.marks, feedback: "couldn't grade this one." };
+        try {
+          await supabase.functions.invoke("study-paper-finish", {
+            body: {
+              paper_id: paperId,
+              marks_scored: sum,
+              total_marks: questions.length,
+              subject: `Mock Test (${durationMinutes}m)`,
+              answers: sheet,
+            },
+          });
+          qc.invalidateQueries({ queryKey: QUIZ_ATTEMPTS_KEY });
+          qc.invalidateQueries({ queryKey: ["paper-sheets"] });
+        } catch {
+          /* best-effort */
+        } finally {
+          setFinishing(false);
+        }
       }
-    }, () => setGradedCount((c) => c + 1));
-
-    const sum = Object.values(perQ).reduce((acc, r) => acc + r.awarded, 0);
-    setResults(perQ);
-    setTotalScored(sum);
-
-    if (!finishedRef.current && paperId && questions) {
-      finishedRef.current = true;
-      setFinishing(true);
-      const sheet: Record<string, unknown> = {};
-      for (const qq of questions) {
-        const r = perQ[qq.id];
-        sheet[qq.id] = {
-          kind: "mcq",
-          picked: typeof picks[qq.id] === "number" ? picks[qq.id] : null,
-          answer: null,
-          transcript: null,
-          used_photo: false,
-          awarded: r?.awarded ?? 0,
-          max: r?.max ?? qq.marks,
-          feedback: (r?.feedback ?? "").slice(0, 600),
-        };
-      }
-      try {
-        await supabase.functions.invoke("study-paper-finish", {
-          body: {
-            paper_id: paperId,
-            marks_scored: sum,
-            total_marks: questions.length,
-            subject: `Mock Test (${durationMinutes}m)`,
-            answers: sheet,
-          },
-        });
-        qc.invalidateQueries({ queryKey: QUIZ_ATTEMPTS_KEY });
-        qc.invalidateQueries({ queryKey: ["paper-sheets"] });
-      } catch { /* best-effort */ }
-      finally { setFinishing(false); }
-    }
-    setPhase("done");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [questions, paperId, picks, phase, durationMinutes, qc]);
+      setPhase("done");
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    },
+    [questions, paperId, picks, phase, durationMinutes, qc],
+  );
 
   // Auto-submit when the wall-clock hits zero.
   useEffect(() => {
@@ -4622,23 +5416,32 @@ function MockPaperModal({
   }, [secondsLeft, phase, startedAtMs, questions, runBatchGrading]);
 
   function requestClose() {
-    if (phase === "done") { onClose(); return; }
+    if (phase === "done") {
+      onClose();
+      return;
+    }
     if (phase === "grading") return;
     setConfirmClose(true);
   }
 
-  const answeredCount = questions ? questions.filter((qq) => typeof picks[qq.id] === "number").length : 0;
+  const answeredCount = questions
+    ? questions.filter((qq) => typeof picks[qq.id] === "number").length
+    : 0;
   const totalQuestions = questions?.length ?? 0;
   const q = questions?.[currentIdx] ?? null;
   const urgent = secondsLeft < 300;
 
   // Section groupings by subject, preserving first-seen order.
   const sections = (() => {
-    if (!questions) return [] as { subject: string; label: string; items: { qq: MockQClient; i: number }[] }[];
+    if (!questions)
+      return [] as { subject: string; label: string; items: { qq: MockQClient; i: number }[] }[];
     const order: string[] = [];
     const byS = new Map<string, { qq: MockQClient; i: number }[]>();
     questions.forEach((qq, i) => {
-      if (!byS.has(qq.subject)) { byS.set(qq.subject, []); order.push(qq.subject); }
+      if (!byS.has(qq.subject)) {
+        byS.set(qq.subject, []);
+        order.push(qq.subject);
+      }
       byS.get(qq.subject)!.push({ qq, i });
     });
     return order.map((s, k) => ({
@@ -4648,7 +5451,9 @@ function MockPaperModal({
     }));
   })();
 
-  const sectionForCurrent = q ? sections.find((s) => s.items.some((it) => it.qq.id === q.id)) : null;
+  const sectionForCurrent = q
+    ? sections.find((s) => s.items.some((it) => it.qq.id === q.id))
+    : null;
 
   const pct = totalMarks > 0 ? Math.round((totalScored / totalMarks) * 100) : 0;
 
@@ -4656,20 +5461,36 @@ function MockPaperModal({
   return createPortal(
     <div
       className="fixed inset-0 z-[70] flex flex-col overflow-hidden bg-background text-foreground"
-      style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 999 }}
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: "100vw",
+        height: "100dvh",
+        zIndex: 999,
+      }}
     >
       {/* Top bar with countdown */}
       <div
         className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border bg-background/95 px-4 py-3 backdrop-blur"
         style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
       >
-        <button onClick={requestClose} aria-label="Close" className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border">
+        <button
+          onClick={requestClose}
+          aria-label="Close"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border"
+        >
           <X className="h-4 w-4" />
         </button>
         <div className="min-w-0 flex-1 text-center">
-          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">mock test</div>
+          <div className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+            mock test
+          </div>
           <div className="truncate font-display text-sm font-bold">
-            {durationMinutes} min · {totalQuestions || DURATION_TO_TOTAL_CLIENT[durationMinutes]} MCQs
+            {durationMinutes} min · {totalQuestions || DURATION_TO_TOTAL_CLIENT[durationMinutes]}{" "}
+            MCQs
           </div>
         </div>
         {phase === "answering" && startedAtMs ? (
@@ -4688,7 +5509,10 @@ function MockPaperModal({
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto" style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}>
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+      >
         {loading && (
           <div className="mt-20 text-center text-sm text-muted-foreground">
             building your mock test… 🕐
@@ -4699,7 +5523,12 @@ function MockPaperModal({
           <div className="mt-20 px-6 text-center">
             <div className="text-4xl">🌿</div>
             <p className="mt-2 text-sm text-muted-foreground">{errorMsg}</p>
-            <button onClick={onClose} className="mt-4 rounded-xl border border-border px-4 py-2 text-sm">close</button>
+            <button
+              onClick={onClose}
+              className="mt-4 rounded-xl border border-border px-4 py-2 text-sm"
+            >
+              close
+            </button>
           </div>
         )}
 
@@ -4713,7 +5542,9 @@ function MockPaperModal({
             <div className="mx-auto mt-4 h-2 max-w-xs overflow-hidden rounded-full bg-muted">
               <div
                 className="h-full bg-primary transition-all"
-                style={{ width: `${questions.length ? Math.min(100, (gradedCount / questions.length) * 100) : 0}%` }}
+                style={{
+                  width: `${questions.length ? Math.min(100, (gradedCount / questions.length) * 100) : 0}%`,
+                }}
               />
             </div>
           </div>
@@ -4733,13 +5564,23 @@ function MockPaperModal({
             <div className="mt-6 space-y-4 pb-6">
               {sections.map((sec) => {
                 const secItems = sec.items;
-                const secNum = secItems.reduce((acc, it) => acc + (results[it.qq.id]?.awarded ?? 0), 0);
+                const secNum = secItems.reduce(
+                  (acc, it) => acc + (results[it.qq.id]?.awarded ?? 0),
+                  0,
+                );
                 const secDen = secItems.length;
                 return (
-                  <div key={sec.subject} className="rounded-xl border border-border bg-background/40 p-3">
+                  <div
+                    key={sec.subject}
+                    className="rounded-xl border border-border bg-background/40 p-3"
+                  >
                     <div className="flex items-center justify-between">
-                      <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{sec.label}</div>
-                      <div className="font-mono text-[11px] text-muted-foreground">{secNum}/{secDen}</div>
+                      <div className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                        {sec.label}
+                      </div>
+                      <div className="font-mono text-[11px] text-muted-foreground">
+                        {secNum}/{secDen}
+                      </div>
                     </div>
                     <div className="mt-2 space-y-1.5">
                       {secItems.map(({ qq, i }) => {
@@ -4750,14 +5591,22 @@ function MockPaperModal({
                           <div
                             key={qq.id}
                             className={`rounded-lg border px-2.5 py-1.5 text-[11px] ${
-                              correct ? "border-green-500/30 bg-green-500/5" : "border-red-500/20 bg-red-500/5"
+                              correct
+                                ? "border-green-500/30 bg-green-500/5"
+                                : "border-red-500/20 bg-red-500/5"
                             }`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="font-semibold">Q{i + 1}</div>
-                              <div className={`font-mono ${correct ? "text-green-300" : "text-red-300"}`}>{r.awarded}/{r.max}</div>
+                              <div
+                                className={`font-mono ${correct ? "text-green-300" : "text-red-300"}`}
+                              >
+                                {r.awarded}/{r.max}
+                              </div>
                             </div>
-                            <div className="mt-0.5 line-clamp-2 text-muted-foreground">{qq.question}</div>
+                            <div className="mt-0.5 line-clamp-2 text-muted-foreground">
+                              {qq.question}
+                            </div>
                           </div>
                         );
                       })}
@@ -4805,8 +5654,8 @@ function MockPaperModal({
                             current
                               ? "border-primary bg-primary text-primary-foreground"
                               : answered
-                              ? "border-primary/40 bg-primary/15 text-primary"
-                              : "border-border bg-card text-muted-foreground"
+                                ? "border-primary/40 bg-primary/15 text-primary"
+                                : "border-border bg-card text-muted-foreground"
                           }`}
                         >
                           {i + 1}
@@ -4842,11 +5691,19 @@ function MockPaperModal({
                   <div className="text-xs font-semibold uppercase tracking-[0.2em] text-stone-700">
                     {profileSystemLabel(profile)}
                   </div>
-                  <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">MOCK TEST</div>
+                  <div className="mt-0.5 text-[10px] uppercase tracking-widest text-stone-600">
+                    MOCK TEST
+                  </div>
                   <div className="mt-1 flex flex-wrap items-center justify-center gap-x-4 gap-y-0.5 text-[11px] text-stone-800">
-                    <span><span className="font-semibold">Questions:</span> {totalQuestions}</span>
-                    <span><span className="font-semibold">Total Duration:</span> {durationMinutes} min</span>
-                    <span><span className="font-semibold">Marks:</span> 1 each · no negative</span>
+                    <span>
+                      <span className="font-semibold">Questions:</span> {totalQuestions}
+                    </span>
+                    <span>
+                      <span className="font-semibold">Total Duration:</span> {durationMinutes} min
+                    </span>
+                    <span>
+                      <span className="font-semibold">Marks:</span> 1 each · no negative
+                    </span>
                   </div>
                 </div>
                 <div className="my-3 border-t border-stone-400/60" />
@@ -4858,12 +5715,17 @@ function MockPaperModal({
                 )}
 
                 <div className="flex items-baseline justify-between gap-3 text-[11px] text-stone-600">
-                  <span>Question {currentIdx + 1} of {totalQuestions}</span>
-                  <span>[{q.marks} {q.marks === 1 ? "mark" : "marks"}]</span>
+                  <span>
+                    Question {currentIdx + 1} of {totalQuestions}
+                  </span>
+                  <span>
+                    [{q.marks} {q.marks === 1 ? "mark" : "marks"}]
+                  </span>
                 </div>
 
                 <div className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed text-stone-900">
-                  <span className="font-semibold">Q{currentIdx + 1}. </span>{q.question}
+                  <span className="font-semibold">Q{currentIdx + 1}. </span>
+                  {q.question}
                 </div>
               </div>
 
@@ -4876,10 +5738,14 @@ function MockPaperModal({
                       key={i}
                       onClick={() => pickAnswer(q.id, i)}
                       className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition ${
-                        picked ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-muted"
+                        picked
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-card hover:bg-muted"
                       }`}
                     >
-                      <span className="mr-2 font-semibold text-muted-foreground">{String.fromCharCode(65 + i)}.</span>
+                      <span className="mr-2 font-semibold text-muted-foreground">
+                        {String.fromCharCode(65 + i)}.
+                      </span>
                       {opt}
                     </button>
                   );
@@ -4916,14 +5782,19 @@ function MockPaperModal({
             style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
           >
             <div className="font-display text-sm font-bold">all questions</div>
-            <button onClick={() => setPaletteOpen(false)} className="grid h-9 w-9 place-items-center rounded-full border border-border">
+            <button
+              onClick={() => setPaletteOpen(false)}
+              className="grid h-9 w-9 place-items-center rounded-full border border-border"
+            >
               <X className="h-4 w-4" />
             </button>
           </div>
           <div className="flex-1 overflow-y-auto p-4">
             {sections.map((sec) => (
               <div key={sec.subject} className="mb-4">
-                <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">{sec.label}</div>
+                <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  {sec.label}
+                </div>
                 <div className="grid grid-cols-6 gap-2 sm:grid-cols-8">
                   {sec.items.map(({ qq, i }) => {
                     const answered = typeof picks[qq.id] === "number";
@@ -4931,13 +5802,16 @@ function MockPaperModal({
                     return (
                       <button
                         key={qq.id}
-                        onClick={() => { setCurrentIdx(i); setPaletteOpen(false); }}
+                        onClick={() => {
+                          setCurrentIdx(i);
+                          setPaletteOpen(false);
+                        }}
                         className={`grid h-11 place-items-center rounded-lg border text-sm font-semibold ${
                           current
                             ? "border-primary bg-primary text-primary-foreground"
                             : answered
-                            ? "border-primary/40 bg-primary/15 text-primary"
-                            : "border-border bg-card text-muted-foreground"
+                              ? "border-primary/40 bg-primary/15 text-primary"
+                              : "border-border bg-card text-muted-foreground"
                         }`}
                       >
                         {i + 1}
@@ -4952,16 +5826,31 @@ function MockPaperModal({
       )}
 
       {confirmClose && (
-        <div className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4" onClick={() => setConfirmClose(false)}>
-          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="fixed inset-0 z-[90] grid place-items-center bg-black/70 p-4"
+          onClick={() => setConfirmClose(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="font-display text-lg font-bold">leave the mock test?</div>
             <p className="mt-1 text-sm text-muted-foreground">
-              the timer keeps running — you can resume, but when time hits zero the paper auto-submits.
+              the timer keeps running — you can resume, but when time hits zero the paper
+              auto-submits.
             </p>
             <div className="mt-5 flex gap-2">
-              <button onClick={() => setConfirmClose(false)} className="flex-1 rounded-xl border border-border py-3 text-sm">keep going</button>
               <button
-                onClick={() => { setConfirmClose(false); onClose(); }}
+                onClick={() => setConfirmClose(false)}
+                className="flex-1 rounded-xl border border-border py-3 text-sm"
+              >
+                keep going
+              </button>
+              <button
+                onClick={() => {
+                  setConfirmClose(false);
+                  onClose();
+                }}
                 className="flex-1 rounded-xl border border-red-500/40 py-3 text-sm text-red-400"
               >
                 leave
@@ -4978,4 +5867,3 @@ function MockPaperModal({
 // Local mirror of the server-side duration→count mapping so the top bar can
 // show a count before the paper has finished generating.
 const DURATION_TO_TOTAL_CLIENT: Record<number, number> = { 30: 50, 60: 100, 90: 150 };
-
