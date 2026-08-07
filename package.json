@@ -21,7 +21,7 @@
     "@capacitor/android": "^8.4.1",
     "@capacitor/app": "^8.1.0",
     "@capacitor/browser": "^8.0.0",
-    "@capacitor/cli": "^8.4.2",
+    "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.4.1",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/geolocation": "^8.0.0",
@@ -122,8 +122,8 @@
     "vitest": "^4.1.10"
   },
   "overrides": {
-    "brace-expansion@1": "1.1.12",
-    "brace-expansion@2": "2.0.2",
+    "brace-expansion@1": "1.1.18",
+    "brace-expansion@2": "2.1.4",
     "js-yaml": "^4.2.0",
     "@tanstack/router-core": "1.171.14",
     "tar": "^7.5.22",
@@ -133,8 +133,8 @@
     "@hono/node-server": "^2.0.11"
   },
   "resolutions": {
-    "brace-expansion@1": "1.1.12",
-    "brace-expansion@2": "2.0.2",
+    "brace-expansion@1": "1.1.18",
+    "brace-expansion@2": "2.1.4",
     "js-yaml": "^4.2.0",
     "@tanstack/router-core": "1.171.14",
     "tar": "^7.5.22",
