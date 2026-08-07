@@ -23,6 +23,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as UUserIdRouteImport } from './routes/u.$userId'
 import { Route as RClipIdRouteImport } from './routes/r.$clipId'
+import { Route as QTokenRouteImport } from './routes/q.$token'
 import { Route as MPostIdRouteImport } from './routes/m.$postId'
 import { Route as BlogWhatIsASuperAppRouteImport } from './routes/blog.what-is-a-super-app'
 import { Route as BlogSuperAppsInIndiaRouteImport } from './routes/blog.super-apps-in-india'
@@ -138,6 +139,11 @@ const UUserIdRoute = UUserIdRouteImport.update({
 const RClipIdRoute = RClipIdRouteImport.update({
   id: '/r/$clipId',
   path: '/r/$clipId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QTokenRoute = QTokenRouteImport.update({
+  id: '/q/$token',
+  path: '/q/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MPostIdRoute = MPostIdRouteImport.update({
@@ -415,6 +421,7 @@ export interface FileRoutesByFullPath {
   '/blog/super-apps-in-india': typeof BlogSuperAppsInIndiaRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
   '/m/$postId': typeof MPostIdRoute
+  '/q/$token': typeof QTokenRoute
   '/r/$clipId': typeof RClipIdRoute
   '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -476,6 +483,7 @@ export interface FileRoutesByTo {
   '/blog/super-apps-in-india': typeof BlogSuperAppsInIndiaRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
   '/m/$postId': typeof MPostIdRoute
+  '/q/$token': typeof QTokenRoute
   '/r/$clipId': typeof RClipIdRoute
   '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -539,6 +547,7 @@ export interface FileRoutesById {
   '/blog/super-apps-in-india': typeof BlogSuperAppsInIndiaRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
   '/m/$postId': typeof MPostIdRoute
+  '/q/$token': typeof QTokenRoute
   '/r/$clipId': typeof RClipIdRoute
   '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
@@ -603,6 +612,7 @@ export interface FileRouteTypes {
     | '/blog/super-apps-in-india'
     | '/blog/what-is-a-super-app'
     | '/m/$postId'
+    | '/q/$token'
     | '/r/$clipId'
     | '/u/$userId'
     | '/.lovable/oauth/consent'
@@ -664,6 +674,7 @@ export interface FileRouteTypes {
     | '/blog/super-apps-in-india'
     | '/blog/what-is-a-super-app'
     | '/m/$postId'
+    | '/q/$token'
     | '/r/$clipId'
     | '/u/$userId'
     | '/.lovable/oauth/consent'
@@ -726,6 +737,7 @@ export interface FileRouteTypes {
     | '/blog/super-apps-in-india'
     | '/blog/what-is-a-super-app'
     | '/m/$postId'
+    | '/q/$token'
     | '/r/$clipId'
     | '/u/$userId'
     | '/.lovable/oauth/consent'
@@ -789,6 +801,7 @@ export interface RootRouteChildren {
   BlogSuperAppsInIndiaRoute: typeof BlogSuperAppsInIndiaRoute
   BlogWhatIsASuperAppRoute: typeof BlogWhatIsASuperAppRoute
   MPostIdRoute: typeof MPostIdRoute
+  QTokenRoute: typeof QTokenRoute
   RClipIdRoute: typeof RClipIdRoute
   UUserIdRoute: typeof UUserIdRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
@@ -894,6 +907,13 @@ declare module '@tanstack/react-router' {
       path: '/r/$clipId'
       fullPath: '/r/$clipId'
       preLoaderRoute: typeof RClipIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/q/$token': {
+      id: '/q/$token'
+      path: '/q/$token'
+      fullPath: '/q/$token'
+      preLoaderRoute: typeof QTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/m/$postId': {
@@ -1355,6 +1375,7 @@ const rootRouteChildren: RootRouteChildren = {
   BlogSuperAppsInIndiaRoute: BlogSuperAppsInIndiaRoute,
   BlogWhatIsASuperAppRoute: BlogWhatIsASuperAppRoute,
   MPostIdRoute: MPostIdRoute,
+  QTokenRoute: QTokenRoute,
   RClipIdRoute: RClipIdRoute,
   UUserIdRoute: UUserIdRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,

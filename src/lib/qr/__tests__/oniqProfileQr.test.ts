@@ -91,22 +91,37 @@ describe("profile QRs parse strictly", () => {
     // The nastiest case: a prefix check alone passes this, and the parsed
     // host is somewhere else entirely.
     for (const bad of [
-      "https://oniqhub.com.evil.test/u/" + TOKEN,
-      "https://evil.test/u/" + TOKEN,
-      "https://oniqhub.com@evil.test/u/" + TOKEN,
+      // Note the /q/ path throughout: with a /u/ path these would be rejected
+      // by the PATH check and prove nothing about the host check, which is
+      // the thing under test.
+      "https://oniqhub.com.evil.test/q/" + TOKEN,
+      "https://evil.test/q/" + TOKEN,
+      "https://oniqhub.com@evil.test/q/" + TOKEN,
     ]) {
       expect(parseProfileQr(bad), bad).toBeNull();
     }
   });
 
   it("rejects http, since a downgrade is not ours", () => {
-    expect(parseProfileQr(`http://oniqhub.com/u/${TOKEN}`)).toBeNull();
+    expect(parseProfileQr(`http://oniqhub.com/q/${TOKEN}`)).toBeNull();
   });
 
   it("rejects extra path segments", () => {
-    expect(parseProfileQr(`${PROFILE_QR_ORIGIN}/u/${TOKEN}/extra`)).toBeNull();
+    expect(parseProfileQr(`${PROFILE_QR_ORIGIN}/q/${TOKEN}/extra`)).toBeNull();
     expect(parseProfileQr(`${PROFILE_QR_ORIGIN}/x/${TOKEN}`)).toBeNull();
-    expect(parseProfileQr(`${PROFILE_QR_ORIGIN}/u/`)).toBeNull();
+    expect(parseProfileQr(`${PROFILE_QR_ORIGIN}/q/`)).toBeNull();
+  });
+
+  it("does not answer for /u/, which is the permanent profile route", () => {
+    // /u/<user_id> is an existing public page. Reusing that path was the first
+    // plan and it does not work: a uuid is 36 chars of [A-Za-z0-9-], so it
+    // satisfies the token charset exactly and the two would be
+    // indistinguishable. The paths are separate for this reason.
+    const UUID = "550e8400-e29b-41d4-a716-446655440000";
+    expect(parseProfileQr(`${PROFILE_QR_ORIGIN}/u/${TOKEN}`)).toBeNull();
+    expect(parseProfileQr(`${PROFILE_QR_ORIGIN}/u/${UUID}`)).toBeNull();
+    // The collision this avoids is real — a uuid IS a well-formed token.
+    expect(parseProfileQr(`${PROFILE_QR_ORIGIN}/q/${UUID}`)?.token).toBe(UUID);
   });
 
   it("rejects a token outside the charset or length", () => {

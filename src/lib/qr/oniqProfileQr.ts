@@ -36,12 +36,31 @@
 // once and it is public for good. A token can be rotated, which turns "I put
 // my QR in a WhatsApp group and now strangers scan it" from a permanent
 // problem into a button.
+//
+// What that DOES NOT mean, so the UI copy does not overstate it: /u/<user_id>
+// is already a public profile page, so rotating a token does not make anyone
+// unreachable. It kills one printed, forwarded or screenshotted code. That is
+// the whole of the claim.
+//
+// WHY /q/ AND NOT /u/
+//
+// /u/<user_id> already exists as a public SSR profile route. Two reasons not
+// to reuse it:
+//
+//   1. A uuid is 36 characters of [A-Za-z0-9-], which MATCHES the token
+//      charset below. Under one path a token and a user id would be
+//      indistinguishable, and the resolver would have to guess.
+//   2. The path then says which kind of link it is. /u/ is permanent, /q/ is
+//      revocable, and that difference is worth being able to see.
 
 /** ONIQ's own origin. A QR pointing anywhere else is not ours. */
 export const PROFILE_QR_ORIGIN = "https://oniqhub.com";
 
-/** The path segment. Short, because QR density is a function of length. */
-export const PROFILE_QR_PATH = "/u/";
+/**
+ * The path segment. Short, because QR density is a function of length, and
+ * distinct from /u/ because a user id would otherwise parse as a token.
+ */
+export const PROFILE_QR_PATH = "/q/";
 
 /**
  * Token charset and length.
@@ -92,10 +111,10 @@ export function parseProfileQr(raw: string): ProfileQr | null {
   if (url.origin !== PROFILE_QR_ORIGIN) return null;
   if (url.protocol !== "https:") return null;
 
-  // Exactly /u/<token>. No extra segments, so a longer path cannot smuggle
+  // Exactly /q/<token>. No extra segments, so a longer path cannot smuggle
   // anything past a loose match.
   const parts = url.pathname.split("/").filter(Boolean);
-  if (parts.length !== 2 || parts[0] !== "u") return null;
+  if (parts.length !== 2 || `/${parts[0]}/` !== PROFILE_QR_PATH) return null;
 
   const token = parts[1];
   if (!TOKEN_RE.test(token)) return null;
