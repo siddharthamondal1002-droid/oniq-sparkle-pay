@@ -10,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 
 import android.os.Build;
+import android.view.Display;
 import android.view.View;
 import android.view.WindowManager;
 import android.webkit.GeolocationPermissions;
@@ -44,6 +45,58 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         applyCallWindowFlags(getIntent());
         applyEdgeToEdgeInsets();
+        requestBestRefreshRate();
+    }
+
+    /**
+     * Ask the display for its fastest mode at the CURRENT resolution.
+     *
+     * Queried, never hardcoded. A hardcoded 120 is wrong on the 60 Hz panels
+     * most of ONIQ's users actually hold, wrong on the 90 Hz ones, and would
+     * still be wrong on the next device. So: enumerate the supported modes,
+     * keep only those matching the resolution already in use — switching
+     * resolution to chase a refresh rate would be a worse trade — and take the
+     * highest rate among them. On a 60 Hz panel there is exactly one candidate
+     * and this is a silent no-op.
+     *
+     * This is a REQUEST. The OS grants or refuses it, and refuses routinely:
+     * thermal throttling, battery saver, a system-wide policy, or a foreground
+     * app it would rather protect. Refusal is normal operation, not an error,
+     * so nothing here reads the result back or reports failure.
+     *
+     * And it buys nothing on its own. A higher ceiling on frame delivery only
+     * helps if frames are ready in time; the work that earns it is on the web
+     * side. Nothing in the app claims a rate to the user — see the guard in
+     * src/lib/__tests__/megaLoopGuardrails.test.ts, which fails the build if a
+     * specific number is ever promised in copy.
+     */
+    private void requestBestRefreshRate() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        try {
+            Display display = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                ? getDisplay()
+                : getWindowManager().getDefaultDisplay();
+            if (display == null) return;
+
+            Display.Mode current = display.getMode();
+            Display.Mode[] modes = display.getSupportedModes();
+            if (current == null || modes == null || modes.length < 2) return;
+
+            Display.Mode best = current;
+            for (Display.Mode m : modes) {
+                if (m.getPhysicalWidth() != current.getPhysicalWidth()) continue;
+                if (m.getPhysicalHeight() != current.getPhysicalHeight()) continue;
+                if (m.getRefreshRate() > best.getRefreshRate()) best = m;
+            }
+            if (best.getModeId() == current.getModeId()) return;
+
+            WindowManager.LayoutParams lp = getWindow().getAttributes();
+            lp.preferredDisplayModeId = best.getModeId();
+            getWindow().setAttributes(lp);
+        } catch (Exception ignored) {
+            // Never let a display-mode preference stop the app starting. The
+            // app is entirely usable at whatever rate the panel gives us.
+        }
     }
 
     /**
