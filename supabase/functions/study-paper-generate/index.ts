@@ -4,6 +4,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { BOARD_CURRICULUM, BOARD_LABEL, VALID_CLASS_LEVELS, callClaude, corsHeaders, gradeString, json, langInstruction } from "../_shared/llm.ts";
 import { orderMcqOptions } from "../_shared/mcqOrder.ts";
+import { describePayload, extractItems } from "../_shared/toolPayload.ts";
 
 type Section = { type: "mcq" | "short" | "long"; marks: number; count: number };
 
@@ -270,27 +271,56 @@ Deno.serve(async (req) => {
       maxTokens = Math.max(6000, count * 900);
     }
 
-    const r = await callClaude({
-      system: baseSystem + "\n\n" + instr + `\nReturn ONLY via the ${toolName} tool.`,
-      messages: [{ role: "user", content: userMsg }],
-      tools: [{ name: toolName, description: `Return the ${kind} section.`, input_schema: schema }],
-      toolChoice: { type: "tool", name: toolName },
-      maxTokens,
-      timeoutMs: 90000,
-    });
-    if (!r.ok) return { ok: false, reason: `${kind}: ${r.reason}` };
-    const blocks = Array.isArray(r.data?.content) ? r.data.content : [];
-    const toolUse = blocks.find((b: { type?: string }) => b?.type === "tool_use") as
-      | { input?: Record<string, unknown> } | undefined;
-    const arr = toolUse?.input?.[kind];
-    if (!Array.isArray(arr)) {
-      const stopReason = (r.data as { stop_reason?: unknown } | undefined)?.stop_reason;
-      const textBlock = blocks.find((b: { type?: string }) => b?.type === "text") as { text?: string } | undefined;
-      const textPreview = typeof textBlock?.text === "string" ? textBlock.text.slice(0, 150) : "";
-      console.warn(`study-paper-generate: genSection no-items kind=${kind} stop_reason=${String(stopReason)} text_preview="${textPreview}"`);
-      return { ok: false, reason: `${kind}: no items` };
+    // Up to three attempts.
+    //
+    // A single malformed tool response used to discard the WHOLE paper —
+    // including two sections that had generated perfectly — and the user saw
+    // "couldn't build that paper". The logs for 7 Aug show the long section
+    // failing this way on roughly a third of attempts while mcq and short
+    // succeeded alongside it. The failure is transient, so the fix is to ask
+    // again rather than to throw away good work.
+    let lastReason = `${kind}: no attempts`;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const r = await callClaude({
+        system: baseSystem + "\n\n" + instr +
+          (attempt > 1
+            ? `\nThe previous attempt returned no items. Return the ${kind} array with EXACTLY ${count} entries and nothing else.`
+            : "") +
+          `\nReturn ONLY via the ${toolName} tool.`,
+        messages: [{ role: "user", content: userMsg }],
+        tools: [{ name: toolName, description: `Return the ${kind} section.`, input_schema: schema }],
+        toolChoice: { type: "tool", name: toolName },
+        maxTokens,
+        timeoutMs: 90000,
+      });
+
+      if (!r.ok) {
+        lastReason = `${kind}: ${r.reason}`;
+      } else {
+        const blocks = Array.isArray(r.data?.content) ? r.data.content : [];
+        const toolUse = blocks.find((b: { type?: string }) => b?.type === "tool_use") as
+          | { input?: Record<string, unknown> } | undefined;
+        const arr = extractItems(toolUse?.input, kind);
+        if (arr && arr.length) return { ok: true, items: arr };
+
+        // Log what the model actually sent. The old message said only "no
+        // items", which cannot distinguish an empty payload from one keyed
+        // under a name we did not expect — and that difference decides
+        // whether the fix is a retry or a parser change.
+        const stopReason = (r.data as { stop_reason?: unknown } | undefined)?.stop_reason;
+        const textBlock = blocks.find((b: { type?: string }) => b?.type === "text") as { text?: string } | undefined;
+        const textPreview = typeof textBlock?.text === "string" ? textBlock.text.slice(0, 150) : "";
+        const keys = describePayload(toolUse?.input);
+        console.warn(`study-paper-generate: genSection no-items kind=${kind} attempt=${attempt}/3 stop_reason=${String(stopReason)} input_keys="${keys}" text_preview="${textPreview}"`);
+        lastReason = `${kind}: no items`;
+      }
+
+      // Brief backoff before asking again. Long enough to clear a transient
+      // upstream blip, short enough that the student is still waiting rather
+      // than gone.
+      if (attempt < 3) await new Promise((res) => setTimeout(res, 400 * attempt));
     }
-    return { ok: true, items: arr };
+    return { ok: false, reason: lastReason };
   }
 
   const [mcqRes, shortRes, longRes] = await Promise.all([

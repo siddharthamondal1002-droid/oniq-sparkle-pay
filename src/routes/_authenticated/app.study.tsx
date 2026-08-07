@@ -3143,7 +3143,18 @@ function PaperModal({
     };
   }, []);
 
+  // Guards against a second generation starting while one is in flight.
+  //
+  // A ref, not the `loading` state: state is captured by this useCallback and
+  // would be stale on a rapid second call, which is exactly the case that
+  // matters. On 7 Aug one failed paper turned into SEVEN concurrent
+  // generations — every tap of "try again" fired another, each one billing a
+  // model call and writing a study_papers row nobody would ever open.
+  const generating = useRef(false);
+
   const generateFresh = useCallback(async (): Promise<void> => {
+    if (generating.current) return;
+    generating.current = true;
     setLoading(true);
     setErrorMsg(null);
     try {
@@ -3191,6 +3202,7 @@ function PaperModal({
     } catch {
       setErrorMsg("couldn't build that paper — try again 🌿");
     } finally {
+      generating.current = false;
       setLoading(false);
     }
   }, [
