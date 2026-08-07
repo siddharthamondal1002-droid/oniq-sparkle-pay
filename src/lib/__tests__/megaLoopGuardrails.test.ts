@@ -25,6 +25,26 @@ import { execSync } from "node:child_process";
 
 const ROOT = process.cwd();
 
+/**
+ * Strip a grep line down to executable code — no comment, no string literal.
+ *
+ * USE versus MENTION, extracted because it has now come up twice. A rule
+ * against CLAIMING something, or against CALLING something, is not broken by
+ * naming it: the ban list has to contain the words it bans, the Official
+ * screen has to warn about agents promising "guaranteed" visas, and
+ * mediaStorage.ts has to record which FileReader calls are forbidden.
+ *
+ * Returns "" for a pure comment line, so a caller can drop it.
+ */
+function codeOnly(grepLine: string): string {
+  const code = grepLine.replace(/^[^:]*:\d+:/, "").trim();
+  if (/^(\/\/|\*|\/\*)/.test(code)) return "";
+  return code
+    .replace(/"[^"]*"/g, "")
+    .replace(/'[^']*'/g, "")
+    .replace(/`[^`]*`/g, "");
+}
+
 /** Ripgrep over the source the user can actually see, excluding these guards. */
 function grepUserFacing(pattern: string): string[] {
   try {
@@ -37,13 +57,10 @@ function grepUserFacing(pattern: string): string[] {
         .split("\n")
         .filter(Boolean)
         .filter((l) => !l.includes("megaLoopGuardrails.test.ts"))
-        // Strip comment lines. A comment explaining why the frame budget is
-        // derived rather than assumed is not a promise to a user, and a guard
-        // that cannot tell prose from code is one somebody will switch off.
-        .filter((l) => {
-          const code = l.replace(/^[^:]*:\d+:/, "").trim();
-          return !/^(\/\/|\*|\/\*)/.test(code);
-        })
+        // A comment explaining why the frame budget is derived rather than
+        // assumed is not a promise to a user, and a guard that cannot tell
+        // prose from code is one somebody will switch off.
+        .filter((l) => codeOnly(l) !== "")
     );
   } catch {
     return [];
@@ -158,6 +175,10 @@ describe("no whole-file reads on any upload path (Track A4, pre-emptive)", () =>
         // whole-FILE read at all. Only file-shaped uses matter here.
         .filter((l) => /upload|attach|media|file/i.test(l))
         .filter((l) => !/megaLoopGuardrails/.test(l))
+        // A CALL, not a mention. mediaStorage.ts has to record which
+        // FileReader methods are forbidden, and naming them is the opposite
+        // of calling them.
+        .filter((l) => new RegExp(BANNED.join("|")).test(codeOnly(l)))
     );
   }
 
@@ -192,11 +213,7 @@ describe("no overclaiming, anywhere (verification item 23)", () => {
       // the Official screen warning users away from agents who promise
       // "guaranteed" visas. Filtering on quotation is not a loophole; it is
       // the distinction the rule was always about.
-      .filter((l) => {
-        const code = l.replace(/^[^:]*:\d+:/, "");
-        const bare = code.replace(/"[^"]*"/g, "").replace(/'[^']*'/g, "");
-        return /\bguaranteed\b|\bendorsed\b/i.test(bare);
-      })
+      .filter((l) => /\bguaranteed\b|\bendorsed\b/i.test(codeOnly(l)))
       // Third-party facts reported accurately are not ONIQ's promises. UCAS
       // genuinely does guarantee equal consideration before its deadline;
       // saying so is honest, and softening it would make the calendar worse.
