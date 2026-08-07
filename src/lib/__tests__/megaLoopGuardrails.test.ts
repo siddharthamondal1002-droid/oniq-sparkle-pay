@@ -22,28 +22,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { execSync } from "node:child_process";
+import { codeOnly } from "@/test/sourceText";
 
 const ROOT = process.cwd();
-
-/**
- * Strip a grep line down to executable code — no comment, no string literal.
- *
- * USE versus MENTION, extracted because it has now come up twice. A rule
- * against CLAIMING something, or against CALLING something, is not broken by
- * naming it: the ban list has to contain the words it bans, the Official
- * screen has to warn about agents promising "guaranteed" visas, and
- * mediaStorage.ts has to record which FileReader calls are forbidden.
- *
- * Returns "" for a pure comment line, so a caller can drop it.
- */
-function codeOnly(grepLine: string): string {
-  const code = grepLine.replace(/^[^:]*:\d+:/, "").trim();
-  if (/^(\/\/|\*|\/\*)/.test(code)) return "";
-  return code
-    .replace(/"[^"]*"/g, "")
-    .replace(/'[^']*'/g, "")
-    .replace(/`[^`]*`/g, "");
-}
 
 /** Ripgrep over the source the user can actually see, excluding these guards. */
 function grepUserFacing(pattern: string): string[] {
