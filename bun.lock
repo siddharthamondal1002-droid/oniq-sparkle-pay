@@ -115,7 +115,9 @@
     "@tanstack/router-core": "1.171.14",
     "brace-expansion@1": "1.1.12",
     "brace-expansion@2": "2.0.2",
-    "fast-uri": "^4.1.1",
+    "fast-uri": "^4.1.2",
+    "hono": "^4.12.34",
+    "ip-address": "^10.4.0",
     "js-yaml": "^4.2.0",
     "tar": "^7.5.22",
   },
@@ -1044,7 +1046,7 @@
 
     "fast-png": ["fast-png@6.4.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/fast-png/-/fast-png-6.4.0.tgz", { "dependencies": { "@types/pako": "^2.0.3", "iobuffer": "^5.3.2", "pako": "^2.1.0" } }, "sha512-kAqZq1TlgBjZcLr5mcN6NP5Rv4V2f22z00c3g8vRrwkcqjerx7BEhPbOnWCPqaHUl2XWQBJQvOT/FQhdMT7X/Q=="],
 
-    "fast-uri": ["fast-uri@4.1.1", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/fast-uri/-/fast-uri-4.1.1.tgz", {}, "sha512-YPOs1zD5TG2+EZt+r88LwF6mclA7TPkpwMP7ZN3TO2HiHS8TXvq7QA/17iJsV9dubcLo/f8eEYqMBruyQV21hQ=="],
+    "fast-uri": ["fast-uri@4.1.2", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/fast-uri/-/fast-uri-4.1.2.tgz", {}, "sha512-TyGmBcbDTZXcb2cj5MV89DrF42DKvb3y5DDUNh95iO+IMeAzMkVSxK1PZRrRIpc9yg8U2GhGdbofNa0LS/a4Bw=="],
 
     "fd-slicer": ["fd-slicer@1.1.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/fd-slicer/-/fd-slicer-1.1.0.tgz", { "dependencies": { "pend": "~1.2.0" } }, "sha512-cE1qsB/VwyQozZ+q1dGxR8LBYNZeofhEdUNGSMbQD3Gw2lAzX9Zb3uIU6Ebc/Fmyjo9AWWfnn0AUCHqtevs/8g=="],
 
@@ -1114,7 +1116,7 @@
 
     "hermes-parser": ["hermes-parser@0.25.1", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/hermes-parser/-/hermes-parser-0.25.1.tgz", { "dependencies": { "hermes-estree": "0.25.1" } }, "sha512-6pEjquH3rqaI6cYAXYPcz9MS4rY6R4ngRgrgfDshRptUZIc3lw0MCIJIGDj9++mfySOuPTHB4nrSW99BCvOPIA=="],
 
-    "hono": ["hono@4.12.28", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/hono/-/hono-4.12.28.tgz", {}, "sha512-YwUvVpSF7m1yOblFPrU3Hbo8XhPheBoiyfGuII6z19LnOr6JpDnyyp7LFNrfV56wS8tpvtBFGRISHN02pDdLOA=="],
+    "hono": ["hono@4.13.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/hono/-/hono-4.13.0.tgz", {}, "sha512-jhunvfHWxd7J5EFfSgH4xsYJzSe/lfqbUCxiyyeaQasUsXeEHXtzVid+7EOGByc5JnFa23SSFL3Y2RV/z1T+eQ=="],
 
     "hookable": ["hookable@6.1.1", "", {}, "sha512-U9LYDy1CwhMCnprUfeAZWZGByVbhd54hwepegYTK7Pi5NvqEj63ifz5z+xukznehT7i6NIZRu89Ay1AZmRsLEQ=="],
 
@@ -1146,7 +1148,7 @@
 
     "iobuffer": ["iobuffer@5.4.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/iobuffer/-/iobuffer-5.4.0.tgz", {}, "sha512-DRebOWuqDvxunfkNJAlc3IzWIPD5xVxwUNbHr7xKB8E6aLJxIPfNX3CoMJghcFjpv6RWQsrcJbghtEwSPoJqMA=="],
 
-    "ip-address": ["ip-address@10.2.0", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/ip-address/-/ip-address-10.2.0.tgz", {}, "sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA=="],
+    "ip-address": ["ip-address@10.4.0", "https://europe-west1-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/ip-address/-/ip-address-10.4.0.tgz", {}, "sha512-oSK96Grm3aP6OrS263xVxbNDGVL7rzBtYdpGqlDG8iQdoenDoTs/nkki+DflYbAEE8Xl6o5YxhxlrKvI3nqKXQ=="],
 
     "ipaddr.js": ["ipaddr.js@1.9.1", "https://europe-west4-npm.pkg.dev/lovable-core-prod/sandbox-npm-cache/ipaddr.js/-/ipaddr.js-1.9.1.tgz", {}, "sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g=="],
 
