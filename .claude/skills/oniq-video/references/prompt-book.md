@@ -131,8 +131,45 @@ scenes take the **max** of the two narrations — overwriting shows a hole
 wherever the incoming line has not started, and the bed swells into it.
 
 **Mount the bed at the composition root, outside `TransitionSeries`.** Inside,
-it is restarted and cross-faded at every scene boundary. `loop` it: a generated
-bed is far shorter than five minutes.
+it is restarted and cross-faded at every scene boundary.
+
+**Loop it with `<Loop>`, never with `loop`. This is the expensive one.**
+`<Audio loop />` type-checks — `RemotionAudioProps` extends React's native
+audio attributes and `loop` is one of them — and the preview honours it. **The
+renderer does not.** Episode 2's bed played once for its 166 seconds and the
+remaining 169 seconds, more than half the episode, rendered with no music.
+Nothing warned. Use:
+
+```tsx
+<Loop durationInFrames={BED_LOOP_FRAMES}>
+  <Audio src={...} loopVolumeCurveBehavior="extend" volume={(f) => GAIN[f]} />
+</Loop>
+```
+
+`loopVolumeCurveBehavior="extend"` is not optional. Inside a `Loop` the volume
+callback receives the frame relative to the current ITERATION, so the default
+replays the first 166 seconds of the duck curve over the second half — ducking
+against narration that is not there.
+
+### How to prove audio is actually in a render
+
+Worth its own heading, because the two obvious methods both failed on this bug.
+
+- A **source-level mount guard cannot see it.** The element is in the file.
+- **Level measurement cannot see it.** Narration is 16 dB louder than the bed,
+  so it dominates every reading and everything looks plausible.
+- **Cross-correlating the render against the bed was inconclusive** — at one
+  sample the control scored higher than the signal.
+
+What works is an **A/B render**: render the same 150 frames twice, once with
+the layer and once without, and subtract. Identical audio means the layer
+contributed nothing. It is unambiguous and takes about a minute per side.
+
+**Sample on both sides of any suspected boundary.** The first A/B was run at
+t=230s, came back exactly zero, and led to the wrong conclusion that the bed
+was absent entirely — 230s is past the bed's own 166s length, the one region
+where the bug hid the signal completely. Inside the first 166s it measured
+-42.7 dB. One sample point is not a result.
 
 **Attack fast, release slow.** 6 frames down, 36 up. Symmetric timing pumps
 between words; the asymmetry is the whole trick, and a test asserts it.
