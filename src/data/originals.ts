@@ -26,6 +26,8 @@ export type Scene = {
   stillPrompt: string;
   /** Camera and movement only, for Runway. */
   motionPrompt: string;
+  /** Keys into the owning episode's `cast`, for whoever appears in frame. */
+  cast?: string[];
 };
 
 export type Episode = {
@@ -35,6 +37,8 @@ export type Episode = {
   runtime: string;
   /** Rendering style for this episode's stills. Omit to use HOUSE_STYLE. */
   style?: string;
+  /** Locked appearances for recurring characters, keyed by `Scene.cast`. */
+  cast?: Record<string, string>;
   scenes: Scene[];
 };
 
@@ -52,18 +56,39 @@ export const HOUSE_STYLE =
  * STORYBOOK — the look of the Firefly Forest short, chosen by the project
  * owner for Episode 2 (2026-08-08) from a reference clip.
  *
- * What was taken from the reference is the RENDERING, not the setting. The
- * reference is a glowing night forest; Ali Baba is a dry hill road at hard
- * midday, and it stays that way. What transfers:
+ * What was taken from the reference is the RENDERING, not the setting.
  *
- *   - stylised animation, not photorealism — rounded simplified forms,
- *     visible painterly brushwork, soft edges, no hard linework
- *   - a saturated jewel palette with strong warm/cool separation: warm amber
- *     and gold read against violet and deep blue shadow
- *   - luminous accents and soft bloom around every light source, with
- *     foreground light falling out of focus into bokeh
- *   - depth by atmospheric haze between layers rather than by fine detail
- *   - figures small in frame against a large environment, staged for wonder
+ * REWRITTEN AFTER THE FIRST GENERATION, which produced three faults. All
+ * three came from this string, not from the generator, and the failed wording
+ * is recorded because the mistakes are easy to make again.
+ *
+ * 1. TIME OF DAY. The first version asked for "warm amber and gold light
+ *    against deep violet and blue shadow" — the reference's palette. But the
+ *    reference is a NIGHT forest, and that phrasing is a night instruction
+ *    wearing a palette's clothes. It beat the scene text: S4 and S5 are an
+ *    afternoon on a dry hill road and came back as full night with torches,
+ *    inside a sequence that runs continuously from midday. Colour is now
+ *    described as saturated and jewel-like WITHOUT naming a key, and the
+ *    scene's own stated hour is declared to win.
+ *
+ * 2. GLOWING MOTES. "Glowing luminous accents" plus bokeh put drifting
+ *    firefly lights over bare rock in daylight. That is the reference's
+ *    subject leaking in through the style, which is exactly what this comment
+ *    claimed would not happen. Bloom is now tied to light sources that the
+ *    scene actually contains.
+ *
+ * 3. CHARACTER DESIGN. The old string constrained palette and finish and said
+ *    nothing about how a PERSON is drawn, so each still re-invented the cast:
+ *    Ali Baba was a bearded adult in S3, S7 and S9 and a chibi child in S6;
+ *    Morgiana was three different women across S12, S13 and S14, one of them
+ *    in a broad anime idiom. Every image is generated independently, so
+ *    anything left unsaid is re-rolled. A single design language is now named
+ *    and the alternatives are explicitly refused.
+ *
+ * A fourth, caught before regenerating rather than after: "figures small
+ * against a large environment" was carried over from the reference's wonder
+ * staging, and it flatly contradicts S13, which is a tight close-up. Framing
+ * belongs to the scene for the same reason the hour does.
  *
  * `film grain` is deliberately dropped and `no film grain` asserted instead.
  * Grain is the single strongest photoreal cue in HOUSE_STYLE and leaving it
@@ -71,11 +96,44 @@ export const HOUSE_STYLE =
  */
 export const STORYBOOK_STYLE =
   'Stylised storybook animation still, lush hand-painted 3D-animation feel, rounded simplified ' +
-  'forms with soft painterly brushwork and no hard outlines, saturated jewel palette with warm ' +
-  'amber and gold light against deep violet and blue shadow, glowing luminous accents with soft ' +
-  'bloom, out-of-focus bokeh lights in the foreground, layered atmospheric haze for depth, ' +
-  'figures small against a large environment, no film grain, not photorealistic, ' +
-  'no text, no lettering, no watermark, no modern objects.';
+  'forms with soft painterly brushwork and no hard outlines, rich saturated jewel-like colour, ' +
+  'soft bloom only around light sources actually present in the scene, layered atmospheric haze ' +
+  'for depth. ' +
+  // Design language. Without this the cast is re-rolled every image.
+  'Characters are drawn in one consistent feature-animation design language with naturalistic ' +
+  'adult human proportions and warm expressive faces; not chibi, not super-deformed, no ' +
+  'oversized heads, not anime, no oversized eyes. ' +
+  // The scene text owns the hour and the weather. The style must not.
+  'Lighting, time of day, weather and shot framing follow the scene description exactly; do not ' +
+  'shift a daylight scene toward night, and do not widen a close-up. No fireflies, no floating ' +
+  'glowing motes and no magic sparkles unless the scene description asks for them. ' +
+  'No film grain, not photorealistic, no text, no lettering, no watermark, no modern objects.';
+
+/**
+ * Recurring faces, locked.
+ *
+ * Nothing carries between images — each still is generated on its own — so a
+ * character described only as "a woodcutter" is a different man every time.
+ * These are appended to the scenes each person appears in.
+ *
+ * Deliberately short and physical: build, age, hair, beard, one garment. Long
+ * descriptions crowd out the scene itself, and eye colour never survives
+ * anyway. The point is that a viewer recognises the same person twice.
+ */
+export const EP2_CAST: Record<string, string> = {
+  aliBaba:
+    'ALI BABA is the same man in every shot: a lean bearded man of about forty, weathered ' +
+    'brown skin, dark hair under a plain grey-white head cloth, patched undyed wool robe.',
+  kasim:
+    'KASIM is the same man in every shot: heavier and better fed than his brother, ' +
+    'black square-cut beard, hard-set mouth, deep plum and gold merchant robe.',
+  morgiana:
+    'MORGIANA is the same young woman in every shot: black hair in a single long braid, ' +
+    'calm level gaze, simple indigo dress with a plain sash. Never red or bright hair.',
+  captain:
+    'THE CAPTAIN is the same man in every shot: broad and tall, heavy black beard, ' +
+    'scarred brow, dark red head cloth and a travel-stained leather coat.',
+};
 
 /** Vertical, to match the phone. Runway ratio for every clip in the season. */
 export const SEASON_RATIO = '720:1280';
@@ -89,7 +147,14 @@ export const SEASON_DURATION = 5;
  */
 export function stillPromptFor(scene: Scene): string {
   const owner = ALL_SCENES.find((s) => s.scene.id === scene.id)?.episode;
-  return `${owner?.style ?? HOUSE_STYLE} ${scene.stillPrompt}`;
+  // Cast last. The scene is what this frame IS; the locks are a constraint on
+  // how the people in it are drawn, and trail the description for the same
+  // reason a style leads it.
+  const cast = (scene.cast ?? [])
+    .map((key) => owner?.cast?.[key])
+    .filter(Boolean)
+    .join(' ');
+  return [owner?.style ?? HOUSE_STYLE, scene.stillPrompt, cast].filter(Boolean).join(' ');
 }
 
 const episode1: Episode = {
@@ -228,6 +293,7 @@ const episode2: Episode = {
   title: 'Ali Baba and the Forty Thieves',
   runtime: '~6 min',
   style: STORYBOOK_STYLE,
+  cast: EP2_CAST,
   scenes: [
     {
       id: 'ep2_s01',
@@ -238,6 +304,7 @@ const episode2: Episode = {
       motionPrompt:
         'Heat haze ripples across the hills. The man lifts a bundle onto the donkey. Slow lateral ' +
         'camera drift.',
+      cast: ['aliBaba'],
     },
     {
       id: 'ep2_s02',
@@ -248,6 +315,7 @@ const episode2: Episode = {
       motionPrompt:
         'The dust plume grows and drifts toward camera. The man turns his head. Slow zoom toward the ' +
         'horizon.',
+      cast: ['aliBaba'],
     },
     {
       id: 'ep2_s03',
@@ -258,6 +326,7 @@ const episode2: Episode = {
       motionPrompt:
         'Leaves shift and shadows move across the man as he settles and goes still. Slight upward ' +
         'camera drift through the branches.',
+      cast: ['aliBaba'],
     },
     {
       id: 'ep2_s04',
@@ -268,6 +337,7 @@ const episode2: Episode = {
       motionPrompt:
         'The captain raises his hand and holds it. Dust settles around the horses. Camera sways very ' +
         'slightly, as if from a branch.',
+      cast: ['captain'],
     },
     {
       id: 'ep2_s05',
@@ -287,6 +357,7 @@ const episode2: Episode = {
         'half-embarrassed, long afternoon shadow behind him.',
       motionPrompt:
         'The man hesitates, then lifts his hand. His shadow stretches. Very slow push in on his back.',
+      cast: ['aliBaba'],
     },
     {
       id: 'ep2_s07',
@@ -297,6 +368,7 @@ const episode2: Episode = {
       motionPrompt:
         'Camera glides forward into the cavern past hanging lamps. Dust motes drift through the light. ' +
         'Lamp flames flicker.',
+      cast: ['aliBaba'],
     },
     {
       id: 'ep2_s08',
@@ -317,6 +389,7 @@ const episode2: Episode = {
       motionPrompt:
         'The wealthy man leans in. The other lowers his eyes. Cloth and lamplight move. Slow push in ' +
         'on the doorway.',
+      cast: ['kasim', 'aliBaba'],
     },
     {
       id: 'ep2_s10',
@@ -327,6 +400,7 @@ const episode2: Episode = {
       motionPrompt:
         'He turns sharply toward the sealed wall. Coins slip from a sack and scatter. Camera pushes ' +
         'in fast then holds.',
+      cast: ['kasim'],
     },
     {
       id: 'ep2_s11',
@@ -347,6 +421,7 @@ const episode2: Episode = {
       motionPrompt:
         'Lamp flame flickers and swings; shadows of the jars sway across the courtyard wall. Very slow ' +
         'push toward the nearest jar.',
+      cast: ['morgiana'],
     },
     {
       id: 'ep2_s13',
@@ -357,6 +432,7 @@ const episode2: Episode = {
       motionPrompt:
         'Only the lamplight moves on her face. A single slow blink. The faintest push in. Total ' +
         'stillness otherwise.',
+      cast: ['morgiana'],
     },
     {
       id: 'ep2_s14',
@@ -367,6 +443,7 @@ const episode2: Episode = {
       motionPrompt:
         'She turns; her skirt and scarf sweep through the frame. Lamp flames gutter. Camera arcs slowly ' +
         'around the seated man.',
+      cast: ['morgiana', 'captain', 'aliBaba'],
     },
   ],
 };

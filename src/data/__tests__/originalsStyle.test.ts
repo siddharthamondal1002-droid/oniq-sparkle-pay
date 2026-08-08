@@ -47,14 +47,57 @@ describe("a scene is prompted in its own episode's style", () => {
   });
 });
 
+describe("recurring characters are locked to one appearance", () => {
+  it("resolves every cast key a scene names", () => {
+    // stillPromptFor filters unresolved keys out, so a typo in a cast key
+    // costs nothing at build time and silently ships a scene with no lock on
+    // it — the character is then re-invented in that shot alone, which is the
+    // exact fault the locks exist to prevent.
+    for (const episode of ORIGINALS) {
+      for (const scene of episode.scenes) {
+        for (const key of scene.cast ?? []) {
+          expect(episode.cast?.[key], `${scene.id} names unknown cast key "${key}"`).toBeTruthy();
+        }
+      }
+    }
+  });
+
+  it("puts the lock text into the prompt", () => {
+    const prompt = stillPromptFor(findScene("ep2_s14")!);
+    // S14 is the three-hander, and the one most likely to drift.
+    expect(prompt).toContain("MORGIANA");
+    expect(prompt).toContain("THE CAPTAIN");
+    expect(prompt).toContain("ALI BABA");
+  });
+
+  it("locks Ali Baba in every shot he appears in", () => {
+    // S6 is why this exists: he came back a chibi child there while being a
+    // bearded adult in S3, S7 and S9.
+    for (const id of ["ep2_s01", "ep2_s03", "ep2_s06", "ep2_s07", "ep2_s09"]) {
+      expect(stillPromptFor(findScene(id)!), id).toContain("ALI BABA is the same man");
+    }
+  });
+
+  it("leaves scenes with nobody in them uncast", () => {
+    // S5 is thieves filing into a rock face and S11 is untended mules. A lock
+    // on a scene with no recognisable face just spends prompt on nothing.
+    for (const id of ["ep2_s05", "ep2_s11"]) {
+      expect(findScene(id)!.cast, id).toBeUndefined();
+    }
+  });
+});
+
 describe("the storybook style does not contradict itself", () => {
   it("does not ask for film grain while also refusing it", () => {
     // HOUSE_STYLE asks for `film grain`; STORYBOOK_STYLE says `no film grain`.
     // The substring "film grain" appears in both, so a naive check passes on
     // either. Strip the negations first, then look for what remains — the
     // question is whether grain is ever requested, not whether it is named.
-    const withoutNegations = STORYBOOK_STYLE.replace(/\bno\s+[a-z-]+(\s+[a-z-]+)?/g, "");
-    expect(withoutNegations).not.toMatch(/film grain/);
-    expect(STORYBOOK_STYLE).toMatch(/no film grain/);
+    // Case-insensitive: the negation is sentence-initial ("No film grain"),
+    // and a case-sensitive strip leaves the phrase standing and reports a
+    // contradiction that is not there.
+    const withoutNegations = STORYBOOK_STYLE.replace(/\bno\s+[a-z-]+(\s+[a-z-]+)?/gi, "");
+    expect(withoutNegations).not.toMatch(/film grain/i);
+    expect(STORYBOOK_STYLE).toMatch(/no film grain/i);
   });
 });
