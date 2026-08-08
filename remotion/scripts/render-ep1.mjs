@@ -9,11 +9,41 @@
 // the log rather than waiting on a foreground command.
 import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition, openBrowser } from '@remotion/renderer';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT = process.env.OUT ?? path.resolve(__dirname, '../../.tmp/ep1.mp4');
+
+// Resolve Chromium rather than name it. This script hardcoded
+// /opt/pw-browsers/chromium/chrome-linux/chrome, and that directory is empty
+// on a re-provisioned box — Playwright installs under a VERSIONED sibling
+// (chromium-1194), so the unversioned guess is the one that rots. It fails as
+// a path error thrown before a single frame renders, which reads like a
+// Remotion problem and is not one. Returning undefined lets Remotion find or
+// fetch a browser itself.
+function findChromium() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+  const root = '/opt/pw-browsers';
+  if (!fs.existsSync(root)) return undefined;
+  const dirs = fs
+    .readdirSync(root)
+    .filter((d) => d.startsWith('chromium'))
+    .sort()
+    .reverse();
+  // Binary first, version second. Playwright ships chromium_headless_shell
+  // beside chromium and '_' sorts above '-', so searching directories first
+  // finds the shell — which chromeMode 'chrome-for-testing' does not drive.
+  // Full chrome in ANY version beats a shell in the newest.
+  for (const leaf of ['chrome-linux/chrome', 'chrome-linux/headless_shell']) {
+    for (const dir of dirs) {
+      const candidate = path.join(root, dir, leaf);
+      if (fs.existsSync(candidate)) return candidate;
+    }
+  }
+  return undefined;
+}
 
 const bundled = await bundle({
   entryPoint: path.resolve(__dirname, '../src/index.ts'),
@@ -21,8 +51,7 @@ const bundled = await bundle({
 });
 
 const browser = await openBrowser('chrome', {
-  browserExecutable:
-    process.env.PUPPETEER_EXECUTABLE_PATH ?? '/opt/pw-browsers/chromium/chrome-linux/chrome',
+  browserExecutable: findChromium(),
   chromiumOptions: { args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] },
   chromeMode: 'chrome-for-testing',
 });
