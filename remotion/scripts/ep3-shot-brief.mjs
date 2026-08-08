@@ -45,8 +45,71 @@ const done = (shot) =>
   fs.existsSync(path.join(CLIPS, `${shot.id}.mp4.asset.json`)) ||
   fs.existsSync(path.join(CLIPS, `${shot.id}.mp4`));
 
-/** A still may already exist from an earlier pass; say so rather than redoing it. */
-const hasStill = (shot) => fs.existsSync(path.join(SHOTS_DIR, `${shot.id}.jpg`));
+/** What every starting frame must be. Veo returns 1088x1920 and ingest crops. */
+const STILL_W = 1080;
+const STILL_H = 1920;
+
+/**
+ * Format, width and height of an image, without a decoder.
+ *
+ * Handles JPEG and PNG, and reports WHICH — because the extension lies. Thirteen
+ * of the first fifteen stills were PNGs named `.jpg`, which nothing noticed:
+ * PIL sniffs content and read them happily, and a JPEG-only parser just called
+ * them corrupt. Only dumping the magic bytes showed `89 50 4E 47`.
+ *
+ * The JPEG path walks the segment chain properly rather than scanning for a
+ * marker byte. A naive scan finds the SOF of the EXIF *thumbnail* and reports
+ * its size, which is how an earlier attempt returned 16381x65233 for a
+ * perfectly good 1080x1920 file.
+ */
+function imageSize(file) {
+  const buf = fs.readFileSync(file);
+
+  // PNG: 8-byte signature, then IHDR length+type, then width and height.
+  if (buf.length > 24 && buf.readUInt32BE(0) === 0x89504e47) {
+    return { format: 'PNG', width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
+  }
+
+  if (buf.length < 4 || buf[0] !== 0xff || buf[1] !== 0xd8) return null;
+  let i = 2;
+  while (i < buf.length - 1) {
+    if (buf[i] !== 0xff) return null;
+    let marker = buf[i + 1];
+    while (marker === 0xff && i + 2 < buf.length) marker = buf[++i + 1]; // fill bytes
+    i += 2;
+    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd9)) continue; // standalone
+    if (marker === 0xda) return null; // start of scan; dimensions precede it
+    if (i + 1 >= buf.length) return null;
+    const len = buf.readUInt16BE(i);
+    const isSOF =
+      marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc;
+    if (isSOF) {
+      return { format: 'JPEG', width: buf.readUInt16BE(i + 5), height: buf.readUInt16BE(i + 3) };
+    }
+    i += len;
+  }
+  return null;
+}
+
+/**
+ * A still may already exist from an earlier pass — but "exists" is not enough.
+ *
+ * Thirteen of the first fifteen came back 768x1376: 1.4x short of the requested
+ * resolution AND not 9:16 (0.558 vs 0.5625), so Veo had to letterbox or stretch
+ * them up to 1088x1920. Nothing downstream caught it, because ingest only
+ * inspects the finished clip, by which point the soft source is baked in.
+ */
+function stillState(shot) {
+  const file = path.join(SHOTS_DIR, `${shot.id}.jpg`);
+  if (!fs.existsSync(file)) return { has: false, ok: false, note: 'todo' };
+  const img = imageSize(file);
+  if (!img) return { has: true, ok: false, note: 'UNREADABLE — not a JPEG or PNG' };
+  // The extension is part of the contract: an mislabelled file is a sign the
+  // generation step did something other than what was asked.
+  const ok = img.width === STILL_W && img.height === STILL_H && img.format === 'JPEG';
+  const what = `${img.width}x${img.height} ${img.format}`;
+  return { has: true, ok, note: ok ? what : `WRONG ${what}` };
+}
 
 let shots = EP3_SHOT_PLAN;
 if (filter) shots = shots.filter((s) => s.id === filter || s.sceneId === filter);
@@ -68,7 +131,7 @@ const brief = (shot) => ({
   still: shotPromptFor(shot),
   motion: shot.motion,
   transitionIn: shot.transitionIn ?? 'cut',
-  stillExists: hasStill(shot),
+  still_state: stillState(shot),
   clipDone: done(shot),
 });
 
@@ -81,12 +144,19 @@ if (JSON_OUT) {
       ? b.sheets.map((s) => s.file ?? `!! NO SHEET FOR ${s.key} !!`).join(', ')
       : '(none — faceless coverage, attach no sheet and put no readable face in frame)';
     console.log(`=== ${b.id}   ${b.frames} frames (${b.seconds}s)   in:${b.transitionIn}`);
-    console.log(`    clip:${b.clipDone ? 'DONE' : 'todo'}  still:${b.stillExists ? 'exists' : 'todo'}`);
+    console.log(`    clip:${b.clipDone ? 'DONE' : 'todo'}  still:${b.still_state.note}`);
     console.log(`SHEETS: ${sheets}`);
     console.log(`STILL:  ${b.still}`);
     console.log(`MOTION: ${b.motion}`);
     console.log();
   }
   const todo = shots.filter((s) => !done(s)).length;
+  const badStills = shots.filter((s) => stillState(s).has && !stillState(s).ok);
   console.log(`${shots.length} shot(s) listed, ${todo} still to generate.`);
+  if (badStills.length > 0) {
+    console.log(
+      `\n!! ${badStills.length} still(s) are not ${STILL_W}x${STILL_H} and should be regenerated:\n   ` +
+        badStills.map((s) => `${s.id} ${stillState(s).note}`).join('\n   '),
+    );
+  }
 }
