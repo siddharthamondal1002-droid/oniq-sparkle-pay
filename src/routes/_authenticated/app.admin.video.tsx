@@ -16,6 +16,7 @@ import {
   runwaySubmitJob,
   runwayUploadStill,
 } from '@/lib/runway.functions';
+import { EpisodeAssembler } from '@/components/admin/EpisodeAssembler';
 import { MAX_STILL_BYTES, validateStillName } from '@/lib/stillValidation';
 import { ORIGINALS, SEASON_DURATION, SEASON_RATIO, findScene } from '@/data/originals';
 
@@ -367,6 +368,9 @@ function AdminVideoTool() {
           </tbody>
         </table>
       </fieldset>
+
+      <EpisodeAssembler />
     </div>
   );
 }
+

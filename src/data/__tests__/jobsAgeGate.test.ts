@@ -65,12 +65,13 @@ function createdTables(): string[] {
 
 /**
  * Names that match CAREER_TABLE by accident and hold no career data.
- * public.video_jobs is the admin-only Runway render queue — "jobs" as in
- * background tasks. It is admin-gated by RLS and carries nothing about a
+ * public.video_jobs is the admin-only Runway render queue and
+ * public.episode_jobs is the admin-only episode render queue — "jobs" as in
+ * background tasks. Both are admin-gated by RLS and carry nothing about a
  * person's employment, so an 18+ restriction is meaningless there. Nothing
  * else may be added here without the same argument.
  */
-const NOT_CAREER = new Set(["video_jobs"]);
+const NOT_CAREER = new Set(["video_jobs", "episode_jobs"]);
 
 const careerTables = createdTables().filter((t) => CAREER_TABLE.test(t) && !NOT_CAREER.has(t));
 
@@ -83,8 +84,6 @@ function hasRls(table: string): boolean {
 
 function hasAdultGate(table: string): boolean {
   // A RESTRICTIVE policy ON THIS TABLE whose body references is_adult_18.
-  // Matched within a single statement so a RESTRICTIVE policy on table A
-  // cannot be credited to table B just because both sit in the same file.
   return new RegExp(
     String.raw`create\s+policy[^;]*?\son\s+(?:public\.)?"?${table}"?\s[^;]*?as\s+restrictive[^;]*?is_adult_18[^;]*?;`,
     "is",
@@ -100,10 +99,10 @@ describe("career/jobs tables are 18+ gated at the data layer", () => {
   });
 
   it("today matches exactly the known CV tables", () => {
-    // A new name here is not a failure in itself — it is a prompt to confirm
-    // the new table is gated, which the next test then enforces.
     expect([...careerTables].sort()).toEqual(["cv_attestations", "cv_documents"]);
   });
+
+
 
   it("has RLS enabled and a RESTRICTIVE is_adult_18 policy on every match", () => {
     const offenders = careerTables
