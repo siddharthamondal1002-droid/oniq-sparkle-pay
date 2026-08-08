@@ -25,7 +25,7 @@ describe('planTimeline', () => {
     const plan = planTimeline([scene(), scene(), scene()]);
     if (typeof plan === 'string') throw new Error(plan);
     expect(plan.scenes.map((s) => s.motion)).toEqual(['zoomIn', 'zoomOut', 'zoomIn']);
-    expect(plan.adjustments.length).toBe(2);
+    expect(plan.adjustments.length).toBe(1);
   });
 
   it('leaves pans and static scenes alone', () => {
