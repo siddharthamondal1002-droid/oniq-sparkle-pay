@@ -144,18 +144,31 @@ export const STORYBOOK_STYLE =
  * anyway. The point is that a viewer recognises the same person twice.
  */
 export const EP2_CAST: Record<string, string> = {
+  // FROM THE SHEET. Red headscarf, not the grey-white one this used to say.
   aliBaba:
-    'ALI BABA is the same man in every shot: a lean bearded man of about forty, weathered ' +
-    'brown skin, dark hair under a plain grey-white head cloth, patched undyed wool robe.',
+    'ALI BABA is the same man in every shot: a sun-darkened woodcutter in his forties, open ' +
+    'friendly face, short dark beard, a worn RED cotton headscarf tied at the back of his head. ' +
+    'Rough brown tunic with a frayed hem, deep maroon sash, grey-green linen trousers patched ' +
+    'and tied loosely with the calves wrapped, worn leather sandals. Carries a woodcutter’s axe.',
+  // NO SHEET. Kasim is not in the production-notes list, so this stays invented
+  // and stays deliberately plain — he appears in two scenes and never close.
   kasim:
     'KASIM is the same man in every shot: heavier and better fed than his brother, ' +
     'black square-cut beard, hard-set mouth, deep plum and gold merchant robe.',
+  // FROM THE SHEET. Teal and rust, not indigo. The old wording also banned
+  // "red or bright hair" — a fix for a generation fault that no longer applies
+  // now the design is pinned by reference art.
   morgiana:
-    'MORGIANA is the same young woman in every shot: black hair in a single long braid, ' +
-    'calm level gaze, simple indigo dress with a plain sash. Never red or bright hair.',
+    'MORGIANA is the same young woman in every shot: warm brown skin, dark hair in a single ' +
+    'practical braid, level and sharp-eyed. TEAL long tunic with a side slit and long sleeves, ' +
+    'RUST-red baggy trousers, a braided rope belt with a small leather pouch, brown pointed ' +
+    'slippers. Teal and rust palette throughout.',
+  // FROM THE SHEET. Bare-headed — the old lock invented a head cloth.
   captain:
-    'THE CAPTAIN is the same man in every shot: broad and tall, heavy black beard, ' +
-    'scarred brow, dark red head cloth and a travel-stained leather coat.',
+    'THE CAPTAIN is the same man in every shot: broad and heavy-set, BARE-HEADED with black ' +
+    'hair going grey, a thick black-and-grey beard and heavy brows. Deep maroon robe with gold ' +
+    'trim at collar and cuffs, brown leather jerkin over it, wide brown belt and a cross-body ' +
+    'strap, curved scimitar, brown trousers, tall worn leather boots.',
 };
 
 /**
@@ -198,26 +211,109 @@ export const EP2_BED =
  * for.
  */
 export const EP3_CAST: Record<string, string> = {
+  // FROM THE SHEET. Cream tunic and teal trousers, not the patched brown one
+  // this used to invent. NOTE: his sheet is the only one rendered in 3D rather
+  // than 2D painterly, and he reads younger and tidier there than "fifteen and
+  // scruffy" — see SHEETED below.
   aladdin:
-    'ALADDIN is the same boy in every shot: about fifteen, thin, untidy black hair, ' +
-    'a patched brown tunic too big for him, bare feet. A boy, never a small adult.',
+    'ALADDIN is the same boy in every shot: a boy in his early teens, warm brown skin, dark ' +
+    'tousled hair, brown eyes, an easy open face. Cream long-sleeved tunic with the sleeves ' +
+    'rolled, TEAL-BLUE baggy trousers stained and patched at the knees, brown leather sandals, ' +
+    'a simple cord belt. A boy, never a small adult.',
+  // FROM THE SHEET. Indigo, not green.
   mother:
-    'ALADDIN’S MOTHER is the same woman in every shot: careworn and in her forties, ' +
-    'grey-streaked hair under a faded green head cloth, plain working dress.',
+    'ALADDIN’S MOTHER is the same woman in every shot: careworn and dignified, grey-black hair ' +
+    'under a faded INDIGO head wrap. Worn robe in dusty blue and brown, patched, with a cloth ' +
+    'sash at the waist, an amber bead necklace, plain bangles, brown sandals. A spinner’s ' +
+    'hands — worked and calloused.',
+  // FROM THE SHEET. Clean-shaven and silver-haired; the old lock gave him a
+  // black beard and an indigo coat, both wrong.
   magician:
-    'THE MAGICIAN is the same man in every shot: tall and neat, close-cut black beard, ' +
-    'deep-set dark eyes, a fine indigo travelling coat with silver at the cuffs. His ' +
-    'expression changes between scenes; his face and his coat do not.',
+    'THE MAGICIAN is the same man in every shot: tall and gaunt, SILVER-GREY hair swept back, ' +
+    'CLEAN-SHAVEN, sharp cheekbones and deep-set dark eyes. Near-black robes with fine gold ' +
+    'embroidery, a hooded cloak, a dark turban with a single teal gem at the brow, a sash set ' +
+    'with red and turquoise stones, rings, dark brown boots. Carries a tall wooden staff topped ' +
+    'with a clear crystal. His expression turns warm or cold between scenes; his face, his ' +
+    'robes and his staff do not change.',
+  // FROM THE SHEET. White-GOLD, not blue-white.
   ringJinni:
-    'THE RING JINNI is SMALL and SHARP and made of LIGHT: barely larger than a person, ' +
-    'clean-edged, brilliant blue-white, like a struck spark holding its shape. No smoke.',
+    'THE RING JINNI is SMALL and SHARP and made of LIGHT: a slight, sprite-like figure barely ' +
+    'larger than a child, geometric faceted plates of WHITE-GOLD light, pointed ears, hair ' +
+    'rising like a flame, ruby-magenta and lapis-blue gem accents, trailing ribbons of light ' +
+    'where legs would be. Bright, swift, smiling and unthreatening. NO SMOKE anywhere.',
+  // *** NO SHEET EXISTS FOR THIS CHARACTER. ***
+  //
+  // Every other name in the production notes was supplied as reference art;
+  // this one was not, and it is the single most dangerous omission in the set.
+  //
+  // The reason is THREE JINN, not two. The notes warn that the ring and lamp
+  // jinn must be distinguishable. But Episode 1's JAR JINNI also has a sheet —
+  // vast, cracked with ember light, lower body dissolving into smoke — and the
+  // description this lock used to carry ("vast, slow, smoke and ember, dark
+  // grey shot through with orange firelight") is that character almost word for
+  // word. Generated from that text, Episode 3's lamp jinni would have come back
+  // as Episode 1's jar jinni in a different room.
+  //
+  // So the lock now separates it from BOTH siblings, and says out loud that it
+  // is unsheeted. Design it before generating anything for S10.
   lampJinni:
-    'THE LAMP JINNI is VAST and SLOW and made of SMOKE AND EMBER: fills the room and has ' +
-    'to stoop, soft-edged and billowing, dark grey shot through with orange firelight. ' +
-    'Nothing about it is sharp, and it never glows blue.',
+    'THE LAMP JINNI has NO REFERENCE SHEET YET and must be designed before use. It is VAST and ' +
+    'SLOW — it fills the room and has to stoop — and it must read as a THIRD being, distinct ' +
+    'from both siblings: not the ring jinni’s small white-gold light, and NOT Episode 1’s jar ' +
+    'jinni, which is a cracked ember-lit giant trailing smoke. Give it its own material and ' +
+    'palette.',
+  // FROM THE SHEET. Green, blue and gold with a beaded side braid — not the
+  // "rose silk, hair coiled and pinned" this used to invent.
   princess:
-    'THE PRINCESS is the same young woman in every shot: composed and level-eyed, black ' +
-    'hair coiled and pinned with gold, deep rose silk. Never a decoration in the frame.',
+    'THE PRINCESS is the same young woman in every shot: composed and level-eyed, long dark ' +
+    'hair in a thick SIDE BRAID threaded with gold beads, a fine gold chain across her brow ' +
+    'with a teardrop pendant, gold drop earrings and layered necklaces. GREEN tunic with gold ' +
+    'embroidery worn under a deep BLUE-TEAL coat with heavy gold borders, a blue sash, ' +
+    'gold-mustard harem trousers, gold bangles. Never a decoration in the frame.',
+};
+
+/**
+ * Episode 1's cast, from the sheets. Recorded even though Episode 1 is already
+ * rendered and shipped — the jar jinni is reused across the season, and it is
+ * the design Episode 3's lamp jinni has to avoid colliding with.
+ */
+export const EP1_CAST: Record<string, string> = {
+  fisherman:
+    'THE FISHERMAN is the same man in every shot: elderly, lean and weathered, bald on top with ' +
+    'white hair at the sides, a short white beard, deep smile lines, a kind face. Rough-woven ' +
+    'cream tunic with short frayed sleeves, a rope belt, a cloth shoulder bag on a rope strap, ' +
+    'cream trousers rolled to mid-calf and patched. BARE FEET. Carries a wooden staff.',
+  jarJinni:
+    'THE JAR JINNI is the same being in every shot: enormous, dwarfing any human in frame. Bald, ' +
+    'pointed ears, glowing amber eyes, a grey-white beard, copper-brown skin split by glowing ' +
+    'EMBER-ORANGE cracks. Below the waist it has no legs — it dissolves into billowing smoke. ' +
+    'Heavy gold and turquoise collar, bracers and belt over tattered midnight-blue and teal ' +
+    'cloth with gold trim.',
+};
+
+/**
+ * Which characters have reference art, and which do not.
+ *
+ * Separate from the descriptions because it answers a different question: not
+ * "what does this character look like" but "can we pin it with an image, or are
+ * we trusting prose". That distinction now decides how a shot is generated —
+ * Veo ignores style words in text-to-video, so a sheeted character can be held
+ * to its design with a starting frame and an unsheeted one cannot.
+ */
+export const SHEETED: Record<string, boolean> = {
+  fisherman: true,
+  jarJinni: true,
+  aliBaba: true,
+  morgiana: true,
+  captain: true,
+  aladdin: true,
+  mother: true,
+  magician: true,
+  ringJinni: true,
+  princess: true,
+  // The two gaps. Kasim was never asked for; the lamp jinni was, and is missing.
+  kasim: false,
+  lampJinni: false,
 };
 
 /** Vertical, to match the phone. Runway ratio for every clip in the season. */
@@ -247,6 +343,7 @@ const episode1: Episode = {
   number: 1,
   title: 'The Fisherman and the Jinni',
   runtime: '~4 min',
+  cast: EP1_CAST,
   scenes: [
     {
       id: 'ep1_s01',
@@ -257,6 +354,7 @@ const episode1: Episode = {
       motionPrompt:
         'Very slow push in toward the boat. Gentle lapping water at the shoreline, slow drifting ' +
         'sea haze. Locked, patient camera.',
+      cast: ['fisherman'],
     },
     {
       id: 'ep1_s02',
@@ -267,6 +365,7 @@ const episode1: Episode = {
       motionPrompt:
         'The net spreads outward and falls to the water in slow motion, droplets scattering. Slight ' +
         'handheld sway, camera holds the arc.',
+      cast: ['fisherman'],
     },
     {
       id: 'ep1_s03',
@@ -277,6 +376,7 @@ const episode1: Episode = {
       motionPrompt:
         'Slow drift down the length of the net. Seaweed and wet rope shift slightly. The man exhales ' +
         'and his shoulders drop. No other movement.',
+      cast: ['fisherman'],
     },
     {
       id: 'ep1_s04',
@@ -297,6 +397,7 @@ const episode1: Episode = {
       motionPrompt:
         'Slow overhead drift across the debris. A thin sheet of seawater washes in and retreats over ' +
         'the shards.',
+      cast: ['fisherman'],
     },
     {
       id: 'ep1_s06',
@@ -308,6 +409,7 @@ const episode1: Episode = {
       motionPrompt:
         'The jar rises out of the water in slow motion, water sheeting off the copper, sunlight ' +
         'raking across the seal. Slow rotating push in.',
+      cast: ['fisherman'],
     },
     {
       id: 'ep1_s07',
@@ -328,6 +430,7 @@ const episode1: Episode = {
       motionPrompt:
         'Smoke boils upward and consolidates into the towering figure, embers drifting through it. ' +
         'Camera cranes up slowly. The sand around the man stirs.',
+      cast: ['jarJinni', 'fisherman'],
     },
     {
       id: 'ep1_s09',
@@ -338,6 +441,7 @@ const episode1: Episode = {
       motionPrompt:
         'The vast head lowers slowly toward the man. Smoke drifts across the frame. The man does not ' +
         'move. Slow creeping push in.',
+      cast: ['jarJinni', 'fisherman'],
     },
     {
       id: 'ep1_s10',
@@ -348,6 +452,7 @@ const episode1: Episode = {
       motionPrompt:
         'Almost nothing moves. A slow blink, a flicker of ember light across the face, the faintest ' +
         'push in. Hold the stillness.',
+      cast: ['jarJinni', 'fisherman'],
     },
     {
       id: 'ep1_s11',
@@ -358,6 +463,7 @@ const episode1: Episode = {
       motionPrompt:
         'The column of smoke pours downward into the jar mouth like water into a cup, faster and ' +
         'faster, then stops. Camera pushes down with the smoke.',
+      cast: ['jarJinni', 'fisherman'],
     },
     {
       id: 'ep1_s12',
@@ -368,6 +474,7 @@ const episode1: Episode = {
       motionPrompt:
         'Slow pull back as the sun rises. Gentle waves, drifting light, the man breathing. Calm and ' +
         'final.',
+      cast: ['fisherman'],
     },
   ],
 };

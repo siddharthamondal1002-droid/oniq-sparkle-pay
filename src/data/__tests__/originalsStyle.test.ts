@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   HOUSE_STYLE,
   ORIGINALS,
+  SHEETED,
   STORYBOOK_STYLE,
   findScene,
   stillPromptFor,
@@ -101,38 +102,94 @@ describe("recurring characters are locked to one appearance", () => {
   });
 });
 
-describe("the two jinn are built to be told apart", () => {
-  // A season note, not a nicety: both are "a spirit rising out of an object",
-  // and a generator will happily draw that twice. They are also introduced in
-  // the same episode and reused after it, so a collision is permanent.
-  const cast = ORIGINALS.find((e) => e.id === "ep3")!.cast!;
+describe("the THREE jinn are built to be told apart", () => {
+  // The production notes warn about two. There are three: the JAR jinni in
+  // episode 1, and the RING and LAMP jinn in episode 3. All are "a spirit
+  // rising out of an object", all are reused, and a generator will draw that
+  // shape the same way every time unless stopped.
+  //
+  // The jar jinni is the trap. It is already designed, already shipped, and it
+  // is a vast ember-cracked giant trailing smoke — which is exactly how the
+  // lamp jinni was first described here. Generated from that text, episode 3's
+  // lamp jinni would have been episode 1's jar jinni in a different room.
+  const ep1 = ORIGINALS.find((e) => e.id === "ep1")!.cast!;
+  const ep3 = ORIGINALS.find((e) => e.id === "ep3")!.cast!;
 
-  it("describes them at opposite ends of size, speed and material", () => {
-    expect(cast.ringJinni).toMatch(/small/i);
-    expect(cast.ringJinni).toMatch(/light/i);
-    expect(cast.lampJinni).toMatch(/vast/i);
-    expect(cast.lampJinni).toMatch(/smoke/i);
+  it("keeps the ring jinni small, light, and free of smoke", () => {
+    expect(ep3.ringJinni).toMatch(/small/i);
+    expect(ep3.ringJinni).toMatch(/light/i);
+    // Saying what a thing IS leaves the generator free to add the rest.
+    expect(ep3.ringJinni, "must exclude smoke").toMatch(/no smoke/i);
   });
 
-  it("refuses the other one's material explicitly", () => {
-    // Saying what a thing IS leaves the generator free to add the rest. Each
-    // lock also rules out the sibling's defining feature.
-    expect(cast.ringJinni, "ring jinni must exclude smoke").toMatch(/no smoke/i);
-    expect(cast.lampJinni, "lamp jinni must exclude the ring's blue glow").toMatch(/never.*blue/i);
+  it("keeps the jar jinni vast, ember-lit and smoke-bodied", () => {
+    expect(ep1.jarJinni).toMatch(/enormous|vast/i);
+    expect(ep1.jarJinni).toMatch(/ember/i);
+    expect(ep1.jarJinni).toMatch(/smoke/i);
   });
 
-  it("puts both locks into the prompts of the scenes they appear in", () => {
+  it("makes the lamp jinni refuse BOTH siblings by name", () => {
+    // Not just "different from the ring jinni". The jar jinni is the one it
+    // would actually collide with, and only naming it prevents that.
+    expect(ep3.lampJinni, "must refuse the ring jinni").toMatch(/ring jinni/i);
+    expect(ep3.lampJinni, "must refuse the jar jinni").toMatch(/jar\s*\n?\s*jinni/i);
+  });
+
+  it("says out loud that the lamp jinni has no reference sheet", () => {
+    // Every other name in the production notes was supplied as art. This one
+    // was not, and a lock that reads like the others would hide that.
+    expect(SHEETED.lampJinni).toBe(false);
+    expect(ep3.lampJinni).toMatch(/no reference sheet/i);
+  });
+
+  it("puts each lock into the prompts of the scenes it appears in", () => {
+    expect(stillPromptFor(findScene("ep1_s08")!)).toContain("THE JAR JINNI");
     expect(stillPromptFor(findScene("ep3_s08")!)).toContain("THE RING JINNI");
     expect(stillPromptFor(findScene("ep3_s10")!)).toContain("THE LAMP JINNI");
   });
 
-  it("never puts both in the same frame", () => {
-    // They are never on screen together in this script, so any scene naming
-    // both is a tagging mistake — and the one place a design collision would
-    // be unmissable.
-    for (const scene of ORIGINALS.find((e) => e.id === "ep3")!.scenes) {
-      const both = scene.cast?.includes("ringJinni") && scene.cast?.includes("lampJinni");
-      expect(both, `${scene.id} casts both jinn`).toBeFalsy();
+  it("never puts two jinn in the same frame", () => {
+    const jinn = ["jarJinni", "ringJinni", "lampJinni"];
+    for (const episode of ORIGINALS) {
+      for (const scene of episode.scenes) {
+        const n = (scene.cast ?? []).filter((k) => jinn.includes(k)).length;
+        expect(n, `${scene.id} casts ${n} jinn at once`).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+});
+
+describe("we know which characters have reference art", () => {
+  // Veo ignores style words in text-to-video, so a character can only be held
+  // to its design by handing the generator an image. Whether a sheet exists is
+  // therefore a production fact, not trivia — it decides how a shot is made.
+  it("records a sheet status for every character in every episode", () => {
+    for (const episode of ORIGINALS) {
+      for (const key of Object.keys(episode.cast ?? {})) {
+        expect(SHEETED[key], `no sheet status recorded for "${key}"`).toBeDefined();
+      }
+    }
+  });
+
+  it("makes every unsheeted character admit it in its own lock", () => {
+    // Otherwise an unsheeted lock reads exactly like a sheeted one and someone
+    // generates from prose believing it is pinned to art.
+    const unsheeted = Object.entries(SHEETED)
+      .filter(([, has]) => !has)
+      .map(([key]) => key);
+    expect(unsheeted.length, "expected at least one known gap").toBeGreaterThan(0);
+    for (const episode of ORIGINALS) {
+      for (const key of unsheeted) {
+        const lock = episode.cast?.[key];
+        if (!lock) continue;
+        // Kasim was never requested as a sheet, so he only has to be absent
+        // from the production-notes list — the lamp jinni was, and must say so.
+        if (key === "lampJinni") {
+          expect(lock, "lamp jinni lock must flag the missing sheet").toMatch(
+            /no reference sheet/i,
+          );
+        }
+      }
     }
   });
 });
