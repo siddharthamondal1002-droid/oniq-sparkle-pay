@@ -129,6 +129,35 @@ Four things are load-bearing, each of them learned the hard way:
   two streams, then `volumedetect` mid-file — a track present at −91 dB is
   silence with extra steps.
 
+**Episode 2 uses a different look from Episode 1**, chosen from a reference
+clip: `STORYBOOK_STYLE` in `originals.ts`, stylised animation rather than
+Episode 1's photoreal matte painting. `style` is per-episode and optional;
+`stillPromptFor(scene)` resolves the owning episode's style plus any character
+locks. **Always call it — never hand-assemble a prompt.**
+
+Two failure modes it exists to prevent, both of which actually happened:
+
+- **The cast is re-rolled every image.** Nothing carries between generations,
+  so a character described only by role comes back as a different person each
+  time — a bearded adult in three shots and a chibi child in a fourth. That is
+  what `EP2_CAST` fixes.
+- **A style string can silently override the scene.** Naming two colours
+  ("amber against violet") specifies a time of day, and it beats "hard
+  midday" in the scene text. Say warm-versus-cool as a _relationship_ to the
+  scene's own light instead. The comment above `STORYBOOK_STYLE` records all
+  five faults and the exact wording that caused each.
+
+A supplied prompt book of shot/lighting/mood axes lives in
+`references/prompt-book.md`. **Its style prefix is superseded — read the
+warning at the top before using it.**
+
+**Cap a single still at ~50 seconds of narration.** Past roughly that the Ken
+Burns move stops reading as motion and the shot looks frozen. Both season
+finales busted it (65s and 68s on one image) and were split into the beats
+their paragraphs already contained. `originalsScript.test.ts` enforces the
+ceiling against the word-count estimate, so it is checkable before any audio
+exists — which is how ep3's was caught for free.
+
 Two environment traps that will recur:
 
 - The bundle pulls Space Grotesk and DM Sans from `fonts.gstatic.com` via
