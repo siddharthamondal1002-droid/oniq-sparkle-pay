@@ -10,8 +10,11 @@
  * So these assert the resolution both ways round: episode 2 gets storybook,
  * and every other episode does not.
  */
+import { existsSync, readdirSync } from "fs";
+import { join } from "path";
 import { describe, expect, it } from "vitest";
 import {
+  CHARACTER_SHEETS,
   HOUSE_STYLE,
   ORIGINALS,
   SHEETED,
@@ -206,5 +209,35 @@ describe("the storybook style does not contradict itself", () => {
     const withoutNegations = STORYBOOK_STYLE.replace(/\bno\s+[a-z-]+(\s+[a-z-]+)?/gi, "");
     expect(withoutNegations).not.toMatch(/film grain/i);
     expect(STORYBOOK_STYLE).toMatch(/no film grain/i);
+  });
+});
+
+describe("the character sheets on disk match the data", () => {
+  // The sheets arrived as a dozen files all called download_N.png. Mapping
+  // them to characters was done by eye, and getting one wrong would feed the
+  // magician's art in as Ali Baba — a mistake that only shows up after a paid
+  // generation. So the mapping is asserted against the filesystem.
+  const dir = join(__dirname, "../../../remotion/public/sheets");
+
+  it("has a file for every sheeted character", () => {
+    for (const [key, rel] of Object.entries(CHARACTER_SHEETS)) {
+      const file = join(dir, rel.replace(/^sheets\//, ""));
+      expect(existsSync(file), `${key} sheet missing at ${rel}`).toBe(true);
+    }
+  });
+
+  it("has no orphan sheet on disk", () => {
+    // A file nobody references is a character somebody forgot to wire up.
+    const onDisk = readdirSync(dir).filter((f) => f.endsWith(".jpg")).sort();
+    const declared = Object.values(CHARACTER_SHEETS)
+      .map((r) => r.replace(/^sheets\//, ""))
+      .sort();
+    expect(onDisk).toEqual(declared);
+  });
+
+  it("derives SHEETED from the paths so the two cannot disagree", () => {
+    for (const key of Object.keys(CHARACTER_SHEETS)) expect(SHEETED[key]).toBe(true);
+    expect(SHEETED.lampJinni).toBe(false);
+    expect(SHEETED.kasim).toBe(false);
   });
 });

@@ -300,21 +300,35 @@ export const EP1_CAST: Record<string, string> = {
  * Veo ignores style words in text-to-video, so a sheeted character can be held
  * to its design with a starting frame and an unsheeted one cannot.
  */
-export const SHEETED: Record<string, boolean> = {
-  fisherman: true,
-  jarJinni: true,
-  aliBaba: true,
-  morgiana: true,
-  captain: true,
-  aladdin: true,
-  mother: true,
-  magician: true,
-  ringJinni: true,
-  princess: true,
-  // The two gaps. Kasim was never asked for; the lamp jinni was, and is missing.
-  kasim: false,
-  lampJinni: false,
+export const CHARACTER_SHEETS: Record<string, string> = {
+  fisherman: 'sheets/fisherman.jpg',
+  jarJinni: 'sheets/jarJinni.jpg',
+  aliBaba: 'sheets/aliBaba.jpg',
+  morgiana: 'sheets/morgiana.jpg',
+  captain: 'sheets/captain.jpg',
+  aladdin: 'sheets/aladdin.jpg',
+  mother: 'sheets/mother.jpg',
+  magician: 'sheets/magician.jpg',
+  ringJinni: 'sheets/ringJinni.jpg',
+  princess: 'sheets/princess.jpg',
 };
+
+/** Every character the season casts, sheeted or not. */
+const CAST_KEYS = [
+  ...Object.keys(CHARACTER_SHEETS),
+  // The two gaps. Kasim was never asked for; the lamp jinni was, and is missing.
+  'kasim',
+  'lampJinni',
+];
+
+/**
+ * DERIVED, not hand-maintained — a boolean list beside a path list is two
+ * things that can disagree, and the disagreement would say a character is
+ * pinned to art that does not exist.
+ */
+export const SHEETED: Record<string, boolean> = Object.fromEntries(
+  CAST_KEYS.map((key) => [key, key in CHARACTER_SHEETS]),
+);
 
 /** Vertical, to match the phone. Runway ratio for every clip in the season. */
 export const SEASON_RATIO = '720:1280';
