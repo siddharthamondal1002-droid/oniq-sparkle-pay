@@ -9,6 +9,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  AI_CONTENT_MODULES,
   AI_SURFACES,
   ALLOWED_REMOTE_IMAGE_HOSTS,
   DATA_COLLECTED,
@@ -63,6 +64,43 @@ describe("AI-Generated Content policy", () => {
       )
       .map((p) => p.slice(ROOT.length + 1));
     expect(undeclared).toEqual([]);
+  });
+
+  it("a surface that renders NO label is caught too", () => {
+    // THE HOLE THE TEST ABOVE HAS, and the reason Lores shipped unlabelled.
+    //
+    // That test only inspects files which ALREADY render <AiOutputReport />.
+    // It catches a stale declaration list. It cannot catch the failure its own
+    // comment names — "shipped, unlabelled, unreportable" — because a surface
+    // with no label imports nothing to grep for. The Lores hub served a season
+    // of Runway-generated video and was completely invisible to it.
+    //
+    // Asking the question from the DATA side closes that: generative content
+    // has to come from somewhere, and the somewheres are enumerable even when
+    // the renderers are not.
+    const declared = new Set(AI_SURFACES.map((s) => join(ROOT, s.file)));
+    const missing: string[] = [];
+
+    // The content modules themselves are the SOURCE. A data file renders
+    // nothing, so requiring a label of it would be nonsense.
+    const sourceFiles = new Set(
+      // The "@/" alias maps to src/, not to the repo root.
+      AI_CONTENT_MODULES.map((m) => join(ROOT, m.replace("@/", "src/") + ".ts")),
+    );
+
+    for (const p of tsxFiles) {
+      if (sourceFiles.has(p)) continue;
+      const src = readFileSync(p, "utf8");
+      const usesAiContent = AI_CONTENT_MODULES.some((m) =>
+        new RegExp(`from\\s+["']${m.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&")}["']`).test(src),
+      );
+      if (usesAiContent && !declared.has(p)) missing.push(p.slice(ROOT.length + 1));
+    }
+
+    expect(
+      missing,
+      `renders AI-generated content but is not in AI_SURFACES:\n${missing.join("\n")}`,
+    ).toEqual([]);
   });
 });
 

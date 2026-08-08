@@ -59,7 +59,34 @@ export const AI_SURFACES = [
     file: "src/routes/_authenticated/app.study.tsx",
   },
   { id: "ting_ai_output", screen: "Ting assistant", file: "src/routes/_authenticated/app.ai.tsx" },
+  {
+    id: "lores_ai_output",
+    screen: "Lores — ONIQ Originals",
+    file: "src/routes/_authenticated/app.lores.tsx",
+  },
+  {
+    id: "runway_admin_output",
+    screen: "Admin — Runway video tool (internal)",
+    file: "src/routes/_authenticated/app.admin.video.tsx",
+  },
 ] as const;
+
+/**
+ * Modules whose CONTENT is AI-generated. Any screen rendering one of these is
+ * a generative surface and must appear in AI_SURFACES above.
+ *
+ * This list exists because the "none missed" guard could not see Lores.
+ * That guard looks for files which already render <AiOutputReport /> but are
+ * undeclared — so it catches a stale list, and is blind to the failure its own
+ * comment names: a surface that renders NO label at all imports nothing to
+ * match on. Lores shipped a hub of entirely Runway-generated video and the
+ * guard had nothing to grep for.
+ *
+ * Naming the data modules fixes the direction. A generative surface has to get
+ * its content from somewhere, and that somewhere is far easier to enumerate
+ * than every way a screen might render it.
+ */
+export const AI_CONTENT_MODULES = ["@/data/lores", "@/data/originals"] as const;
 
 /**
  * DATA SAFETY — WHAT ONIQ ACTUALLY COLLECTS, as the Play form, in code.

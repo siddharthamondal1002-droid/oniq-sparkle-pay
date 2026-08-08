@@ -3,10 +3,10 @@
 //
 // The screen is not the gate. Every call below is refused server-side for a
 // non-admin, and video_jobs RLS is admin-only.
-import { createFileRoute } from '@tanstack/react-router';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useServerFn } from '@tanstack/react-start';
-import { useEffect, useState } from 'react';
+import { createFileRoute } from "@tanstack/react-router";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useEffect, useState } from "react";
 import {
   runwayDeleteStill,
   runwayPollJobs,
@@ -15,22 +15,20 @@ import {
   runwayStatus,
   runwaySubmitJob,
   runwayUploadStill,
-} from '@/lib/runway.functions';
-import { EpisodeAssembler } from '@/components/admin/EpisodeAssembler';
-import { MAX_STILL_BYTES, validateStillName } from '@/lib/stillValidation';
-import { ORIGINALS, SEASON_DURATION, SEASON_RATIO, findScene } from '@/data/originals';
+} from "@/lib/runway.functions";
+import { EpisodeAssembler } from "@/components/admin/EpisodeAssembler";
+import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
+import { MAX_STILL_BYTES, validateStillName } from "@/lib/stillValidation";
+import { ORIGINALS, SEASON_DURATION, SEASON_RATIO, findScene } from "@/data/originals";
 
-export const Route = createFileRoute('/_authenticated/app/admin/video')({
+export const Route = createFileRoute("/_authenticated/app/admin/video")({
   head: () => ({
-    meta: [
-      { title: 'Internal video tool' },
-      { name: 'robots', content: 'noindex, nofollow' },
-    ],
+    meta: [{ title: "Internal video tool" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: AdminVideoTool,
 });
 
-const RATIOS = ['720:1280', '1280:720', '960:960', '1104:832', '832:1104'];
+const RATIOS = ["720:1280", "1280:720", "960:960", "1104:832", "832:1104"];
 
 function AdminVideoTool() {
   const qc = useQueryClient();
@@ -42,40 +40,39 @@ function AdminVideoTool() {
   const uploadStill = useServerFn(runwayUploadStill);
   const deleteStill = useServerFn(runwayDeleteStill);
 
-  const [scene, setScene] = useState('');
-  const [shotId, setShotId] = useState('');
-  const [promptText, setPromptText] = useState('');
+  const [scene, setScene] = useState("");
+  const [shotId, setShotId] = useState("");
+  const [promptText, setPromptText] = useState("");
   const [duration, setDuration] = useState(SEASON_DURATION);
   const [ratio, setRatio] = useState(SEASON_RATIO);
-  const [seed, setSeed] = useState('');
+  const [seed, setSeed] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState<Record<string, string>>({});
 
   const [replace, setReplace] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
 
-
   const statusQuery = useQuery({
-    queryKey: ['runway-status'],
+    queryKey: ["runway-status"],
     queryFn: () => status({ data: undefined }),
     retry: false,
   });
 
   const scenesQuery = useQuery({
-    queryKey: ['runway-scenes'],
+    queryKey: ["runway-scenes"],
     queryFn: () => scenes({ data: undefined }),
     retry: false,
   });
 
   const jobs = statusQuery.data?.jobs ?? [];
-  const anyRunning = jobs.some((j) => j.status === 'running');
+  const anyRunning = jobs.some((j) => j.status === "running");
 
   // Poll only while something is running; stop entirely when nothing is.
   useEffect(() => {
     if (!anyRunning) return;
     const t = setInterval(() => {
       void poll({ data: undefined })
-        .then(() => qc.invalidateQueries({ queryKey: ['runway-status'] }))
+        .then(() => qc.invalidateQueries({ queryKey: ["runway-status"] }))
         .catch(() => undefined);
     }, 12000);
     return () => clearInterval(t);
@@ -84,21 +81,21 @@ function AdminVideoTool() {
   const submitMutation = useMutation({
     mutationFn: async () => {
       const chosen = (scenesQuery.data ?? []).find((s) => s.name === scene);
-      if (!chosen) throw new Error('pick a scene still first');
+      if (!chosen) throw new Error("pick a scene still first");
       return submit({
         data: {
           promptImage: chosen.signedUrl,
           promptText,
           ratio,
           duration,
-          seed: seed.trim() === '' ? null : Number(seed),
+          seed: seed.trim() === "" ? null : Number(seed),
           sceneRef: chosen.name,
         },
       });
     },
     onSuccess: (r) => {
       setMessage(`submitted: ${r.id}`);
-      void qc.invalidateQueries({ queryKey: ['runway-status'] });
+      void qc.invalidateQueries({ queryKey: ["runway-status"] });
     },
     onError: (e: Error) => setMessage(`error: ${e.message}`),
   });
@@ -115,17 +112,17 @@ function AdminVideoTool() {
         if (bad) throw new Error(`${name}: ${bad}`);
         if (file.size > MAX_STILL_BYTES) throw new Error(`${name}: over 15MB`);
         const fd = new FormData();
-        fd.append('file', file);
-        fd.append('filename', name);
-        fd.append('replace', replace ? 'true' : 'false');
+        fd.append("file", file);
+        fd.append("filename", name);
+        fd.append("replace", replace ? "true" : "false");
         await uploadStill({ data: fd });
         done.push(name);
       }
       return done;
     },
     onSuccess: (names) => {
-      setUploadMsg(`uploaded: ${names.join(', ')}`);
-      void qc.invalidateQueries({ queryKey: ['runway-scenes'] });
+      setUploadMsg(`uploaded: ${names.join(", ")}`);
+      void qc.invalidateQueries({ queryKey: ["runway-scenes"] });
     },
     onError: (e: Error) => setUploadMsg(`error: ${e.message}`),
   });
@@ -134,8 +131,8 @@ function AdminVideoTool() {
     mutationFn: (name: string) => deleteStill({ data: { name } }),
     onSuccess: (r) => {
       setUploadMsg(`deleted: ${r.deleted}`);
-      if (scene === r.deleted) setScene('');
-      void qc.invalidateQueries({ queryKey: ['runway-scenes'] });
+      if (scene === r.deleted) setScene("");
+      void qc.invalidateQueries({ queryKey: ["runway-scenes"] });
     },
     onError: (e: Error) => setUploadMsg(`error: ${e.message}`),
   });
@@ -152,7 +149,6 @@ function AdminVideoTool() {
     }
   }
 
-
   if (statusQuery.isError) {
     return <pre style={{ padding: 16 }}>forbidden</pre>;
   }
@@ -162,10 +158,18 @@ function AdminVideoTool() {
   const enabled = statusQuery.data?.enabled ?? false;
 
   return (
-    <div style={{ padding: 16, fontFamily: 'monospace', fontSize: 13 }}>
+    <div style={{ padding: 16, fontFamily: "monospace", fontSize: 13 }}>
       <h1 style={{ fontSize: 15, fontWeight: 700 }}>runway video tool (internal)</h1>
+      {/* Admin-only, but still a generative surface inside the shipped app —
+          it is where the AI video is produced. Play's AI-Generated Content
+          policy asks for the label and an in-app report path; an internal
+          screen a reviewer can reach is not an exception. */}
+      <p style={{ fontSize: 11, fontWeight: 600, color: "#fbbf24", marginTop: 4 }}>
+        AI-generated video 🤖 — {AI_OUTPUT_LABEL}
+      </p>
+      <AiOutputReport surface="runway_admin_output" targetId="runway-admin" />
       <p>
-        today: {used}/{cap} &nbsp;|&nbsp; kill switch: {enabled ? 'ON (enabled)' : 'OFF (disabled)'}
+        today: {used}/{cap} &nbsp;|&nbsp; kill switch: {enabled ? "ON (enabled)" : "OFF (disabled)"}
       </p>
 
       <fieldset style={{ marginTop: 12, padding: 8 }}>
@@ -179,7 +183,7 @@ function AdminVideoTool() {
             disabled={uploadMutation.isPending}
             onChange={(e) => {
               const files = Array.from(e.target.files ?? []);
-              e.target.value = '';
+              e.target.value = "";
               if (files.length) uploadMutation.mutate(files);
             }}
           />
@@ -190,7 +194,7 @@ function AdminVideoTool() {
               type="checkbox"
               checked={replace}
               onChange={(e) => setReplace(e.target.checked)}
-            />{' '}
+            />{" "}
             replace if a still with the same name exists
           </label>
         </div>
@@ -200,7 +204,7 @@ function AdminVideoTool() {
         <ul style={{ marginTop: 6, paddingLeft: 18 }}>
           {(scenesQuery.data ?? []).map((s) => (
             <li key={s.name}>
-              {s.name}{' '}
+              {s.name}{" "}
               <button
                 type="button"
                 onClick={() => confirmDelete(s.name)}
@@ -213,12 +217,11 @@ function AdminVideoTool() {
         </ul>
       </fieldset>
 
-
       <fieldset style={{ marginTop: 12, padding: 8 }}>
         <legend>submit one clip</legend>
         <div>
           <label>
-            ONIQ Originals shot:{' '}
+            ONIQ Originals shot:{" "}
             <select
               value={shotId}
               onChange={(e) => {
@@ -231,9 +234,7 @@ function AdminVideoTool() {
                 setRatio(SEASON_RATIO);
                 setDuration(SEASON_DURATION);
                 const still = `${id}.png`;
-                setScene(
-                  (scenesQuery.data ?? []).some((s) => s.name === still) ? still : '',
-                );
+                setScene((scenesQuery.data ?? []).some((s) => s.name === still) ? still : "");
               }}
             >
               <option value="">-- free-form (no shot) --</option>
@@ -248,13 +249,11 @@ function AdminVideoTool() {
               ))}
             </select>
           </label>
-          {shotId && !scene ? (
-            <p>no still named {shotId}.png yet — upload one above.</p>
-          ) : null}
+          {shotId && !scene ? <p>no still named {shotId}.png yet — upload one above.</p> : null}
         </div>
         <div style={{ marginTop: 6 }}>
           <label>
-            scene still:{' '}
+            scene still:{" "}
             <select value={scene} onChange={(e) => setScene(e.target.value)}>
               <option value="">-- pick --</option>
               {(scenesQuery.data ?? []).map((s) => (
@@ -268,7 +267,7 @@ function AdminVideoTool() {
 
         <div style={{ marginTop: 6 }}>
           <label>
-            motion prompt:{' '}
+            motion prompt:{" "}
             <textarea
               value={promptText}
               onChange={(e) => setPromptText(e.target.value)}
@@ -279,14 +278,14 @@ function AdminVideoTool() {
         </div>
         <div style={{ marginTop: 6 }}>
           <label>
-            duration:{' '}
+            duration:{" "}
             <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
               <option value={5}>5</option>
               <option value={10}>10</option>
             </select>
-          </label>{' '}
+          </label>{" "}
           <label>
-            ratio:{' '}
+            ratio:{" "}
             <select value={ratio} onChange={(e) => setRatio(e.target.value)}>
               {RATIOS.map((r) => (
                 <option key={r} value={r}>
@@ -294,9 +293,9 @@ function AdminVideoTool() {
                 </option>
               ))}
             </select>
-          </label>{' '}
+          </label>{" "}
           <label>
-            seed:{' '}
+            seed:{" "}
             <input
               value={seed}
               onChange={(e) => setSeed(e.target.value)}
@@ -311,7 +310,7 @@ function AdminVideoTool() {
             onClick={() => submitMutation.mutate()}
             disabled={submitMutation.isPending || !enabled || used >= cap}
           >
-            {submitMutation.isPending ? 'submitting...' : 'submit'}
+            {submitMutation.isPending ? "submitting..." : "submit"}
           </button>
         </div>
         {message ? <p>{message}</p> : null}
@@ -323,7 +322,7 @@ function AdminVideoTool() {
           type="button"
           onClick={() =>
             void poll({ data: undefined })
-              .then(() => qc.invalidateQueries({ queryKey: ['runway-status'] }))
+              .then(() => qc.invalidateQueries({ queryKey: ["runway-status"] }))
               .catch(() => undefined)
           }
         >
@@ -344,13 +343,13 @@ function AdminVideoTool() {
             {jobs.map((j) => (
               <tr key={j.id}>
                 <td>{j.status}</td>
-                <td>{j.scene_ref ?? '-'}</td>
+                <td>{j.scene_ref ?? "-"}</td>
                 <td>{j.duration}s</td>
-                <td>{j.credits_estimate ?? '-'}</td>
-                <td>{j.created_at ? j.created_at.replace('T', ' ').slice(0, 19) : '-'}</td>
+                <td>{j.credits_estimate ?? "-"}</td>
+                <td>{j.created_at ? j.created_at.replace("T", " ").slice(0, 19) : "-"}</td>
                 <td>
-                  {j.status === 'failed' ? (
-                    <span>{j.error ?? 'failed'}</span>
+                  {j.status === "failed" ? (
+                    <span>{j.error ?? "failed"}</span>
                   ) : j.stored_path ? (
                     preview[j.id] ? (
                       <video src={preview[j.id]} controls width={140} />
@@ -360,7 +359,7 @@ function AdminVideoTool() {
                       </button>
                     )
                   ) : (
-                    '-'
+                    "-"
                   )}
                 </td>
               </tr>
@@ -373,4 +372,3 @@ function AdminVideoTool() {
     </div>
   );
 }
-

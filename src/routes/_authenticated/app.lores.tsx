@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Play, Clapperboard } from "lucide-react";
 import { LORE_COLLECTIONS, type LoreVideo } from "@/data/lores";
+import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 
 export const Route = createFileRoute("/_authenticated/app/lores")({
   head: () => ({
@@ -73,9 +74,19 @@ function LoresPage() {
         <Clapperboard className="h-3.5 w-3.5" /> ONIQ Originals
       </div>
       <h1 className="mt-1 font-display text-2xl font-bold text-foreground">Lores 🎬</h1>
-      <p className="mt-1 text-xs text-muted-foreground">
-        stories made in-house — no cap, all ours
-      </p>
+      <p className="mt-1 text-xs text-muted-foreground">stories made in-house — no cap, all ours</p>
+
+      {/* Every clip here is generated, so the whole SCREEN is a generative
+          surface rather than one output inside it — hence the label at the top
+          rather than per card. Play's AI-Generated Content policy requires the
+          label AND an in-app way to report it; see AI_SURFACES in
+          config/playCompliance.ts. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-400/40 bg-amber-400/10 px-3 py-2">
+        <span className="text-[11px] font-semibold text-amber-300">
+          AI-generated video 🤖 — {AI_OUTPUT_LABEL}
+        </span>
+        <AiOutputReport surface="lores_ai_output" targetId="lores-hub" />
+      </div>
 
       {LORE_COLLECTIONS.map((c) => (
         <section key={c.name} className="mt-6">

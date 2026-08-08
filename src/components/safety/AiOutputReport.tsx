@@ -19,7 +19,14 @@ import { Flag } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
-export type AiSurface = "cv_ai_output" | "study_ai_output" | "ting_ai_output";
+export type AiSurface =
+  | "cv_ai_output"
+  | "study_ai_output"
+  | "ting_ai_output"
+  /** Lores — the Originals hub. Every clip is Runway-generated from a still. */
+  | "lores_ai_output"
+  /** The internal Runway tool. An admin screen still generates AI content. */
+  | "runway_admin_output";
 
 export function AiOutputReport({
   surface,
