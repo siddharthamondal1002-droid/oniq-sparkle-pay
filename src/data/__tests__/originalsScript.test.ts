@@ -16,8 +16,10 @@ import { ORIGINALS } from "@/data/originals";
 import {
   NARRATION_WPM,
   SEASON_SCRIPT,
+  VOICES,
   estimateSeconds,
   narrationFor,
+  segmentsFor,
 } from "@/data/originalsScript";
 // Straight from the server module rather than a copy. runway.server.ts is
 // "never imported by the client", but its top-level imports are type-only, so
@@ -60,6 +62,71 @@ describe("every scene has exactly one line, and every line a scene", () => {
         /^\s*(SCENE|INT\.|EXT\.|CUT TO)/i,
       );
     }
+  });
+});
+
+describe("splitting a scene by speaker changes nothing but the voice", () => {
+  const withDialogue = SEASON_SCRIPT.filter((l) => l.segments);
+
+  it("has dialogue scenes at all", () => {
+    // Guards the guard: if segments were dropped wholesale, every assertion
+    // below would iterate an empty list and pass.
+    expect(withDialogue.length).toBeGreaterThan(0);
+  });
+
+  it("rejoins to the narration word for word", () => {
+    // The whole safety property. `narration` is what a human reviewed and what
+    // every compliance check reads; the segments are only a division of it. If
+    // they can drift, the episode people HEAR stops being the script anyone
+    // approved — and nothing else in the suite would notice.
+    for (const line of withDialogue) {
+      const rejoined = line.segments!.map((s) => s.text).join(" ");
+      expect(rejoined, `${line.sceneId} segments do not rejoin to its narration`).toBe(
+        line.narration,
+      );
+    }
+  });
+
+  it("names a real voice for every segment", () => {
+    for (const line of withDialogue) {
+      for (const seg of line.segments!) {
+        expect(VOICES[seg.voice], `${line.sceneId} uses unknown voice "${seg.voice}"`).toBeTruthy();
+      }
+    }
+  });
+
+  it("keeps the two jinn audibly apart", () => {
+    // The production notes require the DESIGNS to be distinct. The voices
+    // matter more: a listener has nothing else to tell them apart by.
+    expect(VOICES.ringJinni).not.toBe(VOICES.lampJinni);
+  });
+
+  it("keeps the narrator on the season voice", () => {
+    // Episode 1 and 2 are already published with this narrator. Changing it
+    // reads as a different show.
+    expect(VOICES.narrator).toBe("ash");
+  });
+
+  it("gives every character a voice of their own", () => {
+    const used = Object.values(VOICES);
+    expect(new Set(used).size, `voices collide: ${used.join(", ")}`).toBe(used.length);
+  });
+
+  it("leaves an attribution with the narrator, not the character", () => {
+    // "“Below,”" is the magician; "said the man," is not. A character reading
+    // their own stage direction aloud is the failure this splitting exists to
+    // avoid, and it is invisible until someone listens.
+    const s04 = SEASON_SCRIPT.find((l) => l.sceneId === "ep3_s04")!;
+    const attribution = s04.segments!.find((s) => s.text.includes("said the man"));
+    expect(attribution?.voice).toBe("narrator");
+  });
+
+  it("falls back to the narrator for a scene with no dialogue", () => {
+    const plain = SEASON_SCRIPT.find((l) => !l.segments)!;
+    const segs = segmentsFor(plain);
+    expect(segs).toHaveLength(1);
+    expect(segs[0].voice).toBe("narrator");
+    expect(segs[0].text).toBe(plain.narration);
   });
 });
 

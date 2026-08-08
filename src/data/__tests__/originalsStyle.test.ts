@@ -87,6 +87,42 @@ describe("recurring characters are locked to one appearance", () => {
   });
 });
 
+describe("the two jinn are built to be told apart", () => {
+  // A season note, not a nicety: both are "a spirit rising out of an object",
+  // and a generator will happily draw that twice. They are also introduced in
+  // the same episode and reused after it, so a collision is permanent.
+  const cast = ORIGINALS.find((e) => e.id === "ep3")!.cast!;
+
+  it("describes them at opposite ends of size, speed and material", () => {
+    expect(cast.ringJinni).toMatch(/small/i);
+    expect(cast.ringJinni).toMatch(/light/i);
+    expect(cast.lampJinni).toMatch(/vast/i);
+    expect(cast.lampJinni).toMatch(/smoke/i);
+  });
+
+  it("refuses the other one's material explicitly", () => {
+    // Saying what a thing IS leaves the generator free to add the rest. Each
+    // lock also rules out the sibling's defining feature.
+    expect(cast.ringJinni, "ring jinni must exclude smoke").toMatch(/no smoke/i);
+    expect(cast.lampJinni, "lamp jinni must exclude the ring's blue glow").toMatch(/never.*blue/i);
+  });
+
+  it("puts both locks into the prompts of the scenes they appear in", () => {
+    expect(stillPromptFor(findScene("ep3_s08")!)).toContain("THE RING JINNI");
+    expect(stillPromptFor(findScene("ep3_s10")!)).toContain("THE LAMP JINNI");
+  });
+
+  it("never puts both in the same frame", () => {
+    // They are never on screen together in this script, so any scene naming
+    // both is a tagging mistake — and the one place a design collision would
+    // be unmissable.
+    for (const scene of ORIGINALS.find((e) => e.id === "ep3")!.scenes) {
+      const both = scene.cast?.includes("ringJinni") && scene.cast?.includes("lampJinni");
+      expect(both, `${scene.id} casts both jinn`).toBeFalsy();
+    }
+  });
+});
+
 describe("the storybook style does not contradict itself", () => {
   it("does not ask for film grain while also refusing it", () => {
     // HOUSE_STYLE asks for `film grain`; STORYBOOK_STYLE says `no film grain`.

@@ -181,6 +181,45 @@ export const EP2_BED =
   'no sharp percussive transients, no vocals, nothing in the range of a speaking voice. Seamless ' +
   'loop.';
 
+/**
+ * Episode 3's cast, locked.
+ *
+ * THE TWO JINN ARE THE POINT. The production notes require them to be visibly
+ * distinct and reused across the season, and they are the two most likely
+ * things in this episode to come back as the same being in different colours —
+ * both are "a spirit rising out of an object" and a generator will happily
+ * draw that twice. They are pushed to opposite ends of every axis that reads
+ * at a glance: size, speed, and what they are MADE of. Their voices are
+ * separated the same way in VOICES.
+ *
+ * The magician carries two descriptions on purpose. He is warm for three
+ * scenes and then he is not, and the turn is the story — but he must remain
+ * recognisably one man across it, which is what the shared physical detail is
+ * for.
+ */
+export const EP3_CAST: Record<string, string> = {
+  aladdin:
+    'ALADDIN is the same boy in every shot: about fifteen, thin, untidy black hair, ' +
+    'a patched brown tunic too big for him, bare feet. A boy, never a small adult.',
+  mother:
+    'ALADDIN’S MOTHER is the same woman in every shot: careworn and in her forties, ' +
+    'grey-streaked hair under a faded green head cloth, plain working dress.',
+  magician:
+    'THE MAGICIAN is the same man in every shot: tall and neat, close-cut black beard, ' +
+    'deep-set dark eyes, a fine indigo travelling coat with silver at the cuffs. His ' +
+    'expression changes between scenes; his face and his coat do not.',
+  ringJinni:
+    'THE RING JINNI is SMALL and SHARP and made of LIGHT: barely larger than a person, ' +
+    'clean-edged, brilliant blue-white, like a struck spark holding its shape. No smoke.',
+  lampJinni:
+    'THE LAMP JINNI is VAST and SLOW and made of SMOKE AND EMBER: fills the room and has ' +
+    'to stoop, soft-edged and billowing, dark grey shot through with orange firelight. ' +
+    'Nothing about it is sharp, and it never glows blue.',
+  princess:
+    'THE PRINCESS is the same young woman in every shot: composed and level-eyed, black ' +
+    'hair coiled and pinned with gold, deep rose silk. Never a decoration in the frame.',
+};
+
 /** Vertical, to match the phone. Runway ratio for every clip in the season. */
 export const SEASON_RATIO = '720:1280';
 export const SEASON_DURATION = 5;
@@ -523,6 +562,7 @@ const episode3: Episode = {
   number: 3,
   title: 'Aladdin and the Wonderful Lamp',
   runtime: '~7 min',
+  cast: EP3_CAST,
   scenes: [
     {
       id: 'ep3_s01',
@@ -533,6 +573,7 @@ const episode3: Episode = {
       motionPrompt:
         'The crowd moves past in soft blur while the boy stays still. Dust and light drift. Slow push ' +
         'in on him.',
+      cast: ['aladdin'],
     },
     {
       id: 'ep3_s02',
@@ -543,6 +584,7 @@ const episode3: Episode = {
       motionPrompt:
         'The hand tightens very slightly on the shoulder. The smile holds a beat too long. Slow, ' +
         'uneasy push in.',
+      cast: ['magician', 'aladdin'],
     },
     {
       id: 'ep3_s03',
@@ -553,6 +595,7 @@ const episode3: Episode = {
       motionPrompt:
         'Powder falls and the flame flares green, licking upward. Smoke curls. Camera pushes low ' +
         'toward the fire.',
+      cast: ['magician', 'aladdin'],
     },
     {
       id: 'ep3_s04',
@@ -563,6 +606,7 @@ const episode3: Episode = {
       motionPrompt:
         'The slab grinds aside, dust pouring off it. The dark below deepens. Camera tilts down the ' +
         'steps.',
+      cast: ['magician', 'aladdin'],
     },
     {
       id: 'ep3_s05',
@@ -573,6 +617,7 @@ const episode3: Episode = {
       motionPrompt:
         'Camera glides slowly between the trees. Gem fruit refracts and twinkles as the angle changes. ' +
         'Faint drifting motes.',
+      cast: ['aladdin'],
     },
     {
       id: 'ep3_s06',
@@ -583,6 +628,7 @@ const episode3: Episode = {
       motionPrompt:
         'The outstretched hand curls into a fist. The opening begins to narrow as the slab moves. ' +
         'Camera holds looking up.',
+      cast: ['magician', 'aladdin'],
     },
     {
       id: 'ep3_s07',
@@ -593,6 +639,7 @@ const episode3: Episode = {
       motionPrompt:
         'The hands wring slowly. The gleam on the ring slides and brightens. Everything else stays ' +
         'black. Minimal movement.',
+      cast: ['aladdin'],
     },
     {
       id: 'ep3_s08',
@@ -603,6 +650,7 @@ const episode3: Episode = {
       motionPrompt:
         'Light unfolds rapidly out of the ring into the sharp figure, then holds crisp and still. Fast ' +
         'bloom, then stillness.',
+      cast: ['ringJinni', 'aladdin'],
     },
     {
       id: 'ep3_s09',
@@ -612,6 +660,7 @@ const episode3: Episode = {
         'unimpressed, the boy watching from the floor.',
       motionPrompt:
         'The cloth rubs back and forth on the brass. Dust rises in the light. Slow push in on the lamp.',
+      cast: ['mother', 'aladdin'],
     },
     {
       id: 'ep3_s10',
@@ -622,6 +671,7 @@ const episode3: Episode = {
       motionPrompt:
         'Smoke billows to fill the room and the huge figure settles, stooping. Embers drift. Camera ' +
         'pulls back to fit it in.',
+      cast: ['lampJinni', 'aladdin', 'mother'],
     },
     {
       id: 'ep3_s11',
@@ -632,6 +682,7 @@ const episode3: Episode = {
       motionPrompt:
         'Camera cranes up over the rooftops to reveal the palace. Banners and crowds move below. Grand ' +
         'and smooth.',
+      cast: ['aladdin', 'mother'],
     },
     {
       id: 'ep3_s12',
@@ -642,6 +693,7 @@ const episode3: Episode = {
       motionPrompt:
         'The pedlar lifts a shining lamp and turns it in the light. Above, the servant leans out. Slow ' +
         'tilt from street to window.',
+      cast: ['magician'],
     },
     {
       id: 'ep3_s13',
@@ -652,6 +704,7 @@ const episode3: Episode = {
       motionPrompt:
         'Slow pull back across the empty stone. Dust drifts. The crowd barely moves. Cold, quiet, ' +
         'enormous.',
+      cast: ['aladdin'],
     },
     {
       id: 'ep3_s14',
@@ -662,6 +715,7 @@ const episode3: Episode = {
       motionPrompt:
         'A hand reaches slowly into frame toward the lamp. The sleeping man does not stir. Held ' +
         'breath, minimal camera drift.',
+      cast: ['aladdin', 'princess', 'magician'],
     },
     {
       id: 'ep3_s15',
@@ -684,6 +738,7 @@ const episode3: Episode = {
       motionPrompt:
         'The hand withdraws. Dust turns in the light. Nothing else happens. Very slow push in on ' +
         'the lamp.',
+      cast: ['aladdin'],
     },
   ],
 };

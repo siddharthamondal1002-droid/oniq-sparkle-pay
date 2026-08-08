@@ -27,13 +27,64 @@
 // the quartering of Kasim (ep2), the boiling oil (ep2 — implied only), and
 // the magician's brother (ep3 — held for the season finale).
 
+/**
+ * Who speaks, and in which TTS voice.
+ *
+ * The narrator is `ash` in every episode and must stay that way — the art can
+ * change between episodes, a new narrator reads as a different show.
+ *
+ * THE TWO JINN MUST BE TELLABLE APART. The production notes require it of the
+ * designs; it applies at least as strongly to the voices, because a listener
+ * has nothing else to go on. The ring jinni is smaller, sharper and made of
+ * light; the lamp jinni is vast, slow, smoke and ember. They are cast at
+ * opposite ends of the range on purpose, and they must never be swapped between
+ * episodes once an audience has heard them.
+ */
+export const VOICES = {
+  narrator: "ash",
+  aladdin: "echo",
+  magician: "ballad",
+  ringJinni: "shimmer",
+  lampJinni: "onyx",
+} as const;
+
+export type VoiceKey = keyof typeof VOICES;
+
+/** One spoken run of text, in one voice. */
+export type Segment = {
+  voice: VoiceKey;
+  text: string;
+};
+
 /** Narration for one scene. Runtime is derived from the audio, never guessed. */
 export type ScriptLine = {
   /** Scene id in ORIGINALS. */
   sceneId: string;
-  /** What the narrator reads. Plain prose — no direction, no speaker tags. */
+  /**
+   * The whole scene as prose. Remains the canonical text: every existing
+   * compliance and length check reads this, and it is what a reader reviews.
+   */
   narration: string;
+  /**
+   * The same words, divided by speaker, when a scene has dialogue in it.
+   *
+   * A DIVISION, NEVER A REWRITE. The segments must rejoin to `narration`
+   * exactly, and a test enforces it — so the spoken episode can never quietly
+   * drift from the script that was reviewed and signed off.
+   *
+   * Attributions stay with the narrator, which is why some segments are two
+   * words: "“Below,”" is the magician, "said the man," is not. Splitting there
+   * is what stops a character reading their own stage direction aloud.
+   *
+   * Absent means the whole scene is the narrator, which is most of them.
+   */
+  segments?: Segment[];
 };
+
+/** The scene's audio, as the list of clips to generate and concatenate. */
+export function segmentsFor(line: ScriptLine): Segment[] {
+  return line.segments ?? [{ voice: "narrator", text: line.narration }];
+}
 
 /**
  * Bengali transliterations, locked before recording.
@@ -219,6 +270,14 @@ export const SEASON_SCRIPT: ScriptLine[] = [
     sceneId: "ep3_s04",
     narration:
       "“Below,” said the man, “there are steps. Then rooms. Then a garden. At the end of the garden, on a ledge, there is an old lamp. Bring it to me and touch nothing else, and everything I have is yours.” He took a ring from his own hand and pushed it onto Aladdin’s finger. “For protection,” he said. Aladdin, who had never been asked to do anything before, went down.",
+    segments: [
+      { voice: "magician", text: "“Below,”" },
+      { voice: "narrator", text: "said the man," },
+      { voice: "magician", text: "“there are steps. Then rooms. Then a garden. At the end of the garden, on a ledge, there is an old lamp. Bring it to me and touch nothing else, and everything I have is yours.”" },
+      { voice: "narrator", text: "He took a ring from his own hand and pushed it onto Aladdin’s finger." },
+      { voice: "magician", text: "“For protection,”" },
+      { voice: "narrator", text: "he said. Aladdin, who had never been asked to do anything before, went down." },
+    ],
   },
   {
     sceneId: "ep3_s05",
@@ -229,6 +288,15 @@ export const SEASON_SCRIPT: ScriptLine[] = [
     sceneId: "ep3_s06",
     narration:
       "At the top of the steps the man was waiting with his hand out. “The lamp. Give me the lamp.” “Help me up first,” said Aladdin. “I’m carrying too much.” “The lamp first.” And Aladdin — sitting on those steps with his pockets full of jewelled fruit, looking up at a man who would not reach down — understood, all at once and rather late, exactly what kind of uncle he had. He said no. The stone came down.",
+    segments: [
+      { voice: "narrator", text: "At the top of the steps the man was waiting with his hand out." },
+      { voice: "magician", text: "“The lamp. Give me the lamp.”" },
+      { voice: "aladdin", text: "“Help me up first,”" },
+      { voice: "narrator", text: "said Aladdin." },
+      { voice: "aladdin", text: "“I’m carrying too much.”" },
+      { voice: "magician", text: "“The lamp first.”" },
+      { voice: "narrator", text: "And Aladdin — sitting on those steps with his pockets full of jewelled fruit, looking up at a man who would not reach down — understood, all at once and rather late, exactly what kind of uncle he had. He said no. The stone came down." },
+    ],
   },
   {
     sceneId: "ep3_s07",
@@ -239,6 +307,12 @@ export const SEASON_SCRIPT: ScriptLine[] = [
     sceneId: "ep3_s08",
     narration:
       "Something rose out of it and filled the dark, and said: “I serve the ring, and the ring is on your hand. Speak.” Aladdin, whose ambitions had never in his life exceeded the immediate, said the only thing he could think of. “I’d like to go home.”",
+    segments: [
+      { voice: "narrator", text: "Something rose out of it and filled the dark, and said:" },
+      { voice: "ringJinni", text: "“I serve the ring, and the ring is on your hand. Speak.”" },
+      { voice: "narrator", text: "Aladdin, whose ambitions had never in his life exceeded the immediate, said the only thing he could think of." },
+      { voice: "aladdin", text: "“I’d like to go home.”" },
+    ],
   },
   {
     sceneId: "ep3_s09",
@@ -249,6 +323,14 @@ export const SEASON_SCRIPT: ScriptLine[] = [
     sceneId: "ep3_s10",
     narration:
       "The house filled with smoke, and the smoke filled with a shape, and the shape had to stoop. “I serve the lamp,” it said, “and the lamp is in your hand. Speak.” Aladdin’s mother fainted, which was reasonable. Aladdin, who was fifteen and had eaten nothing since the previous morning, said: “Could we have dinner?”",
+    segments: [
+      { voice: "narrator", text: "The house filled with smoke, and the smoke filled with a shape, and the shape had to stoop." },
+      { voice: "lampJinni", text: "“I serve the lamp,”" },
+      { voice: "narrator", text: "it said," },
+      { voice: "lampJinni", text: "“and the lamp is in your hand. Speak.”" },
+      { voice: "narrator", text: "Aladdin’s mother fainted, which was reasonable. Aladdin, who was fifteen and had eaten nothing since the previous morning, said:" },
+      { voice: "aladdin", text: "“Could we have dinner?”" },
+    ],
   },
   {
     sceneId: "ep3_s11",
@@ -259,6 +341,11 @@ export const SEASON_SCRIPT: ScriptLine[] = [
     sceneId: "ep3_s12",
     narration:
       "The magician had not stopped looking. He came back to the city dressed as a pedlar, with a basket of bright new lamps, calling out the silliest offer anyone in that market had ever heard. “New lamps for old! New for old!” Someone in that palace — meaning no harm at all, thinking only that it was a very good deal — traded him a dented one.",
+    segments: [
+      { voice: "narrator", text: "The magician had not stopped looking. He came back to the city dressed as a pedlar, with a basket of bright new lamps, calling out the silliest offer anyone in that market had ever heard." },
+      { voice: "magician", text: "“New lamps for old! New for old!”" },
+      { voice: "narrator", text: "Someone in that palace — meaning no harm at all, thinking only that it was a very good deal — traded him a dented one." },
+    ],
   },
   {
     sceneId: "ep3_s13",
