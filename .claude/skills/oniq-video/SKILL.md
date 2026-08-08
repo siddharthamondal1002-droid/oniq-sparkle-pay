@@ -8,12 +8,19 @@ description: How ONIQ makes video — the Remotion motion-graphics path (promos,
 There are **two separate pipelines** plus **one gap**. Reaching for the wrong
 one wastes an afternoon, so establish which job you are doing first.
 
-| Want                                 | Use                       | State                                            |
-| ------------------------------------ | ------------------------- | ------------------------------------------------ |
-| Promo / trailer / motion graphics    | **Remotion**              | Works. Produced the shipped promo.               |
-| Full episode from stills + narration | **Remotion**              | Works. Produced Episode 1 — see below.           |
-| Animate one illustrated still        | **Runway** image-to-video | Built, admin-gated, **never yet run** (0 jobs)   |
-| Episode assembly via the job queue   | `episode_jobs`            | **Queues only — still no worker. Do not use.**   |
+| Want                                 | Use                        | State                                            |
+| ------------------------------------ | -------------------------- | ------------------------------------------------ |
+| Promo / trailer / motion graphics    | **Remotion**               | Works. Produced the shipped promo.               |
+| Full episode from stills + narration | **Remotion**               | Works. Produced Episodes 1 and 2.                |
+| Real MOVING video                    | **Veo 3.1 via Lovable**    | Works, 10s max. See `references/video-generation.md` |
+| Animate one illustrated still        | **Runway** image-to-video  | Built, admin-gated, **never yet run** (0 jobs)   |
+| Episode assembly via the job queue   | `episode_jobs`             | **Queues only — still no worker. Do not use.**   |
+
+**If someone asks for real animation rather than stills, read
+`references/video-generation.md` first.** It records what the generator can and
+cannot do, measured rather than assumed — including the finding that
+text-to-video ignores the style prompt entirely, which forces the whole
+architecture.
 
 ## Ground truth, checked 2026-08-08
 
