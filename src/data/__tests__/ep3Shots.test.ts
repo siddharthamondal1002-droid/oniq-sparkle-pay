@@ -162,13 +162,18 @@ describe("the cast locks hold across fifty-seven generations", () => {
 });
 
 describe("coverage, not repeated takes", () => {
-  it("keeps most shots free of any recognisable face", () => {
+  it("keeps most shots free of any legible character", () => {
     // The documented character-consistency strategy, asserted so it survives
     // editing. Four near-identical takes of one wide shot read as a glitch
     // because the eye compares them; four different angles read as filmmaking.
     // If this ever fails, the fix is more coverage — not better prompting.
+    //
+    // Note the bar is LEGIBLE, not "has a face". The pilot proved clothing
+    // reads at any distance: an uncast Aladdin sixty feet down a street came
+    // back a different child in a different colour. Locks are cheap; a lock on
+    // a hand is waste, a lock on a distant silhouette is not.
     const faced = EP3_SHOTS.filter((s) => (s.cast ?? []).length > 0).length;
-    expect(faced / EP3_SHOTS.length, `${faced}/${EP3_SHOTS.length} shots have a face`).toBeLessThan(
+    expect(faced / EP3_SHOTS.length, `${faced}/${EP3_SHOTS.length} shots are cast`).toBeLessThan(
       0.5,
     );
   });

@@ -25,8 +25,17 @@
 // prompting. Four near-identical takes of one wide shot read as a glitch,
 // because the eye is invited to compare them and finds the crowd rearranged.
 // Four DIFFERENT shots — a wide, then hands, then an object, then a face — read
-// as filmmaking. Thirty-nine of the sixty shots below have nobody recognisable
-// in them, and that is the character-consistency strategy.
+// as filmmaking. Thirty-four of the sixty shots below have nobody LEGIBLE in
+// them, and that is the character-consistency strategy.
+//
+// LEGIBLE, not "no face" — the pilot corrected this. S01A was written as a wide
+// establishing shot with Aladdin small and far down the street, and left uncast
+// on the reasoning that a face that size cannot drift. It came back a six-year-
+// old in a blue tunic, cutting straight to the cream-and-teal fifteen-year-old
+// of S01B on the same wall a second later. Clothing reads at any distance, and
+// a silhouette in the wrong colour is a continuity break just as surely as a
+// wrong face is. So: lock wherever identity is legible, and leave uncast only
+// hands, palms, a shoulder in the dark, an unreadable silhouette.
 //
 // STILL vs MOTION, same split as originals.ts and for the same reason. `still`
 // is what the frame IS and feeds the image model; `motion` is what MOVES and
@@ -82,6 +91,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "The crowd flows past in soft blur. Awnings lift in the warm air and dust turns in the low " +
       "light. Very slow push down the street toward the distant wall.",
+    cast: ["aladdin"],
   },
   {
     id: "ep3_s01b",
@@ -168,6 +178,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "The two figures walk on, small and steady. Wind moves the dry scrub. Cloud shadow slides " +
       "across the hills. Slow crane up and back until the sky takes most of the frame.",
+    cast: ["aladdin", "magician"],
   },
   {
     id: "ep3_s03b",
@@ -249,6 +260,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "He goes down step by step, growing smaller, until the dark takes him. Dust drifts through " +
       "the green light. The camera holds, looking down.",
+    cast: ["aladdin"],
   },
 
   // --- S5 — The jewelled garden -------------------------------------------
@@ -344,6 +356,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "The fists tighten on the cloth and the load shifts and clicks. One gem works loose, teeters " +
       "on the fold, and does not quite fall. Nothing lets go.",
+    cast: ["aladdin"],
   },
   {
     id: "ep3_s06d",
@@ -597,6 +610,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "He walks; the basket rocks and the new lamps knock together and flash in the sun. The crowd " +
       "parts around him. The camera follows behind at his shoulder.",
+    cast: ["magician"],
   },
   {
     id: "ep3_s12b",
