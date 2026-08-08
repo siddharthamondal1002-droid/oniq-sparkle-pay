@@ -337,10 +337,7 @@ function MyProfileQrCard() {
   const { data: token, isLoading } = useQuery({
     queryKey: ["profile-qr-token"],
     queryFn: async (): Promise<string | null> => {
-      // Not in the generated types yet — the function landed in migration
-      // 20260807000000 and types.ts is regenerated separately.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("my_profile_qr_token");
+      const { data, error } = await supabase.rpc("my_profile_qr_token");
       if (error) throw error;
       return (data as string) ?? null;
     },
@@ -370,8 +367,7 @@ function MyProfileQrCard() {
 
   async function rotate() {
     setRotating(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).rpc("rotate_profile_qr_token");
+    const { error } = await supabase.rpc("rotate_profile_qr_token");
     setRotating(false);
     setConfirming(false);
     if (error) {

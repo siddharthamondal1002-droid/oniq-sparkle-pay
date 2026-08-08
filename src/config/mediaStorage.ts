@@ -90,6 +90,25 @@ export const SIGNED_URL_TTL_SECONDS = 300;
  * readAsDataURL is the worst of them: base64 inflates by about a third, so
  * 200 MB becomes a ~266 MB string.
  */
+// CORRECTION, made while building A4 by actually reading the call sites.
+//
+// An earlier version of this comment said app.ai.tsx was "the banned pattern
+// proper" and would "become fatal the moment A4 raises the cap to 200 MB".
+// That was wrong, and wrong in a way that would have sent someone to fix the
+// wrong file:
+//
+//   app.ai.tsx, app.study.tsx and app.vitals.tsx base64 a file to send to an
+//   AI edge function. The API needs base64, so they cannot stream — but all
+//   three were ALREADY capped (5/10/1 MB, 10 MB and 6 MB). They are not chat
+//   media and the 200 MB cap below never applies to them.
+//
+//   saveFile.ts reads a PDF we generated ourselves. Bounded by construction.
+//
+//   CredentialCsvImport.tsx was the only genuinely unbounded one: file.text()
+//   with no size check at all. It now caps at 2 MB.
+//
+// The ban below is still right; it just governs the chat-media upload path,
+// which is the one that carries 200 MB files.
 export const BANNED_WHOLE_FILE_READS = [
   "FileReader.readAsArrayBuffer",
   "FileReader.readAsDataURL",

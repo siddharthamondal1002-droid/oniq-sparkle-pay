@@ -30,11 +30,7 @@ type Card = {
 export const Route = createFileRoute("/q/$token")({
   loader: async ({ params }): Promise<{ card: Card | null }> => {
     try {
-      // Not in the generated types yet — the function landed in migration
-      // 20260807000000 and types.ts is regenerated separately. Same pattern
-      // and same reason as the public_profile_card call in u.$userId.tsx.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any).rpc("profile_card_by_qr_token", {
+      const { data } = await supabase.rpc("profile_card_by_qr_token", {
         _token: params.token,
       });
       const row = Array.isArray(data) ? data[0] : data;

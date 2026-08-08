@@ -7,6 +7,7 @@ import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Tr
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { LANG_NATIVE } from "@/lib/userLanguage";
+import { WINDOW_STEP, windowRows, windowSizeToReveal } from "@/lib/chat/messageWindow";
 import { PhotoStudio } from "@/components/photo/PhotoStudio";
 import { EMOJI_CATEGORIES } from "@/lib/emojis";
 import { format, isToday, isYesterday } from "date-fns";
@@ -152,6 +153,17 @@ function ChatThread() {
   const [translated, setTranslated] = useState<Record<string, string>>({});
   const [showOriginal, setShowOriginal] = useState<Record<string, boolean>>({});
   const [translatingId, setTranslatingId] = useState<string | null>(null);
+  // Track A1 — how many rows stay mounted. See lib/chat/messageWindow.ts for
+  // why this is a tail window rather than a measured virtualiser.
+  const [windowSize, setWindowSize] = useState(WINDOW_STEP);
+  // scrollToMessage is defined above where `rendered` is built, so it reads
+  // the full row list through a ref rather than a closure over a later const.
+  const renderedRef = useRef<Array<{ kind: string; key: string }>>([]);
+  useEffect(() => {
+    // A different conversation starts at the bottom again. Without this the
+    // window stays as wide as whatever the last thread was expanded to.
+    setWindowSize(WINDOW_STEP);
+  }, [conversationId]);
   const [deleteConfirm, setDeleteConfirm] = useState<Message | null>(null);
   const [infoFor, setInfoFor] = useState<Message | null>(null);
   const lastTapRef = useRef<{ id: string; t: number } | null>(null);
@@ -1150,13 +1162,35 @@ function ChatThread() {
     }
   };
 
+  const highlight = (el: HTMLElement) => {
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    el.classList.add("ring-2", "ring-[#00D4B8]");
+    setTimeout(() => el.classList.remove("ring-2", "ring-[#00D4B8]"), 1200);
+  };
+
+  /**
+   * Jump to a message — including one older than the current window.
+   *
+   * A tail window means a reply can point at something not currently mounted.
+   * Silently doing nothing would look like a broken button, so the window is
+   * widened to include the target and the scroll happens once React has
+   * painted it.
+   */
   const scrollToMessage = (id: string) => {
     const el = document.getElementById(`msg-${id}`);
     if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-      el.classList.add("ring-2", "ring-[#00D4B8]");
-      setTimeout(() => el.classList.remove("ring-2", "ring-[#00D4B8]"), 1200);
+      highlight(el);
+      return;
     }
+    const index = renderedRef.current.findIndex((r) => r.kind === "msg" && r.key === id);
+    if (index < 0) return;
+    setWindowSize((size) => windowSizeToReveal(renderedRef.current, index, size));
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const late = document.getElementById(`msg-${id}`);
+        if (late) highlight(late);
+      });
+    });
   };
 
   const title = header?.title ?? "Conversation";
@@ -1207,6 +1241,11 @@ function ChatThread() {
       lastOfGroup: !sameSenderAsNext,
     });
   }
+
+  // Only the tail is mounted. Everything above is one tap away, and
+  // scrollToMessage widens the window on demand for reply-jumps.
+  renderedRef.current = rendered;
+  const { rows: windowedRows, hidden: hiddenRowCount } = windowRows(rendered, windowSize);
 
   const startPress = (m: Message, e: React.TouchEvent) => {
     if (m.is_deleted) return;
@@ -1474,7 +1513,20 @@ function ChatThread() {
             No messages yet. Say hi 👋
           </div>
         ) : (
-          rendered.map((r, idx) => {
+          <>
+            {hiddenRowCount > 0 && (
+              <div className="flex justify-center py-2">
+                <button
+                  type="button"
+                  data-testid="load-earlier"
+                  onClick={() => setWindowSize((n) => n + WINDOW_STEP)}
+                  className="press rounded-full border border-border bg-card px-4 py-1.5 text-xs font-semibold text-muted-foreground"
+                >
+                  Load earlier messages
+                </button>
+              </div>
+            )}
+            {windowedRows.map((r, idx) => {
             if (r.kind === "day") {
               return (
                 <div key={r.key} className="my-3 flex items-center justify-center">
@@ -1496,7 +1548,7 @@ function ChatThread() {
             const { m, firstOfGroup, lastOfGroup } = r;
             const mine = m.sender_id === me?.id;
             const groupGap = firstOfGroup ? "mt-2.5" : "mt-[2px]";
-            const prev = rendered[idx - 1];
+            const prev = windowedRows[idx - 1];
             const isFirstAfterBreak = firstOfGroup || (prev && prev.kind !== "msg");
             const bubbleRadius = mine
               ? isFirstAfterBreak
@@ -1742,7 +1794,8 @@ function ChatThread() {
                 </div>
               </div>
             );
-          })
+            })}
+          </>
         )}
         {peerTyping && (
           <div className="mt-2 flex justify-start">

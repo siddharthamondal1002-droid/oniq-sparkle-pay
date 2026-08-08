@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { FileUp, Upload, X } from "lucide-react";
+import { toast } from "sonner";
+import { formatBytes } from "@/config/mediaStorage";
 import {
   guessMapping,
   looksLikeHeader,
@@ -16,6 +18,9 @@ import {
   normalizeQualification,
   normalizeYear,
 } from "@/lib/cvValidation";
+
+/** See onFile. 2 MB is ~20,000 rows: past any real CV, below anything harmful. */
+const MAX_CSV_BYTES = 2 * 1024 * 1024;
 
 const SAMPLE = `Qualification,Board,Year
 Class 10,CBSE,2018
@@ -72,8 +77,25 @@ export default function CredentialCsvImport({
     setHasHeader(r[0] ? looksLikeHeader(r[0]) : false);
   }
 
+  /**
+   * A CSV of qualifications is a few kilobytes. This cap is not about the
+   * honest case.
+   *
+   * file.text() materialises the WHOLE file as a JavaScript string, and in a
+   * Capacitor WebView on a mid-range phone a large one takes the process down
+   * with no dialog and no error — the app simply vanishes. Nothing stops
+   * someone picking a 2 GB video here by accident, and this was the only
+   * genuinely unbounded whole-file read left in the app.
+   *
+   * 2 MB is roughly 20,000 qualification rows: far past any real CV and far
+   * below anything that could hurt.
+   */
   async function onFile(file: File | undefined) {
     if (!file) return;
+    if (file.size > MAX_CSV_BYTES) {
+      toast.error(`That file is ${formatBytes(file.size)} — CSV imports are capped at 2 MB`);
+      return;
+    }
     setFileName(file.name);
     loadText(await file.text());
   }

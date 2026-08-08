@@ -22,7 +22,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { execSync } from "node:child_process";
-import { codeOnly } from "@/test/sourceText";
+import { blankComments, codeOnly } from "@/test/sourceText";
 
 const ROOT = process.cwd();
 
@@ -37,6 +37,34 @@ const ROOT = process.cwd();
  * more accurate than the by-name exclusion it replaces, not weaker.
  */
 const TEST_PATH = /(^|\/)(__tests__|test)\/|\.test\.tsx?:/;
+
+/**
+ * Is this grep hit inside a comment?
+ *
+ * Answered by re-reading the file and blanking comments with line numbers
+ * intact, so the question becomes "does line N still contain anything once
+ * the prose is gone". The per-line cache keeps this cheap across the handful
+ * of hits a guard produces.
+ */
+const blankedCache = new Map<string, string[]>();
+function isProse(grepLine: string): boolean {
+  const m = /^([^:]+):(\d+):/.exec(grepLine);
+  if (!m) return false;
+  const [, file, lineNo] = m;
+  try {
+    let blanked = blankedCache.get(file);
+    if (!blanked) {
+      blanked = blankComments(readFileSync(join(ROOT, file), "utf8"));
+      blankedCache.set(file, blanked);
+    }
+    const line = blanked[Number(lineNo) - 1];
+    // Nothing left on that line once comments are gone → it was prose.
+    return line !== undefined && line.trim() === "";
+  } catch {
+    // Unreadable file: fail toward reporting the hit rather than hiding it.
+    return false;
+  }
+}
 
 /** Ripgrep over the source the user can actually see. */
 function grepUserFacing(pattern: string): string[] {
@@ -53,7 +81,14 @@ function grepUserFacing(pattern: string): string[] {
         // A comment explaining why the frame budget is derived rather than
         // assumed is not a promise to a user, and a guard that cannot tell
         // prose from code is one somebody will switch off.
+        //
+        // Two passes, because they catch different things. codeOnly works on
+        // the grep line alone and is enough for `// foo` and `* foo`. It is
+        // NOT enough for the middle line of a multi-line JSX comment, which
+        // carries no marker at all — that needs the file, which isProse
+        // re-reads so it can answer by line number.
         .filter((l) => codeOnly(l) !== "")
+        .filter((l) => !isProse(l))
     );
   } catch {
     return [];
@@ -163,17 +198,21 @@ describe("no whole-file reads on any upload path (Track A4, pre-emptive)", () =>
    * them, and Track A4 is where the three real ones get fixed. Writing them
    * down beats pretending the codebase is already clean.
    */
+  //
+  // REVISED IN A4, after reading every call site instead of assuming. All
+  // five are now BOUNDED, so the list is a record of deliberate whole-file
+  // reads rather than a list of debts.
   const KNOWN = [
     // Our own generated Blob (a PDF we just built), read to base64 for the
     // Capacitor share sheet. Not a user file, bounded by what we produced.
     "src/lib/saveFile.ts",
-    // A CSV the user picks. Small by nature but UNBOUNDED in principle — it
-    // wants a size cap, and gets one in A4.
+    // A CSV the user picks. Was the ONLY genuinely unbounded read in the app
+    // — file.text() with no size check. Capped at 2 MB in A4.
     "src/components/cv/CredentialCsvImport.tsx",
-    // readAsDataURL on a camera photo. This is the banned pattern proper: a
-    // modern phone image is 10-20 MB and base64 inflates it by a third. Not
-    // fatal at that size, which is why it has survived, and exactly what
-    // becomes fatal the moment A4 raises the cap to 200 MB.
+    // These three base64 a file for an AI edge function, which needs base64
+    // and so cannot stream. Each was already capped before A4: 5/10/1 MB,
+    // 10 MB and 6 MB respectively. They are not the chat-media path and the
+    // 200 MB cap never reaches them.
     "src/routes/_authenticated/app.ai.tsx",
     "src/routes/_authenticated/app.study.tsx",
     "src/routes/_authenticated/app.vitals.tsx",

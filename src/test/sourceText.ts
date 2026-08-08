@@ -113,6 +113,60 @@ export function executableText(source: string): string {
 }
 
 /**
+ * Comment-free source, WITH LINE NUMBERS PRESERVED.
+ *
+ * `stripComments` drops comment-only lines, which renumbers everything after
+ * them. That makes it useless for the one job a grep-based guard actually
+ * needs: given a hit at `file:120`, was line 120 code or prose?
+ *
+ * This returns an array with exactly one entry per source line, comment text
+ * blanked in place. Index N-1 is line N. It is the honest way to answer that
+ * question, and it succeeds where `codeOnly` cannot: `codeOnly` sees one line
+ * with no surrounding context, so the middle line of a block comment —
+ * carrying no `/*` and no leading `*` — looks exactly like code to it.
+ */
+export function blankComments(source: string): string[] {
+  const out: string[] = [];
+  let inBlock = false;
+
+  for (const rawLine of source.split("\n")) {
+    let line = rawLine;
+
+    if (inBlock) {
+      const end = line.indexOf("*/");
+      if (end === -1) {
+        out.push("");
+        continue;
+      }
+      line = " ".repeat(end + 2) + line.slice(end + 2);
+      inBlock = false;
+    }
+
+    let masked = maskStrings(line);
+
+    for (;;) {
+      const open = masked.indexOf("/*");
+      if (open === -1) break;
+      const close = masked.indexOf("*/", open + 2);
+      if (close === -1) {
+        inBlock = true;
+        line = line.slice(0, open);
+        break;
+      }
+      line = line.slice(0, open) + " ".repeat(close + 2 - open) + line.slice(close + 2);
+      masked = maskStrings(line);
+    }
+
+    const slashes = masked.indexOf("//");
+    if (slashes !== -1) line = line.slice(0, slashes);
+
+    out.push(line);
+  }
+
+  return out;
+}
+
+/**
  * The same reduction, for SQL.
  *
  * Added because the migration guards hit the identical use-versus-mention

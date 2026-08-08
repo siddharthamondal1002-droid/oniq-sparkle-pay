@@ -10,7 +10,13 @@
  * use survives.
  */
 import { describe, expect, it } from "vitest";
-import { codeOnly, executableText, stripComments, stripSqlComments } from "@/test/sourceText";
+import {
+  blankComments,
+  codeOnly,
+  executableText,
+  stripComments,
+  stripSqlComments,
+} from "@/test/sourceText";
 
 describe("stripComments keeps strings, because an import path is one", () => {
   it("keeps an import specifier intact", () => {
@@ -125,6 +131,47 @@ describe("executableText keeps code and drops prose", () => {
     const out = executableText(src);
     expect(out).toContain("reader.readAsDataURL(file);");
     expect(out.match(/readAsDataURL/g)).toHaveLength(1);
+  });
+});
+
+describe("blankComments keeps line numbers so a grep hit can be judged", () => {
+  it("returns one entry per source line", () => {
+    const src = ["a", "// b", "c"].join("\n");
+    expect(blankComments(src)).toHaveLength(3);
+  });
+
+  it("blanks the MIDDLE line of a multi-line comment", () => {
+    // The case codeOnly cannot handle: this line carries no comment marker at
+    // all, so seen alone it is indistinguishable from code. It is why the
+    // refresh-rate guard flagged a JSX comment in the diag screen.
+    const src = [
+      "const a = 1;",
+      "{/* The budget is derived, not assumed.",
+      "    On a 90 or 120 Hz panel a janky scroll scores perfectly.",
+      "*/}",
+      "const b = 2;",
+    ].join("\n");
+    const lines = blankComments(src);
+    expect(lines[2].trim(), "prose line survived").toBe("");
+    expect(lines[0]).toContain("const a = 1;");
+    expect(lines[4]).toContain("const b = 2;");
+  });
+
+  it("leaves a real claim on a code line intact", () => {
+    // The fix is only safe if a genuine claim still shows up.
+    const src = ["<h1>Device check at 120 Hz</h1>"].join("\n");
+    expect(blankComments(src)[0]).toContain("120 Hz");
+  });
+
+  it("keeps code that shares a line with a comment", () => {
+    const lines = blankComments("const x = 1; // 120 Hz");
+    expect(lines[0]).toContain("const x = 1;");
+    expect(lines[0]).not.toContain("120");
+  });
+
+  it("does not shift numbering when a comment-only line appears", () => {
+    const src = ["// one", "// two", "target();"].join("\n");
+    expect(blankComments(src)[2]).toContain("target();");
   });
 });
 
