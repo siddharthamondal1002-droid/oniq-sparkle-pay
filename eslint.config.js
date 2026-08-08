@@ -186,6 +186,9 @@ export default tseslint.config(
       // the service role, server-side, with explicit short TTLs — it is not on
       // the user-facing media path resolveMedia.ts governs.
       "src/lib/runwayOps.server.ts",
+      // Same tool, same private bucket, same service-role/short-TTL shape:
+      // the admin episode assembler signs its own finished MP4 for preview.
+      "src/lib/episode.server.ts",
     ],
     rules: { "oniq/media-url-fence": "error" },
   },
