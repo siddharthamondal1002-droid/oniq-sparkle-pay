@@ -90,15 +90,36 @@ export const HOUSE_STYLE =
  * staging, and it flatly contradicts S13, which is a tight close-up. Framing
  * belongs to the scene for the same reason the hour does.
  *
+ * THEN A FIFTH, FROM OVER-CORRECTING THE SECOND.
+ *
+ * The v2 stills fixed all four faults and lost the look. Removing the night
+ * palette also removed the depth: "amber against deep violet" was carrying the
+ * volume and the contrast as well as the hour, and cutting it back to "rich
+ * saturated jewel-like colour" left flat, pale illustration. S7's cavern went
+ * from the best match in the set to a washed-out drawing.
+ *
+ * The distinction that was missing: warm-versus-cool is a RELATIONSHIP, and
+ * only becomes a time of day when you name the two colours. Stated as the
+ * separation between the scene's own light and its own shade, midday gets warm
+ * sun against cool blue shadow and a lamplit room gets amber against violet —
+ * richness restored, hour still owned by the scene. Volume is now asked for
+ * directly (volumetric light, shafts, modelled form, "never flat") rather than
+ * arriving as a side effect of a palette.
+ *
  * `film grain` is deliberately dropped and `no film grain` asserted instead.
  * Grain is the single strongest photoreal cue in HOUSE_STYLE and leaving it
  * in fights every other word here.
  */
 export const STORYBOOK_STYLE =
-  'Stylised storybook animation still, lush hand-painted 3D-animation feel, rounded simplified ' +
-  'forms with soft painterly brushwork and no hard outlines, rich saturated jewel-like colour, ' +
-  'soft bloom only around light sources actually present in the scene, layered atmospheric haze ' +
-  'for depth. ' +
+  'Lavish feature-animation film still, lush hand-painted 3D-animation feel with high production ' +
+  'value, rounded simplified forms, soft painterly brushwork and no hard outlines. ' +
+  // Richness. Stripping the reference's night palette also stripped its depth;
+  // these restore the volume and contrast WITHOUT naming a key.
+  'Rich saturated jewel-like colour and deep shadows that carry colour rather than going grey, ' +
+  'strong warm-to-cool separation between the scene\u2019s own light and its own shade, dramatic ' +
+  'volumetric light with visible light shafts and glow around whatever is emitting light in the ' +
+  'scene, layered atmospheric haze for depth, shallow depth of field with a soft out-of-focus ' +
+  'foreground. Deeply three-dimensional and richly modelled, never flat. ' +
   // Design language. Without this the cast is re-rolled every image.
   'Characters are drawn in one consistent feature-animation design language with naturalistic ' +
   'adult human proportions and warm expressive faces; not chibi, not super-deformed, no ' +
