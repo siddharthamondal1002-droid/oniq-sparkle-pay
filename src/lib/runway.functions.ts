@@ -42,3 +42,30 @@ export const runwaySignStored = createServerFn({ method: 'POST' })
     const { signStored } = await import('./runwayOps.server');
     return signStored(context.supabase, context.userId, data.path);
   });
+
+// FormData on purpose: the File is streamed as the request body rather than
+// being read into a string. A base64 data URL of a 15MB phone photo is ~20MB
+// of JS string on a mid-range Android WebView, which kills the process.
+export const runwayUploadStill = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: FormData) => {
+    if (!(input instanceof FormData)) throw new Error('expected form data');
+    return input;
+  })
+  .handler(async ({ data, context }): Promise<{ name: string; replaced: boolean }> => {
+    const file = data.get('file');
+    if (!(file instanceof Blob)) throw new Error('no file');
+    const filename = String(data.get('filename') ?? '');
+    const replace = data.get('replace') === 'true';
+    const { uploadStill } = await import('./runwayStills.server');
+    return uploadStill(context.supabase, context.userId, file, filename, replace);
+  });
+
+export const runwayDeleteStill = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: { name: string }) => input)
+  .handler(async ({ data, context }): Promise<{ deleted: string }> => {
+    const { deleteStill } = await import('./runwayStills.server');
+    return deleteStill(context.supabase, context.userId, data.name);
+  });
+

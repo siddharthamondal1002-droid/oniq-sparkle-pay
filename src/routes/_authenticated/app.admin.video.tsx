@@ -8,12 +8,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
 import { useEffect, useState } from 'react';
 import {
+  runwayDeleteStill,
   runwayPollJobs,
   runwayScenes,
   runwaySignStored,
   runwayStatus,
   runwaySubmitJob,
+  runwayUploadStill,
 } from '@/lib/runway.functions';
+import { MAX_STILL_BYTES, validateStillName } from '@/lib/stillValidation';
+
 
 export const Route = createFileRoute('/_authenticated/app/admin/video')({
   head: () => ({
@@ -34,6 +38,8 @@ function AdminVideoTool() {
   const submit = useServerFn(runwaySubmitJob);
   const poll = useServerFn(runwayPollJobs);
   const sign = useServerFn(runwaySignStored);
+  const uploadStill = useServerFn(runwayUploadStill);
+  const deleteStill = useServerFn(runwayDeleteStill);
 
   const [scene, setScene] = useState('');
   const [promptText, setPromptText] = useState('');
@@ -42,6 +48,9 @@ function AdminVideoTool() {
   const [seed, setSeed] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState<Record<string, string>>({});
+  const [replace, setReplace] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState<string | null>(null);
+
 
   const statusQuery = useQuery({
     queryKey: ['runway-status'],
@@ -91,10 +100,55 @@ function AdminVideoTool() {
     onError: (e: Error) => setMessage(`error: ${e.message}`),
   });
 
+  // The File goes into FormData untouched — no FileReader, no data URL, no
+  // arrayBuffer() on the whole thing. fetch streams the body, so a 15MB phone
+  // photo never exists as a JS value in the WebView.
+  const uploadMutation = useMutation({
+    mutationFn: async (files: File[]) => {
+      const done: string[] = [];
+      for (const file of files) {
+        const name = file.name;
+        const bad = validateStillName(name);
+        if (bad) throw new Error(`${name}: ${bad}`);
+        if (file.size > MAX_STILL_BYTES) throw new Error(`${name}: over 15MB`);
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('filename', name);
+        fd.append('replace', replace ? 'true' : 'false');
+        await uploadStill({ data: fd });
+        done.push(name);
+      }
+      return done;
+    },
+    onSuccess: (names) => {
+      setUploadMsg(`uploaded: ${names.join(', ')}`);
+      void qc.invalidateQueries({ queryKey: ['runway-scenes'] });
+    },
+    onError: (e: Error) => setUploadMsg(`error: ${e.message}`),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (name: string) => deleteStill({ data: { name } }),
+    onSuccess: (r) => {
+      setUploadMsg(`deleted: ${r.deleted}`);
+      if (scene === r.deleted) setScene('');
+      void qc.invalidateQueries({ queryKey: ['runway-scenes'] });
+    },
+    onError: (e: Error) => setUploadMsg(`error: ${e.message}`),
+  });
+
   async function showClip(jobId: string, path: string) {
     const url = await sign({ data: { path } });
     if (url) setPreview((p) => ({ ...p, [jobId]: url }));
   }
+
+  function confirmDelete(name: string) {
+    // Deliberate confirm step: a still is the input to every clip made from it.
+    if (window.confirm(`delete still "${name}"? this cannot be undone.`)) {
+      deleteMutation.mutate(name);
+    }
+  }
+
 
   if (statusQuery.isError) {
     return <pre style={{ padding: 16 }}>forbidden</pre>;
@@ -110,6 +164,52 @@ function AdminVideoTool() {
       <p>
         today: {used}/{cap} &nbsp;|&nbsp; kill switch: {enabled ? 'ON (enabled)' : 'OFF (disabled)'}
       </p>
+
+      <fieldset style={{ marginTop: 12, padding: 8 }}>
+        <legend>scene stills</legend>
+        <div>
+          <input
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            multiple
+            capture={undefined}
+            disabled={uploadMutation.isPending}
+            onChange={(e) => {
+              const files = Array.from(e.target.files ?? []);
+              e.target.value = '';
+              if (files.length) uploadMutation.mutate(files);
+            }}
+          />
+        </div>
+        <div style={{ marginTop: 6 }}>
+          <label>
+            <input
+              type="checkbox"
+              checked={replace}
+              onChange={(e) => setReplace(e.target.checked)}
+            />{' '}
+            replace if a still with the same name exists
+          </label>
+        </div>
+        <p>png / jpeg / webp only, max 15MB each. type is checked by content, not extension.</p>
+        {uploadMutation.isPending ? <p>uploading...</p> : null}
+        {uploadMsg ? <p>{uploadMsg}</p> : null}
+        <ul style={{ marginTop: 6, paddingLeft: 18 }}>
+          {(scenesQuery.data ?? []).map((s) => (
+            <li key={s.name}>
+              {s.name}{' '}
+              <button
+                type="button"
+                onClick={() => confirmDelete(s.name)}
+                disabled={deleteMutation.isPending}
+              >
+                delete
+              </button>
+            </li>
+          ))}
+        </ul>
+      </fieldset>
+
 
       <fieldset style={{ marginTop: 12, padding: 8 }}>
         <legend>submit one clip</legend>
