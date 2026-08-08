@@ -1867,6 +1867,41 @@ export type Database = {
           },
         ]
       }
+      message_translations: {
+        Row: {
+          created_at: string
+          engine: string
+          message_id: string
+          source_lang: string | null
+          target_lang: string
+          translated_text: string
+        }
+        Insert: {
+          created_at?: string
+          engine: string
+          message_id: string
+          source_lang?: string | null
+          target_lang: string
+          translated_text: string
+        }
+        Update: {
+          created_at?: string
+          engine?: string
+          message_id?: string
+          source_lang?: string | null
+          target_lang?: string
+          translated_text?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "message_translations_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           content: string | null
@@ -2294,6 +2329,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profile_qr_tokens: {
+        Row: {
+          created_at: string
+          rotated_at: string | null
+          rotation_count: number
+          token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          rotated_at?: string | null
+          rotation_count?: number
+          token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          rotated_at?: string | null
+          rotation_count?: number
+          token?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -3288,6 +3347,7 @@ export type Database = {
         Args: { _incident_id: string; _report: string }
         Returns: undefined
       }
+      can_read_message: { Args: { _message_id: string }; Returns: boolean }
       child_restricted: { Args: { _uid: string }; Returns: boolean }
       clips_feed: {
         Args: { _limit?: number; _offset?: number }
@@ -3368,6 +3428,7 @@ export type Database = {
         Args: { other_user_id: string }
         Returns: string
       }
+      gen_profile_qr_token: { Args: never; Returns: string }
       get_chat_list: {
         Args: never
         Returns: {
@@ -3509,6 +3570,7 @@ export type Database = {
           time_slot: string
         }[]
       }
+      my_profile_qr_token: { Args: never; Returns: string }
       my_service_bookings: {
         Args: never
         Returns: {
@@ -3559,6 +3621,16 @@ export type Database = {
           username: string
           viewed_at: string
           viewer_id: string
+        }[]
+      }
+      profile_card_by_qr_token: {
+        Args: { _token: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          display_name: string
+          user_id: string
+          username: string
         }[]
       }
       public_moment_card: {
@@ -3635,6 +3707,7 @@ export type Database = {
         Args: { _accept: boolean; _other: string }
         Returns: string
       }
+      rotate_profile_qr_token: { Args: never; Returns: string }
       send_friend_request: { Args: { _to: string }; Returns: undefined }
       set_signup_profile: {
         Args: {
