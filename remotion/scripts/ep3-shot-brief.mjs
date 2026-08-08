@@ -45,9 +45,24 @@ const done = (shot) =>
   fs.existsSync(path.join(CLIPS, `${shot.id}.mp4.asset.json`)) ||
   fs.existsSync(path.join(CLIPS, `${shot.id}.mp4`));
 
-/** What every starting frame must be. Veo returns 1088x1920 and ingest crops. */
-const STILL_W = 1080;
-const STILL_H = 1920;
+/**
+ * Acceptable starting-frame sizes, WIDEST FIRST because 1088 is preferred.
+ *
+ * Veo returns 1088x1920 — h264 macroblock rounding — and so, it turns out, does
+ * the image generator. Handing Veo a 1088x1920 frame is therefore an exact
+ * match: nothing is resampled on the way in, and the single crop to 1080 still
+ * happens at ingest where it always did.
+ *
+ * Requiring exactly 1080x1920 here was my mistake. It made the agent crop 8px
+ * off every still and re-encode it, which costs a JPEG generation and then
+ * makes Veo scale the frame back up to its own 1088 anyway — crop, upscale,
+ * crop. 1080 is still accepted, because thirteen good clips were made from
+ * 1080 sources and the A/B says they are indistinguishable.
+ */
+const STILL_SIZES = [
+  { w: 1088, h: 1920 },
+  { w: 1080, h: 1920 },
+];
 
 /**
  * Format, width and height of an image, without a decoder.
@@ -106,7 +121,8 @@ function stillState(shot) {
   if (!img) return { has: true, ok: false, note: 'UNREADABLE — not a JPEG or PNG' };
   // The extension is part of the contract: an mislabelled file is a sign the
   // generation step did something other than what was asked.
-  const ok = img.width === STILL_W && img.height === STILL_H && img.format === 'JPEG';
+  const sized = STILL_SIZES.some((s) => img.width === s.w && img.height === s.h);
+  const ok = sized && img.format === 'JPEG';
   const what = `${img.width}x${img.height} ${img.format}`;
   return { has: true, ok, note: ok ? what : `WRONG ${what}` };
 }
@@ -155,7 +171,9 @@ if (JSON_OUT) {
   console.log(`${shots.length} shot(s) listed, ${todo} still to generate.`);
   if (badStills.length > 0) {
     console.log(
-      `\n!! ${badStills.length} still(s) are not ${STILL_W}x${STILL_H} and should be regenerated:\n   ` +
+      `\n!! ${badStills.length} still(s) are not ` +
+        STILL_SIZES.map((s) => `${s.w}x${s.h}`).join(' or ') +
+        ` JPEG:\n   ` +
         badStills.map((s) => `${s.id} ${stillState(s).note}`).join('\n   '),
     );
   }
