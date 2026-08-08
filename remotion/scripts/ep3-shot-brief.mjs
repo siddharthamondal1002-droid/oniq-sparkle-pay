@@ -39,7 +39,7 @@ const { EP3_SHOT_PLAN } = await import('../src/ep3/shots.ts').catch((err) => {
   throw new Error(`could not load the shot plan (${err.message}). Run with bun, not node.`);
 });
 const { FPS } = await import('../src/ep3/manifest.ts');
-const { CHARACTER_SHEETS } = await import('../../src/data/originals.ts');
+const { CHARACTER_SHEETS, SHEET_SAFE_TO_ATTACH } = await import('../../src/data/originals.ts');
 const { shotPromptFor } = await import('../../src/data/ep3Shots.ts');
 
 const args = process.argv.slice(2);
@@ -157,7 +157,13 @@ const brief = (shot) => ({
   // Missing sheets are reported rather than silently dropped: a cast key with
   // no art is a character about to be re-invented, and it should be noticed
   // before the generation rather than after it.
-  sheets: (shot.cast ?? []).map((key) => ({ key, file: CHARACTER_SHEETS[key] ?? null })),
+  sheets: (shot.cast ?? []).map((key) => ({
+    key,
+    file: CHARACTER_SHEETS[key] ?? null,
+    // A 2D sheet drags its own flat rendering into the frame. See
+    // SHEET_SAFE_TO_ATTACH in originals.ts for the four shots that proved it.
+    attach: SHEET_SAFE_TO_ATTACH[key] === true,
+  })),
   still: shotPromptFor(shot),
   motion: shot.motion,
   transitionIn: shot.transitionIn ?? 'cut',
@@ -170,8 +176,17 @@ if (JSON_OUT) {
 } else {
   for (const shot of shots) {
     const b = brief(shot);
+    const attach = b.sheets.filter((s) => s.attach);
+    const textOnly = b.sheets.filter((s) => !s.attach);
     const sheets = b.sheets.length
-      ? b.sheets.map((s) => s.file ?? `!! NO SHEET FOR ${s.key} !!`).join(', ')
+      ? [
+          attach.length ? `ATTACH ${attach.map((s) => s.file).join(', ')}` : 'ATTACH nothing',
+          textOnly.length
+            ? `text-lock only (2D sheet, would flatten the render): ${textOnly.map((s) => s.key).join(', ')}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('  |  ')
       : '(none — faceless coverage, attach no sheet and put no readable face in frame)';
     console.log(`=== ${b.id}   ${b.frames} frames (${b.seconds}s)   in:${b.transitionIn}`);
     console.log(`    clip:${b.clipDone ? 'DONE' : 'todo'}  still:${b.still_state.note}`);

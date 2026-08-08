@@ -324,6 +324,36 @@ export const CHARACTER_SHEETS: Record<string, string> = {
   lampJinni: 'sheets/lampJinni.jpg',
 };
 
+/**
+ * Sheets that are SAFE TO ATTACH as an image reference, and those that are not.
+ *
+ * Attaching a sheet to the image generator pins costume and identity superbly —
+ * and drags the SHEET'S OWN RENDERING STYLE into the frame with it. Every sheet
+ * but one was drawn 2D painterly, and a 2D reference makes the generator return
+ * a flatter, more graphic image than the lush volumetric look STORYBOOK_STYLE
+ * asks for. Aladdin's is the exception: it was rendered in 3D, and it does not
+ * bleed.
+ *
+ * Measured on episode 3, four shots, and the split is exact:
+ *
+ *   ep3_s01b  aladdin sheet only (3D)              -> lush, correct
+ *   ep3_s02b  magician (2D) + aladdin              -> flattened
+ *   ep3_s10b  lampJinni (2D) + aladdin             -> flattened
+ *   ep3_s11b  mother (2D)                          -> flattened
+ *
+ * So: attach the 3D sheet, never a 2D one. A 2D-sheeted character is held by
+ * its TEXT lock instead, which is detailed and has held in practice — ep3_s08c
+ * came back exact on cream tunic, patched teal trousers and sandals from prose
+ * alone. Identity from words costs less than a whole scene looking like a
+ * different medium.
+ *
+ * Re-drawing the other ten sheets in 3D would remove the trade-off entirely,
+ * and is the right fix if this season is ever remade.
+ */
+export const SHEET_SAFE_TO_ATTACH: Record<string, boolean> = Object.fromEntries(
+  Object.keys(CHARACTER_SHEETS).map((key) => [key, key === 'aladdin']),
+);
+
 /** Every character the season casts, sheeted or not. */
 const CAST_KEYS = [
   ...Object.keys(CHARACTER_SHEETS),
