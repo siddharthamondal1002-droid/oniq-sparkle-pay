@@ -57,6 +57,51 @@ export const MEDIA_BUCKET = {
 } as const;
 
 /**
+ * The four secrets the upload path needs, named once so nothing guesses.
+ *
+ * Every one is SERVER-SIDE ONLY. None may ever be prefixed VITE_ or read from
+ * client code: an R2 key in the bundle is an R2 key in every user's phone, and
+ * rotating it means every install breaks until they update.
+ *
+ * WHERE THEY COME FROM
+ *
+ * Cloudflare dashboard → R2 → API → "Manage API tokens" → Create API token.
+ * Scope it to the oniq-chat-media bucket with Object Read & Write, NOT
+ * account-wide admin: a leaked bucket-scoped key loses one bucket of chat
+ * media, an account-wide one loses everything Cloudflare hosts.
+ *
+ * The token screen hands back an Access Key ID and a Secret Access Key. The
+ * account id is the hex string in the dashboard URL, and it is also the host
+ * of the S3 endpoint.
+ */
+export const MEDIA_SECRET_NAMES = {
+  /** From the R2 API token screen. */
+  accessKeyId: "R2_ACCESS_KEY_ID",
+  /** From the same screen. Shown ONCE — if it is lost, make a new token. */
+  secretAccessKey: "R2_SECRET_ACCESS_KEY",
+  /** The hex account id. Used to build the endpoint host. */
+  accountId: "R2_ACCOUNT_ID",
+  /** Optional override; derived from accountId when absent. */
+  endpoint: "R2_S3_ENDPOINT",
+} as const;
+
+/**
+ * The SigV4 region for R2 is the literal string "auto". It is NOT the bucket
+ * location.
+ *
+ * This trips people, and it fails as a 403 SignatureDoesNotMatch that reads
+ * like a bad key rather than a wrong region. MEDIA_BUCKET.region below says
+ * ENAM — that is where the data physically sits, and signing with "enam"
+ * produces exactly that misleading 403.
+ */
+export const R2_SIGNING_REGION = "auto";
+
+/** The S3-compatible endpoint for an account id. */
+export function r2Endpoint(accountId: string): string {
+  return `https://${accountId}.r2.cloudflarestorage.com`;
+}
+
+/**
  * 200 MB, enforced in BOTH places.
  *
  * Client-side so the user is told immediately instead of after a long upload,
