@@ -25,8 +25,8 @@
 // prompting. Four near-identical takes of one wide shot read as a glitch,
 // because the eye is invited to compare them and finds the crowd rearranged.
 // Four DIFFERENT shots — a wide, then hands, then an object, then a face — read
-// as filmmaking. Thirty-four of the fifty-four shots below have nobody
-// recognisable in them, and that is the character-consistency strategy.
+// as filmmaking. Thirty-nine of the sixty shots below have nobody recognisable
+// in them, and that is the character-consistency strategy.
 //
 // STILL vs MOTION, same split as originals.ts and for the same reason. `still`
 // is what the frame IS and feeds the image model; `motion` is what MOVES and
@@ -220,6 +220,17 @@ export const EP3_SHOTS: Ep3Shot[] = [
   {
     id: "ep3_s04c",
     sceneId: "ep3_s04",
+    weight: 0.9,
+    still:
+      "Looking down the worn steps from over a shoulder: the first few treads lit green, then " +
+      "nothing at all, the dark going down further than the light reaches.",
+    motion:
+      "The camera creeps forward to the lip of the opening and looks down. Green light picks out " +
+      "one more tread, then gives up. Something far below is very faintly there.",
+  },
+  {
+    id: "ep3_s04d",
+    sceneId: "ep3_s04",
     weight: 1,
     still:
       "Close on two hands: an older ringed hand pushing a plain, worn ring onto a boy's finger, " +
@@ -229,7 +240,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
       "The boy's fingers close slowly over it.",
   },
   {
-    id: "ep3_s04d",
+    id: "ep3_s04e",
     sceneId: "ep3_s04",
     weight: 0.9,
     still:
@@ -326,6 +337,17 @@ export const EP3_SHOTS: Ep3Shot[] = [
   {
     id: "ep3_s06c",
     sceneId: "ep3_s06",
+    weight: 0.9,
+    still:
+      "Close on a boy's tunic front held up in both fists like a sack, heavy and sagging with " +
+      "cut-gem fruit in green, red and blue, one stone working its way loose at the edge.",
+    motion:
+      "The fists tighten on the cloth and the load shifts and clicks. One gem works loose, teeters " +
+      "on the fold, and does not quite fall. Nothing lets go.",
+  },
+  {
+    id: "ep3_s06d",
+    sceneId: "ep3_s06",
     weight: 1,
     still:
       "Extreme close on an outstretched hand against a blinding white sky, rings on the fingers, " +
@@ -335,7 +357,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
       "empty sky is left behind it.",
   },
   {
-    id: "ep3_s06d",
+    id: "ep3_s06e",
     sceneId: "ep3_s06",
     weight: 0.9,
     still:
@@ -469,6 +491,17 @@ export const EP3_SHOTS: Ep3Shot[] = [
   },
   {
     id: "ep3_s10c",
+    sceneId: "ep3_s10",
+    weight: 0.9,
+    still:
+      "Low and close on the dented brass lamp lying on the floor at the centre of the room, " +
+      "everything above it lost in vast moving shadow, dust sifting down past it.",
+    motion:
+      "Dust sifts down through the frame and settles on the brass. The shadow above swells and " +
+      "shifts. The ceiling beams creak. The lamp itself does not move at all.",
+  },
+  {
+    id: "ep3_s10d",
     sceneId: "ep3_s10",
     weight: 0.9,
     still:

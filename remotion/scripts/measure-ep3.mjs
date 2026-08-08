@@ -14,11 +14,16 @@
 // the error accumulates: by scene sixteen the picture is several seconds off
 // the voice. That is not subtle, and it is not fixable after the render.
 //
-// Measures by DECODING TO WAV rather than reading a container header. Same
-// approach as build-bed-envelope.mjs and for the same reason: the Remotion
-// compositor ships a cut-down ffmpeg, wav is one of the few muxers it has, and
-// a decoded byte count cannot disagree with what the renderer will actually
-// play the way a metadata field can.
+// Reports BOTH the container duration and the decoded length, and writes the
+// container one into the manifest — which is what ep1 and ep2 already use, so
+// the three episodes stay measured the same way.
+//
+// They differ, slightly, and it is worth knowing why rather than being
+// surprised by it later: an mp3 carries encoder padding, so ffprobe's container
+// duration runs ~50ms longer than the audio you can actually hear. Across
+// sixteen scenes that is 0.8s, about a frame and a half per scene. Immaterial
+// here, but if the two ever diverge by more than a few hundred milliseconds on
+// one file, that file is damaged and should be regenerated rather than shipped.
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
@@ -31,18 +36,36 @@ const PUBLIC = path.resolve(__dirname, '../public/ep3');
 const SAMPLE_RATE = 8000;
 const FPS = 30;
 
-function findFfmpeg() {
-  if (process.env.FFMPEG) return process.env.FFMPEG;
+function findBin(name) {
+  const env = process.env[name.toUpperCase()];
+  if (env) return env;
   const candidates = [
-    path.join(REPO, 'remotion/node_modules/@remotion/compositor-linux-x64-gnu/ffmpeg'),
+    path.join(REPO, `remotion/node_modules/@remotion/compositor-linux-x64-gnu/${name}`),
     ...fs
       .readdirSync('/tmp', { withFileTypes: true })
       .filter((d) => d.isDirectory())
-      .map((d) => `/tmp/${d.name}/node_modules/@remotion/compositor-linux-x64-gnu/ffmpeg`),
+      .map((d) => `/tmp/${d.name}/node_modules/@remotion/compositor-linux-x64-gnu/${name}`),
   ];
   const found = candidates.find((c) => fs.existsSync(c));
-  if (!found) throw new Error('no ffmpeg found; set FFMPEG=/path/to/ffmpeg');
+  if (!found) throw new Error(`no ${name} found; set ${name.toUpperCase()}=/path/to/${name}`);
   return found;
+}
+
+/** Container duration, in seconds. This is what goes in the manifest. */
+function containerSeconds(fp, file) {
+  const out = execFileSync(fp, [
+    '-v', 'error',
+    '-show_entries', 'format=duration',
+    '-of', 'csv=p=0',
+    file,
+  ])
+    .toString()
+    .trim();
+  const seconds = Number(out);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    throw new Error(`${file}: ffprobe reported duration "${out}"`);
+  }
+  return seconds;
 }
 
 function decodedSeconds(ff, file) {
@@ -54,7 +77,8 @@ function decodedSeconds(ff, file) {
   return bytes / 2 / SAMPLE_RATE;
 }
 
-const ffmpeg = findFfmpeg();
+const ffmpeg = findBin('ffmpeg');
+const ffprobe = findBin('ffprobe');
 const scenes = Array.from({ length: 16 }, (_, i) => `ep3_s${String(i + 1).padStart(2, '0')}`);
 
 const missing = scenes.filter((id) => !fs.existsSync(path.join(PUBLIC, `${id}.mp3`)));
@@ -64,7 +88,19 @@ if (missing.length > 0) {
 
 let total = 0;
 const rows = scenes.map((id) => {
-  const seconds = decodedSeconds(ffmpeg, path.join(PUBLIC, `${id}.mp3`));
+  const file = path.join(PUBLIC, `${id}.mp3`);
+  const seconds = containerSeconds(ffprobe, file);
+  // Second, independent reading. Two measurements that agree are worth more
+  // than one that is merely plausible, and a file whose decoded audio is much
+  // shorter than its container claims is truncated — which would show up as a
+  // scene going silent early and nothing else.
+  const decoded = decodedSeconds(ffmpeg, file);
+  if (Math.abs(seconds - decoded) > 0.3) {
+    throw new Error(
+      `${id}.mp3: container says ${seconds.toFixed(3)}s but only ${decoded.toFixed(3)}s decodes. ` +
+        `Regenerate it.`,
+    );
+  }
   total += seconds;
   return `  { id: '${id}', seconds: ${seconds.toFixed(3)} },`;
 });

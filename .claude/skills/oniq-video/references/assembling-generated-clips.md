@@ -93,6 +93,40 @@ stale bed length today.
 
 ## Budget, so nobody starts blind
 
-A 7-minute episode is roughly **48 shots**: 48 starting stills *and* 48 video
-generations, sequential because of the concurrency cap, at ~100× a text call
-each. Get one full scene working end to end before generating the rest.
+Episode 3 came out at **60 shots** for 6:54 of narration — 60 starting stills
+*and* 60 video generations, sequential because of the concurrency cap, at ~100×
+a text call each. Get one full scene working end to end before generating the
+rest.
+
+Budget ~8.5 shots per minute of finished episode. The naive 10s-per-clip figure
+(43 for seven minutes) is about 30% low, because shots are allocated by weight
+and none of them lands on the ceiling.
+
+---
+
+## Two environment traps, both found the expensive way
+
+**The compositor's ffmpeg has no `fps` filter and no `setpts`.** `-vf fps=30`
+fails outright on the cut-down build Remotion ships. `-r 30` as an OUTPUT option
+goes through the encoder's own frame-duplication path and works. It does have
+libx264, the mp4 muxer, `crop` and `scale` — so the whole ingest is one command:
+
+```
+ffmpeg -i raw.mp4 -an -vf crop=1080:1920 -r 30 -frames:v <N> \
+       -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p out.mp4
+```
+
+Verify against a synthetic 24fps 1088×1920 clip before trusting it.
+
+**Bundling an episode with the promo kills the render.** `remotion/src/index.ts`
+registers the promo, the promo imports `theme.ts`, and theme.ts calls
+`@remotion/google-fonts` `loadFont` **at module scope** — so headless Chromium
+fetches Space Grotesk the moment the composition is evaluated, which dies behind
+the proxy with `ERR_CERT_AUTHORITY_INVALID`. `selectComposition` then throws a
+bare `NetworkError: A network error occurred`, which reads like a Remotion fault
+and is not one.
+
+The fix is `remotion/src/episodes.ts`, an episodes-only entry point that all
+three render scripts use. Episodes draw no text and need no remote font. **Never
+fix this by disabling certificate verification** — that trades a real security
+control for a font nothing in the frame renders.

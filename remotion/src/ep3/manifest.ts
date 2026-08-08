@@ -7,16 +7,13 @@
 // up as a wrong music mix. shots.ts is only ever reached through the webpack
 // bundle, which resolves imports properly.
 //
-// DURATIONS ARE ESTIMATES UNTIL THE NARRATION EXISTS. Every other episode
-// manifest carries ffprobe measurements; this one cannot yet, because episode 3
-// is being generated as this is written. `MEASURED` below is the switch, and
+// DURATIONS ARE MEASURED, never estimated. `MEASURED` is the switch and
 // scripts/render-ep3.mjs refuses to render while it is false — a timeline built
 // on a word-count estimate drifts further out of sync with every scene, and
 // that mistake has already cost this project one full render.
 //
-// To land the real numbers:
+// Re-measure after ANY change to the narration mp3s:
 //   cd remotion && node scripts/measure-ep3.mjs   # prints the array below
-// then paste them in and set MEASURED = true.
 
 export const FPS = 30;
 /** Cross-dissolve between SCENES, in seconds. Shots inside a scene hard cut. */
@@ -29,37 +26,45 @@ export type Ep3Scene = {
 };
 
 /**
- * False while `seconds` below are word-count estimates rather than ffprobe
- * measurements. The renderer checks it. Do not flip it by hand without
- * replacing the numbers — that is the whole failure this exists to stop.
+ * True once `seconds` below are ffprobe measurements rather than word-count
+ * estimates. The renderer checks it. Do not flip it by hand without replacing
+ * the numbers — that is the whole failure this exists to stop.
  */
-export const MEASURED = false;
+export const MEASURED = true;
 
 /**
- * Estimated at 140 words per minute (originalsScript.ts `estimateSeconds`).
+ * MEASURED with ffprobe against remotion/public/ep3/*.mp3 — never the word
+ * count. Reproduce with `node scripts/measure-ep3.mjs`, which also cross-checks
+ * each container duration against the decoded audio and refuses a truncated
+ * file.
  *
- * Deliberately the SLOW figure: episode 2 measured ~2.49 words/second against
- * the 2.33 this assumes, so these run slightly long and the shot allocation in
- * shots.ts has headroom rather than overflowing the generator's 10s ceiling
- * when the real audio arrives.
+ * 414.7s of narration. The 140wpm planning estimate these replaced said 423s,
+ * which is close in total and wrong per scene by up to 6s in both directions —
+ * S10 came in 6.3s LONGER than estimated and S13 5.1s shorter. That is exactly
+ * why an estimate is never rendered: the error does not cancel, it accumulates
+ * as drift between the picture and the voice.
+ *
+ * Three scenes (S04, S06, S10) overflowed their shot budget when these landed,
+ * and shots.ts refused to load until each gained one more shot. The list is now
+ * 60 shots rather than 57.
  */
 export const EP3_SCENES: Ep3Scene[] = [
-  { id: 'ep3_s01', seconds: 19 },
-  { id: 'ep3_s02', seconds: 28 },
-  { id: 'ep3_s03', seconds: 21 },
-  { id: 'ep3_s04', seconds: 30 },
-  { id: 'ep3_s05', seconds: 37 },
-  { id: 'ep3_s06', seconds: 34 },
-  { id: 'ep3_s07', seconds: 14 },
-  { id: 'ep3_s08', seconds: 20 },
-  { id: 'ep3_s09', seconds: 19 },
-  { id: 'ep3_s10', seconds: 24 },
-  { id: 'ep3_s11', seconds: 49 },
-  { id: 'ep3_s12', seconds: 29 },
-  { id: 'ep3_s13', seconds: 31 },
-  { id: 'ep3_s14', seconds: 34 },
-  { id: 'ep3_s15', seconds: 10 },
-  { id: 'ep3_s16', seconds: 24 },
+  { id: 'ep3_s01', seconds: 16.200 },
+  { id: 'ep3_s02', seconds: 29.088 },
+  { id: 'ep3_s03', seconds: 20.736 },
+  { id: 'ep3_s04', seconds: 35.448 },
+  { id: 'ep3_s05', seconds: 36.000 },
+  { id: 'ep3_s06', seconds: 38.808 },
+  { id: 'ep3_s07', seconds: 14.208 },
+  { id: 'ep3_s08', seconds: 19.656 },
+  { id: 'ep3_s09', seconds: 15.576 },
+  { id: 'ep3_s10', seconds: 30.264 },
+  { id: 'ep3_s11', seconds: 43.848 },
+  { id: 'ep3_s12', seconds: 28.608 },
+  { id: 'ep3_s13', seconds: 25.944 },
+  { id: 'ep3_s14', seconds: 31.584 },
+  { id: 'ep3_s15', seconds: 10.248 },
+  { id: 'ep3_s16', seconds: 18.528 },
 ];
 
 export const EP3_FRAMES = EP3_SCENES.map((s) => Math.round(s.seconds * FPS));
