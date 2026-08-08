@@ -80,7 +80,7 @@ function speechLevels(ffmpeg, mp3, fps, frames) {
   return out;
 }
 
-const { EP2_FRAMES, EP2_SCENES, EP2_TOTAL, FPS, TRANSITION_FRAMES } = await import(
+const { BED_SECONDS, EP2_FRAMES, EP2_SCENES, EP2_TOTAL, FPS, TRANSITION_FRAMES } = await import(
   '../src/ep2/manifest.ts'
 ).catch(async () => {
   // manifest.ts is TypeScript; transpile it the same way.
@@ -120,6 +120,15 @@ function fileRms(ff, file) {
   return Math.sqrt(sum / pcm.length) / 32768;
 }
 
+/** Decoded length in seconds, from the same wav path (no ffprobe needed). */
+function decodedSeconds(ff, file) {
+  const wav = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'len-')), 'a.wav');
+  execFileSync(ff, ['-v', 'error', '-i', file, '-ac', '1', '-ar', String(SAMPLE_RATE), '-f', 'wav', wav]);
+  const bytes = fs.statSync(wav).size - 44;
+  fs.rmSync(path.dirname(wav), { recursive: true, force: true });
+  return bytes / 2 / SAMPLE_RATE;
+}
+
 const perScene = EP2_SCENES.map((scene, i) => {
   const mp3 = path.join(PUBLIC, `${scene.id}.mp3`);
   if (!fs.existsSync(mp3)) throw new Error(`missing narration: ${mp3}`);
@@ -141,6 +150,19 @@ const speech = normaliseByPercentile(layOnTimeline(held, starts, EP2_TOTAL));
 // instead of 16.
 const bedFile = path.join(PUBLIC, 'bed.mp3');
 if (!fs.existsSync(bedFile)) throw new Error(`missing music bed: ${bedFile}`);
+
+// The manifest hardcodes the bed's measured length because <Loop> needs it in
+// frames. Verify it against the real file: a stale value loops the music in
+// the wrong place, or loops into the silence past the end of the audio, and
+// neither is visible in a still or a duration.
+const bedSeconds = decodedSeconds(ffmpeg, bedFile);
+if (Math.abs(bedSeconds - BED_SECONDS) > 0.25) {
+  throw new Error(
+    `bed.mp3 is ${bedSeconds.toFixed(3)}s but manifest.ts says BED_SECONDS = ${BED_SECONDS}. ` +
+      `Update the manifest (and re-check BED_LOOP_FRAMES) before rendering.`,
+  );
+}
+
 const bedRms = fileRms(ffmpeg, bedFile);
 const speechRms = fileRms(ffmpeg, path.join(PUBLIC, `${EP2_SCENES[0].id}.mp3`));
 const levels = gainsForTargets(bedRms, speechRms);

@@ -17,8 +17,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_DUCK } from "@/lib/audioDuck";
-import { executableText } from "@/test/sourceText";
+import { blankComments, executableText } from "@/test/sourceText";
 
 const ROOT = join(__dirname, "../../..");
 const composition = readFileSync(join(ROOT, "remotion/src/ep2/Episode2.tsx"), "utf8");
@@ -69,6 +68,35 @@ describe("both audio layers are actually mounted", () => {
     expect(bedAt, "no <MusicBed /> element rendered").toBeGreaterThan(-1);
     expect(seriesAt).toBeGreaterThan(-1);
     expect(bedAt, "the bed must be mounted before TransitionSeries opens").toBeLessThan(seriesAt);
+  });
+
+  it("loops the bed with <Loop>, never the native `loop` attribute", () => {
+    // This cost a full render. `<Audio loop />` type-checks, because
+    // RemotionAudioProps extends React's native audio attributes and `loop` is
+    // one of them — but the renderer does not honour it. The bed played once
+    // for its 166 seconds and the last 169 seconds of the episode, more than
+    // half, came out with no music. No warning, nothing visible in the file
+    // size or duration; only an A/B render either side of the 166s mark showed
+    // it.
+    expect(code).toMatch(/<Loop\b/);
+    expect(code, "bare `loop` on <Audio> is silently ignored when rendering").not.toMatch(
+      /<Audio[^>]*\sloop[\s/>]/s,
+    );
+  });
+
+  it("extends the volume curve across loop iterations", () => {
+    // Inside a Loop the volume callback gets the frame relative to the current
+    // iteration. The default would replay the first 166 seconds of the duck
+    // curve over the second half — ducking against narration that is not
+    // there. The curve is indexed by episode frame, so it needs "extend".
+    //
+    // blankComments, not executableText: the value IS a string literal, and
+    // executableText blanks string bodies — it erased the very word being
+    // looked for and the assertion failed on correct code. But the raw source
+    // will not do either, because the comment above this prop quotes it
+    // verbatim. Comments out, strings kept, is exactly this case.
+    const withStrings = blankComments(composition).join("\n");
+    expect(withStrings).toMatch(/loopVolumeCurveBehavior=["']extend["']/);
   });
 
   it("drives the bed from the precomputed curve rather than a constant", () => {
@@ -136,7 +164,7 @@ describe("the gain curve is usable", () => {
     for (let i = 1; i < bed.gain.length; i++) {
       biggest = Math.max(biggest, Math.abs(bed.gain[i] - bed.gain[i - 1]));
     }
-    const range = DEFAULT_DUCK.alone - DEFAULT_DUCK.under;
+    const range = bed.levels.alone - bed.levels.under;
     expect(biggest, `largest single-frame jump ${biggest}`).toBeLessThan(range * 0.25);
   });
 

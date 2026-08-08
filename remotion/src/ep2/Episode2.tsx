@@ -1,8 +1,15 @@
 import React from 'react';
-import { AbsoluteFill, Audio, Img, interpolate, staticFile, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, Loop, interpolate, staticFile, useCurrentFrame } from 'remotion';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
-import { EP2_FRAMES, EP2_SCENES, EP2_TOTAL, TRANSITION_FRAMES, type Ep2Scene } from './manifest';
+import {
+  BED_LOOP_FRAMES,
+  EP2_FRAMES,
+  EP2_SCENES,
+  EP2_TOTAL,
+  TRANSITION_FRAMES,
+  type Ep2Scene,
+} from './manifest';
 import bedGain from './bedGain.json';
 
 /** Ken Burns travel, ~6% — deliberately subtle (src/lib/episodeTimeline.ts). */
@@ -52,7 +59,19 @@ const KenBurns: React.FC<{ scene: Ep2Scene; durationInFrames: number }> = ({
  * fifteen audible seams, and the pumping that goes with them. One continuous
  * piece across the episode has none.
  *
- * `loop` because a generated bed is far shorter than 5m42s.
+ * LOOPED WITH <Loop>, NOT WITH THE `loop` ATTRIBUTE. This cost a full render
+ * to find. `<Audio loop />` type-checks, because RemotionAudioProps extends
+ * React's native audio attributes and `loop` is one of them — but the RENDERER
+ * does not honour it. The bed played once for its 166 seconds and the last 169
+ * seconds of the episode, more than half, came out with no music at all. There
+ * is no warning; an A/B render either side of the 166s mark is what showed it.
+ *
+ * `loopVolumeCurveBehavior="extend"` is the other half. Inside a Loop the
+ * volume callback is handed the frame relative to the current iteration, so
+ * the default would replay the first 166 seconds of the duck curve over the
+ * second half — ducking against a narration that is no longer there. "extend"
+ * keeps the frame counting through, which is what an episode-indexed curve
+ * needs.
  *
  * The gain curve is precomputed by scripts/build-bed-envelope.mjs, which
  * measures the real narration and runs it through src/lib/audioDuck.ts. It is
@@ -62,14 +81,16 @@ const KenBurns: React.FC<{ scene: Ep2Scene; durationInFrames: number }> = ({
 const BED_GAIN: number[] = bedGain.gain;
 
 const MusicBed: React.FC = () => (
-  <Audio
-    src={staticFile('ep2/bed.mp3')}
-    loop
-    // Clamped rather than defaulted to 1: an index past the end of the curve
-    // would otherwise play the bed at FULL volume over the closing line, which
-    // is the single worst frame in the episode to get wrong.
-    volume={(f) => BED_GAIN[Math.min(f, BED_GAIN.length - 1)] ?? 0}
-  />
+  <Loop durationInFrames={BED_LOOP_FRAMES}>
+    <Audio
+      src={staticFile('ep2/bed.mp3')}
+      loopVolumeCurveBehavior="extend"
+      // Clamped rather than defaulted to 1: an index past the end of the curve
+      // would otherwise play the bed at FULL volume over the closing line,
+      // which is the single worst frame in the episode to get wrong.
+      volume={(f) => BED_GAIN[Math.min(f, BED_GAIN.length - 1)] ?? 0}
+    />
+  </Loop>
 );
 
 export const Episode2: React.FC = () => (

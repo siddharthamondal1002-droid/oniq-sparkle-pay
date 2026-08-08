@@ -47,6 +47,19 @@ export const EP2_SCENES: Ep2Scene[] = [
   { id: 'ep2_s16', seconds: 13.944, zoom: 'out', pan: 'none' },
 ];
 
+/**
+ * Measured length of the music bed, in seconds (ffprobe on bed.mp3).
+ *
+ * Measured, not assumed, for the same reason the scene durations are — and
+ * verified against the real file by scripts/build-bed-envelope.mjs, which
+ * throws if this drifts. The bed is shorter than the episode and has to loop,
+ * so a wrong value here shows up as the music restarting in the wrong place.
+ */
+export const BED_SECONDS = 166.034286;
+
+/** Floor, not round: overrunning the file's end would loop into silence. */
+export const BED_LOOP_FRAMES = Math.floor(BED_SECONDS * FPS);
+
 export const EP2_FRAMES = EP2_SCENES.map((s) => Math.round(s.seconds * FPS));
 export const TRANSITION_FRAMES = Math.round(TRANSITION * FPS);
 
