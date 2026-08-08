@@ -85,8 +85,13 @@ export const AI_SURFACES = [
  * Naming the data modules fixes the direction. A generative surface has to get
  * its content from somewhere, and that somewhere is far easier to enumerate
  * than every way a screen might render it.
+ *
+ * `@/data/ep3Shots` is the episode 3 shot list — sixty prompts that produce
+ * sixty generated video clips. Nothing renders it today; it is declared anyway,
+ * because the entire point of enumerating sources is that the declaration
+ * exists BEFORE the screen does. That ordering is what Lores got wrong.
  */
-export const AI_CONTENT_MODULES = ["@/data/lores", "@/data/originals"] as const;
+export const AI_CONTENT_MODULES = ["@/data/lores", "@/data/originals", "@/data/ep3Shots"] as const;
 
 /**
  * DATA SAFETY — WHAT ONIQ ACTUALLY COLLECTS, as the Play form, in code.

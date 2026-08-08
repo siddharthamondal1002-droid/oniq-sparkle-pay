@@ -88,12 +88,32 @@ describe("AI-Generated Content policy", () => {
       AI_CONTENT_MODULES.map((m) => join(ROOT, m.replace("@/", "src/") + ".ts")),
     );
 
+    // MATCH RELATIVE IMPORTS TOO, not just the "@/" alias.
+    //
+    // The alias-only version of this had the same shape of hole as the test
+    // above: `import { RENDERED } from "../../data/lores"` is the identical
+    // dependency written differently, and it sailed straight past. A screen
+    // could have shipped a season of generated video unlabelled for the second
+    // time, for want of two characters. Both forms occur in this repo already —
+    // ep3Shots.ts reaches originals.ts relatively — so this is not theoretical.
+    //
+    // Anchored on the module's LAST segment, preceded by either the alias or
+    // any relative path, and followed immediately by the closing quote, so
+    // "@/data/originalsScript" does not match "@/data/originals".
+    const importsModule = (src: string, mod: string) => {
+      const leaf = mod
+        .split("/")
+        .pop()!
+        .replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&");
+      return new RegExp(`from\\s+["'](?:@/data/|(?:\\.{1,2}/)+(?:[\\w.-]+/)*)${leaf}["']`).test(
+        src,
+      );
+    };
+
     for (const p of tsxFiles) {
       if (sourceFiles.has(p)) continue;
       const src = readFileSync(p, "utf8");
-      const usesAiContent = AI_CONTENT_MODULES.some((m) =>
-        new RegExp(`from\\s+["']${m.replace(/[/\\^$*+?.()|[\]{}]/g, "\\$&")}["']`).test(src),
-      );
+      const usesAiContent = AI_CONTENT_MODULES.some((m) => importsModule(src, m));
       if (usesAiContent && !declared.has(p)) missing.push(p.slice(ROOT.length + 1));
     }
 
