@@ -3,8 +3,10 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info, BellOff, Bell, Link2, FileText, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info, BellOff, Bell, Link2, FileText, Image as ImageIcon, Languages } from "lucide-react";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
+import { useT } from "@/lib/i18n/LanguageProvider";
+import { LANG_NATIVE } from "@/lib/userLanguage";
 import { PhotoStudio } from "@/components/photo/PhotoStudio";
 import { EMOJI_CATEGORIES } from "@/lib/emojis";
 import { format, isToday, isYesterday } from "date-fns";
@@ -142,6 +144,14 @@ function ChatThread() {
   const [peerTyping, setPeerTyping] = useState(false);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [menuFor, setMenuFor] = useState<Message | null>(null);
+  // Track A2 — translations the reader has explicitly asked for, this session.
+  // Deliberately NOT persisted and NOT prefetched: nothing is translated until
+  // someone taps Translate on one message, because translating sends another
+  // person's words to a third-party model provider.
+  const { lang: myLang } = useT();
+  const [translated, setTranslated] = useState<Record<string, string>>({});
+  const [showOriginal, setShowOriginal] = useState<Record<string, boolean>>({});
+  const [translatingId, setTranslatingId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<Message | null>(null);
   const [infoFor, setInfoFor] = useState<Message | null>(null);
   const lastTapRef = useRef<{ id: string; t: number } | null>(null);
@@ -1106,6 +1116,40 @@ function ChatThread() {
     }
   };
 
+  /**
+   * Translate one message into the reader's own language.
+   *
+   * Sends only the message ID — never the text. The edge function reads the
+   * message itself using this user's JWT, so RLS performs the authorisation
+   * and the shared cache cannot be poisoned with caller-supplied content. See
+   * the header of supabase/functions/translate-message/index.ts.
+   */
+  const translateMessage = async (m: Message) => {
+    setMenuFor(null);
+    if (translated[m.id]) {
+      setShowOriginal((s) => ({ ...s, [m.id]: false }));
+      return;
+    }
+    setTranslatingId(m.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("translate-message", {
+        body: { message_id: m.id, to: myLang },
+      });
+      if (error) throw error;
+      const out = typeof data?.translation === "string" ? data.translation.trim() : "";
+      if (!out) {
+        toast.error(data?.error || "Couldn't translate that");
+        return;
+      }
+      setTranslated((s) => ({ ...s, [m.id]: out }));
+      setShowOriginal((s) => ({ ...s, [m.id]: false }));
+    } catch {
+      toast.error("Couldn't translate that — try again");
+    } finally {
+      setTranslatingId(null);
+    }
+  };
+
   const scrollToMessage = (id: string) => {
     const el = document.getElementById(`msg-${id}`);
     if (el) {
@@ -1603,6 +1647,42 @@ function ChatThread() {
                       );
                     })()
                   )}
+                  {/* Translation, when this reader asked for one. Shown BELOW
+                      the original rather than replacing it: a translation is a
+                      machine's reading of what someone said, and hiding the
+                      words they actually typed would present a guess as the
+                      message itself. The original stays one tap away always. */}
+                  {translatingId === m.id && !translated[m.id] && (
+                    <div className={`mt-1 text-[11px] italic ${mine ? "text-white/70" : "text-muted-foreground"}`}>
+                      translating…
+                    </div>
+                  )}
+                  {translated[m.id] && !showOriginal[m.id] && (
+                    <div
+                      data-testid={`translation-${m.id}`}
+                      className={`mt-1.5 border-t pt-1.5 ${mine ? "border-white/20" : "border-border"}`}
+                    >
+                      <div className="whitespace-pre-wrap break-words leading-snug">
+                        <LinkifiedText text={translated[m.id]} />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowOriginal((s) => ({ ...s, [m.id]: true }))}
+                        className={`mt-1 text-[10px] underline ${mine ? "text-white/70" : "text-muted-foreground"}`}
+                      >
+                        translated by AI · show original
+                      </button>
+                    </div>
+                  )}
+                  {translated[m.id] && showOriginal[m.id] && (
+                    <button
+                      type="button"
+                      onClick={() => setShowOriginal((s) => ({ ...s, [m.id]: false }))}
+                      className={`mt-1 text-[10px] underline ${mine ? "text-white/70" : "text-muted-foreground"}`}
+                    >
+                      show translation
+                    </button>
+                  )}
                   <div
                     className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
                       mine ? "text-white/70" : "text-muted-foreground"
@@ -1739,6 +1819,26 @@ function ChatThread() {
                 <Copy className="h-4 w-4" /> Copy
               </button>
             )}
+            {/* Translate. Offered on other people's text messages only —
+                translating your own words into your own language is a no-op,
+                and every call sends content to a third-party model provider,
+                so the pointless case should not be one tap away. */}
+            {menuFor.type === "text" &&
+              !menuFor.is_deleted &&
+              menuFor.sender_id !== me?.id &&
+              (menuFor.content ?? "").trim().length > 0 && (
+                <button
+                  type="button"
+                  data-testid="msg-translate"
+                  onClick={() => translateMessage(menuFor)}
+                  className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+                >
+                  <Languages className="h-4 w-4" />{" "}
+                  {translated[menuFor.id]
+                    ? "Show translation"
+                    : `Translate to ${LANG_NATIVE[myLang] ?? myLang}`}
+                </button>
+              )}
             <button
               type="button"
               onClick={() => { const f = menuFor; setMenuFor(null); setForwardMsg(f); }}

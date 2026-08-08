@@ -26,7 +26,19 @@ import { codeOnly } from "@/test/sourceText";
 
 const ROOT = process.cwd();
 
-/** Ripgrep over the source the user can actually see, excluding these guards. */
+/**
+ * Test files, which by definition contain no user-facing string.
+ *
+ * This started as one exclusion for THIS file and became a category once a
+ * second guard suite landed: a test that forbids a claim has to name the
+ * claim, so every new guard file would trip the guards it is written to
+ * enforce. Nothing under a test path is bundled or shown to anyone — I checked
+ * the client build for src/test — so scoping the grep to shipped source is
+ * more accurate than the by-name exclusion it replaces, not weaker.
+ */
+const TEST_PATH = /(^|\/)(__tests__|test)\/|\.test\.tsx?:/;
+
+/** Ripgrep over the source the user can actually see. */
 function grepUserFacing(pattern: string): string[] {
   try {
     const out = execSync(
@@ -37,7 +49,7 @@ function grepUserFacing(pattern: string): string[] {
       out
         .split("\n")
         .filter(Boolean)
-        .filter((l) => !l.includes("megaLoopGuardrails.test.ts"))
+        .filter((l) => !TEST_PATH.test(l))
         // A comment explaining why the frame budget is derived rather than
         // assumed is not a promise to a user, and a guard that cannot tell
         // prose from code is one somebody will switch off.
@@ -58,6 +70,29 @@ describe("no end-to-end-encryption claim, anywhere", () => {
       "(end[ -]to[ -]end|e2e).{0,30}(encrypt|secure)|(encrypt).{0,30}(end[ -]to[ -]end|e2ee)|\\be2ee\\b",
     );
     expect(hits, `end-to-end-encryption claim found:\n${hits.join("\n")}`).toEqual([]);
+  });
+
+  it("the test-path exclusion does not exempt any shipped file", () => {
+    // Narrowing the grep to shipped source is only safe if "shipped source"
+    // is still almost everything. These are the paths a claim would actually
+    // live in, and none of them may be skipped.
+    for (const shipped of [
+      "src/routes/_authenticated/app.chat.$conversationId.tsx:12:foo",
+      "src/config/mediaStorage.ts:3:foo",
+      "src/data/marketingCopy.ts:99:foo",
+      "src/components/chat/ReelChatCard.tsx:4:foo",
+      "android/app/src/main/java/com/oniqhub/app/MainActivity.java:8:foo",
+    ]) {
+      expect(TEST_PATH.test(shipped), `wrongly treated as a test file: ${shipped}`).toBe(false);
+    }
+    // ...and it does exempt the guard suites, which is the point.
+    for (const test of [
+      "src/lib/__tests__/chatTranslation.test.ts:196:foo",
+      "src/test/sourceText.ts:12:foo",
+      "src/lib/qr/__tests__/oniqProfileQr.test.ts:1:foo",
+    ]) {
+      expect(TEST_PATH.test(test), `not recognised as a test file: ${test}`).toBe(true);
+    }
   });
 
   it("the innocent phrase is still allowed, so the guard is not over-broad", () => {

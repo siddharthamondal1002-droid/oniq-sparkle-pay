@@ -10,7 +10,7 @@
  * use survives.
  */
 import { describe, expect, it } from "vitest";
-import { codeOnly, executableText, stripComments } from "@/test/sourceText";
+import { codeOnly, executableText, stripComments, stripSqlComments } from "@/test/sourceText";
 
 describe("stripComments keeps strings, because an import path is one", () => {
   it("keeps an import specifier intact", () => {
@@ -125,6 +125,41 @@ describe("executableText keeps code and drops prose", () => {
     const out = executableText(src);
     expect(out).toContain("reader.readAsDataURL(file);");
     expect(out.match(/readAsDataURL/g)).toHaveLength(1);
+  });
+});
+
+describe("stripSqlComments, for the migration guards", () => {
+  it("drops a -- comment but keeps the statement", () => {
+    const sql = ["-- keying by text hash would be wrong", "create table t (a int);"].join("\n");
+    const out = stripSqlComments(sql);
+    expect(out).not.toContain("hash");
+    expect(out).toContain("create table t (a int);");
+  });
+
+  it("drops a multi-line block comment", () => {
+    const sql = ["/*", " * do not use md5 here", " */", "select 1;"].join("\n");
+    const out = stripSqlComments(sql);
+    expect(out).not.toContain("md5");
+    expect(out).toContain("select 1;");
+  });
+
+  it("keeps single-quoted literals, which carry the meaning in SQL", () => {
+    // A CHECK constraint, a policy expression and a search_path all live
+    // inside quotes. Blanking them would hide exactly what a guard reads.
+    const sql = `check (target_lang ~ '^[A-Za-z]{2,3}$');`;
+    expect(stripSqlComments(sql)).toContain("'^[A-Za-z]{2,3}$'");
+  });
+
+  it("is not fooled by -- inside a quoted literal", () => {
+    const sql = `insert into t values ('a--b'); select 2;`;
+    const out = stripSqlComments(sql);
+    expect(out).toContain("'a--b'");
+    expect(out).toContain("select 2;");
+  });
+
+  it("still reports a genuine use of a banned word", () => {
+    // Stripping is only safe if the real statement still trips the guard.
+    expect(stripSqlComments("create index on t (md5(x));")).toContain("md5");
   });
 });
 

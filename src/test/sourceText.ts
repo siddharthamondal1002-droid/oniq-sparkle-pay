@@ -113,6 +113,59 @@ export function executableText(source: string): string {
 }
 
 /**
+ * The same reduction, for SQL.
+ *
+ * Added because the migration guards hit the identical use-versus-mention
+ * problem in a different comment syntax: a migration that explains WHY it does
+ * not key a cache by text hash has to contain the word "hash", and a guard
+ * asserting the word is absent then fails on the explanation of its own rule.
+ *
+ * Handles `-- line` and `/* block *\/`, and leaves single-quoted SQL literals
+ * intact — a policy expression, a CHECK constraint and a GRANT all carry
+ * meaning inside quotes, so blanking them would hide the statements a guard
+ * most wants to read.
+ */
+export function stripSqlComments(sql: string): string {
+  const out: string[] = [];
+  let inBlock = false;
+
+  for (const rawLine of sql.split("\n")) {
+    let line = rawLine;
+
+    if (inBlock) {
+      const end = line.indexOf("*/");
+      if (end === -1) continue;
+      line = line.slice(end + 2);
+      inBlock = false;
+    }
+
+    // Mask single-quoted literals so a `--` inside one is not read as a
+    // comment. Length-preserving, so the indices below still line up.
+    let masked = line.replace(/'(?:[^']|'')*'/g, (m) => "'" + " ".repeat(m.length - 2) + "'");
+
+    const open = masked.indexOf("/*");
+    if (open !== -1) {
+      const close = masked.indexOf("*/", open + 2);
+      if (close === -1) {
+        inBlock = true;
+        line = line.slice(0, open);
+        masked = masked.slice(0, open);
+      } else {
+        line = line.slice(0, open) + " " + line.slice(close + 2);
+        masked = line.replace(/'(?:[^']|'')*'/g, (m) => "'" + " ".repeat(m.length - 2) + "'");
+      }
+    }
+
+    const dashes = masked.indexOf("--");
+    if (dashes !== -1) line = line.slice(0, dashes);
+
+    if (line.trim()) out.push(line);
+  }
+
+  return out.join("\n");
+}
+
+/**
  * The same reduction for a single line of `grep -n` output.
  *
  * Strips the `path:line:` prefix, then returns "" for a line that is nothing
