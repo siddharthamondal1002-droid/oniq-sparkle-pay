@@ -132,3 +132,32 @@ describe("a misconfiguration says what is wrong", () => {
     expect(code).toMatch(/action === "check"/);
   });
 });
+
+describe("the operator shortcut is limited to check", () => {
+  it("lets the service role run check without a signed-in user", () => {
+    // Verifying keys should not require signing in as a real person and
+    // uploading a real file. That errand is how a broken key gets found by a
+    // user rather than by us.
+    expect(code).toMatch(/isOperator/);
+    expect(code).toMatch(/token === serviceKey/);
+  });
+
+  it("refuses to compare against an empty or absent service key", () => {
+    // Without the length guard, an unset SUPABASE_SERVICE_ROLE_KEY makes
+    // serviceKey "" — and a caller sending "Bearer " would match it and be
+    // promoted to operator. That is the whole bug in one line.
+    expect(code).toMatch(/serviceKey\.length > 20 && token === serviceKey/);
+  });
+
+  it("blocks every other action without a real user", () => {
+    // The operator may list one object. It may not create, complete, abort or
+    // read anything, because all of those act on a specific user's prefix.
+    expect(code).toMatch(/if \(!userId\) return json\(403/);
+    const gate = code.indexOf("if (!userId) return json(403");
+    for (const later of ['action === "create"', 'action === "complete"', 'action === "get"']) {
+      expect(code.indexOf(later), `${later} is reachable without a user`).toBeGreaterThan(gate);
+    }
+    // ...and check is deliberately BEFORE the gate.
+    expect(code.indexOf('action === "check"')).toBeLessThan(gate);
+  });
+});

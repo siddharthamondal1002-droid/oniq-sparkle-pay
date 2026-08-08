@@ -92,12 +92,33 @@ Deno.serve(async (req) => {
   const anon = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
   if (!supaUrl || !anon) return json(500, { error: "not configured" });
 
-  const asUser = createClient(supaUrl, anon, {
-    global: { headers: { Authorization: authHeader } },
-  });
-  const { data: userData, error: userErr } = await asUser.auth.getUser(authHeader.slice(7));
-  if (userErr || !userData?.user) return json(401, { error: "unauthorized" });
-  const userId = userData.user.id;
+  const token = authHeader.slice(7);
+
+  /**
+   * The service role may run `check`, and nothing else.
+   *
+   * Verifying the R2 credentials should not require signing in as a real
+   * person and uploading a real file — that turns "are the keys good?" into a
+   * multi-step errand, which is how a broken key gets discovered by a user
+   * instead of by us.
+   *
+   * This grants no new authority. Anyone holding the service role key already
+   * has full database access; letting them list one object in a bucket adds
+   * nothing to what they can do. Every other action still needs a real user,
+   * because every other action writes objects under a specific user's prefix.
+   */
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const isOperator = serviceKey.length > 20 && token === serviceKey;
+
+  let userId = "";
+  if (!isOperator) {
+    const asUser = createClient(supaUrl, anon, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await asUser.auth.getUser(token);
+    if (userErr || !userData?.user) return json(401, { error: "unauthorized" });
+    userId = userData.user.id;
+  }
 
   const env = readEnv();
   if ("error" in env) return json(503, { error: env.error, configured: false });
@@ -124,6 +145,11 @@ Deno.serve(async (req) => {
             : "";
       return json(200, { ok: false, status: res.status, hint, detail: text.slice(0, 400) });
     }
+
+    // Everything past this point writes or reads objects under a specific
+    // user's prefix, so it needs a real user. The operator shortcut above
+    // stops here.
+    if (!userId) return json(403, { error: "this action needs a signed-in user" });
 
     // ---- create -----------------------------------------------------------
     if (action === "create") {
