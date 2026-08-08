@@ -38,6 +38,8 @@ function AdminVideoTool() {
   const submit = useServerFn(runwaySubmitJob);
   const poll = useServerFn(runwayPollJobs);
   const sign = useServerFn(runwaySignStored);
+  const uploadStill = useServerFn(runwayUploadStill);
+  const deleteStill = useServerFn(runwayDeleteStill);
 
   const [scene, setScene] = useState('');
   const [shotId, setShotId] = useState('');
