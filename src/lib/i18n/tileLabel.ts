@@ -32,7 +32,9 @@ export type TileKey =
   | "university"
   | "jobs"
   | "jobsApps"
+  | "lores"
   | "cv";
+
 
 /** International English — shown for every locale except `hi`. */
 export const TILE_LABELS: Record<TileKey, string> = {
