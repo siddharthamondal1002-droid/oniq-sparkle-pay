@@ -32,7 +32,9 @@ export type TileKey =
   | "university"
   | "jobs"
   | "jobsApps"
+  | "lores"
   | "cv";
+
 
 /** International English — shown for every locale except `hi`. */
 export const TILE_LABELS: Record<TileKey, string> = {
@@ -55,6 +57,7 @@ export const TILE_LABELS: Record<TileKey, string> = {
   university: "Campus",
   jobs: "Jobs",
   jobsApps: "Job apps",
+  lores: "Lores 🎬",
   cv: "CV",
 };
 
@@ -91,6 +94,7 @@ export const TILE_LABELS_HI: Record<TileKey, string> = {
   university: "कैंपस",
   jobs: "नौकरी",
   jobsApps: "नौकरी ऐप्स",
+  lores: "किस्से 🎬",
   cv: "सीवी",
 };
 
