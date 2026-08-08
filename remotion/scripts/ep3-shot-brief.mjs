@@ -13,6 +13,13 @@
 //   STILL  = shotPromptFor(shot) — style, then the frame, then the cast locks.
 //            Feeds the IMAGE model. Use it verbatim.
 //   SHEETS = the reference art to attach, derived from the shot's cast keys.
+//            WHICH TOOL depends on this line. A shot WITH sheets should be made
+//            with the tool that accepts reference images, even though it returns
+//            a smaller frame — an A/B proved resolution does not survive into the
+//            finished clip, and the sheets are the only thing holding eleven
+//            characters together across sixty generations. A FACELESS shot has no
+//            sheet to attach, so it should use the plain generator at its native
+//            size. Consistency where it matters, resolution where it is free.
 //   MOTION = shot.motion alone. Feeds the VIDEO model as the prompt beside the
 //            still. NEVER send the STILL text to the video model: it carries
 //            character NAMES, and there is no reason to hand a name-matching
@@ -46,23 +53,26 @@ const done = (shot) =>
   fs.existsSync(path.join(CLIPS, `${shot.id}.mp4`));
 
 /**
- * Acceptable starting-frame sizes, WIDEST FIRST because 1088 is preferred.
+ * What a usable starting frame looks like.
  *
- * Veo returns 1088x1920 — h264 macroblock rounding — and so, it turns out, does
- * the image generator. Handing Veo a 1088x1920 frame is therefore an exact
- * match: nothing is resampled on the way in, and the single crop to 1080 still
- * happens at ingest where it always did.
+ * PORTRAIT AND READABLE, and that is deliberately all. An earlier version of
+ * this demanded exactly 1080x1920 and it was wrong twice over:
  *
- * Requiring exactly 1080x1920 here was my mistake. It made the agent crop 8px
- * off every still and re-encode it, which costs a JPEG generation and then
- * makes Veo scale the frame back up to its own 1088 anyway — crop, upscale,
- * crop. 1080 is still accepted, because thirteen good clips were made from
- * 1080 sources and the A/B says they are indistinguishable.
+ *   - The image generator natively returns 1088x1920, the same macroblock
+ *     rounding Veo has, so the rule made the agent crop 8px and re-encode —
+ *     spending a JPEG generation to hand Veo a frame it then scaled back up.
+ *   - An A/B on finished clips found 768x1376 sources INDISTINGUISHABLE from
+ *     1080x1920 ones. Resolution, within this range, does not survive into the
+ *     render, so refusing it would have cost thirteen regenerations for nothing.
+ *
+ * The two sizes correspond to two tools: `generate_image` gives native
+ * 1088x1920 JPEG, `edit_image` gives 768x1376 PNG and is the ONLY one that
+ * accepts character sheets. Both are legitimate — see the note in the header
+ * about which to use for which shot — so this reports what a frame is and only
+ * objects when it is unreadable or not portrait.
  */
-const STILL_SIZES = [
-  { w: 1088, h: 1920 },
-  { w: 1080, h: 1920 },
-];
+const ASPECT = 9 / 16;
+const ASPECT_TOLERANCE = 0.02;
 
 /**
  * Format, width and height of an image, without a decoder.
@@ -121,10 +131,14 @@ function stillState(shot) {
   if (!img) return { has: true, ok: false, note: 'UNREADABLE — not a JPEG or PNG' };
   // The extension is part of the contract: an mislabelled file is a sign the
   // generation step did something other than what was asked.
-  const sized = STILL_SIZES.some((s) => img.width === s.w && img.height === s.h);
-  const ok = sized && img.format === 'JPEG';
+  const aspect = img.width / img.height;
+  const portrait = Math.abs(aspect - ASPECT) / ASPECT <= ASPECT_TOLERANCE;
   const what = `${img.width}x${img.height} ${img.format}`;
-  return { has: true, ok, note: ok ? what : `WRONG ${what}` };
+  return {
+    has: true,
+    ok: portrait,
+    note: portrait ? what : `WRONG ASPECT ${what} (${aspect.toFixed(3)}, want ${ASPECT.toFixed(3)})`,
+  };
 }
 
 let shots = EP3_SHOT_PLAN;
@@ -171,9 +185,7 @@ if (JSON_OUT) {
   console.log(`${shots.length} shot(s) listed, ${todo} still to generate.`);
   if (badStills.length > 0) {
     console.log(
-      `\n!! ${badStills.length} still(s) are not ` +
-        STILL_SIZES.map((s) => `${s.w}x${s.h}`).join(' or ') +
-        ` JPEG:\n   ` +
+      `\n!! ${badStills.length} still(s) are unusable:\n   ` +
         badStills.map((s) => `${s.id} ${stillState(s).note}`).join('\n   '),
     );
   }
