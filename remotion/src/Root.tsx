@@ -4,6 +4,8 @@ import { Episode1 } from './ep1/Episode1';
 import { EP1_TOTAL } from './ep1/manifest';
 import { Episode2 } from './ep2/Episode2';
 import { EP2_TOTAL } from './ep2/manifest';
+import { Episode3 } from './ep3/Episode3';
+import { EP3_TOTAL } from './ep3/manifest';
 
 export const RemotionRoot: React.FC = () => (
   <>
@@ -27,6 +29,14 @@ export const RemotionRoot: React.FC = () => (
       id="ep2"
       component={Episode2}
       durationInFrames={EP2_TOTAL}
+      fps={30}
+      width={1080}
+      height={1920}
+    />
+    <Composition
+      id="ep3"
+      component={Episode3}
+      durationInFrames={EP3_TOTAL}
       fps={30}
       width={1080}
       height={1920}

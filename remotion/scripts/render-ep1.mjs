@@ -46,7 +46,7 @@ function findChromium() {
 }
 
 const bundled = await bundle({
-  entryPoint: path.resolve(__dirname, '../src/index.ts'),
+  entryPoint: path.resolve(__dirname, '../src/episodes.ts'),
   webpackOverride: (c) => c,
 });
 
