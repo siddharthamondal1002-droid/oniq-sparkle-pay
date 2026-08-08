@@ -121,17 +121,28 @@ Register the composition in `remotion/src/Root.tsx`.
 
 ## 8. Render
 
-`remotion/bun.lock` names Lovable's private npm mirror, which 403s elsewhere, and
-the promo composition pulls Google Fonts that die behind the proxy. So build in
-a scratch directory with an episode-only Root:
+`remotion/bun.lock` names Lovable's private npm mirror, which 403s elsewhere, so
+install in a scratch directory against the public registry:
 
 ```bash
 cp -r remotion "$SCRATCH/build" && cd "$SCRATCH/build"
 rm -f bun.lock package-lock.json .npmrc
-# Root.tsx: this episode only. Delete MainVideo/scenes/components/theme.ts.
 npm install --registry=https://registry.npmjs.org --no-audit --no-fund
 OUT="$SCRATCH/<ep>.mp4" CONCURRENCY=4 node scripts/render-<ep>.mjs
 ```
+
+**The Google Fonts problem is fixed and no longer needs a hand-edited Root.**
+`remotion/src/index.ts` registers the promo, the promo imports `theme.ts`, and
+theme.ts calls `@remotion/google-fonts` `loadFont` **at module scope** — so
+bundling the promo alongside an episode makes headless Chromium fetch Space
+Grotesk the moment the composition is evaluated, which dies behind the proxy
+with `ERR_CERT_AUTHORITY_INVALID` and surfaces as a bare `NetworkError: A
+network error occurred` from `selectComposition`. It reads like a Remotion fault
+and is not one.
+
+`remotion/src/episodes.ts` is an episodes-only entry point and all three render
+scripts already use it. Episodes draw no text and need no remote font. **Never
+fix this by disabling certificate verification.**
 
 ~10,000 frames takes about 45 minutes. Run it in the background.
 
@@ -165,3 +176,60 @@ and ask it to register the asset. Then, yourself:
 `deploy_project`, **after** confirming `latest_commit_sha` has caught up. See
 the `oniq-ship` skill: an asset returning 200 is not the same as the page
 linking to it, and this exact conflation produced a false "it's live".
+
+---
+
+# The video variant — Episode 3 and after
+
+Episodes 1 and 2 are stills under a Ken Burns move. Episode 3 is real generated
+video. Most of the eleven steps above are unchanged; these are the differences,
+and `references/assembling-generated-clips.md` is the design behind them.
+
+**Steps 1, 3, 4, 9, 10 and 11 are identical.** The narration is still the clock.
+
+**Step 2 splits in two.** Write a SHOT LIST first — `src/data/ep3Shots.ts` — one
+entry per clip, because Veo caps a clip at 10s and a scene runs thirty or forty.
+Budget **~8.5 shots per minute** of finished episode; the naive 10s-per-clip
+figure is about 30% low, because shots are allocated by weight and none lands on
+the ceiling. Episode 3 is 60 shots for 6:55.
+
+Then: a still per SHOT, and a clip per shot generated image-to-video from that
+still as `starting_frame`. Not text-to-video — the probe proved Veo ignores the
+style prompt entirely and returns cel-shaded anime.
+
+**Most shots should have no face in them.** Coverage, not repeated takes. 39 of
+Episode 3's 60 are hands, objects, skies and crowds, and that is the whole
+character-consistency strategy.
+
+**Step 6 has no equivalent yet.** Episode 3 ships without a music bed. Adding
+one needs nothing new: `audioDuck.ts` is already episode-agnostic.
+
+**Step 7 gains a second layer and loses the camera.** Outer `TransitionSeries`
+cross-fades SCENES; an inner one HARD CUTS the shots inside each scene. **No Ken
+Burns** — the motion is inside the clip, and a camera move on top is two cameras
+fighting.
+
+**Two steps are new:**
+
+```bash
+cd remotion
+node scripts/measure-ep3.mjs                       # after 4, prints the manifest
+bun scripts/ingest-ep3-clips.mjs --from <raw dir>  # before 8
+bun scripts/ingest-ep3-clips.mjs --check
+```
+
+Ingest fixes all four things wrong with every clip the generator returns —
+invented soundtrack, 1088 not 1080, 24fps not 30, and ~10.04s not the
+allocation — in one pass, because four passes is four chances to skip one.
+
+**Expect the shot split to refuse to load when the real durations land.**
+`src/ep3/shots.ts` throws at module scope if any shot falls outside 1.5–10s, and
+on Episode 3 three scenes overflowed and each needed one more shot. That is the
+guard working: it fires before a single generation is paid for, and the fix is
+local.
+
+**The transfer problem, unsolved.** Sixty clips is over a gigabyte, the repo
+rejects anything above 10 MB, and `oniqhub.com` and `*.lovable.app` are both 403
+at this container's proxy — so clips generated on Lovable's box cannot be pulled
+here. Either they get conformed small enough to commit, or Lovable renders.
+Settle this BEFORE generating sixty clips, not after.

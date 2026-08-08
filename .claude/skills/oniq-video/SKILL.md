@@ -12,6 +12,7 @@ one wastes an afternoon, so establish which job you are doing first.
 | ------------------------------------ | -------------------------- | ------------------------------------------------ |
 | Promo / trailer / motion graphics    | **Remotion**               | Works. Produced the shipped promo.               |
 | Full episode from stills + narration | **Remotion**               | Works. Produced Episodes 1 and 2.                |
+| Full episode from MOVING video       | **Veo stills→clips + Remotion** | Episode 3. Assembly built and guarded; clips not yet generated. `references/assembling-generated-clips.md` |
 | Real MOVING video                    | **Veo 3.1 via Lovable**    | Works, 10s max. See `references/video-generation.md` |
 | Animate one illustrated still        | **Runway** image-to-video  | Built, admin-gated, **never yet run** (0 jobs)   |
 | Episode assembly via the job queue   | `episode_jobs`             | **Queues only — still no worker. Do not use.**   |
