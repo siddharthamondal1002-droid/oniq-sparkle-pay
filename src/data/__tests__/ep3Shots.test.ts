@@ -130,14 +130,24 @@ describe("the cast locks hold across fifty-seven generations", () => {
     expect(prompt.startsWith(STORYBOOK_STYLE)).toBe(true);
     expect(prompt).toContain("crouched to a boy's height");
     expect(prompt).toContain("THE MAGICIAN");
-    expect(prompt).toContain("ALADDIN");
+    expect(prompt).toContain("THE BOY");
   });
 
   it("leaves an uncast shot free of lock text", () => {
     // Hands, objects and crowds. A lock here spends prompt on a face that is
     // not in the frame, and invites the generator to add one.
     const prompt = shotPromptFor(EP3_SHOTS.find((s) => s.id === "ep3_s16c")!);
-    expect(prompt).not.toContain("ALADDIN is the same boy");
+    expect(prompt).not.toContain("THE BOY is the same boy");
+  });
+
+  it("keeps proper names out of the lock text", () => {
+    // The IMAGE model refused a prompt outright on the token "ALADDIN", and the
+    // video model had already thrown a third-party-content refusal on a shot of
+    // the same character. A generator needs the description, not the name, and
+    // 26 of 60 shots carry a lock — so one flagged token is a systemic risk.
+    for (const [key, lock] of Object.entries(EP3_CAST)) {
+      expect(lock, `${key} lock names a character`).not.toMatch(/ALADDIN/i);
+    }
   });
 
   it("never puts two jinn in one shot", () => {
@@ -155,7 +165,7 @@ describe("the cast locks hold across fifty-seven generations", () => {
     // drift. If a shot shows his face, it carries his lock.
     for (const id of ["ep3_s01b", "ep3_s05d", "ep3_s06b", "ep3_s08c", "ep3_s13c", "ep3_s16b"]) {
       expect(shotPromptFor(EP3_SHOTS.find((s) => s.id === id)!), id).toContain(
-        "ALADDIN is the same boy",
+        "THE BOY is the same boy",
       );
     }
   });
