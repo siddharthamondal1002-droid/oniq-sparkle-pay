@@ -207,7 +207,7 @@ function AdminVideoTool() {
                 <td>{j.scene_ref ?? '-'}</td>
                 <td>{j.duration}s</td>
                 <td>{j.credits_estimate ?? '-'}</td>
-                <td>{j.created_at ? new Date(j.created_at).toLocaleString() : '-'}</td>
+                <td>{j.created_at ? j.created_at.replace('T', ' ').slice(0, 19) : '-'}</td>
                 <td>
                   {j.status === 'failed' ? (
                     <span>{j.error ?? 'failed'}</span>
