@@ -8,16 +8,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
 import { useEffect, useState } from 'react';
 import {
-  runwayDeleteStill,
   runwayPollJobs,
   runwayScenes,
   runwaySignStored,
   runwayStatus,
   runwaySubmitJob,
-  runwayUploadStill,
 } from '@/lib/runway.functions';
-import { MAX_STILL_BYTES, validateStillName } from '@/lib/stillValidation';
-
+import { ORIGINALS, SEASON_DURATION, SEASON_RATIO, findScene } from '@/data/originals';
 
 export const Route = createFileRoute('/_authenticated/app/admin/video')({
   head: () => ({
@@ -38,16 +35,16 @@ function AdminVideoTool() {
   const submit = useServerFn(runwaySubmitJob);
   const poll = useServerFn(runwayPollJobs);
   const sign = useServerFn(runwaySignStored);
-  const uploadStill = useServerFn(runwayUploadStill);
-  const deleteStill = useServerFn(runwayDeleteStill);
 
   const [scene, setScene] = useState('');
+  const [shotId, setShotId] = useState('');
   const [promptText, setPromptText] = useState('');
-  const [duration, setDuration] = useState(5);
-  const [ratio, setRatio] = useState('720:1280');
+  const [duration, setDuration] = useState(SEASON_DURATION);
+  const [ratio, setRatio] = useState(SEASON_RATIO);
   const [seed, setSeed] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState<Record<string, string>>({});
+
   const [replace, setReplace] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<string | null>(null);
 
