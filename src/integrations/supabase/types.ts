@@ -3266,6 +3266,87 @@ export type Database = {
           },
         ]
       }
+      video_gen_config: {
+        Row: {
+          daily_cap: number
+          enabled: boolean
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          daily_cap?: number
+          enabled?: boolean
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          daily_cap?: number
+          enabled?: boolean
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      video_jobs: {
+        Row: {
+          created_at: string | null
+          created_by: string
+          credits_estimate: number | null
+          duration: number
+          error: string | null
+          id: string
+          model: string
+          output_url: string | null
+          prompt_image_url: string
+          prompt_text: string
+          ratio: string
+          runway_task_id: string | null
+          scene_ref: string | null
+          seed: number | null
+          status: string
+          stored_path: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          created_by: string
+          credits_estimate?: number | null
+          duration?: number
+          error?: string | null
+          id?: string
+          model?: string
+          output_url?: string | null
+          prompt_image_url: string
+          prompt_text: string
+          ratio?: string
+          runway_task_id?: string | null
+          scene_ref?: string | null
+          seed?: number | null
+          status?: string
+          stored_path?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          created_by?: string
+          credits_estimate?: number | null
+          duration?: number
+          error?: string | null
+          id?: string
+          model?: string
+          output_url?: string | null
+          prompt_image_url?: string
+          prompt_text?: string
+          ratio?: string
+          runway_task_id?: string | null
+          scene_ref?: string | null
+          seed?: number | null
+          status?: string
+          stored_path?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
