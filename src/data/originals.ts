@@ -33,21 +33,63 @@ export type Episode = {
   number: number;
   title: string;
   runtime: string;
+  /** Rendering style for this episode's stills. Omit to use HOUSE_STYLE. */
+  style?: string;
   scenes: Scene[];
 };
 
-/** Prepended to every stillPrompt so the season looks like one season. */
+/**
+ * The season default: a photoreal-leaning matte painting.
+ *
+ * This is what Episode 1 was generated with and what it still looks like.
+ */
 export const HOUSE_STYLE =
   'Painterly cinematic illustration, hand-painted matte-painting feel, warm desert palette ' +
   'of sand ochre, deep teal shadow and ember gold, soft volumetric light, film grain, ' +
+  'no text, no lettering, no watermark, no modern objects.';
+
+/**
+ * STORYBOOK — the look of the Firefly Forest short, chosen by the project
+ * owner for Episode 2 (2026-08-08) from a reference clip.
+ *
+ * What was taken from the reference is the RENDERING, not the setting. The
+ * reference is a glowing night forest; Ali Baba is a dry hill road at hard
+ * midday, and it stays that way. What transfers:
+ *
+ *   - stylised animation, not photorealism — rounded simplified forms,
+ *     visible painterly brushwork, soft edges, no hard linework
+ *   - a saturated jewel palette with strong warm/cool separation: warm amber
+ *     and gold read against violet and deep blue shadow
+ *   - luminous accents and soft bloom around every light source, with
+ *     foreground light falling out of focus into bokeh
+ *   - depth by atmospheric haze between layers rather than by fine detail
+ *   - figures small in frame against a large environment, staged for wonder
+ *
+ * `film grain` is deliberately dropped and `no film grain` asserted instead.
+ * Grain is the single strongest photoreal cue in HOUSE_STYLE and leaving it
+ * in fights every other word here.
+ */
+export const STORYBOOK_STYLE =
+  'Stylised storybook animation still, lush hand-painted 3D-animation feel, rounded simplified ' +
+  'forms with soft painterly brushwork and no hard outlines, saturated jewel palette with warm ' +
+  'amber and gold light against deep violet and blue shadow, glowing luminous accents with soft ' +
+  'bloom, out-of-focus bokeh lights in the foreground, layered atmospheric haze for depth, ' +
+  'figures small against a large environment, no film grain, not photorealistic, ' +
   'no text, no lettering, no watermark, no modern objects.';
 
 /** Vertical, to match the phone. Runway ratio for every clip in the season. */
 export const SEASON_RATIO = '720:1280';
 export const SEASON_DURATION = 5;
 
+/**
+ * Resolve a scene's full image prompt, including the style of the episode
+ * that OWNS it. Takes the scene alone because that is all any caller has;
+ * looking the episode up here is what stops a scene being rendered in the
+ * wrong episode's style.
+ */
 export function stillPromptFor(scene: Scene): string {
-  return `${HOUSE_STYLE} ${scene.stillPrompt}`;
+  const owner = ALL_SCENES.find((s) => s.scene.id === scene.id)?.episode;
+  return `${owner?.style ?? HOUSE_STYLE} ${scene.stillPrompt}`;
 }
 
 const episode1: Episode = {
@@ -185,6 +227,7 @@ const episode2: Episode = {
   number: 2,
   title: 'Ali Baba and the Forty Thieves',
   runtime: '~6 min',
+  style: STORYBOOK_STYLE,
   scenes: [
     {
       id: 'ep2_s01',
