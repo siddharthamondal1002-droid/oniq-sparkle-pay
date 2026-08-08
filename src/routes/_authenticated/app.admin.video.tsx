@@ -217,6 +217,42 @@ function AdminVideoTool() {
         <legend>submit one clip</legend>
         <div>
           <label>
+            ONIQ Originals shot:{' '}
+            <select
+              value={shotId}
+              onChange={(e) => {
+                const id = e.target.value;
+                setShotId(id);
+                const shot = findScene(id);
+                if (!shot) return;
+                // Pre-fill from the shot list, then let the operator edit.
+                setPromptText(shot.motionPrompt);
+                setRatio(SEASON_RATIO);
+                setDuration(SEASON_DURATION);
+                const still = `${id}.png`;
+                setScene(
+                  (scenesQuery.data ?? []).some((s) => s.name === still) ? still : '',
+                );
+              }}
+            >
+              <option value="">-- free-form (no shot) --</option>
+              {ORIGINALS.map((ep) => (
+                <optgroup key={ep.id} label={`Ep${ep.number} — ${ep.title}`}>
+                  {ep.scenes.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.id} · {s.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          {shotId && !scene ? (
+            <p>no still named {shotId}.png yet — upload one above.</p>
+          ) : null}
+        </div>
+        <div style={{ marginTop: 6 }}>
+          <label>
             scene still:{' '}
             <select value={scene} onChange={(e) => setScene(e.target.value)}>
               <option value="">-- pick --</option>
@@ -228,6 +264,7 @@ function AdminVideoTool() {
             </select>
           </label>
         </div>
+
         <div style={{ marginTop: 6 }}>
           <label>
             motion prompt:{' '}
