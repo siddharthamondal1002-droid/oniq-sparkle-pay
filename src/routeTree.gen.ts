@@ -72,6 +72,7 @@ import { Route as AuthenticatedAppChatMomentsRouteImport } from './routes/_authe
 import { Route as AuthenticatedAppChatMeRouteImport } from './routes/_authenticated/app.chat.me'
 import { Route as AuthenticatedAppChatCallsRouteImport } from './routes/_authenticated/app.chat.calls'
 import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
+import { Route as AuthenticatedAppAdminVideoRouteImport } from './routes/_authenticated/app.admin.video'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -408,6 +409,12 @@ const AuthenticatedAppChatConversationIdRoute =
     path: '/$conversationId',
     getParentRoute: () => AuthenticatedAppChatRoute,
   } as any)
+const AuthenticatedAppAdminVideoRoute =
+  AuthenticatedAppAdminVideoRouteImport.update({
+    id: '/video',
+    path: '/video',
+    getParentRoute: () => AuthenticatedAppAdminRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -432,7 +439,7 @@ export interface FileRoutesByFullPath {
   '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
-  '/app/admin': typeof AuthenticatedAppAdminRoute
+  '/app/admin': typeof AuthenticatedAppAdminRouteWithChildren
   '/app/ai': typeof AuthenticatedAppAiRoute
   '/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/app/chat': typeof AuthenticatedAppChatRouteWithChildren
@@ -457,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
   '/app/': typeof AuthenticatedAppIndexRoute
+  '/app/admin/video': typeof AuthenticatedAppAdminVideoRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
   '/app/chat/me': typeof AuthenticatedAppChatMeRoute
@@ -495,7 +503,7 @@ export interface FileRoutesByTo {
   '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
-  '/app/admin': typeof AuthenticatedAppAdminRoute
+  '/app/admin': typeof AuthenticatedAppAdminRouteWithChildren
   '/app/ai': typeof AuthenticatedAppAiRoute
   '/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/app/clips': typeof AuthenticatedAppClipsRoute
@@ -519,6 +527,7 @@ export interface FileRoutesByTo {
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
   '/app': typeof AuthenticatedAppIndexRoute
+  '/app/admin/video': typeof AuthenticatedAppAdminVideoRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
   '/app/chat/me': typeof AuthenticatedAppChatMeRoute
@@ -560,7 +569,7 @@ export interface FileRoutesById {
   '/u/$userId': typeof UUserIdRoute
   '/.lovable/oauth/consent': typeof DotlovableOauthConsentRoute
   '/.mcp/invoke-tool/$tool': typeof Char91DotmcpChar93InvokeToolToolRoute
-  '/_authenticated/app/admin': typeof AuthenticatedAppAdminRoute
+  '/_authenticated/app/admin': typeof AuthenticatedAppAdminRouteWithChildren
   '/_authenticated/app/ai': typeof AuthenticatedAppAiRoute
   '/_authenticated/app/attributions': typeof AuthenticatedAppAttributionsRoute
   '/_authenticated/app/chat': typeof AuthenticatedAppChatRouteWithChildren
@@ -585,6 +594,7 @@ export interface FileRoutesById {
   '/_authenticated/app/vitals': typeof AuthenticatedAppVitalsRoute
   '/_authenticated/app/weather': typeof AuthenticatedAppWeatherRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
+  '/_authenticated/app/admin/video': typeof AuthenticatedAppAdminVideoRoute
   '/_authenticated/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
   '/_authenticated/app/chat/calls': typeof AuthenticatedAppChatCallsRoute
   '/_authenticated/app/chat/me': typeof AuthenticatedAppChatMeRoute
@@ -651,6 +661,7 @@ export interface FileRouteTypes {
     | '/app/vitals'
     | '/app/weather'
     | '/app/'
+    | '/app/admin/video'
     | '/app/chat/$conversationId'
     | '/app/chat/calls'
     | '/app/chat/me'
@@ -713,6 +724,7 @@ export interface FileRouteTypes {
     | '/app/vitals'
     | '/app/weather'
     | '/app'
+    | '/app/admin/video'
     | '/app/chat/$conversationId'
     | '/app/chat/calls'
     | '/app/chat/me'
@@ -778,6 +790,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/vitals'
     | '/_authenticated/app/weather'
     | '/_authenticated/app/'
+    | '/_authenticated/app/admin/video'
     | '/_authenticated/app/chat/$conversationId'
     | '/_authenticated/app/chat/calls'
     | '/_authenticated/app/chat/me'
@@ -1264,8 +1277,28 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppChatConversationIdRouteImport
       parentRoute: typeof AuthenticatedAppChatRoute
     }
+    '/_authenticated/app/admin/video': {
+      id: '/_authenticated/app/admin/video'
+      path: '/video'
+      fullPath: '/app/admin/video'
+      preLoaderRoute: typeof AuthenticatedAppAdminVideoRouteImport
+      parentRoute: typeof AuthenticatedAppAdminRoute
+    }
   }
 }
+
+interface AuthenticatedAppAdminRouteChildren {
+  AuthenticatedAppAdminVideoRoute: typeof AuthenticatedAppAdminVideoRoute
+}
+
+const AuthenticatedAppAdminRouteChildren: AuthenticatedAppAdminRouteChildren = {
+  AuthenticatedAppAdminVideoRoute: AuthenticatedAppAdminVideoRoute,
+}
+
+const AuthenticatedAppAdminRouteWithChildren =
+  AuthenticatedAppAdminRoute._addFileChildren(
+    AuthenticatedAppAdminRouteChildren,
+  )
 
 interface AuthenticatedAppChatRouteChildren {
   AuthenticatedAppChatConversationIdRoute: typeof AuthenticatedAppChatConversationIdRoute
@@ -1292,7 +1325,7 @@ const AuthenticatedAppChatRouteWithChildren =
   AuthenticatedAppChatRoute._addFileChildren(AuthenticatedAppChatRouteChildren)
 
 interface AuthenticatedAppRouteChildren {
-  AuthenticatedAppAdminRoute: typeof AuthenticatedAppAdminRoute
+  AuthenticatedAppAdminRoute: typeof AuthenticatedAppAdminRouteWithChildren
   AuthenticatedAppAiRoute: typeof AuthenticatedAppAiRoute
   AuthenticatedAppAttributionsRoute: typeof AuthenticatedAppAttributionsRoute
   AuthenticatedAppChatRoute: typeof AuthenticatedAppChatRouteWithChildren
@@ -1327,7 +1360,7 @@ interface AuthenticatedAppRouteChildren {
 }
 
 const AuthenticatedAppRouteChildren: AuthenticatedAppRouteChildren = {
-  AuthenticatedAppAdminRoute: AuthenticatedAppAdminRoute,
+  AuthenticatedAppAdminRoute: AuthenticatedAppAdminRouteWithChildren,
   AuthenticatedAppAiRoute: AuthenticatedAppAiRoute,
   AuthenticatedAppAttributionsRoute: AuthenticatedAppAttributionsRoute,
   AuthenticatedAppChatRoute: AuthenticatedAppChatRouteWithChildren,

@@ -182,6 +182,10 @@ export default tseslint.config(
       "src/components/moments/MomentsFeed.tsx",
       "src/lib/clipThumbs.ts",
       "src/routes/_authenticated/app.chat.$conversationId.tsx",
+      // Admin-only Runway tool. Signs from the private "video-gen" bucket with
+      // the service role, server-side, with explicit short TTLs — it is not on
+      // the user-facing media path resolveMedia.ts governs.
+      "src/lib/runwayOps.server.ts",
     ],
     rules: { "oniq/media-url-fence": "error" },
   },

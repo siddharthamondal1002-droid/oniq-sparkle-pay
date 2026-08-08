@@ -63,7 +63,16 @@ function createdTables(): string[] {
   return [...found];
 }
 
-const careerTables = createdTables().filter((t) => CAREER_TABLE.test(t));
+/**
+ * Names that match CAREER_TABLE by accident and hold no career data.
+ * public.video_jobs is the admin-only Runway render queue — "jobs" as in
+ * background tasks. It is admin-gated by RLS and carries nothing about a
+ * person's employment, so an 18+ restriction is meaningless there. Nothing
+ * else may be added here without the same argument.
+ */
+const NOT_CAREER = new Set(["video_jobs"]);
+
+const careerTables = createdTables().filter((t) => CAREER_TABLE.test(t) && !NOT_CAREER.has(t));
 
 function hasRls(table: string): boolean {
   return new RegExp(
