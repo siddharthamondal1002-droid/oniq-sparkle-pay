@@ -118,6 +118,42 @@ ffmpeg -i raw.mp4 -an -vf crop=1080:1920 -r 30 -frames:v <N> \
 
 Verify against a synthetic 24fps 1088×1920 clip before trusting it.
 
+**Dry-run the composition with stand-in clips before generating anything.**
+Sixty generations is the expensive way to discover that `Episode3.tsx` cuts in
+the wrong place. Build one stand-in per shot from the scene's own still, at the
+shot's exact frame count, using a different `crop` per shot so adjacent shots
+look different:
+
+```
+ffmpeg -loop 1 -framerate 30 -i <scene>.jpg \
+       -vf "crop=$((1080-i*90)):$((1920-i*160)):$((i*45)):$((i*60)),scale=1080:1920" \
+       -frames:v <N> -an -c:v libx264 -preset ultrafast -crf 30 -pix_fmt yuv420p <shot>.mp4
+```
+
+Sixty of those cost 15 MB and about three minutes, and they run through the
+real ingest `--check` and the real renderer.
+
+**How to measure a cut when the ffmpeg has no `psnr`, `blend` or `signalstats`.**
+It also has no `zoompan`, `drawtext`, `hue` or `eq`. But the rawvideo ENCODER
+survives even though the rawvideo MUXER does not, so pipe it through `image2`:
+
+```
+ffmpeg -i range.mp4 -vf scale=32:32 -c:v rawvideo -pix_fmt gray -f image2 raw/f%04d.raw
+```
+
+That is one 1024-byte file of plain grey pixels per frame, trivially diffable in
+Node. Because stand-ins are static, ANY frame-to-frame change is a transition,
+so grouping the nonzero frames into bands reads the edit straight off:
+
+```
+frames 7747-7758  width 12   <- a dissolve, SHOT_DISSOLVE_FRAMES wide
+frames  162-162   width  1   <- a hard cut
+```
+
+Episode 3 verified this way: cuts at exactly 162 and 340, three dissolve bands
+of exactly 12 frames ending at 7758, 7952 and 8192. Beware single-frame bands
+with a delta near 0.2 — that is h264 noise on a static image, not an edit.
+
 **Bundling an episode with the promo kills the render.** `remotion/src/index.ts`
 registers the promo, the promo imports `theme.ts`, and theme.ts calls
 `@remotion/google-fonts` `loadFont` **at module scope** — so headless Chromium
