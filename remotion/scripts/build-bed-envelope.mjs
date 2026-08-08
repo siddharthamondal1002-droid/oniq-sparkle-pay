@@ -1,12 +1,17 @@
 // Measure the narration and precompute the music bed's gain curve.
 //
-// Writes remotion/src/ep2/bedGain.json — one gain per frame for the whole
-// episode. Episode2.tsx reads that array and does no analysis at render time,
+// Writes remotion/src/<episode>/bedGain.json — one gain per frame for the
+// whole episode. The composition reads that array and does no analysis at render time,
 // so the mix is inspectable as data instead of as a side effect, and a render
 // cannot quietly produce a different balance than the one that was checked.
 //
 // Run after ANY change to the narration mp3s or the manifest:
-//   cd remotion && node scripts/build-bed-envelope.mjs
+//   cd remotion && EPISODE=ep2 node scripts/build-bed-envelope.mjs
+//
+// EPISODE selects which episode to build; it defaults to ep2 because that is
+// the only one with a bed today. It expects src/<episode>/manifest.ts to export
+// SCENES/FRAMES/TOTAL under the episode's own prefix (EP2_SCENES, EP3_SCENES),
+// which is the naming every episode manifest already uses.
 //
 // THE LOGIC IS NOT HERE. Attack, release, threshold, the overlap rule and the
 // timeline arithmetic all live in src/lib/audioDuck.ts, where the main vitest
@@ -22,8 +27,10 @@ import ts from 'typescript';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../..');
-const PUBLIC = path.resolve(__dirname, '../public/ep2');
-const OUT = path.resolve(__dirname, '../src/ep2/bedGain.json');
+const EPISODE = process.env.EPISODE ?? 'ep2';
+const PREFIX = EPISODE.toUpperCase();
+const PUBLIC = path.resolve(__dirname, `../public/${EPISODE}`);
+const OUT = path.resolve(__dirname, `../src/${EPISODE}/bedGain.json`);
 
 /** Load src/lib/audioDuck.ts by transpiling it — no build step, no duplicate. */
 async function loadAudioDuck() {
@@ -80,11 +87,9 @@ function speechLevels(ffmpeg, mp3, fps, frames) {
   return out;
 }
 
-const { BED_SECONDS, EP2_FRAMES, EP2_SCENES, EP2_TOTAL, FPS, TRANSITION_FRAMES } = await import(
-  '../src/ep2/manifest.ts'
-).catch(async () => {
+const manifest = await import(`../src/${EPISODE}/manifest.ts`).catch(async () => {
   // manifest.ts is TypeScript; transpile it the same way.
-  const src = fs.readFileSync(path.resolve(__dirname, '../src/ep2/manifest.ts'), 'utf8');
+  const src = fs.readFileSync(path.resolve(__dirname, `../src/${EPISODE}/manifest.ts`), 'utf8');
   const js = ts.transpileModule(src, {
     compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
   }).outputText;
@@ -92,6 +97,17 @@ const { BED_SECONDS, EP2_FRAMES, EP2_SCENES, EP2_TOTAL, FPS, TRANSITION_FRAMES }
   fs.writeFileSync(tmp, js);
   return import(tmp);
 });
+
+// Episode manifests namespace their exports (EP2_SCENES, EP3_SCENES, ...) so
+// two can be imported side by side without colliding. Resolve by prefix rather
+// than requiring every episode to rename its exports.
+const { BED_SECONDS, FPS, TRANSITION_FRAMES } = manifest;
+const SCENES = manifest[`${PREFIX}_SCENES`];
+const FRAMES = manifest[`${PREFIX}_FRAMES`];
+const TOTAL = manifest[`${PREFIX}_TOTAL`];
+if (!SCENES || !FRAMES || !TOTAL) {
+  throw new Error(`src/${EPISODE}/manifest.ts does not export ${PREFIX}_SCENES/_FRAMES/_TOTAL`);
+}
 
 const {
   BED_ALONE_DB,
@@ -129,10 +145,10 @@ function decodedSeconds(ff, file) {
   return bytes / 2 / SAMPLE_RATE;
 }
 
-const perScene = EP2_SCENES.map((scene, i) => {
+const perScene = SCENES.map((scene, i) => {
   const mp3 = path.join(PUBLIC, `${scene.id}.mp3`);
   if (!fs.existsSync(mp3)) throw new Error(`missing narration: ${mp3}`);
-  return speechLevels(ffmpeg, mp3, FPS, EP2_FRAMES[i]);
+  return speechLevels(ffmpeg, mp3, FPS, FRAMES[i]);
 });
 
 // ORDER MATTERS. Peak-hold per scene, before the scenes are laid down, so the
@@ -140,9 +156,9 @@ const perScene = EP2_SCENES.map((scene, i) => {
 // narration into its neighbour's silence. Normalise across the WHOLE episode,
 // after laying down, so every scene is judged on one consistent scale rather
 // than each being stretched to its own loudest moment.
-const starts = sceneStartFrames(EP2_FRAMES, TRANSITION_FRAMES);
+const starts = sceneStartFrames(FRAMES, TRANSITION_FRAMES);
 const held = perScene.map((level) => peakHold(level, PEAK_HOLD_FRAMES));
-const speech = normaliseByPercentile(layOnTimeline(held, starts, EP2_TOTAL));
+const speech = normaliseByPercentile(layOnTimeline(held, starts, TOTAL));
 
 // Calibrate against what the two files ACTUALLY measure, rather than trusting
 // a hand-tuned gain. Episode 2's bed came back 10 dB louder than the narration
@@ -164,7 +180,7 @@ if (Math.abs(bedSeconds - BED_SECONDS) > 0.25) {
 }
 
 const bedRms = fileRms(ffmpeg, bedFile);
-const speechRms = fileRms(ffmpeg, path.join(PUBLIC, `${EP2_SCENES[0].id}.mp3`));
+const speechRms = fileRms(ffmpeg, path.join(PUBLIC, `${SCENES[0].id}.mp3`));
 const levels = gainsForTargets(bedRms, speechRms);
 
 const gain = applyEdgeFades(speechToGain(speech, levels), 2 * FPS, 3 * FPS);
@@ -175,7 +191,7 @@ fs.writeFileSync(
   OUT,
   `${JSON.stringify({
     fps: FPS,
-    frames: EP2_TOTAL,
+    frames: TOTAL,
     // The calibration this curve was built from, so a reader (and the test)
     // can see what the numbers mean instead of inferring them.
     measured: { bedDb: Number(db(bedRms)), narrationDb: Number(db(speechRms)) },
@@ -185,9 +201,9 @@ fs.writeFileSync(
 );
 
 const speaking = speech.filter((s) => s >= DEFAULT_DUCK.threshold).length;
-console.log(`ep2 bed envelope -> ${OUT}`);
-console.log(`  ${EP2_TOTAL} frames (${(EP2_TOTAL / FPS).toFixed(1)}s)`);
-console.log(`  narration detected in ${((100 * speaking) / EP2_TOTAL).toFixed(1)}% of frames`);
+console.log(`${EPISODE} bed envelope -> ${OUT}`);
+console.log(`  ${TOTAL} frames (${(TOTAL / FPS).toFixed(1)}s)`);
+console.log(`  narration detected in ${((100 * speaking) / TOTAL).toFixed(1)}% of frames`);
 console.log(`  measured: bed ${db(bedRms)} dB, narration ${db(speechRms)} dB`);
 console.log(
   `  gains: under ${levels.under.toFixed(3)} (${BED_UNDER_SPEECH_DB} dB vs voice), ` +

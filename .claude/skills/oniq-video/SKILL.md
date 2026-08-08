@@ -101,8 +101,14 @@ Then upload the mp4 as a Lovable asset and reference the generated
 
 ### Episodes: stills + narration, held under Ken Burns
 
-This is the path that actually built Episode 1, and it is Remotion — not
+This is the path that actually built Episodes 1 and 2, and it is Remotion — not
 Runway, and not the `episode_jobs` queue.
+
+**To build a whole episode, follow `references/making-an-episode.md`.** It is
+the eleven-step runbook, with the commands, and it exists because the pieces
+live on two different machines: the Lovable agent has image generation, TTS and
+a full ffmpeg, while this container has the repo, Remotion, Chromium and a
+cut-down ffmpeg. The rest of this section is the reference material behind it.
 
 ```
 remotion/src/ep1/Episode1.tsx   TransitionSeries: one Sequence per scene,
