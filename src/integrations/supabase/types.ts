@@ -1231,6 +1231,54 @@ export type Database = {
         }
         Relationships: []
       }
+      episode_jobs: {
+        Row: {
+          created_at: string
+          created_by: string
+          error: string | null
+          finished_at: string | null
+          id: string
+          notes: Json | null
+          started_at: string | null
+          status: string
+          stored_path: string | null
+          timeline: Json
+          title: string | null
+          total_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          notes?: Json | null
+          started_at?: string | null
+          status?: string
+          stored_path?: string | null
+          timeline: Json
+          title?: string | null
+          total_seconds: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          error?: string | null
+          finished_at?: string | null
+          id?: string
+          notes?: Json | null
+          started_at?: string | null
+          status?: string
+          stored_path?: string | null
+          timeline?: Json
+          title?: string | null
+          total_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       follows: {
         Row: {
           created_at: string | null
@@ -3270,18 +3318,24 @@ export type Database = {
         Row: {
           daily_cap: number
           enabled: boolean
+          episode_daily_cap: number
+          episodes_enabled: boolean
           id: boolean
           updated_at: string
         }
         Insert: {
           daily_cap?: number
           enabled?: boolean
+          episode_daily_cap?: number
+          episodes_enabled?: boolean
           id?: boolean
           updated_at?: string
         }
         Update: {
           daily_cap?: number
           enabled?: boolean
+          episode_daily_cap?: number
+          episodes_enabled?: boolean
           id?: boolean
           updated_at?: string
         }
