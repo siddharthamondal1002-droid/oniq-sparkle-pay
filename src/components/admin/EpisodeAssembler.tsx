@@ -114,8 +114,8 @@ export function EpisodeAssembler() {
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            // eslint-disable-next-line react/no-array-index-key -- rows are positional
-            <tr key={i}>
+            <tr key={`${i}-${r.stillPath}`}>
+
               <td>{i + 1}</td>
               <td>
                 <select
