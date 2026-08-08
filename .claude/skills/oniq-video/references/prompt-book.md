@@ -92,19 +92,50 @@ matches the scene, or drop the axis — never state both.
 
 ---
 
-## The audio half has nowhere to go yet
+## The audio half — built for Episode 2
 
-Nothing in ONIQ currently plays a music bed. `Episode1.tsx` and `Episode2.tsx`
-mount exactly one `<Audio>` per scene and it is narration. Wiring a soundtrack
-in is real work, not a prompt change:
+This section said "nowhere to go yet" when the book arrived. It was built the
+same day; here is what exists and what it cost.
 
-- a second audio layer per scene, or one bed across the episode
-- **ducking** under the narration, otherwise the voice is unintelligible — this
-  is the part that is easy to skip and impossible to miss once heard
-- the bed must survive `TransitionSeries` overlaps without pumping at every
-  cross-dissolve
-- one more thing that can silently fail to mount, exactly like the twelve
-  narration files that were generated and never referenced in Episode 1
+**The bed prompt is data.** `EP2_BED` in `src/data/originals.ts`, alongside
+`style`, so a bed can be regenerated rather than being a chat log. Episode 2's
+is written to the axes above.
+
+**Pick the instrument for the mix, not the setting.** The obvious choice for
+Ali Baba is the book's `tribal drums`, and it is the wrong one: the bed plays
+under narration for 88% of the episode at about a sixth of the narrator's
+level, and percussive transients punch through a duck in a way sustained
+material does not, so every hit pokes out. `ambient textures` carries the same
+desert atmosphere with nothing to poke. The axes describe a mood; the mix
+decides which value survives.
+
+**Ducking, and how to get its threshold right.** `src/lib/audioDuck.ts`, pure
+and tested; `remotion/scripts/build-bed-envelope.mjs` measures the real
+narration and writes a per-frame gain array to `bedGain.json`. Two calibration
+traps, both found by measuring rather than listening:
+
+- **An absolute threshold is wrong.** 0.06 of full scale sounds like a
+  reasonable speech level and is in fact _above the median frame_ of real
+  narration (measured: p50 0.024, p90 0.108). It ducked over only 30% of an
+  episode that talks throughout. Normalise the envelope to its own 95th
+  percentile first, so the threshold is a property of the mix and not of the
+  recording gain.
+- **Per-frame RMS is too twitchy** to answer "is anyone speaking" — half the
+  frames land in the silences inside ordinary speech. Peak-hold ~0.4s before
+  thresholding. Detection went 30.8% → 88.3%, which matches the material.
+
+Order: peak-hold **per scene** before laying scenes onto the timeline, so
+smoothing never smears one narration into its neighbour's silence; normalise
+**across the episode** after, so every scene is judged on one scale. Overlapping
+scenes take the **max** of the two narrations — overwriting shows a hole
+wherever the incoming line has not started, and the bed swells into it.
+
+**Mount the bed at the composition root, outside `TransitionSeries`.** Inside,
+it is restarted and cross-faded at every scene boundary. `loop` it: a generated
+bed is far shorter than five minutes.
+
+**Attack fast, release slow.** 6 frames down, 36 up. Symmetric timing pumps
+between words; the asymmetry is the whole trick, and a test asserts it.
 
 **Rights.** A generated bed is ONIQ's own and is fine. Never source a music
 track from anywhere else — the reasoning in `watchDirectory.ts` about
