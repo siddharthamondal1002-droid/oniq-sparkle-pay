@@ -20,23 +20,37 @@ import {
 } from "@/data/originals";
 
 describe("a scene is prompted in its own episode's style", () => {
-  it("puts storybook on episode 2, and on nothing else", () => {
+  // Stated per episode rather than derived, so that changing an episode's look
+  // is a deliberate edit here and never a side effect of editing originals.ts.
+  // ep1 is photoreal and already shipped; ep2 and ep3 both use the Firefly
+  // Forest look the owner chose from a reference clip.
+  const EXPECTED: Record<string, string> = {
+    ep1: HOUSE_STYLE,
+    ep2: STORYBOOK_STYLE,
+    ep3: STORYBOOK_STYLE,
+  };
+
+  it("gives every episode exactly the style it is meant to have", () => {
     for (const episode of ORIGINALS) {
+      const expected = EXPECTED[episode.id];
+      expect(expected, `no expected style recorded for ${episode.id}`).toBeTruthy();
       for (const scene of episode.scenes) {
-        expect(
-          stillPromptFor(scene).startsWith(STORYBOOK_STYLE),
-          `${scene.id} storybook-ness is wrong`,
-        ).toBe(episode.id === "ep2");
+        expect(stillPromptFor(scene).startsWith(expected), `${scene.id} has the wrong style`).toBe(
+          true,
+        );
       }
     }
   });
 
-  it("leaves an episode with no style of its own on the house style", () => {
-    // ep1 is already generated and shipped; ep3 has not been generated yet.
-    // Neither declares a style, and both must resolve to the season default.
-    for (const id of ["ep1_s01", "ep3_s01"]) {
-      expect(stillPromptFor(findScene(id)!).startsWith(HOUSE_STYLE), id).toBe(true);
-    }
+  it("covers every episode in the season", () => {
+    // Otherwise a fourth episode could be added and silently go unchecked.
+    expect(Object.keys(EXPECTED).sort()).toEqual(ORIGINALS.map((e) => e.id).sort());
+  });
+
+  it("still falls back to the house style when an episode declares none", () => {
+    // The fallback is what ep1 relies on — it has no `style` of its own.
+    expect(ORIGINALS.find((e) => e.id === "ep1")!.style).toBeUndefined();
+    expect(stillPromptFor(findScene("ep1_s01")!).startsWith(HOUSE_STYLE)).toBe(true);
   });
 
   it("keeps the scene's own description after the style", () => {

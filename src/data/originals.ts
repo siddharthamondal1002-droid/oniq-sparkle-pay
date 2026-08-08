@@ -562,6 +562,10 @@ const episode3: Episode = {
   number: 3,
   title: 'Aladdin and the Wonderful Lamp',
   runtime: '~7 min',
+  // The Firefly Forest look, same as episode 2 — the owner asked for episode 3
+  // to carry the characters and feel of that clip, and STORYBOOK_STYLE was
+  // derived from it. Episode 1 is now the outlier in the season.
+  style: STORYBOOK_STYLE,
   cast: EP3_CAST,
   scenes: [
     {
