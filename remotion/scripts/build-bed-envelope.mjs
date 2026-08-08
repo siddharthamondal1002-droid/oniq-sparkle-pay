@@ -94,9 +94,12 @@ const { EP2_FRAMES, EP2_SCENES, EP2_TOTAL, FPS, TRANSITION_FRAMES } = await impo
 });
 
 const {
+  BED_ALONE_DB,
+  BED_UNDER_SPEECH_DB,
   DEFAULT_DUCK,
   PEAK_HOLD_FRAMES,
   applyEdgeFades,
+  gainsForTargets,
   layOnTimeline,
   normaliseByPercentile,
   peakHold,
@@ -104,6 +107,18 @@ const {
   speechToGain,
 } = await loadAudioDuck();
 const ffmpeg = findFfmpeg();
+
+/** Overall RMS of a file, 0..1, via the same decode path as the envelope. */
+function fileRms(ff, file) {
+  const wav = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rms-')), 'a.wav');
+  execFileSync(ff, ['-v', 'error', '-i', file, '-ac', '1', '-ar', String(SAMPLE_RATE), '-f', 'wav', wav]);
+  const buf = fs.readFileSync(wav);
+  const pcm = new Int16Array(buf.buffer, buf.byteOffset + 44, (buf.length - 44) >> 1);
+  fs.rmSync(path.dirname(wav), { recursive: true, force: true });
+  let sum = 0;
+  for (let i = 0; i < pcm.length; i++) sum += pcm[i] * pcm[i];
+  return Math.sqrt(sum / pcm.length) / 32768;
+}
 
 const perScene = EP2_SCENES.map((scene, i) => {
   const mp3 = path.join(PUBLIC, `${scene.id}.mp3`);
@@ -119,17 +134,42 @@ const perScene = EP2_SCENES.map((scene, i) => {
 const starts = sceneStartFrames(EP2_FRAMES, TRANSITION_FRAMES);
 const held = perScene.map((level) => peakHold(level, PEAK_HOLD_FRAMES));
 const speech = normaliseByPercentile(layOnTimeline(held, starts, EP2_TOTAL));
-const gain = applyEdgeFades(speechToGain(speech), 2 * FPS, 3 * FPS);
+
+// Calibrate against what the two files ACTUALLY measure, rather than trusting
+// a hand-tuned gain. Episode 2's bed came back 10 dB louder than the narration
+// it sits under; a fixed 0.14 would have put music 6 dB under the voice
+// instead of 16.
+const bedFile = path.join(PUBLIC, 'bed.mp3');
+if (!fs.existsSync(bedFile)) throw new Error(`missing music bed: ${bedFile}`);
+const bedRms = fileRms(ffmpeg, bedFile);
+const speechRms = fileRms(ffmpeg, path.join(PUBLIC, `${EP2_SCENES[0].id}.mp3`));
+const levels = gainsForTargets(bedRms, speechRms);
+
+const gain = applyEdgeFades(speechToGain(speech, levels), 2 * FPS, 3 * FPS);
+
+const db = (v) => (20 * Math.log10(v || 1e-9)).toFixed(1);
 
 fs.writeFileSync(
   OUT,
-  `${JSON.stringify({ fps: FPS, frames: EP2_TOTAL, gain: gain.map((g) => Number(g.toFixed(4))) })}\n`,
+  `${JSON.stringify({
+    fps: FPS,
+    frames: EP2_TOTAL,
+    // The calibration this curve was built from, so a reader (and the test)
+    // can see what the numbers mean instead of inferring them.
+    measured: { bedDb: Number(db(bedRms)), narrationDb: Number(db(speechRms)) },
+    levels: { under: Number(levels.under.toFixed(4)), alone: Number(levels.alone.toFixed(4)) },
+    gain: gain.map((g) => Number(g.toFixed(4))),
+  })}\n`,
 );
 
 const speaking = speech.filter((s) => s >= DEFAULT_DUCK.threshold).length;
-const ducked = gain.filter((g) => g < (DEFAULT_DUCK.under + DEFAULT_DUCK.alone) / 2).length;
 console.log(`ep2 bed envelope -> ${OUT}`);
 console.log(`  ${EP2_TOTAL} frames (${(EP2_TOTAL / FPS).toFixed(1)}s)`);
 console.log(`  narration detected in ${((100 * speaking) / EP2_TOTAL).toFixed(1)}% of frames`);
-console.log(`  bed held down over  ${((100 * ducked) / EP2_TOTAL).toFixed(1)}% of frames`);
+console.log(`  measured: bed ${db(bedRms)} dB, narration ${db(speechRms)} dB`);
+console.log(
+  `  gains: under ${levels.under.toFixed(3)} (${BED_UNDER_SPEECH_DB} dB vs voice), ` +
+    `alone ${levels.alone.toFixed(3)} (${BED_ALONE_DB} dB)`,
+);
+console.log(`  resulting bed under speech: ${db(bedRms * levels.under)} dB`);
 console.log(`  gain min ${Math.min(...gain).toFixed(3)} max ${Math.max(...gain).toFixed(3)}`);

@@ -96,9 +96,46 @@ export type DuckOptions = {
 /** Peak-hold window, ~0.4s at 30fps: longer than a syllable, shorter than a pause. */
 export const PEAK_HOLD_FRAMES = 12;
 
+/**
+ * How far below the NARRATOR the bed should sit, in dB.
+ *
+ * Stated in dB relative to the voice because that is how a mix is actually
+ * specified, and because a linear gain is meaningless without knowing how
+ * loud the two files happen to be. Episode 2's generated bed came back at
+ * -14.5 dB RMS against narration at -24.4 dB — the bed was 10 dB LOUDER than
+ * the voice it was supposed to sit under. A hardcoded gain tuned to that file
+ * would be wrong for the next one.
+ *
+ * -16 dB under speech is the conventional range for a bed beneath narration:
+ * present, never competing. -2 dB when nobody is speaking lets it come up
+ * without ever getting louder than the narrator was.
+ */
+export const BED_UNDER_SPEECH_DB = -16;
+export const BED_ALONE_DB = -2;
+
+/**
+ * Derive linear gains from measured loudness, so the mix is self-calibrating.
+ *
+ * `bedRms` and `speechRms` are RMS amplitudes in 0..1 from the same
+ * measurement path. Returns the two gains `speechToGain` needs.
+ */
+export function gainsForTargets(
+  bedRms: number,
+  speechRms: number,
+  underDb = BED_UNDER_SPEECH_DB,
+  aloneDb = BED_ALONE_DB,
+): Pick<DuckOptions, 'under' | 'alone'> {
+  const clamp = (g: number) => Math.min(1, Math.max(0, g));
+  // Gain that puts the bed `db` below the speech level.
+  const at = (db: number) => clamp((speechRms * Math.pow(10, db / 20)) / (bedRms || 1));
+  return { under: at(underDb), alone: at(aloneDb) };
+}
+
 export const DEFAULT_DUCK: DuckOptions = {
-  under: 0.14,
-  alone: 0.55,
+  // Fallbacks only. The envelope builder overrides both from measurement via
+  // gainsForTargets; these keep the pure functions usable in isolation.
+  under: 0.05,
+  alone: 0.26,
   // 0.2s down, 1.2s up at 30fps. Asymmetric on purpose — fast attack so the
   // bed is already out of the way by the time a sentence starts, slow release
   // so a comma does not sound like someone riding a fader.

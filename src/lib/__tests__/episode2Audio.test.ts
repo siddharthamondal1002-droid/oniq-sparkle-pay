@@ -26,6 +26,8 @@ const manifest = readFileSync(join(ROOT, "remotion/src/ep2/manifest.ts"), "utf8"
 const bed = JSON.parse(readFileSync(join(ROOT, "remotion/src/ep2/bedGain.json"), "utf8")) as {
   fps: number;
   frames: number;
+  measured: { bedDb: number; narrationDb: number };
+  levels: { under: number; alone: number };
   gain: number[];
 };
 
@@ -98,17 +100,35 @@ describe("the gain curve is usable", () => {
     expect(bed.gain.every((g) => Number.isFinite(g))).toBe(true);
   });
 
-  it("never rises above the alone level", () => {
-    // Above this the bed competes with the narrator instead of sitting under.
-    expect(Math.max(...bed.gain)).toBeLessThanOrEqual(DEFAULT_DUCK.alone + 1e-6);
+  it("never rises above its own calibrated alone level", () => {
+    // Against the level this curve was actually built with, not a fallback
+    // constant — the builder derives both gains from measured loudness.
+    expect(Math.max(...bed.gain)).toBeLessThanOrEqual(bed.levels.alone + 1e-6);
   });
 
-  it("actually ducks — it is not a flat line", () => {
-    // A constant array would satisfy every other assertion here while doing
-    // none of the work.
-    const min = Math.min(...bed.gain);
-    const max = Math.max(...bed.gain);
-    expect(max - min).toBeGreaterThan(0.1);
+  it("puts the bed well under the narrator", () => {
+    // The whole point. Measured RMS of both files, so this is the real
+    // separation and not an intention. Episode 2's generated bed arrived
+    // 10 dB LOUDER than the narration, which is why this is checked rather
+    // than assumed.
+    const underDb = bed.measured.bedDb + 20 * Math.log10(bed.levels.under);
+    const separation = bed.measured.narrationDb - underDb;
+    expect(separation, `bed is only ${separation.toFixed(1)} dB under the voice`).toBeGreaterThan(
+      12,
+    );
+    // And not so far under that it is inaudible — that is not a bed, that is
+    // a silent track that passes every other test here.
+    expect(separation).toBeLessThan(24);
+  });
+
+  it("actually ducks in the BODY, not just at the fades", () => {
+    // The edge fades run to zero, so min/max across the whole curve is
+    // satisfied by the fade alone and says nothing about ducking. Look only
+    // at the middle.
+    const skip = 5 * bed.fps;
+    const body = bed.gain.slice(skip, -skip);
+    const range = Math.max(...body) - Math.min(...body);
+    expect(range, "gain is flat through the episode — nothing is ducking").toBeGreaterThan(0.05);
   });
 
   it("does not step, on the real data and not just in theory", () => {
