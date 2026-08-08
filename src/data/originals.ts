@@ -234,11 +234,19 @@ export const EP3_CAST: Record<string, string> = {
     'under a faded INDIGO head wrap. Worn robe in dusty blue and brown, patched, with a cloth ' +
     'sash at the waist, an amber bead necklace, plain bangles, brown sandals. A spinner’s ' +
     'hands — worked and calloused.',
-  // FROM THE SHEET. Clean-shaven and silver-haired; the old lock gave him a
+  // FROM THE SHEET. Silver-haired and no facial hair; the old lock gave him a
   // black beard and an indigo coat, both wrong.
+  //
+  // PHRASED AS A POSITIVE ON PURPOSE. This said "CLEAN-SHAVEN" and the
+  // generator drew a full grey beard twice running, through two regenerations.
+  // A negative attribute is something the model has to WITHHOLD rather than
+  // draw, and it does not withhold reliably; "a smooth bare jaw and chin" is
+  // something it can render. Same fault class as asking for "no smoke" and
+  // getting smoke — say what a thing IS.
   magician:
     'THE MAGICIAN is the same man in every shot: tall and gaunt, SILVER-GREY hair swept back, ' +
-    'CLEAN-SHAVEN, sharp cheekbones and deep-set dark eyes. Near-black robes with fine gold ' +
+    'a SMOOTH BARE JAW AND CHIN with no facial hair at all, sharp cheekbones and deep-set dark ' +
+    'eyes. Near-black robes with fine gold ' +
     'embroidery, a hooded cloak, a dark turban with a single teal gem at the brow, a sash set ' +
     'with red and turquoise stones, rings, dark brown boots. Carries a tall wooden staff topped ' +
     'with a clear crystal. His expression turns warm or cold between scenes; his face, his ' +
