@@ -39,6 +39,8 @@ export type Episode = {
   style?: string;
   /** Locked appearances for recurring characters, keyed by `Scene.cast`. */
   cast?: Record<string, string>;
+  /** Music bed prompt. Recorded so the bed can be regenerated, like `style`. */
+  bed?: string;
   scenes: Scene[];
 };
 
@@ -155,6 +157,29 @@ export const EP2_CAST: Record<string, string> = {
     'THE CAPTAIN is the same man in every shot: broad and tall, heavy black beard, ' +
     'scarred brow, dark red head cloth and a travel-stained leather coat.',
 };
+
+/**
+ * Episode 2's music bed, written to the axes of the supplied prompt book
+ * (`.claude/skills/oniq-video/references/prompt-book.md`): mood, instrument,
+ * tempo, ambience.
+ *
+ * Chosen against the constraint that actually governs it — the bed plays under
+ * narration that runs for 88% of the episode, at roughly a sixth of the
+ * narrator's level. That rules out the obvious pick. A drum-led bed reads well
+ * for a desert caravan and badly under a continuous voice: percussive
+ * transients punch through a duck in a way sustained material does not, so
+ * every hit would poke out of the mix. Textures carry the same atmosphere with
+ * nothing to poke.
+ *
+ * Loopable because the episode is 5m35s and a generated bed will be far
+ * shorter; the seam is what to listen for if it ever sounds wrong.
+ */
+export const EP2_BED =
+  'Mysterious instrumental soundtrack using warm ambient textures and soft sustained drones, ' +
+  'slow building tempo, sparse and restrained frame-drum pulse well back in the mix, dry desert ' +
+  'wind ambience. Written as an underscore beneath a narrator: no melody that demands attention, ' +
+  'no sharp percussive transients, no vocals, nothing in the range of a speaking voice. Seamless ' +
+  'loop.';
 
 /** Vertical, to match the phone. Runway ratio for every clip in the season. */
 export const SEASON_RATIO = '720:1280';
@@ -315,6 +340,7 @@ const episode2: Episode = {
   runtime: '~6 min',
   style: STORYBOOK_STYLE,
   cast: EP2_CAST,
+  bed: EP2_BED,
   scenes: [
     {
       id: 'ep2_s01',

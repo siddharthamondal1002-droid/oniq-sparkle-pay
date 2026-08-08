@@ -1,0 +1,127 @@
+/**
+ * Episode 2's audio, guarded at the two points where it can fail silently.
+ *
+ * MOUNTING. Episode 1 shipped with twelve narration files generated and not
+ * one of them referenced — 4:47 of silent slideshow that no still-frame check,
+ * no file size and no duration would have caught. Episode 2 now has two audio
+ * layers, so there are two ways to make the same mistake.
+ *
+ * THE CURVE. The bed's gain is precomputed into a JSON array. A wrong length,
+ * a NaN, or a step change are all invisible until playback, and the last of
+ * them is audible as a click on a sustained pad.
+ *
+ * These read the composition as TEXT rather than importing it: remotion/ is
+ * outside this TypeScript project (tsconfig includes only src/**), and a test
+ * that cannot run is worse than no test.
+ */
+import { readFileSync } from "fs";
+import { join } from "path";
+import { describe, expect, it } from "vitest";
+import { DEFAULT_DUCK } from "@/lib/audioDuck";
+import { executableText } from "@/test/sourceText";
+
+const ROOT = join(__dirname, "../../..");
+const composition = readFileSync(join(ROOT, "remotion/src/ep2/Episode2.tsx"), "utf8");
+const manifest = readFileSync(join(ROOT, "remotion/src/ep2/manifest.ts"), "utf8");
+const bed = JSON.parse(readFileSync(join(ROOT, "remotion/src/ep2/bedGain.json"), "utf8")) as {
+  fps: number;
+  frames: number;
+  gain: number[];
+};
+
+describe("both audio layers are actually mounted", () => {
+  // Comments AND string contents removed. Episode2.tsx describes the
+  // silent-slideshow bug at length in a comment and names the mp3 path while
+  // doing so; a naive grep would match the warning about the bug and pass on a
+  // composition that mounts nothing.
+  const code = executableText(composition);
+
+  it("renders an Audio element at all", () => {
+    expect(code).toMatch(/<Audio\b/);
+  });
+
+  it("mounts narration per scene, not just the bed", () => {
+    // Two distinct Audio elements: one inside the scene loop, one at the root.
+    const count = code.match(/<Audio\b/g)?.length ?? 0;
+    expect(count, "expected a narration Audio and a bed Audio").toBeGreaterThanOrEqual(2);
+  });
+
+  it("references both the narration files and the bed file", () => {
+    // String bodies are blanked by executableText, so assert on the template
+    // expression and the staticFile calls that survive.
+    expect(composition).toContain("ep2/${scene.id}.mp3");
+    expect(composition).toContain("ep2/bed.mp3");
+  });
+
+  it("keeps the bed outside TransitionSeries", () => {
+    // A bed inside the series is restarted and cross-faded at every scene
+    // boundary: fifteen audible seams. It must be mounted before the series
+    // opens.
+    // The JSX USAGE, not the component definition. `MusicBed` alone also
+    // matches `const MusicBed: React.FC`, which sits above the series no
+    // matter where the element is actually rendered — that version of this
+    // test passed with the bed moved inside, which is how the mistake was
+    // found.
+    const bedAt = code.indexOf("<MusicBed");
+    const seriesAt = code.indexOf("<TransitionSeries>");
+    expect(bedAt, "no <MusicBed /> element rendered").toBeGreaterThan(-1);
+    expect(seriesAt).toBeGreaterThan(-1);
+    expect(bedAt, "the bed must be mounted before TransitionSeries opens").toBeLessThan(seriesAt);
+  });
+
+  it("drives the bed from the precomputed curve rather than a constant", () => {
+    expect(code).toMatch(/volume=\{/);
+    expect(code).toContain("BED_GAIN");
+  });
+});
+
+describe("the gain curve is usable", () => {
+  it("declares its own length honestly", () => {
+    expect(bed.gain).toHaveLength(bed.frames);
+  });
+
+  it("covers exactly the episode the manifest describes", () => {
+    // Derived independently from the manifest text, so the curve and the
+    // timeline cannot drift apart. A curve shorter than the episode leaves the
+    // closing line unscored; longer, and it is out of sync throughout.
+    const seconds = [...manifest.matchAll(/seconds:\s*([\d.]+)/g)].map((m) => Number(m[1]));
+    const fps = Number(/export const FPS = (\d+)/.exec(manifest)![1]);
+    const transition = Math.round(Number(/TRANSITION = ([\d.]+)/.exec(manifest)![1]) * fps);
+    expect(seconds.length, "manifest scene count").toBe(16);
+    const total =
+      seconds.reduce((a, s) => a + Math.round(s * fps), 0) - transition * (seconds.length - 1);
+    expect(bed.frames).toBe(total);
+    expect(bed.fps).toBe(fps);
+  });
+
+  it("is finite everywhere", () => {
+    expect(bed.gain.every((g) => Number.isFinite(g))).toBe(true);
+  });
+
+  it("never rises above the alone level", () => {
+    // Above this the bed competes with the narrator instead of sitting under.
+    expect(Math.max(...bed.gain)).toBeLessThanOrEqual(DEFAULT_DUCK.alone + 1e-6);
+  });
+
+  it("actually ducks — it is not a flat line", () => {
+    // A constant array would satisfy every other assertion here while doing
+    // none of the work.
+    const min = Math.min(...bed.gain);
+    const max = Math.max(...bed.gain);
+    expect(max - min).toBeGreaterThan(0.1);
+  });
+
+  it("does not step, on the real data and not just in theory", () => {
+    let biggest = 0;
+    for (let i = 1; i < bed.gain.length; i++) {
+      biggest = Math.max(biggest, Math.abs(bed.gain[i] - bed.gain[i - 1]));
+    }
+    const range = DEFAULT_DUCK.alone - DEFAULT_DUCK.under;
+    expect(biggest, `largest single-frame jump ${biggest}`).toBeLessThan(range * 0.25);
+  });
+
+  it("starts and ends silent", () => {
+    expect(bed.gain[0]).toBe(0);
+    expect(bed.gain[bed.gain.length - 1]).toBe(0);
+  });
+});
