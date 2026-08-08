@@ -216,6 +216,7 @@ export const FEATURES: Feature[] = [
   { id: "miniapps", supportedCountries: "*" },
   { id: "rides", supportedCountries: "*" },
   { id: "official", supportedCountries: "*" },
+  { id: "lores", supportedCountries: "*" },
   { id: "wander", supportedCountries: "*" },
   // Health hub does not exist where health data is not allowed.
   { id: "vitals", supportedCountries: HEALTH_COUNTRIES },
