@@ -6,6 +6,7 @@
 // where does it live".
 import { ORIGINALS, type Episode } from "@/data/originals";
 import fireflyAsset from "@/assets/lores-firefly-forest.mp4.asset.json";
+import promoAsset from "@/assets/oniq-promo.mp4.asset.json";
 
 export type LoreVideo = {
   id: string;
@@ -21,6 +22,14 @@ export type LoreVideo = {
 
 /** Standalone clips that are not part of a scripted season. */
 const STANDALONE: LoreVideo[] = [
+  {
+    id: "oniq-promo",
+    title: "ONIQ — One App. Every World.",
+    blurb: "The official ONIQ promo.",
+    url: promoAsset.url,
+    runtime: "0:23",
+    collection: "ONIQ",
+  },
   {
     id: "firefly-forest",
     title: "The Glowing Forest",
