@@ -71,27 +71,38 @@ This is a hard refusal, not a degraded result, and **it can fire on the IMAGE**
 house's feature-animation render, from a starting frame the image model had
 already produced happily.
 
-Two things about it that are established:
+### It is NOT deterministic, and that is the whole lesson
 
-- It is **not** simply "a boy in a souk". `ep3_s01a` contains one and passed.
+`ep3_s01b` was refused repeatedly, then **passed on a plain retry** — same
+image, same prompt, nothing changed. So the refusal was a sampling-dependent
+moderation hit, not a property of the shot.
+
+> **Treat a filter rejection as retryable, once or twice, before concluding
+> anything about a shot.** A single failure must never stop the queue, and must
+> never be read as evidence about the artwork.
+
+That mattered enormously here. The refusal looked like a systematic block on
+the show's lead character — 26 of 60 shots carry a cast lock, so the obvious
+reading was that a third of the episode was unmakeable and the character needed
+redesigning. All of that would have been wasted work on one flaky call.
+
+The related discipline: `ep3_s01c` (hands and a spindle, same house render)
+passed first time, which is what proved the STYLE was not the trigger. Probe
+the cheap, character-free shot first — it separates "the look is banned" from
+"this shot is unlucky" for the price of one generation you needed anyway.
+
+Also worth keeping, independent of the flakiness:
+
 - The image model and the video model apply **different policies**. An image
   that generates without complaint can still be refused as a starting frame.
-
-What triggers it is still under investigation, and the leading suspect is not
-the artwork at all — it is the **word "Aladdin"** reaching the video model. A
-resolved `shotPromptFor()` contains the character name in its lock text, and a
-name-matching classifier seeing "Aladdin" beside a market and an animation
-render is a likelier trigger than a trouser colour.
-
-> **Never send the character lock to the VIDEO model.** The lock exists to make
-> the still right. Once the still exists its job is done, and the video call
-> should carry the `motion` field alone — no names, no style block.
-
-**Do not redesign a character to appease this.** ONIQ's cast comes from the
-owner's own Adobe Firefly sheets; changing them to satisfy someone else's
-classifier discards ONIQ's own IP, breaks continuity with every still already
-approved, and may not even be the cause. Isolate the trigger one variable at a
-time first.
+- **Never send the character lock to the VIDEO model.** The lock exists to make
+  the still right; once the still exists its job is done. The video call should
+  carry the `motion` field alone — no names, no style block. Cheap insurance
+  against a name-matching classifier, and it costs nothing.
+- **Do not redesign a character to appease this.** ONIQ's cast comes from the
+  owner's own Adobe Firefly sheets. Changing them to satisfy someone else's
+  classifier discards ONIQ's own IP and breaks continuity with every still
+  already approved — and on the one occasion it looked necessary, it wasn't.
 
 ## Four things that will bite in assembly
 

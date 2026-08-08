@@ -2,7 +2,21 @@
 //
 //   cd remotion
 //   bun scripts/ingest-ep3-clips.mjs --from /path/to/raw     # conform
+//   bun scripts/ingest-ep3-clips.mjs --fetch                 # pull from the CDN
 //   bun scripts/ingest-ep3-clips.mjs --check                 # verify only
+//
+// WHERE THE CLIPS ACTUALLY LIVE. Not in git — sixty conformed clips is ~250 MB
+// and the repo rejects any single file over 10 MB. They live as Lovable CDN
+// assets, and what IS committed is one `<shot>.mp4.asset.json` pointer each,
+// a few hundred bytes. `--fetch` turns those pointers back into local files so
+// the renderer can see them.
+//
+// This is also what makes a sixty-clip build resumable. The Lovable agent's box
+// keeps `/mnt/documents` across messages but nothing else, and it cannot
+// `git add -f` a gitignored mp4 — so an uploaded asset plus a committed pointer
+// is the only store both machines can rely on. Assets are IMMUTABLE and every
+// upload mints a fresh id, so re-conforming a clip means rewriting its pointer,
+// never updating an asset in place.
 //
 // BUN, not node: it resolves the TypeScript shot plan across directories, which
 // is where the per-shot frame counts come from. Node would need a build step.
@@ -39,8 +53,14 @@ const OUT_DIR = path.resolve(__dirname, '../public/ep3/clips');
 
 const args = process.argv.slice(2);
 const CHECK_ONLY = args.includes('--check');
+const FETCH = args.includes('--fetch');
 const fromIdx = args.indexOf('--from');
 const FROM = fromIdx >= 0 ? args[fromIdx + 1] : process.env.FROM;
+const baseIdx = args.indexOf('--base');
+/** Origin the asset URLs hang off. They are stored site-relative. */
+const BASE = (
+  baseIdx >= 0 ? args[baseIdx + 1] : (process.env.ASSET_BASE ?? 'https://oniq-sparkle-pay.lovable.app')
+).replace(/\/$/, '');
 
 const { EP3_SHOT_PLAN } = await import('../src/ep3/shots.ts').catch((err) => {
   throw new Error(
@@ -103,12 +123,90 @@ function faults(file, shot) {
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
+/** The committed CDN pointer for a shot, or null if it has never been uploaded. */
+function pointerFor(shot) {
+  const file = path.join(OUT_DIR, `${shot.id}.mp4.asset.json`);
+  if (!fs.existsSync(file)) return null;
+  const p = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!p.url) throw new Error(`${shot.id}: pointer has no url — ${file}`);
+  return p;
+}
+
+if (FETCH) {
+  // Turn committed pointers back into local files. Idempotent: a clip already
+  // on disk and passing every check is left alone, so re-running after a
+  // partial download costs only the clips that are actually missing.
+  let got = 0;
+  let had = 0;
+  let none = 0;
+  for (const shot of EP3_SHOT_PLAN) {
+    const dst = path.join(OUT_DIR, `${shot.id}.mp4`);
+    if (fs.existsSync(dst) && faults(dst, shot).length === 0) {
+      had++;
+      continue;
+    }
+    const pointer = pointerFor(shot);
+    if (!pointer) {
+      console.log(`none  ${shot.id}  (not generated yet)`);
+      none++;
+      continue;
+    }
+
+    // The asset URL 302s to R2, which fetch follows by default.
+    const url = `${BASE}${pointer.url}`;
+
+    // The same root cause arrives two different ways and neither is
+    // self-explanatory: this repo's dev container proxies outbound traffic and
+    // DENIES oniqhub.com and *.lovable.app. A denied CONNECT surfaces as a
+    // thrown "fetch failed"; a denied GET surfaces as a 403 RESPONSE. Both mean
+    // "wrong machine", not "bad asset", so both say so.
+    const wrongBox =
+      `\n  If you are on the ONIQ dev container this is expected — its proxy blocks` +
+      `\n  *.lovable.app. Run --fetch on the Lovable agent's box, or pass --base` +
+      `\n  with an origin this machine can actually reach.`;
+
+    let res;
+    try {
+      res = await fetch(url);
+    } catch (err) {
+      throw new Error(`${shot.id}: could not reach ${url} (${err.message}).${wrongBox}`);
+    }
+    if (!res.ok) {
+      throw new Error(
+        `${shot.id}: ${res.status} fetching ${url}` + (res.status === 403 ? wrongBox : ''),
+      );
+    }
+    const bytes = Buffer.from(await res.arrayBuffer());
+
+    // Size is in the pointer, so a truncated download is caught here rather
+    // than surfacing as a corrupt frame two hours into a render.
+    if (pointer.size && bytes.length !== pointer.size) {
+      throw new Error(`${shot.id}: got ${bytes.length} bytes, pointer says ${pointer.size}`);
+    }
+    fs.writeFileSync(dst, bytes);
+
+    const f = faults(dst, shot);
+    if (f.length > 0) {
+      fs.rmSync(dst);
+      throw new Error(`${shot.id} downloaded but is wrong: ${f.join('; ')}`);
+    }
+    got++;
+    console.log(`get   ${shot.id}  ${shot.frames}f  ${(bytes.length / 1e6).toFixed(1)} MB`);
+  }
+  console.log(`\nfetched ${got}, already present ${had}, not yet generated ${none}, of ${EP3_SHOT_PLAN.length}`);
+  process.exit(none === 0 ? 0 : 1);
+}
+
 if (CHECK_ONLY) {
   let bad = 0;
   for (const shot of EP3_SHOT_PLAN) {
     const file = path.join(OUT_DIR, `${shot.id}.mp4`);
     if (!fs.existsSync(file)) {
-      console.log(`MISSING  ${shot.id}  (${(shot.frames / FPS).toFixed(2)}s)`);
+      // Two very different situations, and conflating them wastes a generation:
+      // a clip that exists on the CDN and merely needs `--fetch`, versus one
+      // that was never made.
+      const where = pointerFor(shot) ? 'ON CDN, run --fetch' : 'not generated';
+      console.log(`MISSING  ${shot.id}  (${(shot.frames / FPS).toFixed(2)}s) — ${where}`);
       bad++;
       continue;
     }
