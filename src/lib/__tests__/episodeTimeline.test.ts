@@ -44,7 +44,8 @@ describe('planTimeline', () => {
     expect(planTimeline([scene({ durationSeconds: 2 })])).toContain('duration must be');
     expect(planTimeline([scene({ durationSeconds: 90 })])).toContain('duration must be');
     expect(planTimeline([scene({ motion: 'spin' })])).toContain('unsupported motion');
-    expect(planTimeline([scene({ stillPath: '../secret.png' })])).toContain('invalid still filename');
+    expect(planTimeline([scene({ stillPath: '..secret.png' })])).toContain('invalid still filename');
+    expect(planTimeline([scene({ stillPath: '../secret.png' })])).toContain('path separator');
     expect(planTimeline([scene({ stillPath: 'a/b.png' })])).toContain('path separator');
     expect(planTimeline([scene({ stillPath: 'notes.txt' })])).toContain('unsupported still file type');
     expect(planTimeline([scene({ audioPath: 'x.exe' })])).toContain('unsupported audio file type');
