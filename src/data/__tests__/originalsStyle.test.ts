@@ -138,11 +138,12 @@ describe("the THREE jinn are built to be told apart", () => {
     expect(ep3.lampJinni, "must refuse the jar jinni").toMatch(/jar\s*\n?\s*jinni/i);
   });
 
-  it("says out loud that the lamp jinni has no reference sheet", () => {
-    // Every other name in the production notes was supplied as art. This one
-    // was not, and a lock that reads like the others would hide that.
-    expect(SHEETED.lampJinni).toBe(false);
-    expect(ep3.lampJinni).toMatch(/no reference sheet/i);
+  it("records the lamp jinni's own sheet, now that it has been designed", () => {
+    // It was the one name in the production notes supplied as prose rather than
+    // art. It has since been designed and committed, so the lock describes the
+    // sheet instead of announcing its absence.
+    expect(SHEETED.lampJinni).toBe(true);
+    expect(ep3.lampJinni).not.toMatch(/no reference sheet/i);
   });
 
   it("puts each lock into the prompts of the scenes it appears in", () => {
@@ -181,19 +182,9 @@ describe("we know which characters have reference art", () => {
       .filter(([, has]) => !has)
       .map(([key]) => key);
     expect(unsheeted.length, "expected at least one known gap").toBeGreaterThan(0);
-    for (const episode of ORIGINALS) {
-      for (const key of unsheeted) {
-        const lock = episode.cast?.[key];
-        if (!lock) continue;
-        // Kasim was never requested as a sheet, so he only has to be absent
-        // from the production-notes list — the lamp jinni was, and must say so.
-        if (key === "lampJinni") {
-          expect(lock, "lamp jinni lock must flag the missing sheet").toMatch(
-            /no reference sheet/i,
-          );
-        }
-      }
-    }
+    // Kasim was never requested as a sheet, so he only has to be absent from
+    // the production-notes list.
+    expect(unsheeted).toEqual(["kasim"]);
   });
 });
 
@@ -237,7 +228,7 @@ describe("the character sheets on disk match the data", () => {
 
   it("derives SHEETED from the paths so the two cannot disagree", () => {
     for (const key of Object.keys(CHARACTER_SHEETS)) expect(SHEETED[key]).toBe(true);
-    expect(SHEETED.lampJinni).toBe(false);
+    expect(SHEETED.lampJinni).toBe(true);
     expect(SHEETED.kasim).toBe(false);
   });
 });

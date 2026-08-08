@@ -254,14 +254,16 @@ export const EP3_CAST: Record<string, string> = {
   // word. Generated from that text, Episode 3's lamp jinni would have come back
   // as Episode 1's jar jinni in a different room.
   //
-  // So the lock now separates it from BOTH siblings, and says out loud that it
-  // is unsheeted. Design it before generating anything for S10.
+  // So the lock separates it from BOTH siblings. It has since been designed and
+  // sheeted (sheets/lampJinni.jpg) — night sky rather than fire.
   lampJinni:
-    'THE LAMP JINNI has NO REFERENCE SHEET YET and must be designed before use. It is VAST and ' +
-    'SLOW — it fills the room and has to stoop — and it must read as a THIRD being, distinct ' +
-    'from both siblings: not the ring jinni’s small white-gold light, and NOT Episode 1’s jar ' +
-    'jinni, which is a cracked ember-lit giant trailing smoke. Give it its own material and ' +
-    'palette.',
+    'THE LAMP JINNI is the same being in every shot: VAST and SLOW — it fills the room and has ' +
+    'to stoop. Translucent deep BLUE-VIOLET skin scattered with faint SILVER CONSTELLATIONS, ' +
+    'cold silver-white eyes, tarnished silver collar and cuffs, plum and midnight-blue robes ' +
+    'whose lower half gathers into a weightless drift of night-cloth. NO ember cracks, NO fire, ' +
+    'NO smoke. It must read as a THIRD being, distinct from both siblings: not the ring jinni’s ' +
+    'small white-gold light, and NOT Episode 1’s jar jinni, which is a cracked ember-lit giant ' +
+    'trailing smoke.',
   // FROM THE SHEET. Green, blue and gold with a beaded side braid — not the
   // "rose silk, hair coiled and pinned" this used to invent.
   princess:
@@ -311,14 +313,14 @@ export const CHARACTER_SHEETS: Record<string, string> = {
   magician: 'sheets/magician.jpg',
   ringJinni: 'sheets/ringJinni.jpg',
   princess: 'sheets/princess.jpg',
+  lampJinni: 'sheets/lampJinni.jpg',
 };
 
 /** Every character the season casts, sheeted or not. */
 const CAST_KEYS = [
   ...Object.keys(CHARACTER_SHEETS),
-  // The two gaps. Kasim was never asked for; the lamp jinni was, and is missing.
+  // The remaining gap. Kasim was never asked for as a sheet.
   'kasim',
-  'lampJinni',
 ];
 
 /**
