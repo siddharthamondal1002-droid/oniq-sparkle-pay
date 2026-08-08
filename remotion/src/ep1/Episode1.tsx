@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Img, interpolate, staticFile, useCurrentFrame } from 'remotion';
+import { AbsoluteFill, Audio, Img, interpolate, staticFile, useCurrentFrame } from 'remotion';
 import { TransitionSeries, linearTiming } from '@remotion/transitions';
 import { fade } from '@remotion/transitions/fade';
 import { EP1_FRAMES, EP1_SCENES, TRANSITION_FRAMES, type Ep1Scene } from './manifest';
@@ -56,6 +56,15 @@ export const Episode1: React.FC = () => (
           ) : null}
           <TransitionSeries.Sequence durationInFrames={EP1_FRAMES[i]}>
             <KenBurns scene={scene} durationInFrames={EP1_FRAMES[i]} />
+            {/* The narration. Without this the episode renders as a silent
+                slideshow — the mp3s were generated and then never mounted,
+                which is invisible in a still-frame check and only shows up
+                when someone plays the finished file.
+
+                Inside the Sequence on purpose: TransitionSeries overlaps
+                neighbours by TRANSITION_FRAMES, so the tail of one line
+                cross-fades into the head of the next instead of cutting. */}
+            <Audio src={staticFile(`ep1/${scene.id}.mp3`)} />
           </TransitionSeries.Sequence>
         </React.Fragment>
       ))}

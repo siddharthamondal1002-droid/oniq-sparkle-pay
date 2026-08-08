@@ -4,7 +4,8 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest"
+    "@types/bun": "latest",
+    "typescript": "5.9.3"
   },
   "peerDependencies": {
     "typescript": "5.9.3"
@@ -20,5 +21,11 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "remotion": "^4.0.507"
+  },
+  "overrides": {
+    "typescript": "5.9.3"
+  },
+  "resolutions": {
+    "typescript": "5.9.3"
   }
 }
