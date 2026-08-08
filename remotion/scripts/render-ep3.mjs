@@ -21,6 +21,7 @@ import { renderMedia, selectComposition, openBrowser } from '@remotion/renderer'
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { findChromium } from './findChromium.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT = process.env.OUT ?? path.resolve(__dirname, '../../.tmp/ep3.mp4');
@@ -63,29 +64,6 @@ if (missingAudio.length > 0 || missingClips.length > 0) {
   );
 }
 
-// Resolve Chromium rather than name it. The unversioned /opt/pw-browsers path
-// is empty on a re-provisioned box — Playwright installs under a VERSIONED
-// sibling — and the failure reads like a Remotion problem when it is not.
-function findChromium() {
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
-  const root = '/opt/pw-browsers';
-  if (!fs.existsSync(root)) return undefined;
-  const dirs = fs
-    .readdirSync(root)
-    .filter((d) => d.startsWith('chromium'))
-    .sort()
-    .reverse();
-  // Binary first, version second. Playwright ships chromium_headless_shell
-  // beside chromium and '_' sorts above '-', so searching directories first
-  // finds the shell — which chromeMode 'chrome-for-testing' does not drive.
-  for (const leaf of ['chrome-linux/chrome', 'chrome-linux/headless_shell']) {
-    for (const dir of dirs) {
-      const candidate = path.join(root, dir, leaf);
-      if (fs.existsSync(candidate)) return candidate;
-    }
-  }
-  return undefined;
-}
 
 const bundled = await bundle({
   entryPoint: path.resolve(__dirname, '../src/episodes.ts'),
