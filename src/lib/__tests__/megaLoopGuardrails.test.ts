@@ -230,6 +230,12 @@ describe("no whole-file reads on any upload path (Track A4, pre-emptive)", () =>
         // whole-FILE read at all. Only file-shaped uses matter here.
         .filter((l) => /upload|attach|media|file/i.test(l))
         .filter((l) => !/megaLoopGuardrails/.test(l))
+        // A read of a .slice(...) is bounded BY CONSTRUCTION — it is the
+        // documented way to look at a file's leading bytes without
+        // materialising it (see chunkedUpload's magic-byte screen). The
+        // thing this guard exists to catch is a read of the WHOLE file.
+        .filter((l) => !/\.slice\([^)]*\)\s*\.\s*(arrayBuffer|text)\(/.test(codeOnly(l)))
+
         // A CALL, not a mention. mediaStorage.ts has to record which
         // FileReader methods are forbidden, and naming them is the opposite
         // of calling them.
