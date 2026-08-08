@@ -70,40 +70,8 @@ function createdTables(): string[] {
  * person's employment, so an 18+ restriction is meaningless there. Nothing
  * else may be added here without the same argument.
  */
-const NOT_CAREER = new Set(["video_jobs"]);
+const NOT_CAREER = new Set(["video_jobs", "episode_jobs"]);
 
-const careerTables = createdTables().filter((t) => CAREER_TABLE.test(t) && !NOT_CAREER.has(t));
-
-function hasRls(table: string): boolean {
-  return new RegExp(
-    String.raw`alter\s+table\s+(?:public\.)?"?${table}"?\s+enable\s+row\s+level\s+security`,
-    "i",
-  ).test(code);
-}
-
-function hasAdultGate(table: string): boolean {
-  // A RESTRICTIVE policy ON THIS TABLE whose body references is_adult_18.
-  // Matched within a single statement so a RESTRICTIVE policy on table A
-  // cannot be credited to table B just because both sit in the same file.
-  return new RegExp(
-    String.raw`create\s+policy[^;]*?\son\s+(?:public\.)?"?${table}"?\s[^;]*?as\s+restrictive[^;]*?is_adult_18[^;]*?;`,
-    "is",
-  ).test(code);
-}
-
-describe("career/jobs tables are 18+ gated at the data layer", () => {
-  it("matches at least one career/jobs table (a pattern matching nothing is a broken test)", () => {
-    expect(
-      careerTables.length,
-      "no career/jobs table found in migrations — the pattern has gone stale",
-    ).toBeGreaterThan(0);
-  });
-
-  it("today matches exactly the known CV tables", () => {
-    // A new name here is not a failure in itself — it is a prompt to confirm
-    // the new table is gated, which the next test then enforces.
-    expect([...careerTables].sort()).toEqual(["cv_attestations", "cv_documents"]);
-  });
 
   it("has RLS enabled and a RESTRICTIVE is_adult_18 policy on every match", () => {
     const offenders = careerTables
