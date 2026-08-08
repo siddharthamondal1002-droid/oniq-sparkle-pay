@@ -28,8 +28,12 @@ import { ALLOWED_DURATIONS } from "@/lib/runway.server";
 const allScenes = ORIGINALS.flatMap((e) => e.scenes);
 
 describe("every scene has exactly one line, and every line a scene", () => {
-  it("covers all 40 scenes", () => {
-    expect(allScenes).toHaveLength(40);
+  it("covers all 44 scenes", () => {
+    // Hardcoded on purpose: a scene silently disappearing is otherwise
+    // invisible, because every remaining scene would still have its line.
+    // 40 until the two finales were split three ways each — see the hold
+    // ceiling below.
+    expect(allScenes).toHaveLength(44);
     for (const s of allScenes) {
       expect(narrationFor(s.id), `no narration for ${s.id} (${s.label})`).toBeTruthy();
     }
@@ -98,6 +102,31 @@ describe("the production arithmetic, which decides the pipeline", () => {
   it("runs several minutes per episode", () => {
     for (const e of perEpisode) {
       expect(e.seconds, `${e.id} is only ${e.seconds}s`).toBeGreaterThan(150);
+    }
+  });
+
+  it("holds no single still past the point where it reads as a stall", () => {
+    // These episodes are stills under narration with slow Ken Burns over them.
+    // A still can carry a long line, but not an unlimited one — past roughly
+    // forty-five seconds the motion stops registering as motion and the shot
+    // reads as frozen.
+    //
+    // 45s is not a guess: it is ep1_s09, the longest hold in the one episode
+    // that has actually shipped, and it works. 50 gives that a little room.
+    //
+    // Both season finales busted it. ep2_s14 was 167 words and measured 65.2s
+    // on one image; ep3_s14 was 158 words and estimated 68s. Neither was
+    // rewritten — each was split into the beats its paragraph already had,
+    // reassembling to the original word for word.
+    //
+    // This runs on the ESTIMATE because it has to be checkable before any
+    // audio exists. That is the whole point: ep3 has not been generated, so
+    // catching its finale here cost nothing, where catching it after fourteen
+    // stills and fourteen recordings would not have.
+    const CEILING = 50;
+    for (const scene of allScenes) {
+      const seconds = estimateSeconds(narrationFor(scene.id) ?? "");
+      expect(seconds, `${scene.id} holds one still for ~${seconds}s`).toBeLessThanOrEqual(CEILING);
     }
   });
 

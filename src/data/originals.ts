@@ -466,6 +466,29 @@ const episode2: Episode = {
         'around the seated man.',
       cast: ['morgiana', 'captain', 'aliBaba'],
     },
+    {
+      id: 'ep2_s15',
+      label: 'S15 — A daughter of the household',
+      stillPrompt:
+        'Warm domestic interior the next morning, low table laid for a shared meal, Morgiana seated ' +
+        'among the family as an equal rather than serving them, Ali Baba turned toward her, soft ' +
+        'daylight through a lattice.',
+      motionPrompt:
+        'Dust turns in the window light. Someone passes a dish. Very slow push in on the two of them.',
+      cast: ['morgiana', 'aliBaba'],
+    },
+    {
+      id: 'ep2_s16',
+      label: 'S16 — What is remembered',
+      stillPrompt:
+        'Dusk on the empty hill road, the blank rock face closed and silent in the far distance, and ' +
+        'small in the foreground a lone woman walking away from it with a lamp, seen from behind.',
+      motionPrompt:
+        'The lamp sways with her step. Nothing else moves. Slow pull back until both she and the hill ' +
+        'sit in the same frame.',
+      // Deliberately uncast. The coda is about her not being remembered, and a
+      // face would undo the line — she reads as a figure, not a portrait.
+    },
   ],
 };
 
@@ -613,6 +636,28 @@ const episode3: Episode = {
       motionPrompt:
         'A hand reaches slowly into frame toward the lamp. The sleeping man does not stir. Held ' +
         'breath, minimal camera drift.',
+    },
+    {
+      id: 'ep3_s15',
+      label: 'S15 — The square is full again',
+      stillPrompt:
+        'Dawn over a city square that was empty yesterday and is not empty now: an enormous palace ' +
+        'standing where there was bare ground, early traders setting up beneath it, nobody looking ' +
+        'up, first light on the roofs.',
+      motionPrompt:
+        'Awnings unroll. Smoke rises from a stall. The palace does not move at all. Slow crane up ' +
+        'until it fills the frame.',
+    },
+    {
+      id: 'ep3_s16',
+      label: 'S16 — Trusted with one',
+      stillPrompt:
+        'Years later, a quiet shelf in a well-kept room: the dented old lamp set carefully in its ' +
+        'own place, cloth folded beside it, an older man’s hand just leaving the frame, late ' +
+        'afternoon light.',
+      motionPrompt:
+        'The hand withdraws. Dust turns in the light. Nothing else happens. Very slow push in on ' +
+        'the lamp.',
     },
   ],
 };

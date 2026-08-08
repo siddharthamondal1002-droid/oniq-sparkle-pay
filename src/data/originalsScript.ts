@@ -176,10 +176,27 @@ export const SEASON_SCRIPT: ScriptLine[] = [
     narration:
       "A lesser person would have screamed. A lesser person would have run inside and woken the house and given the game away in about four seconds. Morgiana said, “Not yet.” Then she went to every jar in that courtyard, one after another, and said the same two words in the same steady voice. Thirty-seven times. And then she dealt with them, quietly, in the dark, and not one of the thirty-seven ever troubled anyone again.",
   },
+  // S14 was one 167-word block and measured 65.2 seconds — held on a single
+  // still, which is a stall. Episode 1's longest hold is 45s and that was
+  // already at the limit of what slow Ken Burns can carry.
+  //
+  // Split into the three beats the paragraph already contained: the dance and
+  // the recognition, the aftermath, the coda. 66 / 73 / 28 words, which
+  // reassembles to exactly the original 167 — not a rewrite, only a division.
   {
     sceneId: "ep2_s14",
     narration:
-      "The merchant stayed for dinner. Ali Baba, who suspected nothing, asked Morgiana to dance for their guest, and she did — and as she turned she looked at the man’s hands, and his boots, and the way he sat facing the door. She had seen him give an order in a courtyard full of jars. The captain of the forty thieves did not leave that house. Afterwards, when it was explained to him, Ali Baba freed Morgiana and made her a daughter of his household, which was the least he could do and, to his credit, he did it immediately. He kept the cave’s secret for the rest of his life. He took from it only what he needed, and never in a hurry, and never more than a donkey could carry without looking like it was carrying anything. It is a strange thing about that story. Everyone remembers the words that opened the hill. Almost nobody remembers the woman who counted to thirty-eight in the dark.",
+      "The merchant stayed for dinner. Ali Baba, who suspected nothing, asked Morgiana to dance for their guest, and she did — and as she turned she looked at the man’s hands, and his boots, and the way he sat facing the door. She had seen him give an order in a courtyard full of jars. The captain of the forty thieves did not leave that house.",
+  },
+  {
+    sceneId: "ep2_s15",
+    narration:
+      "Afterwards, when it was explained to him, Ali Baba freed Morgiana and made her a daughter of his household, which was the least he could do and, to his credit, he did it immediately. He kept the cave’s secret for the rest of his life. He took from it only what he needed, and never in a hurry, and never more than a donkey could carry without looking like it was carrying anything.",
+  },
+  {
+    sceneId: "ep2_s16",
+    narration:
+      "It is a strange thing about that story. Everyone remembers the words that opened the hill. Almost nobody remembers the woman who counted to thirty-eight in the dark.",
   },
 
   // ---------------------------------------------------------------- ep 3 ---
@@ -248,10 +265,24 @@ export const SEASON_SCRIPT: ScriptLine[] = [
     narration:
       "Aladdin came home to a level place in the ground and a city with nothing to say. The palace was gone. His wife was gone. The magician had taken all of it across the world in a night, because that is what the lamp could do, and the lamp does not care who is holding it. And Aladdin stood in that empty square and remembered that he was still wearing a ring.",
   },
+  // Same split as ep2's S14, and for the same reason: 158 words measured out
+  // past a minute on one still. Caught by the hold ceiling before episode 3
+  // was generated, so it cost nothing here. 80 / 23 / 55 words, reassembling
+  // to exactly the original 158.
   {
     sceneId: "ep3_s14",
     narration:
-      "The ring could not bring the palace back — a lamp outranks a ring, and everything in that world has an order to it. But it could carry a boy across the world in a night. He found his wife. And between them they did what neither could have done alone: she kept the magician talking, and Aladdin waited, and when at last the man’s attention was somewhere else entirely, a dented old lamp changed hands for the final time. The palace came home before morning. The city woke to find the square full again and decided, on the whole, not to ask. Aladdin kept the lamp after that. But he used it less and less as the years went on, and he never again left it lying about. He had learned the thing the magician never did. It was never the lamp that mattered. It was being the sort of person who could be trusted with one.",
+      "The ring could not bring the palace back \u2014 a lamp outranks a ring, and everything in that world has an order to it. But it could carry a boy across the world in a night. He found his wife. And between them they did what neither could have done alone: she kept the magician talking, and Aladdin waited, and when at last the man\u2019s attention was somewhere else entirely, a dented old lamp changed hands for the final time.",
+  },
+  {
+    sceneId: "ep3_s15",
+    narration:
+      "The palace came home before morning. The city woke to find the square full again and decided, on the whole, not to ask.",
+  },
+  {
+    sceneId: "ep3_s16",
+    narration:
+      "Aladdin kept the lamp after that. But he used it less and less as the years went on, and he never again left it lying about. He had learned the thing the magician never did. It was never the lamp that mattered. It was being the sort of person who could be trusted with one.",
   },
 ];
 
