@@ -65,15 +65,34 @@ jobs:
           echo "FFMPEG=$(command -v ffmpeg)" >> "$GITHUB_ENV"
           echo "FFPROBE=$(command -v ffprobe)" >> "$GITHUB_ENV"
 
-      # Verifies every download against the size in its pointer and probes each
-      # file for the right dimensions, frame rate and frame count, so a clip
-      # that arrives wrong fails here rather than two hours into a render.
-      - name: Fetch conformed clips from the CDN
+      # CONFORMED CLIPS ARE REBUILT FROM THE RAWS, NOT FETCHED.
+      #
+      # They used to be fetched from their own CDN pointers, and that was wrong
+      # in a way that took a failed run to notice: a conformed clip is DERIVED
+      # from a raw generation plus the shot plan's frame count, and both of its
+      # inputs change. Snapping the cuts onto the narration re-conformed 50 of
+      # 60 clips and slowing the coda another 3, and none of those were
+      # re-uploaded — so the pointers on main went on describing yesterday's
+      # edit while the shot plan described today's. The frame-count guard caught
+      # it (`ep3_s01b downloaded but is wrong: is 178 frames, not 191`), which is
+      # the only reason it did not reach a render.
+      #
+      # Raws are INPUTS: immutable, never re-cut, always valid. Conforming is
+      # deterministic from them and the committed shot plan. So deriving here is
+      # always correct, where caching was correct only until someone re-cut.
+      - name: Fetch raw generations
         if: inputs.set != 'raw'
         working-directory: remotion
         env:
           EPISODE: ${{ inputs.episode || 'ep3' }}
-        run: bun scripts/ingest-ep3-clips.mjs --fetch
+        run: bun scripts/ingest-ep3-clips.mjs --fetch-raw
+
+      - name: Conform from raw
+        if: inputs.set != 'raw'
+        working-directory: remotion
+        env:
+          EPISODE: ${{ inputs.episode || 'ep3' }}
+        run: bun scripts/ingest-ep3-clips.mjs --from "public/${EPISODE}/raw" --force
 
       - name: Check the set is complete
         if: inputs.set != 'raw'
@@ -115,8 +134,10 @@ jobs:
       #
       # No gzip. This is h264, which does not compress, and squeezing ~1 GB of
       # it costs a minute of runner time to save nothing.
+      # Already fetched above when set != 'raw'; --fetch-raw is idempotent and
+      # skips anything already on disk at the right size.
       - name: Fetch raw generations
-        if: inputs.set != 'conformed'
+        if: inputs.set == 'raw'
         working-directory: remotion
         env:
           EPISODE: ${{ inputs.episode || 'ep3' }}

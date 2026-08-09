@@ -251,7 +251,22 @@ if (FETCH) {
     const f = faults(dst, shot);
     if (f.length > 0) {
       fs.rmSync(dst);
-      throw new Error(`${shot.id} downloaded but is wrong: ${f.join('; ')}`);
+      // A FRAME-COUNT mismatch here almost always means the POINTER is stale,
+      // not that the download broke. A conformed clip is derived from a raw
+      // generation plus the shot plan's frame count; re-cutting the episode
+      // changes the frame count and leaves every un-re-uploaded pointer
+      // describing the previous edit. That is exactly what happened after the
+      // cuts were snapped onto the narration.
+      const stale = f.some((x) => x.startsWith('is ') && x.includes('frames, not'));
+      throw new Error(
+        `${shot.id} downloaded but is wrong: ${f.join('; ')}` +
+          (stale
+            ? `\n  The pointer is probably STALE — the shot plan has been re-cut since` +
+              `\n  this clip was uploaded. Rebuild from the raws instead of fetching:` +
+              `\n      bun scripts/ingest-ep3-clips.mjs --fetch-raw` +
+              `\n      bun scripts/ingest-ep3-clips.mjs --from public/${EPISODE}/raw --force`
+            : ''),
+      );
     }
     got++;
     console.log(`get   ${shot.id}  ${shot.frames}f  ${(bytes.length / 1e6).toFixed(1)} MB`);
