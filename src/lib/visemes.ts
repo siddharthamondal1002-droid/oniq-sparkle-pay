@@ -47,7 +47,16 @@
  * `segmentsFromPauses` — that reuses the cut-placement table and measurably
  * never lets the mouth rest; see the note on that function.
  */
-import { allocateFrames } from "@/lib/shotAllocation";
+// RELATIVE, not the "@/" alias, and it has to stay that way.
+//
+// The Remotion bundle imports this module across the project boundary the same
+// way it already imports shotAllocation.ts and ep3Shots.ts — by relative path,
+// with `webpackOverride: (c) => c`. Nothing teaches that webpack config about
+// "@/", so an aliased import here fails to resolve at BUNDLE time, which
+// surfaces as a module-not-found before a single frame renders rather than as
+// anything to do with mouths. Every app module the composition reaches has to
+// obey this; it is why the two it already reaches have no aliased imports.
+import { allocateFrames } from "./shotAllocation";
 
 /**
  * The Preston Blair mouth set, as Rhubarb names it.
