@@ -1,0 +1,109 @@
+name: story worker
+
+# Render one queued Story into a finished mp4.
+#
+# WHY A RUNNER AND NOT AN EDGE FUNCTION. The picture is Remotion driving
+# headless Chromium and encoding with ffmpeg. That cannot run in a Supabase edge
+# function at all — the earlier plan of assembling with WASM ffmpeg only worked
+# while the clips came back pre-encoded from a video model. Once ONIQ started
+# rendering its own frames, the render moved to where a browser exists.
+#
+# ONE JOB PER RUN, and the worker enforces it too. The guard order this project
+# uses ends with "then the billable call", and a worker that drains a queue in a
+# loop turns one bad plan into a bill. The schedule below runs it again; nothing
+# loops.
+#
+# CONCURRENCY IS A LOCK, not an optimisation. Two runners claiming the same
+# `queued` row would both generate it and both pay for it. `cancel-in-progress:
+# false` matters as much as the group: cancelling a run mid-render would leave a
+# job stuck at `generating` with its stills already bought.
+#
+# THE SCHEDULE IS DELIBERATELY MODEST. Every fire can spend real money on
+# Gemini calls, so this is a floor on latency rather than a promise of speed —
+# a Story waits up to ten minutes to start, then takes about 3.3 minutes per
+# minute of finished video (0.305x realtime, measured on four cores).
+#
+# IT IS SAFE TO RUN WITH THE FEATURE OFF. `story_config.enabled` gates whether a
+# user can create a job at all. With it false there is nothing queued, the
+# worker prints "nothing queued" and exits 0. That is the intended state until
+# a real per-Story cost has been measured.
+
+on:
+  schedule:
+    # Every ten minutes. GitHub's cron is best-effort and skews under load;
+    # nothing here assumes it is punctual.
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+    inputs:
+      voice:
+        description: Gemini TTS voice for the narrator
+        default: Charon
+        required: false
+
+concurrency:
+  group: story-worker
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    # A ten-minute Story is ~33 minutes of render plus generation and upload.
+    # Past this the job is wedged rather than slow, and a hung runner holds the
+    # concurrency lock against every other Story.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22 strips TypeScript natively, which is how the worker imports
+          # src/lib/shotGrammar.ts directly instead of keeping a second copy of
+          # the shot grammar in JavaScript to drift from the first.
+          node-version: "22"
+
+      # The worker resolves ffmpeg/ffprobe through findFfmpeg.mjs, whose default
+      # is the compositor's cut-down build inside remotion/node_modules. It has
+      # no rawvideo muxer and is missing several filters. The system build is
+      # complete, so point at it explicitly rather than relying on whichever
+      # copy the search happens to find first.
+      - name: ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          echo "FFMPEG=$(command -v ffmpeg)" >> "$GITHUB_ENV"
+          echo "FFPROBE=$(command -v ffprobe)" >> "$GITHUB_ENV"
+
+      # npm, not bun. remotion/bun.lock names Lovable's private npm mirror,
+      # which 403s from anywhere else; npm ignores that lock and resolves
+      # against the public registry.
+      - name: install remotion
+        working-directory: remotion
+        run: npm install --no-audit --no-fund
+
+      # Remotion needs a real Chromium. Its own installer is the supported path
+      # and findChromium.mjs knows where it lands.
+      - name: chromium
+        working-directory: remotion
+        run: npx remotion browser ensure
+
+      - name: render one job
+        working-directory: remotion
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          STORY_VOICE: ${{ inputs.voice || 'Charon' }}
+          # Two encoders' worth of parallelism on a two-core runner. The
+          # bottleneck measured as one ffmpeg encoder rather than the browser,
+          # so more than this buys nothing.
+          CONCURRENCY: "2"
+        run: node scripts/story-worker.mjs
+
+      # Only on failure, and only the log. A Story's frames are the user's and
+      # must not sit in an artifact after the job that made them failed — the
+      # whole lifecycle exists so that every path ends in `purged`.
+      - name: failure log
+        if: failure()
+        run: echo "story worker failed — see the step log above"
