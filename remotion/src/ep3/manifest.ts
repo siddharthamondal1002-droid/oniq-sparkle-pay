@@ -87,7 +87,14 @@ export const EP3_SCENES: Ep3Scene[] = [
   { id: 'ep3_s13', seconds: 25.944 },
   { id: 'ep3_s14', seconds: 31.584 },
   { id: 'ep3_s15', seconds: 10.248 },
-  { id: 'ep3_s16', seconds: 18.528 },
+  // SLOWED 15.5% from 18.528s. The coda was the fastest-spoken scene in the
+  // film — 5.22 syllables per second of speech against an episode mean of 4.41,
+  // with the lowest pause density of any scene — which is backwards for an
+  // ending. Not a short-word artefact: its 1.29 syllables per word is exactly
+  // the episode mean. Corrected with `atempo=0.845` on the mp3, which is a
+  // time-stretch and not a re-performance; regenerating the narration at a
+  // slower speaking rate would sound better and would land here identically.
+  { id: 'ep3_s16', seconds: 21.912 },
 ];
 
 export const EP3_FRAMES = EP3_SCENES.map((s) => Math.round(s.seconds * FPS));

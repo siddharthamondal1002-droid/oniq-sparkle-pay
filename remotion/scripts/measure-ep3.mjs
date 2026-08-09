@@ -98,13 +98,26 @@ console.log(rows.join('\n'));
 console.log('];');
 console.log();
 
+// TRANSITION is READ FROM THE MANIFEST, not hardcoded. It used to be a literal
+// 0.5 here, and when the real value dropped to 0.25 this line silently reported
+// an episode 105 frames shorter than the one that renders. A derived number
+// that quietly stops being derived is worse than no number at all.
+//
+// A regex rather than an import because this script is node and the manifest is
+// TypeScript — the same constraint build-bed-envelope.mjs works around by
+// transpiling. One constant does not justify a transpile.
+const manifestSrc = fs.readFileSync(path.resolve(__dirname, '../src/ep3/manifest.ts'), 'utf8');
+const transitionMatch = manifestSrc.match(/export const TRANSITION\s*=\s*([\d.]+)/);
+if (!transitionMatch) throw new Error('could not find TRANSITION in src/ep3/manifest.ts');
+const TRANSITION_FRAMES = Math.round(Number(transitionMatch[1]) * FPS);
+
 // Round PER SCENE and then sum, which is what manifest.ts does. Rounding the
-// total instead gives 12442 rather than 12441 on the current narration — the
-// per-scene fractions happen to sum past a half-frame that no single scene
-// crosses. One frame is immaterial to the picture, but it is not immaterial to
-// someone comparing this line against EP3_TOTAL and finding they disagree.
+// total instead can differ by a frame — the per-scene fractions sum past a
+// half-frame that no single scene crosses. One frame is immaterial to the
+// picture, and not immaterial to someone comparing this line against EP3_TOTAL
+// and finding they disagree.
 const totalFrames =
-  sceneFrames.reduce((a, b) => a + b, 0) - Math.round(0.5 * FPS) * (scenes.length - 1);
+  sceneFrames.reduce((a, b) => a + b, 0) - TRANSITION_FRAMES * (scenes.length - 1);
 console.log(
   `// ${total.toFixed(1)}s of narration, ${totalFrames} frames after transitions ` +
     `= ${(totalFrames / FPS / 60).toFixed(2)} min (${(totalFrames / FPS).toFixed(1)}s)`,
