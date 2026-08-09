@@ -63,6 +63,27 @@ for the command output and read it yourself.
   budget. Always pass `limit`.
 - Its commits land on `main` as `Changes` or `Work in progress` — you will need
   `git show --stat` to see what actually moved.
+- **It owns `package.json` and `package-lock.json`, and both break in the same
+  two ways.** On 2026-08-09 CI was red on every commit by both agents, and
+  neither had touched a dependency:
+  - A **caret range drifted into an incompatible release.**
+    `@tanstack/router-plugin: "^1.168.18"` picked up a newly published 1.168.28
+    needing `react-router ^1.170.24`, while `package.json` pinned react-router
+    at exactly 1.170.21 and the lock held 1.170.23. That three-way mismatch made
+    `npm ci` abandon the lock, re-resolve, and fail ERESOLVE. Exact pins on both
+    fixed it; a `~` range would still have admitted the bad version.
+  - The lock's `resolved` URLs point at **Lovable's Artifact Registry mirror**,
+    because that is where its sandbox installs from. `check:deps` flags this and
+    says not to relax it. Do the hash comparison it asks for —
+    `npm view <pkg>@<ver> dist.integrity` against the lockfile integrity — and
+    only repoint the URLs if they MATCH. They did here, so the mirror was
+    serving identical bytes. If they ever differ, stop: that is the case the
+    check exists for. Rewriting the URLs without comparing would look identical
+    in CI and silently disable a supply-chain control.
+
+  Both will come back the next time the bot bumps a dependency. Diagnose with
+  `npm ci --dry-run`, which reproduces the resolution failure without needing to
+  download anything.
 - Give it **one narrow job** and say explicitly what not to touch. It respects
   that. Telling it "do not edit lores.ts, I am writing that myself" avoided a
   conflict.
