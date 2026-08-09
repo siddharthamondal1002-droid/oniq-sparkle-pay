@@ -154,6 +154,22 @@ Episode 3 verified this way: cuts at exactly 162 and 340, three dissolve bands
 of exactly 12 frames ending at 7758, 7952 and 8192. Beware single-frame bands
 with a delta near 0.2 — that is h264 noise on a static image, not an edit.
 
+**RENDER WITH NODE, NOT BUN.** Under bun a clip-based render dies at frame 0
+with `Could not extract frame from compositor` and a 500 from the frame proxy —
+reproducibly, at any concurrency, on clips that probe clean. The same
+composition renders fine under node. Episodes 1 and 2 never hit it because
+stills never call the compositor's frame server; only `OffthreadVideo` does, so
+this only bites once an episode is made of video.
+
+`remotion/CLAUDE.md` says to prefer bun for everything, and for everything else
+that still holds. The render is the exception, and `render-ep3.mjs` says so at
+the top. Its pre-flight needs TypeScript that node cannot import, so it asks bun
+for that in a SUBPROCESS and keeps the render itself in node — one script, each
+half in the runtime that can do the job. Do not "simplify" that into a second
+bun-free script: the version that dropped the pre-flight also dropped the
+MEASURED check and the missing-clip check, which are the two things standing
+between you and a twelve-thousand-frame render of the wrong thing.
+
 **Bundling an episode with the promo kills the render.** `remotion/src/index.ts`
 registers the promo, the promo imports `theme.ts`, and theme.ts calls
 `@remotion/google-fonts` `loadFont` **at module scope** — so headless Chromium
