@@ -74,6 +74,15 @@ async function callStoryRpc(
   return client.rpc(fn, args);
 }
 
+/** What `story-plot` returns: Ting's film, before a frame exists. */
+export type StoryPlot = {
+  title: string;
+  logline: string;
+  setting: string;
+  cast: { name: string; lock: string }[];
+  shots: { still: string; narration: string }[];
+};
+
 type QuotaStatus = {
   enabled: boolean;
   freeSeconds: number;
@@ -113,6 +122,8 @@ export function StoryStudio() {
   const [refusal, setRefusal] = useState<QuotaRefusal | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [jobId, setJobId] = useState<string | null>(null);
+  const [plan, setPlan] = useState<StoryPlot | null>(null);
+  const [plotting, setPlotting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -131,7 +142,7 @@ export function StoryStudio() {
     };
   }, []);
 
-  const plan = useMemo(() => planStory(seconds), [seconds]);
+  const plan_ = useMemo(() => planStory(seconds), [seconds]);
 
   /**
    * The local read of whether this request can go. Advisory only — it exists so
@@ -155,30 +166,30 @@ export function StoryStudio() {
         remaining: 0,
       };
     }
-    if (plan.seconds > quota.dailyLeft) {
+    if (plan_.seconds > quota.dailyLeft) {
       return {
         reason: "daily",
         message: refusalMessage("daily", {
           remaining: quota.remaining,
           dailyLeft: quota.dailyLeft,
-          wanted: plan.seconds,
+          wanted: plan_.seconds,
         }),
         remaining: quota.remaining,
       };
     }
-    if (plan.seconds > quota.remaining) {
+    if (plan_.seconds > quota.remaining) {
       return {
         reason: "too-long",
         message: refusalMessage("too-long", {
           remaining: quota.remaining,
           dailyLeft: quota.dailyLeft,
-          wanted: plan.seconds,
+          wanted: plan_.seconds,
         }),
         remaining: quota.remaining,
       };
     }
     return null;
-  }, [quota, plan.seconds]);
+  }, [quota, plan_.seconds]);
 
   const generate = useCallback(async () => {
     setSubmitting(true);
@@ -186,7 +197,7 @@ export function StoryStudio() {
     setRefusal(null);
     try {
       const { data, error: rpcError } = await callStoryRpc("claim_story_seconds", {
-        _requested_seconds: plan.seconds,
+        _requested_seconds: plan_.seconds,
         _prompt: prompt.trim(),
       });
       if (rpcError) {
@@ -208,7 +219,7 @@ export function StoryStudio() {
     } finally {
       setSubmitting(false);
     }
-  }, [plan.seconds, prompt]);
+  }, [plan_.seconds, plan_.shots.length, prompt]);
 
   const blocked = refusal ?? localBlock;
   const canGenerate = !submitting && !loadingQuota && blocked === null && prompt.trim().length >= 8;
@@ -276,7 +287,7 @@ export function StoryStudio() {
         ))}
       </div>
       <div className="mt-1.5 text-[11px] text-muted-foreground">
-        {plan.seconds}s · {plan.shots.length} shots
+        {plan_.seconds}s · {plan_.shots.length} shots
       </div>
 
       {/*
@@ -323,6 +334,41 @@ export function StoryStudio() {
         <p className="mt-2 text-center text-[11px] text-amber-300">{blocked.message}</p>
       ) : null}
       {error ? <p className="mt-2 text-center text-[11px] text-destructive">{error}</p> : null}
+
+      {plotting ? (
+        <p className="mt-3 text-center text-[11px] text-muted-foreground">
+          Ting is writing your film…
+        </p>
+      ) : null}
+
+      {plan ? (
+        <div className="mt-3 rounded-2xl border border-border bg-card/70 p-3">
+          <div className="text-sm font-semibold text-foreground">{plan.title}</div>
+          {plan.logline ? (
+            <div className="mt-0.5 text-[11px] italic text-muted-foreground">{plan.logline}</div>
+          ) : null}
+          <div className="mt-2 text-[11px] text-muted-foreground">{plan.setting}</div>
+          {plan.cast.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1">
+              {plan.cast.map((c) => (
+                <span
+                  key={c.name}
+                  className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground"
+                >
+                  {c.name}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          <ol className="mt-2.5 space-y-1.5">
+            {plan.shots.map((sh, i) => (
+              <li key={i} className="text-[11px] leading-relaxed text-muted-foreground">
+                <span className="font-semibold text-foreground">{i + 1}.</span> {sh.narration}
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
 
       {jobId ? (
         <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-card/70 px-3 py-2.5">
