@@ -14,6 +14,7 @@ import {
   allocateFrames,
   checkShotFrames,
   minimumShots,
+  snapCutsToPauses,
 } from "@/lib/shotAllocation";
 
 describe("allocateFrames splits a scene exactly", () => {
@@ -141,5 +142,138 @@ describe("minimumShots sizes a scene before its audio exists", () => {
     expect(() => minimumShots(0)).toThrow(/positive duration/);
     expect(() => minimumShots(-3)).toThrow(/positive duration/);
     expect(() => minimumShots(NaN)).toThrow(/positive duration/);
+  });
+});
+
+/**
+ * Snapping moves the cuts and must not move anything else.
+ *
+ * The sum is the invariant that matters, for exactly the reason at the top of
+ * this file: a scene that gains or loses a frame moves every scene after it.
+ * Everything else here is a constraint that, if it slipped, would produce an
+ * edit that is worse than the weighted one it replaced — a shot too short to
+ * read, or a shot longer than the clip that has to fill it.
+ */
+describe("snapCutsToPauses puts cuts on the language", () => {
+  const LOOSE = { maxShift: 45, minFrames: 45 };
+
+  it("moves a cut onto a nearby pause", () => {
+    // Cut sits at 100; a pause at 108 is 8 frames away.
+    expect(snapCutsToPauses([100, 100], [108], LOOSE)).toEqual([108, 92]);
+  });
+
+  it("keeps the total identical, whatever it does", () => {
+    const pauses = [17, 44, 90, 131, 168, 212, 255, 301, 340, 388];
+    for (let n = 1; n <= 6; n++) {
+      for (let total = 300; total <= 1400; total += 37) {
+        const weights = Array.from({ length: n }, (_, i) => 1 + (i % 3) * 0.4);
+        const frames = allocateFrames(weights, total);
+        const snapped = snapCutsToPauses(frames, pauses, LOOSE);
+        expect(snapped.reduce((a, b) => a + b, 0), `${n} shots, ${total} frames`).toBe(total);
+        expect(snapped.length).toBe(frames.length);
+      }
+    }
+  });
+
+  /**
+   * Added after a mutation that changed "nearest legal pause" to "furthest"
+   * passed the whole suite. Every other test only constrained the sum and the
+   * floor, both of which a furthest-match satisfies just as well — while moving
+   * the cut five times further from where the shot list intended it.
+   */
+  it("picks the nearest legal pause when several are in range", () => {
+    // Cut at 100. Pauses at 90 (10 away) and 150 (50 away), both legal.
+    expect(snapCutsToPauses([100, 100], [90, 150], { maxShift: 60, minFrames: 45 })).toEqual([
+      90, 110,
+    ]);
+  });
+
+  it("breaks an equidistant tie toward the earlier pause", () => {
+    // 90 and 110 are both 10 frames from the cut. It has to be the same one
+    // every run, for the reason allocateFrames breaks its ties deterministically.
+    expect(snapCutsToPauses([100, 100], [90, 110], { maxShift: 60, minFrames: 45 })).toEqual([
+      90, 110,
+    ]);
+  });
+
+  it("refuses to drag a cut further than maxShift", () => {
+    // The only pause is 40 frames away and the budget is 10.
+    expect(snapCutsToPauses([100, 100], [140], { maxShift: 10, minFrames: 10 })).toEqual([100, 100]);
+  });
+
+  it("never produces a shot below the floor", () => {
+    // A pause at 12 would leave a 12-frame first shot.
+    expect(snapCutsToPauses([100, 100], [12], { maxShift: 200, minFrames: 45 })).toEqual([100, 100]);
+  });
+
+  it("will not lengthen a shot past the frames its clip actually has", () => {
+    // The cut would happily move right to the pause at 130, but shot 0's source
+    // only has 110 frames. This is the constraint that decides whether the fix
+    // needs the raw generations or a regeneration.
+    const capped = snapCutsToPauses([100, 100], [130], {
+      maxShift: 60,
+      minFrames: 20,
+      maxFrames: [110, 200],
+    });
+    expect(capped).toEqual([100, 100]);
+
+    // Same cut, same pause, with the raw clip's real headroom: it moves.
+    const free = snapCutsToPauses([100, 100], [130], {
+      maxShift: 60,
+      minFrames: 20,
+      maxFrames: [301, 301],
+    });
+    expect(free).toEqual([130, 70]);
+  });
+
+  /**
+   * This replaced a test that asserted "two cuts never take the same pause".
+   * That test passed against an implementation with the collision guard REMOVED
+   * — it was vacuous, because the cut ordering already made a collision
+   * impossible and the guard was unreachable. The guard is gone; what is worth
+   * testing is the property that made it unnecessary, on inputs where a naive
+   * nearest-pause pass really would collapse two cuts onto one frame.
+   */
+  it("keeps every shot at or above the floor when pauses cluster", () => {
+    // Three cuts, and a dense knot of pauses that a per-cut nearest-match would
+    // happily drag all of them into.
+    const frames = [100, 100, 100, 100];
+    const pauses = [148, 150, 151, 152, 155];
+    const out = snapCutsToPauses(frames, pauses, { maxShift: 160, minFrames: 45 });
+    expect(out.reduce((a, b) => a + b, 0)).toBe(400);
+    for (const [i, f] of out.entries()) {
+      expect(f, `shot ${i} of ${JSON.stringify(out)}`).toBeGreaterThanOrEqual(45);
+    }
+  });
+
+  it("keeps cuts strictly increasing across a fuzz of pause layouts", () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      // Deterministic pseudo-random layouts; no clock, no Math.random.
+      const pauses = Array.from({ length: 12 }, (_, i) => ((seed * 37 + i * 53) % 900) + 20);
+      const frames = allocateFrames([1, 1.3, 0.8, 1.1, 0.9], 1000);
+      const out = snapCutsToPauses(frames, pauses, { maxShift: 60, minFrames: 45 });
+      expect(out.reduce((a, b) => a + b, 0), `seed ${seed}`).toBe(1000);
+      for (const f of out) expect(f, `seed ${seed}: ${JSON.stringify(out)}`).toBeGreaterThanOrEqual(45);
+    }
+  });
+
+  it("leaves a single-shot scene alone", () => {
+    expect(snapCutsToPauses([250], [10, 20, 30], LOOSE)).toEqual([250]);
+  });
+
+  it("is a no-op when there are no pauses to snap to", () => {
+    const frames = allocateFrames([1, 2, 1.5], 900);
+    expect(snapCutsToPauses(frames, [], LOOSE)).toEqual(frames);
+  });
+
+  it("rejects inputs it cannot honour", () => {
+    expect(() => snapCutsToPauses([], [1], LOOSE)).toThrow(/no shots/);
+    expect(() => snapCutsToPauses([10.5, 20], [1], LOOSE)).toThrow(/integers/);
+    expect(() => snapCutsToPauses([10, 20], [1], { maxShift: -1, minFrames: 45 })).toThrow(
+      /maxShift/,
+    );
+    expect(() =>
+      snapCutsToPauses([10, 20], [1], { maxShift: 5, minFrames: 1, maxFrames: [10] }),
+    ).toThrow(/maxFrames has 1 entries for 2 shots/);
   });
 });
