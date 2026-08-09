@@ -29,27 +29,12 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { findBin } from './findFfmpeg.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO = path.resolve(__dirname, '../..');
 const PUBLIC = path.resolve(__dirname, '../public/ep3');
 const SAMPLE_RATE = 8000;
 const FPS = 30;
-
-function findBin(name) {
-  const env = process.env[name.toUpperCase()];
-  if (env) return env;
-  const candidates = [
-    path.join(REPO, `remotion/node_modules/@remotion/compositor-linux-x64-gnu/${name}`),
-    ...fs
-      .readdirSync('/tmp', { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => `/tmp/${d.name}/node_modules/@remotion/compositor-linux-x64-gnu/${name}`),
-  ];
-  const found = candidates.find((c) => fs.existsSync(c));
-  if (!found) throw new Error(`no ${name} found; set ${name.toUpperCase()}=/path/to/${name}`);
-  return found;
-}
 
 /** Container duration, in seconds. This is what goes in the manifest. */
 function containerSeconds(fp, file) {
@@ -87,6 +72,8 @@ if (missing.length > 0) {
 }
 
 let total = 0;
+/** Per-scene frame counts, rounded the way the manifest rounds them. */
+const sceneFrames = [];
 const rows = scenes.map((id) => {
   const file = path.join(PUBLIC, `${id}.mp3`);
   const seconds = containerSeconds(ffprobe, file);
@@ -102,6 +89,7 @@ const rows = scenes.map((id) => {
     );
   }
   total += seconds;
+  sceneFrames.push(Math.round(seconds * FPS));
   return `  { id: '${id}', seconds: ${seconds.toFixed(3)} },`;
 });
 
@@ -110,10 +98,16 @@ console.log(rows.join('\n'));
 console.log('];');
 console.log();
 
-const totalFrames = Math.round(total * FPS) - Math.round(0.5 * FPS) * (scenes.length - 1);
+// Round PER SCENE and then sum, which is what manifest.ts does. Rounding the
+// total instead gives 12442 rather than 12441 on the current narration — the
+// per-scene fractions happen to sum past a half-frame that no single scene
+// crosses. One frame is immaterial to the picture, but it is not immaterial to
+// someone comparing this line against EP3_TOTAL and finding they disagree.
+const totalFrames =
+  sceneFrames.reduce((a, b) => a + b, 0) - Math.round(0.5 * FPS) * (scenes.length - 1);
 console.log(
   `// ${total.toFixed(1)}s of narration, ${totalFrames} frames after transitions ` +
-    `= ${(totalFrames / FPS / 60).toFixed(2)} min`,
+    `= ${(totalFrames / FPS / 60).toFixed(2)} min (${(totalFrames / FPS).toFixed(1)}s)`,
 );
 console.log('// Set MEASURED = true once these are in. Then re-check the shot split:');
 console.log('//   bun -e "await import(\'./src/ep3/shots.ts\')"');
