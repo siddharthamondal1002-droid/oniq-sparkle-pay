@@ -204,6 +204,47 @@ Budget ~8.5 shots per minute of finished episode. The naive 10s-per-clip figure
 (43 for seven minutes) is about 30% low, because shots are allocated by weight
 and none of them lands on the ceiling.
 
+### What Episode 3 actually cost, as shipped
+
+Plan against these rather than the estimates above; they are measured.
+
+| | |
+| --- | --- |
+| Narration | 414.7s across 16 scenes, 986 words, 143 wpm |
+| Shots | 60, for 6:51 of finished film |
+| Generations | 60 stills + 60 clips, sequential |
+| Conformed clips | 428 MB (7.1 MB average) |
+| Raw generations | 970 MB (~12.4 MB each, 10.0417s at 24fps = 301 frames conformed) |
+| Finished file | 12,321 frames, 410.73s, 99 MB at crf 28 (~2.0 Mbps) |
+| Render, 4 cores | ~4.5 fps → ~45 min for a full pass |
+| Render, 64 cores | ~5 fps single process; ~5 fps EACH for two parallel halves |
+
+The render figure is the surprising one and it is worth internalising: a 4-core
+box and a 64-core box render this at the same speed, because the bottleneck is
+one ffmpeg encoder. Plan on ~45 minutes per pass and on needing several passes —
+the ep3 build did four (control, re-cut, transition fix, plus one abandoned).
+
+### Still open on Episode 3
+
+Recorded so nobody assumes the episode is finished business:
+
+- **No music bed.** `audioDuck.ts` is already episode-agnostic; generate
+  `public/ep3/bed.mp3`, export `BED_SECONDS`/`BED_LOOP_FRAMES` from the
+  manifest, run `EPISODE=ep3 node scripts/build-bed-envelope.mjs`.
+- **Delivery rate runs the wrong way.** 143 wpm average, 109 to 178 range, with
+  the coda the fastest scene in the film. Needs regenerated narration, which
+  changes scene durations and re-opens the whole allocation — so it is a
+  separate job, not a tweak.
+- **Style outliers, from a contact-sheet review of all 60 shots.** s08b (ring
+  jinni reads as flat gold filigree), s10b (lamp jinni reads as illustration,
+  coolest palette in the film), the wide city mattes s11c/s11f/s12a/s12d/s15a/
+  s15b (flatter, cooler, clustered in the third act), and s13a/s13b (hazy, read
+  as underexposed). The verdict was "one film with outliers, not three" — but
+  it was reached from STILLS, and the s08b/s10b fault is "differs in medium",
+  which is a motion-domain problem a sheet cannot see. Treat as provisional.
+- **s15 overstays.** Two near-identical palace vistas over 10.2s of narration,
+  landing right before the coda where the film wants momentum.
+
 ---
 
 ## Two environment traps, both found the expensive way

@@ -209,18 +209,52 @@ cross-fades SCENES; an inner one HARD CUTS the shots inside each scene. **No Ken
 Burns** — the motion is inside the clip, and a camera move on top is two cameras
 fighting.
 
-**Two steps are new:**
+**Step 4 gains a second measurement.** As well as scene durations, measure where
+the narration PAUSES:
+
+```bash
+node scripts/measure-ep3-pauses.mjs > src/ep3/pauses.ts
+```
+
+The shot split then snaps each cut onto the nearest pause. Skipping this is what
+makes an episode feel like the picture lags the voice — see the "Cuts must land
+on the language" section of `assembling-generated-clips.md`, which has the
+numbers and the four ways to get it wrong.
+
+**Four steps are new:**
 
 ```bash
 cd remotion
-node scripts/measure-ep3.mjs                       # after 4, prints the manifest
-bun scripts/ingest-ep3-clips.mjs --from <raw dir>  # before 8
-bun scripts/ingest-ep3-clips.mjs --check
+node scripts/measure-ep3.mjs                        # after 4, prints the manifest
+node scripts/measure-ep3-pauses.mjs > src/ep3/pauses.ts
+bun scripts/ingest-ep3-clips.mjs --fetch-raw        # recover the raws
+bun scripts/ingest-ep3-clips.mjs --from public/ep3/raw   # conform, before 8
+bun scripts/ingest-ep3-clips.mjs --check            # expect "60/60 clips ready"
 ```
 
 Ingest fixes all four things wrong with every clip the generator returns —
 invented soundtrack, 1088 not 1080, 24fps not 30, and ~10.04s not the
 allocation — in one pass, because four passes is four chances to skip one.
+
+**Step 8 is the long pole, and concurrency will not fix it.** Measured on
+Episode 3: 4 workers gave ~4.7 fps, 48 gave ~5, 62 gave ~5. A rate that flat
+across a 15x change in workers means the bottleneck is not parallel — it is the
+single ffmpeg encoder Remotion runs however many browser tabs feed it. The fix
+is more ENCODERS, not more workers: render halves with `FRAME_RANGE` as two
+processes and concatenate with `-c copy`. Two halves at once ran ~5 fps EACH.
+**Split on a scene boundary**, and recompute the boundary if `TRANSITION`
+changes — it moved from 6184 to 6135 when the transition was halved.
+
+**Step 9 has a script now**, and it gates rather than informs:
+
+```bash
+node scripts/verify-episode.mjs <file> --expect <seconds>
+```
+
+Two streams, h264 1080x1920 30fps, AAC with a REAL bitrate, duration drift, and
+audio RMS sampled at three points mid-file. It exits non-zero, so it can block
+an upload. Pass the CURRENT expected length — changing `TRANSITION` changes the
+episode's duration, and checking against a stale number reads as alarming drift.
 
 **Expect the shot split to refuse to load when the real durations land.**
 `src/ep3/shots.ts` throws at module scope if any shot falls outside 1.5–10s, and
@@ -228,8 +262,23 @@ on Episode 3 three scenes overflowed and each needed one more shot. That is the
 guard working: it fires before a single generation is paid for, and the fix is
 local.
 
-**The transfer problem, unsolved.** Sixty clips is over a gigabyte, the repo
-rejects anything above 10 MB, and `oniqhub.com` and `*.lovable.app` are both 403
-at this container's proxy — so clips generated on Lovable's box cannot be pulled
-here. Either they get conformed small enough to commit, or Lovable renders.
-Settle this BEFORE generating sixty clips, not after.
+**The transfer problem is solved, in both directions.** It was the single
+biggest time sink of the Episode 3 build, so do not re-derive it:
+
+- **Clips to the renderer** — the dev container's proxy denies `*.lovable.app`,
+  `oniqhub.com` and Supabase, so `--fetch` cannot run on the box that renders.
+  `.github/workflows/ep3-clip-transfer.yml` has a runner fetch them and publish
+  a release asset. 428 MB conformed in 6.6s, 970 MB raw in 34s.
+- **A finished episode back to Lovable** — `mcp__Lovable__get_file_upload_url`
+  returns a presigned URL on `storage.googleapis.com`, which the proxy DOES
+  allow. PUT the file, pass the `file_id` to `send_message`. 99 MB in under
+  seven seconds, 250 MB limit.
+
+**Upload the RAW generations as pointers too, at generation time.** Not just the
+conformed clips. The raws are the only copy of the frames a re-cut needs, and
+the box that made them recycles.
+
+**Check the delivery rate per scene, not just the total.** Episode 3 averages
+143 wpm against a 140 target and looks fine on that number, while ranging 109 to
+178 — with the coda the fastest scene in the film. A story that accelerates into
+its ending reads as rushed no matter how good the average is.
