@@ -7,26 +7,23 @@
  * 3 sixty clips rather than one, and the same arithmetic solves it.
  *
  * WHAT IS DIFFERENT FROM AN EPISODE. An episode is planned by a person against
- * measured narration, and rendered out of band on a machine with Chromium. A
- * Story is planned from one prompt, generated on demand, and ASSEMBLED ON THE
- * USER'S DEVICE. That last part is not a workaround: the product promise is
- * that the file lands in device memory and is only inspected if the user shares
- * it back through the app, and client-side assembly makes that literally true —
- * the finished film never exists on our servers at all.
+ * measured narration and rendered out of band. A Story is planned from one
+ * prompt and assembled on demand by the app's own renderer — an edge function
+ * for anything that fits, a CI runner for the rest. See `storyRenderer.ts`.
  *
- * WE DO NOT SAVE THE VIDEO. Not to Supabase Storage, not to the CDN, not
- * anywhere. Generated clips go straight to the device, the device assembles
- * them, and the finished file lives in the user's memory alone. What the server
- * keeps is a seconds counter for the free allowance — a number, not pixels.
+ * THE VIDEO IS TRANSIENT ON OUR SERVERS. It exists while it is being made, the
+ * user previews it, it transfers to their device, and then it is deleted. That
+ * deletion is a guarantee rather than an intention and lives in
+ * `storyLifecycle.ts`, where every path ends in `purged`.
  *
- * That is a product decision with three consequences worth stating, because
- * someone will eventually be tempted to "just cache it":
- *   1. It is what makes "we are not responsible for what you make" honest. We
- *      cannot moderate what we never hold, and we do not claim to.
+ * Three consequences worth stating, because someone will be tempted to keep a
+ * copy "just in case":
+ *   1. A Story sitting in a bucket a week later is content we are hosting,
+ *      whatever the disclaimer says. The window is minutes, not forever.
  *   2. A Story shared back THROUGH the app is a different act: that upload is
  *      ours, and it goes through provenance scanning like any other media.
- *   3. There is no re-download. If the user loses the file it is gone, and the
- *      UI must say so before generation rather than after.
+ *   3. There is no re-download. Once it is on the device and purged from the
+ *      server it is gone, and the UI must say so BEFORE generation.
  *
  * PURE. No network, no clock, no Supabase. Same arrangement as
  * `shotAllocation.ts` and `audioDuck.ts`, and for the same reason: money and
@@ -155,18 +152,64 @@ export function planStory(requestedSeconds: number, limits: StoryLimits = {}): S
 
 /** Why a Story was refused, in words a screen can show unchanged. */
 export type QuotaRefusal = {
-  reason: "disabled" | "exhausted" | "too-long";
+  reason: "disabled" | "capacity" | "daily" | "exhausted" | "too-long";
   message: string;
   /** Seconds of free allowance left. */
   remaining: number;
 };
 
+/**
+ * The free allowance, in seconds of finished video. 300s = five 60s Stories.
+ *
+ * DERIVED, not chosen for roundness. At 8.5 shots per minute and two
+ * generations per shot (a still and a clip), a second of finished video costs
+ * 0.283 generations. So:
+ *
+ *     300s  ->  ~43 shots  ->   ~85 generations per user
+ *    3000s  -> ~425 shots  ->  ~850 generations per user
+ *
+ * Fifty minutes was the original ask and it is ten times this. Five Stories is
+ * enough to understand the product and decide you want more; fifty minutes is
+ * enough to make a short film, for free, before anyone has shown they will pay.
+ * Raise it from the config row once real spend is visible — that is the whole
+ * reason it is a row and not a constant in a bundle.
+ */
+export const DEFAULT_FREE_SECONDS = 300;
+
+/**
+ * Per-user, per-day ceiling. Two default Stories.
+ *
+ * The lifetime allowance alone does not stop one account spending all of it in
+ * an hour, and a compromised account is exactly the case where that happens.
+ * This spreads the same total across days and costs an honest user nothing.
+ */
+export const DEFAULT_DAILY_SECONDS = 120;
+
+/**
+ * Total seconds of video the whole product may generate in a day.
+ *
+ * THE ONLY LAYER THAT BOUNDS ABSOLUTE SPEND. A per-user allowance multiplies by
+ * signups, and signups are the number you least control — ten thousand users at
+ * 300s each is 8.5 million generations of exposure. An hour of finished video a
+ * day across everyone is ~1,020 generations, which is a bill you can look at
+ * and reason about before it arrives.
+ */
+export const DEFAULT_GLOBAL_DAILY_SECONDS = 3600;
+
 export type QuotaState = {
   enabled: boolean;
   /** Free seconds of finished video this user is granted in total. */
   freeSeconds: number;
-  /** Seconds they have already generated. */
+  /** Seconds they have already generated, all time. */
   usedSeconds: number;
+  /** Seconds this user has generated today. */
+  dailyUsedSeconds?: number;
+  /** Per-user daily ceiling. */
+  dailySeconds?: number;
+  /** Seconds generated across ALL users today. */
+  globalDailyUsedSeconds?: number;
+  /** Product-wide daily ceiling. */
+  globalDailySeconds?: number;
 };
 
 /**
@@ -192,6 +235,23 @@ export function checkStoryQuota(state: QuotaState, requestedSeconds: number): Qu
       remaining,
     };
   }
+  const wanted = Math.round(requestedSeconds);
+
+  // Product-wide ceiling BEFORE anything about this user. When the day's budget
+  // is spent it is spent for everyone, and answering with a personal-allowance
+  // message would be answering a question the user did not ask. This is also
+  // the only layer that bounds ABSOLUTE spend — every other limit multiplies by
+  // the number of people who sign up.
+  const globalCap = state.globalDailySeconds ?? DEFAULT_GLOBAL_DAILY_SECONDS;
+  const globalUsed = state.globalDailyUsedSeconds ?? 0;
+  if (globalUsed + wanted > globalCap) {
+    return {
+      reason: "capacity",
+      message: "Story generation is busy today. Try again tomorrow.",
+      remaining,
+    };
+  }
+
   if (remaining <= 0) {
     return {
       reason: "exhausted",
@@ -199,7 +259,23 @@ export function checkStoryQuota(state: QuotaState, requestedSeconds: number): Qu
       remaining: 0,
     };
   }
-  const wanted = Math.round(requestedSeconds);
+
+  // Per-user, per-day. The lifetime allowance alone does not stop one account
+  // spending all of it in an hour, which is exactly what a compromised account
+  // does. Spreading it costs an honest user nothing.
+  const dailyCap = state.dailySeconds ?? DEFAULT_DAILY_SECONDS;
+  const dailyLeft = Math.max(0, dailyCap - (state.dailyUsedSeconds ?? 0));
+  if (wanted > dailyLeft) {
+    return {
+      reason: "daily",
+      message:
+        dailyLeft > 0
+          ? `You have ${dailyLeft}s of Story time left today.`
+          : "You have used your Story time for today. More tomorrow.",
+      remaining,
+    };
+  }
+
   if (wanted > remaining) {
     return {
       reason: "too-long",

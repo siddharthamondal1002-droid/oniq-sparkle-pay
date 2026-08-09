@@ -124,6 +124,42 @@ describe("checkStoryQuota refuses before anything is spent", () => {
     expect(checkStoryQuota(nearly, 60)).toBeNull();
   });
 
+  it("checks the product-wide ceiling before anything about this user", () => {
+    // When the day's budget is gone it is gone for everyone. Telling one user
+    // about their personal allowance answers a question they did not ask.
+    // BOTH conditions must hold or the test proves nothing. An earlier version
+    // left the personal allowance untouched, so the exhausted branch never
+    // competed and reordering the two still passed — the same vacuous-ordering
+    // mistake made on the kill switch earlier in this file's history.
+    const busy = {
+      enabled: true,
+      freeSeconds: 300,
+      usedSeconds: 300, // personally exhausted TOO
+      globalDailyUsedSeconds: 3600,
+      globalDailySeconds: 3600,
+    };
+    expect(checkStoryQuota(busy, 60)?.reason).toBe("capacity");
+  });
+
+  it("caps a single user's day even when their lifetime allowance is untouched", () => {
+    // The lifetime allowance alone does not stop one account spending it all in
+    // an hour, which is exactly what a compromised account does.
+    const heavy = { enabled: true, freeSeconds: 3000, usedSeconds: 0, dailyUsedSeconds: 120 };
+    const r = checkStoryQuota(heavy, 60);
+    expect(r?.reason).toBe("daily");
+    expect(r?.message).toMatch(/tomorrow/);
+  });
+
+  it("tells a user how much of today is left when some remains", () => {
+    const partial = { enabled: true, freeSeconds: 3000, usedSeconds: 0, dailyUsedSeconds: 90 };
+    expect(checkStoryQuota(partial, 60)?.message).toContain("30s");
+  });
+
+  it("allows a request that exactly fills the daily cap", () => {
+    const edge = { enabled: true, freeSeconds: 3000, usedSeconds: 0, dailyUsedSeconds: 60 };
+    expect(checkStoryQuota(edge, 60)).toBeNull();
+  });
+
   it("never reports negative remaining, even if usage overshot", () => {
     // Overshoot is possible if a generation is counted twice under a race. The
     // number shown to a user must still make sense.
