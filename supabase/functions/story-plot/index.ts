@@ -4,11 +4,20 @@
 // generator actually needs: a plot, a locked setting, and one still prompt plus
 // one narration line per shot.
 //
-// SAME METHOD AS EVERY OTHER AI FEATURE HERE. Claude Opus 5 on the Anthropic
-// API with ANTHROPIC_API_KEY as a Supabase secret, the same auth gate, the same
-// per-isolate rate limit, the same `{ configured: false }` on a 401 so a
-// missing key degrades instead of erroring. Copied from ting/index.ts on
-// purpose rather than invented — one AI pattern in this app, not two.
+// SAME METHOD AS EVERY OTHER AI FEATURE HERE, through the shared _shared/llm.ts
+// helpers: the same auth gate, the same per-isolate rate limit, the same
+// `{ configured: false }` when no key is present so a missing secret degrades
+// instead of erroring.
+//
+// GEMINI FIRST, ANTHROPIC SECOND. `callGemini` on gemini-2.5-flash with
+// GOOGLE_AI_API_KEY, falling back to Claude only when Gemini is unavailable or
+// returns something unusable. Both go through the shared helper, which already
+// translates Gemini's response into Anthropic's shape — so the parser below is
+// written once and does not care which model answered.
+//
+// A plan is structured JSON with a fixed shot count, not prose, which is the
+// cheap end of what either model does well. Spending the expensive model on it
+// by default would be paying for judgement this task does not need.
 //
 // WHY THE PLOT IS A SERVER CALL AND NOT A PROMPT SENT STRAIGHT TO A GENERATOR.
 // Episode 3 proved the shape: a shot list with locked characters and locked
@@ -28,7 +37,7 @@
 // requested duration, and the count is passed in. A second shot planner living
 // in a system prompt would drift from the first one and nobody would notice
 // until a Story came back the wrong length.
-import { langInstruction } from "../_shared/llm.ts";
+import { callGemini, callClaude, langInstruction } from "../_shared/llm.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -116,8 +125,9 @@ Deno.serve(async (req) => {
     // that spends real money behind it, and nobody needs four films a minute.
     if (!_rateLimit(_subFromAuth(req), 4)) return json({ error: "slow down bestie 😅" }, 429);
 
-    const key = Deno.env.get("ANTHROPIC_API_KEY");
-    if (!key) return json({ configured: false }, 200);
+    const hasGemini = Boolean(Deno.env.get("GOOGLE_AI_API_KEY"));
+    const hasClaude = Boolean(Deno.env.get("ANTHROPIC_API_KEY"));
+    if (!hasGemini && !hasClaude) return json({ configured: false }, 200);
 
     const body = await req.json().catch(() => ({}));
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
@@ -130,57 +140,70 @@ Deno.serve(async (req) => {
       return json({ error: "Bad shot count." }, 400);
     }
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-opus-5",
-        // Roughly 120 tokens a shot plus the header, with room to spare. A plan
-        // truncated mid-JSON parses as a failure rather than a short film.
-        max_tokens: Math.min(8192, 900 + shots * 160),
-        system: SYSTEM + langInstruction(lang),
-        messages: [
-          {
-            role: "user",
-            content:
-              `Write a ${shots}-shot film from this idea:\n\n${prompt}\n\n` +
-              `Return exactly ${shots} shots.`,
-          },
-        ],
-      }),
-    });
+    const opts = {
+      system: SYSTEM + langInstruction(lang),
+      messages: [
+        {
+          role: "user" as const,
+          content:
+            `Write a ${shots}-shot film from this idea:\n\n${prompt}\n\n` +
+            `Return exactly ${shots} shots.`,
+        },
+      ],
+      // Roughly 160 tokens a shot plus the header. A plan truncated mid-JSON
+      // parses as a failure rather than as a short film.
+      maxTokens: Math.min(8192, 900 + shots * 160),
+      // A long plan is slower than a chat reply and the default 12s cuts a
+      // 40-shot film off mid-sentence.
+      timeoutMs: 45000,
+    };
 
-    if (res.status === 401) return json({ configured: false }, 200);
-    if (!res.ok) {
-      console.error("story-plot upstream", res.status);
-      return json({ error: "Ting could not write that one — try again." }, 502);
+    // Gemini first. Claude only if Gemini is not configured, errored, or came
+    // back with something parsePlan rejects — a miscounted plan from the cheap
+    // model is worth one retry on the expensive one, because everything
+    // downstream of here costs real money.
+    let plan: Plan | null = null;
+    let servedBy = "gemini";
+
+    if (hasGemini) {
+      const g = await callGemini(opts);
+      if (g.ok) plan = parsePlan(textOf(g.data), shots);
+      else console.warn("story-plot gemini", g.reason);
     }
 
-    const data = await res.json();
-    const text: string = (data?.content ?? [])
-      .filter((b: { type?: string }) => b?.type === "text")
-      .map((b: { text?: string }) => b.text ?? "")
-      .join("");
+    if (!plan && hasClaude) {
+      servedBy = "anthropic";
+      const c = await callClaude(opts);
+      if (c.ok) plan = parsePlan(textOf(c.data), shots);
+      else console.warn("story-plot anthropic", c.reason);
+    }
 
-    const plan = parsePlan(text, shots);
     if (!plan) {
       // A malformed plan must not reach the pipeline: every downstream stage
       // costs money and a half-built plan spends it on a film that cannot
       // finish. Fail here, where nothing has been generated yet.
-      console.error("story-plot unparseable", text.slice(0, 400));
+      console.error("story-plot produced no usable plan");
       return json({ error: "Ting could not write that one — try again." }, 502);
     }
 
-    return json({ configured: true, plan });
+    return json({ configured: true, plan, servedBy });
   } catch (e) {
     console.error("story-plot fn error", e);
     return json({ error: "Something went sideways — try again" }, 500);
   }
 });
+
+/** The text blocks of an Anthropic-shaped reply, joined. Gemini answers arrive
+ *  in this shape too — _shared/llm.ts translates them — so one reader serves
+ *  both and neither path gets its own parsing bug. */
+function textOf(data: unknown): string {
+  const blocks = (data as { content?: unknown })?.content;
+  if (!Array.isArray(blocks)) return "";
+  return blocks
+    .filter((b: { type?: string }) => b?.type === "text")
+    .map((b: { text?: string }) => b.text ?? "")
+    .join("");
+}
 
 type Shot = { still: string; narration: string };
 type Plan = {
