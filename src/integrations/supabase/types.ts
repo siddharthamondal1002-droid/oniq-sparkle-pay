@@ -2820,6 +2820,135 @@ export type Database = {
           },
         ]
       }
+      story_allowance: {
+        Row: {
+          daily_day: string
+          daily_used_seconds: number
+          free_seconds: number | null
+          updated_at: string
+          used_seconds: number
+          user_id: string
+        }
+        Insert: {
+          daily_day?: string
+          daily_used_seconds?: number
+          free_seconds?: number | null
+          updated_at?: string
+          used_seconds?: number
+          user_id: string
+        }
+        Update: {
+          daily_day?: string
+          daily_used_seconds?: number
+          free_seconds?: number | null
+          updated_at?: string
+          used_seconds?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
+      story_config: {
+        Row: {
+          daily_seconds: number
+          enabled: boolean
+          free_seconds: number
+          global_daily_seconds: number
+          id: boolean
+          max_story_seconds: number
+          min_story_seconds: number
+          updated_at: string
+        }
+        Insert: {
+          daily_seconds?: number
+          enabled?: boolean
+          free_seconds?: number
+          global_daily_seconds?: number
+          id?: boolean
+          max_story_seconds?: number
+          min_story_seconds?: number
+          updated_at?: string
+        }
+        Update: {
+          daily_seconds?: number
+          enabled?: boolean
+          free_seconds?: number
+          global_daily_seconds?: number
+          id?: boolean
+          max_story_seconds?: number
+          min_story_seconds?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      story_global_usage: {
+        Row: {
+          day: string
+          updated_at: string
+          used_seconds: number
+        }
+        Insert: {
+          day: string
+          updated_at?: string
+          used_seconds?: number
+        }
+        Update: {
+          day?: string
+          updated_at?: string
+          used_seconds?: number
+        }
+        Relationships: []
+      }
+      story_jobs: {
+        Row: {
+          created_at: string
+          error: string | null
+          has_bytes: boolean
+          id: string
+          prompt: string
+          refunded_at: string | null
+          render_target: string | null
+          requested_seconds: number
+          seconds_charged: number
+          shot_count: number | null
+          status: string
+          storage_path: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          has_bytes?: boolean
+          id?: string
+          prompt: string
+          refunded_at?: string | null
+          render_target?: string | null
+          requested_seconds: number
+          seconds_charged: number
+          shot_count?: number | null
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          has_bytes?: boolean
+          id?: string
+          prompt?: string
+          refunded_at?: string | null
+          render_target?: string | null
+          requested_seconds?: number
+          seconds_charged?: number
+          shot_count?: number | null
+          status?: string
+          storage_path?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       study_chapters_debug: {
         Row: {
           blocks_snippet: string | null
@@ -3484,6 +3613,10 @@ export type Database = {
       }
       can_read_message: { Args: { _message_id: string }; Returns: boolean }
       child_restricted: { Args: { _uid: string }; Returns: boolean }
+      claim_story_seconds: {
+        Args: { _prompt: string; _requested_seconds: number }
+        Returns: Json
+      }
       clips_feed: {
         Args: { _limit?: number; _offset?: number }
         Returns: {
@@ -3825,6 +3958,7 @@ export type Database = {
         Args: { _post_id: string; _post_type: string }
         Returns: undefined
       }
+      refund_story_seconds: { Args: { _job_id: string }; Returns: Json }
       remove_group_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: undefined
@@ -3864,6 +3998,7 @@ export type Database = {
         Args: { bucket: string; url: string }
         Returns: string
       }
+      story_quota_status: { Args: never; Returns: Json }
       submit_digilocker_parental_consent: {
         Args: { _token_ref: string }
         Returns: Json
