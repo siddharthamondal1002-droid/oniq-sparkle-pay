@@ -20,7 +20,7 @@
  * point: the same trick that caught ep3's overlong finale for free.
  */
 import { describe, expect, it } from "vitest";
-import { EP3_CAST, ORIGINALS, STORYBOOK_STYLE } from "@/data/originals";
+import { EP3_CAST, EP3_PROPS, ORIGINALS, STORYBOOK_STYLE } from "@/data/originals";
 import { EP3_SHOTS, shotPromptFor, shotsFor, type Ep3Shot } from "@/data/ep3Shots";
 import { estimateSeconds, narrationFor } from "@/data/originalsScript";
 import { allocateFrames, checkShotFrames } from "@/lib/shotAllocation";
@@ -167,6 +167,53 @@ describe("the cast locks hold across fifty-seven generations", () => {
       expect(shotPromptFor(EP3_SHOTS.find((s) => s.id === id)!), id).toContain(
         "THE BOY is the same boy",
       );
+    }
+  });
+});
+
+describe("recurring props are locked like recurring characters", () => {
+  // A generator does not infer "the lamp" from context — it draws the most
+  // common lamp. Episode 3 got a Victorian glass hurricane lamp three separate
+  // times before anyone noticed, and the lamp is the object the whole story
+  // turns on. Fifteen of sixty shots have it in frame, so it drifts exactly the
+  // way a face does.
+  it("resolves every prop key a shot names", () => {
+    for (const shot of EP3_SHOTS) {
+      for (const key of shot.props ?? []) {
+        expect(EP3_PROPS[key], `${shot.id} names unknown prop "${key}"`).toBeTruthy();
+      }
+    }
+  });
+
+  it("locks the lamp in every shot that has one in frame", () => {
+    // Derived from the shot text rather than listed, so a NEW shot mentioning a
+    // lamp fails until it is locked. Listing them by hand is how the omission
+    // happened in the first place.
+    for (const shot of EP3_SHOTS) {
+      if (!/\blamps?\b/i.test(shot.still)) continue;
+      expect(
+        (shot.props ?? []).length,
+        `${shot.id} has a lamp in frame but no prop lock`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("describes the lamp by silhouette and refuses the one the model wants to draw", () => {
+    // Saying what it IS is what distinguishes it; saying what it is NOT is what
+    // stops the hurricane lamp, which the model reaches for by default.
+    expect(EP3_PROPS.lamp).toMatch(/teapot/i);
+    expect(EP3_PROPS.lamp).toMatch(/spout/i);
+    expect(EP3_PROPS.lamp).toMatch(/hurricane|chimney/i);
+    expect(EP3_PROPS.lamp).toMatch(/dented/i);
+  });
+
+  it("keeps the pedlar's new lamps the same shape but obviously newer", () => {
+    // The whole trick in S12 depends on them reading as a better version of the
+    // same object, not as a different object.
+    expect(EP3_PROPS.newLamps).toMatch(/spout/i);
+    expect(EP3_PROPS.newLamps).toMatch(/polished|bright/i);
+    for (const id of ["ep3_s12a", "ep3_s12b"]) {
+      expect(EP3_SHOTS.find((s) => s.id === id)!.props, id).toContain("newLamps");
     }
   });
 });

@@ -46,7 +46,7 @@
 // narration in remotion/src/ep3/shots.ts, which throws if it does not close.
 // `weight` below is only a relative share of its own scene.
 
-import { EP3_CAST, STORYBOOK_STYLE } from "./originals";
+import { EP3_CAST, EP3_PROPS, STORYBOOK_STYLE } from "./originals";
 
 export type Ep3Shot = {
   /** `ep3_s01a`. Stable: it is the filename stem for the still and the clip. */
@@ -71,6 +71,14 @@ export type Ep3Shot = {
    * put one in.
    */
   cast?: string[];
+  /**
+   * Recurring props in frame, resolved against EP3_PROPS.
+   *
+   * Same idea as `cast` and for the same reason: the lamp came back as a
+   * Victorian glass hurricane lamp three times because a generator draws the
+   * most common lamp rather than the one this story is about.
+   */
+  props?: string[];
   /**
    * Dissolve INTO this shot instead of cutting. Opt-in, and only where the
    * script jumps in time. See the note at the top of this file.
@@ -319,6 +327,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "A hand enters the frame, hesitates, and lifts the lamp off the ledge. Dust lifts from where " +
       "it stood. The glow behind shifts as it is carried away.",
+    props: ["lamp"],
   },
 
   // --- S6 — The hand that will not reach (dialogue) -----------------------
@@ -465,6 +474,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
       "The cloth works back and forth on the brass and her shoulders move with it. She turns the " +
       "lamp over and starts again. Dust rises in the daylight.",
     cast: ["mother"],
+    props: ["lamp"],
   },
   {
     id: "ep3_s09c",
@@ -476,6 +486,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "The cloth passes over the brass and a bright patch grows. Dust turns in the light. On the " +
       "third pass the brass begins, very faintly, to glow from within.",
+    props: ["lamp"],
   },
 
   // --- S10 — The lamp jinni stoops (dialogue) -----------------------------
@@ -489,6 +500,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "Smoke pours from the lamp and boils upward, filling the room from the ceiling down. The " +
       "daylight from the door is swallowed. Fast at first, then slowing.",
+    props: ["lamp"],
   },
   {
     id: "ep3_s10b",
@@ -512,6 +524,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "Dust sifts down through the frame and settles on the brass. The shadow above swells and " +
       "shifts. The ceiling beams creak. The lamp itself does not move at all.",
+    props: ["lamp"],
   },
   {
     id: "ep3_s10d",
@@ -597,6 +610,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "Late light creeps slowly across the table and over the dented brass. Nobody comes. Nothing " +
       "else moves. A very slow push in.",
+    props: ["lamp"],
   },
 
   // --- S12 — New lamps for old (dialogue) ---------------------------------
@@ -611,6 +625,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
       "He walks; the basket rocks and the new lamps knock together and flash in the sun. The crowd " +
       "parts around him. The camera follows behind at his shoulder.",
     cast: ["magician"],
+    props: ["newLamps"],
   },
   {
     id: "ep3_s12b",
@@ -624,6 +639,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
       "He calls out, turning his head along the street. His mouth moves on the words. He lifts his " +
       "chin once and the face beneath the hood is unmistakable.",
     cast: ["magician"],
+    props: ["newLamps"],
   },
   {
     id: "ep3_s12c",
@@ -635,6 +651,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "A hand lifts one lamp and turns it slowly; the sun runs around its rim and flashes off it. " +
       "The others shift and settle in the basket.",
+    props: ["lamp", "newLamps"],
   },
   {
     id: "ep3_s12d",
@@ -646,6 +663,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "The hands turn the dented lamp over once, considering it. They lean out over the sill. The " +
       "basket of new lamps glints far below.",
+    props: ["lamp", "newLamps"],
   },
 
   // --- S13 — The empty square ---------------------------------------------
@@ -719,6 +737,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
       "She speaks low and he listens, then nods once. She glances toward a door. The lamp flame " +
       "between them wavers. Minimal camera drift.",
     cast: ["aladdin", "princess"],
+    props: ["lamp"],
   },
   {
     id: "ep3_s14c",
@@ -731,6 +750,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
       "He breathes slowly, deeply asleep. The lamp flame gutters. A shadow moves across the table " +
       "from off frame. He does not stir.",
     cast: ["magician"],
+    props: ["lamp"],
   },
   {
     id: "ep3_s14d",
@@ -742,6 +762,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "The hand crosses the table, slows, closes on the lamp, and lifts it clear without a sound. " +
       "The sleeping hand does not move.",
+    props: ["lamp"],
   },
 
   // --- S15 — The square is full again -------------------------------------
@@ -791,6 +812,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
       "He sets the lamp down, adjusts it a fraction, and lays the folded cloth beside it. He looks " +
       "at it for a moment. Then he turns away.",
     cast: ["aladdin"],
+    props: ["lamp"],
   },
   {
     id: "ep3_s16c",
@@ -802,6 +824,7 @@ export const EP3_SHOTS: Ep3Shot[] = [
     motion:
       "The hand withdraws out of frame. Dust turns in the light. Nothing else happens at all. A " +
       "very slow push in on the lamp.",
+    props: ["lamp"],
   },
 ];
 
@@ -824,5 +847,11 @@ export function shotPromptFor(shot: Ep3Shot): string {
     .map((key) => EP3_CAST[key])
     .filter(Boolean)
     .join(" ");
-  return [STORYBOOK_STYLE, shot.still, cast].filter(Boolean).join(" ");
+  // Props trail the cast for the same reason the cast trails the scene: they
+  // constrain how something in the frame is drawn rather than describe the shot.
+  const props = (shot.props ?? [])
+    .map((key) => EP3_PROPS[key])
+    .filter(Boolean)
+    .join(" ");
+  return [STORYBOOK_STYLE, shot.still, cast, props].filter(Boolean).join(" ");
 }

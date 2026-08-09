@@ -333,6 +333,37 @@ export const CHARACTER_SHEETS: Record<string, string> = {
 };
 
 /**
+ * RECURRING PROPS, locked the same way recurring characters are.
+ *
+ * A generator does not infer "the lamp" from context — it draws the most
+ * common lamp. Episode 3 got a Victorian glass hurricane lamp three separate
+ * times (s16 during the pilot, then s14c and s14d), each costing a
+ * regeneration, and the lamp is the object the entire story turns on. Fifteen
+ * of the sixty shots have it in frame.
+ *
+ * Characters had locks and props did not, which was an omission rather than a
+ * decision: an object that recurs across fifteen shots drifts exactly the way a
+ * face does, and is noticed just as fast. Described by SILHOUETTE first,
+ * because that is what distinguishes it from the thing the model wants to draw.
+ *
+ * The two lamps must also be told apart: the pedlar's basket in S12 is full of
+ * NEW lamps, and the whole trick turns on them looking obviously better than
+ * the dented one they are being swapped for.
+ */
+export const EP3_PROPS: Record<string, string> = {
+  lamp:
+    'THE LAMP is the same object in every shot: a small ANCIENT OIL LAMP shaped like a squat ' +
+    'teapot — a low rounded brass body, a long open spout at one side, a single loop handle at ' +
+    'the other, and a small domed lid. Dull, dented, tarnished and unpolished. NOT a lantern, ' +
+    'NOT a glass hurricane or chimney lamp, no glass anywhere, no wick visible, unlit unless ' +
+    'the scene says otherwise.',
+  newLamps:
+    'THE PEDLAR’S NEW LAMPS are the same shape as the old one — squat brass oil lamps with ' +
+    'spout, loop handle and domed lid — but bright, polished and unmarked, catching the light. ' +
+    'Obviously newer and finer than a dented one, which is the whole point of the trade.',
+};
+
+/**
  * Sheets that are SAFE TO ATTACH as an image reference, and those that are not.
  *
  * Attaching a sheet to the image generator pins costume and identity superbly —
