@@ -58,6 +58,14 @@ export type StoryShotInput = {
   /** Which way it drifts. Ignored when travel is 0. */
   pan?: "left" | "right" | "up" | "down" | "in";
   /**
+   * Figure height as a fraction of frame, from the shot size.
+   *
+   * A character framed the same in an establisher and a close-up is the thing
+   * that makes a rig read as a sticker rather than a performance. shotGrammar
+   * derives this from the size word Ting wrote.
+   */
+  figureHeight?: number;
+  /**
    * A rigged character standing in this shot, breathing and speaking.
    *
    * OPTIONAL BECAUSE MOST SHOTS DO NOT HAVE ONE. Episode 3 measured 34 of 60
@@ -168,6 +176,7 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
         <Character
           rig={CHARACTER_RIGS[shot.character.rig]}
           viseme={visemeAtFrame(cues, frame)}
+          heightRatio={shot.figureHeight}
         />
       ) : null}
 

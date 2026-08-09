@@ -46,6 +46,9 @@ export type CharacterProps = {
 export const Character: React.FC<CharacterProps> = ({
   rig,
   viseme,
+  // Undefined means "not specified", which must fall back rather than render a
+  // NaN-sized figure — a Story plan written before shotGrammar existed has no
+  // figureHeight on its shots.
   heightRatio = 0.62,
   centerRatio = 0.5,
   baselineRatio = 0.06,

@@ -38,6 +38,7 @@ import { renderMedia, selectComposition, openBrowser } from '@remotion/renderer'
 import { findChromium } from './findChromium.mjs';
 import { findBin } from './findFfmpeg.mjs';
 import { envelope, speechSpans } from './speech.mjs';
+import { framingFor, isMoving } from '../../src/lib/shotGrammar.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -271,6 +272,7 @@ if (offline) {
     const voice = process.env.STORY_VOICE ?? 'Charon';
     const ffmpeg = findBin('ffmpeg');
     const rendered = [];
+    let movingShots = 0;
     for (const [i, shot] of plan.shots.entries()) {
       // One call per shot, sequentially. Not a fan-out: the rate limit is per
       // call and a loop that ignores it is how a month of credits goes in an
@@ -281,6 +283,13 @@ if (offline) {
       const file = path.join(work, `shot${String(i).padStart(3, '0')}.png`);
       fs.writeFileSync(file, Buffer.from(still.data, 'base64'));
       console.log(`  still ${i + 1}/${plan.shots.length}`);
+
+      // The camera comes from what the SHOT IS, read off Ting's own size word,
+      // not from the shot's position in the film. `movingShots` counts only the
+      // shots that actually move, so two pans either side of a locked shot
+      // still go opposite ways.
+      const framing = framingFor(shot.still, movingShots);
+      if (isMoving(framing)) movingShots += 1;
 
       const voiced = await edge('story-voice', { text: shot.narration, voice });
       const wav = path.join(work, `shot${String(i).padStart(3, '0')}.wav`);
@@ -301,8 +310,9 @@ if (offline) {
         seconds,
         // Camera per shot rather than a house constant: measured across six ep3
         // clips it ran 0.0 to 19.2 percent, half of them locked off.
-        travel: i % 3 === 0 ? 0 : 0.03,
-        pan: i % 2 === 0 ? 'right' : 'left',
+        travel: framing.travel,
+        pan: framing.pan,
+        figureHeight: framing.figureHeight,
         // A character only where the plan says someone is on screen AND that
         // someone has a measured rig. An unmeasured character would need a
         // guessed mouth anchor, which looks like it works until the mouth opens
