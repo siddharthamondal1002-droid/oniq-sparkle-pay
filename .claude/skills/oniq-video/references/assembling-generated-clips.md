@@ -165,6 +165,50 @@ recompute → re-conform only the scene's clips → re-render → **update the r
 label in `lores.ts`**. That last one is easy to forget and ends up as a wrong
 number under a play button; ep3 went 6:51 → 6:54.
 
+## Lock wherever identity is LEGIBLE — not merely wherever a face is
+
+The instinct is to cast-lock the close-ups and leave the wides alone. That is
+wrong, and it cost a regeneration.
+
+Episode 3's `ep3_s01a` is a wide establishing shot with the boy small and far
+down a street. It was left uncast on the reasoning that a face that size cannot
+drift. It came back as a **six-year-old in a blue tunic**, cutting straight to
+the cream-and-teal fifteen-year-old of `s01b` on the same wall a second later.
+
+**Clothing reads at any distance.** A silhouette in the wrong colour is a
+continuity break just as surely as a wrong face. Leave a shot uncast only for
+hands, palms, a shoulder in the dark, an unreadable silhouette — and nothing
+else. On ep3, 26 of 60 shots carry a cast lock.
+
+### Recurring OBJECTS need locks too
+
+`EP3_PROPS` exists for the same reason `EP3_CAST` does, and was added for the
+same reason: the lamp came back as a different object each time — a lantern, a
+glass hurricane lamp, a chimney lamp — because "an old lamp" is not a
+description. The lock says what it IS and, just as usefully, what it is not:
+
+> a small ANCIENT OIL LAMP shaped like a squat teapot — a low rounded brass
+> body, a long open spout at one side, a single loop handle at the other, and a
+> small domed lid. Dull, dented, tarnished and unpolished. **NOT a lantern, NOT
+> a glass hurricane or chimney lamp, no glass anywhere, no wick visible.**
+
+15 of ep3's 60 shots carry a prop lock. Any object the story turns on — a lamp,
+a ring, a jar, a seal — needs one the moment it appears twice.
+
+### Character sheets: attach the 3D ones, never the 2D ones
+
+`CHARACTER_SHEETS` holds reference images to attach to a generation.
+`SHEET_SAFE_TO_ATTACH` gates which may actually be sent, and on ep3 exactly one
+of them qualifies.
+
+A reference sheet drawn in flat 2D **drags the whole generation toward flat 2D**,
+even when the style block asks for the house's rendered look. That was isolated
+across four measured shots. The sheet fixes the face and breaks the medium,
+which is a bad trade — the house style is the more expensive thing to lose.
+
+So: derive the allowlist rather than hand-maintaining it, keep the 2D sheets for
+human reference, and send only sheets already in the target medium.
+
 ## Narration stays the clock, and there is ONE trim site per scene
 
 Generate clips slightly long. Trim the **tail of the last clip in each scene**
@@ -425,6 +469,36 @@ frames  162-162   width  1   <- a hard cut
 Episode 3 verified this way: cuts at exactly 162 and 340, three dissolve bands
 of exactly 12 frames ending at 7758, 7952 and 8192. Beware single-frame bands
 with a delta near 0.2 — that is h264 noise on a static image, not an edit.
+
+**There are THREE ffmpeg builds on this box and only one can encode h264.**
+Picking wrong wastes a confusing ten minutes, because the failure does not
+mention codecs:
+
+| build | has | use for |
+| --- | --- | --- |
+| `@remotion/compositor-linux-x64-gnu/ffmpeg` | libx264, mp4, wav, crop, scale, atempo, silencedetect | **everything** |
+| `/opt/pw-browsers/ffmpeg-*/ffmpeg-linux` | Playwright's webm-recording build — **no libx264** | nothing here |
+| a system ffmpeg | usually absent in this container | — |
+
+Playwright's build fails with `Unrecognized option 'preset'`, which reads like a
+syntax error and is a missing encoder.
+
+**`ffmpeg` reads stdin, and will eat the file your loop is reading.** This:
+
+```bash
+while read -r id frames scene; do ffmpeg -i "$scene.jpg" ... "$id.mp4"; done < shots.txt
+```
+
+produces files called `01b.mp4` and `_s08a.mp4` and silently skips rows —
+ffmpeg consumes bytes from the same redirected stdin the loop is reading, so
+`read` gets partial lines. It looks exactly like a quoting bug and is not.
+**Always pass `-nostdin` in a loop.**
+
+**`npm install` works in `remotion/` directly.** The documented scratch-directory
+dance exists because `bun.lock` names a private mirror that 403s elsewhere — but
+npm ignores `bun.lock` entirely, so `npm install --registry=https://registry.npmjs.org
+--no-package-lock` in place installs all 253 packages in about 45 seconds and
+gives you the right compositor binary. Do not edit the lock.
 
 **RENDER WITH NODE, NOT BUN.** Under bun a clip-based render dies at frame 0
 with `Could not extract frame from compositor` and a 500 from the frame proxy —
