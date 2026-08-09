@@ -90,7 +90,12 @@ function LoresPage() {
       <div
         role="tablist"
         aria-label="Lores sections"
-        className="mt-4 flex gap-1 rounded-2xl border border-border bg-card/50 p-1"
+        // STICKY. The Stories panel is taller than a phone screen, so a tab
+        // strip that scrolls away leaves someone stranded in the studio with no
+        // visible route back to the Originals — reported from a real device as
+        // "tabs are not live", because from where the page had scrolled to,
+        // they were not.
+        className="sticky top-0 z-20 -mx-1 mt-4 flex gap-1 rounded-2xl border border-border bg-background/95 p-1 backdrop-blur"
       >
         {TABS.map((t) => (
           <button
