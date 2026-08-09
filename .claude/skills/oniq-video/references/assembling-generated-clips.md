@@ -316,6 +316,42 @@ abandoned). Every fix after the first render cost a full pass, because there is
 no partial re-render — budget for that rather than assuming the first render is
 the last.
 
+### What this pipeline does NOT cover yet
+
+Written down because "we can make video now" is an easy thing to believe after
+one episode ships, and three parts of it are not true.
+
+**It starts from TEXT, not from a supplied image or video.** Every still is
+generated from a prompt in `ep3Shots.ts`. Animating an image somebody hands you
+is the Runway path, and `video_jobs` still has **0 rows** — it has never run.
+There is no tested route from an uploaded attachment to a finished clip; the
+`starting_frame` work documented here always begins from a still this pipeline
+generated itself.
+
+**"Any duration" has two hard ceilings, both around a quarter of an hour**, from
+ep3's measured rates (~15 MB of finished video per minute, ~105 MB of raw clips
+per minute, 8.5 shots per minute):
+
+| limit | bites at |
+| --- | --- |
+| 250 MB presigned upload — the handoff route | **~16.5 min** of finished video |
+| 2 GB per GitHub release asset — the raw bundle | **~19.4 min** |
+| 2 GB per release asset — the conformed bundle | ~34 min |
+| render at 0.15x realtime, several passes | 30 min of video = **3.3 h per pass** |
+
+Past roughly a quarter of an hour the transfer routes need splitting into parts,
+and past that the render needs a bigger machine or an overnight budget. None of
+that is built. Below about a minute nothing is known either — the scene/narration
+machinery has never been run that small, and the promo path may simply be the
+better tool.
+
+**The scripts are episode-3 shaped, not generic.** `measure-ep3.mjs` and
+`measure-ep3-pauses.mjs` both hardcode `Array.from({ length: 16 })` and the
+`ep3_sNN` naming; `render-ep3.mjs` and `ingest-ep3-clips.mjs` hardcode
+`public/ep3`. A fourth episode with a different scene count means editing four
+scripts, not re-running them. Parameterising on an `EPISODE` env var — the way
+`build-bed-envelope.mjs` already does — is the obvious fix and has not been done.
+
 ### Still open on Episode 3
 
 Recorded so nobody assumes the episode is finished business:
