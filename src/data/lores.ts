@@ -9,6 +9,7 @@ import fireflyAsset from "@/assets/lores-firefly-forest.mp4.asset.json";
 import promoAsset from "@/assets/oniq-promo.mp4.asset.json";
 import ep1Asset from "@/assets/oniq-ep1.mp4.asset.json";
 import ep2Asset from "@/assets/oniq-ep2.mp4.asset.json";
+import ep3Asset from "@/assets/oniq-ep3.mp4.asset.json";
 
 // PROVENANCE. Recorded here because both clips were produced OUTSIDE this repo
 // and neither went through the guarded Runway pipeline in runwayOps.server.ts
