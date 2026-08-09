@@ -1,3 +1,36 @@
 project_id = "bqwttemnnoexadpwifcj"
 [functions.check-user-exists]
 verify_jwt = false
+
+# The Story functions authenticate themselves, so the platform gate is off.
+#
+# THIS IS NOT A RELAXATION. Every one of them refuses an unauthenticated caller
+# in its own first lines; the gateway check is turned off because the callers
+# are not users and cannot present a user JWT for it to check:
+#
+#   story-callback  the runner holds an HMAC capability token naming ONE job for
+#                   ONE hour, verified with a constant-time compare before the
+#                   service role is used on its behalf. It has no Supabase key,
+#                   so there is no JWT for the gateway to inspect.
+#   story-dispatch  called by pg_cron with the service-role key, which it
+#                   compares itself. A service key is not a user JWT either.
+#   story-plot      each checks Authorization against /auth/v1/user for a real
+#   story-still     person, OR accepts x-story-job-token from the runner. Both
+#   story-voice     branches are in requireAuth(); neither is skippable.
+#
+# Leaving verify_jwt on here would not add a check — it would break the runner
+# and leave the user path exactly as guarded as it already is.
+[functions.story-callback]
+verify_jwt = false
+
+[functions.story-dispatch]
+verify_jwt = false
+
+[functions.story-plot]
+verify_jwt = false
+
+[functions.story-still]
+verify_jwt = false
+
+[functions.story-voice]
+verify_jwt = false
