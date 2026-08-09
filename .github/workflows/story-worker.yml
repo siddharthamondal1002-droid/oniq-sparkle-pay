@@ -23,12 +23,24 @@ name: story worker
 # a Story waits up to ten minutes to start, then takes about 3.3 minutes per
 # minute of finished video (0.305x realtime, measured on four cores).
 #
+# TWO WAYS IN. A repository_dispatch from story-dispatch carries a job id and a
+# per-job token, and the runner needs no Supabase credential at all. The cron
+# and manual paths still poll with a service key, and exist for operating the
+# thing by hand. Prefer dispatch; the polling path is the fallback.
+#
 # IT IS SAFE TO RUN WITH THE FEATURE OFF. `story_config.enabled` gates whether a
 # user can create a job at all. With it false there is nothing queued, the
 # worker prints "nothing queued" and exits 0. That is the intended state until
 # a real per-Story cost has been measured.
 
 on:
+  # Supabase reaches OUT to us. story-dispatch finds a queued job and sends
+  # this event with the job id and a capability token scoped to that one job
+  # for an hour. That is the whole reason this repository holds no Supabase
+  # key: the runner is handed a receipt, not the keys to the database.
+  repository_dispatch:
+    types: [story-job]
+
   schedule:
     # Every ten minutes. GitHub's cron is best-effort and skews under load;
     # nothing here assumes it is punctual.
@@ -95,6 +107,11 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           STORY_VOICE: ${{ inputs.voice || 'Charon' }}
+          # Present only on a repository_dispatch. The worker prefers these and
+          # talks to story-callback with the token; with neither set it falls
+          # back to the service-key path, which is what a manual dispatch uses.
+          STORY_JOB_ID: ${{ github.event.client_payload.job_id }}
+          STORY_JOB_TOKEN: ${{ github.event.client_payload.token }}
           # Two encoders' worth of parallelism on a two-core runner. The
           # bottleneck measured as one ffmpeg encoder rather than the browser,
           # so more than this buys nothing.
