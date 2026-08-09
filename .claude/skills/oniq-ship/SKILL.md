@@ -110,6 +110,23 @@ presigned URL on `storage.googleapis.com`, which the proxy permits.
 Before telling anyone something cannot be done, re-read the step you are on.
 Enumerating failures feels like diligence and is not the same as searching.
 
+## A green workflow is not a correct artifact
+
+CI going green says the steps exited zero. It says nothing about whether what
+they produced is right.
+
+The ep3 clip transfer succeeded in 23 minutes and looked finished. What actually
+confirmed it was downloading the published bundle, rejoining the parts,
+verifying 60 of 60 checksums, and probing every clip against the CURRENT shot
+plan — 0 mismatches, with the one clip that had exposed the earlier staleness
+now at its correct frame count. The run before it was ALSO a valid workflow; it
+failed because the artifact was wrong, which is the whole point.
+
+So when a job publishes something, verify the something. Download it, open it,
+and check it against the source of truth it is supposed to match. Three checks
+were worth the two minutes here: the bundle rejoins, the checksums hold, and the
+contents agree with the repo at HEAD.
+
 ## Proving it landed
 
 Three separate things, and none implies the next:

@@ -237,6 +237,42 @@ where the real one picks up.
 
 ---
 
+## Never cache a derived artifact. Derive it.
+
+A conformed clip is not a thing. It is a FUNCTION of two things: a raw
+generation, and a frame count from the shot plan. Both of those move.
+
+Episode 3 cached the result anyway, as CDN pointers next to the raw ones. Then
+the cuts were snapped onto the narration (50 clips re-conformed) and the coda
+was slowed (3 more), all of it locally, and none of it re-uploaded. For several
+hours **main's clip pointers described one edit while main's shot plan described
+another**, across both agents' commits, and a fresh clone could not have rebuilt
+the episode. Nothing failed. Nothing looked wrong. The render worked, because it
+only checks that clips EXIST.
+
+It surfaced only when the transfer workflow was run — not read — and the ingest
+guard rejected the download: `ep3_s01b downloaded but is wrong: is 178 frames,
+not 191`.
+
+**The fix is not "remember to re-upload".** That is the same trap with a
+reminder attached. The fix is that the transfer workflow now fetches the RAWS
+and conforms from them. Raws are inputs: immutable, never re-cut, always valid.
+Conforming is deterministic from them plus the committed shot plan. Deriving is
+correct always, where caching was correct only until someone re-cut.
+
+**It costs, and the cost is worth naming.** The transfer went from ~4 minutes to
+**23** — about 21 of those re-encoding 60 clips on a 2-core runner, against a
+45-minute job timeout. Fine for a seven-minute episode and linear in length. If
+it ever approaches the timeout, drop the transfer bundle to a faster x264 preset
+before giving up and re-caching: the bundle is a cache whose only correctness
+requirements are frame count, dimensions and frame rate, not byte-identity with
+a local conform.
+
+Generalise it: if X is computed from Y and Z, either recompute X on demand, or
+make X carry enough of Y and Z to fail loudly when they move. The frame-count
+check in `faults()` is the second kind, and it is the only reason this was
+caught rather than shipped.
+
 ## A derived number that quietly stops being derived
 
 `TRANSITION` is not a free knob and it does not live alone. Changing it moves
