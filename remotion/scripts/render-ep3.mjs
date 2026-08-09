@@ -50,12 +50,23 @@ const { EP3_SHOT_PLAN } = await import('../src/ep3/shots.ts');
 
 const missingAudio = EP3_SCENES.filter((s) => !fs.existsSync(path.join(NARRATION, `${s.id}.mp3`)));
 const missingClips = EP3_SHOT_PLAN.filter((s) => !fs.existsSync(path.join(CLIPS, `${s.id}.mp4`)));
+// A clip missing LOCALLY but present on the CDN is one command away, not a
+// regeneration. The conformed mp4s are gitignored, so a fresh checkout — or a
+// sandbox that lost its working files — has every pointer and no video at all,
+// which looks alarming and is trivial to fix.
+const fetchable = missingClips.filter((s) =>
+  fs.existsSync(path.join(CLIPS, `${s.id}.mp4.asset.json`)),
+);
 if (missingAudio.length > 0 || missingClips.length > 0) {
   throw new Error(
     [
       missingAudio.length > 0 ? `missing narration: ${missingAudio.map((s) => s.id).join(', ')}` : '',
       missingClips.length > 0
         ? `missing ${missingClips.length} clips: ${missingClips.map((s) => s.id).join(', ')}`
+        : '',
+      fetchable.length > 0
+        ? `${fetchable.length} of them are already on the CDN — recover with:\n` +
+          `      bun scripts/ingest-ep3-clips.mjs --fetch`
         : '',
       'run scripts/ingest-ep3-clips.mjs --check to see what is wrong with the ones that do exist',
     ]
