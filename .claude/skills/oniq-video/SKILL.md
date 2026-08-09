@@ -12,7 +12,7 @@ one wastes an afternoon, so establish which job you are doing first.
 | ------------------------------------ | -------------------------- | ------------------------------------------------ |
 | Promo / trailer / motion graphics    | **Remotion**               | Works. Produced the shipped promo.               |
 | Full episode from stills + narration | **Remotion**               | Works. Produced Episodes 1 and 2.                |
-| Full episode from MOVING video       | **Veo stills→clips + Remotion** | Works. Produced Episode 3 — 60 clips, 6:51. `references/assembling-generated-clips.md` |
+| Full episode from MOVING video       | **Veo stills→clips + Remotion** | Works. Produced Episode 3 — 60 clips, 6:54. `references/assembling-generated-clips.md` |
 | Real MOVING video                    | **Veo 3.1 via Lovable**    | Works, 10s max. See `references/video-generation.md` |
 | Animate one illustrated still        | **Runway** image-to-video  | Built, admin-gated, **never yet run** (0 jobs)   |
 | Episode assembly via the job queue   | `episode_jobs`             | **Queues only — still no worker. Do not use.**   |
@@ -43,9 +43,11 @@ Do not assume the shipped clips came from the pipelines. They did not.
     from inputs ONIQ owns, produced entirely outside this repo.
   - `oniq-ep3.mp4` — the first episode made of MOVING video. 60 Veo 3.1 clips
     generated image-to-video from 60 stills, cut together in Remotion over the
-    same narration-as-clock timeline as ep1/ep2. 12,321 frames, 410.73s (6:51),
-    103,903,131 bytes. Rendered in this container, handed to Lovable through a
-    presigned upload, published 2026-08-09.
+    same narration-as-clock timeline as ep1/ep2. 12,422 frames, 414.08s (6:54).
+    Rendered in this container, handed to Lovable through a presigned upload,
+    first published 2026-08-09 and re-cut twice the same day. The byte count
+    lives in the `.asset.json` and changes with every re-render — match on THAT
+    when confirming a publish, never on the filename.
 
 ### There is a third path, and it has no guards
 

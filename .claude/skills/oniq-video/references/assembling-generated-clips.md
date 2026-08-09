@@ -88,18 +88,82 @@ Four things that are easy to get wrong here:
   cut as much as a third of a five-second shot — winning the metric by rewriting
   the pacing the shot list intended.
 
-Two related faults the same measurement pass turned up in ep3, both still open
-and both worth checking on any episode:
+Two related faults the same measurement pass turned up in ep3. Both are fixed
+now, and both are worth checking on any episode, because neither shows in a
+still frame and neither is obvious on a first listen:
 
 - **Speech overlapping speech at scene joins.** Narration sits inside each
   scene's Sequence and consecutive Sequences overlap by `TRANSITION_FRAMES`.
   Where the outgoing tail silence plus the incoming head silence is under the
   transition length, both voices play at once — 5 of 15 joins in ep3, up to
-  0.13s. Measure head/tail silence per mp3 against `TRANSITION`.
-- **Delivery rate that runs the wrong way.** ep3 averages 143 wpm against a 140
-  target, but ranges 109 to 178 — and the fastest scene in the episode is the
-  coda. Check per-scene wpm, not just the total; a story that accelerates into
-  its ending reads as rushed no matter how good the total is.
+  0.13s. Measure head/tail silence per mp3 against `TRANSITION`; halving
+  `TRANSITION` to 0.25s cleared all fifteen.
+
+  **Measure the OVERLAP WINDOW, not "the longest silence near the join".** Two
+  wrong statistics were tried first. Comparing the contiguous audible gap
+  against the overlap duration is not the test — double-talk is avoided when
+  tail silence PLUS head silence covers the overlap, their union, whereas the
+  audible gap is their intersection and is necessarily shorter. And "longest
+  silence in a 2s window around the join" is often dominated by an unrelated
+  pause inside the scene, which made one join look like it had got worse. The
+  test that answers the question is: sample the envelope across exactly
+  `[scene B start, scene B start + TRANSITION]` and ask whether any instant is
+  silent. Before: two joins had ZERO silent milliseconds across 500ms. After:
+  all five had 120–150ms of silence inside a 267ms window.
+- **Delivery rate that runs the wrong way.** ep3 averaged 143 wpm against a 140
+  target — fine — while ranging 109 to 178, with the fastest scene in the film
+  being the coda. Check PER SCENE, never the total. The method and the fix are
+  below.
+
+## Words per minute is two measurements wearing one number
+
+Never act on wpm directly. It moves for three unrelated reasons and each wants a
+different fix:
+
+1. **How fast the voice articulates** — measure words (or better, syllables) per
+   second of SPEECH, with pause time subtracted.
+2. **How much it pauses** — pause count per hundred words, and pause share of
+   the scene.
+3. **How long the words are** — syllables per word. This is the one that makes
+   wpm lie, and checking it first is what stops you "fixing" a scene that is
+   fine.
+
+On ep3's coda all three were measured before anything was touched. Articulation
+was 5.22 syllables per second of speech against an episode mean of 4.41 — 18%
+fast, the fastest scene in the film. Pause density was the lowest of any scene,
+12.7 per hundred words against a mean of 21. And syllables per word was 1.29,
+**exactly the episode mean** — so the voice really was going faster rather than
+merely covering more short words. Had that last number come back high, slowing
+the scene would have made the ending draggy for no reason at all.
+
+**The fix, when it is genuinely speed:**
+
+```
+ffmpeg -i scene.mp3 -filter:a "atempo=<mean rate / measured rate>" \
+       -c:a libmp3lame -b:a 64k -ar 24000 -ac 1 out.mp3
+```
+
+Re-encode to the SOURCE format. A first pass that promoted 24 kHz / 64 kbps to
+44.1 kHz / 128 kbps made the file larger and the episode inconsistent for no
+gain.
+
+`atempo` is a time-stretch, not a re-performance. It cannot add the breath a
+slower reading would have, and nobody measuring it can hear whether WSOLA left
+artefacts on the sibilants. **Regenerating the narration at a slower speaking
+rate is the higher-fidelity fix and lands in exactly the same place** — every
+downstream number re-derives from the mp3, so swapping it later costs one render
+and nothing else. Say which one you did.
+
+**Verify in the RENDERED file, not the mp3.** Extract the scene's span from the
+finished episode and measure it there. ep3's coda went 5.58 → 4.57 syllables per
+second against a 4.41 mean, measured that way. Checking only the source mp3
+would not have caught a mounting or trimming mistake.
+
+**Everything downstream re-derives, so do it in order:** re-measure durations →
+update the manifest → regenerate the pause table → let the shot split
+recompute → re-conform only the scene's clips → re-render → **update the runtime
+label in `lores.ts`**. That last one is easy to forget and ends up as a wrong
+number under a play button; ep3 went 6:51 → 6:54.
 
 ## Narration stays the clock, and there is ONE trim site per scene
 
@@ -128,6 +192,29 @@ zero translate) at the seam, so the artificial camera comes to rest exactly
 where the real one picks up.
 
 ---
+
+## A derived number that quietly stops being derived
+
+`TRANSITION` is not a free knob and it does not live alone. Changing it moves
+four things, and on ep3 each one caught somebody out:
+
+1. **The episode duration**, so `verify-episode.mjs --expect` needs the new
+   value. Checking against the old one reads as an alarming 3.5s drift and
+   stops a publish for no reason.
+2. **The half-render split point**, which must stay on a scene boundary — ep3's
+   moved from frame 6184 to 6135.
+3. **The runtime label** in `lores.ts`, which is a user-visible string.
+4. **Anything that hardcoded the old value.** `measure-ep3.mjs` had
+   `Math.round(0.5 * FPS)` written into it, so once `TRANSITION` became 0.25 it
+   reported an episode **105 frames shorter than the one that renders** —
+   12,317 where the truth was 12,422. It now parses `TRANSITION` out of the
+   manifest with a regex, because the script is node and the manifest is
+   TypeScript.
+
+That fourth one is the general lesson, and it is worth more than the specific
+bug: a number that was derived once and then frozen as a literal is worse than
+no number, because it keeps looking authoritative after it stops being true.
+Grep for the old value before changing a constant that other files quote.
 
 ## The four mechanical traps, all invisible until playback
 
@@ -165,33 +252,35 @@ minute of runner time to save nothing.
 
 ## Getting a FINISHED episode back the other way
 
-The obvious routes are all closed and it is easy to conclude, wrongly, that
-there is no route at all:
+**This is step 10 of `making-an-episode.md` and it was already written down.**
+It is repeated here with the measured numbers because on the ep3 build it was
+not read, and the cost of not reading it was telling the project owner the file
+could not be handed over and asking Lovable to re-render forty minutes of work
+that was already sitting on disk.
+
+Three routes ARE closed, and finding three closed doors is what made "there is
+no route" feel like a conclusion rather than a guess:
 
 - the CDN 403s from the dev container,
-- GitHub **release-asset upload is refused for this session type** even though
+- GitHub **release-asset upload is refused for this session type**, even though
   `git push` works and the release API reads fine,
 - and a ~100 MB mp4 must not go into git, which is the whole reason the pointer
   architecture exists.
 
-**The route that works is Lovable's own presigned upload URL.**
-`mcp__Lovable__get_file_upload_url` returns a URL on `storage.googleapis.com` —
-a different host from `*.lovable.app`, and one the proxy permits. `PUT` the file
-with the three signed headers it hands back, then pass the returned `file_id` in
-the `files` array of `send_message`.
+**The route that works:** `mcp__Lovable__get_file_upload_url` returns a presigned
+URL on `storage.googleapis.com` — a different host from `*.lovable.app`, and one
+the proxy permits. `PUT` the file with the three signed headers it returns, then
+pass the `file_id` in the `files` array of `send_message`.
 
-Measured: 103,903,131 bytes, HTTP 200, **6.8 seconds**. The limit is in the
-returned `x-goog-content-length-range` header — 250 MB, comfortably more than an
-episode.
+Measured: 104,714,510 bytes, HTTP 200, under seven seconds, against a 250 MB
+limit in the returned `x-goog-content-length-range`.
 
-This collapses the whole "ask the other machine to re-render what you already
-rendered" round trip, which cost roughly forty minutes a turn before anyone
-thought to look for it. **Check this route BEFORE asking another agent to
-rebuild an artifact you are holding.**
+Two lessons, and the second is the one that actually cost time:
 
-Do all four in **one ingest script** that also probes each clip and can re-check
-measured length against the manifest — the same `--check` shape that catches a
-stale bed length today.
+1. Check this route BEFORE asking another machine to rebuild an artifact you are
+   holding.
+2. **Re-read the runbook step you are on before declaring it impossible.** The
+   answer was in step 10 the whole time.
 
 ## Budget, so nobody starts blind
 
@@ -211,18 +300,21 @@ Plan against these rather than the estimates above; they are measured.
 | | |
 | --- | --- |
 | Narration | 414.7s across 16 scenes, 986 words, 143 wpm |
-| Shots | 60, for 6:51 of finished film |
+| Shots | 60, for 6:54 of finished film |
 | Generations | 60 stills + 60 clips, sequential |
 | Conformed clips | 428 MB (7.1 MB average) |
 | Raw generations | 970 MB (~12.4 MB each, 10.0417s at 24fps = 301 frames conformed) |
-| Finished file | 12,321 frames, 410.73s, 99 MB at crf 28 (~2.0 Mbps) |
+| Finished file | 12,422 frames, 414.08s, 100 MB at crf 28 (~2.0 Mbps) |
 | Render, 4 cores | ~4.5 fps → ~45 min for a full pass |
 | Render, 64 cores | ~5 fps single process; ~5 fps EACH for two parallel halves |
 
 The render figure is the surprising one and it is worth internalising: a 4-core
 box and a 64-core box render this at the same speed, because the bottleneck is
 one ffmpeg encoder. Plan on ~45 minutes per pass and on needing several passes —
-the ep3 build did four (control, re-cut, transition fix, plus one abandoned).
+the ep3 build did five (control, re-cut, transition fix, coda fix, plus one
+abandoned). Every fix after the first render cost a full pass, because there is
+no partial re-render — budget for that rather than assuming the first render is
+the last.
 
 ### Still open on Episode 3
 
@@ -231,10 +323,11 @@ Recorded so nobody assumes the episode is finished business:
 - **No music bed.** `audioDuck.ts` is already episode-agnostic; generate
   `public/ep3/bed.mp3`, export `BED_SECONDS`/`BED_LOOP_FRAMES` from the
   manifest, run `EPISODE=ep3 node scripts/build-bed-envelope.mjs`.
-- **Delivery rate runs the wrong way.** 143 wpm average, 109 to 178 range, with
-  the coda the fastest scene in the film. Needs regenerated narration, which
-  changes scene durations and re-opens the whole allocation — so it is a
-  separate job, not a tweak.
+- **s01, the opening, is still fast.** 5.20 syllables per second against a mean
+  of 4.41 — effectively tied with what the coda was before it was corrected. The
+  film's two bookends were its two fastest scenes; only the ending has been
+  fixed. Same one-line `atempo` change if anyone wants the opening to settle
+  too.
 - **Style outliers, from a contact-sheet review of all 60 shots.** s08b (ring
   jinni reads as flat gold filigree), s10b (lamp jinni reads as illustration,
   coolest palette in the film), the wide city mattes s11c/s11f/s12a/s12d/s15a/

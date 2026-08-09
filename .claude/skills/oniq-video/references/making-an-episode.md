@@ -278,7 +278,13 @@ biggest time sink of the Episode 3 build, so do not re-derive it:
 conformed clips. The raws are the only copy of the frames a re-cut needs, and
 the box that made them recycles.
 
-**Check the delivery rate per scene, not just the total.** Episode 3 averages
-143 wpm against a 140 target and looks fine on that number, while ranging 109 to
-178 — with the coda the fastest scene in the film. A story that accelerates into
-its ending reads as rushed no matter how good the average is.
+**Check the delivery rate per scene, not just the total.** Episode 3 averaged
+143 wpm against a 140 target and looked fine on that number, while ranging 109
+to 178 — with the coda the fastest scene in the film. A story that accelerates
+into its ending reads as rushed no matter how good the average is.
+
+Do not act on wpm directly: it moves for three unrelated reasons and one of them
+makes it lie. `assembling-generated-clips.md` has the method under "Words per
+minute is two measurements wearing one number", the `atempo` fix, and the order
+the downstream re-derivations have to happen in — ending with the runtime label
+in `lores.ts`, which is the step everyone forgets.
