@@ -163,6 +163,32 @@ checksums clean.
 Do not gzip the raws — 970 MB of h264 does not compress and squeezing it costs a
 minute of runner time to save nothing.
 
+## Getting a FINISHED episode back the other way
+
+The obvious routes are all closed and it is easy to conclude, wrongly, that
+there is no route at all:
+
+- the CDN 403s from the dev container,
+- GitHub **release-asset upload is refused for this session type** even though
+  `git push` works and the release API reads fine,
+- and a ~100 MB mp4 must not go into git, which is the whole reason the pointer
+  architecture exists.
+
+**The route that works is Lovable's own presigned upload URL.**
+`mcp__Lovable__get_file_upload_url` returns a URL on `storage.googleapis.com` —
+a different host from `*.lovable.app`, and one the proxy permits. `PUT` the file
+with the three signed headers it hands back, then pass the returned `file_id` in
+the `files` array of `send_message`.
+
+Measured: 103,903,131 bytes, HTTP 200, **6.8 seconds**. The limit is in the
+returned `x-goog-content-length-range` header — 250 MB, comfortably more than an
+episode.
+
+This collapses the whole "ask the other machine to re-render what you already
+rendered" round trip, which cost roughly forty minutes a turn before anyone
+thought to look for it. **Check this route BEFORE asking another agent to
+rebuild an artifact you are holding.**
+
 Do all four in **one ingest script** that also probes each clip and can re-check
 measured length against the manifest — the same `--check` shape that catches a
 stale bed length today.
