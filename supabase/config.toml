@@ -34,3 +34,9 @@ verify_jwt = false
 
 [functions.story-voice]
 verify_jwt = false
+
+# story-deliver is DELIBERATELY ABSENT from this list. Its caller is a signed-in
+# person asking for their own film, so it has a real user JWT to present and the
+# platform gate should check it. The function then re-derives the user from that
+# token and refuses unless the job's user_id matches — a job id is a uuid, not a
+# secret, and one check is not two.
