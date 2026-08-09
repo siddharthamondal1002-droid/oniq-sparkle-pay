@@ -43,10 +43,22 @@ for the command output and read it yourself.
 
 ## Working with the Lovable agent
 
-- **`send_message` times out at 60s client-side, but the message is queued and
-  will run.** Do not resend — you will double-spend credits and can get two
-  agents editing at once. Poll `list_messages` with `limit: 1` and look at
-  `status`: `accepted` means queued, `completed` means it answered.
+- **`send_message` times out at 60s client-side, but the message is queued.**
+  Do not resend — you will double-spend credits and can get two agents editing
+  at once. Poll `list_messages` with `limit: 1` and look at `status`:
+  `accepted` means queued, `completed` means it answered.
+- **`accepted` is not a promise that it will ever run.** A queued message can be
+  DROPPED. One carrying a 99 MB attachment sat at queue position 1, then
+  `get_message` returned **404** for it — an unrelated `Error: aborted /
+  has_blank_screen` report had arrived and interrupted the turn, and both agent
+  turns ended `stopped` rather than `completed`. The work was silently lost.
+  So: a queued message is a request, not a delivery. Confirm by the ARTIFACT
+  changing, never by the queue accepting. If a turn ends `stopped`, assume
+  anything queued behind it may be gone and re-send.
+- **A long message is more fragile than a short one.** After the drop, a
+  three-step message — verify, upload, reply with the pointer — survived where
+  the previous instruction-heavy one had not. Put the ask first and the
+  reasoning after, so an interrupted read still contains the job.
 - `list_messages` without a limit returns ~100k characters and blows the tool
   budget. Always pass `limit`.
 - Its commits land on `main` as `Changes` or `Work in progress` — you will need
@@ -59,6 +71,44 @@ for the command output and read it yourself.
   that was caught.
 - It can generate images and TTS; this container cannot. It has a full ffmpeg;
   this container has a cut-down one. Split work along those lines.
+
+## Handing a file over is four steps, not one
+
+When the artifact is produced on one machine and published from another, there
+are four states and each was mistaken for the next at least once on the ep3
+build:
+
+1. **Uploaded** — the presigned `PUT` returned 200. This proves bytes reached a
+   storage bucket and nothing else.
+2. **Delivered** — the other agent has actually read the message carrying it.
+   `accepted` does not mean this, and see above for how it can never happen.
+3. **Published** — the pointer in the repo names the new asset.
+4. **Live** — the deployed build serves it.
+
+"The finished episode is now in their hands" was said at state 1. It was at
+state 2 and then fell out of the queue entirely. Name the state you are in.
+
+**Match on the byte count, never the filename.** By the end of ep3 there were
+three finished files — 102,898,571, 103,903,131 and 104,714,510 — all called
+some variant of `ep3.mp4`, all valid, only one correct. The count in the
+`.asset.json` is the identity check, and it is the thing to quote when asking
+someone else to confirm a publish.
+
+## Three closed doors is not proof the room has no exit
+
+Handing the finished episode over looked impossible: the CDN 403s from the dev
+container, GitHub release-asset upload is refused for this session type, and a
+100 MB mp4 must not enter git. All three are true. From them came the conclusion
+that no route existed, a message to the project owner saying so, and a request
+that another agent spend forty minutes re-rendering a file already sitting on
+disk.
+
+The route was documented — step 10 of `oniq-video/references/making-an-episode.md`,
+in the runbook being followed at the time. `get_file_upload_url` returns a
+presigned URL on `storage.googleapis.com`, which the proxy permits.
+
+Before telling anyone something cannot be done, re-read the step you are on.
+Enumerating failures feels like diligence and is not the same as searching.
 
 ## Proving it landed
 
