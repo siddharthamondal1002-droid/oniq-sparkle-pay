@@ -1,0 +1,1 @@
+update public.story_config set enabled = false, updated_at = now() where id = true;
