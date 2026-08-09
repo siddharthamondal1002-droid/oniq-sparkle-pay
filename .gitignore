@@ -16,6 +16,12 @@ dist-ssr
 .nitro
 *.local
 
+# Rendered episodes and promos. render-ep1/ep2/ep3.mjs default their OUT here,
+# and a finished episode is ~100 MB against a repo that rejects any file over
+# 10 MB. Video reaches production as a CDN asset with a committed pointer — see
+# remotion/scripts/ingest-ep3-clips.mjs — never as a blob in git.
+.tmp/
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
