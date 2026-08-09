@@ -65,6 +65,15 @@ export const AI_SURFACES = [
     file: "src/routes/_authenticated/app.lores.tsx",
   },
   {
+    // The Stories tab under Lores. A user's OWN prompt drives this one, which
+    // makes the label more necessary rather than less: the output is generated
+    // whoever wrote the prompt, and a video someone made themselves is exactly
+    // the one they are most likely to pass off as filmed.
+    id: "stories_ai_output",
+    screen: "Lores — Stories studio",
+    file: "src/components/stories/StoryStudio.tsx",
+  },
+  {
     id: "runway_admin_output",
     screen: "Admin — Runway video tool (internal)",
     file: "src/routes/_authenticated/app.admin.video.tsx",

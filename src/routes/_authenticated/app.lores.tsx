@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Play, Clapperboard } from "lucide-react";
 import { LORE_COLLECTIONS, type LoreVideo } from "@/data/lores";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
+import { StoryStudio } from "@/components/stories/StoryStudio";
 
 export const Route = createFileRoute("/_authenticated/app/lores")({
   head: () => ({
@@ -67,7 +68,17 @@ function LoreCard({ v }: { v: LoreVideo }) {
   );
 }
 
+const TABS = [
+  { id: "originals", label: "Originals" },
+  { id: "stories", label: "Make a Story" },
+] as const;
+
+type TabId = (typeof TABS)[number]["id"];
+
 function LoresPage() {
+  // Hook above every return, always. rules-of-hooks is a release blocker here.
+  const [tab, setTab] = useState<TabId>("originals");
+
   return (
     <div className="mx-auto w-full max-w-md px-4 pb-28 pt-6">
       <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-primary/80">
@@ -76,30 +87,67 @@ function LoresPage() {
       <h1 className="mt-1 font-display text-2xl font-bold text-foreground">Lores 🎬</h1>
       <p className="mt-1 text-xs text-muted-foreground">stories made in-house — no cap, all ours</p>
 
-      {/* Every clip here is generated, so the whole SCREEN is a generative
-          surface rather than one output inside it — hence the label at the top
-          rather than per card. Play's AI-Generated Content policy requires the
-          label AND an in-app way to report it; see AI_SURFACES in
-          config/playCompliance.ts. */}
-      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-400/40 bg-amber-400/10 px-3 py-2">
-        <span className="text-[11px] font-semibold text-amber-300">
-          AI-generated video 🤖 — {AI_OUTPUT_LABEL}
-        </span>
-        <AiOutputReport surface="lores_ai_output" targetId="lores-hub" />
+      <div
+        role="tablist"
+        aria-label="Lores sections"
+        className="mt-4 flex gap-1 rounded-2xl border border-border bg-card/50 p-1"
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`lores-tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`lores-panel-${t.id}`}
+            onClick={() => setTab(t.id)}
+            className={
+              "flex-1 rounded-xl px-3 py-2 text-xs font-semibold transition-colors " +
+              (tab === t.id ? "bg-primary text-primary-foreground" : "text-muted-foreground")
+            }
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {LORE_COLLECTIONS.map((c) => (
-        <section key={c.name} className="mt-6">
-          <h2 className="mb-2 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {c.name}
-          </h2>
-          <div className="grid gap-3">
-            {c.videos.map((v) => (
-              <LoreCard key={v.id} v={v} />
-            ))}
+      {/* Each tab is its OWN generative surface with its own label and its own
+          report control, rather than one banner covering both. They are
+          different content from different authors — the Originals are ONIQ's,
+          a Story is the user's — and a single shared label would attach the
+          wrong provenance to whichever one you happened to be looking at. */}
+      {tab === "originals" ? (
+        <div role="tabpanel" id="lores-panel-originals" aria-labelledby="lores-tab-originals">
+          {/* Every clip here is generated, so the whole PANEL is a generative
+              surface rather than one output inside it — hence the label at the
+              top rather than per card. Play's AI-Generated Content policy
+              requires the label AND an in-app way to report it; see AI_SURFACES
+              in config/playCompliance.ts. */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-amber-400/40 bg-amber-400/10 px-3 py-2">
+            <span className="text-[11px] font-semibold text-amber-300">
+              AI-generated video 🤖 — {AI_OUTPUT_LABEL}
+            </span>
+            <AiOutputReport surface="lores_ai_output" targetId="lores-hub" />
           </div>
-        </section>
-      ))}
+
+          {LORE_COLLECTIONS.map((c) => (
+            <section key={c.name} className="mt-6">
+              <h2 className="mb-2 px-0.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {c.name}
+              </h2>
+              <div className="grid gap-3">
+                {c.videos.map((v) => (
+                  <LoreCard key={v.id} v={v} />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div role="tabpanel" id="lores-panel-stories" aria-labelledby="lores-tab-stories">
+          <StoryStudio />
+        </div>
+      )}
     </div>
   );
 }

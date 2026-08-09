@@ -25,6 +25,8 @@ export type AiSurface =
   | "ting_ai_output"
   /** Lores — the Originals hub. Every clip is Runway-generated from a still. */
   | "lores_ai_output"
+  /** Lores — the Stories studio, where the prompt is the USER's. */
+  | "stories_ai_output"
   /** The internal Runway tool. An admin screen still generates AI content. */
   | "runway_admin_output";
 
