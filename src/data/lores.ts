@@ -91,6 +91,7 @@ const STANDALONE: LoreVideo[] = [
 const RENDERED: Record<string, { url: string; runtime: string }> = {
   ep1: { url: ep1Asset.url, runtime: "4:47" },
   ep2: { url: ep2Asset.url, runtime: "5:35" },
+  ep3: { url: ep3Asset.url, runtime: "6:51" },
 };
 
 function fromEpisode(ep: Episode): LoreVideo {
