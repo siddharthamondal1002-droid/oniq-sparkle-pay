@@ -14,8 +14,15 @@
 // file and resolves no imports. It only needs manifest.ts, which is why the
 // scene-level timeline is kept there and separate from this.
 import { EP3_SHOTS, type Ep3Shot } from '../../../src/data/ep3Shots';
-import { allocateFrames, checkShotFrames } from '../../../src/lib/shotAllocation';
+import {
+  MAX_SHOT_SECONDS,
+  MIN_SHOT_SECONDS,
+  allocateFrames,
+  checkShotFrames,
+  snapCutsToPauses,
+} from '../../../src/lib/shotAllocation';
 import { EP3_FRAMES, EP3_SCENES, FPS } from './manifest';
+import { EP3_PAUSES } from './pauses';
 
 /**
  * Cross-dissolve for the three in-scene time jumps in S11, in frames.
@@ -24,6 +31,24 @@ import { EP3_FRAMES, EP3_SCENES, FPS } from './manifest';
  * new part of the story", and the two want to read differently.
  */
 export const SHOT_DISSOLVE_FRAMES = 12;
+
+/**
+ * How far a cut may travel to find a pause in the narration, in frames.
+ *
+ * One second. `allocateFrames` divides a scene by weight and weight knows
+ * nothing about where the sentences are, so cuts land mid-clause and the new
+ * image arrives detached from the words that introduced it — which is what
+ * "the picture lags the voice" turned out to be. Measured on this episode's
+ * narration, 11 of 44 interior cuts sit inside a pause today.
+ *
+ * WHY ONE SECOND AND NOT MORE. A 1.5s budget scores better on paper — 41 of 44
+ * against 31 — but it can move a cut by a third of a five-second shot, which
+ * rewrites the pacing the shot list intended in order to win a metric. One
+ * second takes the mean miss from 0.64s to 0.40s for half the disturbance.
+ * The larger budget is a one-line change if the smaller one proves too timid
+ * on a watch.
+ */
+export const SNAP_SHIFT_FRAMES = FPS;
 
 export type Ep3ShotPlan = Ep3Shot & {
   /**
@@ -47,10 +72,36 @@ function planScene(sceneIndex: number): Ep3ShotPlan[] {
   // scene still lands on exactly EP3_FRAMES[sceneIndex], which is what every
   // downstream offset depends on.
   const overlap = shots.filter((s) => s.transitionIn === 'dissolve').length * SHOT_DISSOLVE_FRAMES;
-  const frames = allocateFrames(
+  const generated = allocateFrames(
     shots.map((s) => s.weight),
     EP3_FRAMES[sceneIndex] + overlap,
   );
+
+  // SNAP IN TIMELINE SPACE, NOT IN GENERATED-FRAME SPACE.
+  //
+  // These are two different coordinate systems and conflating them puts the
+  // cuts of S11 — the only scene with dissolves — up to 36 frames out. A shot
+  // dissolved into overlaps its predecessor, so it occupies SHOT_DISSOLVE_FRAMES
+  // fewer frames of the timeline than it contains. The narration, and therefore
+  // every pause, is measured on the TIMELINE. So: strip the overlap, snap, put
+  // it back.
+  //
+  // The round trip is exact. Timeline lengths sum to EP3_FRAMES[sceneIndex],
+  // snapping preserves that sum, and adding the overlap back per dissolved shot
+  // restores the generated total the check below asserts.
+  const lift = (i: number) => (shots[i].transitionIn === 'dissolve' ? SHOT_DISSOLVE_FRAMES : 0);
+  const onTimeline = generated.map((f, i) => f - lift(i));
+  const snapped = snapCutsToPauses(onTimeline, EP3_PAUSES[scene.id] ?? [], {
+    maxShift: SNAP_SHIFT_FRAMES,
+    minFrames: Math.round(MIN_SHOT_SECONDS * FPS),
+    // The ceiling is physical, not editorial: a shot cannot be longer than the
+    // clip that fills it. Every raw generation is 10.0417s at 24fps, which is
+    // 301 frames once conformed to 30 — but MAX_SHOT_SECONDS is what
+    // checkShotFrames enforces, so stopping there keeps the two agreeing rather
+    // than letting snapping hand the check a shot it will reject.
+    maxFrames: shots.map((_, i) => Math.round(MAX_SHOT_SECONDS * FPS) - lift(i)),
+  });
+  const frames = snapped.map((f, i) => f + lift(i));
 
   const violations = checkShotFrames(frames, FPS);
   if (violations.length > 0) {
