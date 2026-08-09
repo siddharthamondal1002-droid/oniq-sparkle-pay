@@ -1,7 +1,10 @@
 // Conform generated Veo clips into something the composition can actually cut.
 //
 //   cd remotion
-//   bun scripts/ingest-ep3-clips.mjs --from /path/to/raw     # conform
+//   bun scripts/ingest-ep3-clips.mjs --from /path/to/raw     # conform (skips
+//                                                            # what is already
+//                                                            # done; --force to
+//                                                            # re-encode)
 //   bun scripts/ingest-ep3-clips.mjs --fetch                 # pull from the CDN
 //   bun scripts/ingest-ep3-clips.mjs --check                 # verify only
 //
@@ -53,6 +56,7 @@ const OUT_DIR = path.resolve(__dirname, '../public/ep3/clips');
 
 const args = process.argv.slice(2);
 const CHECK_ONLY = args.includes('--check');
+const FORCE = args.includes('--force');
 const FETCH = args.includes('--fetch');
 const fromIdx = args.indexOf('--from');
 const FROM = fromIdx >= 0 ? args[fromIdx + 1] : process.env.FROM;
@@ -225,9 +229,22 @@ if (!fs.existsSync(FROM)) throw new Error(`no such directory: ${FROM}`);
 
 let done = 0;
 let skipped = 0;
+let already = 0;
 for (const shot of EP3_SHOT_PLAN) {
   const src = path.join(FROM, `${shot.id}.mp4`);
   const dst = path.join(OUT_DIR, `${shot.id}.mp4`);
+
+  // ALREADY CONFORMED AND PASSING? Leave it alone.
+  //
+  // Without this the script re-encodes all sixty clips on every run, which is
+  // ten to twenty minutes of pointless h264 for the sake of the two or three
+  // that are new — long enough to blow a shell timeout, which is exactly what
+  // happened while finishing scenes 13-16. Pass --force to re-encode anyway.
+  if (!FORCE && fs.existsSync(dst) && faults(dst, shot).length === 0) {
+    already++;
+    continue;
+  }
+
   if (!fs.existsSync(src)) {
     console.log(`skip  ${shot.id}  (no raw clip at ${src})`);
     skipped++;
@@ -268,5 +285,7 @@ for (const shot of EP3_SHOT_PLAN) {
   console.log(`ok    ${shot.id}  ${shot.frames}f (${(shot.frames / FPS).toFixed(2)}s)`);
 }
 
-console.log(`\nconformed ${done}, skipped ${skipped}, of ${EP3_SHOT_PLAN.length} shots -> ${OUT_DIR}`);
+console.log(
+  `\nconformed ${done}, already good ${already}, no raw ${skipped}, of ${EP3_SHOT_PLAN.length} -> ${OUT_DIR}`,
+);
 if (skipped > 0) console.log('run again once the missing clips are generated, then --check');
