@@ -1,0 +1,99 @@
+name: ep3 clip transfer
+
+# Rebuild the ep3 clip set from its CDN pointers and publish it as a release
+# asset, so a machine that cannot reach the CDN can still get the bytes.
+#
+# WHY THIS EXISTS. The sixty conformed clips live as Lovable CDN assets with
+# committed `.asset.json` pointers — see the header of
+# remotion/scripts/ingest-ep3-clips.mjs for why they are not in git. The ONIQ
+# dev container's proxy DENIES *.lovable.app and oniqhub.com, so
+# `--fetch` cannot run there: it is the one machine with the renderer and the
+# one machine that cannot see the clips. A runner has open egress and can.
+#
+# WHY A RELEASE ASSET AND NOT A BRANCH. Pushing 428 MB of mp4 onto an orphan
+# branch works, but those objects stay in the repository after the branch is
+# deleted, and every future clone pays for them. A release asset is outside git
+# entirely: one tarball, deleted cleanly when it has served its purpose, and one
+# download instead of sixty blobs. GitHub allows 2 GB per asset.
+#
+# THE TARBALL IS A CACHE, NOT A SOURCE. The pointers on main remain the record
+# of what each clip is. Anything here can be rebuilt by running this again;
+# nothing here should ever be the only copy of anything.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish under (reused; the asset is replaced)
+        default: ep3-clips-transfer
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  transfer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # The ingest script resolves ffmpeg/ffprobe itself, but its search path is
+      # the compositor's copy inside remotion/node_modules — which is not
+      # installed here, and installing it would drag in the private npm mirror
+      # named in remotion/bun.lock. The env overrides point it at the system
+      # build instead. --fetch only ever PROBES; it does no encoding, so a stock
+      # ffmpeg is more than enough.
+      - name: ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          echo "FFMPEG=$(command -v ffmpeg)" >> "$GITHUB_ENV"
+          echo "FFPROBE=$(command -v ffprobe)" >> "$GITHUB_ENV"
+
+      # Verifies every download against the size in its pointer and probes each
+      # file for the right dimensions, frame rate and frame count, so a clip
+      # that arrives wrong fails here rather than two hours into a render.
+      - name: Fetch clips from the CDN
+        working-directory: remotion
+        run: bun scripts/ingest-ep3-clips.mjs --fetch
+
+      - name: Check the set is complete
+        working-directory: remotion
+        run: |
+          bun scripts/ingest-ep3-clips.mjs --check
+          n=$(ls public/ep3/clips/*.mp4 | wc -l)
+          want=$(ls public/ep3/clips/*.mp4.asset.json | wc -l)
+          echo "$n clips, $want pointers"
+          test "$n" -eq "$want"
+
+      # Checksums travel with the bundle so the receiving box can prove it got
+      # every byte, rather than trusting that a 428 MB download completed.
+      - name: Bundle
+        working-directory: remotion/public/ep3/clips
+        run: |
+          sha256sum ./*.mp4 > SHA256SUMS
+          tar -czf "$RUNNER_TEMP/ep3-clips.tar.gz" ./*.mp4 SHA256SUMS
+          ls -la "$RUNNER_TEMP/ep3-clips.tar.gz"
+          sha256sum "$RUNNER_TEMP/ep3-clips.tar.gz"
+
+      # `--clobber` because the tag is reused: re-running this replaces the
+      # asset rather than failing on a name collision. The release is a
+      # prerelease so it cannot be mistaken for a shipped version of the app.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || 'ep3-clips-transfer' }}
+        run: |
+          gh release view "$TAG" >/dev/null 2>&1 || \
+            gh release create "$TAG" \
+              --title "ep3 clip transfer" \
+              --notes "Conformed ep3 clips rebuilt from CDN pointers. A cache, not a source — delete when done." \
+              --prerelease
+          gh release upload "$TAG" "$RUNNER_TEMP/ep3-clips.tar.gz" --clobber
+          gh release view "$TAG" --json assets \
+            --jq '.assets[] | "\(.name)  \(.size) bytes  \(.url)"'
