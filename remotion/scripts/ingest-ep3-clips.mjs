@@ -28,8 +28,10 @@
 // BUN, not node: it resolves the TypeScript shot plan across directories, which
 // is where the per-shot frame counts come from. Node would need a build step.
 //
-// Reads raw clips as <from>/<shotId>.mp4 and writes public/ep3/clips/<shotId>.mp4.
-// <from> defaults to public/ep3/raw, where --fetch-raw puts them.
+// Reads raw clips as <from>/<shotId>.mp4 and writes public/<ep>/clips/<shotId>.mp4.
+// <from> defaults to public/<ep>/raw, where --fetch-raw puts them.
+//
+// EPISODE-AGNOSTIC despite the filename: `EPISODE=ep4 bun scripts/ingest-ep3-clips.mjs`.
 //
 // FOUR THINGS ARE WRONG WITH EVERY CLIP THE GENERATOR RETURNS, and all four are
 // invisible until playback. Each is fixed here, in one pass, because four
@@ -53,13 +55,12 @@
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { EPISODE, CLIPS_DIR, RAW_DIR as RAW_CLIPS_DIR } from './episode.mjs';
+import { findBin } from './findFfmpeg.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO = path.resolve(__dirname, '../..');
-const OUT_DIR = path.resolve(__dirname, '../public/ep3/clips');
+const OUT_DIR = CLIPS_DIR;
 /** Where the untrimmed generations live, and what --from reads by default. */
-const RAW_DIR = path.resolve(__dirname, '../public/ep3/raw');
+const RAW_DIR = RAW_CLIPS_DIR;
 
 const args = process.argv.slice(2);
 const CHECK_ONLY = args.includes('--check');
@@ -75,28 +76,23 @@ const BASE = (
   baseIdx >= 0 ? args[baseIdx + 1] : (process.env.ASSET_BASE ?? 'https://oniq-sparkle-pay.lovable.app')
 ).replace(/\/$/, '');
 
-const { EP3_SHOT_PLAN } = await import('../src/ep3/shots.ts').catch((err) => {
+// The export is named per episode — EP3_SHOT_PLAN, EP4_SHOT_PLAN — so pick it
+// by shape rather than by name. Destructuring a literal here is what made this
+// script episode-specific in the first place.
+const shotsModule = await import(`../src/${EPISODE}/shots.ts`).catch((err) => {
   throw new Error(
     `could not load the shot plan (${err.message}). Run this with bun, not node — ` +
-      `src/ep3/shots.ts imports TypeScript from ../../src.`,
+      `src/${EPISODE}/shots.ts imports TypeScript from ../../src.`,
   );
 });
-const { FPS } = await import('../src/ep3/manifest.ts');
-
-function findBin(name) {
-  const env = process.env[name.toUpperCase()];
-  if (env) return env;
-  const candidates = [
-    path.join(REPO, `remotion/node_modules/@remotion/compositor-linux-x64-gnu/${name}`),
-    ...fs
-      .readdirSync('/tmp', { withFileTypes: true })
-      .filter((d) => d.isDirectory())
-      .map((d) => `/tmp/${d.name}/node_modules/@remotion/compositor-linux-x64-gnu/${name}`),
-  ];
-  const found = candidates.find((c) => fs.existsSync(c));
-  if (!found) throw new Error(`no ${name} found; set ${name.toUpperCase()}=/path/to/${name}`);
-  return found;
+const planKey = Object.keys(shotsModule).find((k) => k.endsWith('_SHOT_PLAN'));
+if (!planKey) {
+  throw new Error(
+    `src/${EPISODE}/shots.ts exports no *_SHOT_PLAN — found ${Object.keys(shotsModule).join(', ')}`,
+  );
 }
+const EP3_SHOT_PLAN = shotsModule[planKey];
+const { FPS } = await import(`../src/${EPISODE}/manifest.ts`);
 
 const ffmpeg = findBin('ffmpeg');
 const ffprobe = findBin('ffprobe');

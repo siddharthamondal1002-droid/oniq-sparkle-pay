@@ -23,6 +23,10 @@ name: ep3 clip transfer
 on:
   workflow_dispatch:
     inputs:
+      episode:
+        description: Which episode to transfer
+        default: ep3
+        required: false
       tag:
         description: Release tag to publish under (reused; the asset is replaced)
         default: ep3-clips-transfer
@@ -67,47 +71,68 @@ jobs:
       - name: Fetch conformed clips from the CDN
         if: inputs.set != 'raw'
         working-directory: remotion
+        env:
+          EPISODE: ${{ inputs.episode || 'ep3' }}
         run: bun scripts/ingest-ep3-clips.mjs --fetch
 
       - name: Check the set is complete
         if: inputs.set != 'raw'
         working-directory: remotion
+        env:
+          EPISODE: ${{ inputs.episode || 'ep3' }}
         run: |
           bun scripts/ingest-ep3-clips.mjs --check
-          n=$(ls public/ep3/clips/*.mp4 | wc -l)
-          want=$(ls public/ep3/clips/*.mp4.asset.json | wc -l)
+          n=$(ls "public/$EPISODE/clips"/*.mp4 | wc -l)
+          want=$(ls "public/$EPISODE/clips"/*.mp4.asset.json | wc -l)
           echo "$n clips, $want pointers"
           test "$n" -eq "$want"
 
       # Checksums travel with the bundle so the receiving box can prove it got
-      # every byte, rather than trusting that a 428 MB download completed.
+      # every byte, rather than trusting that a large download completed.
+      #
+      # SPLIT AT 1900 MB. A GitHub release asset is capped at 2 GB, and at ep3's
+      # measured rates the raw set is ~105 MB per minute of finished video —
+      # which puts a single-asset bundle over the cliff at about twenty minutes
+      # of episode. Splitting unconditionally costs nothing for a small episode
+      # (one part) and is the difference between working and not for a long one.
+      # Rejoin with `cat <name>.part.* > <name>`.
       - name: Bundle conformed
         if: inputs.set != 'raw'
-        working-directory: remotion/public/ep3/clips
+        env:
+          EPISODE: ${{ inputs.episode || 'ep3' }}
         run: |
+          cd "remotion/public/$EPISODE/clips"
           sha256sum ./*.mp4 > SHA256SUMS
-          tar -czf "$RUNNER_TEMP/ep3-clips.tar.gz" ./*.mp4 SHA256SUMS
-          ls -la "$RUNNER_TEMP/ep3-clips.tar.gz"
+          tar -czf "$RUNNER_TEMP/$EPISODE-clips.tar.gz" ./*.mp4 SHA256SUMS
+          split -b 1900M -d -a 2 "$RUNNER_TEMP/$EPISODE-clips.tar.gz" "$RUNNER_TEMP/$EPISODE-clips.tar.gz.part."
+          rm "$RUNNER_TEMP/$EPISODE-clips.tar.gz"
+          ls -la "$RUNNER_TEMP"/$EPISODE-clips.tar.gz.part.*
 
       # The RAW generations: untrimmed, 1088 wide, 24fps, audio still on them.
       # Re-cutting the episode needs frames a conformed clip does not have —
       # it is trimmed to exactly its allocation — so these are what make a
       # re-cut a re-conform rather than a regeneration.
       #
-      # No gzip. These are ~720 MB of h264, which does not compress, and
-      # squeezing it costs a minute of runner time to save nothing.
+      # No gzip. This is h264, which does not compress, and squeezing ~1 GB of
+      # it costs a minute of runner time to save nothing.
       - name: Fetch raw generations
         if: inputs.set != 'conformed'
         working-directory: remotion
+        env:
+          EPISODE: ${{ inputs.episode || 'ep3' }}
         run: bun scripts/ingest-ep3-clips.mjs --fetch-raw
 
       - name: Bundle raw
         if: inputs.set != 'conformed'
-        working-directory: remotion/public/ep3/raw
+        env:
+          EPISODE: ${{ inputs.episode || 'ep3' }}
         run: |
+          cd "remotion/public/$EPISODE/raw"
           sha256sum ./*.mp4 > SHA256SUMS
-          tar -cf "$RUNNER_TEMP/ep3-raw.tar" ./*.mp4 SHA256SUMS
-          ls -la "$RUNNER_TEMP/ep3-raw.tar"
+          tar -cf "$RUNNER_TEMP/$EPISODE-raw.tar" ./*.mp4 SHA256SUMS
+          split -b 1900M -d -a 2 "$RUNNER_TEMP/$EPISODE-raw.tar" "$RUNNER_TEMP/$EPISODE-raw.tar.part."
+          rm "$RUNNER_TEMP/$EPISODE-raw.tar"
+          ls -la "$RUNNER_TEMP"/$EPISODE-raw.tar.part.*
 
       # `--clobber` because the tag is reused: re-running this replaces the
       # asset rather than failing on a name collision. The release is a
@@ -115,18 +140,19 @@ jobs:
       - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ inputs.tag || 'ep3-clips-transfer' }}
+          TAG: ${{ inputs.tag || format('{0}-clips-transfer', inputs.episode || 'ep3') }}
         run: |
           gh release view "$TAG" >/dev/null 2>&1 || \
             gh release create "$TAG" \
-              --title "ep3 clip transfer" \
-              --notes "Conformed ep3 clips rebuilt from CDN pointers. A cache, not a source — delete when done." \
+              --title "${{ inputs.episode || 'ep3' }} clip transfer" \
+              --notes "Clips rebuilt from CDN pointers. Split at 1900 MB — rejoin with: cat NAME.part.* > NAME. A cache, not a source; delete when done." \
               --prerelease
           # An `if`, not `[ -f ] && ...`: with `set -e` the && form leaves the
           # loop with a non-zero status when the LAST file is absent, failing a
           # step that did exactly what was asked of it.
-          for f in "$RUNNER_TEMP"/ep3-clips.tar.gz "$RUNNER_TEMP"/ep3-raw.tar; do
-            if [ -f "$f" ]; then gh release upload "$TAG" "$f" --clobber; fi
-          done
+          shopt -s nullglob
+          parts=("$RUNNER_TEMP"/*.part.*)
+          if [ ${#parts[@]} -eq 0 ]; then echo "nothing bundled"; exit 1; fi
+          for f in "${parts[@]}"; do gh release upload "$TAG" "$f" --clobber; done
           gh release view "$TAG" --json assets \
             --jq '.assets[] | "\(.name)  \(.size) bytes  \(.url)"'

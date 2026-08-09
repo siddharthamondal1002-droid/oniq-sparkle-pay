@@ -319,6 +319,22 @@ pass the `file_id` in the `files` array of `send_message`.
 Measured: 104,714,510 bytes, HTTP 200, under seven seconds, against a 250 MB
 limit in the returned `x-goog-content-length-range`.
 
+**Above 250 MB, split it.** The cap is in the returned
+`x-goog-content-length-range` and bites at roughly 16 minutes of finished video
+at ep3's ~15 MB/min. Take a fresh presigned URL per part, `PUT` each, and send
+all the `file_id`s in one message telling the other side to rejoin:
+
+```bash
+split -b 240M -d -a 2 episode.mp4 episode.mp4.part.
+# ...upload each part to its own presigned URL...
+# receiving side:
+cat episode.mp4.part.* > episode.mp4    # byte-exact; verify the sha256
+```
+
+Send the sha256 of the WHOLE file with it, so the join is checkable rather than
+assumed. The same `split`/`cat` pair is what the clip-transfer workflow uses
+inbound at 1900 MB, under GitHub's 2 GB per-asset limit.
+
 Two lessons, and the second is the one that actually cost time:
 
 1. Check this route BEFORE asking another machine to rebuild an artifact you are
@@ -372,29 +388,25 @@ There is no tested route from an uploaded attachment to a finished clip; the
 `starting_frame` work documented here always begins from a still this pipeline
 generated itself.
 
-**"Any duration" has two hard ceilings, both around a quarter of an hour**, from
-ep3's measured rates (~15 MB of finished video per minute, ~105 MB of raw clips
-per minute, 8.5 shots per minute):
+**Duration: the transfer ceilings are handled, the render time is not.** Both
+bundles now `split` — 1900 MB inbound under GitHub's 2 GB asset cap, 240 MB
+outbound under the presigned upload's 250 MB — and rejoin with `cat`, verified
+byte-exact. What does NOT scale is the render: 0.15x realtime on one encoder, so
+half an hour of video is 3.3 hours a pass and several passes are normal. Past
+that you want a bigger machine, an overnight budget, or more parallel
+`FRAME_RANGE` halves than two.
 
-| limit | bites at |
-| --- | --- |
-| 250 MB presigned upload — the handoff route | **~16.5 min** of finished video |
-| 2 GB per GitHub release asset — the raw bundle | **~19.4 min** |
-| 2 GB per release asset — the conformed bundle | ~34 min |
-| render at 0.15x realtime, several passes | 30 min of video = **3.3 h per pass** |
+Below about a minute nothing is known — the scene/narration machinery has never
+been run that small, and the promo path may simply be the better tool.
 
-Past roughly a quarter of an hour the transfer routes need splitting into parts,
-and past that the render needs a bigger machine or an overnight budget. None of
-that is built. Below about a minute nothing is known either — the scene/narration
-machinery has never been run that small, and the promo path may simply be the
-better tool.
-
-**The scripts are episode-3 shaped, not generic.** `measure-ep3.mjs` and
-`measure-ep3-pauses.mjs` both hardcode `Array.from({ length: 16 })` and the
-`ep3_sNN` naming; `render-ep3.mjs` and `ingest-ep3-clips.mjs` hardcode
-`public/ep3`. A fourth episode with a different scene count means editing four
-scripts, not re-running them. Parameterising on an `EPISODE` env var — the way
-`build-bed-envelope.mjs` already does — is the obvious fix and has not been done.
+**Every script takes `EPISODE` now** and defaults to ep3, so the commands
+already written down keep working: `EPISODE=ep4 node scripts/measure-ep3.mjs`.
+Scene counts are DISCOVERED from the narration on disk rather than declared, and
+the per-episode export names (`EP3_SCENES`, `EP4_SHOT_PLAN`) are resolved by
+shape rather than by literal. Verified against ep1 (12 scenes) and ep2 (16, with
+`bed.mp3` correctly ignored) as well as ep3. The filenames still say `ep3`; they
+are episode-agnostic despite that, for the same reason `render-ep1.mjs` keeps
+its name.
 
 ### Still open on Episode 3
 

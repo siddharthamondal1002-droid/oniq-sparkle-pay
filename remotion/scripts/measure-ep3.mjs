@@ -28,11 +28,10 @@ import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { findBin } from './findFfmpeg.mjs';
+import { EPISODE, PUBLIC_DIR, sceneIds, transitionSeconds } from './episode.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC = path.resolve(__dirname, '../public/ep3');
+const PUBLIC = PUBLIC_DIR;
 const SAMPLE_RATE = 8000;
 const FPS = 30;
 
@@ -64,7 +63,7 @@ function decodedSeconds(ff, file) {
 
 const ffmpeg = findBin('ffmpeg');
 const ffprobe = findBin('ffprobe');
-const scenes = Array.from({ length: 16 }, (_, i) => `ep3_s${String(i + 1).padStart(2, '0')}`);
+const scenes = sceneIds();
 
 const missing = scenes.filter((id) => !fs.existsSync(path.join(PUBLIC, `${id}.mp3`)));
 if (missing.length > 0) {
@@ -93,7 +92,8 @@ const rows = scenes.map((id) => {
   return `  { id: '${id}', seconds: ${seconds.toFixed(3)} },`;
 });
 
-console.log('export const EP3_SCENES: Ep3Scene[] = [');
+const UP = EPISODE.toUpperCase();
+console.log(`export const ${UP}_SCENES: ${UP[0]}${UP.slice(1).toLowerCase()}Scene[] = [`);
 console.log(rows.join('\n'));
 console.log('];');
 console.log();
@@ -106,10 +106,7 @@ console.log();
 // A regex rather than an import because this script is node and the manifest is
 // TypeScript — the same constraint build-bed-envelope.mjs works around by
 // transpiling. One constant does not justify a transpile.
-const manifestSrc = fs.readFileSync(path.resolve(__dirname, '../src/ep3/manifest.ts'), 'utf8');
-const transitionMatch = manifestSrc.match(/export const TRANSITION\s*=\s*([\d.]+)/);
-if (!transitionMatch) throw new Error('could not find TRANSITION in src/ep3/manifest.ts');
-const TRANSITION_FRAMES = Math.round(Number(transitionMatch[1]) * FPS);
+const TRANSITION_FRAMES = Math.round(transitionSeconds() * FPS);
 
 // Round PER SCENE and then sum, which is what manifest.ts does. Rounding the
 // total instead can differ by a frame — the per-scene fractions sum past a
@@ -123,4 +120,4 @@ console.log(
     `= ${(totalFrames / FPS / 60).toFixed(2)} min (${(totalFrames / FPS).toFixed(1)}s)`,
 );
 console.log('// Set MEASURED = true once these are in. Then re-check the shot split:');
-console.log('//   bun -e "await import(\'./src/ep3/shots.ts\')"');
+console.log(`//   bun -e "await import('./src/${EPISODE}/shots.ts')"`);

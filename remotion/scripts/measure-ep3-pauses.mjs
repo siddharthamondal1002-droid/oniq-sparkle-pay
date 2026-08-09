@@ -29,11 +29,10 @@ import { execFileSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { findBin } from './findFfmpeg.mjs';
+import { EPISODE, PUBLIC_DIR, sceneIds } from './episode.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const PUBLIC = path.resolve(__dirname, '../public/ep3');
+const PUBLIC = PUBLIC_DIR;
 const SR = 16000;
 const FPS = 30;
 const WINDOW = 0.02;
@@ -108,7 +107,7 @@ function pauseFrames(env) {
 }
 
 const ffmpeg = findBin('ffmpeg');
-const scenes = Array.from({ length: 16 }, (_, i) => `ep3_s${String(i + 1).padStart(2, '0')}`);
+const scenes = sceneIds();
 const missing = scenes.filter((id) => !fs.existsSync(path.join(PUBLIC, `${id}.mp3`)));
 if (missing.length > 0) throw new Error(`missing narration: ${missing.join(', ')}`);
 
@@ -125,7 +124,7 @@ console.log(`// Pause centres in each scene's narration, in FRAMES at ${FPS}fps 
 console.log(`// scene's own start. A pause is >=${MIN_PAUSE * 1000}ms below ${FLOOR_DB} dBFS on a`);
 console.log(`// ${WINDOW * 1000}ms RMS envelope. Re-run after ANY change to the narration mp3s.`);
 console.log(``);
-console.log(`export const EP3_PAUSES: Record<string, number[]> = {`);
+console.log(`export const ${EPISODE.toUpperCase()}_PAUSES: Record<string, number[]> = {`);
 for (const r of rows) console.log(`  ${r.id}: [${r.frames.join(', ')}],`);
 console.log(`};`);
 console.log(``);

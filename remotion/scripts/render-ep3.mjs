@@ -30,9 +30,10 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { findChromium } from './findChromium.mjs';
+import { EPISODE, PUBLIC_DIR, CLIPS_DIR } from './episode.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT = process.env.OUT ?? path.resolve(__dirname, '../../.tmp/ep3.mp4');
+const OUT = process.env.OUT ?? path.resolve(__dirname, `../../.tmp/${EPISODE}.mp4`);
 
 /**
  * Optional "from-to" frame range, e.g. FRAME_RANGE=0-6107.
@@ -52,8 +53,8 @@ const RANGE = process.env.FRAME_RANGE
 if (RANGE && (RANGE.length !== 2 || RANGE.some((n) => !Number.isInteger(n)))) {
   throw new Error(`FRAME_RANGE must look like 0-6107, got "${process.env.FRAME_RANGE}"`);
 }
-const CLIPS = path.resolve(__dirname, '../public/ep3/clips');
-const NARRATION = path.resolve(__dirname, '../public/ep3');
+const CLIPS = CLIPS_DIR;
+const NARRATION = PUBLIC_DIR;
 
 // --- pre-flight ------------------------------------------------------------
 //
@@ -71,11 +72,15 @@ const NARRATION = path.resolve(__dirname, '../public/ep3');
  * by taking the last line.
  */
 function preflight() {
+  // Exports are named per episode (EP3_SCENES, EP4_SCENES), so pick them by
+  // shape. A literal name here is what tied this script to one episode.
   const src =
-    "const m = await import('./src/ep3/manifest.ts');" +
-    "const s = await import('./src/ep3/shots.ts');" +
+    `const m = await import('./src/${EPISODE}/manifest.ts');` +
+    `const s = await import('./src/${EPISODE}/shots.ts');` +
+    "const sc = m[Object.keys(m).find((k) => k.endsWith('_SCENES'))];" +
+    "const sh = s[Object.keys(s).find((k) => k.endsWith('_SHOT_PLAN'))];" +
     'console.log(JSON.stringify({ measured: m.MEASURED, fps: m.FPS,' +
-    ' scenes: m.EP3_SCENES.map((x) => x.id), shots: s.EP3_SHOT_PLAN.map((x) => x.id) }));';
+    ' scenes: sc.map((x) => x.id), shots: sh.map((x) => x.id) }));';
   let out;
   try {
     out = execFileSync('bun', ['-e', src], {
@@ -88,8 +93,8 @@ function preflight() {
     // load when the shot split does not close, which is exactly what should
     // stop a render.
     throw new Error(
-      `pre-flight failed. Either bun is missing, or the shot plan refused to ` +
-        `load:\n${err.stderr || err.message}`,
+      `pre-flight failed for ${EPISODE}. Either bun is missing, or the shot plan ` +
+        `refused to load:\n${err.stderr || err.message}`,
     );
   }
   return JSON.parse(out.trim().split('\n').pop());
@@ -98,8 +103,8 @@ function preflight() {
 const { measured: MEASURED, fps: FPS, scenes: SCENE_IDS, shots: SHOT_IDS } = preflight();
 if (!MEASURED) {
   throw new Error(
-    'src/ep3/manifest.ts still holds word-count ESTIMATES (MEASURED = false).\n' +
-      '  Generate the narration, then:  node scripts/measure-ep3.mjs\n' +
+    `src/${EPISODE}/manifest.ts still holds word-count ESTIMATES (MEASURED = false).\n` +
+      `  Generate the narration, then:  EPISODE=${EPISODE} node scripts/measure-ep3.mjs\n` +
       '  Paste the array in, set MEASURED = true, and re-run.',
   );
 }
@@ -145,12 +150,12 @@ const browser = await openBrowser('chrome', {
 
 const composition = await selectComposition({
   serveUrl: bundled,
-  id: 'ep3',
+  id: EPISODE,
   puppeteerInstance: browser,
 });
 
 console.log(
-  `ep3: ${composition.durationInFrames} frames @ ${composition.fps}fps ` +
+  `${EPISODE}: ${composition.durationInFrames} frames @ ${composition.fps}fps ` +
     `(${(composition.durationInFrames / FPS / 60).toFixed(2)} min), ` +
     `${SHOT_IDS.length} clips${RANGE ? `, frames ${RANGE[0]}-${RANGE[1]}` : ''} -> ${OUT}`,
 );
