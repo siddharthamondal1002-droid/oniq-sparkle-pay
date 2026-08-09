@@ -16,8 +16,31 @@
 //   cd remotion && node scripts/measure-ep3.mjs   # prints the array below
 
 export const FPS = 30;
-/** Cross-dissolve between SCENES, in seconds. Shots inside a scene hard cut. */
-export const TRANSITION = 0.5;
+/**
+ * Cross-dissolve between SCENES, in seconds. Shots inside a scene hard cut.
+ *
+ * A QUARTER SECOND, NOT A HALF, AND THE REASON IS AUDIBLE. The narration sits
+ * inside each scene's Sequence, and a TransitionSeries overlaps consecutive
+ * Sequences by exactly this long — so for this many seconds the outgoing
+ * scene's voice and the incoming scene's voice play at the same time. That is
+ * silent only if the outgoing tail silence plus the incoming head silence
+ * covers it.
+ *
+ * Measured across all sixteen ep3 narration mp3s, five of the fifteen joins did
+ * not cover half a second: s01>s02, s07>s08 and s09>s10 overlapped by 0.13s of
+ * real speech, s08>s09 by 0.06s and s11>s12 by 0.05s. Small, and a stumble
+ * exactly where the ear is already paying attention because the picture is
+ * changing.
+ *
+ * The tightest join covers 0.37s, so a quarter second clears every one of them
+ * with room. Eight frames still reads as a dissolve rather than a cut, which is
+ * what the scene change needs to mean.
+ *
+ * RE-MEASURE BEFORE RAISING THIS. It is not a free knob: any value above the
+ * smallest tail-plus-head silence in the episode puts two voices on top of each
+ * other, and it will not show up in any still frame.
+ */
+export const TRANSITION = 0.25;
 
 export type Ep3Scene = {
   id: string;
