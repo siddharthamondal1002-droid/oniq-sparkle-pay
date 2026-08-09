@@ -5,7 +5,11 @@
 //                                                            # what is already
 //                                                            # done; --force to
 //                                                            # re-encode)
-//   bun scripts/ingest-ep3-clips.mjs --fetch                 # pull from the CDN
+//   bun scripts/ingest-ep3-clips.mjs --fetch                 # pull conformed clips
+//   bun scripts/ingest-ep3-clips.mjs --fetch-raw             # pull the raw
+//                                                            # generations, which
+//                                                            # is what --from then
+//                                                            # reads by default
 //   bun scripts/ingest-ep3-clips.mjs --check                 # verify only
 //
 // WHERE THE CLIPS ACTUALLY LIVE. Not in git — sixty conformed clips is ~250 MB
@@ -25,6 +29,7 @@
 // is where the per-shot frame counts come from. Node would need a build step.
 //
 // Reads raw clips as <from>/<shotId>.mp4 and writes public/ep3/clips/<shotId>.mp4.
+// <from> defaults to public/ep3/raw, where --fetch-raw puts them.
 //
 // FOUR THINGS ARE WRONG WITH EVERY CLIP THE GENERATOR RETURNS, and all four are
 // invisible until playback. Each is fixed here, in one pass, because four
@@ -53,13 +58,17 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(__dirname, '../..');
 const OUT_DIR = path.resolve(__dirname, '../public/ep3/clips');
+/** Where the untrimmed generations live, and what --from reads by default. */
+const RAW_DIR = path.resolve(__dirname, '../public/ep3/raw');
 
 const args = process.argv.slice(2);
 const CHECK_ONLY = args.includes('--check');
 const FORCE = args.includes('--force');
 const FETCH = args.includes('--fetch');
+/** Pull the untrimmed generations rather than the conformed clips. */
+const FETCH_RAW = args.includes('--fetch-raw');
 const fromIdx = args.indexOf('--from');
-const FROM = fromIdx >= 0 ? args[fromIdx + 1] : process.env.FROM;
+const FROM = fromIdx >= 0 ? args[fromIdx + 1] : (process.env.FROM ?? RAW_DIR);
 const baseIdx = args.indexOf('--base');
 /** Origin the asset URLs hang off. They are stored site-relative. */
 const BASE = (
@@ -126,14 +135,78 @@ function faults(file, shot) {
 }
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
+if (FETCH_RAW) fs.mkdirSync(RAW_DIR, { recursive: true });
+
+// The same root cause arrives two ways and neither is self-explanatory: this
+// repo's dev container proxies outbound traffic and DENIES oniqhub.com and
+// *.lovable.app. A denied CONNECT surfaces as a thrown "fetch failed"; a denied
+// GET surfaces as a 403 RESPONSE. Both mean "wrong machine", not "bad asset".
+const WRONG_BOX =
+  `\n  If you are on the ONIQ dev container this is expected — its proxy blocks` +
+  `\n  *.lovable.app. Run this on a box with open egress (the ep3-clip-transfer` +
+  `\n  workflow does exactly that), or pass --base with a reachable origin.`;
 
 /** The committed CDN pointer for a shot, or null if it has never been uploaded. */
-function pointerFor(shot) {
-  const file = path.join(OUT_DIR, `${shot.id}.mp4.asset.json`);
+function pointerFor(shot, dir = OUT_DIR) {
+  const file = path.join(dir, `${shot.id}.mp4.asset.json`);
   if (!fs.existsSync(file)) return null;
   const p = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (!p.url) throw new Error(`${shot.id}: pointer has no url — ${file}`);
   return p;
+}
+
+if (FETCH_RAW) {
+  // Pull the RAW generations — the untrimmed, 1088-wide, 24fps clips with their
+  // invented soundtrack still on them, straight as Veo returned them.
+  //
+  // WHY THEY MATTER. A conformed clip is trimmed to exactly its allocation, so
+  // it has no spare frames. Re-cutting the episode — moving a cut onto a pause
+  // in the narration — makes the shot on one side of that cut LONGER, and those
+  // frames exist only in the raw. Without the raws a re-cut means regenerating;
+  // with them it is a re-conform.
+  //
+  // Deliberately NOT validated with faults(): every one of those checks is a
+  // statement about a CONFORMED clip, and a raw legitimately fails all four. It
+  // has audio, it is 1088 wide, it is 24fps, and it is longer than the shot.
+  // Size against the pointer is the check that applies, and the conform path
+  // already refuses a raw too short for its allocation.
+  let got = 0;
+  let had = 0;
+  let none = 0;
+  for (const shot of EP3_SHOT_PLAN) {
+    const dst = path.join(RAW_DIR, `${shot.id}.mp4`);
+    const pointer = pointerFor(shot, RAW_DIR);
+    if (!pointer) {
+      console.log(`none  ${shot.id}  (no raw pointer)`);
+      none++;
+      continue;
+    }
+    if (fs.existsSync(dst) && fs.statSync(dst).size === pointer.size) {
+      had++;
+      continue;
+    }
+    const url = `${BASE}${pointer.url}`;
+    let res;
+    try {
+      res = await fetch(url);
+    } catch (err) {
+      throw new Error(`${shot.id}: could not reach ${url} (${err.message}).${WRONG_BOX}`);
+    }
+    if (!res.ok) {
+      throw new Error(`${shot.id}: ${res.status} fetching ${url}` + (res.status === 403 ? WRONG_BOX : ''));
+    }
+    const bytes = Buffer.from(await res.arrayBuffer());
+    if (pointer.size && bytes.length !== pointer.size) {
+      throw new Error(`${shot.id}: got ${bytes.length} bytes, pointer says ${pointer.size}`);
+    }
+    fs.writeFileSync(dst, bytes);
+    got++;
+    console.log(`raw   ${shot.id}  ${(bytes.length / 1e6).toFixed(1)} MB`);
+  }
+  console.log(
+    `\nfetched ${got}, already present ${had}, no pointer ${none}, of ${EP3_SHOT_PLAN.length} -> ${RAW_DIR}`,
+  );
+  process.exit(none === 0 ? 0 : 1);
 }
 
 if (FETCH) {
@@ -159,25 +232,15 @@ if (FETCH) {
     // The asset URL 302s to R2, which fetch follows by default.
     const url = `${BASE}${pointer.url}`;
 
-    // The same root cause arrives two different ways and neither is
-    // self-explanatory: this repo's dev container proxies outbound traffic and
-    // DENIES oniqhub.com and *.lovable.app. A denied CONNECT surfaces as a
-    // thrown "fetch failed"; a denied GET surfaces as a 403 RESPONSE. Both mean
-    // "wrong machine", not "bad asset", so both say so.
-    const wrongBox =
-      `\n  If you are on the ONIQ dev container this is expected — its proxy blocks` +
-      `\n  *.lovable.app. Run --fetch on the Lovable agent's box, or pass --base` +
-      `\n  with an origin this machine can actually reach.`;
-
     let res;
     try {
       res = await fetch(url);
     } catch (err) {
-      throw new Error(`${shot.id}: could not reach ${url} (${err.message}).${wrongBox}`);
+      throw new Error(`${shot.id}: could not reach ${url} (${err.message}).${WRONG_BOX}`);
     }
     if (!res.ok) {
       throw new Error(
-        `${shot.id}: ${res.status} fetching ${url}` + (res.status === 403 ? wrongBox : ''),
+        `${shot.id}: ${res.status} fetching ${url}` + (res.status === 403 ? WRONG_BOX : ''),
       );
     }
     const bytes = Buffer.from(await res.arrayBuffer());
@@ -224,7 +287,15 @@ if (CHECK_ONLY) {
   process.exit(bad === 0 ? 0 : 1);
 }
 
-if (!FROM) throw new Error('pass --from <dir> with the raw generated clips, or --check');
+// --from defaults to RAW_DIR, so "no directory given" can no longer happen.
+// What CAN happen, and now says so, is being pointed at a directory that is
+// empty or absent — which on this box means --fetch-raw has not been run.
+if (!fs.existsSync(FROM)) {
+  throw new Error(
+    `no raw clips at ${FROM}. Pass --from <dir>, or recover them with:\n` +
+      `      bun scripts/ingest-ep3-clips.mjs --fetch-raw`,
+  );
+}
 if (!fs.existsSync(FROM)) throw new Error(`no such directory: ${FROM}`);
 
 let done = 0;
