@@ -18,15 +18,13 @@ name: story worker
 # false` matters as much as the group: cancelling a run mid-render would leave a
 # job stuck at `generating` with its stills already bought.
 #
-# THE SCHEDULE IS DELIBERATELY MODEST. Every fire can spend real money on
-# Gemini calls, so this is a floor on latency rather than a promise of speed —
-# a Story waits up to ten minutes to start, then takes about 3.3 minutes per
-# minute of finished video (0.305x realtime, measured on four cores).
+# TWO WAYS IN, and only one of them is the product. A repository_dispatch from
+# story-dispatch carries a job id and a per-job token, and the runner needs no
+# Supabase credential at all. workflow_dispatch is for operating the thing by
+# hand, and only works if somebody has chosen to put a service key here.
 #
-# TWO WAYS IN. A repository_dispatch from story-dispatch carries a job id and a
-# per-job token, and the runner needs no Supabase credential at all. The cron
-# and manual paths still poll with a service key, and exist for operating the
-# thing by hand. Prefer dispatch; the polling path is the fallback.
+# Render cost, measured: about 4.5 minutes per minute of finished video
+# (0.221x realtime on this container's two usable cores; 0.305x on four).
 #
 # IT IS SAFE TO RUN WITH THE FEATURE OFF. `story_config.enabled` gates whether a
 # user can create a job at all. With it false there is nothing queued, the
@@ -41,10 +39,11 @@ on:
   repository_dispatch:
     types: [story-job]
 
-  schedule:
-    # Every ten minutes. GitHub's cron is best-effort and skews under load;
-    # nothing here assumes it is punctual.
-    - cron: "*/10 * * * *"
+  # THERE IS DELIBERATELY NO SCHEDULE HERE. A cron on this side would be the
+  # polling design again: it can only work if GitHub holds a Supabase key, and
+  # without one it would paint a red X on the repository every ten minutes for
+  # a queue it cannot read. The heartbeat lives in Supabase instead — pg_cron
+  # calls story-dispatch, which reaches out with a job and a token.
   workflow_dispatch:
     inputs:
       voice:
@@ -104,12 +103,19 @@ jobs:
       - name: render one job
         working-directory: remotion
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          # The project URL is not a secret — it is in the shipped client
+          # bundle. Keeping it as a variable rather than a secret means a
+          # dispatch run needs NOTHING configured here beyond this line, which
+          # is the point of Route B: no Supabase key ever reaches GitHub.
+          SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          # Only the polling path uses this, and only if someone chooses to set
+          # it. Absent — the expected state — the cron fires, the worker finds
+          # no token and no key, and exits with a message naming both.
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           STORY_VOICE: ${{ inputs.voice || 'Charon' }}
-          # Present only on a repository_dispatch. The worker prefers these and
-          # talks to story-callback with the token; with neither set it falls
-          # back to the service-key path, which is what a manual dispatch uses.
+          # Present only on a repository_dispatch. The token IS the credential:
+          # it names one job, expires in an hour, and story-callback checks it
+          # before touching the database on this runner's behalf.
           STORY_JOB_ID: ${{ github.event.client_payload.job_id }}
           STORY_JOB_TOKEN: ${{ github.event.client_payload.token }}
           # Two encoders' worth of parallelism on a two-core runner. The

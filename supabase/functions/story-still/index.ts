@@ -23,6 +23,8 @@
 // path ends in `purged` — and a function that quietly wrote to a bucket would
 // create files nothing is tracking.
 
+import { verifyJobToken } from "../_shared/jobToken.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -155,6 +157,19 @@ function json(payload: unknown, status = 200) {
 }
 
 async function requireAuth(req: Request): Promise<Response | null> {
+  // A RUNNER IS NOT A USER. The Story worker holds a per-job capability token,
+  // not a Supabase session, so /auth/v1/user would reject it — and passing the
+  // service-role key here would not work either, because that is not a user
+  // JWT. A valid job token is its own proof: it is signed, it names one job,
+  // and it expires within the hour.
+  const jobToken = req.headers.get("x-story-job-token");
+  if (jobToken) {
+    const secret = Deno.env.get("STORY_JOB_SECRET");
+    if (!secret) return json({ error: "Auth unavailable" }, 500);
+    const verified = await verifyJobToken(jobToken, secret);
+    return verified.ok ? null : json({ error: `token ${verified.reason}` }, 401);
+  }
+
   const authHeader = req.headers.get("Authorization");
   if (!authHeader?.startsWith("Bearer ")) return json({ error: "Unauthorized" }, 401);
   const url = Deno.env.get("SUPABASE_URL");

@@ -22,8 +22,17 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-type Action = "started" | "assembling" | "ready" | "failed";
-const ACTIONS: ReadonlySet<string> = new Set(["started", "assembling", "ready", "failed"]);
+type Action = "claim" | "assembling" | "upload-url" | "ready" | "failed";
+const ACTIONS: ReadonlySet<string> = new Set([
+  "claim",
+  "assembling",
+  "upload-url",
+  "ready",
+  "failed",
+]);
+
+/** Where a finished Story lands. Same bucket the episodes use. */
+const BUCKET = "video-gen";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -43,11 +52,77 @@ Deno.serve(async (req) => {
     if (!verified.ok) return json({ error: `token ${verified.reason}` }, 401);
     const jobId = verified.jobId;
 
+    // CLAIM RETURNS THE JOB, which is why the runner needs no database access.
+    // It gets the prompt and the shot count back in the same call that moves
+    // the row to `generating` — one round trip, and no read credential.
+    if (action === "claim") {
+      const got = await fetch(
+        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status`,
+        { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
+      );
+      if (!got.ok) return json({ error: "could not read the job" }, 502);
+      const rows = (await got.json()) as Record<string, unknown>[];
+      if (!Array.isArray(rows) || rows.length === 0) return json({ error: "no such job" }, 404);
+      const job = rows[0];
+      // Only a queued job may be claimed. A second runner arriving on a retry
+      // must not restart one that is already generating and already paid for.
+      if (job.status !== "queued") return json({ error: `job is ${job.status}` }, 409);
+
+      const moved = await fetch(`${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&status=eq.queued`, {
+        method: "PATCH",
+        headers: {
+          apikey: serviceKey,
+          Authorization: `Bearer ${serviceKey}`,
+          "content-type": "application/json",
+          Prefer: "return=representation",
+        },
+        body: JSON.stringify({ status: "generating" }),
+      });
+      const movedRows = moved.ok ? await moved.json() : [];
+      // The status filter makes this the atomic claim: if another runner won
+      // the race, zero rows come back and this one steps aside.
+      if (!Array.isArray(movedRows) || movedRows.length === 0) {
+        return json({ error: "already claimed" }, 409);
+      }
+      return json({
+        ok: true,
+        jobId,
+        prompt: job.prompt,
+        shotCount: job.shot_count,
+        requestedSeconds: job.requested_seconds,
+      });
+    }
+
+    // A SIGNED UPLOAD URL, so the runner never holds a storage credential.
+    // The path is derived from the job id here rather than accepted from the
+    // body — a runner that could name its own path could overwrite somebody
+    // else's Story, or anything else in the bucket.
+    if (action === "upload-url") {
+      const objectPath = `stories/${jobId}.mp4`;
+      const signed = await fetch(
+        `${supabaseUrl}/storage/v1/object/upload/sign/${BUCKET}/${objectPath}`,
+        {
+          method: "POST",
+          headers: {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ upsert: true }),
+        },
+      );
+      if (!signed.ok) {
+        const detail = await signed.text().catch(() => "");
+        console.error("story-callback sign", signed.status, detail.slice(0, 300));
+        return json({ error: "could not sign an upload" }, 502);
+      }
+      const { url } = (await signed.json()) as { url?: string };
+      if (!url) return json({ error: "no signed url returned" }, 502);
+      return json({ ok: true, uploadUrl: `${supabaseUrl}/storage/v1${url}`, storagePath: objectPath });
+    }
+
     const patch: Record<string, unknown> = {};
     switch (action as Action) {
-      case "started":
-        patch.status = "generating";
-        break;
       case "assembling":
         patch.status = "assembling";
         break;

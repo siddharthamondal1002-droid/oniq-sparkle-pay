@@ -32,3 +32,8 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # Finder (MacOS) folder config
 .DS_Store
+
+# Story worker scratch. The stills and narration have to sit under public/ so
+# staticFile() can resolve them; the worker removes the directory in `finally`,
+# and this is here so a killed run cannot leave a user's frames committable.
+public/.story-*
