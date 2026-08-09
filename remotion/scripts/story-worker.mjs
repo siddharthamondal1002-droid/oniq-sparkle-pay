@@ -14,7 +14,8 @@
 //
 //   queued      claim the oldest job, move it to `generating`
 //   generating  Ting writes the plot (story-plot), Gemini draws each still
-//               (story-still, one call per shot), TTS reads each narration
+//               (story-still) and reads each line (story-voice), one call per
+//               shot each
 //   assembling  Remotion renders the plan to mp4
 //   ready       upload, record the path, set has_bytes
 //
@@ -22,12 +23,8 @@
 // then reclaims the bytes, because every path in the lifecycle ends in
 // `purged`.
 //
-// TWO HONEST GAPS, both marked TODO below rather than faked:
+// ONE HONEST GAP:
 //
-//   - NARRATION. There is no TTS in this repo. Episode 3's mp3s were generated
-//     by the Lovable agent out of band. Without audio a Story is a silent
-//     slideshow, which this project has already shipped once, so the worker
-//     REFUSES to finish a job with no narration rather than producing one.
 //   - It has never run against the live project. There is no Supabase reachable
 //     from this session, so the offline path (PLAN=) is the one that has been
 //     exercised. Treat the online path as unverified code.
@@ -40,6 +37,7 @@ import { bundle } from '@remotion/bundler';
 import { renderMedia, selectComposition, openBrowser } from '@remotion/renderer';
 import { findChromium } from './findChromium.mjs';
 import { findBin } from './findFfmpeg.mjs';
+import { envelope, speechSpans } from './speech.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -159,6 +157,61 @@ async function renderPlan(plan, outFile) {
   }
 }
 
+/**
+ * Wrap Gemini's raw PCM in a WAV header.
+ *
+ * story-voice returns signed 16-bit little-endian mono PCM with no container,
+ * because the function has no business inventing a header and this side already
+ * has ffmpeg. 44 bytes of RIFF is cheaper than shelling out.
+ */
+function wrapPcmAsWav(pcm, sampleRate) {
+  const header = Buffer.alloc(44);
+  const byteRate = sampleRate * 2;
+  header.write('RIFF', 0);
+  header.writeUInt32LE(36 + pcm.length, 4);
+  header.write('WAVE', 8);
+  header.write('fmt ', 12);
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);   // PCM
+  header.writeUInt16LE(1, 22);   // mono
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(byteRate, 28);
+  header.writeUInt16LE(2, 32);   // block align
+  header.writeUInt16LE(16, 34);  // bits
+  header.write('data', 36);
+  header.writeUInt32LE(pcm.length, 40);
+  return Buffer.concat([header, pcm]);
+}
+
+/** Sample rate out of "audio/L16;codec=pcm;rate=24000". */
+function rateOf(mime) {
+  const m = /rate=(\d+)/.exec(mime ?? '');
+  const n = m ? Number(m[1]) : NaN;
+  // Guessing here would produce audio at the wrong speed, which reads as a
+  // strange voice rather than as a bug.
+  if (!Number.isFinite(n) || n <= 0) throw new Error(`story-voice: no sample rate in "${mime}"`);
+  return n;
+}
+
+/**
+ * Which rigged character, if any, belongs in this shot.
+ *
+ * Only characters with a MEASURED rig can appear. Today that is Aladdin alone,
+ * so a user's Story gets no puppet unless their plan names him — which is
+ * correct rather than unfortunate: the alternative is a guessed mouth anchor.
+ */
+function rigFor(plan, shot) {
+  const text = `${shot.still} ${shot.narration}`.toLowerCase();
+  for (const member of plan.cast ?? []) {
+    const key = String(member.name ?? '').toLowerCase();
+    if (key && text.includes(key) && MEASURED_RIGS.has(key)) return key;
+  }
+  return null;
+}
+
+/** Kept in step with CHARACTER_RIGS by hand; the render just skips an unknown key. */
+const MEASURED_RIGS = new Set(['aladdin']);
+
 /** ffprobe duration, because narration is the clock and estimates drift. */
 function secondsOf(file) {
   const out = execFileSync(findBin('ffprobe'), [
@@ -213,6 +266,10 @@ if (offline) {
     const { plan } = await edge('story-plot', { prompt: job.prompt, shots });
     console.log(`  plot: "${plan.title}", ${plan.shots.length} shots`);
 
+    // One voice for the whole film. A narrator that changes between shots is
+    // the audio version of the character drift the cast locks exist to fix.
+    const voice = process.env.STORY_VOICE ?? 'Charon';
+    const ffmpeg = findBin('ffmpeg');
     const rendered = [];
     for (const [i, shot] of plan.shots.entries()) {
       // One call per shot, sequentially. Not a fan-out: the rate limit is per
@@ -225,16 +282,36 @@ if (offline) {
       fs.writeFileSync(file, Buffer.from(still.data, 'base64'));
       console.log(`  still ${i + 1}/${plan.shots.length}`);
 
-      // TODO(narration): there is no TTS in this repo — Episode 3's mp3s came
-      // from the Lovable agent out of band. Until one exists this throws rather
-      // than rendering a silent slideshow, which this project has shipped once
-      // already and which no still-frame check catches.
-      throw new Error(
-        'no TTS available: a Story cannot be narrated yet. ' +
-          'Wire a text-to-speech call here before enabling generation.',
-      );
-      // eslint-disable-next-line no-unreachable
-      rendered.push({ still: file, seconds: 0 });
+      const voiced = await edge('story-voice', { text: shot.narration, voice });
+      const wav = path.join(work, `shot${String(i).padStart(3, '0')}.wav`);
+      fs.writeFileSync(wav, wrapPcmAsWav(Buffer.from(voiced.data, 'base64'), rateOf(voiced.mime)));
+
+      // MEASURED, both of them. The duration decides how long the shot is on
+      // screen — narration is the clock and a word-count estimate drifts
+      // further out of sync with every shot. The spans decide when the mouth
+      // moves, and they come from the same envelope the episodes use, imported
+      // rather than reimplemented so the two cannot disagree.
+      const seconds = secondsOf(wav);
+      const durationFrames = Math.max(1, Math.round(seconds * FPS));
+      const spans = speechSpans(envelope(ffmpeg, wav)).filter(([a]) => a < durationFrames);
+
+      rendered.push({
+        still: file,
+        audio: wav,
+        seconds,
+        // Camera per shot rather than a house constant: measured across six ep3
+        // clips it ran 0.0 to 19.2 percent, half of them locked off.
+        travel: i % 3 === 0 ? 0 : 0.03,
+        pan: i % 2 === 0 ? 'right' : 'left',
+        // A character only where the plan says someone is on screen AND that
+        // someone has a measured rig. An unmeasured character would need a
+        // guessed mouth anchor, which looks like it works until the mouth opens
+        // near the chin.
+        ...(rigFor(plan, shot)
+          ? { character: { rig: rigFor(plan, shot), text: shot.narration, speech: spans } }
+          : {}),
+      });
+      console.log(`  voice ${i + 1}/${plan.shots.length} — ${seconds.toFixed(2)}s, ${spans.length} spans`);
     }
 
     await setStatus(job.id, 'assembling');
