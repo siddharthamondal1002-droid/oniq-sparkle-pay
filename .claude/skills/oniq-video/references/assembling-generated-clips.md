@@ -49,6 +49,58 @@ So write long scenes as a shot list with most shots on objects, hands, doors,
 skies and crowds. Character-consistency risk drops with the number of frames a
 face is actually in.
 
+## Cuts must land on the language, or the picture reads as lagging
+
+Allocating shots by weight is exact and closes the arithmetic, and it produces
+an edit that ignores the script. Weight knows nothing about where the sentences
+are, so a cut arrives mid-clause and the new image lands detached from the words
+that introduced it. The project owner described episode 3 as "scene matching
+with audio is lagging" — it was not sync drift, the file was frame-exact. It was
+this.
+
+Measured on ep3's own narration, before the fix: **11 of 44 interior cuts sat
+inside a pause; 20 of 44 were more than 0.6s from any pause**, the worst being
+the episode's opening cut at 2.18s adrift.
+
+The fix is `snapCutsToPauses` in `src/lib/shotAllocation.ts`, fed by a committed
+pause table (`remotion/scripts/measure-ep3-pauses.mjs` →
+`remotion/src/ep3/pauses.ts`). It moves the boundaries BETWEEN shots and never
+the scene endpoints, so every scene still sums to exactly what it summed to and
+nothing downstream shifts. At a one-second budget: 32 of 44 on the beat, mean
+miss 0.64s → 0.37s.
+
+Four things that are easy to get wrong here:
+
+- **Snap in TIMELINE space, not generated-frame space.** A shot dissolved into
+  contains `SHOT_DISSOLVE_FRAMES` more frames than it OCCUPIES. Pauses are
+  measured on the timeline. Snapping the generated counts directly puts a
+  dissolve-carrying scene's cuts up to 36 frames out. Strip the overlap, snap,
+  add it back.
+- **The budget bounds CUT movement, not shot duration.** A shot lies between two
+  cuts, so a 30-frame budget can change a shot's length by 60. That looks like a
+  breach in a diff and is not. Say so where someone will read it.
+- **Snapping needs the RAW clips.** Moving a cut makes the shot on one side
+  LONGER, and a conformed clip is trimmed to exactly its allocation — it has no
+  spare frames. Raws are ~301 frames against a 300-frame ceiling. Upload raw
+  pointers alongside conformed ones from the start; without them a re-cut costs
+  a regeneration.
+- **Bigger budget is not better.** 1.5s scores 41 of 44 against 31, by moving a
+  cut as much as a third of a five-second shot — winning the metric by rewriting
+  the pacing the shot list intended.
+
+Two related faults the same measurement pass turned up in ep3, both still open
+and both worth checking on any episode:
+
+- **Speech overlapping speech at scene joins.** Narration sits inside each
+  scene's Sequence and consecutive Sequences overlap by `TRANSITION_FRAMES`.
+  Where the outgoing tail silence plus the incoming head silence is under the
+  transition length, both voices play at once — 5 of 15 joins in ep3, up to
+  0.13s. Measure head/tail silence per mp3 against `TRANSITION`.
+- **Delivery rate that runs the wrong way.** ep3 averages 143 wpm against a 140
+  target, but ranges 109 to 178 — and the fastest scene in the episode is the
+  coda. Check per-scene wpm, not just the total; a story that accelerates into
+  its ending reads as rushed no matter how good the total is.
+
 ## Narration stays the clock, and there is ONE trim site per scene
 
 Generate clips slightly long. Trim the **tail of the last clip in each scene**
@@ -86,6 +138,30 @@ where the real one picks up.
    excuse as "the animation".
 4. **~20 MB per 10s clip against a 10 MB repo limit.** Clips live on the CDN as
    `.asset.json`, not in `remotion/public/`.
+
+**Keep the RAW generations too, not just the conformed clips.** Same mechanism —
+upload, commit a pointer — under `public/ep3/raw/`. They are the only copy of
+the frames a re-cut needs, and the box that generates them recycles. Recovering
+them after the fact cost an extra round trip that uploading at generation time
+would have avoided entirely.
+
+## Getting the clips onto a box that cannot reach the CDN
+
+The dev container has the renderer and **its proxy denies `*.lovable.app`,
+`oniqhub.com` and Supabase** — so `--fetch` cannot run on the one machine that
+needs the files. GitHub is reachable. `.github/workflows/ep3-clip-transfer.yml`
+resolves it: a runner with open egress rebuilds the set from the committed
+pointers and publishes it as a **release asset**.
+
+A release asset, not an orphan branch. Pushing 428 MB of mp4 onto a branch works,
+but the objects survive deleting the branch and every future clone pays for them.
+An asset sits outside git, is one download instead of sixty blobs, and deletes
+without a trace. Checksums go INSIDE the tarball so the receiving box can prove
+it got every byte. Measured: 428 MB conformed in 6.6s, 970 MB raw in 34s, all 120
+checksums clean.
+
+Do not gzip the raws — 970 MB of h264 does not compress and squeezing it costs a
+minute of runner time to save nothing.
 
 Do all four in **one ingest script** that also probes each clip and can re-check
 measured length against the manifest — the same `--check` shape that catches a
