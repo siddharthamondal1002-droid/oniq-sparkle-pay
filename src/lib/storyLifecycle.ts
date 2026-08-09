@@ -74,8 +74,13 @@ const PURGE_ON_ENTRY: ReadonlySet<StoryStatus> = new Set(["delivered", "failed"]
  * three steps rather than two: the device confirms receipt before we delete,
  * because deleting on "download started" loses the video of anyone whose
  * connection drops mid-transfer.
+ *
+ * EXPORTED because the database enforces the same table in
+ * `story_jobs_guard_transition()`, and `storyJobsSchema.test.ts` parses that
+ * function and compares it to this one. Two copies of a state machine drift;
+ * two copies with a test between them do not.
  */
-const ALLOWED: Readonly<Record<StoryStatus, readonly StoryStatus[]>> = {
+export const STORY_TRANSITIONS: Readonly<Record<StoryStatus, readonly StoryStatus[]>> = {
   queued: ["generating", "failed", "purged"],
   generating: ["assembling", "failed", "purged"],
   assembling: ["ready", "failed", "purged"],
@@ -87,7 +92,7 @@ const ALLOWED: Readonly<Record<StoryStatus, readonly StoryStatus[]>> = {
 };
 
 export function canTransition(from: StoryStatus, to: StoryStatus): boolean {
-  return ALLOWED[from].includes(to);
+  return STORY_TRANSITIONS[from].includes(to);
 }
 
 /** Throws on an illegal move, so a bad transition fails at the write, not later. */

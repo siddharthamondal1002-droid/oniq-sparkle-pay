@@ -14,7 +14,9 @@ import {
   MAX_STORY_SECONDS,
   MIN_STORY_SECONDS,
   checkStoryQuota,
+  parseClaimResult,
   planStory,
+  refusalMessage,
   remainingSeconds,
 } from "@/lib/storyPlan";
 
@@ -25,7 +27,10 @@ describe("planStory splits a duration into generatable shots", () => {
     // they can see.
     for (let s = MIN_STORY_SECONDS; s <= MAX_STORY_SECONDS; s += 7) {
       const plan = planStory(s);
-      expect(plan.shots.reduce((a, x) => a + x.seconds, 0), `${s}s`).toBe(plan.seconds);
+      expect(
+        plan.shots.reduce((a, x) => a + x.seconds, 0),
+        `${s}s`,
+      ).toBe(plan.seconds);
       expect(plan.seconds).toBe(s);
     }
   });
@@ -166,5 +171,93 @@ describe("checkStoryQuota refuses before anything is spent", () => {
     const over = { enabled: true, freeSeconds: 100, usedSeconds: 140 };
     expect(remainingSeconds(over)).toBe(0);
     expect(checkStoryQuota(over, 5)?.remaining).toBe(0);
+  });
+
+  it("says the same sentence the RPC path will say, for every reason", () => {
+    // The pure check and the parsed RPC result both go through
+    // refusalMessage(). If one of them ever formatted its own string, this is
+    // where the two would stop matching.
+    const cases = [
+      { state: { enabled: false, freeSeconds: 300, usedSeconds: 0 }, wanted: 60 },
+      { state: { enabled: true, freeSeconds: 300, usedSeconds: 300 }, wanted: 60 },
+      {
+        state: { enabled: true, freeSeconds: 300, usedSeconds: 0, dailyUsedSeconds: 120 },
+        wanted: 60,
+      },
+      { state: { enabled: true, freeSeconds: 40, usedSeconds: 0 }, wanted: 60 },
+    ];
+    for (const { state, wanted } of cases) {
+      const r = checkStoryQuota(state, wanted)!;
+      expect(r.message).toBe(
+        refusalMessage(r.reason, {
+          remaining: r.remaining,
+          dailyLeft: Math.max(0, 120 - (state.dailyUsedSeconds ?? 0)),
+          wanted,
+        }),
+      );
+    }
+  });
+});
+
+describe("parseClaimResult trusts the RPC and distrusts the payload", () => {
+  it("reads a successful claim", () => {
+    const r = parseClaimResult({
+      ok: true,
+      jobId: "abc",
+      seconds: 60,
+      remaining: 240,
+      dailyLeft: 60,
+    });
+    expect(r).toEqual({ ok: true, jobId: "abc", seconds: 60, remaining: 240, dailyLeft: 60 });
+  });
+
+  it("turns a refusal into the same shape the pure check produces", () => {
+    const r = parseClaimResult({
+      ok: false,
+      reason: "daily",
+      remaining: 240,
+      dailyLeft: 30,
+      wanted: 60,
+    });
+    expect(r.ok).toBe(false);
+    if (r.ok) throw new Error("unreachable");
+    expect(r.refusal.reason).toBe("daily");
+    expect(r.refusal.message).toContain("30s");
+    expect(r.refusal.remaining).toBe(240);
+  });
+
+  it("formats every reason the RPC can return", () => {
+    for (const reason of ["disabled", "capacity", "daily", "exhausted", "too-long"]) {
+      const r = parseClaimResult({ ok: false, reason, remaining: 10, dailyLeft: 0, wanted: 60 });
+      if (r.ok) throw new Error("unreachable");
+      expect(r.refusal.message.length, reason).toBeGreaterThan(0);
+    }
+  });
+
+  it("refuses to read success out of a claim with no job id", () => {
+    // The dangerous failure is the quiet one: a malformed success would leave
+    // the UI waiting on a job that does not exist while the seconds are spent.
+    expect(() => parseClaimResult({ ok: true, seconds: 60 })).toThrow(/job id/);
+  });
+
+  it("throws on a reason this build does not know", () => {
+    // A migration ahead of the bundle. Inventing a sentence for an unknown
+    // refusal tells the user something that may be untrue.
+    expect(() => parseClaimResult({ ok: false, reason: "vibes" })).toThrow(/unknown refusal/);
+  });
+
+  it("throws rather than guessing at a shapeless payload", () => {
+    expect(() => parseClaimResult(null)).toThrow(/expected an object/);
+    expect(() => parseClaimResult("ok")).toThrow(/expected an object/);
+    expect(() => parseClaimResult({})).toThrow(/no ok flag/);
+    expect(() => parseClaimResult({ ok: "yes" })).toThrow(/no ok flag/);
+  });
+
+  it("defaults missing numbers to zero rather than NaN", () => {
+    // A NaN reaches the screen as "NaNs left", which is worse than a wrong
+    // zero and much harder to read as a bug in the payload.
+    const r = parseClaimResult({ ok: false, reason: "too-long" });
+    if (r.ok) throw new Error("unreachable");
+    expect(r.refusal.message).toBe("That is 0s and you have 0s of free time left.");
   });
 });

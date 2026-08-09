@@ -151,12 +151,46 @@ export function planStory(requestedSeconds: number, limits: StoryLimits = {}): S
 }
 
 /** Why a Story was refused, in words a screen can show unchanged. */
+export type RefusalReason = "disabled" | "capacity" | "daily" | "exhausted" | "too-long";
+
 export type QuotaRefusal = {
-  reason: "disabled" | "capacity" | "daily" | "exhausted" | "too-long";
+  reason: RefusalReason;
   message: string;
   /** Seconds of free allowance left. */
   remaining: number;
 };
+
+/** The numbers a refusal sentence may mention. */
+export type RefusalNumbers = {
+  remaining: number;
+  dailyLeft: number;
+  wanted: number;
+};
+
+/**
+ * The sentence for a refusal. THE ONLY PLACE THIS COPY EXISTS.
+ *
+ * `claim_story_seconds` decides the same reasons in SQL, because the decision
+ * has to happen under a row lock — but it returns a reason and three numbers,
+ * never a sentence. Copy written twice is copy that drifts, and the drift is
+ * only ever visible to a user.
+ */
+export function refusalMessage(reason: RefusalReason, n: RefusalNumbers): string {
+  switch (reason) {
+    case "disabled":
+      return "Story generation is paused right now. Try again later.";
+    case "capacity":
+      return "Story generation is busy today. Try again tomorrow.";
+    case "exhausted":
+      return "You have used all your free Story time.";
+    case "daily":
+      return n.dailyLeft > 0
+        ? `You have ${n.dailyLeft}s of Story time left today.`
+        : "You have used your Story time for today. More tomorrow.";
+    case "too-long":
+      return `That is ${n.wanted}s and you have ${n.remaining}s of free time left.`;
+  }
+}
 
 /**
  * The free allowance, in seconds of finished video. 300s = five 60s Stories.
@@ -227,11 +261,12 @@ export type QuotaState = {
  */
 export function checkStoryQuota(state: QuotaState, requestedSeconds: number): QuotaRefusal | null {
   const remaining = Math.max(0, state.freeSeconds - state.usedSeconds);
+  const dailyLeftOf = (cap: number) => Math.max(0, cap - (state.dailyUsedSeconds ?? 0));
 
   if (!state.enabled) {
     return {
       reason: "disabled",
-      message: "Story generation is paused right now. Try again later.",
+      message: refusalMessage("disabled", { remaining, dailyLeft: 0, wanted: 0 }),
       remaining,
     };
   }
@@ -247,7 +282,11 @@ export function checkStoryQuota(state: QuotaState, requestedSeconds: number): Qu
   if (globalUsed + wanted > globalCap) {
     return {
       reason: "capacity",
-      message: "Story generation is busy today. Try again tomorrow.",
+      message: refusalMessage("capacity", {
+        remaining,
+        dailyLeft: dailyLeftOf(state.dailySeconds ?? DEFAULT_DAILY_SECONDS),
+        wanted,
+      }),
       remaining,
     };
   }
@@ -255,7 +294,11 @@ export function checkStoryQuota(state: QuotaState, requestedSeconds: number): Qu
   if (remaining <= 0) {
     return {
       reason: "exhausted",
-      message: "You have used all your free Story time.",
+      message: refusalMessage("exhausted", {
+        remaining: 0,
+        dailyLeft: dailyLeftOf(state.dailySeconds ?? DEFAULT_DAILY_SECONDS),
+        wanted,
+      }),
       remaining: 0,
     };
   }
@@ -263,15 +306,11 @@ export function checkStoryQuota(state: QuotaState, requestedSeconds: number): Qu
   // Per-user, per-day. The lifetime allowance alone does not stop one account
   // spending all of it in an hour, which is exactly what a compromised account
   // does. Spreading it costs an honest user nothing.
-  const dailyCap = state.dailySeconds ?? DEFAULT_DAILY_SECONDS;
-  const dailyLeft = Math.max(0, dailyCap - (state.dailyUsedSeconds ?? 0));
+  const dailyLeft = dailyLeftOf(state.dailySeconds ?? DEFAULT_DAILY_SECONDS);
   if (wanted > dailyLeft) {
     return {
       reason: "daily",
-      message:
-        dailyLeft > 0
-          ? `You have ${dailyLeft}s of Story time left today.`
-          : "You have used your Story time for today. More tomorrow.",
+      message: refusalMessage("daily", { remaining, dailyLeft, wanted }),
       remaining,
     };
   }
@@ -279,11 +318,78 @@ export function checkStoryQuota(state: QuotaState, requestedSeconds: number): Qu
   if (wanted > remaining) {
     return {
       reason: "too-long",
-      message: `That is ${wanted}s and you have ${remaining}s of free time left.`,
+      message: refusalMessage("too-long", { remaining, dailyLeft, wanted }),
       remaining,
     };
   }
   return null;
+}
+
+/**
+ * The result of `claim_story_seconds`, parsed.
+ *
+ * The RPC is the authority — it decided under a row lock, `checkStoryQuota`
+ * only decided against numbers that were true a moment ago. So the client's
+ * job is not to re-decide but to render, and this turns the RPC's jsonb into
+ * the same `QuotaRefusal` shape the pure check already produces.
+ *
+ * DEFENSIVE about the payload. It arrives as `unknown` from a network call and
+ * a malformed one must not read as a successful claim — an unrecognised shape
+ * throws rather than falling through to "ok".
+ */
+export type StoryClaim =
+  | { ok: true; jobId: string; seconds: number; remaining: number; dailyLeft: number }
+  | { ok: false; refusal: QuotaRefusal };
+
+const REFUSAL_REASONS: ReadonlySet<string> = new Set([
+  "disabled",
+  "capacity",
+  "daily",
+  "exhausted",
+  "too-long",
+]);
+
+export function parseClaimResult(payload: unknown): StoryClaim {
+  if (typeof payload !== "object" || payload === null) {
+    throw new Error("claim_story_seconds: expected an object");
+  }
+  const p = payload as Record<string, unknown>;
+  const num = (k: string): number => (typeof p[k] === "number" ? (p[k] as number) : 0);
+
+  if (p.ok === true) {
+    if (typeof p.jobId !== "string" || !p.jobId) {
+      throw new Error("claim_story_seconds: claim succeeded without a job id");
+    }
+    return {
+      ok: true,
+      jobId: p.jobId,
+      seconds: num("seconds"),
+      remaining: num("remaining"),
+      dailyLeft: num("dailyLeft"),
+    };
+  }
+  if (p.ok !== false) {
+    throw new Error("claim_story_seconds: no ok flag");
+  }
+  const reason = p.reason;
+  if (typeof reason !== "string" || !REFUSAL_REASONS.has(reason)) {
+    // A reason this build does not know about is a migration ahead of the
+    // bundle. Refusing loudly beats inventing a sentence for it.
+    throw new Error(`claim_story_seconds: unknown refusal ${String(reason)}`);
+  }
+  const numbers: RefusalNumbers = {
+    remaining: num("remaining"),
+    dailyLeft: num("dailyLeft"),
+    wanted: num("wanted"),
+  };
+  return {
+    ok: false,
+    refusal: {
+      reason: reason as RefusalReason,
+      message: refusalMessage(reason as RefusalReason, numbers),
+      remaining: numbers.remaining,
+    },
+  };
 }
 
 /** Seconds of free allowance left, floored at zero. */
