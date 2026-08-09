@@ -33,6 +33,25 @@ import { findChromium } from './findChromium.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const OUT = process.env.OUT ?? path.resolve(__dirname, '../../.tmp/ep3.mp4');
+
+/**
+ * Optional "from-to" frame range, e.g. FRAME_RANGE=0-6107.
+ *
+ * A full pass is ~12,200 frames and takes long enough that a sandbox which
+ * recycles between turns can lose it repeatedly — which is exactly what
+ * happened twice here. Rendering in halves and concatenating is the escape
+ * hatch: each half fits comfortably inside one turn, and the two join cleanly
+ * because both are encoded with identical settings.
+ *
+ * SPLIT ON A SCENE BOUNDARY. A join mid-shot re-encodes across a GOP and can
+ * show; a join where the picture was already cutting cannot.
+ */
+const RANGE = process.env.FRAME_RANGE
+  ? process.env.FRAME_RANGE.split('-').map((n) => Number(n.trim()))
+  : null;
+if (RANGE && (RANGE.length !== 2 || RANGE.some((n) => !Number.isInteger(n)))) {
+  throw new Error(`FRAME_RANGE must look like 0-6107, got "${process.env.FRAME_RANGE}"`);
+}
 const CLIPS = path.resolve(__dirname, '../public/ep3/clips');
 const NARRATION = path.resolve(__dirname, '../public/ep3');
 
@@ -133,7 +152,7 @@ const composition = await selectComposition({
 console.log(
   `ep3: ${composition.durationInFrames} frames @ ${composition.fps}fps ` +
     `(${(composition.durationInFrames / FPS / 60).toFixed(2)} min), ` +
-    `${SHOT_IDS.length} clips -> ${OUT}`,
+    `${SHOT_IDS.length} clips${RANGE ? `, frames ${RANGE[0]}-${RANGE[1]}` : ''} -> ${OUT}`,
 );
 
 await renderMedia({
@@ -157,6 +176,7 @@ await renderMedia({
   audioCodec: 'aac',
   audioBitrate: '128k',
   concurrency: Number(process.env.CONCURRENCY ?? 2),
+  ...(RANGE ? { frameRange: RANGE } : {}),
   onProgress: ({ renderedFrames, encodedFrames }) => {
     if (renderedFrames % 300 === 0) {
       console.log(
