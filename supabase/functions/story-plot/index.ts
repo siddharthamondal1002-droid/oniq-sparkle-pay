@@ -129,6 +129,33 @@ function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
 const MAX_PROMPT = 2000;
 const MAX_SHOTS = 90;
 
+/**
+ * How long ONE model attempt gets, by size of film.
+ *
+ * A four-shot plan came back well inside 45 seconds; a nine-shot plan timed out
+ * at it. The work is roughly linear in shots — each one is a paragraph that
+ * repeats the cast lock and the setting verbatim — so the budget should be too.
+ *
+ * Capped at 90s because an edge function has a wall clock and this is not the
+ * only call inside it. A very long Story (43 shots for five minutes) may simply
+ * not fit; that is a real limit of doing this in an edge function and it will
+ * show up as a timeout naming the shot count rather than as a mystery.
+ */
+function attemptBudget(shots: number): number {
+  return Math.min(90_000, 30_000 + shots * 5_000);
+}
+
+/**
+ * The whole function's wall clock, shared across every attempt.
+ *
+ * Scaling one attempt is not enough on its own: three scaled attempts in a row
+ * would run to five minutes and be killed by the platform mid-flight, which
+ * looks like a hang rather than a timeout. Each attempt takes the smaller of
+ * its own budget and whatever is left, and an attempt with no room left is
+ * skipped instead of started.
+ */
+const TOTAL_BUDGET_MS = 115_000;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -171,11 +198,14 @@ Deno.serve(async (req) => {
       // than as a short film, so being wrong here is silently expensive: the
       // user is charged and gets nothing.
       maxTokens: Math.min(8192, 1200 + shots * 260),
-      // A long plan is slower than a chat reply and the default 12s cuts a
-      // 40-shot film off mid-sentence. Budgeted so the worst case — Claude,
-      // Claude again, then Gemini — still lands inside the edge function's
-      // wall clock: 45 + 35 + 25 is 105 seconds, not 135.
-      timeoutMs: 45000,
+      // SCALED, because a fixed 45s was a budget sized for a short film and
+      // silently applied to long ones. A 60-second Story is nine shots, each of
+      // them a paragraph repeating the cast lock verbatim, and it timed out —
+      // `{"engine":"anthropic","reason":"timeout"}` — while the four-shot film
+      // before it finished comfortably. The retry did not save it either, and
+      // correctly so: a retry is for a reply that arrived and would not parse,
+      // and a timeout is not that.
+      timeoutMs: attemptBudget(shots),
     };
 
     // THIS IS TING WRITING THE FILM, so Claude gets two goes before anything
@@ -194,6 +224,14 @@ Deno.serve(async (req) => {
     // runwayOps uses for billable calls. A reply that arrived but came back
     // malformed is the opposite case: it is worth one corrective ask, because
     // everything downstream of this plan costs real money per shot.
+    // One clock for the whole function. `remaining()` is what each attempt is
+    // actually allowed, so a generous first attempt cannot starve the ones
+    // after it into being started with no time to finish.
+    const deadline = Date.now() + TOTAL_BUDGET_MS;
+    const remaining = () => deadline - Date.now();
+    /** Under ten seconds left is not an attempt, it is a guaranteed timeout. */
+    const roomFor = (want: number) => (remaining() > 10_000 ? Math.min(want, remaining()) : 0);
+
     let plan: Plan | null = null;
     let servedBy = "anthropic";
     // Every attempt records why it did not work. This travels back in the 502
@@ -203,13 +241,21 @@ Deno.serve(async (req) => {
     const tried: { engine: string; reason: string }[] = [];
 
     if (hasClaude) {
-      const first = await callClaude(opts);
+      const firstMs = roomFor(attemptBudget(shots));
+      const first = await callClaude({ ...opts, timeoutMs: firstMs });
       if (first.ok) {
         const r = parsePlan(textOf(first.data), shots);
         if ("plan" in r) plan = r.plan;
         else tried.push({ engine: "anthropic", reason: r.reason });
       } else {
-        tried.push({ engine: "anthropic", reason: String(first.reason ?? "failed").slice(0, 160) });
+        const why = String(first.reason ?? "failed");
+        tried.push({
+          engine: "anthropic",
+          reason: (why === "timeout"
+            ? `timeout after ${Math.round(firstMs / 1000)}s on ${shots} shots`
+            : why
+          ).slice(0, 160),
+        });
       }
 
       // Second go: same request, with the failure named. Telling it what went
@@ -217,9 +263,12 @@ Deno.serve(async (req) => {
       // be told to be terser, and one that miscounted needs the count repeated.
       const firstReason = tried.at(-1)?.reason;
       if (!plan && first.ok && firstReason) {
-        const retry = await callClaude({
+        const retryMs = roomFor(attemptBudget(shots));
+        const retry = retryMs === 0
+          ? ({ ok: false, reason: "no time left after the first attempt" } as const)
+          : await callClaude({
           ...opts,
-          timeoutMs: 35000,
+          timeoutMs: retryMs,
           messages: [
             ...opts.messages,
             {
@@ -257,7 +306,10 @@ Deno.serve(async (req) => {
     // Claude has had both goes, or has no key at all.
     if (!plan && hasGemini) {
       servedBy = "gemini";
-      const g = await callGemini({ ...opts, timeoutMs: 25000 });
+      const geminiMs = roomFor(25_000);
+      const g = geminiMs === 0
+        ? ({ ok: false, reason: "no time left after Claude" } as const)
+        : await callGemini({ ...opts, timeoutMs: geminiMs });
       if (g.ok) {
         const r = parsePlan(textOf(g.data), shots);
         if ("plan" in r) plan = r.plan;
