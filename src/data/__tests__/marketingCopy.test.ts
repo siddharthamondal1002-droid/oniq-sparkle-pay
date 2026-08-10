@@ -58,21 +58,37 @@ describe("every live card maps to a surface that exists", () => {
     }
   });
 
-  it("holds back Scan & Pay and Receive until the Play work lands", () => {
-    const soon = FEATURE_CARDS.filter((c) => c.status === "soon").map((c) => c.title);
-    expect(soon).toContain("Scan & Pay");
-    expect(soon).toContain("Receive");
+  it("shows Scan & Pay and Receive, and points them somewhere real", () => {
+    // Both were "soon" while the in-app entry point was withdrawn. Payments
+    // were resurfaced, so they are live — and a live card with no route is the
+    // exact thing the deck exists to prevent, hence the route assertion.
+    for (const title of ["Scan & Pay", "Receive"]) {
+      const card = FEATURE_CARDS.find((c) => c.title === title);
+      expect(card, `${title} is missing from the deck`).toBeTruthy();
+      expect(card?.status, `${title} is not live`).toBe("live");
+      expect(card?.route, `${title} is live with no route`).toBeTruthy();
+    }
   });
 
   it("keeps the site and the app agreeing about payments", () => {
-    // The site says coming soon, so the app must not offer it either. The
-    // in-app shortcut is registry-driven off `oniq-upi`'s hidden flag.
+    // THE SYMMETRY IS THE POINT, not the direction. The live Play listing once
+    // shipped a screenshot of a payment tile the app would not open; this test
+    // is what stops that recurring. It used to read "site defers, so the app
+    // must hide". Payments were resurfaced, so it now reads the other way — if
+    // the site offers Scan & Pay, the app must not hide oniq-upi.
     const registry = readFileSync(join(ROOT, "src/data/appRegistry.ts"), "utf8");
-    const entry = registry.slice(registry.indexOf('id: "oniq-upi"'));
+    const entry = registry.slice(registry.indexOf('id: "oniq-upi"')).slice(0, 400);
+    const siteOffers =
+      FEATURE_CARDS.find((c) => c.title === "Scan & Pay")?.status === "live";
+    const appHides = /hidden:\s*true/.test(entry);
     expect(
-      entry.slice(0, 400),
-      "oniq-upi is not hidden, so the app offers what the site defers",
-    ).toMatch(/hidden:\s*true/);
+      siteOffers && appHides,
+      "the site offers Scan & Pay while oniq-upi is hidden — site and app disagree",
+    ).toBe(false);
+    expect(
+      !siteOffers && !appHides,
+      "oniq-upi is visible while the site still defers Scan & Pay — site and app disagree",
+    ).toBe(false);
   });
 });
 

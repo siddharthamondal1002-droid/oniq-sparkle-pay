@@ -65,7 +65,15 @@ describe("app registry integrity", () => {
       true,
     );
     expect(APP_REGISTRY.some((a) => a.id === "blusmart" && a.status === "shutdown")).toBe(true);
-    expect(APP_REGISTRY.some((a) => a.id === "oniq-upi" && a.hidden === true)).toBe(true);
+    // oniq-upi WAS asserted hidden here. It is visible again as of the Razorpay
+    // work, so the assertion now guards what still matters about it rather than
+    // a flag that has flipped: it is India-only, and it is webOnly because the
+    // hand-off is a upi:// intent rather than a packaged app.
+    const upi = APP_REGISTRY.find((a) => a.id === "oniq-upi");
+    expect(upi, "oniq-upi is missing from the registry").toBeTruthy();
+    expect(upi?.hidden ?? false, "oniq-upi is hidden again — update marketingCopy too").toBe(false);
+    expect(upi?.countries).toEqual(["IN"]);
+    expect(upi?.launchType).toBe("webOnly");
   });
 
   it("contains no dating/hookup app, by id, name or package", () => {

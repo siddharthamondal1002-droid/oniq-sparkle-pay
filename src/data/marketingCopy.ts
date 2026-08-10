@@ -168,21 +168,17 @@ export const FEATURE_CARDS: FeatureCard[] = [
   // These must LOOK different — dimmed, badged, not clickable. A card that
   // looks live and isn't is worse than no card, and worst of all for payments.
   //
-  // Scan & Pay and Receive are held back deliberately until the Play
-  // compliance work lands. The code exists and works, and the in-app entry
-  // point is already withdrawn — `oniq-upi` carries hidden:true in the app
-  // registry, so nothing in the app offers it either. Site and app agree.
   {
     title: "Scan & Pay",
     copy: "Scan any UPI QR — payments run through your own UPI apps.",
-    status: "soon",
-    route: null,
+    status: "live",
+    route: "/app/upi",
   },
   {
     title: "Receive",
     copy: "Show your own QR and get paid.",
-    status: "soon",
-    route: null,
+    status: "live",
+    route: "/app/upi",
   },
 ];
 
@@ -267,8 +263,8 @@ ONIQ is not affiliated with, endorsed by, or sponsored by any third-party app, b
   screenshotChecklist: [
     "No Watch player or channel grid — the surface is gone.",
     "No Glance card — the surface is gone.",
-    "No Scan & Pay or Receive shown as available — both are held back.",
-    "No home-grid screenshot showing the 'tap in' payment tile. The live listing shipped one; oniq-upi carries hidden: true, so the screenshot advertised a surface the app does not open.",
+    "Scan & Pay, Receive and the payment tile MAY now be shown — oniq-upi is visible and /app/upi is reachable. The old rule was the reverse; it changed when payments were resurfaced, and the screenshot must match whichever is true on the day.",
+    "Any checkout screenshot showing a card or netbanking payment is Razorpay against a real-world order. Do not screenshot a payment for anything digital — Play requires Play Billing for that.",
     "No live-TV or streaming wording in any caption or feature graphic.",
     "Category is not Entertainment or Video Players & Editors.",
     "Data safety declares health info as collected — see DATA_COLLECTED in src/config/playCompliance.ts.",

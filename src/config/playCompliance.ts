@@ -31,12 +31,20 @@ export const NATIVE_CAPABILITIES = [
   "CV builder with anti-fabrication validation against the user's own declared facts.",
   "Country-aware exam-paper generation with vector PDF export.",
   "Real-time chat with WebRTC voice and video.",
-  // Built and working, but WITHHELD from users pending this compliance pass —
-  // `oniq-upi` carries hidden:true in the app registry and the site lists Scan
-  // & Pay as coming soon. Kept on this list because the code is real native
-  // work, but flagged, because citing a capability a reviewer cannot reach
-  // would undermine the rest of the list rather than strengthen it.
-  "UPI scan-and-pay through the user's own payment apps — implemented, currently withheld from the UI.",
+  // RESURFACED. `oniq-upi` is visible in the registry again and the site lists
+  // Scan & Pay as live, so a reviewer can reach it — which is what this entry
+  // needed before it could be cited without qualification.
+  //
+  // One functional caveat, recorded because a reviewer may hit it: PhonePe and
+  // GPay refuse third-party P2P intents, so paying a PERSON can be declined by
+  // the receiving app. Scanning a merchant QR is unaffected.
+  "UPI scan-and-pay through the user's own payment apps.",
+  // Card and netbanking checkout for FOOD ORDERS, via Razorpay. Physical goods
+  // and services only — Play permits a third-party processor for those and
+  // requires Play Billing for digital content, so this is deliberately wired
+  // to `orders` and to nothing digital. Payment status is written only by an
+  // edge function that has verified an HMAC; no client path can set it.
+  "Card and netbanking payment for food orders through Razorpay.",
   "Job-scam alerts with region-correct reporting channels.",
 ] as const;
 

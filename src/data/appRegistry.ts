@@ -504,9 +504,16 @@ export const APP_REGISTRY: AppEntry[] = [
     emoji: "🧺",
   },
   // ---------- Payments ----------
-  // ONIQ's own UPI hand-off — hidden per product decision (PhonePe/GPay block
-  // third-party P2P intents); /app/upi keeps its anti-fraud UX and stays
-  // reachable via deep links. Hidden, NOT deleted.
+  // ONIQ's own UPI hand-off. VISIBLE AGAIN as of the Razorpay work, by product
+  // decision: ONIQ now takes payments for real-world orders, so a payments
+  // surface that is present but unreachable no longer matches what the app
+  // does.
+  //
+  // ONE CAVEAT SURVIVES THE UNHIDING, and it is functional rather than
+  // regulatory: PhonePe and GPay block third-party P2P intents, so paying a
+  // PERSON from here can be refused by the app that receives the intent.
+  // Scanning a merchant QR is unaffected, which is the majority of what this
+  // screen is for. Re-hiding is one line if that trade stops being worth it.
   {
     id: "oniq-upi",
     name: "Pay via UPI",
@@ -517,7 +524,6 @@ export const APP_REGISTRY: AppEntry[] = [
     launchType: "webOnly",
     verified: true,
     status: "active",
-    hidden: true,
     color: "#00D4B8",
     letter: "₹",
     emoji: "💳",
