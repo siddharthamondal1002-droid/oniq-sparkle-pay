@@ -191,7 +191,12 @@ export async function buyStorySeconds(opts: BuyOptions): Promise<BuyResult> {
     return { status: "handed-off" };
   }
 
-  const { data, error } = await supabase.functions.invoke("story-purchase", {
+  // razorpay-order, not a Story-specific function. It takes EITHER an
+  // `orderId` (a food order) or `seconds` (Story time) and refuses both at
+  // once. The two products were meant to live in separate functions and do not,
+  // because Lovable's platform cannot create new Supabase edge functions in a
+  // TanStack project — see the header of razorpay-order for the whole story.
+  const { data, error } = await supabase.functions.invoke("razorpay-order", {
     body: { seconds: opts.seconds, origin: "web" },
   });
   const start = (data ?? {}) as {

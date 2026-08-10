@@ -39,11 +39,21 @@ export const NATIVE_CAPABILITIES = [
   // GPay refuse third-party P2P intents, so paying a PERSON can be declined by
   // the receiving app. Scanning a merchant QR is unaffected.
   "UPI scan-and-pay through the user's own payment apps.",
-  // Card and netbanking checkout for FOOD ORDERS, via Razorpay. Physical goods
-  // and services only — Play permits a third-party processor for those and
-  // requires Play Billing for digital content, so this is deliberately wired
-  // to `orders` and to nothing digital. Payment status is written only by an
-  // edge function that has verified an HMAC; no client path can set it.
+  // Card, UPI and netbanking checkout for FOOD ORDERS, via Razorpay. Physical
+  // goods and services, which Play permits a third-party processor for.
+  // Payment status is written only by an edge function that has verified an
+  // HMAC; no client path can set it.
+  //
+  // STORY TIME IS ALSO SOLD THROUGH RAZORPAY, and that is NOT claimed as a
+  // native capability, deliberately — it is not one. A Story is digital content
+  // consumed in the app, so Play requires Play Billing for an in-app charge.
+  // ONIQ's position is that the app does not charge: the native build opens
+  // oniqhub.com/pay/story in the system browser and the purchase completes
+  // there. `checkoutTarget()` in src/lib/storyCheckout.ts enforces that on the
+  // client and its first test proves native can never resolve to an inline
+  // checkout; `story_purchase_config.native_link_out` switches the in-app
+  // button off from a database row if Play ever objects, leaving the website
+  // selling and needing no app resubmission.
   "Card and netbanking payment for food orders through Razorpay.",
   "Job-scam alerts with region-correct reporting channels.",
 ] as const;
