@@ -9,15 +9,20 @@
 // `{ configured: false }` when no key is present so a missing secret degrades
 // instead of erroring.
 //
-// GEMINI FIRST, ANTHROPIC SECOND. `callGemini` on gemini-2.5-flash with
-// GOOGLE_AI_API_KEY, falling back to Claude only when Gemini is unavailable or
-// returns something unusable. Both go through the shared helper, which already
-// translates Gemini's response into Anthropic's shape — so the parser below is
-// written once and does not care which model answered.
+// ANTHROPIC FIRST, GEMINI SECOND. Claude Opus 5 is Ting's primary engine
+// everywhere else in this app, and a Story is meant to be Ting's film — the
+// plot is the one step where judgement actually shows, because it decides the
+// cast, the locks and the shot list that every later stage repeats. Gemini
+// stays as the fallback when Anthropic is unavailable or returns something
+// parsePlan rejects. Both go through the shared helper, which translates
+// Gemini's response into Anthropic's shape, so the parser below is written once
+// and does not care which model answered.
 //
-// A plan is structured JSON with a fixed shot count, not prose, which is the
-// cheap end of what either model does well. Spending the expensive model on it
-// by default would be paying for judgement this task does not need.
+// This was Gemini-first for a while. It was cheaper, and a plan is structured
+// JSON rather than prose, so the cheap end looked like enough. It is the wrong
+// trade here: everything downstream of the plan costs real money per shot, and
+// a weaker cast lock is not a cheaper film — it is a film that has to be made
+// twice.
 //
 // WHY THE PLOT IS A SERVER CALL AND NOT A PROMPT SENT STRAIGHT TO A GENERATOR.
 // Episode 3 proved the shape: a shot list with locked characters and locked
@@ -159,24 +164,25 @@ Deno.serve(async (req) => {
       timeoutMs: 45000,
     };
 
-    // Gemini first. Claude only if Gemini is not configured, errored, or came
-    // back with something parsePlan rejects — a miscounted plan from the cheap
-    // model is worth one retry on the expensive one, because everything
-    // downstream of here costs real money.
+    // Claude first — this is Ting writing the film. Gemini only if Anthropic is
+    // not configured, errored, or came back with something parsePlan rejects.
+    // The retry is worth it in either direction: everything downstream of here
+    // costs real money per shot, so a plan that fails to parse is cheaper to
+    // re-ask than to half-render.
     let plan: Plan | null = null;
-    let servedBy = "gemini";
+    let servedBy = "anthropic";
 
-    if (hasGemini) {
-      const g = await callGemini(opts);
-      if (g.ok) plan = parsePlan(textOf(g.data), shots);
-      else console.warn("story-plot gemini", g.reason);
-    }
-
-    if (!plan && hasClaude) {
-      servedBy = "anthropic";
+    if (hasClaude) {
       const c = await callClaude(opts);
       if (c.ok) plan = parsePlan(textOf(c.data), shots);
       else console.warn("story-plot anthropic", c.reason);
+    }
+
+    if (!plan && hasGemini) {
+      servedBy = "gemini";
+      const g = await callGemini(opts);
+      if (g.ok) plan = parsePlan(textOf(g.data), shots);
+      else console.warn("story-plot gemini", g.reason);
     }
 
     if (!plan) {
