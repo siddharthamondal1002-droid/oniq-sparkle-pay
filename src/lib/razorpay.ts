@@ -13,10 +13,24 @@
  * all, so there is no path from this file to "paid" that does not pass a
  * signature check.
  *
- * PHYSICAL GOODS ONLY. Google Play permits a third-party processor for
- * real-world goods and services and requires Play Billing for digital content
- * consumed in the app. This is wired to food orders. Pointing it at Story
- * seconds or a premium tier would be a policy violation, not a feature.
+ * PHYSICAL GOODS ONLY — THIS FILE, not the endpoint behind it, and the
+ * distinction is new. `payForOrder` sends `{ orderId }` and can express nothing
+ * else, so everything it can buy is a real-world good or service, which is what
+ * Google Play permits a third-party processor for.
+ *
+ * The `razorpay-order` function it calls now ALSO serves Story time, reached by
+ * sending `{ seconds }` instead. That is digital content, Play requires Play
+ * Billing for it in-app, and the way ONIQ satisfies that is that the app never
+ * charges: the native build opens oniqhub.com/pay/story in the system browser
+ * and the purchase happens there. `src/lib/storyCheckout.ts` owns that path and
+ * `checkoutTarget()` is what makes it unable to run a checkout on native.
+ *
+ * So do not route Story seconds, an AI tier, or anything else digital through
+ * THIS file. Not because the endpoint would refuse it — it would not, any more
+ * — but because this file is the in-app checkout, and an in-app checkout for
+ * digital content is the policy violation. The guard that used to be "the
+ * endpoint only knows about food" is now "the app-side caller only knows about
+ * food", and it is weaker, so it is written down rather than assumed.
  */
 import { supabase } from "@/integrations/supabase/client";
 
@@ -103,7 +117,10 @@ export async function payForOrder(opts: PayOptions): Promise<PayResult> {
     error?: string;
   };
   if (error || start.error) {
-    return { status: "failed", message: start.error ?? error?.message ?? "Could not start that payment." };
+    return {
+      status: "failed",
+      message: start.error ?? error?.message ?? "Could not start that payment.",
+    };
   }
   if (start.configured === false) {
     return { status: "failed", message: "Payments are not set up yet." };
