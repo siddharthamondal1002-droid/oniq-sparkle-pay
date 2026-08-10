@@ -2346,6 +2346,89 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_config: {
+        Row: {
+          currency: string
+          enabled: boolean
+          id: boolean
+          max_amount_minor: number
+          min_amount_minor: number
+          updated_at: string
+        }
+        Insert: {
+          currency?: string
+          enabled?: boolean
+          id?: boolean
+          max_amount_minor?: number
+          min_amount_minor?: number
+          updated_at?: string
+        }
+        Update: {
+          currency?: string
+          enabled?: boolean
+          id?: boolean
+          max_amount_minor?: number
+          min_amount_minor?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      payments: {
+        Row: {
+          amount_minor: number
+          confirmed_by: string | null
+          created_at: string
+          currency: string
+          error: string | null
+          id: string
+          order_id: string
+          provider: string
+          provider_order_id: string
+          provider_payment_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_minor: number
+          confirmed_by?: string | null
+          created_at?: string
+          currency?: string
+          error?: string | null
+          id?: string
+          order_id: string
+          provider?: string
+          provider_order_id: string
+          provider_payment_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_minor?: number
+          confirmed_by?: string | null
+          created_at?: string
+          currency?: string
+          error?: string | null
+          id?: string
+          order_id?: string
+          provider?: string
+          provider_order_id?: string
+          provider_payment_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_views: {
         Row: {
           first_viewed_at: string
@@ -3799,6 +3882,18 @@ export type Database = {
       mark_conversation_read: {
         Args: { _conversation_id: string }
         Returns: undefined
+      }
+      mark_order_paid: {
+        Args: {
+          _confirmed_by: string
+          _provider_order_id: string
+          _provider_payment_id: string
+        }
+        Returns: Json
+      }
+      mark_payment_failed: {
+        Args: { _error: string; _provider_order_id: string }
+        Returns: Json
       }
       mark_policy_notice_seen: { Args: never; Returns: undefined }
       match_contacts: {
