@@ -32,6 +32,9 @@ const corsHeaders = {
 /** The workflow listens for exactly this. Changing it silently stops dispatch. */
 const EVENT_TYPE = "story-job";
 
+/** How long a dispatched-but-unclaimed job waits before being offered again. */
+const DISPATCH_BACKOFF_MS = 10 * 60 * 1000;
+
 /**
  * Where the GitHub token might be, in the order it is looked for.
  *
@@ -99,8 +102,16 @@ Deno.serve(async (req) => {
     }
     const ghToken = gh!.value;
 
+    // Queued AND not asked for in the last ten minutes. Without the second
+    // half, a runner that cannot claim gets re-summoned every sixty seconds —
+    // the first live Story burned eight runner minutes that way. Ten minutes is
+    // comfortably longer than a healthy boot-and-claim (~90s, mostly Chromium),
+    // so a working system never re-dispatches.
+    const staleBefore = new Date(Date.now() - DISPATCH_BACKOFF_MS).toISOString();
     const res = await fetch(
-      `${supabaseUrl}/rest/v1/story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id`,
+      `${supabaseUrl}/rest/v1/story_jobs?status=eq.queued` +
+        `&or=(dispatched_at.is.null,dispatched_at.lt.${staleBefore})` +
+        `&order=created_at.asc&limit=1&select=id`,
       { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
     );
     if (!res.ok) {
@@ -115,6 +126,21 @@ Deno.serve(async (req) => {
     const jobId = rows[0].id;
     const token = await mintJobToken(jobId, jobSecret!);
 
+    // Stamped BEFORE the GitHub call, not after. If the dispatch throws or the
+    // isolate dies mid-flight, an un-stamped row is re-dispatched a minute
+    // later — which is the storm this exists to prevent. Ten minutes late is
+    // the safe direction to be wrong in.
+    await fetch(`${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}`, {
+      method: "PATCH",
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        "content-type": "application/json",
+        Prefer: "return=minimal",
+      },
+      body: JSON.stringify({ dispatched_at: new Date().toISOString() }),
+    });
+
     const dispatchRes = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
       method: "POST",
       headers: {
@@ -125,7 +151,13 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify({
         event_type: EVENT_TYPE,
-        client_payload: { job_id: jobId, token },
+        // THE CALLBACK ADDRESS TRAVELS WITH THE JOB. It used to come from a
+        // `SUPABASE_URL` secret on GitHub, and that secret pointed somewhere
+        // else — every dispatch reached a runner, claimed nothing, and died on
+        // a gateway 404 that looked like a bug in story-callback. Supabase
+        // knows its own address; making GitHub store a second copy of it was
+        // both unnecessary and the one thing that went stale.
+        client_payload: { job_id: jobId, token, supabase_url: supabaseUrl },
       }),
     });
 

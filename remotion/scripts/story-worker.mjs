@@ -61,7 +61,10 @@ import { framingFor, isMoving } from '../../src/lib/shotGrammar.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const SUPABASE_URL = process.env.SUPABASE_URL;
+// Trailing slashes stripped. `${url}/functions/v1/x` with a trailing slash
+// becomes a double slash, which the gateway answers with a 404 that reads
+// exactly like a missing function.
+const SUPABASE_URL = (process.env.SUPABASE_URL ?? '').replace(/\/+$/, '') || undefined;
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // DISPATCH MODE. Supabase sent us here with one job and a token scoped to it,
 // so this runner needs no Supabase key at all: every read, every state change
@@ -85,16 +88,35 @@ if (!offline && !dispatched && !SERVICE_KEY) {
   );
 }
 
-/** Ask story-callback to do something on this job's behalf. */
+/**
+ * Ask story-callback to do something on this job's behalf.
+ *
+ * THE RAW BODY GOES IN THE ERROR, not just `body.error`. The first live run
+ * failed with `story-callback claim: 404` and nothing after it — and that empty
+ * space was the whole diagnosis, because story-callback's own 404 always
+ * carries "no such job". A blank meant the GATEWAY answered, i.e. the function
+ * was not at that URL at all. An error message that only prints the fields it
+ * expects hides the case where something else replied.
+ */
 async function callback(action, extra = {}) {
-  const res = await fetch(`${SUPABASE_URL}/functions/v1/story-callback`, {
+  const url = `${SUPABASE_URL}/functions/v1/story-callback`;
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ action, token: JOB_TOKEN, ...extra }),
   });
-  const body = await res.json().catch(() => ({}));
+  const raw = await res.text();
+  let body = {};
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    // Not JSON at all, which is itself the finding — the gateway and a proxy
+    // both answer in HTML.
+  }
   if (!res.ok || body?.error) {
-    throw new Error(`story-callback ${action}: ${res.status} ${body?.error ?? ''}`);
+    throw new Error(
+      `story-callback ${action}: ${res.status} ${body?.error ?? raw.slice(0, 200)} (POST ${url})`,
+    );
   }
   return body;
 }

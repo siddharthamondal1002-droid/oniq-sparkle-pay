@@ -94,6 +94,55 @@ Deno.serve(async (req) => {
       },
     ).catch((e) => console.error("story-sweep release", e));
 
+    // A JOB THAT NEVER STARTED STILL COST SOMEBODY THEIR SECONDS.
+    //
+    // owesPurge asks about bytes, which is right for deletion and wrong for
+    // this: a job stuck at `queued` or `generating` holds no bytes, so nothing
+    // here ever looked at it. The first live Story sat queued while every
+    // dispatch failed — charged, unrefundable, and re-dispatched every minute
+    // forever. Ageing it out is the missing half of the lifecycle.
+    //
+    // `failed` is the honest label and it is also the useful one: the trigger
+    // allows it from every pre-terminal state, and story_jobs' refund RPC is
+    // idempotent, so a job swept twice gives its seconds back once.
+    const deadBefore = new Date(now - STALE_TTL_MS).toISOString();
+    const dead = await fetch(
+      `${supabaseUrl}/rest/v1/story_jobs` +
+        `?status=in.(queued,generating,assembling)&has_bytes=is.false` +
+        `&updated_at=lt.${deadBefore}&select=id&limit=${BATCH}`,
+      { headers: svc },
+    );
+    let expired = 0;
+    if (dead.ok) {
+      const deadRows = (await dead.json()) as { id: string }[];
+      for (const row of Array.isArray(deadRows) ? deadRows : []) {
+        const marked = await fetch(`${supabaseUrl}/rest/v1/story_jobs?id=eq.${row.id}`, {
+          method: "PATCH",
+          headers: { ...svc, "content-type": "application/json", Prefer: "return=minimal" },
+          body: JSON.stringify({
+            status: "failed",
+            error: "no renderer picked this up in time — your time has been returned",
+          }),
+        });
+        if (!marked.ok) {
+          console.error("story-sweep expire", row.id, marked.status);
+          continue;
+        }
+        // Marked first, refunded second: if the refund throws, the job is still
+        // out of the dispatch queue, whereas the reverse can refund a job that
+        // then gets picked up and charged nothing.
+        const refund = await fetch(`${supabaseUrl}/rest/v1/rpc/refund_story_seconds`, {
+          method: "POST",
+          headers: { ...svc, "content-type": "application/json" },
+          body: JSON.stringify({ _job_id: row.id }),
+        });
+        if (!refund.ok) console.error("story-sweep refund", row.id, refund.status);
+        expired += 1;
+      }
+    } else {
+      console.error("story-sweep expire query", dead.status, await dead.text());
+    }
+
     // Oldest first, and only rows that still hold bytes — the partial index on
     // has_bytes is exactly this query.
     const got = await fetch(
@@ -159,7 +208,7 @@ Deno.serve(async (req) => {
     }
 
     if (failures.length > 0) console.error("story-sweep failures", failures.slice(0, 10));
-    return json({ ok: true, scanned: rows.length, due: due.length, purged, failures });
+    return json({ ok: true, scanned: rows.length, due: due.length, purged, expired, failures });
   } catch (e) {
     console.error("story-sweep fn error", e);
     return json({ error: "Something went sideways" }, 500);

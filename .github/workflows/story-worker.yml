@@ -107,7 +107,12 @@ jobs:
           # bundle. Keeping it as a variable rather than a secret means a
           # dispatch run needs NOTHING configured here beyond this line, which
           # is the point of Route B: no Supabase key ever reaches GitHub.
-          SUPABASE_URL: ${{ vars.SUPABASE_URL || secrets.SUPABASE_URL }}
+          # The dispatch payload wins. A repository secret holding a second
+          # copy of the project address is a copy that can go stale, and it
+          # did: every dispatch died on a gateway 404 because this secret named
+          # a different project. Supabase sends its own address now; the secret
+          # is only a fallback for the manual workflow_dispatch path.
+          SUPABASE_URL: ${{ github.event.client_payload.supabase_url || vars.SUPABASE_URL || secrets.SUPABASE_URL }}
           # Only the polling path uses this, and only if someone chooses to set
           # it. Absent — the expected state — the cron fires, the worker finds
           # no token and no key, and exits with a message naming both.
