@@ -32,6 +32,43 @@ const corsHeaders = {
 /** The workflow listens for exactly this. Changing it silently stops dispatch. */
 const EVENT_TYPE = "story-job";
 
+/**
+ * Where the GitHub token might be, in the order it is looked for.
+ *
+ * "GitHub is connected" means at least three different things in this stack and
+ * only one of them lands a credential here:
+ *
+ *   - Supabase's GitHub integration in the dashboard wires branching and
+ *     deploys. It does not put a token in this function's environment.
+ *   - Lovable's GitHub API connector is the LOVABLE AGENT's credential. It may
+ *     or may not surface as an edge-function secret depending on how the
+ *     connector was added.
+ *   - An Edge Function secret is the only thing `Deno.env.get` can see.
+ *
+ * So rather than insisting on one name and reporting a bare "not configured",
+ * this tries the plausible ones and SAYS WHICH IT USED. When none are present
+ * it names every one it looked for, because "not configured" on its own sends
+ * someone to check three different dashboards.
+ *
+ * A connector-provided token may lack `actions: write` and get a 403 from
+ * GitHub. That is fine and visible: the status code is passed back verbatim
+ * below, so a wrong-scope token reads differently from a missing one.
+ */
+const GITHUB_TOKEN_NAMES = [
+  "GITHUB_DISPATCH_TOKEN",
+  "GITHUB_API_KEY",
+  "GITHUB_TOKEN",
+  "GITHUB_PERSONAL_ACCESS_TOKEN",
+] as const;
+
+function findGithubToken(): { name: string; value: string } | null {
+  for (const name of GITHUB_TOKEN_NAMES) {
+    const value = Deno.env.get(name);
+    if (value) return { name, value };
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   try {
@@ -44,7 +81,7 @@ Deno.serve(async (req) => {
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const ghToken = Deno.env.get("GITHUB_DISPATCH_TOKEN");
+    const gh = findGithubToken();
     const repo = Deno.env.get("GITHUB_REPOSITORY") ?? "siddharthamondal1002-droid/oniq-sparkle-pay";
     const jobSecret = Deno.env.get("STORY_JOB_SECRET");
 
@@ -52,10 +89,13 @@ Deno.serve(async (req) => {
     // sends someone to check all three.
     const missing = [
       !supabaseUrl && "SUPABASE_URL",
-      !ghToken && "GITHUB_DISPATCH_TOKEN",
+      !gh && `a GitHub token under one of: ${GITHUB_TOKEN_NAMES.join(", ")}`,
       !jobSecret && "STORY_JOB_SECRET",
     ].filter(Boolean);
-    if (missing.length > 0) return json({ configured: false, missing }, 200);
+    if (missing.length > 0) {
+      return json({ configured: false, missing, repo, checked: GITHUB_TOKEN_NAMES }, 200);
+    }
+    const ghToken = gh!.value;
 
     const res = await fetch(
       `${supabaseUrl}/rest/v1/story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id`,
@@ -73,7 +113,7 @@ Deno.serve(async (req) => {
     const jobId = rows[0].id;
     const token = await mintJobToken(jobId, jobSecret!);
 
-    const gh = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
+    const dispatchRes = await fetch(`https://api.github.com/repos/${repo}/dispatches`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${ghToken}`,
@@ -88,13 +128,24 @@ Deno.serve(async (req) => {
     });
 
     // GitHub answers 204 with no body on success.
-    if (gh.status !== 204) {
-      const detail = await gh.text().catch(() => "");
-      console.error("story-dispatch github", gh.status, detail.slice(0, 300));
-      return json({ error: `github dispatch failed: ${gh.status}` }, 502);
+    if (dispatchRes.status !== 204) {
+      const detail = await dispatchRes.text().catch(() => "");
+      console.error("story-dispatch github", dispatchRes.status, detail.slice(0, 300));
+      // The token's SOURCE is named in the failure. A 403 from a connector key
+      // that lacks `actions: write` and a 404 from a token that cannot see the
+      // repository look identical otherwise, and they need different fixes.
+      return json(
+        {
+          error: `github dispatch failed: ${dispatchRes.status}`,
+          usingToken: gh!.name,
+          repo,
+          detail: detail.slice(0, 200),
+        },
+        502,
+      );
     }
 
-    return json({ dispatched: true, jobId }, 200);
+    return json({ dispatched: true, jobId, usingToken: gh!.name }, 200);
   } catch (e) {
     console.error("story-dispatch fn error", e);
     return json({ error: "Something went sideways" }, 500);
