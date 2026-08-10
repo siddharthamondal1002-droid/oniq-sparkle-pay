@@ -227,7 +227,45 @@ export type CallClaudeResult =
 // keeps working with zero changes.
 // ---------------------------------------------------------------------------
 
-const GEMINI_FALLBACK_MODEL = "gemini-2.5-flash";
+/**
+ * The fallback model. PINNED, and verified by POST rather than by ListModels.
+ *
+ * THIS WAS `gemini-2.5-flash` AND IT HAD NEVER WORKED ON THIS KEY. Every call
+ * through here returned:
+ *
+ *   404 "This model models/gemini-2.5-flash is no longer available to new
+ *        users. Please update your code to use a newer model."
+ *
+ * So the fallback was dead on arrival for every caller — Ting included. Any
+ * time Anthropic was unavailable, Ting had no second engine at all; it just
+ * failed. Nobody noticed because the fallback only runs during an outage, which
+ * is exactly when nobody is reading logs.
+ *
+ * LISTMODELS CANNOT VALIDATE A NAME. `gemini-2.5-flash` is still in the
+ * ListModels output for this key, with `generateContent` in its
+ * supportedGenerationMethods — ListModels returns the global catalogue, not
+ * what a given key is permitted to call. The 2.x text line is retired for keys
+ * issued after the cutoff, and this key is one of them. Only a POST tells the
+ * truth. Measured on this key, same body shape as below:
+ *
+ *   gemini-2.5-flash        404  no longer available to new users
+ *   gemini-2.5-flash-lite   404  no longer available to new users
+ *   gemini-2.5-pro          404  no longer available to new users
+ *   gemini-2.0-flash        404  fully retired
+ *   gemini-3.6-flash        200
+ *   gemini-3.5-flash        200
+ *   gemini-3-flash-preview  200
+ *   gemini-flash-latest     200
+ *
+ * The image and TTS variants were never affected, which is why story-still and
+ * story-voice kept working on this same key while the text model 404'd — and
+ * why "the Gemini key is fine" looked true for months.
+ *
+ * NOT `gemini-flash-latest`, though it works. A moving alias under a fallback
+ * is the worst place for one: it changes silently, and the only time anyone
+ * finds out is mid-outage, when the primary is already down.
+ */
+const GEMINI_FALLBACK_MODEL = "gemini-3.6-flash";
 
 function isAnthropicBillingExhaustion(status: number, body: any): boolean {
   if (status !== 400) return false;
