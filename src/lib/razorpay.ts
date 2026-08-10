@@ -134,6 +134,36 @@ export async function payForOrder(opts: PayOptions): Promise<PayResult> {
       description: opts.description ?? "Order payment",
       prefill: opts.prefill ?? {},
       theme: { color: "#12d6a3" },
+      // UPI FIRST, AND THE INTENT FLOW FIRST WITHIN IT.
+      //
+      // `intent` is the one that hands off to the payer's own UPI app — the
+      // GPay/PhonePe/Paytm chooser opens, they approve there, and they come
+      // back. That is the behaviour people in India expect from a payment
+      // button, and it is why this is sequenced ahead of cards rather than
+      // buried under them.
+      //
+      // THE MONEY STILL ROUTES THROUGH RAZORPAY, which is the whole difference
+      // from the Scan & Pay screen. That one builds a raw `upi://` link and
+      // ONIQ never learns what happened. This one is a Razorpay order: it
+      // settles to ONIQ's merchant account, fires the webhook, and flips the
+      // order to paid. Same app opens in the payer's hand; completely
+      // different accounting.
+      //
+      // `collect` and `qr` stay as fallbacks — intent needs a UPI app actually
+      // installed, and on desktop there is none — and the default blocks stay
+      // on so a card or netbanking payer is not blocked, only sequenced second.
+      config: {
+        display: {
+          blocks: {
+            upi: {
+              name: "Pay with your UPI app",
+              instruments: [{ method: "upi", flows: ["intent", "collect", "qr"] }],
+            },
+          },
+          sequence: ["block.upi"],
+          preferences: { show_default_blocks: true },
+        },
+      },
       modal: {
         ondismiss: () => finish({ status: "dismissed" }),
       },
