@@ -2901,6 +2901,7 @@ export type Database = {
       story_jobs: {
         Row: {
           created_at: string
+          dispatched_at: string | null
           error: string | null
           has_bytes: boolean
           id: string
@@ -2917,6 +2918,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          dispatched_at?: string | null
           error?: string | null
           has_bytes?: boolean
           id?: string
@@ -2933,6 +2935,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          dispatched_at?: string | null
           error?: string | null
           has_bytes?: boolean
           id?: string
