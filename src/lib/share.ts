@@ -80,7 +80,53 @@ export async function shareMediaFile(
     try {
       const { Filesystem: FS, Directory: Dir } = await import("@capacitor/filesystem");
       void FS.deleteFile({ path, directory: Dir.Cache });
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
+  }
+}
+
+/**
+ * Share a VIDEO as an actual file, wherever the platform allows it.
+ *
+ * Order: Capacitor Share (native sheet — WhatsApp, Facebook, everything
+ * installed), then the Web Share API with files (mobile browsers). Desktop
+ * browsers land on "unsupported" and the caller shows its own guidance.
+ *
+ * THE URL IS NEVER SHARED AS A LINK, deliberately. Story URLs are short-lived
+ * by product promise — the bytes get purged — so a link pasted into a chat
+ * today is a dead link tomorrow, arriving exactly when the recipient taps it.
+ * Either the FILE goes, or nothing goes.
+ */
+export async function shareVideoFile(
+  mediaUrl: string,
+  filename: string,
+  p: SharePayload,
+  onProgress?: (pct: number | null) => void,
+): Promise<"shared" | "cancelled" | "failed" | "unsupported"> {
+  const native = await shareMediaFile(mediaUrl, filename, p, onProgress);
+  if (native !== "unsupported") return native;
+
+  if (typeof navigator === "undefined" || typeof navigator.share !== "function") {
+    return "unsupported";
+  }
+  try {
+    onProgress?.(null);
+    const res = await fetch(mediaUrl);
+    if (!res.ok) return "failed";
+    const blob = await res.blob();
+    const file = new File([blob], filename, { type: blob.type || "video/mp4" });
+    // canShare is the feature test for FILE payloads; navigator.share existing
+    // alone only proves link-sharing. Checked after the download because the
+    // File object itself is part of the question being asked.
+    if (typeof navigator.canShare !== "function" || !navigator.canShare({ files: [file] })) {
+      return "unsupported";
+    }
+    await navigator.share({ files: [file], title: p.title, text: p.text });
+    return "shared";
+  } catch (e) {
+    if (e instanceof DOMException && e.name === "AbortError") return "cancelled";
+    return "failed";
   }
 }
 
@@ -91,11 +137,41 @@ const enc = encodeURIComponent;
 export function shareTargets(p: SharePayload) {
   const msg = p.text ? `${p.text}\n${p.url}` : `${p.title}\n${p.url}`;
   return [
-    { id: "whatsapp", label: "WhatsApp", emoji: "🟢", href: `https://wa.me/?text=${enc(msg)}`, external: true },
-    { id: "telegram", label: "Telegram", emoji: "✈️", href: `https://t.me/share/url?url=${enc(p.url)}&text=${enc(p.text ?? p.title)}`, external: true },
-    { id: "x", label: "X", emoji: "✖️", href: `https://twitter.com/intent/tweet?text=${enc(p.text ?? p.title)}&url=${enc(p.url)}`, external: true },
-    { id: "facebook", label: "Facebook", emoji: "🔵", href: `https://www.facebook.com/sharer/sharer.php?u=${enc(p.url)}`, external: true },
+    {
+      id: "whatsapp",
+      label: "WhatsApp",
+      emoji: "🟢",
+      href: `https://wa.me/?text=${enc(msg)}`,
+      external: true,
+    },
+    {
+      id: "telegram",
+      label: "Telegram",
+      emoji: "✈️",
+      href: `https://t.me/share/url?url=${enc(p.url)}&text=${enc(p.text ?? p.title)}`,
+      external: true,
+    },
+    {
+      id: "x",
+      label: "X",
+      emoji: "✖️",
+      href: `https://twitter.com/intent/tweet?text=${enc(p.text ?? p.title)}&url=${enc(p.url)}`,
+      external: true,
+    },
+    {
+      id: "facebook",
+      label: "Facebook",
+      emoji: "🔵",
+      href: `https://www.facebook.com/sharer/sharer.php?u=${enc(p.url)}`,
+      external: true,
+    },
     { id: "sms", label: "SMS", emoji: "💬", href: `sms:?body=${enc(msg)}`, external: false },
-    { id: "email", label: "Email", emoji: "✉️", href: `mailto:?subject=${enc(p.title)}&body=${enc(msg)}`, external: false },
+    {
+      id: "email",
+      label: "Email",
+      emoji: "✉️",
+      href: `mailto:?subject=${enc(p.title)}&body=${enc(msg)}`,
+      external: false,
+    },
   ];
 }

@@ -17,8 +17,9 @@
  * is worse than an empty list.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Clapperboard, Download, Loader2, Play } from "lucide-react";
+import { AlertTriangle, Clapperboard, Download, Loader2, Play, Share2 } from "lucide-react";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
+import { shareVideoFile } from "@/lib/share";
 import {
   PROGRESS,
   SETTLED,
@@ -52,6 +53,9 @@ export function YourVideos() {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [sharePct, setSharePct] = useState<number | null>(null);
+  const [shareHint, setShareHint] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -67,10 +71,7 @@ export function YourVideos() {
 
   // Poll only while something is actually moving. A settled list is a static
   // list, and polling it forever is load with no answer attached.
-  const inFlight = useMemo(
-    () => (rows ?? []).some((r) => !SETTLED.has(r.status)),
-    [rows],
-  );
+  const inFlight = useMemo(() => (rows ?? []).some((r) => !SETTLED.has(r.status)), [rows]);
   useEffect(() => {
     if (!inFlight) return;
     const id = setInterval(() => void refresh(), POLL_MS);
@@ -90,6 +91,44 @@ export function YourVideos() {
       setBusy(false);
     }
   }, []);
+
+  /**
+   * Share the FILM ITSELF into WhatsApp, Facebook, or whatever the device
+   * offers. The bytes stay on our servers afterwards — sharing is not saving,
+   * and only "Save to my device" triggers the delete-from-ours step. On
+   * surfaces where no file share exists (desktop browsers), the honest answer
+   * is guidance, not a link: the URL behind this film expires, so a pasted
+   * link would die in the recipient's chat.
+   */
+  const share = useCallback(async () => {
+    if (!openId || !filmUrl) return;
+    setSharing(true);
+    setShareHint(null);
+    setError(null);
+    try {
+      const outcome = await shareVideoFile(
+        filmUrl,
+        `oniq-story-${openId.slice(0, 8)}.mp4`,
+        {
+          title: "My ONIQ Story",
+          text: "Made with AI on ONIQ 🎬 oniqhub.com",
+          url: "https://oniqhub.com",
+        },
+        setSharePct,
+      );
+      if (outcome === "failed") {
+        setError("Could not share that film. It is still here — try again.");
+      } else if (outcome === "unsupported") {
+        setShareHint(
+          "Sharing isn't available in this browser — use Save to my device, then share it from your gallery.",
+        );
+      }
+      // "shared" and "cancelled" both end quietly; the user saw the sheet.
+    } finally {
+      setSharing(false);
+      setSharePct(null);
+    }
+  }, [openId, filmUrl]);
 
   const save = useCallback(async () => {
     if (!openId || !filmUrl) return;
@@ -127,7 +166,8 @@ export function YourVideos() {
 
       {saved ? (
         <div className="mt-3 rounded-2xl border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-[11px] text-emerald-300">
-          Saved to your device, and deleted from ours. It is yours now.
+          Saved to your device, and deleted from ours. It is yours now — share it anywhere from your
+          gallery.
         </div>
       ) : null}
       {error ? <p className="mt-3 text-center text-[11px] text-destructive">{error}</p> : null}
@@ -145,14 +185,35 @@ export function YourVideos() {
           <button
             type="button"
             onClick={() => void save()}
-            disabled={busy}
+            disabled={busy || sharing}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {busy ? "Saving…" : "Save to my device"}
           </button>
+          <button
+            type="button"
+            onClick={() => void share()}
+            disabled={busy || sharing}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/50 bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary disabled:opacity-50"
+          >
+            {sharing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Share2 className="h-4 w-4" />
+            )}
+            {sharing
+              ? sharePct !== null
+                ? `Preparing… ${sharePct}%`
+                : "Preparing…"
+              : "Share — WhatsApp, Facebook & more"}
+          </button>
+          {shareHint ? (
+            <p className="mt-2 text-center text-[10px] text-amber-300">{shareHint}</p>
+          ) : null}
           <p className="mt-2 text-center text-[10px] text-muted-foreground">
-            Saving deletes it from our servers. Watch it first — there is no re-download.
+            Sharing sends the video itself and keeps it here. Saving deletes it from our servers —
+            watch and share first, because there is no re-download.
           </p>
         </div>
       ) : null}
@@ -174,10 +235,7 @@ export function YourVideos() {
             const watchable = isWatchable(r.status);
             const failed = r.status === "failed";
             return (
-              <li
-                key={r.id}
-                className="rounded-2xl border border-border bg-card/70 p-3"
-              >
+              <li key={r.id} className="rounded-2xl border border-border bg-card/70 p-3">
                 <div className="flex items-start gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-xs font-semibold text-foreground">
