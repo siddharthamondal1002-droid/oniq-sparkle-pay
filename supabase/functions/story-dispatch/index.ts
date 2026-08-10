@@ -40,23 +40,25 @@ const EVENT_TYPE = "story-job";
  *
  *   - Supabase's GitHub integration in the dashboard wires branching and
  *     deploys. It does not put a token in this function's environment.
- *   - Lovable's GitHub API connector is the LOVABLE AGENT's credential. It may
- *     or may not surface as an edge-function secret depending on how the
- *     connector was added.
+ *   - Lovable's GitHub API connector is the LOVABLE AGENT's credential, and it
+ *     surfaces as `GITHUB_API_KEY`. **That is deliberately NOT in this list.**
+ *     It is a key for Lovable's connector gateway, not for api.github.com, so
+ *     falling back to it would send a credential the wrong service will reject
+ *     and turn a clear "no token configured" into a puzzling 401 from GitHub.
+ *     A fallback that cannot work is worse than no fallback.
  *   - An Edge Function secret is the only thing `Deno.env.get` can see.
  *
  * So rather than insisting on one name and reporting a bare "not configured",
- * this tries the plausible ones and SAYS WHICH IT USED. When none are present
- * it names every one it looked for, because "not configured" on its own sends
- * someone to check three different dashboards.
+ * this tries the names a real GitHub PAT is plausibly stored under and SAYS
+ * WHICH IT USED. When none are present it names every one it looked for,
+ * because "not configured" on its own sends someone to check three dashboards.
  *
- * A connector-provided token may lack `actions: write` and get a 403 from
- * GitHub. That is fine and visible: the status code is passed back verbatim
- * below, so a wrong-scope token reads differently from a missing one.
+ * A real token may still lack the right permission and get a 403. That is fine
+ * and visible: the status code is passed back verbatim below, so a wrong-scope
+ * token reads differently from a missing one.
  */
 const GITHUB_TOKEN_NAMES = [
   "GITHUB_DISPATCH_TOKEN",
-  "GITHUB_API_KEY",
   "GITHUB_TOKEN",
   "GITHUB_PERSONAL_ACCESS_TOKEN",
 ] as const;
