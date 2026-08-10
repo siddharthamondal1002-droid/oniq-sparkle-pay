@@ -129,21 +129,95 @@ describe("checkStoryQuota refuses before anything is spent", () => {
     expect(checkStoryQuota(nearly, 60)).toBeNull();
   });
 
-  it("checks the product-wide ceiling before anything about this user", () => {
-    // When the day's budget is gone it is gone for everyone. Telling one user
-    // about their personal allowance answers a question they did not ask.
-    // BOTH conditions must hold or the test proves nothing. An earlier version
-    // left the personal allowance untouched, so the exhausted branch never
-    // competed and reordering the two still passed — the same vacuous-ordering
-    // mistake made on the kill switch earlier in this file's history.
+  it("says capacity when the day's budget is gone and the user still has balance", () => {
+    // When the day's free budget is spent it is spent for everyone, and a user
+    // who could otherwise have generated needs to hear that rather than
+    // something about their own allowance.
     const busy = {
       enabled: true,
       freeSeconds: 300,
-      usedSeconds: 300, // personally exhausted TOO
+      usedSeconds: 0,
       globalDailyUsedSeconds: 3600,
       globalDailySeconds: 3600,
     };
     expect(checkStoryQuota(busy, 60)?.reason).toBe("capacity");
+  });
+
+  it("says exhausted, not capacity, when the user is out too — because tomorrow will not help", () => {
+    // THIS ASSERTION IS THE REVERSE OF WHAT IT USED TO BE, and the old one was
+    // wrong. It asserted "capacity" here on the reasoning that a spent day is
+    // spent for everyone. But freeSeconds is a LIFETIME allowance, not a daily
+    // one: a user who has used 300 of 300 will still have used 300 of 300
+    // tomorrow. "Story generation is busy today, try again tomorrow" promised
+    // this person something the next day does not deliver, and it hid the only
+    // thing that would actually help them, which is that their free time is
+    // finished and there is a way to buy more.
+    const busyAndSpent = {
+      enabled: true,
+      freeSeconds: 300,
+      usedSeconds: 300,
+      paidSeconds: 0,
+      globalDailyUsedSeconds: 3600,
+      globalDailySeconds: 3600,
+    };
+    expect(checkStoryQuota(busyAndSpent, 60)?.reason).toBe("exhausted");
+  });
+
+  it("lets a paid Story through on a day the free budget is fully spent", () => {
+    // The property the whole paid bucket exists for. Someone who bought five
+    // minutes and is then told "try again tomorrow" because OTHER people used
+    // the free budget has not hit a capacity limit, they have been sold
+    // something and refused it. The ceiling bounds free spend; a purchase is
+    // revenue-covered and passes.
+    const paidOnBusyDay = {
+      enabled: true,
+      freeSeconds: 300,
+      usedSeconds: 300,
+      paidSeconds: 300,
+      globalDailyUsedSeconds: 3600,
+      globalDailySeconds: 3600,
+    };
+    expect(checkStoryQuota(paidOnBusyDay, 300)).toBeNull();
+  });
+
+  it("spends free seconds before paid ones", () => {
+    // Burning what somebody bought while they still have free time is a way to
+    // lose a customer quietly. 60s wanted, 120s free available, so nothing paid
+    // should be needed — proven by the fact that a user with the same free
+    // balance and NO paid seconds is equally allowed.
+    const both = { enabled: true, freeSeconds: 300, usedSeconds: 0, paidSeconds: 300 };
+    const freeOnly = { enabled: true, freeSeconds: 300, usedSeconds: 0, paidSeconds: 0 };
+    expect(checkStoryQuota(both, 60)).toBeNull();
+    expect(checkStoryQuota(freeOnly, 60)).toBeNull();
+  });
+
+  it("does not apply the per-user daily cap to purchased seconds", () => {
+    // The daily cap bounds what one FREE user can cost in a day. Applying it to
+    // bought time would sell somebody five minutes and then ration it to two.
+    const boughtOut = {
+      enabled: true,
+      freeSeconds: 300,
+      usedSeconds: 300, // no free left, so the whole request is paid
+      dailyUsedSeconds: 120, // and the daily cap is already spent
+      dailySeconds: 120,
+      paidSeconds: 300,
+    };
+    expect(checkStoryQuota(boughtOut, 300)).toBeNull();
+  });
+
+  it("still refuses when the paid balance is too small, and says so as too-long", () => {
+    const notEnough = {
+      enabled: true,
+      freeSeconds: 300,
+      usedSeconds: 300,
+      paidSeconds: 60,
+    };
+    const r = checkStoryQuota(notEnough, 300);
+    expect(r?.reason).toBe("too-long");
+    // The sentence quotes the COMBINED balance. Telling someone who owns 60
+    // purchased seconds that they have "0s of free time left" is true and
+    // useless.
+    expect(r?.message).toMatch(/60s left/);
   });
 
   it("caps a single user's day even when their lifetime allowance is untouched", () => {

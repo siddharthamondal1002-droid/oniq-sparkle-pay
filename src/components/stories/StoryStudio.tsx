@@ -34,11 +34,14 @@ import {
   DEFAULT_STORY_SECONDS,
   MAX_STORY_SECONDS,
   MIN_STORY_SECONDS,
+  checkStoryQuota,
   parseClaimResult,
   planStory,
-  refusalMessage,
   type QuotaRefusal,
 } from "@/lib/storyPlan";
+import { type PurchaseConfig, buyStorySeconds } from "@/lib/storyCheckout";
+import { priceFor } from "@/lib/storyPricing";
+import { moneyIn } from "@/lib/format";
 import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient";
 
 /** Lengths offered as one tap. Anything between the bounds is still allowed. */
@@ -102,6 +105,11 @@ type QuotaStatus = {
   dailyLeft: number;
   minSeconds: number;
   maxSeconds: number;
+  /** Purchased seconds still unspent. Not capped daily; see claim_story_seconds. */
+  paidSeconds: number;
+  purchaseEnabled: boolean;
+  nativeLinkOut: boolean;
+  checkoutUrl: string | null;
 };
 
 function readQuota(payload: unknown): QuotaStatus | null {
@@ -117,6 +125,13 @@ function readQuota(payload: unknown): QuotaStatus | null {
     dailyLeft: num("dailyLeft", 0),
     minSeconds: num("minSeconds", MIN_STORY_SECONDS),
     maxSeconds: num("maxSeconds", MAX_STORY_SECONDS),
+    paidSeconds: num("paidSeconds", 0),
+    // DEFAULT FALSE, all three. An older deployment of story_quota_status
+    // returns none of these, and the safe reading of a missing answer is "do
+    // not offer to take money" rather than "assume selling is fine".
+    purchaseEnabled: p.purchaseEnabled === true,
+    nativeLinkOut: p.nativeLinkOut === true,
+    checkoutUrl: typeof p.checkoutUrl === "string" ? p.checkoutUrl : null,
   };
 }
 
@@ -135,6 +150,8 @@ export function StoryStudio() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [buying, setBuying] = useState(false);
+  const [handedOff, setHandedOff] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -216,50 +233,100 @@ export function StoryStudio() {
 
   /**
    * The local read of whether this request can go. Advisory only — it exists so
-   * the button can explain itself without a round trip, and it is deliberately
-   * derived from the SAME `refusalMessage` the server path uses, so the two
-   * cannot word the same refusal differently.
+   * the button can explain itself without a round trip.
+   *
+   * THIS USED TO BE A SECOND IMPLEMENTATION of checkStoryQuota, open-coded here
+   * with the same four branches in the same order. It was correct when written
+   * and stopped being correct the moment seconds became purchasable: it had no
+   * concept of a paid bucket, so it would have told somebody who had just
+   * bought five minutes that they were out of time, and disabled the button
+   * over it. Calling the real thing is the fix — one implementation cannot
+   * disagree with itself.
    */
   const localBlock = useMemo<QuotaRefusal | null>(() => {
     if (!quota) return null;
-    if (!quota.enabled) {
-      return {
-        reason: "disabled",
-        message: refusalMessage("disabled", { remaining: 0, dailyLeft: 0, wanted: 0 }),
-        remaining: quota.remaining,
-      };
-    }
-    if (quota.remaining <= 0) {
-      return {
-        reason: "exhausted",
-        message: refusalMessage("exhausted", { remaining: 0, dailyLeft: 0, wanted: 0 }),
-        remaining: 0,
-      };
-    }
-    if (plan_.seconds > quota.dailyLeft) {
-      return {
-        reason: "daily",
-        message: refusalMessage("daily", {
-          remaining: quota.remaining,
-          dailyLeft: quota.dailyLeft,
-          wanted: plan_.seconds,
-        }),
-        remaining: quota.remaining,
-      };
-    }
-    if (plan_.seconds > quota.remaining) {
-      return {
-        reason: "too-long",
-        message: refusalMessage("too-long", {
-          remaining: quota.remaining,
-          dailyLeft: quota.dailyLeft,
-          wanted: plan_.seconds,
-        }),
-        remaining: quota.remaining,
-      };
-    }
-    return null;
+    return checkStoryQuota(
+      {
+        enabled: quota.enabled,
+        freeSeconds: quota.freeSeconds,
+        usedSeconds: quota.usedSeconds,
+        paidSeconds: quota.paidSeconds,
+        // The RPC hands back what is LEFT today rather than the cap and the
+        // spend, because that is all a screen needs. Encoding it as a cap with
+        // nothing spent is exact — `dailySeconds - dailyUsedSeconds` gives the
+        // same number back.
+        dailySeconds: quota.dailyLeft,
+        dailyUsedSeconds: 0,
+        // The product-wide ceiling is deliberately NOT exposed to clients, so
+        // the capacity branch cannot fire here. The server owns that refusal,
+        // which is right: a user cannot act on it anyway.
+      },
+      plan_.seconds,
+    );
   }, [quota, plan_.seconds]);
+
+  /** Where a purchase would be allowed to happen, from the config row. */
+  const purchaseCfg = useMemo<PurchaseConfig>(
+    () => ({
+      purchaseEnabled: quota?.purchaseEnabled ?? false,
+      nativeLinkOut: quota?.nativeLinkOut ?? false,
+      checkoutUrl: quota?.checkoutUrl ?? null,
+    }),
+    [quota],
+  );
+
+  /**
+   * Offer to sell more time only when running out is what actually blocked
+   * this. A buy button next to "Story generation is paused" would be taking
+   * money for something switched off.
+   */
+  const offerTopUp =
+    purchaseCfg.purchaseEnabled &&
+    (localBlock?.reason === "exhausted" || localBlock?.reason === "too-long");
+
+  const topUpTier = useMemo(() => priceFor(plan_.seconds), [plan_.seconds]);
+
+  const buyTime = useCallback(async () => {
+    if (!topUpTier) return;
+    setBuying(true);
+    setError(null);
+    try {
+      const result = await buyStorySeconds({ seconds: topUpTier.seconds, cfg: purchaseCfg });
+      if (result.status === "paid") {
+        const { data } = await callStoryRpc("story_quota_status");
+        setQuota(readQuota(data));
+      } else if (result.status === "handed-off") {
+        // NOT AN ERROR. The browser is open and the purchase continues there —
+        // this is the whole design, so it reads as an instruction rather than a
+        // failure. The balance is re-read when the app comes back.
+        setHandedOff(true);
+      } else if (result.status === "failed") {
+        setError(result.message);
+      }
+    } finally {
+      setBuying(false);
+    }
+  }, [topUpTier, purchaseCfg]);
+
+  /**
+   * Re-read the balance when the app returns to the foreground.
+   *
+   * The native path finishes in a browser, so the seconds arrive while this
+   * screen is not being looked at. Without this the user comes back to a stale
+   * "0s left" and a disabled button, having just paid.
+   */
+  useEffect(() => {
+    if (!handedOff) return;
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void (async () => {
+        const { data } = await callStoryRpc("story_quota_status");
+        setQuota(readQuota(data));
+      })();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [handedOff]);
 
   const generate = useCallback(async () => {
     setSubmitting(true);
@@ -430,8 +497,8 @@ export function StoryStudio() {
 
       {jobId && jobStatus && (jobStatus === "ready" || jobStatus === "delivering") ? (
         <div className="mt-3 rounded-2xl border border-primary/40 bg-primary/10 px-3 py-2.5 text-[11px] text-foreground">
-          Your film is ready — open the{" "}
-          <span className="font-semibold">Your videos</span> tab to watch and save it.
+          Your film is ready — open the <span className="font-semibold">Your videos</span> tab to
+          watch and save it.
         </div>
       ) : null}
 
@@ -439,8 +506,48 @@ export function StoryStudio() {
         <p className="mt-2 text-center text-[11px] text-destructive">{jobError}</p>
       ) : null}
 
+      {/*
+        BUYING MORE TIME. Offered only when running out is what blocked this —
+        never next to "generation is paused", which would be selling access to
+        something switched off.
+
+        THE BUTTON DOES NOT CHARGE ON NATIVE. buyStorySeconds routes on the
+        platform: in a browser it opens Checkout here, in the app it opens
+        oniqhub.com and returns `handed-off`. A Story is digital content
+        consumed in the app and Google Play requires Play Billing for that, so
+        the app never collects. `nativeLinkOut` is a config row — with it off
+        this whole block disappears on native and the website keeps selling.
+      */}
+      {offerTopUp && topUpTier ? (
+        <div className="mt-3 rounded-2xl border border-border/60 bg-muted/30 px-3 py-2.5 text-[11px]">
+          {handedOff ? (
+            <p className="text-center text-muted-foreground">
+              Finish your purchase in the browser — your Story time appears here once it is done.
+            </p>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-muted-foreground">
+                {topUpTier.label} of Story time ·{" "}
+                <span className="font-semibold text-foreground">
+                  {moneyIn(topUpTier.pricePaise / 100, "INR")}
+                </span>
+              </span>
+              <button
+                type="button"
+                onClick={() => void buyTime()}
+                disabled={buying}
+                className="shrink-0 rounded-full bg-primary px-3 py-1 font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                {buying ? "Opening…" : "Buy time"}
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
+
       {quota && !loadingQuota ? (
         <p className="mt-3 text-center text-[11px] text-muted-foreground">
+          {quota.paidSeconds > 0 ? `${quota.paidSeconds}s bought · ` : ""}
           {quota.remaining}s of free Story time left · {quota.dailyLeft}s today
         </p>
       ) : null}

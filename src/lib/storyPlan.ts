@@ -174,6 +174,8 @@ export type RefusalNumbers = {
   remaining: number;
   dailyLeft: number;
   wanted: number;
+  /** Purchased seconds still unspent. Absent on builds before Story purchases. */
+  paidSeconds?: number;
 };
 
 /**
@@ -197,7 +199,13 @@ export function refusalMessage(reason: RefusalReason, n: RefusalNumbers): string
         ? `You have ${n.dailyLeft}s of Story time left today.`
         : "You have used your Story time for today. More tomorrow.";
     case "too-long":
-      return `That is ${n.wanted}s and you have ${n.remaining}s of free time left.`;
+      // Purchased seconds are not capped daily, so once somebody has any, the
+      // honest number to quote is the combined balance — telling a person who
+      // bought five minutes that they have "0s of free time left" is true and
+      // useless.
+      return (n.paidSeconds ?? 0) > 0
+        ? `That is ${n.wanted}s and you have ${n.remaining + (n.paidSeconds ?? 0)}s left.`
+        : `That is ${n.wanted}s and you have ${n.remaining}s of free time left.`;
   }
 }
 
@@ -253,6 +261,15 @@ export type QuotaState = {
   globalDailyUsedSeconds?: number;
   /** Product-wide daily ceiling. */
   globalDailySeconds?: number;
+  /**
+   * Purchased seconds not yet spent.
+   *
+   * A SECOND BUCKET, not more free time. It is spent only after the free
+   * balance, it is not subject to the per-user daily cap, and it does not
+   * consume the product-wide free budget — see the split in checkStoryQuota,
+   * which mirrors claim_story_seconds.
+   */
+  paidSeconds?: number;
 };
 
 /**
@@ -267,9 +284,20 @@ export type QuotaState = {
  * A partial grant is deliberately NOT offered. Silently making a 20-second
  * Story because 60 would not fit is a worse outcome than saying so — the user
  * asked for a length, and quietly delivering a third of it looks like a bug.
+ *
+ * THE PRODUCT-WIDE CEILING IS NO LONGER CHECKED FIRST, and the reversal is
+ * deliberate. It used to be, on the reasoning that a spent day is spent for
+ * everyone and a personal-allowance message answers a question nobody asked.
+ * That stops being true once seconds can be bought: the ceiling now applies to
+ * the FREE portion of a request only, so how much of a request is free has to
+ * be worked out before the ceiling can be applied to it. A purchase is
+ * revenue-covered and must not be refused because free users had a busy day —
+ * selling somebody five minutes and then saying "try again tomorrow" is not a
+ * capacity limit, it is a refund request.
  */
 export function checkStoryQuota(state: QuotaState, requestedSeconds: number): QuotaRefusal | null {
   const remaining = Math.max(0, state.freeSeconds - state.usedSeconds);
+  const paid = Math.max(0, state.paidSeconds ?? 0);
   const dailyLeftOf = (cap: number) => Math.max(0, cap - (state.dailyUsedSeconds ?? 0));
 
   if (!state.enabled) {
@@ -280,57 +308,46 @@ export function checkStoryQuota(state: QuotaState, requestedSeconds: number): Qu
     };
   }
   const wanted = Math.round(requestedSeconds);
+  const dailyLeft = dailyLeftOf(state.dailySeconds ?? DEFAULT_DAILY_SECONDS);
 
-  // Product-wide ceiling BEFORE anything about this user. When the day's budget
-  // is spent it is spent for everyone, and answering with a personal-allowance
-  // message would be answering a question the user did not ask. This is also
-  // the only layer that bounds ABSOLUTE spend — every other limit multiplies by
-  // the number of people who sign up.
+  // How the request splits. Free first — somebody with free time left should
+  // not be burning what they paid for — and the free part is itself bounded by
+  // what is left of today. This mirrors claim_story_seconds line for line; the
+  // RPC is still the authority, because only it holds the row lock.
+  const spendFree = Math.min(wanted, remaining, dailyLeft);
+  const spendPaid = Math.min(wanted - spendFree, paid);
+
+  if (spendFree + spendPaid < wanted) {
+    // Name the bucket that ran out: "buy more" and "come back tomorrow" are
+    // different instructions, and giving the wrong one costs a sale or wastes
+    // somebody's afternoon.
+    const reason: RefusalReason =
+      remaining <= 0 && paid <= 0
+        ? "exhausted"
+        : spendFree < Math.min(wanted, remaining)
+          ? "daily"
+          : "too-long";
+    const numbers: RefusalNumbers = { remaining, dailyLeft, wanted, paidSeconds: paid };
+    return {
+      reason,
+      message: refusalMessage(reason, numbers),
+      remaining: reason === "exhausted" ? 0 : remaining,
+    };
+  }
+
+  // The ceiling that bounds ABSOLUTE free spend. Every other limit multiplies
+  // by the number of people who sign up; this one does not. Paid seconds are
+  // outside it by design and are metered separately.
   const globalCap = state.globalDailySeconds ?? DEFAULT_GLOBAL_DAILY_SECONDS;
   const globalUsed = state.globalDailyUsedSeconds ?? 0;
-  if (globalUsed + wanted > globalCap) {
+  if (globalUsed + spendFree > globalCap) {
     return {
       reason: "capacity",
-      message: refusalMessage("capacity", {
-        remaining,
-        dailyLeft: dailyLeftOf(state.dailySeconds ?? DEFAULT_DAILY_SECONDS),
-        wanted,
-      }),
+      message: refusalMessage("capacity", { remaining, dailyLeft, wanted, paidSeconds: paid }),
       remaining,
     };
   }
 
-  if (remaining <= 0) {
-    return {
-      reason: "exhausted",
-      message: refusalMessage("exhausted", {
-        remaining: 0,
-        dailyLeft: dailyLeftOf(state.dailySeconds ?? DEFAULT_DAILY_SECONDS),
-        wanted,
-      }),
-      remaining: 0,
-    };
-  }
-
-  // Per-user, per-day. The lifetime allowance alone does not stop one account
-  // spending all of it in an hour, which is exactly what a compromised account
-  // does. Spreading it costs an honest user nothing.
-  const dailyLeft = dailyLeftOf(state.dailySeconds ?? DEFAULT_DAILY_SECONDS);
-  if (wanted > dailyLeft) {
-    return {
-      reason: "daily",
-      message: refusalMessage("daily", { remaining, dailyLeft, wanted }),
-      remaining,
-    };
-  }
-
-  if (wanted > remaining) {
-    return {
-      reason: "too-long",
-      message: refusalMessage("too-long", { remaining, dailyLeft, wanted }),
-      remaining,
-    };
-  }
   return null;
 }
 
@@ -390,6 +407,7 @@ export function parseClaimResult(payload: unknown): StoryClaim {
     remaining: num("remaining"),
     dailyLeft: num("dailyLeft"),
     wanted: num("wanted"),
+    paidSeconds: num("paidSeconds"),
   };
   return {
     ok: false,

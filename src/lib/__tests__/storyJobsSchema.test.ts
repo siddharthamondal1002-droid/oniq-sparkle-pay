@@ -4,15 +4,15 @@
  * That duplication is not an accident and it is not removable: the quota
  * decision has to happen under a row lock, which means SQL, and the sentence a
  * user reads has to be one string in one place, which means TypeScript. What
- * IS removable is the drift, and that is what this file is — it parses
- * `20260809000000_story_jobs.sql` and asserts the two agree.
+ * IS removable is the drift, and that is what this file is — it parses every
+ * migration that touches the Story schema and asserts the two agree.
  *
  * It is a text test, not a database test. There is no Postgres in CI, so this
  * cannot prove the SQL runs; it can only prove the two descriptions match. The
  * migration still has to be applied and exercised against a real project, and
  * a green run here is not that.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { STORY_TRANSITIONS, type StoryStatus } from "@/lib/storyLifecycle";
@@ -26,16 +26,46 @@ import {
 } from "@/lib/storyPlan";
 
 const ROOT = process.cwd();
-const SQL = readFileSync(join(ROOT, "supabase/migrations/20260809000000_story_jobs.sql"), "utf8");
+const MIGRATIONS = join(ROOT, "supabase/migrations");
 
-/** The body of one `create or replace function` block, up to its `$$;` close. */
+/**
+ * Every migration, oldest first.
+ *
+ * READING ONE FILE WAS A BUG, and it was found the hard way. This used to open
+ * `20260809000000_story_jobs.sql` by name. When a later migration replaced
+ * `claim_story_seconds` to spend purchased seconds, this file went on checking
+ * the ORIGINAL definition — one the database no longer runs. It still passed,
+ * which is the bad part: a guard pinned to a superseded definition does not
+ * fail, it just stops being about anything.
+ *
+ * `create or replace` means the LAST definition in migration order is the live
+ * one, so that is the one to parse.
+ */
+const SQL_FILES = readdirSync(MIGRATIONS)
+  .filter((f) => f.endsWith(".sql"))
+  .sort()
+  .map((f) => readFileSync(join(MIGRATIONS, f), "utf8"))
+  // Only migrations that touch the Story schema. Widening the corpus to every
+  // migration in the project would turn assertions like "authenticated gets
+  // select and nothing more" into a claim about tables this file knows nothing
+  // about — it would fail, or pass, for reasons unrelated to Stories.
+  .filter((sql) => sql.includes("public.story_"));
+
+/** The body of the LAST `create or replace function` block for a name. */
 function functionBody(name: string): string {
-  const start = SQL.indexOf(`create or replace function public.${name}`);
-  expect(start, `${name} is not in the migration`).toBeGreaterThan(-1);
-  const end = SQL.indexOf("$$;", start);
-  expect(end, `${name} has no terminator`).toBeGreaterThan(start);
-  return SQL.slice(start, end);
+  const needle = `create or replace function public.${name}`;
+  for (const sql of [...SQL_FILES].reverse()) {
+    const start = sql.lastIndexOf(needle);
+    if (start === -1) continue;
+    const end = sql.indexOf("$$;", start);
+    expect(end, `${name} has no terminator`).toBeGreaterThan(start);
+    return sql.slice(start, end);
+  }
+  throw new Error(`${name} is not defined in any migration`);
 }
+
+/** The whole corpus, for checks that are about presence rather than one body. */
+const SQL = SQL_FILES.join("\n");
 
 describe("the lifecycle table is the same in SQL as in TypeScript", () => {
   it("lists exactly the transitions storyLifecycle allows", () => {
@@ -105,44 +135,60 @@ describe("the configured defaults are the numbers the arithmetic produced", () =
 
 describe("the claim refuses in the same order the pure check does", () => {
   /**
-   * The TS order is DERIVED here rather than written down, by making every
-   * condition true at once and then relaxing them one at a time. Writing the
-   * expected order as a literal would just be a second copy of the thing under
-   * test, and it would keep passing if both copies were reordered together.
+   * The TS order is DERIVED here rather than written down. Writing the expected
+   * order as a literal would just be a second copy of the thing under test, and
+   * it would keep passing if both copies were reordered together.
+   *
+   * ONE STATE PER LAYER, no longer a single state relaxed step by step. The
+   * relaxing version worked while the checks were strictly nested; it stopped
+   * working when the product-wide ceiling moved BELOW the per-user buckets, at
+   * which point the "capacity" state was also personally exhausted and answered
+   * "exhausted" twice instead. Each entry below now sets up exactly the one
+   * condition it is there to trigger, and the sanity check underneath proves
+   * all five were actually reached.
    */
   const tsOrder: string[] = [];
   {
-    const everythingFails = {
-      enabled: false,
-      freeSeconds: 10,
-      usedSeconds: 10, // exhausted
-      dailyUsedSeconds: 120,
-      dailySeconds: 120, // no day left
-      globalDailyUsedSeconds: 3600,
-      globalDailySeconds: 3600, // no capacity
+    const base = {
+      enabled: true,
+      freeSeconds: 3000,
+      usedSeconds: 0,
+      paidSeconds: 0,
+      dailyUsedSeconds: 0,
+      dailySeconds: 100000,
+      globalDailyUsedSeconds: 0,
+      globalDailySeconds: 100000,
     };
-    tsOrder.push(checkStoryQuota(everythingFails, 60)!.reason);
-    const on = { ...everythingFails, enabled: true };
-    tsOrder.push(checkStoryQuota(on, 60)!.reason);
-    const roomy = { ...on, globalDailySeconds: 100000 };
-    tsOrder.push(checkStoryQuota(roomy, 60)!.reason);
-    const funded = { ...roomy, freeSeconds: 3000, usedSeconds: 10 };
-    tsOrder.push(checkStoryQuota(funded, 60)!.reason);
-    const daily = { ...funded, dailySeconds: 100000, freeSeconds: 40, usedSeconds: 0 };
-    tsOrder.push(checkStoryQuota(daily, 60)!.reason);
+    // Kill switch. Checked second, it is not a kill switch.
+    tsOrder.push(checkStoryQuota({ ...base, enabled: false }, 60)!.reason);
+    // Nothing free and nothing bought.
+    tsOrder.push(checkStoryQuota({ ...base, freeSeconds: 10, usedSeconds: 10 }, 60)!.reason);
+    // Lifetime balance intact, but today is spent.
+    tsOrder.push(
+      checkStoryQuota({ ...base, dailySeconds: 120, dailyUsedSeconds: 120 }, 60)!.reason,
+    );
+    // Some balance, less than asked for.
+    tsOrder.push(checkStoryQuota({ ...base, freeSeconds: 40 }, 60)!.reason);
+    // Fully funded; the product-wide free budget is what is gone.
+    tsOrder.push(
+      checkStoryQuota({ ...base, globalDailySeconds: 3600, globalDailyUsedSeconds: 3600 }, 60)!
+        .reason,
+    );
   }
 
-  it("derives the pure order as disabled, capacity, exhausted, daily, too-long", () => {
-    // Sanity on the derivation itself: if the peel above stops exercising a
+  it("derives the pure order as disabled, exhausted, daily, too-long, capacity", () => {
+    // Sanity on the derivation itself: if the setup above stops exercising a
     // branch, the comparison below would compare SQL against a shorter list
     // and pass for the wrong reason.
-    expect(tsOrder).toEqual(["disabled", "capacity", "exhausted", "daily", "too-long"]);
+    expect(tsOrder).toEqual(["disabled", "exhausted", "daily", "too-long", "capacity"]);
   });
 
   it("returns the reasons in that order in SQL", () => {
-    // A kill switch checked second is not a kill switch, and the product-wide
-    // ceiling has to beat a personal-allowance message — when the day's budget
-    // is gone it is gone for everyone.
+    // A kill switch checked second is not a kill switch. The ceiling now comes
+    // LAST rather than second, because it applies to the free portion of a
+    // request and how much of a request is free is not known until the buckets
+    // have been split — a purchase must not be refused because free users had a
+    // busy day.
     const body = functionBody("claim_story_seconds");
     const sqlOrder = [...body.matchAll(/'reason',\s*'([a-z-]+)'/g)].map(([, r]) => r);
     expect(sqlOrder).toEqual(tsOrder);
@@ -185,19 +231,68 @@ describe("the guards that make this safe to expose", () => {
     // A SECURITY DEFINER function without a pinned search_path is the classic
     // privilege-escalation shape: the caller chooses which schema's `story_jobs`
     // the definer's rights get applied to.
-    const fns = [...SQL.matchAll(/create or replace function public\.(\w+)/g)].map(([, n]) => n);
+    //
+    // Story functions only. Some of the migrations that touch story_* also
+    // define unrelated things (chat, profile QR, the food-order payment RPCs),
+    // and those are somebody else's guard — pulling them in here would make
+    // this list churn on every unrelated migration until nobody trusted it.
+    const fns = [
+      ...new Set(
+        [...SQL.matchAll(/create or replace function public\.(\w+)/g)]
+          .map(([, n]) => n)
+          .filter((n) => n.includes("story")),
+      ),
+    ];
     expect(fns.sort()).toEqual([
+      "attach_story_purchase_order",
       "claim_story_seconds",
+      "create_story_purchase",
+      "credit_story_purchase",
+      "fail_story_purchase",
       "refund_story_seconds",
+      "story_dispatch_tick",
       "story_jobs_guard_transition",
       "story_quota_status",
+      "story_sweep_tick",
     ]);
     for (const fn of fns) {
       expect(functionBody(fn), fn).toMatch(/set search_path = public/);
     }
-    for (const fn of ["claim_story_seconds", "refund_story_seconds", "story_quota_status"]) {
+    // Everything that moves a balance or spends money. credit_story_purchase is
+    // the one that turns a signature into seconds, so it belongs here even
+    // though it never touches story_jobs.
+    for (const fn of [
+      "claim_story_seconds",
+      "refund_story_seconds",
+      "story_quota_status",
+      "create_story_purchase",
+      "attach_story_purchase_order",
+      "credit_story_purchase",
+      "fail_story_purchase",
+    ]) {
       expect(functionBody(fn), fn).toMatch(/security definer/);
     }
+  });
+
+  it("lets no client path credit a Story balance", () => {
+    // paid_seconds is the balance a purchase creates. If `authenticated` could
+    // reach the function that increments it, the price chart would be
+    // decorative — anyone could call it and mint themselves seconds.
+    expect(SQL).toMatch(
+      /revoke all on function public\.credit_story_purchase\(text, text, text\)\s*\n?\s*from public, anon, authenticated;/,
+    );
+    expect(SQL).not.toMatch(/grant execute on function public\.credit_story_purchase/);
+    expect(SQL).not.toMatch(/grant execute on function public\.attach_story_purchase_order/);
+    expect(SQL).not.toMatch(/grant execute on function public\.fail_story_purchase/);
+  });
+
+  it("makes crediting a purchase idempotent, so verify and webhook cannot both pay", () => {
+    // Both razorpay-verify and razorpay-webhook call this for the same payment,
+    // deliberately, because either one alone can be lost. The second must be a
+    // no-op rather than a second credit.
+    const body = functionBody("credit_story_purchase");
+    expect(body).toMatch(/for update/);
+    expect(body).toMatch(/if p\.status = 'paid' then/);
   });
 
   it("never lets a user credit their own account", () => {
@@ -238,8 +333,10 @@ describe("the guards that make this safe to expose", () => {
     const body = functionBody("claim_story_seconds");
     expect(body).toMatch(/greatest\(cfg\.min_story_seconds/);
     expect(body).toMatch(/least\(cfg\.max_story_seconds/);
-    // And bills the clamped value, not the requested one.
-    expect(body).toMatch(/values \(me, prompt_clean, wanted, wanted\)/);
+    // And bills the clamped value, not the requested one. Both requested_
+    // seconds and seconds_charged take `wanted`; the trailing column is the
+    // paid split, which does not affect what is billed.
+    expect(body).toMatch(/values \(me, prompt_clean, wanted, wanted[,)]/);
   });
 
   it("does not move a job's status from inside the refund", () => {

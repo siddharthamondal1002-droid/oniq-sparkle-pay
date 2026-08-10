@@ -85,10 +85,27 @@ Deno.serve(async (req) => {
       return json({ ok: true, ignored: "no order id on the event", event: name }, 200);
     }
 
+    // WHICH PRODUCT WAS THIS. ONIQ sells two unrelated things through one
+    // Razorpay account: food orders, which settle against `orders`, and Story
+    // seconds, which credit an allowance. The `kind` note is set when the order
+    // is created and is the only thing on the event that distinguishes them.
+    //
+    // The note decides WHICH LEDGER TO LOOK IN and nothing else. It does not
+    // decide the amount, the owner, or how many seconds to credit — all of
+    // those are re-read from our own row, found by provider order id. A forged
+    // note cannot mint anything, because the only path it can reach is a
+    // lookup that will not find a matching purchase.
+    const notes = {
+      ...((orderEntity.notes as Record<string, unknown>) ?? {}),
+      ...((paymentEntity.notes as Record<string, unknown>) ?? {}),
+    };
+    const isStory = String(notes.kind ?? "") === "story_seconds";
+
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
 
     if (PAID_EVENTS.has(name)) {
-      const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/mark_order_paid`, {
+      const rpc = isStory ? "credit_story_purchase" : "mark_order_paid";
+      const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
         method: "POST",
         headers: { ...svc, "content-type": "application/json" },
         body: JSON.stringify({
@@ -99,24 +116,28 @@ Deno.serve(async (req) => {
       });
       if (!marked.ok) {
         const detail = await marked.text().catch(() => "");
-        console.error("razorpay-webhook mark", marked.status, detail.slice(0, 200));
+        console.error("razorpay-webhook mark", rpc, marked.status, detail.slice(0, 200));
         // 500 HERE IS CORRECT, unlike above: this is a transient failure on our
         // side against a real payment, and Razorpay's retry is exactly what we
-        // want. mark_order_paid is idempotent, so a retry is safe.
+        // want. Both RPCs are idempotent, so a retry is safe.
         return json({ error: "could not record the payment" }, 500);
       }
-      return json({ ok: true, ...(await marked.json()) }, 200);
+      return json(
+        { ok: true, kind: isStory ? "story_seconds" : "order", ...(await marked.json()) },
+        200,
+      );
     }
 
     if (FAILED_EVENTS.has(name)) {
-      await fetch(`${supabaseUrl}/rest/v1/rpc/mark_payment_failed`, {
+      const rpc = isStory ? "fail_story_purchase" : "mark_payment_failed";
+      await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
         method: "POST",
         headers: { ...svc, "content-type": "application/json" },
         body: JSON.stringify({
           _provider_order_id: providerOrderId,
           _error: String(paymentEntity.error_description ?? "payment failed"),
         }),
-      }).catch((e) => console.error("razorpay-webhook fail-mark", e));
+      }).catch((e) => console.error("razorpay-webhook fail-mark", rpc, e));
       return json({ ok: true, recorded: "failed" }, 200);
     }
 

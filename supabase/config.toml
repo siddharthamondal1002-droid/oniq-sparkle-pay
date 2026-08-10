@@ -53,8 +53,15 @@ verify_jwt = false
 [functions.razorpay-webhook]
 verify_jwt = false
 
-# razorpay-order and razorpay-verify are DELIBERATELY ABSENT from this file.
-# Both are called by a signed-in person spending their own money, so they have
-# a real user JWT and the platform gate should check it. Each then re-derives
-# the user from that token and refuses unless the order and the payment attempt
-# belong to them — a signature proves a payment happened, not whose it was.
+# razorpay-order, razorpay-verify and story-purchase are DELIBERATELY ABSENT
+# from this file. All three are called by a signed-in person spending their own
+# money, so they have a real user JWT and the platform gate should check it.
+# Each then re-derives the user from that token and refuses unless the order or
+# purchase belongs to them — a signature proves a payment happened, not whose it
+# was.
+#
+# story-purchase IS NOT PART OF THE story-* FAMILY ABOVE, despite the name, and
+# the difference is worth stating because the naming invites the mistake. Those
+# functions are called by the RUNNER, which holds an HMAC job token and has no
+# JWT to present. This one is called by a browser with a live session, and
+# turning its gate off would remove a check nothing else replaces.

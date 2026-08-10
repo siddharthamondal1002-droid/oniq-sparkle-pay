@@ -57,23 +57,47 @@ Deno.serve(async (req) => {
 
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
 
+    // WHICH PRODUCT WAS THIS. Two ledgers hang off one Razorpay account: food
+    // orders in `payments`, Story seconds in `story_purchases`. The provider
+    // order id appears in exactly one of them.
+    //
+    // NOTE WHAT IS *NOT* USED HERE — the client does not get to say which. The
+    // webhook has to read a `kind` note because an event carries nothing else
+    // of ours, but this path can simply look, and looking cannot be spoofed. A
+    // caller who claimed "story" for a food order's payment would still be
+    // found in `payments` and settled as a meal.
+    const findIn = async (table: string, select: string) => {
+      const res = await fetch(
+        `${supabaseUrl}/rest/v1/${table}?provider_order_id=eq.${encodeURIComponent(providerOrderId)}&select=${select}&limit=1`,
+        { headers: svc },
+      );
+      if (!res.ok) return { failed: true as const };
+      return { row: ((await res.json())[0] ?? null) as Record<string, unknown> | null };
+    };
+
+    const foodHit = await findIn("payments", "user_id,order_id,status");
+    if ("failed" in foodHit) return json({ error: "could not read that payment" }, 502);
+    let row = foodHit.row;
+    let isStory = false;
+    if (!row) {
+      const storyHit = await findIn("story_purchases", "user_id,seconds,status");
+      if ("failed" in storyHit) return json({ error: "could not read that payment" }, 502);
+      row = storyHit.row;
+      isStory = !!row;
+    }
+
     // THE SIGNATURE PROVES A PAYMENT HAPPENED, NOT WHOSE IT WAS. A valid
     // signature from somebody else's payment is still a valid signature, so the
     // attempt must also belong to this caller — otherwise one user could settle
-    // another's order and the order would show as paid to the wrong person.
-    const payRes = await fetch(
-      `${supabaseUrl}/rest/v1/payments?provider_order_id=eq.${encodeURIComponent(providerOrderId)}&select=user_id,order_id,status&limit=1`,
-      { headers: svc },
-    );
-    if (!payRes.ok) return json({ error: "could not read that payment" }, 502);
-    const pay = ((await payRes.json())[0] ?? null) as Record<string, unknown> | null;
-    if (!pay) return json({ error: "no such payment" }, 404);
-    if (pay.user_id !== userId) {
+    // another's order, or credit another account's Story seconds.
+    if (!row) return json({ error: "no such payment" }, 404);
+    if (row.user_id !== userId) {
       console.error("razorpay-verify wrong owner", providerOrderId, userId);
       return json({ error: "no such payment" }, 404);
     }
 
-    const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/mark_order_paid`, {
+    const rpc = isStory ? "credit_story_purchase" : "mark_order_paid";
+    const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
       method: "POST",
       headers: { ...svc, "content-type": "application/json" },
       body: JSON.stringify({
@@ -84,11 +108,11 @@ Deno.serve(async (req) => {
     });
     if (!marked.ok) {
       const detail = await marked.text().catch(() => "");
-      console.error("razorpay-verify mark", marked.status, detail.slice(0, 200));
+      console.error("razorpay-verify mark", rpc, marked.status, detail.slice(0, 200));
       return json({ error: "Payment taken, but recording it failed." }, 502);
     }
     const result = await marked.json();
-    return json({ ok: true, ...result });
+    return json({ ok: true, kind: isStory ? "story_seconds" : "order", ...result });
   } catch (e) {
     console.error("razorpay-verify fn error", e);
     return json({ error: "Something went sideways" }, 500);
