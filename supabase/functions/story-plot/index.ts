@@ -25,6 +25,14 @@
 // into Anthropic's shape, so the parser below is written once and does not care
 // which model answered.
 //
+// LONG FILMS ARE WRITTEN IN TWO STAGES, and that is not an optimisation. A
+// five-minute Story is 43 shots; each shot repeats the cast lock and the
+// setting verbatim, so 43 of them is ~11,000 output tokens — past the model's
+// cap, and minutes of generation inside a function with a wall clock. Over
+// twelve shots this writes a SPINE first (title, setting, cast locks, one line
+// per shot) and then expands the beats into shots in PARALLEL batches of eight,
+// each handed the same lock text to repeat. See the block above parseSpine.
+//
 // This was Gemini-first for a while. It was cheaper, and a plan is structured
 // JSON rather than prose, so the cheap end looked like enough. It is the wrong
 // trade here: everything downstream of the plan costs real money per shot, and
@@ -137,9 +145,10 @@ const MAX_SHOTS = 90;
  * repeats the cast lock and the setting verbatim — so the budget should be too.
  *
  * Capped at 90s because an edge function has a wall clock and this is not the
- * only call inside it. A very long Story (43 shots for five minutes) may simply
- * not fit; that is a real limit of doing this in an edge function and it will
- * show up as a timeout naming the shot count rather than as a mystery.
+ * only call inside it. This budget only ever applies to the SINGLE-CALL path,
+ * which is capped at SINGLE_CALL_MAX_SHOTS — a longer film goes through the
+ * spine-and-batches path instead, where no single call is ever asked to write
+ * more than eight shots.
  */
 function attemptBudget(shots: number): number {
   return Math.min(90_000, 30_000 + shots * 5_000);
@@ -240,7 +249,92 @@ Deno.serve(async (req) => {
     // for every function and the only thing anyone had was "no usable plan".
     const tried: { engine: string; reason: string }[] = [];
 
-    if (hasClaude) {
+    // LONG FILMS TAKE THE TWO-STAGE PATH. Below the threshold the single call
+    // is proven and simpler, and simpler is worth keeping for the common case.
+    if (!plan && hasClaude && shots > SINGLE_CALL_MAX_SHOTS) {
+      const spineRes = await callClaude({
+        system: SPINE_SYSTEM + langInstruction(lang),
+        messages: [
+          {
+            role: "user" as const,
+            content:
+              `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}\n\n` +
+              `Return exactly ${shots} beats.`,
+          },
+        ],
+        maxTokens: Math.min(8192, 1200 + shots * 40),
+        timeoutMs: roomFor(45_000),
+      });
+
+      if (!spineRes.ok) {
+        tried.push({ engine: "anthropic:spine", reason: String(spineRes.reason ?? "failed").slice(0, 160) });
+      } else {
+        const parsedSpine = parseSpine(textOf(spineRes.data), shots);
+        if ("reason" in parsedSpine) {
+          tried.push({ engine: "anthropic:spine", reason: parsedSpine.reason });
+        } else {
+          const spine = parsedSpine.spine;
+          const locks = lockText(spine);
+
+          // Batches run AT THE SAME TIME. Six sequential expansions would be the
+          // timeout again; six concurrent ones cost one expansion of wall clock.
+          const batches: { from: number; beats: string[] }[] = [];
+          for (let i = 0; i < shots; i += BATCH_SHOTS) {
+            batches.push({ from: i, beats: spine.beats.slice(i, i + BATCH_SHOTS) });
+          }
+          const batchMs = roomFor(60_000);
+          const results = await Promise.all(
+            batches.map(async (b) => {
+              if (batchMs === 0) return { reason: "batch: no time left after the spine" };
+              const res = await callClaude({
+                system: BATCH_SYSTEM + langInstruction(lang),
+                messages: [
+                  {
+                    role: "user" as const,
+                    content:
+                      `${locks}\n\nFILM: ${spine.title}\n\n` +
+                      `Draw shots ${b.from + 1}–${b.from + b.beats.length} of ${shots}. ` +
+                      `One shot per beat, in order:\n` +
+                      b.beats.map((t, i) => `${b.from + i + 1}. ${t}`).join("\n"),
+                  },
+                ],
+                maxTokens: Math.min(8192, 600 + b.beats.length * 300),
+                timeoutMs: batchMs,
+              });
+              if (!res.ok) return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };
+              return parseShots(textOf(res.data), b.beats.length);
+            }),
+          );
+
+          // ALL OR NOTHING. A film missing shots nine to sixteen is not a
+          // shorter film, it is a broken one, and every shot downstream costs
+          // money — so a gap must fail here, before any of it is spent.
+          const bad = results.find((r) => "reason" in r);
+          if (bad && "reason" in bad) {
+            tried.push({ engine: "anthropic:batch", reason: bad.reason.slice(0, 160) });
+          } else {
+            const all = results.flatMap((r) => ("shots" in r ? r.shots : []));
+            if (all.length !== shots) {
+              tried.push({
+                engine: "anthropic:batch",
+                reason: `assembled ${all.length} shots, wanted ${shots}`,
+              });
+            } else {
+              plan = {
+                title: spine.title,
+                logline: spine.logline,
+                setting: spine.setting,
+                cast: spine.cast,
+                shots: all,
+              };
+              servedBy = `anthropic:spine+${batches.length}`;
+            }
+          }
+        }
+      }
+    }
+
+    if (!plan && hasClaude) {
       const firstMs = roomFor(attemptBudget(shots));
       const first = await callClaude({ ...opts, timeoutMs: firstMs });
       if (first.ok) {
@@ -369,6 +463,170 @@ type Plan = {
  * duration across exactly this many shots; a plan with one fewer leaves a hole
  * in the timeline, and one more silently drops the ending.
  */
+// --- long films: a spine, then shots written in parallel batches ------------
+//
+// A FIVE-MINUTE STORY IS 43 SHOTS AND WILL NOT FIT IN ONE CALL. Each shot is a
+// paragraph that repeats the cast lock and the setting verbatim — that
+// repetition IS the anti-drift mechanism — so 43 of them is roughly 11,000
+// output tokens, past the 8,192 cap, and minutes of generation inside an edge
+// function with a wall clock. Raising the timeout does not fix that. It moves
+// the failure.
+//
+// A long film is therefore written in two stages:
+//
+//   1. THE SPINE, once: title, logline, setting, cast locks, and a one-line
+//      beat per shot. Beats are short, so 43 of them fit comfortably.
+//   2. THE SHOTS, in parallel batches of eight, each batch handed the SAME
+//      locked setting and cast text and told to repeat it word for word.
+//
+// Parallel is what makes it fit. Six batches at once cost one batch of wall
+// clock, not six; sequential expansion would be the timeout again with extra
+// steps.
+//
+// THIS IS NOT THE BATCHING THE COST RULES FORBID. That rule is about billable
+// media — a loop over an array of images is how a month of credits disappears
+// in an hour. This is the PLANNING call. Its fan-out is bounded by the shot
+// count, the shot count is bounded by requested_seconds, and the quota has
+// already taken payment for those seconds. The image and voice calls
+// downstream remain strictly one per shot, sequential, unchanged.
+//
+// THE LOCKS ARE PASSED IN, NOT RE-INVENTED. A batch that wrote its own
+// description would give you a different girl in shots nine to sixteen — the
+// exact failure the lock mechanism exists to prevent, and invisible until
+// somebody watched the film.
+
+/** The spine prompt: everything except the shots themselves. */
+const SPINE_SYSTEM = [
+  "You are Ting 🔮, ONIQ's built-in assistant, working as a story editor for ONIQ Lores.",
+  "You turn one line from a user into the SKELETON of a short animated film.",
+  "",
+  "Return ONLY a JSON object. No prose, no markdown fence, no commentary.",
+  "",
+  "Shape:",
+  '{ "title": string, "logline": string, "setting": string,',
+  '  "cast": [{ "name": string, "lock": string }],',
+  '  "beats": [string] }',
+  "",
+  "RULES:",
+  "1. Return EXACTLY the number of beats asked for. Not more, not fewer.",
+  "2. A beat is ONE SHORT LINE saying what happens in that shot. Ten words is",
+  "   plenty. Do not describe the frame — that comes later.",
+  "3. `lock` is a verbatim physical description — age, build, hair, clothing,",
+  "   colours — detailed enough that repeating it produces the same person every",
+  "   time. Nothing carries between image generations, so this text IS the",
+  "   character.",
+  "4. `setting` is locked the same way: place, time of day, weather, palette.",
+  "5. The beats must tell one story with a beginning, a turn and an ending.",
+  "",
+  "CONTENT RULES, non-negotiable, carried from the Arabian Nights season:",
+  "no prophets, no divine figures, no scripture; no real living people; no",
+  "named brands or copyrighted characters; violence implied, never depicted;",
+  "nothing sexual. If the user's idea requires any of these, write the nearest",
+  "story that does not, and say so in `logline`.",
+].join("\n");
+
+/** The expansion prompt: turn beats into shots, repeating the locks verbatim. */
+const BATCH_SYSTEM = [
+  "You are Ting 🔮, working as a storyboard artist for ONIQ Lores.",
+  "You turn story beats into shootable frames.",
+  "",
+  "Return ONLY a JSON object. No prose, no markdown fence, no commentary.",
+  "",
+  'Shape: { "shots": [{ "still": string, "narration": string }] }',
+  "",
+  "RULES:",
+  "1. Return EXACTLY one shot per beat, in the same order.",
+  "2. Every `still` that shows a character MUST repeat that character's lock",
+  "   word for word, and MUST repeat the setting. You are given both. Do not",
+  "   paraphrase them and do not invent your own — other batches are drawing the",
+  "   same film from the same text, and any difference becomes a different",
+  "   person or a different place on screen.",
+  "3. `still` describes what the FRAME IS — a static image. No camera moves, no",
+  "   'then', no cuts. One moment.",
+  "4. `narration` is one or two spoken sentences. Write numbers as words. It is",
+  "   read aloud by a voice, not displayed.",
+  "5. Say the shot size at the start of each `still`: establishing, wide, medium",
+  "   or close. Vary them.",
+  "",
+  "CONTENT RULES: no prophets, no divine figures, no scripture; no real living",
+  "people; no named brands or copyrighted characters; violence implied, never",
+  "depicted; nothing sexual.",
+].join("\n");
+
+/** Above this many shots, one call stops being realistic. Below it, the proven path. */
+const SINGLE_CALL_MAX_SHOTS = 12;
+
+/** Shots per expansion batch. Eight is ~2,100 tokens — comfortable, not tight. */
+const BATCH_SHOTS = 8;
+
+type Spine = {
+  title: string;
+  logline: string;
+  setting: string;
+  cast: { name: string; lock: string }[];
+  beats: string[];
+};
+
+/** The JSON object in a reply, or why there wasn't one. */
+function jsonIn(text: string, what: string): { obj: Record<string, unknown> } | { reason: string } {
+  if (!text) return { reason: `${what}: empty reply` };
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0) return { reason: `${what}: no JSON in ${text.length} chars` };
+  if (end <= start) return { reason: `${what}: unterminated JSON, truncated at ${text.length} chars` };
+  try {
+    const raw = JSON.parse(text.slice(start, end + 1));
+    if (typeof raw !== "object" || raw === null) return { reason: `${what}: JSON was not an object` };
+    return { obj: raw as Record<string, unknown> };
+  } catch (e) {
+    return { reason: `${what}: bad JSON: ${(e as Error).message.slice(0, 60)}` };
+  }
+}
+
+const trimmed = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
+
+function parseSpine(text: string, shots: number): { spine: Spine } | { reason: string } {
+  const got = jsonIn(text, "spine");
+  if ("reason" in got) return got;
+  const p = got.obj;
+  const title = trimmed(p.title);
+  const setting = trimmed(p.setting);
+  if (!title || !setting) return { reason: `spine: missing ${!title ? "title" : "setting"}` };
+  const cast = (Array.isArray(p.cast) ? p.cast : [])
+    .map((c) => {
+      const o = (c ?? {}) as Record<string, unknown>;
+      return { name: trimmed(o.name), lock: trimmed(o.lock) };
+    })
+    .filter((c) => c.name && c.lock);
+  const beats = (Array.isArray(p.beats) ? p.beats : []).map(trimmed).filter(Boolean);
+  // Extra beats are trimmed, same rule as extra shots. Too few is a shorter
+  // film than was paid for, and inventing the rest here is the second-planner
+  // problem again.
+  if (beats.length < shots) return { reason: `spine: ${beats.length} beats, wanted ${shots}` };
+  return {
+    spine: { title, logline: trimmed(p.logline), setting, cast, beats: beats.slice(0, shots) },
+  };
+}
+
+function parseShots(text: string, want: number): { shots: Shot[] } | { reason: string } {
+  const got = jsonIn(text, "batch");
+  if ("reason" in got) return got;
+  const shots = (Array.isArray(got.obj.shots) ? got.obj.shots : [])
+    .map((s) => {
+      const o = (s ?? {}) as Record<string, unknown>;
+      return { still: trimmed(o.still), narration: trimmed(o.narration) };
+    })
+    .filter((s) => s.still && s.narration);
+  if (shots.length < want) return { reason: `batch: ${shots.length} shots, wanted ${want}` };
+  return { shots: shots.slice(0, want) };
+}
+
+/** The cast and setting, written out for a batch to copy verbatim. */
+function lockText(spine: Spine): string {
+  const cast = spine.cast.map((c) => `- ${c.name}: ${c.lock}`).join("\n");
+  return `SETTING (repeat verbatim in every still):\n${spine.setting}\n\nCAST (repeat the matching lock verbatim in every still that shows them):\n${cast || "- (no recurring characters)"}`;
+}
+
 /**
  * A parse either yields a plan or SAYS WHY IT DID NOT.
  *
