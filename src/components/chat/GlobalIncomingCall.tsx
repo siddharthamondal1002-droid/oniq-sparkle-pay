@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useLocation } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -15,8 +15,8 @@ import {
   sendQuickReply,
   type IncomingCallInfo,
 } from "./IncomingCallScreen";
+import { activeCallSession } from "./GlobalCallHost";
 import { bumpMissedCallCount } from "@/components/onboarding/FullScreenIntentPrompt";
-
 
 type CallType = "audio" | "video";
 
@@ -30,16 +30,23 @@ type Incoming = {
   firstRing: number;
 };
 
-
 /**
  * Global incoming-call UI. Subscribes to `user-calls:{myUserId}` and shows a
- * full-screen accept/decline overlay from anywhere in the app. Accept
- * navigates to the conversation with ?acceptCall=… — the thread's CallOverlay
- * adopts the callId and completes the accept handshake there.
+ * full-screen accept/decline overlay from anywhere in the app — INCLUDING the
+ * call's own conversation thread. This component is the ONLY incoming-call
+ * surface: since the GlobalCallHost refactor the thread route mounts no
+ * CallOverlay of its own, so the old "suppress when the thread is open" rule
+ * had become "show incoming calls to nobody who has the chat open". That is
+ * exactly how the 2026-08-10 calls failed: two people messaging each other
+ * both tapped call, every ring was delivered, and every ring was discarded
+ * here. The one real overlap it guarded — a ring landing while a CallOverlay
+ * session is already mounted — is handled by `activeCallSession` instead.
+ *
+ * Accept navigates to the conversation with ?acceptCall=… — GlobalCallHost
+ * mounts a CallOverlay that adopts the callId and completes the handshake.
  */
 export function GlobalIncomingCall() {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
   const [me, setMe] = useState<string | null>(null);
 
   const [incoming, setIncoming] = useState<Incoming | null>(null);
@@ -55,17 +62,10 @@ export function GlobalIncomingCall() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // If the thread for the incoming call is already open, the thread's own
-  // CallOverlay owns the incoming UI. Suppress the global overlay entirely
-  // (render + sounds) so it doesn't paint over accept/decline and doesn't
-  // create a duplicate ringtone.
-  const isThreadOpen = (convId: string) =>
-    pathname === `/app/chat/${convId}` || pathname.startsWith(`/app/chat/${convId}/`);
-
   // Keep ref in sync so the interval + broadcasts see latest.
   useEffect(() => {
     incomingRef.current = incoming;
-    if (incoming && !isThreadOpen(incoming.conversationId)) {
+    if (incoming) {
       playRingtone();
       if (typeof document !== "undefined" && document.hidden) {
         showIncomingNotification(incoming.callId, incoming.fromName);
@@ -73,9 +73,7 @@ export function GlobalIncomingCall() {
     } else {
       stopAllCallSounds();
     }
-    // pathname included so switching into the thread stops the sound.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incoming, pathname]);
+  }, [incoming]);
 
   // Auto-dismiss when caller stops re-broadcasting (>6s of silence).
   useEffect(() => {
@@ -94,11 +92,12 @@ export function GlobalIncomingCall() {
       const hardTimeout = now - cur.firstRing > 45_000;
       if (idleTooLong || hardTimeout) {
         // Missed: caller stopped ringing or 45s cap reached.
-        try { bumpMissedCallCount(); } catch {}
+        try {
+          bumpMissedCallCount();
+        } catch {}
         setIncoming(null);
       }
     }, 1000);
-
 
     return () => {
       if (dismissTimerRef.current) {
@@ -123,6 +122,11 @@ export function GlobalIncomingCall() {
         fromId: string;
       };
       if (!p?.callId || p.fromId === me) return;
+      // Already dialing or in a call in this window — a CallOverlay session is
+      // mounted, and painting an incoming screen over it would be the very
+      // overlap the retired thread-open check existed for. (Re-rings for the
+      // call just accepted land here too, harmlessly.)
+      if (activeCallSession.current) return;
       // Ignore if already in an active call in this window.
       if (activeCallIdRef.current && activeCallIdRef.current !== p.callId) return;
       const cur = incomingRef.current;
@@ -141,14 +145,12 @@ export function GlobalIncomingCall() {
         lastRing: Date.now(),
         firstRing: Date.now(),
       });
-
     });
     ch.subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
   }, [me]);
-
 
   const accept = () => {
     const cur = incomingRef.current;
@@ -198,7 +200,9 @@ export function GlobalIncomingCall() {
     // the original subscription). Since this component is suppressed when the
     // thread is open, the thread's channel is normally NOT present here.
     const topic = `call:${cur.conversationId}`;
-    const existing = supabase.getChannels().find((c: any) => c.topic === `realtime:${topic}` || c.topic === topic);
+    const existing = supabase
+      .getChannels()
+      .find((c: any) => c.topic === `realtime:${topic}` || c.topic === topic);
     const ch = existing ?? supabase.channel(topic, { config: { broadcast: { self: false } } });
     const send = () =>
       ch.send({
@@ -220,10 +224,7 @@ export function GlobalIncomingCall() {
     setIncoming(null);
   };
 
-  // Suppress render if the thread for this call is already open — its own
-  // CallOverlay incoming UI handles accept/decline.
   if (!incoming) return null;
-  if (isThreadOpen(incoming.conversationId)) return null;
 
   const info: IncomingCallInfo = {
     conversationId: incoming.conversationId,
@@ -239,14 +240,17 @@ export function GlobalIncomingCall() {
       onAccept={accept}
       onDecline={decline}
       onMessageInstead={async (text) => {
-        try { await sendQuickReply(incoming.conversationId, text); } catch {}
+        try {
+          await sendQuickReply(incoming.conversationId, text);
+        } catch {}
         decline();
       }}
       onRemindMe={async (mins) => {
-        try { await scheduleReminder(incoming.conversationId, incoming.fromName, mins); } catch {}
+        try {
+          await scheduleReminder(incoming.conversationId, incoming.fromName, mins);
+        } catch {}
         decline();
       }}
     />
   );
 }
-

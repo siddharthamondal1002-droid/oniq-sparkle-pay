@@ -44,6 +44,14 @@ type Session =
       meName: string;
     };
 
+/**
+ * Whether a CallOverlay session is currently mounted, readable from outside
+ * React. GlobalIncomingCall consults this to drop rings that arrive while the
+ * user is already dialing or in a call — the one job the old "is the thread
+ * open" check was actually doing before it was retired.
+ */
+export const activeCallSession: { current: string | null } = { current: null };
+
 export function GlobalCallHost() {
   const [session, setSession] = useState<Session | null>(null);
   const { data: me } = useQuery({
@@ -51,15 +59,32 @@ export function GlobalCallHost() {
     queryFn: async () => (await supabase.auth.getUser()).data.user,
   });
   const meName =
-    (me?.user_metadata as { display_name?: string; full_name?: string } | undefined)?.display_name ||
+    (me?.user_metadata as { display_name?: string; full_name?: string } | undefined)
+      ?.display_name ||
     (me?.user_metadata as { display_name?: string; full_name?: string } | undefined)?.full_name ||
     me?.email ||
     "Someone";
+
+  // Keep the module-level flag in step with the mounted session.
+  useEffect(() => {
+    activeCallSession.current = session
+      ? session.kind === "start"
+        ? session.detail.conversationId
+        : session.conversationId
+      : null;
+    return () => {
+      activeCallSession.current = null;
+    };
+  }, [session]);
 
   useEffect(() => {
     const onStart = (e: Event) => {
       const d = (e as CustomEvent).detail as StartDetail | undefined;
       if (!d?.conversationId || !d?.callType) return;
+      // A session is already mounted — a second start event is a double-tap
+      // (call_logs showed two rows 300ms apart from one caller). Remounting
+      // would tear down the first call mid-setup and bill a second log row.
+      if (session) return;
       setSession({
         kind: "start",
         nonce: `${d.conversationId}:${Date.now()}`,
@@ -71,9 +96,12 @@ export function GlobalCallHost() {
       if (!d?.callId || !d?.conversationId) return;
       // If we already mounted an overlay for this conversation, let the
       // overlay's own `oniq:accept-call` listener handle it — no remount.
-      if (session && (session.kind === "start"
-        ? session.detail.conversationId === d.conversationId
-        : session.conversationId === d.conversationId)) {
+      if (
+        session &&
+        (session.kind === "start"
+          ? session.detail.conversationId === d.conversationId
+          : session.conversationId === d.conversationId)
+      ) {
         return;
       }
       let peerName = "Someone";
@@ -88,7 +116,9 @@ export function GlobalCallHost() {
         if (first) {
           peerName = first.profiles?.display_name || first.profiles?.username || peerName;
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
       setSession({
         kind: "accept",
         nonce: `${d.conversationId}:${d.callId}`,
