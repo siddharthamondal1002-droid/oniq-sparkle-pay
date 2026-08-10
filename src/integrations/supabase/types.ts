@@ -2908,6 +2908,7 @@ export type Database = {
           daily_day: string
           daily_used_seconds: number
           free_seconds: number | null
+          paid_seconds: number
           updated_at: string
           used_seconds: number
           user_id: string
@@ -2916,6 +2917,7 @@ export type Database = {
           daily_day?: string
           daily_used_seconds?: number
           free_seconds?: number | null
+          paid_seconds?: number
           updated_at?: string
           used_seconds?: number
           user_id: string
@@ -2924,6 +2926,7 @@ export type Database = {
           daily_day?: string
           daily_used_seconds?: number
           free_seconds?: number | null
+          paid_seconds?: number
           updated_at?: string
           used_seconds?: number
           user_id?: string
@@ -2966,16 +2969,19 @@ export type Database = {
       story_global_usage: {
         Row: {
           day: string
+          paid_seconds: number
           updated_at: string
           used_seconds: number
         }
         Insert: {
           day: string
+          paid_seconds?: number
           updated_at?: string
           used_seconds?: number
         }
         Update: {
           day?: string
+          paid_seconds?: number
           updated_at?: string
           used_seconds?: number
         }
@@ -2988,6 +2994,7 @@ export type Database = {
           error: string | null
           has_bytes: boolean
           id: string
+          paid_seconds_charged: number
           prompt: string
           refunded_at: string | null
           render_target: string | null
@@ -3005,6 +3012,7 @@ export type Database = {
           error?: string | null
           has_bytes?: boolean
           id?: string
+          paid_seconds_charged?: number
           prompt: string
           refunded_at?: string | null
           render_target?: string | null
@@ -3022,6 +3030,7 @@ export type Database = {
           error?: string | null
           has_bytes?: boolean
           id?: string
+          paid_seconds_charged?: number
           prompt?: string
           refunded_at?: string | null
           render_target?: string | null
@@ -3030,6 +3039,114 @@ export type Database = {
           shot_count?: number | null
           status?: string
           storage_path?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      story_price_tiers: {
+        Row: {
+          active: boolean
+          currency: string
+          label: string
+          price_paise: number
+          seconds: number
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          currency?: string
+          label: string
+          price_paise: number
+          seconds: number
+          sort_order: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          currency?: string
+          label?: string
+          price_paise?: number
+          seconds?: number
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      story_purchase_config: {
+        Row: {
+          checkout_url: string
+          enabled: boolean
+          id: boolean
+          native_link_out: boolean
+          updated_at: string
+        }
+        Insert: {
+          checkout_url?: string
+          enabled?: boolean
+          id?: boolean
+          native_link_out?: boolean
+          updated_at?: string
+        }
+        Update: {
+          checkout_url?: string
+          enabled?: boolean
+          id?: boolean
+          native_link_out?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      story_purchases: {
+        Row: {
+          created_at: string
+          currency: string
+          error: string | null
+          id: string
+          origin: string
+          paid_at: string | null
+          price_paise: number
+          provider: string
+          provider_order_id: string | null
+          provider_payment_id: string | null
+          seconds: number
+          seconds_credited: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency: string
+          error?: string | null
+          id?: string
+          origin?: string
+          paid_at?: string | null
+          price_paise: number
+          provider?: string
+          provider_order_id?: string | null
+          provider_payment_id?: string | null
+          seconds: number
+          seconds_credited?: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          error?: string | null
+          id?: string
+          origin?: string
+          paid_at?: string | null
+          price_paise?: number
+          provider?: string
+          provider_order_id?: string | null
+          provider_payment_id?: string | null
+          seconds?: number
+          seconds_credited?: number
+          status?: string
           updated_at?: string
           user_id?: string
         }
@@ -3669,6 +3786,10 @@ export type Database = {
         Returns: string
       }
       approve_parental_consent: { Args: { _code: string }; Returns: Json }
+      attach_story_purchase_order: {
+        Args: { _provider_order_id: string; _purchase_id: string }
+        Returns: Json
+      }
       book_service: {
         Args: {
           _address?: string
@@ -3764,6 +3885,18 @@ export type Database = {
         Args: { _member_ids: string[]; _name: string }
         Returns: string
       }
+      create_story_purchase: {
+        Args: { _origin?: string; _seconds: number }
+        Returns: Json
+      }
+      credit_story_purchase: {
+        Args: {
+          _confirmed_by?: string
+          _provider_order_id: string
+          _provider_payment_id?: string
+        }
+        Returns: Json
+      }
       delete_chat: { Args: { _conversation_id: string }; Returns: undefined }
       delete_email: {
         Args: { message_id: number; queue_name: string }
@@ -3778,6 +3911,10 @@ export type Database = {
         Returns: number
       }
       export_my_data: { Args: never; Returns: Json }
+      fail_story_purchase: {
+        Args: { _error: string; _provider_order_id: string }
+        Returns: Json
+      }
       find_or_create_direct_conversation: {
         Args: { other_user_id: string }
         Returns: string
