@@ -16,6 +16,8 @@ export type IncomingCallInfo = {
   callType: "audio" | "video";
   fromName: string;
   fromId: string;
+  /** The caller's real photo. The monogram is only the fallback. */
+  avatarUrl?: string | null;
   isGroup?: boolean;
   groupParticipants?: { id: string; name: string; avatar?: string | null }[];
 };
@@ -103,7 +105,11 @@ export function IncomingCallScreen({
 
       <div
         className="relative z-10 flex h-full flex-col items-center justify-between px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-[max(4rem,env(safe-area-inset-top))]"
-        style={{ transform: `translateY(${dragY * 0.35}px)`, transition: startY.current == null ? "transform 250ms cubic-bezier(0.2,0.9,0.3,1.3)" : undefined }}
+        style={{
+          transform: `translateY(${dragY * 0.35}px)`,
+          transition:
+            startY.current == null ? "transform 250ms cubic-bezier(0.2,0.9,0.3,1.3)" : undefined,
+        }}
       >
         {/* top: label + swipe hint */}
         <div className="flex flex-col items-center gap-1.5">
@@ -116,8 +122,12 @@ export function IncomingCallScreen({
           <div className="relative">
             <span className="absolute inset-0 -m-6 animate-ping rounded-full bg-primary/30" />
             <span className="absolute inset-0 -m-3 animate-pulse rounded-full bg-primary/40" />
-            <div className="grid h-40 w-40 place-items-center rounded-full bg-gradient-to-br from-primary via-primary/80 to-accent text-6xl font-bold shadow-2xl shadow-primary/40">
-              {monogram}
+            <div className="grid h-40 w-40 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-primary via-primary/80 to-accent text-6xl font-bold shadow-2xl shadow-primary/40">
+              {info.avatarUrl ? (
+                <img src={info.avatarUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                monogram
+              )}
             </div>
           </div>
           <div className="text-center">
@@ -204,7 +214,9 @@ export function IncomingCallScreen({
               <button
                 key={t}
                 disabled={sending}
-                onClick={async () => { await send(t); }}
+                onClick={async () => {
+                  await send(t);
+                }}
                 className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/90 transition hover:bg-white/10 disabled:opacity-60"
               >
                 {t}
@@ -219,7 +231,11 @@ export function IncomingCallScreen({
               />
               <button
                 disabled={sending || !custom.trim()}
-                onClick={async () => { const t = custom; setCustom(""); await send(t); }}
+                onClick={async () => {
+                  const t = custom;
+                  setCustom("");
+                  await send(t);
+                }}
                 className="grid h-9 w-9 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-40"
                 aria-label="Send"
               >
@@ -236,25 +252,36 @@ export function IncomingCallScreen({
             {[15, 60, 240].map((m) => (
               <button
                 key={m}
-                onClick={async () => { await onRemindMe(m); }}
+                onClick={async () => {
+                  await onRemindMe(m);
+                }}
                 className="rounded-2xl border border-white/10 bg-white/5 py-4 text-sm transition hover:bg-white/10"
               >
                 {m < 60 ? `${m} min` : `${m / 60} hr`}
               </button>
             ))}
           </div>
-          <p className="mt-3 text-xs text-white/50">
-            We'll ping you when it's time.
-          </p>
+          <p className="mt-3 text-xs text-white/50">We'll ping you when it's time.</p>
         </SheetShell>
       )}
     </div>
   );
 }
 
-function SheetShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+function SheetShell({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="absolute inset-0 z-20 flex items-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="absolute inset-0 z-20 flex items-end bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
         className="w-full rounded-t-3xl border-t border-white/10 bg-[#12141c] p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl"
         style={{ animation: "slide-in-right 0.25s ease-out" }}
@@ -262,7 +289,10 @@ function SheetShell({ title, onClose, children }: { title: string; onClose: () =
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-base font-semibold text-white">{title}</h3>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-white/5 text-white/70 hover:bg-white/10">
+          <button
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-full bg-white/5 text-white/70 hover:bg-white/10"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>

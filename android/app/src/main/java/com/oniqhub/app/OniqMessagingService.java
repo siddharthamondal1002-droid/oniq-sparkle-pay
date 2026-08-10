@@ -30,8 +30,13 @@ public class OniqMessagingService extends FirebaseMessagingService {
     @Override
     public void onNewToken(String token) {
         super.onNewToken(token);
-        // The Capacitor plugin's own token listener handles upserts into
-        // device_tokens; nothing extra needed here.
+        // FCM delivers MESSAGING_EVENT to exactly ONE service, and it is this
+        // one — so the Capacitor plugin's own MessagingService never sees a
+        // rotated token, its JS listener never fires, and device_tokens
+        // quietly goes stale until send-push hits UNREGISTERED and deletes
+        // the row. Forwarding to the plugin's static handler restores the
+        // registration event the JS upsert listens for.
+        com.capacitorjs.plugins.pushnotifications.PushNotificationsPlugin.onNewToken(token);
     }
 
     @Override
@@ -40,7 +45,13 @@ public class OniqMessagingService extends FirebaseMessagingService {
         String kind = data.get("kind");
 
         if ("call".equals(kind)) {
-            showRingingCallNotification(data);
+            // In the foreground the realtime channel already rings the in-app
+            // incoming screen; stacking the insistent system ringtone on top
+            // double-rings the device. The tray notification is for the app
+            // you are NOT looking at.
+            if (!isAppInForeground()) {
+                showRingingCallNotification(data);
+            }
             return;
         }
 
@@ -116,6 +127,19 @@ public class OniqMessagingService extends FirebaseMessagingService {
         n.flags |= Notification.FLAG_INSISTENT;
 
         nm.notify(CALL_NOTIFICATION_ID, n);
+    }
+
+    /** Best-effort foreground check via our own process importance. */
+    private boolean isAppInForeground() {
+        try {
+            android.app.ActivityManager.RunningAppProcessInfo info =
+                new android.app.ActivityManager.RunningAppProcessInfo();
+            android.app.ActivityManager.getMyMemoryState(info);
+            return info.importance
+                <= android.app.ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void showStandardNotification(Map<String, String> data, RemoteMessage msg) {

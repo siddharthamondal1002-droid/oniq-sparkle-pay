@@ -227,6 +227,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   // media presence in state so mute/camera buttons enable correctly.
   const [hasMedia, setHasMedia] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [peerAvatar, setPeerAvatar] = useState<string | null>(null);
   useEffect(() => { void detectNative().then(setIsNative); }, []);
 
   // ---- refs (session-scoped state) ----
@@ -338,7 +339,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         peers.map((p) => ({ id: p.peerId, ice: p.pc.iceConnectionState, conn: p.connState, forceRelay: p.forceRelay })),
       );
       toast.error("network issue — call couldn't connect");
-      if (isCallerRef.current && logIdRef.current) {
+      // Never demote an ANSWERED call to failed: this timeout also re-arms
+      // during mid-call relay rebuilds, and a rebuild that dies should leave
+      // the log saying "answered, N seconds" — which is what happened.
+      if (isCallerRef.current && logIdRef.current && logStatusRef.current !== "answered") {
         logStatusRef.current = "no_answer";
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (supabase as any)
@@ -452,12 +456,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       console.log(`[mesh] peer ${peerId} escalating to relay-only TURN`);
       setStatus((s) => (s === "connected" ? s : "connecting"));
       toast("Connection failed. Retrying…");
-      teardownPeer(peerId, true);
+      teardownPeer(peerId, true, { rebuilding: true });
       // Recreate our side now (relay-only). Offerer triggers new offer via
       // onnegotiationneeded; callee waits for our fresh offer.
       const fresh = createPeerEntry(peerId, entry.peerName, true);
       // Nudge remote to rebuild its PC (its `hello` handler recreates it).
       sendSig("hello", null, { fromName: meName });
+      // The rebuild suppressed the pool-empty end above, so re-arm the hard
+      // deadline: if the relay attempt never converges, the call ends with an
+      // honest "couldn't connect" instead of hanging on Connecting… forever.
+      armConnectTimeout();
       void fresh;
     };
 
@@ -586,19 +594,27 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     entry.pendingIce = [];
   };
 
-  const teardownPeer = (peerId: string, sendBye: boolean) => {
+  const teardownPeer = (
+    peerId: string,
+    sendBye: boolean,
+    opts?: { rebuilding?: boolean },
+  ) => {
     const entry = peerPoolRef.current.get(peerId);
     if (!entry) return;
     if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
     if (entry.disconnectedTimer) { clearTimeout(entry.disconnectedTimer); entry.disconnectedTimer = null; }
-    if (sendBye) sendSig("bye", peerId);
+    if (sendBye) sendSig("bye", peerId, opts?.rebuilding ? { rebuilding: true } : undefined);
     try { entry.pc.close(); } catch {}
     peerPoolRef.current.delete(peerId);
     // eslint-disable-next-line no-console
     console.log(`[mesh] PeerPool size: ${peerPoolRef.current.size} (removed ${peerId})`);
     publishTiles();
-    // If we drained the pool while call was active, end.
-    if (peerPoolRef.current.size === 0 && activeRef.current) {
+    // If we drained the pool while call was active, end — UNLESS this teardown
+    // is one half of a rebuild. Relay escalation tears the peer down and
+    // recreates it a line later; treating that dip-to-zero as "everyone left"
+    // was how every recovered call died at ~15s: the recovery path itself
+    // ended the call it was recovering, on both sides.
+    if (!opts?.rebuilding && peerPoolRef.current.size === 0 && activeRef.current) {
       // In 1:1 or last-peer-left scenarios, end the whole call.
       endEveryone(false);
     }
@@ -673,7 +689,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     let cancelled = false;
     supabase
       .from("conversation_members")
-      .select("user_id, profiles(display_name, username)")
+      .select("user_id, profiles(display_name, username, avatar_url)")
       .eq("conversation_id", conversationId)
       .neq("user_id", meId)
       .then(({ data }) => {
@@ -685,8 +701,13 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           const nm = r.profiles?.display_name || r.profiles?.username;
           if (r.user_id && nm) peerNamesRef.current.set(r.user_id, nm);
         }
+        // The hero avatar: 1:1 calls show the peer's real photo, like every
+        // phone dialer people already know. Groups keep the monogram.
+        const first = rows[0]?.profiles?.avatar_url;
+        if (!isGroup && typeof first === "string" && first) setPeerAvatar(first);
       });
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, meId]);
 
   // ---- start / accept / decline ----
@@ -739,6 +760,13 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         if (data?.id) logIdRef.current = data.id;
       });
 
+    // The push goes out BEFORE the media/TURN awaits, not after. Those two
+    // awaits cover a mic-permission prompt and a credentials round trip —
+    // seconds during which a closed app's phone stayed silent — and any
+    // failure in them used to return early with no push ever sent. The
+    // callee's phone should start ringing the moment the caller commits.
+    sendPush({ conversation_id: conversationId, kind: "call", call_type: type, call_id: callIdRef.current ?? undefined });
+
     try {
       const stream = await getMedia(type);
       sessionIceServers = await ensureIceServers();
@@ -753,7 +781,6 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     sendSig("ring", null, { callType: type, fromName: meName, isGroup: !!isGroup, groupTitle: groupTitle ?? "" });
     // Announce presence to any accepters.
     sendSig("hello", null, { fromName: meName });
-    sendPush({ conversation_id: conversationId, kind: "call", call_type: type, call_id: callIdRef.current ?? undefined });
 
     // Per-user rings so recipients see the incoming UI from anywhere.
     stopUserRingBroadcast();
@@ -994,10 +1021,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       }
     });
 
-    // TARGETED: bye — a peer left; drop just their PC.
+    // TARGETED: bye — a peer left; drop just their PC. A bye carrying
+    // `rebuilding` is not a goodbye: the sender is about to re-offer over a
+    // relay-only connection, so tear down the stale PC without ending the
+    // call, show Connecting…, and re-arm the deadline in case the rebuild
+    // never lands.
     ch.on("broadcast", { event: "bye" }, ({ payload }) => {
-      const p = payload as { from: string; to: string; callId: string };
+      const p = payload as { from: string; to: string; callId: string; rebuilding?: boolean };
       if (!forMe(p) || !matchesCall(p)) return;
+      if (p.rebuilding) {
+        teardownPeer(p.from, false, { rebuilding: true });
+        setStatus((s) => (s === "connected" ? "connecting" : s));
+        armConnectTimeout();
+        return;
+      }
       teardownPeer(p.from, false);
     });
 
@@ -1006,6 +1043,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       const p = payload as { from: string; to: string; callId: string };
       if (!forMe(p) || !matchesCall(p)) return;
       if (!isCallerRef.current) return;
+      // A decline that arrives AFTER the call connected is a straggler — the
+      // callee's other device or tab saying no to a call this one already said
+      // yes to. Acting on it would hang up a live conversation.
+      if (statusRef.current === "connected") return;
       // Call log: mark declined (only if not already answered).
       if (logIdRef.current && logStatusRef.current === "no_answer") {
         logStatusRef.current = "declined";
@@ -1198,8 +1239,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
           <div className="relative">
             <span className="absolute inset-0 -m-4 animate-ping rounded-full bg-primary/30" />
-            <div className="grid h-32 w-32 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-5xl font-bold text-primary-foreground">
-              {monogram}
+            <div className="grid h-32 w-32 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-primary to-accent text-5xl font-bold text-primary-foreground">
+              {peerAvatar ? (
+                <img src={peerAvatar} alt="" className="h-full w-full object-cover" />
+              ) : (
+                monogram
+              )}
             </div>
           </div>
           <div className="text-2xl font-semibold">{displayName}</div>
@@ -1224,85 +1269,139 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         />
       )}
 
-      <div className="absolute bottom-10 left-0 right-0 z-30 flex items-center justify-center gap-6">
-        {status === "incoming" ? (
-          <>
-            <button
-              onClick={decline}
-              className="grid h-16 w-16 place-items-center rounded-full bg-red-600 hover:bg-red-500"
-              aria-label="Decline call"
-            >
-              <PhoneOff className="h-6 w-6" />
-            </button>
-            <button
-              data-testid="call-accept"
-              onClick={() => { void accept(); }}
-              className="grid h-16 w-16 place-items-center rounded-full bg-green-600 hover:bg-green-500"
-              aria-label="Accept call"
-            >
-              <Phone className="h-6 w-6" />
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={toggleMute}
-              disabled={!hasMedia}
-              className={`grid h-14 w-14 place-items-center rounded-full disabled:opacity-40 ${muted ? "bg-red-600 hover:bg-red-500" : "bg-white/10 hover:bg-white/20"}`}
-              aria-label={muted ? "Unmute mic" : "Mute mic"}
-              aria-pressed={muted}
-            >
-              {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-            </button>
-            {isNative && (status === "connecting" || status === "connected") && (
-              <button
-                onClick={async () => {
-                  const next = !speakerOn;
-                  setSpeakerOn(next);
-                  // eslint-disable-next-line no-console
-                  console.log("[call] speaker toggle →", next);
-                  try {
-                    await nativeSetSpeaker(next);
-                  } catch (err) {
-                    // eslint-disable-next-line no-console
-                    console.warn("[call] speaker toggle failed", err);
-                    toast.error("Couldn't switch speaker");
-                    setSpeakerOn(!next);
-                  }
-                }}
-                className={`grid h-14 w-14 place-items-center rounded-full ${speakerOn ? "bg-white/20 hover:bg-white/30" : "bg-white/10 hover:bg-white/20"}`}
-                aria-label={speakerOn ? "Speaker on" : "Speaker off"}
-                aria-pressed={speakerOn}
+      {/* WhatsApp-style control tray: a rounded card, labeled circular
+          buttons, End set apart in red. Labels matter — an unlabeled icon
+          grid is exactly what "primitive" feedback points at. */}
+      <div className="absolute bottom-0 left-0 right-0 z-30 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+        <div className="mx-auto w-full max-w-md rounded-3xl border border-white/10 bg-[#12141c]/95 px-4 py-4 shadow-2xl backdrop-blur">
+          {status === "incoming" ? (
+            <div className="flex items-center justify-around">
+              <CallAction label="Decline" onClick={decline} tone="danger" ariaLabel="Decline call">
+                <PhoneOff className="h-6 w-6" />
+              </CallAction>
+              <CallAction
+                label="Answer"
+                onClick={() => { void accept(); }}
+                tone="success"
+                ariaLabel="Accept call"
+                testId="call-accept"
               >
-                {speakerOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
-              </button>
-            )}
-            {callType === "video" && (
-              <button
-                onClick={toggleCam}
+                <Phone className="h-6 w-6" />
+              </CallAction>
+            </div>
+          ) : (
+            <div className="flex items-start justify-around">
+              <CallAction
+                label={muted ? "Unmute" : "Mute"}
+                onClick={toggleMute}
                 disabled={!hasMedia}
-                className="grid h-14 w-14 place-items-center rounded-full bg-white/10 hover:bg-white/20 disabled:opacity-40"
-                aria-label={camOff ? "Turn camera on" : "Turn camera off"}
+                active={muted}
+                ariaLabel={muted ? "Unmute mic" : "Mute mic"}
               >
-                {camOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
-              </button>
-            )}
-            <button
-              data-testid="call-end"
-              onClick={() => endEveryone(true)}
-              className="grid h-16 w-16 place-items-center rounded-full bg-red-600 hover:bg-red-500"
-              aria-label="End call"
-            >
-              <PhoneOff className="h-6 w-6" />
-            </button>
-          </>
-        )}
+                {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+              </CallAction>
+              {isNative && (status === "connecting" || status === "connected") && (
+                <CallAction
+                  label="Speaker"
+                  active={speakerOn}
+                  ariaLabel={speakerOn ? "Speaker on" : "Speaker off"}
+                  onClick={async () => {
+                    const next = !speakerOn;
+                    setSpeakerOn(next);
+                    // eslint-disable-next-line no-console
+                    console.log("[call] speaker toggle →", next);
+                    try {
+                      await nativeSetSpeaker(next);
+                    } catch (err) {
+                      // eslint-disable-next-line no-console
+                      console.warn("[call] speaker toggle failed", err);
+                      toast.error("Couldn't switch speaker");
+                      setSpeakerOn(!next);
+                    }
+                  }}
+                >
+                  {speakerOn ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}
+                </CallAction>
+              )}
+              {callType === "video" && (
+                <CallAction
+                  label={camOff ? "Cam on" : "Video"}
+                  onClick={toggleCam}
+                  disabled={!hasMedia}
+                  active={camOff}
+                  ariaLabel={camOff ? "Turn camera on" : "Turn camera off"}
+                >
+                  {camOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
+                </CallAction>
+              )}
+              <CallAction
+                label="End"
+                onClick={() => endEveryone(true)}
+                tone="danger"
+                ariaLabel="End call"
+                testId="call-end"
+              >
+                <PhoneOff className="h-6 w-6" />
+              </CallAction>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 });
 
 // One tile per remote peer. Renders <video> for video calls; avatar otherwise.
+/** One labeled circular control in the call tray. */
+function CallAction({
+  label,
+  onClick,
+  children,
+  ariaLabel,
+  testId,
+  tone,
+  active,
+  disabled,
+}: {
+  label: string;
+  onClick: () => void | Promise<void>;
+  children: React.ReactNode;
+  ariaLabel: string;
+  testId?: string;
+  /** danger = red (End/Decline), success = green (Answer). Default is glass. */
+  tone?: "danger" | "success";
+  /** Toggles render filled-white when engaged, like the reference dialers. */
+  active?: boolean;
+  disabled?: boolean;
+}) {
+  const circle =
+    tone === "danger"
+      ? "bg-red-500 hover:bg-red-400 text-white"
+      : tone === "success"
+        ? "bg-emerald-500 hover:bg-emerald-400 text-white"
+        : active
+          ? "bg-white text-black"
+          : "bg-white/10 hover:bg-white/20 text-white";
+  return (
+    <button
+      type="button"
+      onClick={() => void onClick()}
+      disabled={disabled}
+      data-testid={testId}
+      aria-label={ariaLabel}
+      aria-pressed={active}
+      className="group flex w-16 flex-col items-center gap-1.5 disabled:opacity-40"
+    >
+      <span
+        className={`grid h-14 w-14 place-items-center rounded-full shadow-lg transition group-active:scale-95 ${circle}`}
+      >
+        {children}
+      </span>
+      <span className="text-[11px] text-white/70">{label}</span>
+    </button>
+  );
+}
+
 function RemoteTile({ tile, showVideo }: { tile: PeerTile; showVideo: boolean }) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);

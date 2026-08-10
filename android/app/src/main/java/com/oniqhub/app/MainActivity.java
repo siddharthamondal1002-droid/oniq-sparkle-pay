@@ -324,6 +324,14 @@ public class MainActivity extends BridgeActivity {
         String url = intent.getStringExtra("oniq_url");
         if (url == null || url.isEmpty()) return;
         intent.removeExtra("oniq_url");
+        // Answering from the tray must silence the tray: the ringing
+        // notification is insistent and ongoing, and nothing else cancels it —
+        // phones kept ringing for the full 35s after the call was picked up.
+        try {
+            android.app.NotificationManager nm =
+                (android.app.NotificationManager) getSystemService(android.content.Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(4242);
+        } catch (Exception ignored) {}
         if (bridge == null || bridge.getWebView() == null) return;
         // Preserve any query string on the deep link (e.g. ?acceptCall=…) —
         // Uri.encodedPath() would encode ? and break the one-tap-answer flow.

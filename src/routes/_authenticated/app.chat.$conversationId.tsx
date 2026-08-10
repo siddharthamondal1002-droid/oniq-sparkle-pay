@@ -3,7 +3,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { ArrowLeft, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info, BellOff, Bell, Link2, FileText, Image as ImageIcon, Languages } from "lucide-react";
+import { ArrowLeft, ChevronDown, Phone, Send, Video, Smile, Mic, Check, CheckCheck, Reply, Trash2, X, MoreVertical, Flag, Ban, Sparkles, Users, UserPlus, LogOut, Paperclip, Play, Pause, Share2, Pencil, Star, Search, Copy, Info, BellOff, Bell, Link2, FileText, Image as ImageIcon, Languages } from "lucide-react";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { LANG_NATIVE } from "@/lib/userLanguage";
@@ -173,6 +173,10 @@ function ChatThread() {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Whether the viewport is pinned near the newest message. Autoscroll obeys
+  // this; a reader who has scrolled up must never be yanked to the bottom.
+  const nearBottomRef = useRef(true);
+  const [showJump, setShowJump] = useState(false);
   // callRef removed — CallOverlay is now mounted globally by GlobalCallHost.
   const typingChanRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const lastTypingSentRef = useRef(0);
@@ -317,8 +321,11 @@ function ChatThread() {
         .select("id, conversation_id, sender_id, content, type, media_url, duration_s, created_at, is_deleted, reply_to_id, is_ai, file_name, file_size, edited_at, starred_by")
         .eq("conversation_id", conversationId);
       if (clearedAt) q = q.gt("created_at", clearedAt);
-      const { data } = await q.order("created_at", { ascending: true }).limit(200);
-      return (data ?? []) as Message[];
+      // NEWEST 200, then flip to display order. Ascending+limit returns the
+      // OLDEST 200 — any conversation past two hundred messages opened onto
+      // ancient history and could never reach the present.
+      const { data } = await q.order("created_at", { ascending: false }).limit(200);
+      return ((data ?? []) as Message[]).reverse();
     },
   });
 
@@ -641,9 +648,13 @@ function ChatThread() {
     });
   }, [conversationId, messages.length]);
 
-  // Autoscroll on new messages (only after the initial jump has happened).
+  // Autoscroll on new messages (only after the initial jump has happened),
+  // and ONLY while the reader is already at the bottom. Unconditional
+  // scrolling made reading history impossible on an active thread — every
+  // arriving message (or even the peer starting to type) yanked the view.
   useEffect(() => {
     if (initialScrollDoneRef.current !== conversationId) return;
+    if (!nearBottomRef.current) return;
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [conversationId, messages.length, peerTyping]);
 
@@ -763,7 +774,14 @@ function ChatThread() {
         if (withoutTemp.some((m) => m.id === (inserted as Message).id)) return withoutTemp;
         return [...withoutTemp, inserted as Message];
       });
-      supabase.from("conversations").update({ updated_at: new Date().toISOString() }).eq("id", conversationId);
+      // PostgREST builders are lazy thenables — un-awaited, this request was
+      // NEVER SENT, so text messages didn't bump the conversation's
+      // updated_at and the chat list reverted order on the next refetch.
+      void supabase
+        .from("conversations")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", conversationId)
+        .then(() => {});
       markRead();
       sendPush({ conversation_id: conversationId, kind: "message", preview: content.slice(0, 60) });
     }
@@ -1278,7 +1296,7 @@ function ChatThread() {
   };
 
   return (
-    <div className="flex h-[100dvh] flex-col">
+    <div className="relative flex h-[100dvh] flex-col">
       {/* relative z-40: backdrop-blur makes the header its own stacking
           context at z-auto, which let animated message bubbles paint OVER the
           three-dot dropdown. Lifting the header keeps the menu above the
@@ -1307,10 +1325,10 @@ function ChatThread() {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate font-medium text-white" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.85)" }}>{isChannel ? `📢 ${title}` : title}</div>
-            <div className="text-xs text-white/90" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85)" }}>
+            <div className="truncate font-medium text-white">{isChannel ? `📢 ${title}` : title}</div>
+            <div className="text-xs text-white/90">
               {peerTyping && !isChannel ? (
-                <span className="text-[#25D366]" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85)" }}>
+                <span className="text-[#25D366]">
                   {isGroup && peerTypingName ? `${peerTypingName} is typing…` : "typing…"}
                 </span>
               ) : isChannel ? (
@@ -1320,7 +1338,7 @@ function ChatThread() {
               ) : peerOnline ? (
                 <span className="inline-flex items-center gap-1" data-testid="peer-online">
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#25D366]" />
-                  <span className="text-[#25D366]" style={{ textShadow: "0 1px 2px rgba(0,0,0,0.85)" }}>online</span>
+                  <span className="text-[#25D366]">online</span>
                 </span>
               ) : null}
             </div>
@@ -1505,7 +1523,16 @@ function ChatThread() {
 
       {/* CallOverlay is mounted globally by GlobalCallHost (src/routes/_authenticated/app.tsx). */}
 
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3">
+      <div
+        ref={scrollRef}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+          nearBottomRef.current = nearBottom;
+          setShowJump((cur) => (cur === !nearBottom ? cur : !nearBottom));
+        }}
+        className="relative flex-1 overflow-y-auto px-3 py-3"
+      >
         {isLoading ? (
           <div className="text-center text-sm text-muted-foreground">Loading…</div>
         ) : rendered.length === 0 ? (
@@ -1565,7 +1592,7 @@ function ChatThread() {
             if (m.is_deleted) {
               return (
                 <div key={r.key} id={`msg-${m.id}`} className={`flex ${mine ? "justify-end" : "justify-start"} ${groupGap}`}>
-                  <div className={`max-w-[78%] px-3 py-1.5 text-sm italic text-muted-foreground shadow-sm ${bubbleRadius} ${mine ? "bg-[#0B5A4E]/40" : "border border-border bg-card"}`}>
+                  <div className={`max-w-[78%] px-3 py-1.5 text-sm italic text-muted-foreground shadow-sm ${bubbleRadius} ${mine ? "bg-[#0d6e58]/40" : "border border-border bg-card"}`}>
                     <div className="flex items-center gap-1.5">
                       <Trash2 className="h-3.5 w-3.5" />
                       <span>This message was deleted</span>
@@ -1605,9 +1632,13 @@ function ChatThread() {
                     e.preventDefault();
                     setMenuFor(m);
                   }}
-                  className={`group relative max-w-[78%] px-3 py-1.5 text-sm shadow-sm ${bubbleRadius} ${
+                  className={`group relative max-w-[78%] flow-root text-sm shadow-sm ${
+                    (m.type === "image" || m.type === "video") && m.media_url
+                      ? "p-1"
+                      : "px-3 py-1.5"
+                  } ${bubbleRadius} ${
                     mine
-                      ? "bg-[#0B5A4E] text-white"
+                      ? "bg-[#0d6e58] text-white"
                       : "border border-border bg-card text-foreground"
                   }`}
                 >
@@ -1647,8 +1678,17 @@ function ChatThread() {
                         loading="lazy"
                         className="max-h-64 w-full object-cover"
                         onError={(e) => {
+                          // Swap the SRC, never the NODE. replaceWith() pulled
+                          // a React-owned element out of the DOM; the next
+                          // reconciliation of the row (a reaction, an edit)
+                          // then threw NotFoundError and blanked the thread.
                           const el = e.currentTarget;
-                          el.replaceWith(Object.assign(document.createElement("div"), { textContent: "📷", className: "grid h-32 w-40 place-items-center text-3xl bg-black/20 rounded-xl" }));
+                          el.onerror = null;
+                          el.src =
+                            "data:image/svg+xml," +
+                            encodeURIComponent(
+                              '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="128"><rect width="100%" height="100%" fill="#1a1c24"/><text x="50%" y="50%" font-size="28" text-anchor="middle" dominant-baseline="central">📷</text></svg>',
+                            );
                         }}
                       />
                     </button>
@@ -1736,7 +1776,12 @@ function ChatThread() {
                     </button>
                   )}
                   <div
-                    className={`mt-0.5 flex items-center justify-end gap-1 text-[10px] ${
+                    className={`${
+                      (m.type === "text" || !m.type) &&
+                      (reactionsByMsg.get(m.id) ?? []).length === 0
+                        ? "float-right ml-3 mt-[7px]"
+                        : "mt-0.5 justify-end"
+                    } flex items-center gap-1 text-[10px] ${
                       mine ? "text-white/70" : "text-muted-foreground"
                     }`}
                   >
@@ -1810,6 +1855,22 @@ function ChatThread() {
         )}
         <div ref={bottomRef} />
       </div>
+
+      {/* Jump to newest — appears whenever the reader has scrolled up. */}
+      {showJump && (
+        <button
+          type="button"
+          onClick={() => {
+            nearBottomRef.current = true;
+            setShowJump(false);
+            bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+          }}
+          aria-label="Jump to newest messages"
+          className="absolute bottom-28 right-4 z-30 grid h-10 w-10 place-items-center rounded-full border border-border bg-card text-foreground shadow-lg active:scale-95"
+        >
+          <ChevronDown className="h-5 w-5" />
+        </button>
+      )}
 
       {/* Long-press action sheet */}
       {menuFor && (
@@ -2102,7 +2163,7 @@ function ChatThread() {
             <button type="button" onClick={() => stopRecording(true)} aria-label="Cancel recording" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
               <X className="h-4 w-4" />
             </button>
-            <button type="button" onClick={() => stopRecording(false)} aria-label="Send voice" className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95">
+            <button type="button" onClick={() => stopRecording(false)} aria-label="Send voice" className="grid h-11 w-11 place-items-center rounded-full bg-[#0d6e58] text-white transition active:scale-95">
               <Send className="h-5 w-5" />
             </button>
           </div>
@@ -2254,7 +2315,7 @@ function ChatThread() {
               data-testid="chat-send"
               type="submit"
               disabled={sending}
-              className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95 disabled:opacity-40"
+              className="grid h-11 w-11 place-items-center rounded-full bg-[#0d6e58] text-white transition active:scale-95 disabled:opacity-40"
               aria-label="Send"
             >
               <Send className="h-5 w-5" />
@@ -2265,7 +2326,7 @@ function ChatThread() {
               onClick={startRecording}
               disabled={isBlocked}
               data-testid="chat-mic"
-              className="grid h-11 w-11 place-items-center rounded-full bg-[#0B5A4E] text-white transition active:scale-95 disabled:opacity-40"
+              className="grid h-11 w-11 place-items-center rounded-full bg-[#0d6e58] text-white transition active:scale-95 disabled:opacity-40"
               aria-label="Voice note"
             >
               <Mic className="h-5 w-5" />

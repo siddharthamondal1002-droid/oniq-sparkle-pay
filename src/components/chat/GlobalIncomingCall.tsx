@@ -26,6 +26,7 @@ type Incoming = {
   callType: CallType;
   fromName: string;
   fromId: string;
+  avatarUrl?: string | null;
   lastRing: number;
   firstRing: number;
 };
@@ -145,6 +146,19 @@ export function GlobalIncomingCall() {
         lastRing: Date.now(),
         firstRing: Date.now(),
       });
+      // The caller's photo, fetched after the screen is already up — the ring
+      // must never wait on a profile read. Re-rings keep arriving while this
+      // resolves, so guard against the call having ended meanwhile.
+      void supabase
+        .from("profiles")
+        .select("avatar_url")
+        .eq("id", p.fromId)
+        .maybeSingle()
+        .then(({ data }) => {
+          const url = (data as { avatar_url?: string | null } | null)?.avatar_url;
+          if (!url) return;
+          setIncoming((cur) => (cur && cur.callId === p.callId ? { ...cur, avatarUrl: url } : cur));
+        });
     });
     ch.subscribe();
     return () => {
@@ -232,6 +246,7 @@ export function GlobalIncomingCall() {
     callType: incoming.callType,
     fromName: incoming.fromName,
     fromId: incoming.fromId,
+    avatarUrl: incoming.avatarUrl,
   };
 
   return (
