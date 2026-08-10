@@ -826,13 +826,36 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     prevStatusRef.current = status;
   }, [status, onEnded]);
 
-  // Re-broadcast ring while outgoing (subscribe race guard).
+  // Re-broadcast ring while outgoing (subscribe race guard) — on BOTH rails.
+  //
+  // The room channel covers accepters already inside a call session. The
+  // per-user channels are the ones an IDLE callee actually listens on
+  // (GlobalIncomingCall), and they used to get exactly one send, at subscribe
+  // time. Two ways that lost real calls, both observed on 2026-08-10:
+  // a callee whose subscription came up moments after that single send never
+  // rang at all, and a callee who DID ring had the overlay auto-dismiss after
+  // 6 quiet seconds — its idle timer is built around re-rings that never came
+  // on this channel. Every ring below refreshes the callee's lastRing, so the
+  // incoming screen persists for as long as the caller is actually waiting.
   useEffect(() => {
     if (status !== "outgoing") return;
     const id = window.setInterval(() => {
       if (!isCallerRef.current || !activeRef.current || !callIdRef.current) return;
       sendSig("ring", null, { callType: callTypeRef.current, fromName: meName, isGroup: !!isGroup, groupTitle: groupTitle ?? "" });
       sendSig("hello", null, { fromName: meName });
+      for (const uch of userRingChannelsRef.current) {
+        void uch.send({
+          type: "broadcast",
+          event: "ring",
+          payload: {
+            conversationId,
+            callId: callIdRef.current,
+            callType: callTypeRef.current,
+            fromName: meName,
+            fromId: meId,
+          },
+        });
+      }
     }, 2000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
