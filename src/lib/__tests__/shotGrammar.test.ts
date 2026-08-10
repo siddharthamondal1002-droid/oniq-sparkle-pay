@@ -49,12 +49,39 @@ describe("readShotSize reads what Ting wrote", () => {
 });
 
 describe("the camera follows the shot, not the shot number", () => {
-  it("holds still on the close shots", () => {
-    // Measured: half the ep3 clips were locked off, and the clip with the
-    // biggest camera move had the LOWEST subject motion. Close is where the
-    // character carries the frame.
-    expect(isMoving(framingFor("Close-up on her face", 0))).toBe(false);
-    expect(isMoving(framingFor("Medium shot of the boy", 0))).toBe(false);
+  it("NEVER leaves a shot completely static", () => {
+    // THE PROPERTY THAT MATTERS FOR STILLS, and the one this file got wrong.
+    //
+    // Close and medium used to be locked off at travel 0, measured from ep3
+    // CLIPS where a locked camera still shows a person breathing. A Story shot
+    // is one still image: travel 0 there is not a held shot, it is a frozen
+    // JPEG on screen for eight seconds, which is exactly what the first
+    // user-generated film looked like.
+    //
+    // Asserted over every size rather than the two that were wrong, so a future
+    // size added with travel 0 fails here instead of shipping frozen.
+    for (const prompt of [
+      "Establishing shot of the city",
+      "Wide shot of a street",
+      "Full shot of the boy",
+      "Medium shot of the boy",
+      "Close-up on her face",
+      "A shot with no size word at all",
+    ]) {
+      expect(isMoving(framingFor(prompt, 0)), prompt).toBe(true);
+    }
+  });
+
+  it("still moves the close shots LEAST, which is the measured trade-off", () => {
+    // Nothing is locked any more, but the ordering the measurements found —
+    // camera and subject trade off, so the tighter the shot the less it moves —
+    // must survive. A close-up drifting like an establisher is a whip pan
+    // across somebody's face.
+    const t = (p: string) => framingFor(p, 0).travel;
+    expect(t("Close-up on her face")).toBeLessThan(t("Medium shot of the boy"));
+    expect(t("Medium shot of the boy")).toBeLessThan(t("Full shot of the boy"));
+    // And the new floor is small — a drift, not a move.
+    expect(t("Close-up on her face")).toBeLessThan(0.03);
   });
 
   it("moves most on an establisher, and stays under the measured maximum", () => {
@@ -101,23 +128,28 @@ describe("pans alternate across MOVING shots only", () => {
     expect(panFor("wide", 1)).toBe("left");
   });
 
-  it("counts moving shots, not all shots", () => {
-    // The point of the movingIndex argument. Locked shots between two pans must
-    // not consume an alternation, or a film with a locked shot in between pans
-    // the same way twice and reads as a drift.
+  it("does not let a push consume a slide's alternation", () => {
+    // The point of the movingIndex argument. It used to be demonstrated with a
+    // LOCKED shot in the middle; nothing is locked now, so the case is a PUSH
+    // in the middle — which is the same hazard. Two slides either side of a
+    // push must still go opposite ways, or a film reads as a drift in one
+    // direction however many pushes sit between.
     const shots = [
       "Establishing shot of the city",
       "Close-up on a hand",
       "Wide shot of the alley",
     ];
-    let moving = 0;
+    let slides = 0;
     const pans = shots.map((s) => {
-      const f = framingFor(s, moving);
-      if (isMoving(f)) moving += 1;
-      return isMoving(f) ? f.pan : null;
+      const f = framingFor(s, slides);
+      // A push is not a slide and must not advance the alternation.
+      if (f.pan !== "in") slides += 1;
+      return f.pan;
     });
-    expect(pans[1]).toBeNull();
+    expect(pans[1]).toBe("in");
     expect(pans[0]).not.toBe(pans[2]);
+    expect(pans[0]).not.toBe("in");
+    expect(pans[2]).not.toBe("in");
   });
 
   it("pushes in rather than sliding on a full shot", () => {

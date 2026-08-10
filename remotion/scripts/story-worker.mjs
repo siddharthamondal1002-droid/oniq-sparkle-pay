@@ -57,7 +57,7 @@ import { renderMedia, selectComposition, openBrowser } from '@remotion/renderer'
 import { findChromium } from './findChromium.mjs';
 import { findBin } from './findFfmpeg.mjs';
 import { envelope, speechSpans } from './speech.mjs';
-import { framingFor, isMoving } from '../../src/lib/shotGrammar.ts';
+import { framingFor, isSlide } from '../../src/lib/shotGrammar.ts';
 import { planStory } from '../../src/lib/storyPlan.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -501,11 +501,11 @@ if (offline) {
       console.log(`  still ${i + 1}/${plan.shots.length}`);
 
       // The camera comes from what the SHOT IS, read off Ting's own size word,
-      // not from the shot's position in the film. `movingShots` counts only the
-      // shots that actually move, so two pans either side of a locked shot
-      // still go opposite ways.
+      // not from the shot's position in the film. Only SLIDES advance the
+      // alternation: every shot moves now, so counting movement would let a
+      // push in the middle flip the direction and send two slides the same way.
       const framing = framingFor(shot.still, movingShots);
-      if (isMoving(framing)) movingShots += 1;
+      if (isSlide(framing)) movingShots += 1;
 
       const voiced = await edge('story-voice', { text: shot.narration, voice });
       const wav = path.join(assetRoot, `${stem}.wav`);

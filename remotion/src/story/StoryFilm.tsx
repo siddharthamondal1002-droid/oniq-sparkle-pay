@@ -153,7 +153,14 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
   const eased = interpolate(t, [0, 1], [1, 0], { extrapolateRight: "clamp" });
   const amount = travel * eased;
 
-  const zoom = shot.pan === "in" ? 1 + KEN_BURNS_SCALE * eased : 1 + travel * 0.15;
+  // A PUSH IS PROPORTIONAL TO TRAVEL, not a house constant. Three sizes push
+  // in now — full, medium and close — and giving them all the same
+  // KEN_BURNS_SCALE would throw away the measured proportionality that makes a
+  // close-up hold while an establisher sweeps. PUSH_GAIN is set so `full`
+  // (travel 0.033) lands on the 0.06 the episodes used, which is the one value
+  // here with a look anybody has actually watched and approved.
+  const PUSH_GAIN = KEN_BURNS_SCALE / 0.033;
+  const zoom = shot.pan === "in" ? 1 + travel * PUSH_GAIN * eased : 1 + travel * 0.15;
   const x = shot.pan === "left" ? -amount * 100 : shot.pan === "right" ? amount * 100 : 0;
   const y = shot.pan === "up" ? -amount * 100 : shot.pan === "down" ? amount * 100 : 0;
 
