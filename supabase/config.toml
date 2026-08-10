@@ -45,3 +45,16 @@ verify_jwt = false
 # platform gate should check it. The function then re-derives the user from that
 # token and refuses unless the job's user_id matches — a job id is a uuid, not a
 # secret, and one check is not two.
+
+# Razorpay cannot present a Supabase user JWT, so the webhook authenticates
+# itself: the x-razorpay-signature HMAC over the raw body IS the credential,
+# checked before the body is parsed. Leaving verify_jwt on would simply reject
+# every webhook — Razorpay has no way to satisfy it.
+[functions.razorpay-webhook]
+verify_jwt = false
+
+# razorpay-order and razorpay-verify are DELIBERATELY ABSENT from this file.
+# Both are called by a signed-in person spending their own money, so they have
+# a real user JWT and the platform gate should check it. Each then re-derives
+# the user from that token and refuses unless the order and the payment attempt
+# belong to them — a signature proves a payment happened, not whose it was.

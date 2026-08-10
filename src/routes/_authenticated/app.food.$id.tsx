@@ -2,6 +2,7 @@ import { moneyIn } from "@/lib/format";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { payForOrder } from "@/lib/razorpay";
 import { ArrowLeft, Plus, Minus, Star, Clock, Leaf, ShoppingBag, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -213,6 +214,7 @@ function CheckoutSheet({
   const qc = useQueryClient();
   const [address, setAddress] = useState("");
   const [placing, setPlacing] = useState(false);
+  const [paying, setPaying] = useState(false);
   const total = subtotal + deliveryFee;
   const lines = items.filter((it) => cart[it.id]);
 
@@ -232,9 +234,37 @@ function CheckoutSheet({
       toast.error(error.message);
       return;
     }
-    toast.success("Order locked in 🔥 chef is cooking fr");
+    const newOrderId = typeof data === "string" ? data : null;
+    if (!newOrderId) {
+      toast.success("Order locked in 🔥 chef is cooking fr");
+      onDone();
+      return;
+    }
+
+    // THE ORDER EXISTS BEFORE ANY MONEY MOVES, and it stays valid if the
+    // payment does not happen. place_order records it as `pending` and
+    // pay-on-delivery; Razorpay upgrades that to `paid`. Someone who dismisses
+    // the sheet still has an order and can still eat — which is why a dismissal
+    // is not treated as an error.
+    toast.success("Order locked in 🔥 now pay up");
+    setPaying(true);
+    const result = await payForOrder({
+      orderId: newOrderId,
+      description: "ONIQ food order",
+    });
+    setPaying(false);
+
+    if (result.status === "paid") {
+      toast.success("Paid ✅ chef is cooking fr");
+    } else if (result.status === "dismissed") {
+      toast("Order saved — pay on delivery, or pay from your orders later");
+    } else {
+      // Deliberately not "failed": Razorpay may well have taken the money and
+      // only the confirmation is missing. Telling someone a payment failed when
+      // it did not is how they pay twice.
+      toast.error(result.message);
+    }
     onDone();
-    void data;
   }
 
   return (
@@ -286,11 +316,15 @@ function CheckoutSheet({
 
         <button
           onClick={placeOrder}
-          disabled={placing}
+          disabled={placing || paying}
           data-testid="place-order"
           className="mt-5 w-full rounded-2xl bg-primary py-3 font-semibold text-primary-foreground disabled:opacity-50"
         >
-          {placing ? "Placing order…" : `Pay ${moneyIn(total, "USD")}`}
+          {placing
+            ? "Placing order…"
+            : paying
+              ? "Opening payment…"
+              : `Pay ${moneyIn(total, "USD")}`}
         </button>
       </div>
     </div>
