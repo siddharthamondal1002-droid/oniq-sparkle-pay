@@ -3998,7 +3998,9 @@ export type Database = {
         Args: { bucket: string; url: string }
         Returns: string
       }
+      story_dispatch_tick: { Args: never; Returns: undefined }
       story_quota_status: { Args: never; Returns: Json }
+      story_sweep_tick: { Args: never; Returns: undefined }
       submit_digilocker_parental_consent: {
         Args: { _token_ref: string }
         Returns: Json
