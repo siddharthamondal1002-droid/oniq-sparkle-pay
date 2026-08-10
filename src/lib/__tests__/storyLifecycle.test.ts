@@ -10,6 +10,9 @@
  * example-based: every state either purges, ages into a purge, or is provably
  * in-flight.
  */
+import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   READY_TTL_MS,
@@ -139,5 +142,58 @@ describe("transitions", () => {
 
   it("throws with both states named", () => {
     expect(() => assertTransition("delivered", "ready")).toThrow(/delivered -> ready/);
+  });
+});
+
+/**
+ * The sweeper's copy of these rules must not drift from this one.
+ *
+ * `supabase/functions/story-sweep` cannot import this module — edge functions
+ * bundle from `supabase/functions`, and reaching into `src/` makes the deploy
+ * fragile — so it restates READY_TTL_MS, STALE_TTL_MS and owesPurge's branch
+ * order. Two copies of a rule is a defect waiting for someone to change one of
+ * them, and the only thing that makes it acceptable is a test that reads both.
+ *
+ * These assertions are deliberately about the SOURCE TEXT. A behavioural test
+ * would need a Deno runtime and a storage client; reading the constants catches
+ * the failure that actually happens, which is somebody editing a TTL here and
+ * not there.
+ */
+describe("story-sweep mirrors the lifecycle rules", () => {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const sweeper = readFileSync(
+    resolve(here, "../../../supabase/functions/story-sweep/index.ts"),
+    "utf8",
+  );
+
+  const constantIn = (source: string, name: string): string | null => {
+    const m = new RegExp(`const ${name}\\s*=\\s*([^;]+);`).exec(source);
+    return m ? m[1].replace(/\s+/g, " ").trim() : null;
+  };
+
+  it("uses the same TTLs, written the same way", () => {
+    const lifecycle = readFileSync(resolve(here, "../storyLifecycle.ts"), "utf8");
+    for (const name of ["READY_TTL_MS", "STALE_TTL_MS"]) {
+      const here = constantIn(lifecycle, name);
+      const there = constantIn(sweeper, name);
+      expect(here, `${name} missing from storyLifecycle.ts`).toBeTruthy();
+      expect(there, `${name} missing from story-sweep`).toBeTruthy();
+      expect(there, `${name} drifted between the two copies`).toBe(here);
+    }
+  });
+
+  it("still excludes an in-flight transfer from deletion", () => {
+    // The one branch whose absence would delete a file out from under somebody
+    // mid-download. owesPurge() here returns false for `delivering`; the
+    // sweeper must not have grown a case for it.
+    expect(owesPurge(job("delivering", 10 * READY_TTL_MS), NOW)).toBe(false);
+    expect(sweeper).not.toMatch(/status === "delivering"\s*\)\s*return true/);
+  });
+
+  it("asks about bytes rather than status", () => {
+    // The whole point of owesPurge. A sweeper that filtered on status would
+    // never see the row whose delete failed after it was marked purged.
+    expect(sweeper).toMatch(/has_bytes=is\.true/);
+    expect(sweeper).toMatch(/status === "purged"\) return true/);
   });
 });

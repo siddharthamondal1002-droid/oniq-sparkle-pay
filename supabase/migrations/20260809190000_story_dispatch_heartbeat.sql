@@ -115,3 +115,87 @@ select cron.schedule(
 create index if not exists story_jobs_queued_idx
   on public.story_jobs (created_at)
   where status = 'queued';
+
+-- ---------------------------------------------------------------------------
+-- The sweeper: the deletion that happens when nobody taps Save.
+--
+-- story-deliver purges on the tap, which covers the happy path. This covers
+-- every other one — a Story generated and never opened, a job that failed after
+-- buying nine stills, a runner that died mid-render, a delete that returned
+-- 500. Without it, "your video is deleted from our servers" is true only for
+-- the people who finish the flow.
+--
+-- FIFTEEN MINUTES, not one. Nothing here is urgent: the shortest TTL it acts on
+-- is thirty minutes, so a faster tick would find the same empty set more often.
+-- ---------------------------------------------------------------------------
+create or replace function public.story_sweep_tick()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  service_key text;
+  base_url    text;
+begin
+  -- Nothing is holding bytes, so there is nothing to delete. Backed by
+  -- story_jobs_bytes_idx, which is partial on exactly this predicate.
+  if not exists (select 1 from public.story_jobs where has_bytes) then
+    return;
+  end if;
+
+  select decrypted_secret into service_key
+  from vault.decrypted_secrets
+  where name = 'story_dispatch_service_role_key'
+  limit 1;
+
+  if service_key is null then
+    select decrypted_secret into service_key
+    from vault.decrypted_secrets
+    where name = 'email_queue_service_role_key'
+    limit 1;
+  end if;
+
+  select decrypted_secret into base_url
+  from vault.decrypted_secrets
+  where name = 'project_url'
+  limit 1;
+
+  if base_url is null then
+    base_url := 'https://bqwttemnnoexadpwifcj.supabase.co';
+  end if;
+
+  -- Louder than the dispatch warning on purpose. A queue that stops moving is
+  -- visible to the user; a sweeper that stops running is invisible, and what it
+  -- leaves behind is other people's video.
+  if service_key is null then
+    raise warning 'story_sweep_tick: no service-role key in vault; user video is NOT being purged';
+    return;
+  end if;
+
+  perform net.http_post(
+    url     := base_url || '/functions/v1/story-sweep',
+    headers := jsonb_build_object(
+      'content-type',  'application/json',
+      'Authorization', 'Bearer ' || service_key
+    ),
+    body    := '{}'::jsonb
+  );
+end;
+$$;
+
+revoke all on function public.story_sweep_tick() from public, anon, authenticated;
+
+do $$
+begin
+  perform cron.unschedule('story-sweep');
+exception
+  when others then null;
+end
+$$;
+
+select cron.schedule(
+  'story-sweep',
+  '*/15 * * * *',
+  $$select public.story_sweep_tick();$$
+);
