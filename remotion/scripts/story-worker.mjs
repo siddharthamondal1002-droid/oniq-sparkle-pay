@@ -58,6 +58,7 @@ import { findChromium } from './findChromium.mjs';
 import { findBin } from './findFfmpeg.mjs';
 import { envelope, speechSpans } from './speech.mjs';
 import { framingFor, isMoving } from '../../src/lib/shotGrammar.ts';
+import { planStory } from '../../src/lib/storyPlan.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -199,7 +200,12 @@ async function claimJob() {
   if (dispatched) {
     try {
       const got = await callback('claim');
-      return { id: got.jobId, prompt: got.prompt, shotCount: got.shotCount };
+      return {
+        id: got.jobId,
+        prompt: got.prompt,
+        requestedSeconds: got.requestedSeconds,
+        shotCount: got.shotCount,
+      };
     } catch (e) {
       // 409 means another runner won the race, or Supabase re-dispatched a job
       // that is already generating. Neither is an error worth failing a run
@@ -219,7 +225,13 @@ async function claimJob() {
   if (!queued || queued.length === 0) return null;
   const row = queued[0];
   await setStatus(row.id, 'generating');
-  return { id: row.id, userId: row.user_id, prompt: row.prompt, shotCount: row.shot_count };
+  return {
+    id: row.id,
+    userId: row.user_id,
+    prompt: row.prompt,
+    requestedSeconds: row.requested_seconds,
+    shotCount: row.shot_count,
+  };
 }
 
 /** `assembling`. Its own function only so the two modes stay symmetrical. */
@@ -444,12 +456,23 @@ if (offline) {
   fs.mkdirSync(assetRoot, { recursive: true });
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'story-'));
   try {
-    // The shot count comes from the row, which the enqueuing side filled from
-    // planStory(). It is NOT recomputed here — a second shot planner would
-    // drift from the first and nobody would notice until a Story came back the
-    // wrong length.
-    const shots = job.shotCount;
-    if (!shots) throw new Error('job has no shot_count — planStory never ran');
+    // THE SHOT COUNT IS DERIVED HERE, FROM THE SAME planStory THE APP USES.
+    //
+    // It used to be read off the row and the row never had it: the claim RPC
+    // takes seconds and a prompt, so `shot_count` was null on every job and the
+    // first Story to get this far died on "planStory never ran". Trusting the
+    // row was the mistake — but so is trusting the CLIENT to send it, because
+    // shot count is a cost input. A browser that posts 500 buys 500 images for
+    // a thirty-second film, and the guard order this project enforces puts
+    // validation before the billable call for exactly that reason.
+    //
+    // Deriving it server-side from `requested_seconds` closes both: nothing to
+    // forge, and no second planner to drift, because this is literally the
+    // function the button used to draw "30s · 4 shots".
+    const shots = job.shotCount || planStory(job.requestedSeconds).shots.length;
+    if (!shots) {
+      throw new Error(`job has neither shot_count nor requested_seconds (${job.requestedSeconds})`);
+    }
 
     const { plan } = await edge('story-plot', { prompt: job.prompt, shots });
     console.log(`  plot: "${plan.title}", ${plan.shots.length} shots`);

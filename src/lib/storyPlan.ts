@@ -30,7 +30,16 @@
  * quota decisions derived in two places will drift, and the drift is only
  * visible on a bill.
  */
-import { MAX_SHOT_SECONDS, MIN_SHOT_SECONDS, minimumShots } from "@/lib/shotAllocation";
+// RELATIVE, not "@/lib/...", because the Story worker imports this module
+// directly under Node 22 and Node does not know the bundler's alias. Same
+// reason shotGrammar.ts and visemes.ts avoid it. One planner shared by the app
+// and the renderer is the whole point; an import path that only resolves in the
+// bundle would force a second copy.
+//
+// The ".ts" extension is required, not stylistic: Node's ESM resolver does no
+// extension guessing, so "./shotAllocation" fails there while resolving fine in
+// the bundler. tsconfig already sets allowImportingTsExtensions for this.
+import { MAX_SHOT_SECONDS, MIN_SHOT_SECONDS, minimumShots } from "./shotAllocation.ts";
 
 /** What a Story runs to when the user does not say. */
 export const DEFAULT_STORY_SECONDS = 60;
