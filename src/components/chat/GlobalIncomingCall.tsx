@@ -197,8 +197,8 @@ export function GlobalIncomingCall() {
     if (!cur) return;
     // Reuse an existing `call:{conversationId}` channel if one exists in this
     // client (paranoid guard — duplicate topics from one client can poison
-    // the original subscription). Since this component is suppressed when the
-    // thread is open, the thread's channel is normally NOT present here.
+    // the original subscription). One exists only while a CallOverlay session
+    // is mounted, and rings are dropped in that state, so normally NOT here.
     const topic = `call:${cur.conversationId}`;
     const existing = supabase
       .getChannels()
