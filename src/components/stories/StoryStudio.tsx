@@ -75,19 +75,66 @@ async function callStoryRpc(
 }
 
 /** Same gap, same reason, same deletion date: `story_jobs` is not in the types yet. */
-async function readJobRow(id: string): Promise<{ status?: string; error?: string } | null> {
-  const client = supabase as unknown as {
-    from: (t: string) => {
-      select: (c: string) => {
-        eq: (
-          col: string,
-          v: string,
-        ) => { maybeSingle: () => Promise<{ data: unknown; error: unknown }> };
+type StoryRow = { id?: string; status?: string; error?: string };
+
+function storyJobs() {
+  return (
+    supabase as unknown as {
+      from: (t: string) => {
+        select: (c: string) => {
+          eq: (col: string, v: string) => {
+            maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
+          };
+          in: (
+            col: string,
+            v: readonly string[],
+          ) => {
+            order: (
+              col: string,
+              o: { ascending: boolean },
+            ) => {
+              limit: (n: number) => {
+                maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
+              };
+            };
+          };
+        };
       };
-    };
-  };
-  const { data } = await client.from("story_jobs").select("status,error").eq("id", id).maybeSingle();
-  return (data as { status?: string; error?: string } | null) ?? null;
+    }
+  ).from("story_jobs");
+}
+
+async function readJobRow(id: string): Promise<StoryRow | null> {
+  const { data } = await storyJobs().select("status,error").eq("id", id).maybeSingle();
+  return (data as StoryRow | null) ?? null;
+}
+
+/** Statuses where a Story is still coming, or is waiting to be collected. */
+const OPEN_STATUSES = ["queued", "generating", "assembling", "ready", "delivering"] as const;
+
+/**
+ * The user's newest unfinished or uncollected Story.
+ *
+ * WITHOUT THIS THE SCREEN LIES. It says "You can leave this screen — it keeps
+ * going", and it did keep going: the first film ONIQ ever generated rendered
+ * successfully, uploaded, and reached `ready` while the only pointer to it —
+ * a useState holding the job id — had been thrown away by a navigation. The
+ * film existed on the server and was unreachable from the app, and two hours
+ * later the sweeper would have deleted it, correctly, as expired.
+ *
+ * A render takes minutes. Expecting someone to sit on one screen for the whole
+ * time is not a product; recovering the job on mount is what makes the promise
+ * true. RLS scopes this to the caller, so "the newest open job" can only ever
+ * mean their own.
+ */
+async function latestOpenJob(): Promise<StoryRow | null> {
+  const { data } = await storyJobs()
+    .select("id,status,error")
+    .in("status", OPEN_STATUSES)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as StoryRow | null) ?? null;
 }
 
 /**
@@ -298,6 +345,29 @@ export function StoryStudio() {
       setSaving(false);
     }
   }, [jobId, filmUrl]);
+
+  /**
+   * Pick up a Story already in flight, or one waiting to be collected.
+   *
+   * Runs once on mount, before anything else can set `jobId`. A render is
+   * minutes long and the app is a phone — backgrounding it, navigating to
+   * another tab, or reloading all destroy React state while the runner carries
+   * on regardless. This is what turns "you can leave this screen" from a claim
+   * into a fact.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const row = await latestOpenJob();
+      if (cancelled || !row?.id || !row.status) return;
+      setJobId(row.id);
+      setJobStatus(row.status);
+      if (row.error) setJobError(row.error);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const plan_ = useMemo(() => planStory(seconds), [seconds]);
 
