@@ -439,7 +439,9 @@ if (offline) {
     console.log('nothing queued');
     process.exit(0);
   }
-  console.log(`job ${job.id}: ${job.shotCount} shots`);
+  // Logged AFTER the shot count is settled, not before. The first run printed
+  // "null shots" and then worked from 4, which reads as a bug that is not there.
+  console.log(`job ${job.id}: ${job.requestedSeconds}s requested`);
 
   // THE STILLS AND THE NARRATION MUST LIVE UNDER public/, not in a temp dir.
   // StoryFilm resolves a non-URL path with staticFile(), which rejects an
@@ -473,6 +475,7 @@ if (offline) {
     if (!shots) {
       throw new Error(`job has neither shot_count nor requested_seconds (${job.requestedSeconds})`);
     }
+    console.log(`  ${shots} shots${job.shotCount ? ' (from the row)' : ' (derived from seconds)'}`);
 
     const { plan } = await edge('story-plot', { prompt: job.prompt, shots });
     console.log(`  plot: "${plan.title}", ${plan.shots.length} shots`);
