@@ -1,10 +1,38 @@
-// razorpay-order — start a payment for an order that already exists.
+// razorpay-order — start a payment. Two products, one function.
 //
-// THE CLIENT SENDS AN ORDER ID AND NOTHING ELSE. No amount, no currency, no
-// item list. The amount is read from `orders.total`, which `place_order`
-// computed from `menu_items` prices the browser never supplied. A checkout that
-// accepted an amount would be one request away from paying a rupee for a
-// hundred-rupee meal, and this one cannot express that request.
+// WHAT THE CLIENT MAY SEND, and it is exactly one of these:
+//
+//   { orderId }   a food order that already exists. The amount comes from
+//                 `orders.total`, which `place_order` computed from
+//                 `menu_items` prices the browser never supplied.
+//   { seconds }   a length of Story time. The amount comes from
+//                 `story_price_tiers` via `create_story_purchase`.
+//
+// NEITHER FORM CAN NAME A PRICE. No amount, no currency, no item list. A
+// checkout that accepted an amount would be one request away from paying a
+// rupee for a hundred-rupee meal, and this one cannot express that request for
+// either product.
+//
+// WHY TWO PRODUCTS SHARE ONE FUNCTION, because it was not the first choice and
+// a future reader deserves the real reason. Story purchases were written as a
+// separate `story-purchase` function, to keep the food rail's physical-goods
+// scope visibly untouched. Lovable's platform refuses to CREATE new Supabase
+// edge functions in a TanStack project — existing ones stay editable — so that
+// function could not be deployed at all. Merging was the deployable option, and
+// the boundary it cost was one of internal clarity rather than of policy: no
+// reviewer reads edge-function source, and the Play question is about WHERE the
+// money is collected, not about which function collects it.
+//
+// SO THE POLICY LINE MOVED, and here is where it actually lives now. Story time
+// is digital content consumed in the app, and Play requires Play Billing for
+// that. ONIQ's answer is that the app never takes the payment: the native build
+// opens oniqhub.com/pay/story in the system browser and the BROWSER calls this.
+// That is enforced client-side in `checkoutTarget()` and switchable server-side
+// via `story_purchase_config.native_link_out`. Nothing in this file enforces
+// it, deliberately — a platform check here would be a header away from being
+// spoofed and would imply a control that does not exist. What this file does is
+// RECORD it, as `story_purchases.origin`, so a payment arriving from inside the
+// app is visible rather than assumed.
 //
 // GUARD ORDER, the same one the rest of this project uses: authenticate, kill
 // switch, ownership, state, bounds — and only then the call that creates a real
@@ -40,12 +68,22 @@ Deno.serve(async (req) => {
     if (!userId) return json({ error: "Unauthorized" }, 401);
 
     const body = await req.json().catch(() => ({}));
-    const orderId = String(body?.orderId ?? "");
-    if (!/^[0-9a-f-]{36}$/i.test(orderId)) return json({ error: "bad order id" }, 400);
+    const wantsOrder = body?.orderId !== undefined && body?.orderId !== null;
+    const wantsStory = body?.seconds !== undefined && body?.seconds !== null;
+
+    // EXACTLY ONE PRODUCT PER REQUEST. Both together, or neither, is refused
+    // rather than resolved by precedence — a request that names a food order
+    // AND a Story length is a client bug, and picking one of them silently is
+    // how the wrong thing gets charged for.
+    if (wantsOrder === wantsStory) {
+      return json({ error: "name exactly one of orderId or seconds" }, 400);
+    }
 
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
 
-    // Kill switch before anything billable, as always.
+    // Kill switch before anything billable, as always. It governs the RAIL, so
+    // it stops both products — a second product that kept charging while
+    // Razorpay was paused would defeat the switch.
     const cfgRes = await fetch(
       `${supabaseUrl}/rest/v1/payment_config?select=enabled,currency,min_amount_minor,max_amount_minor&limit=1`,
       { headers: svc },
@@ -55,6 +93,118 @@ Deno.serve(async (req) => {
     if (cfg.enabled !== true) {
       return json({ error: "Payments are paused right now. Try again later." }, 503);
     }
+
+    // -----------------------------------------------------------------------
+    // STORY TIME. Digital content, sold on the web only. Unchanged in every
+    // respect that matters from the story-purchase function this replaced.
+    // -----------------------------------------------------------------------
+    if (wantsStory) {
+      const seconds = Number(body.seconds);
+      if (!Number.isInteger(seconds) || seconds <= 0) return json({ error: "bad length" }, 400);
+      const origin = body?.origin === "native-handoff" ? "native-handoff" : "web";
+
+      // CREATE THE ROW FIRST. It is what the webhook will join to, and a
+      // Razorpay order created before we have somewhere to record it is a
+      // payment we cannot attribute. `create_story_purchase` also applies the
+      // Story-specific kill switch and rejects a length that is not a tier.
+      const startRes = await fetch(`${supabaseUrl}/rest/v1/rpc/create_story_purchase`, {
+        method: "POST",
+        headers: {
+          ...svc,
+          "content-type": "application/json",
+          // Runs as the CALLER, so auth.uid() inside the function is this user
+          // — the service key is only here to reach the endpoint.
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({ _seconds: seconds, _origin: origin }),
+      });
+      if (!startRes.ok) {
+        const detail = await startRes.text().catch(() => "");
+        console.error("razorpay-order story create", startRes.status, detail.slice(0, 200));
+        return json({ error: "Could not start that payment." }, 502);
+      }
+      const start = (await startRes.json()) as {
+        ok?: boolean;
+        reason?: string;
+        purchaseId?: string;
+        seconds?: number;
+        label?: string;
+        amountMinor?: number;
+        currency?: string;
+      };
+      if (!start?.ok) {
+        if (start?.reason === "disabled") {
+          return json({ error: "Buying Story time is paused right now." }, 503);
+        }
+        return json({ error: "That length is not for sale." }, 400);
+      }
+
+      const amountMinor = Number(start.amountMinor);
+      if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+        return json({ error: "Could not start that payment." }, 502);
+      }
+      // The same bounds the food rail uses. A tier outside them is a seeding
+      // mistake, and the place to find out is here rather than at the bank.
+      if (
+        amountMinor < Number(cfg.min_amount_minor) ||
+        amountMinor > Number(cfg.max_amount_minor)
+      ) {
+        console.error("razorpay-order story tier outside bounds", seconds, amountMinor);
+        return json({ error: "That length is not for sale." }, 409);
+      }
+
+      const createdStory = await createRazorpayOrder(
+        creds,
+        amountMinor,
+        String(start.currency ?? "INR"),
+        String(start.purchaseId),
+        // What the webhook routes on. `kind` is the discriminator; the id is a
+        // convenience for a human reading the Razorpay dashboard, not something
+        // the webhook trusts — it re-reads the row by provider order id.
+        { kind: "story_seconds", purchase_id: String(start.purchaseId) },
+      );
+      if ("error" in createdStory) {
+        console.error("razorpay-order story razorpay", createdStory.error);
+        return json({ error: "Could not start that payment." }, 502);
+      }
+
+      const attach = await fetch(`${supabaseUrl}/rest/v1/rpc/attach_story_purchase_order`, {
+        method: "POST",
+        headers: { ...svc, "content-type": "application/json" },
+        body: JSON.stringify({
+          _purchase_id: start.purchaseId,
+          _provider_order_id: createdStory.id,
+        }),
+      });
+      if (!attach.ok) {
+        // The Razorpay order exists and we cannot record its id, so no webhook
+        // will ever find it. Refusing is the honest outcome: an unrecorded
+        // payment is worse than a failed one, and the user has not been charged
+        // yet — Checkout has not even opened.
+        const detail = await attach.text().catch(() => "");
+        console.error("razorpay-order story attach", attach.status, detail.slice(0, 200));
+        return json({ error: "Could not start that payment." }, 502);
+      }
+
+      return json({
+        configured: true,
+        kind: "story_seconds",
+        keyId: creds.keyId,
+        providerOrderId: createdStory.id,
+        purchaseId: start.purchaseId,
+        seconds: start.seconds,
+        label: start.label,
+        amountMinor,
+        currency: start.currency ?? "INR",
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // FOOD ORDER. Physical goods and services, which Play permits a third-party
+    // processor for. Everything below this line is unchanged.
+    // -----------------------------------------------------------------------
+    const orderId = String(body?.orderId ?? "");
+    if (!/^[0-9a-f-]{36}$/i.test(orderId)) return json({ error: "bad order id" }, 400);
 
     const ordRes = await fetch(
       `${supabaseUrl}/rest/v1/orders?id=eq.${orderId}&select=id,user_id,total,payment_status`,
@@ -72,7 +222,8 @@ Deno.serve(async (req) => {
     // arrives as a string over PostgREST — Math.round on the parsed value is
     // what keeps 249.90 from becoming 24989.999999999996.
     const total = Number(order.total);
-    if (!Number.isFinite(total) || total <= 0) return json({ error: "that order has no total" }, 409);
+    if (!Number.isFinite(total) || total <= 0)
+      return json({ error: "that order has no total" }, 409);
     const amountMinor = Math.round(total * 100);
     if (amountMinor < Number(cfg.min_amount_minor)) {
       return json({ error: "that order is below the minimum payable amount" }, 409);
