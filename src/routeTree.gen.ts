@@ -27,6 +27,7 @@ import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/ap
 import { Route as BlogSuperAppsInIndiaRouteImport } from './routes/blog.super-apps-in-india'
 import { Route as BlogWhatIsASuperAppRouteImport } from './routes/blog.what-is-a-super-app'
 import { Route as MPostIdRouteImport } from './routes/m.$postId'
+import { Route as PayStoryRouteImport } from './routes/pay.story'
 import { Route as QTokenRouteImport } from './routes/q.$token'
 import { Route as RClipIdRouteImport } from './routes/r.$clipId'
 import { Route as UUserIdRouteImport } from './routes/u.$userId'
@@ -164,6 +165,11 @@ const BlogWhatIsASuperAppRoute = BlogWhatIsASuperAppRouteImport.update({
 const MPostIdRoute = MPostIdRouteImport.update({
   id: '/m/$postId',
   path: '/m/$postId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PayStoryRoute = PayStoryRouteImport.update({
+  id: '/pay/story',
+  path: '/pay/story',
   getParentRoute: () => rootRouteImport,
 } as any)
 const QTokenRoute = QTokenRouteImport.update({
@@ -440,6 +446,7 @@ export interface FileRoutesByFullPath {
   '/blog/super-apps-in-india': typeof BlogSuperAppsInIndiaRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
   '/m/$postId': typeof MPostIdRoute
+  '/pay/story': typeof PayStoryRoute
   '/q/$token': typeof QTokenRoute
   '/r/$clipId': typeof RClipIdRoute
   '/u/$userId': typeof UUserIdRoute
@@ -505,6 +512,7 @@ export interface FileRoutesByTo {
   '/blog/super-apps-in-india': typeof BlogSuperAppsInIndiaRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
   '/m/$postId': typeof MPostIdRoute
+  '/pay/story': typeof PayStoryRoute
   '/q/$token': typeof QTokenRoute
   '/r/$clipId': typeof RClipIdRoute
   '/u/$userId': typeof UUserIdRoute
@@ -572,6 +580,7 @@ export interface FileRoutesById {
   '/blog/super-apps-in-india': typeof BlogSuperAppsInIndiaRoute
   '/blog/what-is-a-super-app': typeof BlogWhatIsASuperAppRoute
   '/m/$postId': typeof MPostIdRoute
+  '/pay/story': typeof PayStoryRoute
   '/q/$token': typeof QTokenRoute
   '/r/$clipId': typeof RClipIdRoute
   '/u/$userId': typeof UUserIdRoute
@@ -640,6 +649,7 @@ export interface FileRouteTypes {
     | '/blog/super-apps-in-india'
     | '/blog/what-is-a-super-app'
     | '/m/$postId'
+    | '/pay/story'
     | '/q/$token'
     | '/r/$clipId'
     | '/u/$userId'
@@ -705,6 +715,7 @@ export interface FileRouteTypes {
     | '/blog/super-apps-in-india'
     | '/blog/what-is-a-super-app'
     | '/m/$postId'
+    | '/pay/story'
     | '/q/$token'
     | '/r/$clipId'
     | '/u/$userId'
@@ -771,6 +782,7 @@ export interface FileRouteTypes {
     | '/blog/super-apps-in-india'
     | '/blog/what-is-a-super-app'
     | '/m/$postId'
+    | '/pay/story'
     | '/q/$token'
     | '/r/$clipId'
     | '/u/$userId'
@@ -838,6 +850,7 @@ export interface RootRouteChildren {
   BlogSuperAppsInIndiaRoute: typeof BlogSuperAppsInIndiaRoute
   BlogWhatIsASuperAppRoute: typeof BlogWhatIsASuperAppRoute
   MPostIdRoute: typeof MPostIdRoute
+  PayStoryRoute: typeof PayStoryRoute
   QTokenRoute: typeof QTokenRoute
   RClipIdRoute: typeof RClipIdRoute
   UUserIdRoute: typeof UUserIdRoute
@@ -972,6 +985,13 @@ declare module '@tanstack/react-router' {
       path: '/m/$postId'
       fullPath: '/m/$postId'
       preLoaderRoute: typeof MPostIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pay/story': {
+      id: '/pay/story'
+      path: '/pay/story'
+      fullPath: '/pay/story'
+      preLoaderRoute: typeof PayStoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/q/$token': {
@@ -1450,6 +1470,7 @@ const rootRouteChildren: RootRouteChildren = {
   BlogSuperAppsInIndiaRoute: BlogSuperAppsInIndiaRoute,
   BlogWhatIsASuperAppRoute: BlogWhatIsASuperAppRoute,
   MPostIdRoute: MPostIdRoute,
+  PayStoryRoute: PayStoryRoute,
   QTokenRoute: QTokenRoute,
   RClipIdRoute: RClipIdRoute,
   UUserIdRoute: UUserIdRoute,

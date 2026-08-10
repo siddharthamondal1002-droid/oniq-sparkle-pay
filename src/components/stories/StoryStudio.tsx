@@ -27,18 +27,22 @@
  * measured. The screen is complete; the switch is a config row.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clapperboard, Loader2, ShieldAlert, Sparkles } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { Capacitor } from "@capacitor/core";
+import { Clapperboard, Clock, Loader2, ShieldAlert, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
+import { openInApp } from "@/lib/miniapps";
 import {
   DEFAULT_STORY_SECONDS,
   MAX_STORY_SECONDS,
   MIN_STORY_SECONDS,
+  checkStoryQuota,
   parseClaimResult,
   planStory,
-  refusalMessage,
   type QuotaRefusal,
 } from "@/lib/storyPlan";
+import { checkoutTarget } from "@/lib/storyPricing";
 import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient";
 
 /** Lengths offered as one tap. Anything between the bounds is still allowed. */
@@ -50,30 +54,6 @@ const SUGGESTIONS = [
   "The last lamplighter in a city that just got electricity",
   "Two street cats argue about who owns the rooftop",
 ];
-
-/**
- * The Supabase types file is GENERATED FROM THE LIVE PROJECT, and these two
- * functions are in a migration that has not been applied there yet — so
- * `supabase.rpc('claim_story_seconds')` does not typecheck against a schema
- * that has never seen it.
- *
- * This narrows that gap to one place instead of casting at each call site.
- * DELETE IT once the migration is applied and the types are regenerated; if it
- * outlives that, it is hiding a real name mismatch rather than a timing one.
- */
-type StoryRpc = "story_quota_status" | "claim_story_seconds";
-async function callStoryRpc(
-  fn: StoryRpc,
-  args?: Record<string, unknown>,
-): Promise<{ data: unknown; error: { message: string } | null }> {
-  const client = supabase as unknown as {
-    rpc: (
-      n: string,
-      a?: Record<string, unknown>,
-    ) => Promise<{ data: unknown; error: { message: string } | null }>;
-  };
-  return client.rpc(fn, args);
-}
 
 /**
  * THE FILM ITSELF IS NOT SHOWN HERE. It lives under "Your videos".
@@ -100,8 +80,15 @@ type QuotaStatus = {
   usedSeconds: number;
   remaining: number;
   dailyLeft: number;
+  paidSeconds: number;
   minSeconds: number;
   maxSeconds: number;
+  /** Whether Story time is for sale at all, on any surface. */
+  purchaseEnabled: boolean;
+  /** Whether THIS build, if native, may link out to the web checkout. */
+  nativeLinkOut: boolean;
+  /** Where that link goes. A config row, validated again in checkoutTarget. */
+  checkoutUrl: string | null;
 };
 
 function readQuota(payload: unknown): QuotaStatus | null {
@@ -115,8 +102,14 @@ function readQuota(payload: unknown): QuotaStatus | null {
     usedSeconds: num("usedSeconds", 0),
     remaining: num("remaining", 0),
     dailyLeft: num("dailyLeft", 0),
+    paidSeconds: num("paidSeconds", 0),
     minSeconds: num("minSeconds", MIN_STORY_SECONDS),
     maxSeconds: num("maxSeconds", MAX_STORY_SECONDS),
+    // Absent fields read as "not for sale" — a bundle newer than the migration
+    // must not invent a buy button the server would refuse.
+    purchaseEnabled: p.purchaseEnabled === true,
+    nativeLinkOut: p.nativeLinkOut === true,
+    checkoutUrl: typeof p.checkoutUrl === "string" ? p.checkoutUrl : null,
   };
 }
 
@@ -139,7 +132,7 @@ export function StoryStudio() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data, error: rpcError } = await callStoryRpc("story_quota_status");
+      const { data, error: rpcError } = await supabase.rpc("story_quota_status");
       if (cancelled) return;
       if (rpcError) {
         setError("Could not load your Story balance.");
@@ -151,6 +144,23 @@ export function StoryStudio() {
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  /**
+   * Re-read the balance when the app comes back to the foreground. The one
+   * moment this matters is the return from the web checkout — the purchase
+   * happened in a browser this webview never saw, and without this the screen
+   * would keep refusing until a full restart.
+   */
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      void supabase.rpc("story_quota_status").then(({ data, error: rpcError }) => {
+        if (!rpcError) setQuota(readQuota(data));
+      });
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
   }, []);
 
   /**
@@ -177,7 +187,7 @@ export function StoryStudio() {
         // that is already true rather than promising it.
         setJobError(row.error ?? "That Story could not be made. Your time has been returned.");
         void (async () => {
-          const { data } = await callStoryRpc("story_quota_status");
+          const { data } = await supabase.rpc("story_quota_status");
           if (!cancelled) setQuota(readQuota(data));
         })();
       }
@@ -216,49 +226,28 @@ export function StoryStudio() {
 
   /**
    * The local read of whether this request can go. Advisory only — it exists so
-   * the button can explain itself without a round trip, and it is deliberately
-   * derived from the SAME `refusalMessage` the server path uses, so the two
-   * cannot word the same refusal differently.
+   * the button can explain itself without a round trip. It now delegates to
+   * `checkStoryQuota`, the SAME pure function the schema test pins to the SQL,
+   * so the paid-bucket arithmetic (free first, paid ignores the daily cap)
+   * exists in exactly one place. The status payload already did the free/used
+   * subtraction, so it is handed over as "this much free, none used".
    */
   const localBlock = useMemo<QuotaRefusal | null>(() => {
     if (!quota) return null;
-    if (!quota.enabled) {
-      return {
-        reason: "disabled",
-        message: refusalMessage("disabled", { remaining: 0, dailyLeft: 0, wanted: 0 }),
-        remaining: quota.remaining,
-      };
-    }
-    if (quota.remaining <= 0) {
-      return {
-        reason: "exhausted",
-        message: refusalMessage("exhausted", { remaining: 0, dailyLeft: 0, wanted: 0 }),
-        remaining: 0,
-      };
-    }
-    if (plan_.seconds > quota.dailyLeft) {
-      return {
-        reason: "daily",
-        message: refusalMessage("daily", {
-          remaining: quota.remaining,
-          dailyLeft: quota.dailyLeft,
-          wanted: plan_.seconds,
-        }),
-        remaining: quota.remaining,
-      };
-    }
-    if (plan_.seconds > quota.remaining) {
-      return {
-        reason: "too-long",
-        message: refusalMessage("too-long", {
-          remaining: quota.remaining,
-          dailyLeft: quota.dailyLeft,
-          wanted: plan_.seconds,
-        }),
-        remaining: quota.remaining,
-      };
-    }
-    return null;
+    return checkStoryQuota(
+      {
+        enabled: quota.enabled,
+        freeSeconds: quota.remaining,
+        usedSeconds: 0,
+        paidSeconds: quota.paidSeconds,
+        dailyUsedSeconds: 0,
+        dailySeconds: quota.dailyLeft,
+        // The product-wide ceiling is invisible from here; the claim is what
+        // answers it, under its row lock.
+        globalDailyUsedSeconds: 0,
+      },
+      plan_.seconds,
+    );
   }, [quota, plan_.seconds]);
 
   const generate = useCallback(async () => {
@@ -270,7 +259,7 @@ export function StoryStudio() {
     setJobError(null);
     setJobStatus(null);
     try {
-      const { data, error: rpcError } = await callStoryRpc("claim_story_seconds", {
+      const { data, error: rpcError } = await supabase.rpc("claim_story_seconds", {
         _requested_seconds: plan_.seconds,
         _prompt: prompt.trim(),
       });
@@ -284,10 +273,27 @@ export function StoryStudio() {
         // Named immediately rather than waiting for the first poll: a tap that
         // produces nothing visible for six seconds gets tapped again.
         setJobStatus("queued");
-        setQuota((q) => (q ? { ...q, remaining: claim.remaining, dailyLeft: claim.dailyLeft } : q));
+        setQuota((q) =>
+          q
+            ? {
+                ...q,
+                remaining: claim.remaining,
+                dailyLeft: claim.dailyLeft,
+                paidSeconds: claim.paidSeconds,
+              }
+            : q,
+        );
       } else {
         setRefusal(claim.refusal);
-        setQuota((q) => (q ? { ...q, remaining: claim.refusal.remaining } : q));
+        setQuota((q) =>
+          q
+            ? {
+                ...q,
+                remaining: claim.refusal.remaining,
+                paidSeconds: claim.refusal.paidSeconds ?? q.paidSeconds,
+              }
+            : q,
+        );
       }
     } catch (e) {
       // parseClaimResult throws on a shape it does not recognise rather than
@@ -300,6 +306,34 @@ export function StoryStudio() {
 
   const blocked = refusal ?? localBlock;
   const canGenerate = !submitting && !loadingQuota && blocked === null && prompt.trim().length >= 8;
+
+  /**
+   * Where — if anywhere — to offer more time. `checkoutTarget` is the Play
+   * policy line: web buys in-page at /pay/story, native either links out to
+   * the system browser or (when `story_purchase_config.native_link_out` is
+   * off) says NOTHING about buying — the reader-app posture, and the reason a
+   * disabled button is not an option here.
+   */
+  const buyTarget = useMemo(
+    () =>
+      quota
+        ? checkoutTarget(
+            {
+              purchaseEnabled: quota.purchaseEnabled,
+              nativeLinkOut: quota.nativeLinkOut,
+              checkoutUrl: quota.checkoutUrl,
+            },
+            Capacitor.isNativePlatform(),
+          )
+        : ({ kind: "none" } as const),
+    [quota],
+  );
+  // Offered only against the refusals more time would actually fix — never for
+  // "disabled" or "capacity", where a purchase would change nothing today.
+  const offerBuy =
+    buyTarget.kind !== "none" &&
+    blocked !== null &&
+    (blocked.reason === "exhausted" || blocked.reason === "daily" || blocked.reason === "too-long");
 
   return (
     <div className="pb-4">
@@ -410,6 +444,25 @@ export function StoryStudio() {
       {blocked ? (
         <p className="mt-2 text-center text-[11px] text-amber-300">{blocked.message}</p>
       ) : null}
+      {offerBuy && buyTarget.kind === "in-page" ? (
+        <Link
+          to="/pay/story"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/50 bg-primary/10 px-4 py-2.5 text-xs font-semibold text-primary"
+        >
+          <Clock className="h-4 w-4" /> Get more Story time
+        </Link>
+      ) : null}
+      {offerBuy && buyTarget.kind === "link-out" ? (
+        // The system browser, not this webview — the whole point. The balance
+        // refreshes on the visibilitychange that firing this causes.
+        <button
+          type="button"
+          onClick={() => void openInApp(buyTarget.url)}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/50 bg-primary/10 px-4 py-2.5 text-xs font-semibold text-primary"
+        >
+          <Clock className="h-4 w-4" /> Get more Story time
+        </button>
+      ) : null}
       {error ? <p className="mt-2 text-center text-[11px] text-destructive">{error}</p> : null}
 
       {/* THE WAIT IS PART OF THE PRODUCT. A render is minutes long, so the
@@ -430,8 +483,8 @@ export function StoryStudio() {
 
       {jobId && jobStatus && (jobStatus === "ready" || jobStatus === "delivering") ? (
         <div className="mt-3 rounded-2xl border border-primary/40 bg-primary/10 px-3 py-2.5 text-[11px] text-foreground">
-          Your film is ready — open the{" "}
-          <span className="font-semibold">Your videos</span> tab to watch and save it.
+          Your film is ready — open the <span className="font-semibold">Your videos</span> tab to
+          watch and save it.
         </div>
       ) : null}
 
@@ -442,6 +495,7 @@ export function StoryStudio() {
       {quota && !loadingQuota ? (
         <p className="mt-3 text-center text-[11px] text-muted-foreground">
           {quota.remaining}s of free Story time left · {quota.dailyLeft}s today
+          {quota.paidSeconds > 0 ? ` · ${quota.paidSeconds}s purchased` : null}
         </p>
       ) : null}
     </div>

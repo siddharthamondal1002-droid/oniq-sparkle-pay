@@ -167,6 +167,11 @@ export type QuotaRefusal = {
   message: string;
   /** Seconds of free allowance left. */
   remaining: number;
+  /**
+   * Purchased seconds left, when the decider knew it. The screen uses this to
+   * refresh the paid balance and to choose between "buy more" and "tomorrow".
+   */
+  paidSeconds?: number;
 };
 
 /** The numbers a refusal sentence may mention. */
@@ -245,6 +250,8 @@ export type QuotaState = {
   freeSeconds: number;
   /** Seconds they have already generated, all time. */
   usedSeconds: number;
+  /** Purchased seconds not yet spent. Spent after free, exempt from the caps. */
+  paidSeconds?: number;
   /** Seconds this user has generated today. */
   dailyUsedSeconds?: number;
   /** Per-user daily ceiling. */
@@ -259,10 +266,19 @@ export type QuotaState = {
  * Decide whether a Story may be generated, BEFORE anything billable happens.
  *
  * Returns a refusal rather than throwing, so a screen can render the reason and
- * the remaining balance in one pass. The order matters and mirrors the one the
- * Runway path already enforces: kill switch first, then allowance, then the
- * request itself. Checking the request first would spend effort deciding
- * whether to honour something the switch has already turned off.
+ * the remaining balance in one pass. The kill switch still comes first —
+ * checking the request before the switch would spend effort deciding whether to
+ * honour something already turned off.
+ *
+ * HOW A REQUEST IS FUNDED, mirroring `claim_story_seconds` exactly: free
+ * seconds first (bounded by what is left of today), then purchased seconds for
+ * the remainder. Paid time ignores the per-user daily cap — that cap bounds
+ * what a free user can cost, and refusing to render five minutes somebody paid
+ * for is not a limit, it is a complaint. The product-wide ceiling is checked
+ * LAST and against the free portion only, because it exists to bound
+ * infrastructure spend and a paid second is revenue-covered; that is also why
+ * it moved below the personal checks — it cannot be computed until the split
+ * says how much of the request is free.
  *
  * A partial grant is deliberately NOT offered. Silently making a 20-second
  * Story because 60 would not fit is a worse outcome than saying so — the user
@@ -270,65 +286,66 @@ export type QuotaState = {
  */
 export function checkStoryQuota(state: QuotaState, requestedSeconds: number): QuotaRefusal | null {
   const remaining = Math.max(0, state.freeSeconds - state.usedSeconds);
-  const dailyLeftOf = (cap: number) => Math.max(0, cap - (state.dailyUsedSeconds ?? 0));
+  const paid = Math.max(0, state.paidSeconds ?? 0);
+  const dailyLeft = Math.max(
+    0,
+    (state.dailySeconds ?? DEFAULT_DAILY_SECONDS) - (state.dailyUsedSeconds ?? 0),
+  );
 
   if (!state.enabled) {
     return {
       reason: "disabled",
       message: refusalMessage("disabled", { remaining, dailyLeft: 0, wanted: 0 }),
       remaining,
+      paidSeconds: paid,
     };
   }
   const wanted = Math.round(requestedSeconds);
 
-  // Product-wide ceiling BEFORE anything about this user. When the day's budget
-  // is spent it is spent for everyone, and answering with a personal-allowance
-  // message would be answering a question the user did not ask. This is also
-  // the only layer that bounds ABSOLUTE spend — every other limit multiplies by
-  // the number of people who sign up.
-  const globalCap = state.globalDailySeconds ?? DEFAULT_GLOBAL_DAILY_SECONDS;
-  const globalUsed = state.globalDailyUsedSeconds ?? 0;
-  if (globalUsed + wanted > globalCap) {
-    return {
-      reason: "capacity",
-      message: refusalMessage("capacity", {
-        remaining,
-        dailyLeft: dailyLeftOf(state.dailySeconds ?? DEFAULT_DAILY_SECONDS),
-        wanted,
-      }),
-      remaining,
-    };
-  }
+  // The split. Same two lines as the SQL, deliberately.
+  const spendFree = Math.min(wanted, remaining, dailyLeft);
+  const spendPaid = Math.min(wanted - spendFree, paid);
 
-  if (remaining <= 0) {
-    return {
-      reason: "exhausted",
-      message: refusalMessage("exhausted", {
+  if (spendFree + spendPaid < wanted) {
+    // Not enough anywhere. The reason names the bucket that ran out, because
+    // "buy more" and "come back tomorrow" are different instructions and the
+    // wrong one either costs a sale or wastes somebody's afternoon.
+    if (remaining <= 0 && paid <= 0) {
+      return {
+        reason: "exhausted",
+        message: refusalMessage("exhausted", { remaining: 0, dailyLeft, wanted }),
         remaining: 0,
-        dailyLeft: dailyLeftOf(state.dailySeconds ?? DEFAULT_DAILY_SECONDS),
-        wanted,
-      }),
-      remaining: 0,
-    };
-  }
-
-  // Per-user, per-day. The lifetime allowance alone does not stop one account
-  // spending all of it in an hour, which is exactly what a compromised account
-  // does. Spreading it costs an honest user nothing.
-  const dailyLeft = dailyLeftOf(state.dailySeconds ?? DEFAULT_DAILY_SECONDS);
-  if (wanted > dailyLeft) {
-    return {
-      reason: "daily",
-      message: refusalMessage("daily", { remaining, dailyLeft, wanted }),
-      remaining,
-    };
-  }
-
-  if (wanted > remaining) {
+        paidSeconds: paid,
+      };
+    }
+    if (spendFree < Math.min(wanted, remaining)) {
+      return {
+        reason: "daily",
+        message: refusalMessage("daily", { remaining, dailyLeft, wanted }),
+        remaining,
+        paidSeconds: paid,
+      };
+    }
     return {
       reason: "too-long",
       message: refusalMessage("too-long", { remaining, dailyLeft, wanted }),
       remaining,
+      paidSeconds: paid,
+    };
+  }
+
+  // Product-wide ceiling, against the free portion only. A request funded
+  // entirely out of purchased seconds passes even on a day that is otherwise
+  // spent. Still the only layer bounding ABSOLUTE free spend — every other
+  // limit multiplies by the number of people who sign up.
+  const globalCap = state.globalDailySeconds ?? DEFAULT_GLOBAL_DAILY_SECONDS;
+  const globalUsed = state.globalDailyUsedSeconds ?? 0;
+  if (globalUsed + spendFree > globalCap) {
+    return {
+      reason: "capacity",
+      message: refusalMessage("capacity", { remaining, dailyLeft, wanted }),
+      remaining,
+      paidSeconds: paid,
     };
   }
   return null;
@@ -347,7 +364,15 @@ export function checkStoryQuota(state: QuotaState, requestedSeconds: number): Qu
  * throws rather than falling through to "ok".
  */
 export type StoryClaim =
-  | { ok: true; jobId: string; seconds: number; remaining: number; dailyLeft: number }
+  | {
+      ok: true;
+      jobId: string;
+      seconds: number;
+      remaining: number;
+      dailyLeft: number;
+      /** Purchased seconds left AFTER this claim drew its paid portion. */
+      paidSeconds: number;
+    }
   | { ok: false; refusal: QuotaRefusal };
 
 const REFUSAL_REASONS: ReadonlySet<string> = new Set([
@@ -375,6 +400,7 @@ export function parseClaimResult(payload: unknown): StoryClaim {
       seconds: num("seconds"),
       remaining: num("remaining"),
       dailyLeft: num("dailyLeft"),
+      paidSeconds: num("paidSeconds"),
     };
   }
   if (p.ok !== false) {
@@ -397,6 +423,7 @@ export function parseClaimResult(payload: unknown): StoryClaim {
       reason: reason as RefusalReason,
       message: refusalMessage(reason as RefusalReason, numbers),
       remaining: numbers.remaining,
+      paidSeconds: num("paidSeconds"),
     },
   };
 }

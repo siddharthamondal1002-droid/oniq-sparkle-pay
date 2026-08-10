@@ -1,22 +1,28 @@
 /**
- * Paying for an order with Razorpay, from the browser.
+ * Paying with Razorpay, from the browser. Two products, one sheet.
  *
- * THE BROWSER NEVER NAMES A PRICE. It sends an order id; the server reads
- * `orders.total`, which `place_order` computed from `menu_items`. Everything in
- * this file is presentation of a decision already made on the server, and the
- * one value it does receive — `amountMinor` — is for display, never for the
- * charge.
+ * THE BROWSER NEVER NAMES A PRICE. For a food order it sends an order id and
+ * the server reads `orders.total`; for Story time it sends a tier LENGTH and
+ * `create_story_purchase` reads the price out of `story_price_tiers`.
+ * Everything in this file is presentation of a decision already made on the
+ * server, and the one value it does receive — `amountMinor` — is for display,
+ * never for the charge.
  *
  * AND IT NEVER DECIDES THAT A PAYMENT SUCCEEDED. Razorpay's callback hands back
  * a signature; `razorpay-verify` checks it against the key secret and only then
- * does an order become paid. `payments` is not writable by `authenticated` at
- * all, so there is no path from this file to "paid" that does not pass a
- * signature check.
+ * does anything become paid. Neither `payments` nor `story_purchases` is
+ * writable by `authenticated` at all, so there is no path from this file to
+ * "paid" that does not pass a signature check.
  *
- * PHYSICAL GOODS ONLY. Google Play permits a third-party processor for
- * real-world goods and services and requires Play Billing for digital content
- * consumed in the app. This is wired to food orders. Pointing it at Story
- * seconds or a premium tier would be a policy violation, not a feature.
+ * WHERE THE MONEY MAY BE COLLECTED is the Play-policy line, and it is drawn per
+ * product. Food is real-world goods, which Play permits a third-party processor
+ * for — `payForOrder` runs anywhere the app runs. Story time is digital content
+ * consumed in the app, so the NATIVE build never collects it: `checkoutTarget`
+ * in storyPricing.ts sends native users to the website in a browser, and
+ * `payForStorySeconds` is reached only by web pages. Nothing here can verify
+ * which surface it is running on — a check would be one spoofed header from
+ * meaningless — so the server records the claimed origin on the purchase row
+ * instead, where a lie is at least visible.
  */
 import { supabase } from "@/integrations/supabase/client";
 
@@ -82,41 +88,41 @@ export type PayOptions = {
   prefill?: { name?: string; email?: string; contact?: string };
 };
 
-/**
- * Take a payment for one order, and report what actually happened.
- *
- * THREE OUTCOMES, ALL REAL. A dismissed checkout is not a failure — the user
- * changed their mind and the order stays unpaid and payable. Collapsing that
- * into an error trains people to ignore payment errors.
- */
-export async function payForOrder(opts: PayOptions): Promise<PayResult> {
-  const { data, error } = await supabase.functions.invoke("razorpay-order", {
-    body: { orderId: opts.orderId },
-  });
-  const start = (data ?? {}) as {
-    configured?: boolean;
-    missing?: string[];
-    keyId?: string;
-    providerOrderId?: string;
-    amountMinor?: number;
-    currency?: string;
-    error?: string;
-  };
-  if (error || start.error) {
-    return { status: "failed", message: start.error ?? error?.message ?? "Could not start that payment." };
-  }
-  if (start.configured === false) {
-    return { status: "failed", message: "Payments are not set up yet." };
-  }
-  if (!start.keyId || !start.providerOrderId) {
-    return { status: "failed", message: "Could not start that payment." };
-  }
+/** What `razorpay-order` answers for either product. */
+type OrderStart = {
+  configured?: boolean;
+  missing?: string[];
+  keyId?: string;
+  providerOrderId?: string;
+  amountMinor?: number;
+  currency?: string;
+  seconds?: number;
+  label?: string;
+  error?: string;
+};
 
+/** What `razorpay-verify` settles to, after the signature check. */
+type VerifyPayload = { ok?: boolean; error?: string; seconds?: number };
+
+type CollectOutcome =
+  | { status: "verified"; payload: VerifyPayload }
+  | { status: "dismissed" }
+  | { status: "failed"; message: string };
+
+/**
+ * Open the sheet for a provider order that already exists, and report what
+ * actually happened. Shared by both products so the UPI sequencing and the
+ * verify discipline cannot drift between them.
+ */
+async function collectPayment(
+  start: { keyId: string; providerOrderId: string; amountMinor?: number; currency?: string },
+  opts: { description: string; prefill?: PayOptions["prefill"] },
+): Promise<CollectOutcome> {
   const Checkout = await loadCheckout();
 
-  return new Promise<PayResult>((resolve) => {
+  return new Promise<CollectOutcome>((resolve) => {
     let settled = false;
-    const finish = (r: PayResult) => {
+    const finish = (r: CollectOutcome) => {
       if (settled) return;
       settled = true;
       resolve(r);
@@ -131,7 +137,7 @@ export async function payForOrder(opts: PayOptions): Promise<PayResult> {
       amount: start.amountMinor,
       currency: start.currency ?? "INR",
       name: "ONIQ",
-      description: opts.description ?? "Order payment",
+      description: opts.description,
       prefill: opts.prefill ?? {},
       theme: { color: "#12d6a3" },
       // UPI FIRST, AND THE INTENT FLOW FIRST WITHIN IT.
@@ -176,7 +182,7 @@ export async function payForOrder(opts: PayOptions): Promise<PayResult> {
               razorpay_signature: response.razorpay_signature,
             },
           });
-          const payload = (verified.data ?? {}) as { ok?: boolean; error?: string };
+          const payload = (verified.data ?? {}) as VerifyPayload;
           if (verified.error || payload.error || !payload.ok) {
             // The money may well have left their account — Razorpay took it.
             // Saying "payment failed" here would be a lie in the direction that
@@ -190,7 +196,7 @@ export async function payForOrder(opts: PayOptions): Promise<PayResult> {
             });
             return;
           }
-          finish({ status: "paid", orderId: opts.orderId });
+          finish({ status: "verified", payload });
         })();
       },
     });
@@ -202,4 +208,86 @@ export async function payForOrder(opts: PayOptions): Promise<PayResult> {
 
     rzp.open();
   });
+}
+
+/** The refusals every start shares, or null when the sheet may open. */
+function startProblem(error: { message: string } | null, start: OrderStart): string | null {
+  if (error || start.error) {
+    return start.error ?? error?.message ?? "Could not start that payment.";
+  }
+  if (start.configured === false) return "Payments are not set up yet.";
+  if (!start.keyId || !start.providerOrderId) return "Could not start that payment.";
+  return null;
+}
+
+/**
+ * Take a payment for one order, and report what actually happened.
+ *
+ * THREE OUTCOMES, ALL REAL. A dismissed checkout is not a failure — the user
+ * changed their mind and the order stays unpaid and payable. Collapsing that
+ * into an error trains people to ignore payment errors.
+ */
+export async function payForOrder(opts: PayOptions): Promise<PayResult> {
+  const { data, error } = await supabase.functions.invoke("razorpay-order", {
+    body: { orderId: opts.orderId },
+  });
+  const start = (data ?? {}) as OrderStart;
+  const problem = startProblem(error, start);
+  if (problem) return { status: "failed", message: problem };
+
+  const out = await collectPayment(
+    start as { keyId: string; providerOrderId: string; amountMinor?: number; currency?: string },
+    { description: opts.description ?? "Order payment", prefill: opts.prefill },
+  );
+  if (out.status === "verified") return { status: "paid", orderId: opts.orderId };
+  return out;
+}
+
+export type StoryPayOptions = {
+  /** A tier length from `story_price_tiers`. The only thing that decides the price. */
+  seconds: number;
+  /**
+   * Which surface the user STARTED on. "native-handoff" when the page was
+   * opened by the app's link-out. Provenance, not authorisation — the server
+   * records it on the purchase row and trusts it for nothing else.
+   */
+  origin?: "web" | "native-handoff";
+  prefill?: PayOptions["prefill"];
+};
+
+export type StoryPayResult =
+  | { status: "paid"; seconds: number }
+  | { status: "dismissed" }
+  | { status: "failed"; message: string };
+
+/**
+ * Buy Story time. WEB PAGES ONLY — the native build links out to /pay/story
+ * instead of calling this; see `checkoutTarget` in storyPricing.ts for where
+ * that decision lives and the migration for why it is a config row.
+ *
+ * On "paid", `seconds` is what `credit_story_purchase` actually credited —
+ * read back from the verify response, not echoed from the request.
+ */
+export async function payForStorySeconds(opts: StoryPayOptions): Promise<StoryPayResult> {
+  const { data, error } = await supabase.functions.invoke("razorpay-order", {
+    body: { seconds: opts.seconds, origin: opts.origin ?? "web" },
+  });
+  const start = (data ?? {}) as OrderStart;
+  const problem = startProblem(error, start);
+  if (problem) return { status: "failed", message: problem };
+
+  const out = await collectPayment(
+    start as { keyId: string; providerOrderId: string; amountMinor?: number; currency?: string },
+    { description: start.label ?? "Story time", prefill: opts.prefill },
+  );
+  if (out.status === "verified") {
+    return {
+      status: "paid",
+      seconds:
+        typeof out.payload.seconds === "number" && out.payload.seconds > 0
+          ? out.payload.seconds
+          : opts.seconds,
+    };
+  }
+  return out;
 }

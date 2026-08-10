@@ -129,21 +129,55 @@ describe("checkStoryQuota refuses before anything is spent", () => {
     expect(checkStoryQuota(nearly, 60)).toBeNull();
   });
 
-  it("checks the product-wide ceiling before anything about this user", () => {
-    // When the day's budget is gone it is gone for everyone. Telling one user
-    // about their personal allowance answers a question they did not ask.
-    // BOTH conditions must hold or the test proves nothing. An earlier version
-    // left the personal allowance untouched, so the exhausted branch never
-    // competed and reordering the two still passed — the same vacuous-ordering
-    // mistake made on the kill switch earlier in this file's history.
+  it("answers the personal question first when both the user and the day are spent", () => {
+    // REORDERED by the purchase migration, deliberately. The product-wide
+    // ceiling now charges only the FREE portion of a request, so it cannot be
+    // evaluated until the free/paid split has run — which is after every
+    // personal check. BOTH conditions still hold here so the ordering is
+    // actually exercised: an earlier version of this file once left one branch
+    // uncontested and the ordering test passed vacuously.
     const busy = {
       enabled: true,
       freeSeconds: 300,
-      usedSeconds: 300, // personally exhausted TOO
+      usedSeconds: 300, // personally exhausted
+      paidSeconds: 0, // and nothing purchased
+      globalDailyUsedSeconds: 3600,
+      globalDailySeconds: 3600, // the day is spent for everyone too
+    };
+    expect(checkStoryQuota(busy, 60)?.reason).toBe("exhausted");
+  });
+
+  it("still refuses on the product-wide ceiling when the user is personally funded", () => {
+    // The ceiling is the only layer bounding ABSOLUTE free spend, so it must
+    // still fire — just after the personal checks rather than before them.
+    const busy = {
+      enabled: true,
+      freeSeconds: 300,
+      usedSeconds: 0, // plenty of personal allowance
       globalDailyUsedSeconds: 3600,
       globalDailySeconds: 3600,
     };
     expect(checkStoryQuota(busy, 60)?.reason).toBe("capacity");
+  });
+
+  it("funds a request from purchased seconds when the free bucket cannot", () => {
+    // The purchase promise, end to end: paid time ignores the daily cap and
+    // the global ceiling, because a sold second that will not render is not a
+    // limit, it is a complaint.
+    const paidUp = {
+      enabled: true,
+      freeSeconds: 300,
+      usedSeconds: 300, // free bucket empty
+      paidSeconds: 120, // but they bought two minutes
+      dailyUsedSeconds: 120,
+      dailySeconds: 120, // day spent
+      globalDailyUsedSeconds: 3600,
+      globalDailySeconds: 3600, // ceiling spent
+    };
+    expect(checkStoryQuota(paidUp, 60)).toBeNull();
+    // And a request bigger than the paid balance still refuses rather than
+    // silently delivering part of it.
+    expect(checkStoryQuota(paidUp, 300)?.reason).toBe("too-long");
   });
 
   it("caps a single user's day even when their lifetime allowance is untouched", () => {
@@ -207,8 +241,16 @@ describe("parseClaimResult trusts the RPC and distrusts the payload", () => {
       seconds: 60,
       remaining: 240,
       dailyLeft: 60,
+      paidSeconds: 30,
     });
-    expect(r).toEqual({ ok: true, jobId: "abc", seconds: 60, remaining: 240, dailyLeft: 60 });
+    expect(r).toEqual({
+      ok: true,
+      jobId: "abc",
+      seconds: 60,
+      remaining: 240,
+      dailyLeft: 60,
+      paidSeconds: 30,
+    });
   });
 
   it("turns a refusal into the same shape the pure check produces", () => {
