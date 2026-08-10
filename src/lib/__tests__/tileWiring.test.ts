@@ -46,3 +46,22 @@ describe("Phase 4a tile wiring", () => {
     }
   });
 });
+
+describe("the Pay tile on the home row", () => {
+  it("is registered India-only — the NPCI rail does not exist elsewhere", () => {
+    // isAvailable() answers TRUE for ids it does not know, so this test is the
+    // difference between "gated to India" and "silently worldwide": if the
+    // registry entry is ever removed, the US expectation below flips to true
+    // and fails here rather than on someone's phone in Ohio.
+    expect(isAvailable("upi", "IN")).toBe(true);
+    expect(isAvailable("upi", "US")).toBe(false);
+    expect(isAvailable("upi", "GB")).toBe(false);
+  });
+
+  it("resolves its label in both languages", () => {
+    expect(tileName("en", "upi")).toBe(TILE_LABELS.upi);
+    expect(tileName("hi", "upi")).toBe(TILE_LABELS_HI.upi);
+    expect(TILE_LABELS.upi).toBeTruthy();
+    expect(TILE_LABELS_HI.upi).toBeTruthy();
+  });
+});

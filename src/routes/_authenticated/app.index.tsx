@@ -144,29 +144,32 @@ function HomeScreen() {
               also in ONIQ
             </div>
             <SafeMount name="AlsoInOniqRow">
-            <AlsoInOniqRow
-              tiles={[
-                // Names come from the shared table (tileLabel.ts) — never inline.
-                { key: "ting", to: "/app/ai" },
-                { key: "learn", to: "/app/learn" },
-                { key: "rides", to: "/app/rides" },
-                { key: "miniapps", to: "/app/miniapps" },
-                { key: "official", to: "/app/official" },
-                { key: "pulse", to: "/app/news" },
-                { key: "faith", to: "/app/faith" },
-                { key: "vitals", to: "/app/vitals", color: vitalsColor },
-                { key: "wander", to: "/app/travel" },
-                { key: "earn", to: "/app/earn" },
-                { key: "university", to: "/app/university" },
-                { key: "lores", to: "/app/lores" },
-                // 18+ only — hidden entirely for minors and null-DOB accounts.
-                // Jobs is one screen now: the CV builder and the job & gig
-                // directory are tabs of /app/jobs behind a single 18+ gate.
-                // The separate "Job apps" tile is gone.
-                { key: "jobs", to: "/app/jobs", adultOnly: true },
-              ]}
-              hidden={hidden}
-            />
+              <AlsoInOniqRow
+                tiles={[
+                  // Names come from the shared table (tileLabel.ts) — never inline.
+                  { key: "ting", to: "/app/ai" },
+                  { key: "learn", to: "/app/learn" },
+                  { key: "rides", to: "/app/rides" },
+                  { key: "miniapps", to: "/app/miniapps" },
+                  // India-only by the feature registry — the row's isAvailable
+                  // filter is what keeps the NPCI rail off every other Home.
+                  { key: "upi", to: "/app/upi" },
+                  { key: "official", to: "/app/official" },
+                  { key: "pulse", to: "/app/news" },
+                  { key: "faith", to: "/app/faith" },
+                  { key: "vitals", to: "/app/vitals", color: vitalsColor },
+                  { key: "wander", to: "/app/travel" },
+                  { key: "earn", to: "/app/earn" },
+                  { key: "university", to: "/app/university" },
+                  { key: "lores", to: "/app/lores" },
+                  // 18+ only — hidden entirely for minors and null-DOB accounts.
+                  // Jobs is one screen now: the CV builder and the job & gig
+                  // directory are tabs of /app/jobs behind a single 18+ gate.
+                  // The separate "Job apps" tile is gone.
+                  { key: "jobs", to: "/app/jobs", adultOnly: true },
+                ]}
+                hidden={hidden}
+              />
             </SafeMount>
           </div>
         </div>
@@ -730,9 +733,7 @@ function AlsoInOniqRow({
   // No greyed-out state, no disabled tile, no "coming soon".
   const visible = tiles.filter(
     (t) =>
-      !(hidden as Set<string>).has(t.key) &&
-      isAvailable(t.key, home) &&
-      (!t.adultOnly || isAdult),
+      !(hidden as Set<string>).has(t.key) && isAvailable(t.key, home) && (!t.adultOnly || isAdult),
   );
   if (visible.length === 0) return null;
   return (

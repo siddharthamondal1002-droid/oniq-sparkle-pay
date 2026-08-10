@@ -222,6 +222,10 @@ export const FEATURES: Feature[] = [
   { id: "vitals", supportedCountries: HEALTH_COUNTRIES },
   // Local-services marketplace is India-only for now.
   { id: "earn", supportedCountries: ["IN"] },
+  // UPI hand-off is the NPCI rail — it does not exist outside India. Registered
+  // here because isAvailable() answers TRUE for unknown ids, so an unregistered
+  // "upi" tile would render for every country the moment it reached Home.
+  { id: "upi", supportedCountries: ["IN"] },
 ];
 
 const FEATURE_BY_ID = new Map(FEATURES.map((f) => [f.id, f]));
