@@ -156,9 +156,14 @@ Deno.serve(async (req) => {
             `Return exactly ${shots} shots.`,
         },
       ],
-      // Roughly 160 tokens a shot plus the header. A plan truncated mid-JSON
-      // parses as a failure rather than as a short film.
-      maxTokens: Math.min(8192, 900 + shots * 160),
+      // 260 a shot, not 160. Rule 2 of the system prompt makes every `still`
+      // repeat its character's lock VERBATIM and rule 3 does the same for the
+      // setting — that is the whole anti-drift mechanism, and it means a shot
+      // is a paragraph, not a line. The old budget was sized as if a shot were
+      // a sentence, and a plan truncated mid-JSON parses as a failure rather
+      // than as a short film, so being wrong here is silently expensive: the
+      // user is charged and gets nothing.
+      maxTokens: Math.min(8192, 1200 + shots * 260),
       // A long plan is slower than a chat reply and the default 12s cuts a
       // 40-shot film off mid-sentence.
       timeoutMs: 45000,
@@ -171,26 +176,44 @@ Deno.serve(async (req) => {
     // re-ask than to half-render.
     let plan: Plan | null = null;
     let servedBy = "anthropic";
+    // Every attempt records why it did not work. This travels back in the 502
+    // body, because the runner's log is readable when the platform's is not —
+    // when this first failed live, Supabase's log pipeline was returning empty
+    // for every function and the only thing anyone had was "no usable plan".
+    const tried: { engine: string; reason: string }[] = [];
 
     if (hasClaude) {
       const c = await callClaude(opts);
-      if (c.ok) plan = parsePlan(textOf(c.data), shots);
-      else console.warn("story-plot anthropic", c.reason);
+      if (c.ok) {
+        const r = parsePlan(textOf(c.data), shots);
+        if ("plan" in r) plan = r.plan;
+        else tried.push({ engine: "anthropic", reason: r.reason });
+      } else {
+        tried.push({ engine: "anthropic", reason: String(c.reason ?? "failed").slice(0, 160) });
+      }
     }
 
     if (!plan && hasGemini) {
       servedBy = "gemini";
       const g = await callGemini(opts);
-      if (g.ok) plan = parsePlan(textOf(g.data), shots);
-      else console.warn("story-plot gemini", g.reason);
+      if (g.ok) {
+        const r = parsePlan(textOf(g.data), shots);
+        if ("plan" in r) plan = r.plan;
+        else tried.push({ engine: "gemini", reason: r.reason });
+      } else {
+        tried.push({ engine: "gemini", reason: String(g.reason ?? "failed").slice(0, 160) });
+      }
     }
 
     if (!plan) {
       // A malformed plan must not reach the pipeline: every downstream stage
       // costs money and a half-built plan spends it on a film that cannot
       // finish. Fail here, where nothing has been generated yet.
-      console.error("story-plot produced no usable plan");
-      return json({ error: "Ting could not write that one — try again." }, 502);
+      console.error("story-plot produced no usable plan", JSON.stringify(tried));
+      return json(
+        { error: "Ting could not write that one — try again.", shots, tried },
+        502,
+      );
     }
 
     return json({ configured: true, plan, servedBy });
@@ -232,24 +255,42 @@ type Plan = {
  * duration across exactly this many shots; a plan with one fewer leaves a hole
  * in the timeline, and one more silently drops the ending.
  */
-function parsePlan(text: string, shots: number): Plan | null {
+/**
+ * A parse either yields a plan or SAYS WHY IT DID NOT.
+ *
+ * It used to return null four different ways. When the first live Story failed
+ * here, "no usable plan" was all anyone had, Supabase's log pipeline was
+ * returning empty for every function, and there was no way to tell a truncated
+ * reply from a miscounted one — two problems with opposite fixes. A reason
+ * string costs nothing and travels back to the runner's log, which is readable
+ * even when the platform's is not.
+ */
+type ParseResult = { plan: Plan } | { reason: string };
+
+function parsePlan(text: string, shots: number): ParseResult {
+  if (!text) return { reason: "empty reply" };
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
+  // A reply with an opening brace and no closing one is the signature of
+  // max_tokens truncation, which is a budget problem, not a prompt problem.
+  if (start < 0) return { reason: `no JSON object in ${text.length} chars` };
+  if (end <= start) return { reason: `unterminated JSON — truncated at ${text.length} chars` };
 
   let raw: unknown;
   try {
     raw = JSON.parse(text.slice(start, end + 1));
-  } catch {
-    return null;
+  } catch (e) {
+    return { reason: `bad JSON: ${(e as Error).message.slice(0, 80)}` };
   }
-  if (typeof raw !== "object" || raw === null) return null;
+  if (typeof raw !== "object" || raw === null) return { reason: "JSON was not an object" };
   const p = raw as Record<string, unknown>;
 
   const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
   const title = str(p.title);
   const setting = str(p.setting);
-  if (!title || !setting) return null;
+  if (!title || !setting) {
+    return { reason: `missing ${!title ? "title" : "setting"}` };
+  }
 
   const castRaw = Array.isArray(p.cast) ? p.cast : [];
   const cast = castRaw
@@ -267,9 +308,24 @@ function parsePlan(text: string, shots: number): Plan | null {
     })
     .filter((s) => s.still && s.narration);
 
-  if (parsed.length !== shots) return null;
+  // EXTRA SHOTS ARE TRIMMED, NOT REFUSED.
+  //
+  // The old rule was "exactly N or nothing", and nothing meant a user who had
+  // already been charged got a refund instead of a film. A model that returns
+  // five usable shots when asked for four has not failed at anything the user
+  // cares about — the finished length comes from measured narration anyway, not
+  // from the shot count. Taking the first four is strictly better than throwing
+  // the whole plan away.
+  //
+  // TOO FEW still fails. Half a plan is a different film from the one that was
+  // paid for, and padding it would mean inventing shots here, which is exactly
+  // the second-planner problem this file exists to avoid.
+  if (parsed.length < shots) {
+    return { reason: `got ${parsed.length} usable shots, wanted ${shots}` };
+  }
+  const kept = parsed.slice(0, shots);
 
-  return { title, logline: str(p.logline), setting, cast, shots: parsed };
+  return { plan: { title, logline: str(p.logline), setting, cast, shots: kept } };
 }
 
 function json(payload: unknown, status = 200) {

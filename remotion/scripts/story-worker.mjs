@@ -168,7 +168,9 @@ async function edge(fn, body) {
     body: JSON.stringify(body),
   });
   const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`${fn}: ${res.status} ${JSON.stringify(json).slice(0, 200)}`);
+  // 500, not 200. story-plot returns a `tried` array naming why each engine
+  // failed, and 200 characters cut it off exactly where it got interesting.
+  if (!res.ok) throw new Error(`${fn}: ${res.status} ${JSON.stringify(json).slice(0, 500)}`);
   if (json.configured === false) throw new Error(`${fn}: not configured — no API key`);
   if (json.error) throw new Error(`${fn}: ${json.error}`);
   return json;
