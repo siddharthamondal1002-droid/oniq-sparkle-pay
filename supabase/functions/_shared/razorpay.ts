@@ -109,12 +109,21 @@ export async function verifyWebhookSignature(
  * `amountMinor` is paise, an integer, and the caller reads it off the database
  * rather than the request. `receipt` is our own order id, which is what makes a
  * Razorpay dashboard row traceable back to a meal.
+ *
+ * `notes` RIDE BACK ON THE WEBHOOK, which is the only reason they exist here.
+ * ONIQ now sells two unrelated things through one Razorpay account — food
+ * orders and Story seconds — and a webhook carries nothing of ours except the
+ * provider order id and these. Without a `kind` note the webhook has to guess
+ * which table to look in, and guessing wrong means crediting the wrong ledger.
+ * They are NOT trusted as an amount or an owner: both of those are re-read from
+ * our own tables by provider order id.
  */
 export async function createRazorpayOrder(
   creds: RazorpayCreds,
   amountMinor: number,
   currency: string,
   receipt: string,
+  notes?: Record<string, string>,
 ): Promise<{ id: string } | { error: string }> {
   if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
     return { error: `amount must be a positive integer in minor units, got ${amountMinor}` };
@@ -131,6 +140,7 @@ export async function createRazorpayOrder(
       // sits authorised and never settles, which looks like success on the
       // phone and like nothing in the bank.
       payment_capture: 1,
+      ...(notes ? { notes } : {}),
     }),
   });
   const text = await res.text();
