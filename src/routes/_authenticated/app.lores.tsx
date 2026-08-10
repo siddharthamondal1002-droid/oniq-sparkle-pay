@@ -4,6 +4,7 @@ import { Play, Clapperboard } from "lucide-react";
 import { LORE_COLLECTIONS, type LoreVideo } from "@/data/lores";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { StoryStudio } from "@/components/stories/StoryStudio";
+import { YourVideos } from "@/components/stories/YourVideos";
 
 export const Route = createFileRoute("/_authenticated/app/lores")({
   head: () => ({
@@ -71,6 +72,10 @@ function LoreCard({ v }: { v: LoreVideo }) {
 const TABS = [
   { id: "originals", label: "Originals" },
   { id: "stories", label: "Make a Story" },
+  // A film outlives the form that started it — six minutes of render is long
+  // enough to lock a phone — so finished Stories need somewhere of their own to
+  // be found rather than living inside the studio's component state.
+  { id: "library", label: "Your videos" },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -148,9 +153,13 @@ function LoresPage() {
             </section>
           ))}
         </div>
-      ) : (
+      ) : tab === "stories" ? (
         <div role="tabpanel" id="lores-panel-stories" aria-labelledby="lores-tab-stories">
           <StoryStudio />
+        </div>
+      ) : (
+        <div role="tabpanel" id="lores-panel-library" aria-labelledby="lores-tab-library">
+          <YourVideos />
         </div>
       )}
     </div>

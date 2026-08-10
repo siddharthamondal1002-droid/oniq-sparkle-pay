@@ -9,119 +9,75 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
-import { Route as AuthRouteImport } from './routes/auth'
-import { Route as AuthNativeCallbackRouteImport } from './routes/auth-native-callback'
-import { Route as ChildSafetyRouteImport } from './routes/child-safety'
-import { Route as DeleteAccountRouteImport } from './routes/delete-account'
-import { Route as DmcaRouteImport } from './routes/dmca'
-import { Route as McpRouteImport } from './routes/mcp'
-import { Route as McpSigninRouteImport } from './routes/mcp-signin'
-import { Route as PrivacyRouteImport } from './routes/privacy'
-import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
-import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
-import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
-import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
-import { Route as BlogSuperAppsInIndiaRouteImport } from './routes/blog.super-apps-in-india'
-import { Route as BlogWhatIsASuperAppRouteImport } from './routes/blog.what-is-a-super-app'
-import { Route as MPostIdRouteImport } from './routes/m.$postId'
-import { Route as QTokenRouteImport } from './routes/q.$token'
-import { Route as RClipIdRouteImport } from './routes/r.$clipId'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as McpSigninRouteImport } from './routes/mcp-signin'
+import { Route as McpRouteImport } from './routes/mcp'
+import { Route as DmcaRouteImport } from './routes/dmca'
+import { Route as DeleteAccountRouteImport } from './routes/delete-account'
+import { Route as ChildSafetyRouteImport } from './routes/child-safety'
+import { Route as AuthNativeCallbackRouteImport } from './routes/auth-native-callback'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
+import { Route as IndexRouteImport } from './routes/index'
 import { Route as UUserIdRouteImport } from './routes/u.$userId'
-import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
-import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
+import { Route as RClipIdRouteImport } from './routes/r.$clipId'
+import { Route as QTokenRouteImport } from './routes/q.$token'
+import { Route as MPostIdRouteImport } from './routes/m.$postId'
+import { Route as BlogWhatIsASuperAppRouteImport } from './routes/blog.what-is-a-super-app'
+import { Route as BlogSuperAppsInIndiaRouteImport } from './routes/blog.super-apps-in-india'
+import { Route as AuthenticatedAppRouteImport } from './routes/_authenticated/app'
+import { Route as Char91DotwellKnownChar93OauthProtectedResourceRouteImport } from './routes/[.well-known]/oauth-protected-resource'
+import { Route as Char91DotmcpChar93ListToolsRouteImport } from './routes/[.mcp]/list-tools'
 import { Route as AuthenticatedAppIndexRouteImport } from './routes/_authenticated/app.index'
-import { Route as AuthenticatedAppAdminRouteImport } from './routes/_authenticated/app.admin'
-import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/app.ai'
-import { Route as AuthenticatedAppAttributionsRouteImport } from './routes/_authenticated/app.attributions'
-import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
-import { Route as AuthenticatedAppClipsRouteImport } from './routes/_authenticated/app.clips'
-import { Route as AuthenticatedAppDiagRouteImport } from './routes/_authenticated/app.diag'
-import { Route as AuthenticatedAppEarnRouteImport } from './routes/_authenticated/app.earn'
-import { Route as AuthenticatedAppFaithRouteImport } from './routes/_authenticated/app.faith'
-import { Route as AuthenticatedAppJobsRouteImport } from './routes/_authenticated/app.jobs'
-import { Route as AuthenticatedAppJobsAppsRouteImport } from './routes/_authenticated/app.jobs-apps'
-import { Route as AuthenticatedAppLearnRouteImport } from './routes/_authenticated/app.learn'
-import { Route as AuthenticatedAppLoresRouteImport } from './routes/_authenticated/app.lores'
-import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenticated/app.miniapps'
-import { Route as AuthenticatedAppNewsRouteImport } from './routes/_authenticated/app.news'
-import { Route as AuthenticatedAppOfficialRouteImport } from './routes/_authenticated/app.official'
-import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/app.profile'
-import { Route as AuthenticatedAppRidesRouteImport } from './routes/_authenticated/app.rides'
-import { Route as AuthenticatedAppSafetyPlanRouteImport } from './routes/_authenticated/app.safety-plan'
-import { Route as AuthenticatedAppScanRouteImport } from './routes/_authenticated/app.scan'
-import { Route as AuthenticatedAppStudyRouteImport } from './routes/_authenticated/app.study'
-import { Route as AuthenticatedAppTravelRouteImport } from './routes/_authenticated/app.travel'
-import { Route as AuthenticatedAppUniversityRouteImport } from './routes/_authenticated/app.university'
-import { Route as AuthenticatedAppUpiRouteImport } from './routes/_authenticated/app.upi'
-import { Route as AuthenticatedAppVitalsRouteImport } from './routes/_authenticated/app.vitals'
 import { Route as AuthenticatedAppWeatherRouteImport } from './routes/_authenticated/app.weather'
-import { Route as AuthenticatedAppAdminVideoRouteImport } from './routes/_authenticated/app.admin.video'
-import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
-import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
-import { Route as AuthenticatedAppChatCallsRouteImport } from './routes/_authenticated/app.chat.calls'
-import { Route as AuthenticatedAppChatMeRouteImport } from './routes/_authenticated/app.chat.me'
-import { Route as AuthenticatedAppChatMomentsRouteImport } from './routes/_authenticated/app.chat.moments'
-import { Route as AuthenticatedAppChatReelsRouteImport } from './routes/_authenticated/app.chat.reels'
-import { Route as AuthenticatedAppChatUpdatesRouteImport } from './routes/_authenticated/app.chat.updates'
+import { Route as AuthenticatedAppVitalsRouteImport } from './routes/_authenticated/app.vitals'
+import { Route as AuthenticatedAppUpiRouteImport } from './routes/_authenticated/app.upi'
+import { Route as AuthenticatedAppUniversityRouteImport } from './routes/_authenticated/app.university'
+import { Route as AuthenticatedAppTravelRouteImport } from './routes/_authenticated/app.travel'
+import { Route as AuthenticatedAppStudyRouteImport } from './routes/_authenticated/app.study'
+import { Route as AuthenticatedAppScanRouteImport } from './routes/_authenticated/app.scan'
+import { Route as AuthenticatedAppSafetyPlanRouteImport } from './routes/_authenticated/app.safety-plan'
+import { Route as AuthenticatedAppRidesRouteImport } from './routes/_authenticated/app.rides'
+import { Route as AuthenticatedAppProfileRouteImport } from './routes/_authenticated/app.profile'
+import { Route as AuthenticatedAppOfficialRouteImport } from './routes/_authenticated/app.official'
+import { Route as AuthenticatedAppNewsRouteImport } from './routes/_authenticated/app.news'
+import { Route as AuthenticatedAppMiniappsRouteImport } from './routes/_authenticated/app.miniapps'
+import { Route as AuthenticatedAppLoresRouteImport } from './routes/_authenticated/app.lores'
+import { Route as AuthenticatedAppLearnRouteImport } from './routes/_authenticated/app.learn'
+import { Route as AuthenticatedAppJobsAppsRouteImport } from './routes/_authenticated/app.jobs-apps'
+import { Route as AuthenticatedAppJobsRouteImport } from './routes/_authenticated/app.jobs'
+import { Route as AuthenticatedAppFaithRouteImport } from './routes/_authenticated/app.faith'
+import { Route as AuthenticatedAppEarnRouteImport } from './routes/_authenticated/app.earn'
+import { Route as AuthenticatedAppDiagRouteImport } from './routes/_authenticated/app.diag'
+import { Route as AuthenticatedAppClipsRouteImport } from './routes/_authenticated/app.clips'
+import { Route as AuthenticatedAppChatRouteImport } from './routes/_authenticated/app.chat'
+import { Route as AuthenticatedAppAttributionsRouteImport } from './routes/_authenticated/app.attributions'
+import { Route as AuthenticatedAppAiRouteImport } from './routes/_authenticated/app.ai'
+import { Route as AuthenticatedAppAdminRouteImport } from './routes/_authenticated/app.admin'
+import { Route as Char91DotmcpChar93InvokeToolToolRouteImport } from './routes/[.mcp]/invoke-tool/$tool'
+import { Route as DotlovableOauthConsentRouteImport } from './routes/[.]lovable.oauth.consent'
 import { Route as AuthenticatedAppFoodIndexRouteImport } from './routes/_authenticated/app.food.index'
-import { Route as AuthenticatedAppFoodIdRouteImport } from './routes/_authenticated/app.food.$id'
-import { Route as AuthenticatedAppPrivacyDataRightsRouteImport } from './routes/_authenticated/app.privacy.data-rights'
-import { Route as AuthenticatedAppPrivacyGrievanceRouteImport } from './routes/_authenticated/app.privacy.grievance'
-import { Route as AuthenticatedAppPrivacyNoticeRouteImport } from './routes/_authenticated/app.privacy.notice'
-import { Route as AuthenticatedAppPrivacyParentalConsentRouteImport } from './routes/_authenticated/app.privacy.parental-consent'
-import { Route as AuthenticatedAppUUserIdRouteImport } from './routes/_authenticated/app.u.$userId'
+import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
 import { Route as LovableEmailQueueProcessRouteImport } from './routes/lovable/email/queue/process'
+import { Route as AuthenticatedAppUUserIdRouteImport } from './routes/_authenticated/app.u.$userId'
+import { Route as AuthenticatedAppPrivacyParentalConsentRouteImport } from './routes/_authenticated/app.privacy.parental-consent'
+import { Route as AuthenticatedAppPrivacyNoticeRouteImport } from './routes/_authenticated/app.privacy.notice'
+import { Route as AuthenticatedAppPrivacyGrievanceRouteImport } from './routes/_authenticated/app.privacy.grievance'
+import { Route as AuthenticatedAppPrivacyDataRightsRouteImport } from './routes/_authenticated/app.privacy.data-rights'
+import { Route as AuthenticatedAppFoodIdRouteImport } from './routes/_authenticated/app.food.$id'
+import { Route as AuthenticatedAppChatUpdatesRouteImport } from './routes/_authenticated/app.chat.updates'
+import { Route as AuthenticatedAppChatReelsRouteImport } from './routes/_authenticated/app.chat.reels'
+import { Route as AuthenticatedAppChatMomentsRouteImport } from './routes/_authenticated/app.chat.moments'
+import { Route as AuthenticatedAppChatMeRouteImport } from './routes/_authenticated/app.chat.me'
+import { Route as AuthenticatedAppChatCallsRouteImport } from './routes/_authenticated/app.chat.calls'
+import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
+import { Route as AuthenticatedAppAdminVideoRouteImport } from './routes/_authenticated/app.admin.video'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
-  id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/auth',
-  path: '/auth',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthNativeCallbackRoute = AuthNativeCallbackRouteImport.update({
-  id: '/auth-native-callback',
-  path: '/auth-native-callback',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ChildSafetyRoute = ChildSafetyRouteImport.update({
-  id: '/child-safety',
-  path: '/child-safety',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DeleteAccountRoute = DeleteAccountRouteImport.update({
-  id: '/delete-account',
-  path: '/delete-account',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DmcaRoute = DmcaRouteImport.update({
-  id: '/dmca',
-  path: '/dmca',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const McpRoute = McpRouteImport.update({
-  id: '/mcp',
-  path: '/mcp',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const McpSigninRoute = McpSigninRouteImport.update({
-  id: '/mcp-signin',
-  path: '/mcp-signin',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PrivacyRoute = PrivacyRouteImport.update({
-  id: '/privacy',
-  path: '/privacy',
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -129,51 +85,53 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
   path: '/sitemap.xml',
   getParentRoute: () => rootRouteImport,
 } as any)
-const TermsRoute = TermsRouteImport.update({
-  id: '/terms',
-  path: '/terms',
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Char91DotmcpChar93ListToolsRoute =
-  Char91DotmcpChar93ListToolsRouteImport.update({
-    id: '/.mcp/list-tools',
-    path: '/.mcp/list-tools',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const Char91DotwellKnownChar93OauthProtectedResourceRoute =
-  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
-    id: '/.well-known/oauth-protected-resource',
-    path: '/.well-known/oauth-protected-resource',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
-  id: '/app',
-  path: '/app',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const BlogSuperAppsInIndiaRoute = BlogSuperAppsInIndiaRouteImport.update({
-  id: '/blog/super-apps-in-india',
-  path: '/blog/super-apps-in-india',
+const McpSigninRoute = McpSigninRouteImport.update({
+  id: '/mcp-signin',
+  path: '/mcp-signin',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BlogWhatIsASuperAppRoute = BlogWhatIsASuperAppRouteImport.update({
-  id: '/blog/what-is-a-super-app',
-  path: '/blog/what-is-a-super-app',
+const McpRoute = McpRouteImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MPostIdRoute = MPostIdRouteImport.update({
-  id: '/m/$postId',
-  path: '/m/$postId',
+const DmcaRoute = DmcaRouteImport.update({
+  id: '/dmca',
+  path: '/dmca',
   getParentRoute: () => rootRouteImport,
 } as any)
-const QTokenRoute = QTokenRouteImport.update({
-  id: '/q/$token',
-  path: '/q/$token',
+const DeleteAccountRoute = DeleteAccountRouteImport.update({
+  id: '/delete-account',
+  path: '/delete-account',
   getParentRoute: () => rootRouteImport,
 } as any)
-const RClipIdRoute = RClipIdRouteImport.update({
-  id: '/r/$clipId',
-  path: '/r/$clipId',
+const ChildSafetyRoute = ChildSafetyRouteImport.update({
+  id: '/child-safety',
+  path: '/child-safety',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthNativeCallbackRoute = AuthNativeCallbackRouteImport.update({
+  id: '/auth-native-callback',
+  path: '/auth-native-callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
+  id: '/_authenticated',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UUserIdRoute = UUserIdRouteImport.update({
@@ -181,15 +139,46 @@ const UUserIdRoute = UUserIdRouteImport.update({
   path: '/u/$userId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
-  id: '/.lovable/oauth/consent',
-  path: '/.lovable/oauth/consent',
+const RClipIdRoute = RClipIdRouteImport.update({
+  id: '/r/$clipId',
+  path: '/r/$clipId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const Char91DotmcpChar93InvokeToolToolRoute =
-  Char91DotmcpChar93InvokeToolToolRouteImport.update({
-    id: '/.mcp/invoke-tool/$tool',
-    path: '/.mcp/invoke-tool/$tool',
+const QTokenRoute = QTokenRouteImport.update({
+  id: '/q/$token',
+  path: '/q/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MPostIdRoute = MPostIdRouteImport.update({
+  id: '/m/$postId',
+  path: '/m/$postId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogWhatIsASuperAppRoute = BlogWhatIsASuperAppRouteImport.update({
+  id: '/blog/what-is-a-super-app',
+  path: '/blog/what-is-a-super-app',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BlogSuperAppsInIndiaRoute = BlogSuperAppsInIndiaRouteImport.update({
+  id: '/blog/super-apps-in-india',
+  path: '/blog/super-apps-in-india',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAppRoute = AuthenticatedAppRouteImport.update({
+  id: '/app',
+  path: '/app',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const Char91DotwellKnownChar93OauthProtectedResourceRoute =
+  Char91DotwellKnownChar93OauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const Char91DotmcpChar93ListToolsRoute =
+  Char91DotmcpChar93ListToolsRouteImport.update({
+    id: '/.mcp/list-tools',
+    path: '/.mcp/list-tools',
     getParentRoute: () => rootRouteImport,
   } as any)
 const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
@@ -197,114 +186,19 @@ const AuthenticatedAppIndexRoute = AuthenticatedAppIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppAdminRoute = AuthenticatedAppAdminRouteImport.update({
-  id: '/admin',
-  path: '/admin',
+const AuthenticatedAppWeatherRoute = AuthenticatedAppWeatherRouteImport.update({
+  id: '/weather',
+  path: '/weather',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppAiRoute = AuthenticatedAppAiRouteImport.update({
-  id: '/ai',
-  path: '/ai',
+const AuthenticatedAppVitalsRoute = AuthenticatedAppVitalsRouteImport.update({
+  id: '/vitals',
+  path: '/vitals',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppAttributionsRoute =
-  AuthenticatedAppAttributionsRouteImport.update({
-    id: '/attributions',
-    path: '/attributions',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppChatRoute = AuthenticatedAppChatRouteImport.update({
-  id: '/chat',
-  path: '/chat',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppClipsRoute = AuthenticatedAppClipsRouteImport.update({
-  id: '/clips',
-  path: '/clips',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppDiagRoute = AuthenticatedAppDiagRouteImport.update({
-  id: '/diag',
-  path: '/diag',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppEarnRoute = AuthenticatedAppEarnRouteImport.update({
-  id: '/earn',
-  path: '/earn',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppFaithRoute = AuthenticatedAppFaithRouteImport.update({
-  id: '/faith',
-  path: '/faith',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppJobsRoute = AuthenticatedAppJobsRouteImport.update({
-  id: '/jobs',
-  path: '/jobs',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppJobsAppsRoute =
-  AuthenticatedAppJobsAppsRouteImport.update({
-    id: '/jobs-apps',
-    path: '/jobs-apps',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppLearnRoute = AuthenticatedAppLearnRouteImport.update({
-  id: '/learn',
-  path: '/learn',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppLoresRoute = AuthenticatedAppLoresRouteImport.update({
-  id: '/lores',
-  path: '/lores',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppMiniappsRoute =
-  AuthenticatedAppMiniappsRouteImport.update({
-    id: '/miniapps',
-    path: '/miniapps',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppNewsRoute = AuthenticatedAppNewsRouteImport.update({
-  id: '/news',
-  path: '/news',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppOfficialRoute =
-  AuthenticatedAppOfficialRouteImport.update({
-    id: '/official',
-    path: '/official',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppProfileRoute = AuthenticatedAppProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppRidesRoute = AuthenticatedAppRidesRouteImport.update({
-  id: '/rides',
-  path: '/rides',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppSafetyPlanRoute =
-  AuthenticatedAppSafetyPlanRouteImport.update({
-    id: '/safety-plan',
-    path: '/safety-plan',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppScanRoute = AuthenticatedAppScanRouteImport.update({
-  id: '/scan',
-  path: '/scan',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppStudyRoute = AuthenticatedAppStudyRouteImport.update({
-  id: '/study',
-  path: '/study',
-  getParentRoute: () => AuthenticatedAppRoute,
-} as any)
-const AuthenticatedAppTravelRoute = AuthenticatedAppTravelRouteImport.update({
-  id: '/travel',
-  path: '/travel',
+const AuthenticatedAppUpiRoute = AuthenticatedAppUpiRouteImport.update({
+  id: '/upi',
+  path: '/upi',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
 const AuthenticatedAppUniversityRoute =
@@ -313,26 +207,132 @@ const AuthenticatedAppUniversityRoute =
     path: '/university',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppUpiRoute = AuthenticatedAppUpiRouteImport.update({
-  id: '/upi',
-  path: '/upi',
+const AuthenticatedAppTravelRoute = AuthenticatedAppTravelRouteImport.update({
+  id: '/travel',
+  path: '/travel',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppVitalsRoute = AuthenticatedAppVitalsRouteImport.update({
-  id: '/vitals',
-  path: '/vitals',
+const AuthenticatedAppStudyRoute = AuthenticatedAppStudyRouteImport.update({
+  id: '/study',
+  path: '/study',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppWeatherRoute = AuthenticatedAppWeatherRouteImport.update({
-  id: '/weather',
-  path: '/weather',
+const AuthenticatedAppScanRoute = AuthenticatedAppScanRouteImport.update({
+  id: '/scan',
+  path: '/scan',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppAdminVideoRoute =
-  AuthenticatedAppAdminVideoRouteImport.update({
-    id: '/video',
-    path: '/video',
-    getParentRoute: () => AuthenticatedAppAdminRoute,
+const AuthenticatedAppSafetyPlanRoute =
+  AuthenticatedAppSafetyPlanRouteImport.update({
+    id: '/safety-plan',
+    path: '/safety-plan',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppRidesRoute = AuthenticatedAppRidesRouteImport.update({
+  id: '/rides',
+  path: '/rides',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppProfileRoute = AuthenticatedAppProfileRouteImport.update({
+  id: '/profile',
+  path: '/profile',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppOfficialRoute =
+  AuthenticatedAppOfficialRouteImport.update({
+    id: '/official',
+    path: '/official',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppNewsRoute = AuthenticatedAppNewsRouteImport.update({
+  id: '/news',
+  path: '/news',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppMiniappsRoute =
+  AuthenticatedAppMiniappsRouteImport.update({
+    id: '/miniapps',
+    path: '/miniapps',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppLoresRoute = AuthenticatedAppLoresRouteImport.update({
+  id: '/lores',
+  path: '/lores',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppLearnRoute = AuthenticatedAppLearnRouteImport.update({
+  id: '/learn',
+  path: '/learn',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppJobsAppsRoute =
+  AuthenticatedAppJobsAppsRouteImport.update({
+    id: '/jobs-apps',
+    path: '/jobs-apps',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppJobsRoute = AuthenticatedAppJobsRouteImport.update({
+  id: '/jobs',
+  path: '/jobs',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppFaithRoute = AuthenticatedAppFaithRouteImport.update({
+  id: '/faith',
+  path: '/faith',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppEarnRoute = AuthenticatedAppEarnRouteImport.update({
+  id: '/earn',
+  path: '/earn',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppDiagRoute = AuthenticatedAppDiagRouteImport.update({
+  id: '/diag',
+  path: '/diag',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppClipsRoute = AuthenticatedAppClipsRouteImport.update({
+  id: '/clips',
+  path: '/clips',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppChatRoute = AuthenticatedAppChatRouteImport.update({
+  id: '/chat',
+  path: '/chat',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppAttributionsRoute =
+  AuthenticatedAppAttributionsRouteImport.update({
+    id: '/attributions',
+    path: '/attributions',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppAiRoute = AuthenticatedAppAiRouteImport.update({
+  id: '/ai',
+  path: '/ai',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const AuthenticatedAppAdminRoute = AuthenticatedAppAdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => AuthenticatedAppRoute,
+} as any)
+const Char91DotmcpChar93InvokeToolToolRoute =
+  Char91DotmcpChar93InvokeToolToolRouteImport.update({
+    id: '/.mcp/invoke-tool/$tool',
+    path: '/.mcp/invoke-tool/$tool',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const DotlovableOauthConsentRoute = DotlovableOauthConsentRouteImport.update({
+  id: '/.lovable/oauth/consent',
+  path: '/.lovable/oauth/consent',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedAppFoodIndexRoute =
+  AuthenticatedAppFoodIndexRouteImport.update({
+    id: '/food/',
+    path: '/food/',
+    getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppChatIndexRoute =
   AuthenticatedAppChatIndexRouteImport.update({
@@ -340,62 +340,21 @@ const AuthenticatedAppChatIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedAppChatRoute,
   } as any)
-const AuthenticatedAppChatConversationIdRoute =
-  AuthenticatedAppChatConversationIdRouteImport.update({
-    id: '/$conversationId',
-    path: '/$conversationId',
-    getParentRoute: () => AuthenticatedAppChatRoute,
+const LovableEmailQueueProcessRoute =
+  LovableEmailQueueProcessRouteImport.update({
+    id: '/lovable/email/queue/process',
+    path: '/lovable/email/queue/process',
+    getParentRoute: () => rootRouteImport,
   } as any)
-const AuthenticatedAppChatCallsRoute =
-  AuthenticatedAppChatCallsRouteImport.update({
-    id: '/calls',
-    path: '/calls',
-    getParentRoute: () => AuthenticatedAppChatRoute,
-  } as any)
-const AuthenticatedAppChatMeRoute = AuthenticatedAppChatMeRouteImport.update({
-  id: '/me',
-  path: '/me',
-  getParentRoute: () => AuthenticatedAppChatRoute,
-} as any)
-const AuthenticatedAppChatMomentsRoute =
-  AuthenticatedAppChatMomentsRouteImport.update({
-    id: '/moments',
-    path: '/moments',
-    getParentRoute: () => AuthenticatedAppChatRoute,
-  } as any)
-const AuthenticatedAppChatReelsRoute =
-  AuthenticatedAppChatReelsRouteImport.update({
-    id: '/reels',
-    path: '/reels',
-    getParentRoute: () => AuthenticatedAppChatRoute,
-  } as any)
-const AuthenticatedAppChatUpdatesRoute =
-  AuthenticatedAppChatUpdatesRouteImport.update({
-    id: '/updates',
-    path: '/updates',
-    getParentRoute: () => AuthenticatedAppChatRoute,
-  } as any)
-const AuthenticatedAppFoodIndexRoute =
-  AuthenticatedAppFoodIndexRouteImport.update({
-    id: '/food/',
-    path: '/food/',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppFoodIdRoute = AuthenticatedAppFoodIdRouteImport.update({
-  id: '/food/$id',
-  path: '/food/$id',
+const AuthenticatedAppUUserIdRoute = AuthenticatedAppUUserIdRouteImport.update({
+  id: '/u/$userId',
+  path: '/u/$userId',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const AuthenticatedAppPrivacyDataRightsRoute =
-  AuthenticatedAppPrivacyDataRightsRouteImport.update({
-    id: '/privacy/data-rights',
-    path: '/privacy/data-rights',
-    getParentRoute: () => AuthenticatedAppRoute,
-  } as any)
-const AuthenticatedAppPrivacyGrievanceRoute =
-  AuthenticatedAppPrivacyGrievanceRouteImport.update({
-    id: '/privacy/grievance',
-    path: '/privacy/grievance',
+const AuthenticatedAppPrivacyParentalConsentRoute =
+  AuthenticatedAppPrivacyParentalConsentRouteImport.update({
+    id: '/privacy/parental-consent',
+    path: '/privacy/parental-consent',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
 const AuthenticatedAppPrivacyNoticeRoute =
@@ -404,22 +363,63 @@ const AuthenticatedAppPrivacyNoticeRoute =
     path: '/privacy/notice',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppPrivacyParentalConsentRoute =
-  AuthenticatedAppPrivacyParentalConsentRouteImport.update({
-    id: '/privacy/parental-consent',
-    path: '/privacy/parental-consent',
+const AuthenticatedAppPrivacyGrievanceRoute =
+  AuthenticatedAppPrivacyGrievanceRouteImport.update({
+    id: '/privacy/grievance',
+    path: '/privacy/grievance',
     getParentRoute: () => AuthenticatedAppRoute,
   } as any)
-const AuthenticatedAppUUserIdRoute = AuthenticatedAppUUserIdRouteImport.update({
-  id: '/u/$userId',
-  path: '/u/$userId',
+const AuthenticatedAppPrivacyDataRightsRoute =
+  AuthenticatedAppPrivacyDataRightsRouteImport.update({
+    id: '/privacy/data-rights',
+    path: '/privacy/data-rights',
+    getParentRoute: () => AuthenticatedAppRoute,
+  } as any)
+const AuthenticatedAppFoodIdRoute = AuthenticatedAppFoodIdRouteImport.update({
+  id: '/food/$id',
+  path: '/food/$id',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
-const LovableEmailQueueProcessRoute =
-  LovableEmailQueueProcessRouteImport.update({
-    id: '/lovable/email/queue/process',
-    path: '/lovable/email/queue/process',
-    getParentRoute: () => rootRouteImport,
+const AuthenticatedAppChatUpdatesRoute =
+  AuthenticatedAppChatUpdatesRouteImport.update({
+    id: '/updates',
+    path: '/updates',
+    getParentRoute: () => AuthenticatedAppChatRoute,
+  } as any)
+const AuthenticatedAppChatReelsRoute =
+  AuthenticatedAppChatReelsRouteImport.update({
+    id: '/reels',
+    path: '/reels',
+    getParentRoute: () => AuthenticatedAppChatRoute,
+  } as any)
+const AuthenticatedAppChatMomentsRoute =
+  AuthenticatedAppChatMomentsRouteImport.update({
+    id: '/moments',
+    path: '/moments',
+    getParentRoute: () => AuthenticatedAppChatRoute,
+  } as any)
+const AuthenticatedAppChatMeRoute = AuthenticatedAppChatMeRouteImport.update({
+  id: '/me',
+  path: '/me',
+  getParentRoute: () => AuthenticatedAppChatRoute,
+} as any)
+const AuthenticatedAppChatCallsRoute =
+  AuthenticatedAppChatCallsRouteImport.update({
+    id: '/calls',
+    path: '/calls',
+    getParentRoute: () => AuthenticatedAppChatRoute,
+  } as any)
+const AuthenticatedAppChatConversationIdRoute =
+  AuthenticatedAppChatConversationIdRouteImport.update({
+    id: '/$conversationId',
+    path: '/$conversationId',
+    getParentRoute: () => AuthenticatedAppChatRoute,
+  } as any)
+const AuthenticatedAppAdminVideoRoute =
+  AuthenticatedAppAdminVideoRouteImport.update({
+    id: '/video',
+    path: '/video',
+    getParentRoute: () => AuthenticatedAppAdminRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -848,74 +848,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth': {
-      id: '/auth'
-      path: '/auth'
-      fullPath: '/auth'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auth-native-callback': {
-      id: '/auth-native-callback'
-      path: '/auth-native-callback'
-      fullPath: '/auth-native-callback'
-      preLoaderRoute: typeof AuthNativeCallbackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/child-safety': {
-      id: '/child-safety'
-      path: '/child-safety'
-      fullPath: '/child-safety'
-      preLoaderRoute: typeof ChildSafetyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/delete-account': {
-      id: '/delete-account'
-      path: '/delete-account'
-      fullPath: '/delete-account'
-      preLoaderRoute: typeof DeleteAccountRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dmca': {
-      id: '/dmca'
-      path: '/dmca'
-      fullPath: '/dmca'
-      preLoaderRoute: typeof DmcaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mcp': {
-      id: '/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof McpRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mcp-signin': {
-      id: '/mcp-signin'
-      path: '/mcp-signin'
-      fullPath: '/mcp-signin'
-      preLoaderRoute: typeof McpSigninRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/privacy': {
-      id: '/privacy'
-      path: '/privacy'
-      fullPath: '/privacy'
-      preLoaderRoute: typeof PrivacyRouteImport
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap.xml': {
@@ -925,67 +862,74 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SitemapDotxmlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/terms': {
-      id: '/terms'
-      path: '/terms'
-      fullPath: '/terms'
-      preLoaderRoute: typeof TermsRouteImport
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.mcp/list-tools': {
-      id: '/.mcp/list-tools'
-      path: '/.mcp/list-tools'
-      fullPath: '/.mcp/list-tools'
-      preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
+    '/mcp-signin': {
+      id: '/mcp-signin'
+      path: '/mcp-signin'
+      fullPath: '/mcp-signin'
+      preLoaderRoute: typeof McpSigninRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.well-known/oauth-protected-resource': {
-      id: '/.well-known/oauth-protected-resource'
-      path: '/.well-known/oauth-protected-resource'
-      fullPath: '/.well-known/oauth-protected-resource'
-      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/app': {
-      id: '/_authenticated/app'
-      path: '/app'
-      fullPath: '/app'
-      preLoaderRoute: typeof AuthenticatedAppRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/blog/super-apps-in-india': {
-      id: '/blog/super-apps-in-india'
-      path: '/blog/super-apps-in-india'
-      fullPath: '/blog/super-apps-in-india'
-      preLoaderRoute: typeof BlogSuperAppsInIndiaRouteImport
+    '/dmca': {
+      id: '/dmca'
+      path: '/dmca'
+      fullPath: '/dmca'
+      preLoaderRoute: typeof DmcaRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/blog/what-is-a-super-app': {
-      id: '/blog/what-is-a-super-app'
-      path: '/blog/what-is-a-super-app'
-      fullPath: '/blog/what-is-a-super-app'
-      preLoaderRoute: typeof BlogWhatIsASuperAppRouteImport
+    '/delete-account': {
+      id: '/delete-account'
+      path: '/delete-account'
+      fullPath: '/delete-account'
+      preLoaderRoute: typeof DeleteAccountRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/m/$postId': {
-      id: '/m/$postId'
-      path: '/m/$postId'
-      fullPath: '/m/$postId'
-      preLoaderRoute: typeof MPostIdRouteImport
+    '/child-safety': {
+      id: '/child-safety'
+      path: '/child-safety'
+      fullPath: '/child-safety'
+      preLoaderRoute: typeof ChildSafetyRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/q/$token': {
-      id: '/q/$token'
-      path: '/q/$token'
-      fullPath: '/q/$token'
-      preLoaderRoute: typeof QTokenRouteImport
+    '/auth-native-callback': {
+      id: '/auth-native-callback'
+      path: '/auth-native-callback'
+      fullPath: '/auth-native-callback'
+      preLoaderRoute: typeof AuthNativeCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/r/$clipId': {
-      id: '/r/$clipId'
-      path: '/r/$clipId'
-      fullPath: '/r/$clipId'
-      preLoaderRoute: typeof RClipIdRouteImport
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated': {
+      id: '/_authenticated'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedRouteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/u/$userId': {
@@ -995,18 +939,60 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof UUserIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.lovable/oauth/consent': {
-      id: '/.lovable/oauth/consent'
-      path: '/.lovable/oauth/consent'
-      fullPath: '/.lovable/oauth/consent'
-      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+    '/r/$clipId': {
+      id: '/r/$clipId'
+      path: '/r/$clipId'
+      fullPath: '/r/$clipId'
+      preLoaderRoute: typeof RClipIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/.mcp/invoke-tool/$tool': {
-      id: '/.mcp/invoke-tool/$tool'
-      path: '/.mcp/invoke-tool/$tool'
-      fullPath: '/.mcp/invoke-tool/$tool'
-      preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
+    '/q/$token': {
+      id: '/q/$token'
+      path: '/q/$token'
+      fullPath: '/q/$token'
+      preLoaderRoute: typeof QTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/m/$postId': {
+      id: '/m/$postId'
+      path: '/m/$postId'
+      fullPath: '/m/$postId'
+      preLoaderRoute: typeof MPostIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/what-is-a-super-app': {
+      id: '/blog/what-is-a-super-app'
+      path: '/blog/what-is-a-super-app'
+      fullPath: '/blog/what-is-a-super-app'
+      preLoaderRoute: typeof BlogWhatIsASuperAppRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/blog/super-apps-in-india': {
+      id: '/blog/super-apps-in-india'
+      path: '/blog/super-apps-in-india'
+      fullPath: '/blog/super-apps-in-india'
+      preLoaderRoute: typeof BlogSuperAppsInIndiaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/app': {
+      id: '/_authenticated/app'
+      path: '/app'
+      fullPath: '/app'
+      preLoaderRoute: typeof AuthenticatedAppRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof Char91DotwellKnownChar93OauthProtectedResourceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.mcp/list-tools': {
+      id: '/.mcp/list-tools'
+      path: '/.mcp/list-tools'
+      fullPath: '/.mcp/list-tools'
+      preLoaderRoute: typeof Char91DotmcpChar93ListToolsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app/': {
@@ -1016,165 +1002,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppIndexRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/admin': {
-      id: '/_authenticated/app/admin'
-      path: '/admin'
-      fullPath: '/app/admin'
-      preLoaderRoute: typeof AuthenticatedAppAdminRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/ai': {
-      id: '/_authenticated/app/ai'
-      path: '/ai'
-      fullPath: '/app/ai'
-      preLoaderRoute: typeof AuthenticatedAppAiRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/attributions': {
-      id: '/_authenticated/app/attributions'
-      path: '/attributions'
-      fullPath: '/app/attributions'
-      preLoaderRoute: typeof AuthenticatedAppAttributionsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/chat': {
-      id: '/_authenticated/app/chat'
-      path: '/chat'
-      fullPath: '/app/chat'
-      preLoaderRoute: typeof AuthenticatedAppChatRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/clips': {
-      id: '/_authenticated/app/clips'
-      path: '/clips'
-      fullPath: '/app/clips'
-      preLoaderRoute: typeof AuthenticatedAppClipsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/diag': {
-      id: '/_authenticated/app/diag'
-      path: '/diag'
-      fullPath: '/app/diag'
-      preLoaderRoute: typeof AuthenticatedAppDiagRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/earn': {
-      id: '/_authenticated/app/earn'
-      path: '/earn'
-      fullPath: '/app/earn'
-      preLoaderRoute: typeof AuthenticatedAppEarnRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/faith': {
-      id: '/_authenticated/app/faith'
-      path: '/faith'
-      fullPath: '/app/faith'
-      preLoaderRoute: typeof AuthenticatedAppFaithRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/jobs': {
-      id: '/_authenticated/app/jobs'
-      path: '/jobs'
-      fullPath: '/app/jobs'
-      preLoaderRoute: typeof AuthenticatedAppJobsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/jobs-apps': {
-      id: '/_authenticated/app/jobs-apps'
-      path: '/jobs-apps'
-      fullPath: '/app/jobs-apps'
-      preLoaderRoute: typeof AuthenticatedAppJobsAppsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/learn': {
-      id: '/_authenticated/app/learn'
-      path: '/learn'
-      fullPath: '/app/learn'
-      preLoaderRoute: typeof AuthenticatedAppLearnRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/lores': {
-      id: '/_authenticated/app/lores'
-      path: '/lores'
-      fullPath: '/app/lores'
-      preLoaderRoute: typeof AuthenticatedAppLoresRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/miniapps': {
-      id: '/_authenticated/app/miniapps'
-      path: '/miniapps'
-      fullPath: '/app/miniapps'
-      preLoaderRoute: typeof AuthenticatedAppMiniappsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/news': {
-      id: '/_authenticated/app/news'
-      path: '/news'
-      fullPath: '/app/news'
-      preLoaderRoute: typeof AuthenticatedAppNewsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/official': {
-      id: '/_authenticated/app/official'
-      path: '/official'
-      fullPath: '/app/official'
-      preLoaderRoute: typeof AuthenticatedAppOfficialRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/profile': {
-      id: '/_authenticated/app/profile'
-      path: '/profile'
-      fullPath: '/app/profile'
-      preLoaderRoute: typeof AuthenticatedAppProfileRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/rides': {
-      id: '/_authenticated/app/rides'
-      path: '/rides'
-      fullPath: '/app/rides'
-      preLoaderRoute: typeof AuthenticatedAppRidesRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/safety-plan': {
-      id: '/_authenticated/app/safety-plan'
-      path: '/safety-plan'
-      fullPath: '/app/safety-plan'
-      preLoaderRoute: typeof AuthenticatedAppSafetyPlanRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/scan': {
-      id: '/_authenticated/app/scan'
-      path: '/scan'
-      fullPath: '/app/scan'
-      preLoaderRoute: typeof AuthenticatedAppScanRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/study': {
-      id: '/_authenticated/app/study'
-      path: '/study'
-      fullPath: '/app/study'
-      preLoaderRoute: typeof AuthenticatedAppStudyRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/travel': {
-      id: '/_authenticated/app/travel'
-      path: '/travel'
-      fullPath: '/app/travel'
-      preLoaderRoute: typeof AuthenticatedAppTravelRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/university': {
-      id: '/_authenticated/app/university'
-      path: '/university'
-      fullPath: '/app/university'
-      preLoaderRoute: typeof AuthenticatedAppUniversityRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/upi': {
-      id: '/_authenticated/app/upi'
-      path: '/upi'
-      fullPath: '/app/upi'
-      preLoaderRoute: typeof AuthenticatedAppUpiRouteImport
+    '/_authenticated/app/weather': {
+      id: '/_authenticated/app/weather'
+      path: '/weather'
+      fullPath: '/app/weather'
+      preLoaderRoute: typeof AuthenticatedAppWeatherRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/vitals': {
@@ -1184,68 +1016,180 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppVitalsRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/weather': {
-      id: '/_authenticated/app/weather'
-      path: '/weather'
-      fullPath: '/app/weather'
-      preLoaderRoute: typeof AuthenticatedAppWeatherRouteImport
+    '/_authenticated/app/upi': {
+      id: '/_authenticated/app/upi'
+      path: '/upi'
+      fullPath: '/app/upi'
+      preLoaderRoute: typeof AuthenticatedAppUpiRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/admin/video': {
-      id: '/_authenticated/app/admin/video'
-      path: '/video'
-      fullPath: '/app/admin/video'
-      preLoaderRoute: typeof AuthenticatedAppAdminVideoRouteImport
-      parentRoute: typeof AuthenticatedAppAdminRoute
+    '/_authenticated/app/university': {
+      id: '/_authenticated/app/university'
+      path: '/university'
+      fullPath: '/app/university'
+      preLoaderRoute: typeof AuthenticatedAppUniversityRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/chat/': {
-      id: '/_authenticated/app/chat/'
-      path: '/'
-      fullPath: '/app/chat/'
-      preLoaderRoute: typeof AuthenticatedAppChatIndexRouteImport
-      parentRoute: typeof AuthenticatedAppChatRoute
+    '/_authenticated/app/travel': {
+      id: '/_authenticated/app/travel'
+      path: '/travel'
+      fullPath: '/app/travel'
+      preLoaderRoute: typeof AuthenticatedAppTravelRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/chat/$conversationId': {
-      id: '/_authenticated/app/chat/$conversationId'
-      path: '/$conversationId'
-      fullPath: '/app/chat/$conversationId'
-      preLoaderRoute: typeof AuthenticatedAppChatConversationIdRouteImport
-      parentRoute: typeof AuthenticatedAppChatRoute
+    '/_authenticated/app/study': {
+      id: '/_authenticated/app/study'
+      path: '/study'
+      fullPath: '/app/study'
+      preLoaderRoute: typeof AuthenticatedAppStudyRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/chat/calls': {
-      id: '/_authenticated/app/chat/calls'
-      path: '/calls'
-      fullPath: '/app/chat/calls'
-      preLoaderRoute: typeof AuthenticatedAppChatCallsRouteImport
-      parentRoute: typeof AuthenticatedAppChatRoute
+    '/_authenticated/app/scan': {
+      id: '/_authenticated/app/scan'
+      path: '/scan'
+      fullPath: '/app/scan'
+      preLoaderRoute: typeof AuthenticatedAppScanRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/chat/me': {
-      id: '/_authenticated/app/chat/me'
-      path: '/me'
-      fullPath: '/app/chat/me'
-      preLoaderRoute: typeof AuthenticatedAppChatMeRouteImport
-      parentRoute: typeof AuthenticatedAppChatRoute
+    '/_authenticated/app/safety-plan': {
+      id: '/_authenticated/app/safety-plan'
+      path: '/safety-plan'
+      fullPath: '/app/safety-plan'
+      preLoaderRoute: typeof AuthenticatedAppSafetyPlanRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/chat/moments': {
-      id: '/_authenticated/app/chat/moments'
-      path: '/moments'
-      fullPath: '/app/chat/moments'
-      preLoaderRoute: typeof AuthenticatedAppChatMomentsRouteImport
-      parentRoute: typeof AuthenticatedAppChatRoute
+    '/_authenticated/app/rides': {
+      id: '/_authenticated/app/rides'
+      path: '/rides'
+      fullPath: '/app/rides'
+      preLoaderRoute: typeof AuthenticatedAppRidesRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/chat/reels': {
-      id: '/_authenticated/app/chat/reels'
-      path: '/reels'
-      fullPath: '/app/chat/reels'
-      preLoaderRoute: typeof AuthenticatedAppChatReelsRouteImport
-      parentRoute: typeof AuthenticatedAppChatRoute
+    '/_authenticated/app/profile': {
+      id: '/_authenticated/app/profile'
+      path: '/profile'
+      fullPath: '/app/profile'
+      preLoaderRoute: typeof AuthenticatedAppProfileRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/chat/updates': {
-      id: '/_authenticated/app/chat/updates'
-      path: '/updates'
-      fullPath: '/app/chat/updates'
-      preLoaderRoute: typeof AuthenticatedAppChatUpdatesRouteImport
-      parentRoute: typeof AuthenticatedAppChatRoute
+    '/_authenticated/app/official': {
+      id: '/_authenticated/app/official'
+      path: '/official'
+      fullPath: '/app/official'
+      preLoaderRoute: typeof AuthenticatedAppOfficialRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/news': {
+      id: '/_authenticated/app/news'
+      path: '/news'
+      fullPath: '/app/news'
+      preLoaderRoute: typeof AuthenticatedAppNewsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/miniapps': {
+      id: '/_authenticated/app/miniapps'
+      path: '/miniapps'
+      fullPath: '/app/miniapps'
+      preLoaderRoute: typeof AuthenticatedAppMiniappsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/lores': {
+      id: '/_authenticated/app/lores'
+      path: '/lores'
+      fullPath: '/app/lores'
+      preLoaderRoute: typeof AuthenticatedAppLoresRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/learn': {
+      id: '/_authenticated/app/learn'
+      path: '/learn'
+      fullPath: '/app/learn'
+      preLoaderRoute: typeof AuthenticatedAppLearnRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/jobs-apps': {
+      id: '/_authenticated/app/jobs-apps'
+      path: '/jobs-apps'
+      fullPath: '/app/jobs-apps'
+      preLoaderRoute: typeof AuthenticatedAppJobsAppsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/jobs': {
+      id: '/_authenticated/app/jobs'
+      path: '/jobs'
+      fullPath: '/app/jobs'
+      preLoaderRoute: typeof AuthenticatedAppJobsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/faith': {
+      id: '/_authenticated/app/faith'
+      path: '/faith'
+      fullPath: '/app/faith'
+      preLoaderRoute: typeof AuthenticatedAppFaithRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/earn': {
+      id: '/_authenticated/app/earn'
+      path: '/earn'
+      fullPath: '/app/earn'
+      preLoaderRoute: typeof AuthenticatedAppEarnRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/diag': {
+      id: '/_authenticated/app/diag'
+      path: '/diag'
+      fullPath: '/app/diag'
+      preLoaderRoute: typeof AuthenticatedAppDiagRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/clips': {
+      id: '/_authenticated/app/clips'
+      path: '/clips'
+      fullPath: '/app/clips'
+      preLoaderRoute: typeof AuthenticatedAppClipsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/chat': {
+      id: '/_authenticated/app/chat'
+      path: '/chat'
+      fullPath: '/app/chat'
+      preLoaderRoute: typeof AuthenticatedAppChatRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/attributions': {
+      id: '/_authenticated/app/attributions'
+      path: '/attributions'
+      fullPath: '/app/attributions'
+      preLoaderRoute: typeof AuthenticatedAppAttributionsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/ai': {
+      id: '/_authenticated/app/ai'
+      path: '/ai'
+      fullPath: '/app/ai'
+      preLoaderRoute: typeof AuthenticatedAppAiRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/admin': {
+      id: '/_authenticated/app/admin'
+      path: '/admin'
+      fullPath: '/app/admin'
+      preLoaderRoute: typeof AuthenticatedAppAdminRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/.mcp/invoke-tool/$tool': {
+      id: '/.mcp/invoke-tool/$tool'
+      path: '/.mcp/invoke-tool/$tool'
+      fullPath: '/.mcp/invoke-tool/$tool'
+      preLoaderRoute: typeof Char91DotmcpChar93InvokeToolToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/.lovable/oauth/consent': {
+      id: '/.lovable/oauth/consent'
+      path: '/.lovable/oauth/consent'
+      fullPath: '/.lovable/oauth/consent'
+      preLoaderRoute: typeof DotlovableOauthConsentRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/app/food/': {
       id: '/_authenticated/app/food/'
@@ -1254,32 +1198,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppFoodIndexRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/food/$id': {
-      id: '/_authenticated/app/food/$id'
-      path: '/food/$id'
-      fullPath: '/app/food/$id'
-      preLoaderRoute: typeof AuthenticatedAppFoodIdRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
+    '/_authenticated/app/chat/': {
+      id: '/_authenticated/app/chat/'
+      path: '/'
+      fullPath: '/app/chat/'
+      preLoaderRoute: typeof AuthenticatedAppChatIndexRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
     }
-    '/_authenticated/app/privacy/data-rights': {
-      id: '/_authenticated/app/privacy/data-rights'
-      path: '/privacy/data-rights'
-      fullPath: '/app/privacy/data-rights'
-      preLoaderRoute: typeof AuthenticatedAppPrivacyDataRightsRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
+    '/lovable/email/queue/process': {
+      id: '/lovable/email/queue/process'
+      path: '/lovable/email/queue/process'
+      fullPath: '/lovable/email/queue/process'
+      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/app/privacy/grievance': {
-      id: '/_authenticated/app/privacy/grievance'
-      path: '/privacy/grievance'
-      fullPath: '/app/privacy/grievance'
-      preLoaderRoute: typeof AuthenticatedAppPrivacyGrievanceRouteImport
-      parentRoute: typeof AuthenticatedAppRoute
-    }
-    '/_authenticated/app/privacy/notice': {
-      id: '/_authenticated/app/privacy/notice'
-      path: '/privacy/notice'
-      fullPath: '/app/privacy/notice'
-      preLoaderRoute: typeof AuthenticatedAppPrivacyNoticeRouteImport
+    '/_authenticated/app/u/$userId': {
+      id: '/_authenticated/app/u/$userId'
+      path: '/u/$userId'
+      fullPath: '/app/u/$userId'
+      preLoaderRoute: typeof AuthenticatedAppUUserIdRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
     '/_authenticated/app/privacy/parental-consent': {
@@ -1289,19 +1226,82 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppPrivacyParentalConsentRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/_authenticated/app/u/$userId': {
-      id: '/_authenticated/app/u/$userId'
-      path: '/u/$userId'
-      fullPath: '/app/u/$userId'
-      preLoaderRoute: typeof AuthenticatedAppUUserIdRouteImport
+    '/_authenticated/app/privacy/notice': {
+      id: '/_authenticated/app/privacy/notice'
+      path: '/privacy/notice'
+      fullPath: '/app/privacy/notice'
+      preLoaderRoute: typeof AuthenticatedAppPrivacyNoticeRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
-    '/lovable/email/queue/process': {
-      id: '/lovable/email/queue/process'
-      path: '/lovable/email/queue/process'
-      fullPath: '/lovable/email/queue/process'
-      preLoaderRoute: typeof LovableEmailQueueProcessRouteImport
-      parentRoute: typeof rootRouteImport
+    '/_authenticated/app/privacy/grievance': {
+      id: '/_authenticated/app/privacy/grievance'
+      path: '/privacy/grievance'
+      fullPath: '/app/privacy/grievance'
+      preLoaderRoute: typeof AuthenticatedAppPrivacyGrievanceRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/privacy/data-rights': {
+      id: '/_authenticated/app/privacy/data-rights'
+      path: '/privacy/data-rights'
+      fullPath: '/app/privacy/data-rights'
+      preLoaderRoute: typeof AuthenticatedAppPrivacyDataRightsRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/food/$id': {
+      id: '/_authenticated/app/food/$id'
+      path: '/food/$id'
+      fullPath: '/app/food/$id'
+      preLoaderRoute: typeof AuthenticatedAppFoodIdRouteImport
+      parentRoute: typeof AuthenticatedAppRoute
+    }
+    '/_authenticated/app/chat/updates': {
+      id: '/_authenticated/app/chat/updates'
+      path: '/updates'
+      fullPath: '/app/chat/updates'
+      preLoaderRoute: typeof AuthenticatedAppChatUpdatesRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
+    }
+    '/_authenticated/app/chat/reels': {
+      id: '/_authenticated/app/chat/reels'
+      path: '/reels'
+      fullPath: '/app/chat/reels'
+      preLoaderRoute: typeof AuthenticatedAppChatReelsRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
+    }
+    '/_authenticated/app/chat/moments': {
+      id: '/_authenticated/app/chat/moments'
+      path: '/moments'
+      fullPath: '/app/chat/moments'
+      preLoaderRoute: typeof AuthenticatedAppChatMomentsRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
+    }
+    '/_authenticated/app/chat/me': {
+      id: '/_authenticated/app/chat/me'
+      path: '/me'
+      fullPath: '/app/chat/me'
+      preLoaderRoute: typeof AuthenticatedAppChatMeRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
+    }
+    '/_authenticated/app/chat/calls': {
+      id: '/_authenticated/app/chat/calls'
+      path: '/calls'
+      fullPath: '/app/chat/calls'
+      preLoaderRoute: typeof AuthenticatedAppChatCallsRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
+    }
+    '/_authenticated/app/chat/$conversationId': {
+      id: '/_authenticated/app/chat/$conversationId'
+      path: '/$conversationId'
+      fullPath: '/app/chat/$conversationId'
+      preLoaderRoute: typeof AuthenticatedAppChatConversationIdRouteImport
+      parentRoute: typeof AuthenticatedAppChatRoute
+    }
+    '/_authenticated/app/admin/video': {
+      id: '/_authenticated/app/admin/video'
+      path: '/video'
+      fullPath: '/app/admin/video'
+      preLoaderRoute: typeof AuthenticatedAppAdminVideoRouteImport
+      parentRoute: typeof AuthenticatedAppAdminRoute
     }
   }
 }

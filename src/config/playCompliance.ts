@@ -74,6 +74,16 @@ export const AI_SURFACES = [
     file: "src/components/stories/StoryStudio.tsx",
   },
   {
+    // "Your videos" — the library where a finished Story is watched and saved.
+    // A SEPARATE SURFACE FROM THE STUDIO, because it is where the generated
+    // video is actually WATCHED. The studio only ever shows a progress line;
+    // this is the screen someone could screenshot and pass off as filmed, which
+    // is precisely what the label is for.
+    id: "stories_library_output",
+    screen: "Lores — Your videos",
+    file: "src/components/stories/YourVideos.tsx",
+  },
+  {
     id: "runway_admin_output",
     screen: "Admin — Runway video tool (internal)",
     file: "src/routes/_authenticated/app.admin.video.tsx",

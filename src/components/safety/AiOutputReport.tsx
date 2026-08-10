@@ -27,6 +27,8 @@ export type AiSurface =
   | "lores_ai_output"
   /** Lores — the Stories studio, where the prompt is the USER's. */
   | "stories_ai_output"
+  /** Lores — "Your videos", the library where a finished Story is watched. */
+  | "stories_library_output"
   /** The internal Runway tool. An admin screen still generates AI content. */
   | "runway_admin_output";
 

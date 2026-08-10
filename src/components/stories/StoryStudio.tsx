@@ -27,7 +27,7 @@
  * measured. The screen is complete; the switch is a config row.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Clapperboard, Download, Loader2, ShieldAlert, Sparkles } from "lucide-react";
+import { Clapperboard, Loader2, ShieldAlert, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import {
@@ -39,6 +39,7 @@ import {
   refusalMessage,
   type QuotaRefusal,
 } from "@/lib/storyPlan";
+import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient";
 
 /** Lengths offered as one tap. Anything between the bounds is still allowed. */
 const PRESETS = [30, 60, 120, 300] as const;
@@ -74,86 +75,15 @@ async function callStoryRpc(
   return client.rpc(fn, args);
 }
 
-/** Same gap, same reason, same deletion date: `story_jobs` is not in the types yet. */
-type StoryRow = { id?: string; status?: string; error?: string };
-
-function storyJobs() {
-  return (
-    supabase as unknown as {
-      from: (t: string) => {
-        select: (c: string) => {
-          eq: (col: string, v: string) => {
-            maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
-          };
-          in: (
-            col: string,
-            v: readonly string[],
-          ) => {
-            order: (
-              col: string,
-              o: { ascending: boolean },
-            ) => {
-              limit: (n: number) => {
-                maybeSingle: () => Promise<{ data: unknown; error: unknown }>;
-              };
-            };
-          };
-        };
-      };
-    }
-  ).from("story_jobs");
-}
-
-async function readJobRow(id: string): Promise<StoryRow | null> {
-  const { data } = await storyJobs().select("status,error").eq("id", id).maybeSingle();
-  return (data as StoryRow | null) ?? null;
-}
-
-/** Statuses where a Story is still coming, or is waiting to be collected. */
-const OPEN_STATUSES = ["queued", "generating", "assembling", "ready", "delivering"] as const;
-
 /**
- * The user's newest unfinished or uncollected Story.
+ * THE FILM ITSELF IS NOT SHOWN HERE. It lives under "Your videos".
  *
- * WITHOUT THIS THE SCREEN LIES. It says "You can leave this screen — it keeps
- * going", and it did keep going: the first film ONIQ ever generated rendered
- * successfully, uploaded, and reached `ready` while the only pointer to it —
- * a useState holding the job id — had been thrown away by a navigation. The
- * film existed on the server and was unreachable from the app, and two hours
- * later the sweeper would have deleted it, correctly, as expired.
- *
- * A render takes minutes. Expecting someone to sit on one screen for the whole
- * time is not a product; recovering the job on mount is what makes the promise
- * true. RLS scopes this to the caller, so "the newest open job" can only ever
- * mean their own.
+ * A render outlives this screen: six minutes is long enough to lock a phone,
+ * and the first film ONIQ ever made was lost because the only pointer to it
+ * was a useState in this form. The studio starts a Story and reports progress;
+ * the library is where films are watched and saved. Both read the same helpers
+ * so the two screens cannot disagree about what a status means.
  */
-async function latestOpenJob(): Promise<StoryRow | null> {
-  const { data } = await storyJobs()
-    .select("id,status,error")
-    .in("status", OPEN_STATUSES)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return (data as StoryRow | null) ?? null;
-}
-
-/**
- * What the user is told while they wait.
- *
- * Named per status rather than a single spinner because these steps take
- * minutes, not seconds — about 4.5 minutes of render per minute of film — and a
- * progress message that never changes is indistinguishable from a hang.
- */
-const PROGRESS: Record<string, string> = {
-  queued: "Waiting for a free renderer…",
-  generating: "Ting is writing your film, and drawing every shot…",
-  assembling: "Putting it together — this is the slow part.",
-  ready: "Your film is ready.",
-  delivering: "Your film is ready.",
-};
-
-/** Statuses where polling should stop, because nothing more will change. */
-const SETTLED: ReadonlySet<string> = new Set(["ready", "delivering", "delivered", "purged", "failed"]);
 
 /** What `story-plot` returns: Ting's film, before a frame exists. */
 export type StoryPlot = {
@@ -205,9 +135,6 @@ export function StoryStudio() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
-  const [filmUrl, setFilmUrl] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,102 +191,18 @@ export function StoryStudio() {
   }, [jobId, jobStatus]);
 
   /**
-   * Open the film once it exists.
+   * Pick up a Story already in flight.
    *
-   * `start` moves the job to `delivering` and hands back one short-lived signed
-   * URL that serves BOTH the preview and the save. Issuing two would be two
-   * chances to leak the same bytes.
-   */
-  useEffect(() => {
-    if (jobStatus !== "ready" && jobStatus !== "delivering") return;
-    if (!jobId || filmUrl) return;
-    let cancelled = false;
-    void (async () => {
-      const { data, error: fnError } = await supabase.functions.invoke("story-deliver", {
-        body: { action: "start", jobId },
-      });
-      if (cancelled) return;
-      const payload = data as { url?: string; error?: string } | null;
-      if (fnError || payload?.error || !payload?.url) {
-        setJobError(payload?.error ?? "Could not open your film.");
-        return;
-      }
-      setFilmUrl(payload.url);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [jobStatus, jobId, filmUrl]);
-
-  /**
-   * Save it to the device, then delete it from ours — in that order, and only
-   * on an explicit tap.
-   *
-   * The purge is not a background job here. The screen promises "your video
-   * goes to your device once, then it is deleted from our servers" BEFORE
-   * anyone spends a second of their allowance, and a promise made before the
-   * action has to be kept by the action.
-   */
-  const saveToDevice = useCallback(async () => {
-    if (!jobId || !filmUrl) return;
-    setSaving(true);
-    setJobError(null);
-    try {
-      // Fetched as a blob rather than linked, so the anchor's download
-      // attribute is honoured — a cross-origin href ignores it and opens the
-      // video in a tab instead, which on a phone means it is never saved.
-      const res = await fetch(filmUrl);
-      if (!res.ok) throw new Error(`download failed: ${res.status}`);
-      const blob = await res.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = `oniq-story-${jobId.slice(0, 8)}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objectUrl);
-
-      const { data } = await supabase.functions.invoke("story-deliver", {
-        body: { action: "done", jobId },
-      });
-      const payload = data as { error?: string } | null;
-      if (payload?.error) {
-        // The file IS on their device; only the cleanup stumbled. Saying
-        // "failed" here would be a lie in the direction that makes someone
-        // download it twice.
-        setJobError(payload.error);
-      }
-      setSaved(true);
-      setFilmUrl(null);
-      setJobStatus("purged");
-    } catch (e) {
-      setJobError(e instanceof Error ? e.message : "Could not save that file.");
-      // Hand the job back so the film is not lost to a dropped connection.
-      await supabase.functions
-        .invoke("story-deliver", { body: { action: "cancel", jobId } })
-        .catch(() => undefined);
-      setFilmUrl(null);
-      setJobStatus("ready");
-    } finally {
-      setSaving(false);
-    }
-  }, [jobId, filmUrl]);
-
-  /**
-   * Pick up a Story already in flight, or one waiting to be collected.
-   *
-   * Runs once on mount, before anything else can set `jobId`. A render is
-   * minutes long and the app is a phone — backgrounding it, navigating to
-   * another tab, or reloading all destroy React state while the runner carries
-   * on regardless. This is what turns "you can leave this screen" from a claim
-   * into a fact.
+   * The library is where films are collected, but the studio should not
+   * pretend nothing is happening either: come back mid-render and the progress
+   * line should still be here. RLS scopes this to the caller, so "the newest
+   * open job" can only ever mean their own.
    */
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       const row = await latestOpenJob();
-      if (cancelled || !row?.id || !row.status) return;
+      if (cancelled || !row?.id) return;
       setJobId(row.id);
       setJobStatus(row.status);
       if (row.error) setJobError(row.error);
@@ -424,9 +267,7 @@ export function StoryStudio() {
     setRefusal(null);
     // A second Story starts from a clean screen. Leaving the previous film's
     // "Saved" note up next to a new job reads as if the new one is already done.
-    setSaved(false);
     setJobError(null);
-    setFilmUrl(null);
     setJobStatus(null);
     try {
       const { data, error: rpcError } = await callStoryRpc("claim_story_seconds", {
@@ -580,44 +421,17 @@ export function StoryStudio() {
           <div className="text-[11px] text-muted-foreground">
             {PROGRESS[jobStatus] ?? "Working…"}
             <span className="mt-0.5 block text-[10px] opacity-70">
-              You can leave this screen — it keeps going.
+              You can close the app. It lands under{" "}
+              <span className="font-semibold text-foreground">Your videos</span> when it is done.
             </span>
           </div>
         </div>
       ) : null}
 
-      {filmUrl ? (
-        <div className="mt-3 rounded-2xl border border-border bg-card/70 p-3">
-          <video
-            src={filmUrl}
-            controls
-            playsInline
-            className="w-full rounded-xl bg-black"
-            // Portrait, like everything else the pipeline makes.
-            style={{ aspectRatio: "9 / 16", maxHeight: "60vh" }}
-          />
-          <button
-            type="button"
-            onClick={() => void saveToDevice()}
-            disabled={saving}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-          >
-            {saving ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            {saving ? "Saving…" : "Save to my device"}
-          </button>
-          <p className="mt-2 text-center text-[10px] text-muted-foreground">
-            Saving deletes it from our servers. Watch it first — there is no re-download.
-          </p>
-        </div>
-      ) : null}
-
-      {saved ? (
-        <div className="mt-3 rounded-2xl border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-[11px] text-emerald-300">
-          Saved to your device, and deleted from ours. It is yours now.
+      {jobId && jobStatus && (jobStatus === "ready" || jobStatus === "delivering") ? (
+        <div className="mt-3 rounded-2xl border border-primary/40 bg-primary/10 px-3 py-2.5 text-[11px] text-foreground">
+          Your film is ready — open the{" "}
+          <span className="font-semibold">Your videos</span> tab to watch and save it.
         </div>
       ) : null}
 
