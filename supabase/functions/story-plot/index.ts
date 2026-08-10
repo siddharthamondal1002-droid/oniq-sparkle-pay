@@ -9,14 +9,21 @@
 // `{ configured: false }` when no key is present so a missing secret degrades
 // instead of erroring.
 //
-// ANTHROPIC FIRST, GEMINI SECOND. Claude Opus 5 is Ting's primary engine
-// everywhere else in this app, and a Story is meant to be Ting's film — the
-// plot is the one step where judgement actually shows, because it decides the
-// cast, the locks and the shot list that every later stage repeats. Gemini
-// stays as the fallback when Anthropic is unavailable or returns something
-// parsePlan rejects. Both go through the shared helper, which translates
-// Gemini's response into Anthropic's shape, so the parser below is written once
-// and does not care which model answered.
+// CLAUDE WRITES THIS. Claude Opus 5 is Ting's engine everywhere else in ONIQ,
+// and the plot is the one step where that judgement actually shows: it decides
+// the cast, the locks and the shot list that every later stage repeats
+// verbatim. So Claude gets TWO goes — the second one told what was wrong with
+// the first — before anything else is asked. Gemini is the last resort, for a
+// missing key or an Anthropic outage, not a second opinion.
+//
+// The retry is only for a reply that arrived and would not parse. An error is
+// not retried: a 401 or a quota refusal fails identically the second time and
+// spends 45 seconds of the user's wait to reach the same answer, which is the
+// same no-retry reasoning runwayOps applies to billable calls.
+//
+// Both engines go through the shared helper, which translates Gemini's response
+// into Anthropic's shape, so the parser below is written once and does not care
+// which model answered.
 //
 // This was Gemini-first for a while. It was cheaper, and a plan is structured
 // JSON rather than prose, so the cheap end looked like enough. It is the wrong
@@ -165,15 +172,28 @@ Deno.serve(async (req) => {
       // user is charged and gets nothing.
       maxTokens: Math.min(8192, 1200 + shots * 260),
       // A long plan is slower than a chat reply and the default 12s cuts a
-      // 40-shot film off mid-sentence.
+      // 40-shot film off mid-sentence. Budgeted so the worst case — Claude,
+      // Claude again, then Gemini — still lands inside the edge function's
+      // wall clock: 45 + 35 + 25 is 105 seconds, not 135.
       timeoutMs: 45000,
     };
 
-    // Claude first — this is Ting writing the film. Gemini only if Anthropic is
-    // not configured, errored, or came back with something parsePlan rejects.
-    // The retry is worth it in either direction: everything downstream of here
-    // costs real money per shot, so a plan that fails to parse is cheaper to
-    // re-ask than to half-render.
+    // THIS IS TING WRITING THE FILM, so Claude gets two goes before anything
+    // else is asked.
+    //
+    // Claude Opus 5 is Ting's engine everywhere else in ONIQ, and the plot is
+    // the step where that matters most: it fixes the cast, the locks and the
+    // shot list that every later stage repeats verbatim. One attempt then a
+    // hand-off to a different model made "Claude-first" true only on paper —
+    // a single malformed reply was enough to have the film written by
+    // something else.
+    //
+    // THE SECOND GO IS ONLY FOR A PARSE FAILURE, never for an error. A 401 or a
+    // quota refusal fails identically the second time and burns 45 seconds of
+    // the user's wait to reach the same answer — the same no-retry reasoning
+    // runwayOps uses for billable calls. A reply that arrived but came back
+    // malformed is the opposite case: it is worth one corrective ask, because
+    // everything downstream of this plan costs real money per shot.
     let plan: Plan | null = null;
     let servedBy = "anthropic";
     // Every attempt records why it did not work. This travels back in the 502
@@ -183,19 +203,61 @@ Deno.serve(async (req) => {
     const tried: { engine: string; reason: string }[] = [];
 
     if (hasClaude) {
-      const c = await callClaude(opts);
-      if (c.ok) {
-        const r = parsePlan(textOf(c.data), shots);
+      const first = await callClaude(opts);
+      if (first.ok) {
+        const r = parsePlan(textOf(first.data), shots);
         if ("plan" in r) plan = r.plan;
         else tried.push({ engine: "anthropic", reason: r.reason });
       } else {
-        tried.push({ engine: "anthropic", reason: String(c.reason ?? "failed").slice(0, 160) });
+        tried.push({ engine: "anthropic", reason: String(first.reason ?? "failed").slice(0, 160) });
+      }
+
+      // Second go: same request, with the failure named. Telling it what went
+      // wrong beats asking again identically — a model that truncated needs to
+      // be told to be terser, and one that miscounted needs the count repeated.
+      const firstReason = tried.at(-1)?.reason;
+      if (!plan && first.ok && firstReason) {
+        const retry = await callClaude({
+          ...opts,
+          timeoutMs: 35000,
+          messages: [
+            ...opts.messages,
+            {
+              role: "assistant" as const,
+              content: "I returned a plan that could not be used.",
+            },
+            {
+              role: "user" as const,
+              content:
+                `That reply was rejected: ${firstReason}.\n` +
+                `Return ONLY the JSON object, with exactly ${shots} shots. ` +
+                `Keep every 'still' under sixty words while still repeating the ` +
+                `character lock and the setting.`,
+            },
+          ],
+        });
+        if (retry.ok) {
+          const r = parsePlan(textOf(retry.data), shots);
+          if ("plan" in r) {
+            plan = r.plan;
+            servedBy = "anthropic:retry";
+          } else {
+            tried.push({ engine: "anthropic:retry", reason: r.reason });
+          }
+        } else {
+          tried.push({
+            engine: "anthropic:retry",
+            reason: String(retry.reason ?? "failed").slice(0, 160),
+          });
+        }
       }
     }
 
+    // Gemini is the last resort, not the second opinion. It runs only when
+    // Claude has had both goes, or has no key at all.
     if (!plan && hasGemini) {
       servedBy = "gemini";
-      const g = await callGemini(opts);
+      const g = await callGemini({ ...opts, timeoutMs: 25000 });
       if (g.ok) {
         const r = parsePlan(textOf(g.data), shots);
         if ("plan" in r) plan = r.plan;
