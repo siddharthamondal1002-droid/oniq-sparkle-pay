@@ -2989,6 +2989,7 @@ export type Database = {
       }
       story_jobs: {
         Row: {
+          cast_json: Json | null
           created_at: string
           dispatched_at: string | null
           error: string | null
@@ -3007,6 +3008,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cast_json?: Json | null
           created_at?: string
           dispatched_at?: string | null
           error?: string | null
@@ -3025,6 +3027,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cast_json?: Json | null
           created_at?: string
           dispatched_at?: string | null
           error?: string | null
@@ -3048,6 +3051,7 @@ export type Database = {
         Row: {
           active: boolean
           currency: string
+          grade: string
           label: string
           price_paise: number
           seconds: number
@@ -3057,6 +3061,7 @@ export type Database = {
         Insert: {
           active?: boolean
           currency?: string
+          grade?: string
           label: string
           price_paise: number
           seconds: number
@@ -3066,6 +3071,7 @@ export type Database = {
         Update: {
           active?: boolean
           currency?: string
+          grade?: string
           label?: string
           price_paise?: number
           seconds?: number
@@ -3103,6 +3109,7 @@ export type Database = {
           created_at: string
           currency: string
           error: string | null
+          grade: string
           id: string
           origin: string
           paid_at: string | null
@@ -3120,6 +3127,7 @@ export type Database = {
           created_at?: string
           currency: string
           error?: string | null
+          grade?: string
           id?: string
           origin?: string
           paid_at?: string | null
@@ -3137,6 +3145,7 @@ export type Database = {
           created_at?: string
           currency?: string
           error?: string | null
+          grade?: string
           id?: string
           origin?: string
           paid_at?: string | null
@@ -3886,7 +3895,7 @@ export type Database = {
         Returns: string
       }
       create_story_purchase: {
-        Args: { _origin?: string; _seconds: number }
+        Args: { _grade?: string; _origin?: string; _seconds: number }
         Returns: Json
       }
       credit_story_purchase: {
@@ -4222,6 +4231,7 @@ export type Database = {
         }
         Returns: Json
       }
+      set_story_cast: { Args: { _cast: Json; _job_id: string }; Returns: Json }
       share_reel_to_moots: {
         Args: { _clip_id: string; _note?: string; _recipient_ids: string[] }
         Returns: {
