@@ -4116,6 +4116,10 @@ export type Database = {
       }
       can_read_message: { Args: { _message_id: string }; Returns: boolean }
       channel_monetize_status: { Args: { _channel_id: string }; Returns: Json }
+      channel_views_series: {
+        Args: { _channel_id: string; _days?: number }
+        Returns: Json
+      }
       child_restricted: { Args: { _uid: string }; Returns: boolean }
       claim_payout_batch: { Args: { _limit?: number }; Returns: Json[] }
       claim_story_seconds: {
@@ -4576,6 +4580,7 @@ export type Database = {
           rows_checked: number
         }[]
       }
+      viewer_views_series: { Args: { _days?: number }; Returns: Json }
       wipe_my_chat_media: { Args: never; Returns: number }
       wipe_my_clips: { Args: never; Returns: number }
       wipe_my_moments: { Args: never; Returns: number }
