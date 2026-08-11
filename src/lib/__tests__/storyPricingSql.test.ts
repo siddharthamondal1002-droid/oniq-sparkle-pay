@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PRICE_TIERS } from "@/lib/storyPricing";
+import { MOVIE_TIERS } from "@/lib/storyCostModel";
 
 const SQL = readFileSync(
   join(
@@ -79,5 +80,45 @@ describe("the price chart is the same in SQL as in TypeScript", () => {
       expect(t.pricePaise).toBeGreaterThan(0);
       expect(t.seconds).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * Same drift contract for the MOVIE chart: the grade rows seeded by the
+ * movie-grade migration and MOVIE_TIERS in storyCostModel.ts must agree.
+ * These rows are seeded inactive — the clip stage does not exist yet — so
+ * the mirror is what a price review reads, not what anyone is charged today.
+ */
+const MOVIE_SQL = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260811170000_movie_grade_pricing.sql"),
+  "utf8",
+);
+
+describe("the movie chart is the same in SQL as in TypeScript", () => {
+  it("seeds exactly the tiers MOVIE_TIERS lists, inactive, in order", () => {
+    const insert = MOVIE_SQL.match(
+      /insert into public\.story_price_tiers \(seconds, label, price_paise, sort_order, grade, active\) values\s*([\s\S]*?)\s*on conflict/,
+    );
+    expect(insert, "the movie seed insert is not in the migration").not.toBeNull();
+    const rows = [
+      ...(insert?.[1] ?? "").matchAll(
+        /\((\d+),\s*'([^']+)',\s*(\d+),\s*(\d+),\s*'movie',\s*(true|false)\)/g,
+      ),
+    ];
+    expect(rows.length, "no movie rows parsed — the format changed").toBeGreaterThan(0);
+    // Every seeded row is inactive until the clip stage ships.
+    for (const [, , , , , active] of rows) expect(active).toBe("false");
+    const seeded = rows
+      .map(([, seconds, label, pricePaise, sortOrder]) => ({
+        seconds: Number(seconds),
+        label,
+        pricePaise: Number(pricePaise),
+        sortOrder: Number(sortOrder),
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map(({ seconds, label, pricePaise }) => ({ seconds, label, pricePaise }));
+    expect(seeded).toEqual(
+      MOVIE_TIERS.map(({ seconds, label, pricePaise }) => ({ seconds, label, pricePaise })),
+    );
   });
 });

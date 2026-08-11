@@ -127,7 +127,7 @@ export const MOVIE_RULES = [
   "- Vary camera angles across the film the way an editor would: establish",
   "  wide, then coverage — a detail insert, an over-the-shoulder, a close-up.",
   "  Never the same size twice in a row.",
-  "- `dialogue`: OPTIONAL — { \"speaker\": name, \"line\": text }. Use it in the",
+  '- `dialogue`: OPTIONAL — { "speaker": name, "line": text }. Use it in the',
   `  shots where a character speaking carries the beat. One speaker, at most`,
   `  ${MAX_DIALOGUE_WORDS} words — longer truncates mid-word. The line is IN ADDITION to`,
   "  narration, like a film cutting between narrator and scene.",

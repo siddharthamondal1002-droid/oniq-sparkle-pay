@@ -27,9 +27,18 @@
  * measured. The screen is complete; the switch is a config row.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  MAX_CAST_PER_FILM,
+  MAX_LOCK,
+  MAX_NAME,
+  deleteCastMember,
+  listCast,
+  saveCastMember,
+  type CastMember,
+} from "@/lib/castLibrary";
 import { Link } from "@tanstack/react-router";
 import { Capacitor } from "@capacitor/core";
-import { Clapperboard, Clock, Loader2, ShieldAlert, Sparkles } from "lucide-react";
+import { Clapperboard, Clock, Loader2, ShieldAlert, Sparkles, Users2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { openInApp } from "@/lib/miniapps";
@@ -128,6 +137,11 @@ export function StoryStudio() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  // The cast library: saved characters, and which of them ride into THIS film.
+  const [cast, setCast] = useState<CastMember[]>(() => listCast());
+  const [pickedCast, setPickedCast] = useState<Set<string>>(new Set());
+  const [newCastName, setNewCastName] = useState("");
+  const [newCastLock, setNewCastLock] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -269,6 +283,22 @@ export function StoryStudio() {
       }
       const claim = parseClaimResult(data);
       if (claim.ok) {
+        // Attach the chosen characters BEFORE anything else — the dispatch
+        // cron can claim the job within a minute, and set_story_cast refuses
+        // once it leaves `queued`. Fire-and-forget: losing the race means the
+        // film renders without reuse, which is a film, not a failure.
+        const picked = cast.filter((m) => pickedCast.has(m.id)).slice(0, MAX_CAST_PER_FILM);
+        if (picked.length > 0) {
+          void supabase
+            .rpc(
+              "set_story_cast" as never,
+              {
+                _job_id: claim.jobId,
+                _cast: picked.map((m) => ({ name: m.name, lock: m.lock })),
+              } as never,
+            )
+            .then(() => {});
+        }
         setJobId(claim.jobId);
         // Named immediately rather than waiting for the first poll: a tap that
         // produces nothing visible for six seconds gets tapped again.
@@ -399,6 +429,110 @@ export function StoryStudio() {
       </div>
       <div className="mt-1.5 text-[11px] text-muted-foreground">
         {plan_.seconds}s · {plan_.shots.length} shots
+      </div>
+
+      {/* YOUR CHARACTERS — the cast library. Saved people the user can put in
+          any film. Toggled chips ride into this job as `reuse`; the planner
+          keeps their locks verbatim, so the same character stays the same
+          person film after film. Design characters anywhere (Adobe Firefly is
+          the house authoring tool) — the DESCRIPTION is what the pipeline
+          consumes. */}
+      <div className="mt-4 rounded-2xl border border-border bg-card/50 p-3">
+        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <Users2 className="h-3.5 w-3.5" /> your characters
+        </div>
+        {cast.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {cast.map((m) => {
+              const on = pickedCast.has(m.id);
+              return (
+                <span key={m.id} className="inline-flex items-center">
+                  <button
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() =>
+                      setPickedCast((cur) => {
+                        const next = new Set(cur);
+                        if (next.has(m.id)) next.delete(m.id);
+                        else if (next.size < MAX_CAST_PER_FILM) next.add(m.id);
+                        return next;
+                      })
+                    }
+                    title={m.lock}
+                    className={`rounded-s-full border py-1 ps-3 pe-2 text-[11px] font-semibold normal-case tracking-normal ${
+                      on
+                        ? "border-primary bg-primary/15 text-primary"
+                        : "border-border text-muted-foreground"
+                    }`}
+                  >
+                    {m.name}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Delete ${m.name}`}
+                    onClick={() => {
+                      deleteCastMember(m.id);
+                      setCast(listCast());
+                      setPickedCast((cur) => {
+                        const next = new Set(cur);
+                        next.delete(m.id);
+                        return next;
+                      });
+                    }}
+                    className={`rounded-e-full border border-s-0 py-1 ps-1.5 pe-2 ${
+                      on ? "border-primary text-primary" : "border-border text-muted-foreground"
+                    }`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              );
+            })}
+          </div>
+        )}
+        <div className="mt-2 grid gap-1.5">
+          <input
+            value={newCastName}
+            onChange={(e) => setNewCastName(e.target.value)}
+            maxLength={MAX_NAME}
+            placeholder="Character name — e.g. Meera"
+            className="w-full rounded-xl border border-border bg-card/70 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none"
+          />
+          <textarea
+            value={newCastLock}
+            onChange={(e) => setNewCastLock(e.target.value)}
+            maxLength={MAX_LOCK}
+            rows={2}
+            placeholder="Exact look, repeated in every frame — age, build, hair, clothing, colours. e.g. a nine-year-old girl, small and quick, black hair in two braids, red scarf over a mustard kurta"
+            className="w-full resize-none rounded-xl border border-border bg-card/70 px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none"
+          />
+          <button
+            type="button"
+            disabled={!newCastName.trim() || !newCastLock.trim()}
+            onClick={() => {
+              const saved = saveCastMember(newCastName, newCastLock);
+              if (saved) {
+                setCast(listCast());
+                setPickedCast((cur) => {
+                  const next = new Set(cur);
+                  if (next.size < MAX_CAST_PER_FILM) next.add(saved.id);
+                  return next;
+                });
+                setNewCastName("");
+                setNewCastLock("");
+              }
+            }}
+            className="justify-self-start rounded-xl border border-primary/50 bg-primary/10 px-3 py-1.5 text-[11px] font-semibold text-primary disabled:opacity-40"
+          >
+            Save character
+          </button>
+        </div>
+        {pickedCast.size > 0 && (
+          <p className="mt-2 text-[10px] text-muted-foreground">
+            {pickedCast.size} character{pickedCast.size === 1 ? "" : "s"} will appear in this film,
+            looking the same as in your last one.
+          </p>
+        )}
       </div>
 
       {/*

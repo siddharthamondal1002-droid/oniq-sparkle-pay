@@ -187,6 +187,26 @@ Deno.serve(async (req) => {
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
     const shots = Number(body?.shots);
     const lang = typeof body?.lang === "string" ? body.lang : "en";
+    // The user's cast library, if the job carried one. Bounded hard: six
+    // characters with short locks, or the reuse block crowds the plan prompt
+    // out of its own token budget. Anything malformed is DROPPED, not
+    // rejected — a film without reuse is still the film that was paid for.
+    const reuse: { name: string; lock: string }[] = (Array.isArray(body?.reuse) ? body.reuse : [])
+      .slice(0, 6)
+      .map((c: unknown) => {
+        const o = (c ?? {}) as Record<string, unknown>;
+        const name = typeof o.name === "string" ? o.name.trim().slice(0, 60) : "";
+        const lock = typeof o.lock === "string" ? o.lock.trim().slice(0, 400) : "";
+        return { name, lock };
+      })
+      .filter((c: { name: string; lock: string }) => c.name && c.lock);
+    const reuseBlock =
+      reuse.length > 0
+        ? `\n\nREUSE THIS EXISTING CAST. These are the user's own recurring characters; ` +
+          `where the story allows, use them instead of inventing new people, keep their ` +
+          `names, and repeat each lock VERBATIM in every still that shows them:\n` +
+          reuse.map((c) => `- ${c.name}: ${c.lock}`).join("\n")
+        : "";
 
     if (!prompt) return json({ error: "Tell me what happens in your story." }, 400);
     if (prompt.length > MAX_PROMPT) return json({ error: "That prompt is too long." }, 400);
@@ -200,7 +220,7 @@ Deno.serve(async (req) => {
         {
           role: "user" as const,
           content:
-            `Write a ${shots}-shot film from this idea:\n\n${prompt}\n\n` +
+            `Write a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}\n\n` +
             `Return exactly ${shots} shots.`,
         },
       ],
@@ -263,7 +283,7 @@ Deno.serve(async (req) => {
           {
             role: "user" as const,
             content:
-              `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}\n\n` +
+              `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}\n\n` +
               `Return exactly ${shots} beats.`,
           },
         ],
@@ -272,7 +292,10 @@ Deno.serve(async (req) => {
       });
 
       if (!spineRes.ok) {
-        tried.push({ engine: "anthropic:spine", reason: String(spineRes.reason ?? "failed").slice(0, 160) });
+        tried.push({
+          engine: "anthropic:spine",
+          reason: String(spineRes.reason ?? "failed").slice(0, 160),
+        });
       } else {
         const parsedSpine = parseSpine(textOf(spineRes.data), shots);
         if ("reason" in parsedSpine) {
@@ -306,7 +329,8 @@ Deno.serve(async (req) => {
                 maxTokens: Math.min(8192, 600 + b.beats.length * 300),
                 timeoutMs: batchMs,
               });
-              if (!res.ok) return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };
+              if (!res.ok)
+                return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };
               return parseShots(textOf(res.data), b.beats.length);
             }),
           );
@@ -363,27 +387,28 @@ Deno.serve(async (req) => {
       const firstReason = tried.at(-1)?.reason;
       if (!plan && first.ok && firstReason) {
         const retryMs = roomFor(attemptBudget(shots));
-        const retry = retryMs === 0
-          ? ({ ok: false, reason: "no time left after the first attempt" } as const)
-          : await callClaude({
-          ...opts,
-          timeoutMs: retryMs,
-          messages: [
-            ...opts.messages,
-            {
-              role: "assistant" as const,
-              content: "I returned a plan that could not be used.",
-            },
-            {
-              role: "user" as const,
-              content:
-                `That reply was rejected: ${firstReason}.\n` +
-                `Return ONLY the JSON object, with exactly ${shots} shots. ` +
-                `Keep every 'still' under sixty words while still repeating the ` +
-                `character lock and the setting.`,
-            },
-          ],
-        });
+        const retry =
+          retryMs === 0
+            ? ({ ok: false, reason: "no time left after the first attempt" } as const)
+            : await callClaude({
+                ...opts,
+                timeoutMs: retryMs,
+                messages: [
+                  ...opts.messages,
+                  {
+                    role: "assistant" as const,
+                    content: "I returned a plan that could not be used.",
+                  },
+                  {
+                    role: "user" as const,
+                    content:
+                      `That reply was rejected: ${firstReason}.\n` +
+                      `Return ONLY the JSON object, with exactly ${shots} shots. ` +
+                      `Keep every 'still' under sixty words while still repeating the ` +
+                      `character lock and the setting.`,
+                  },
+                ],
+              });
         if (retry.ok) {
           const r = parsePlan(textOf(retry.data), shots);
           if ("plan" in r) {
@@ -406,9 +431,10 @@ Deno.serve(async (req) => {
     if (!plan && hasGemini) {
       servedBy = "gemini";
       const geminiMs = roomFor(25_000);
-      const g = geminiMs === 0
-        ? ({ ok: false, reason: "no time left after Claude" } as const)
-        : await callGemini({ ...opts, timeoutMs: geminiMs });
+      const g =
+        geminiMs === 0
+          ? ({ ok: false, reason: "no time left after Claude" } as const)
+          : await callGemini({ ...opts, timeoutMs: geminiMs });
       if (g.ok) {
         const r = parsePlan(textOf(g.data), shots);
         if ("plan" in r) plan = r.plan;
@@ -423,10 +449,7 @@ Deno.serve(async (req) => {
       // costs money and a half-built plan spends it on a film that cannot
       // finish. Fail here, where nothing has been generated yet.
       console.error("story-plot produced no usable plan", JSON.stringify(tried));
-      return json(
-        { error: "Ting could not write that one — try again.", shots, tried },
-        502,
-      );
+      return json({ error: "Ting could not write that one — try again.", shots, tried }, 502);
     }
 
     return json({ configured: true, plan, servedBy });
@@ -590,10 +613,12 @@ function jsonIn(text: string, what: string): { obj: Record<string, unknown> } | 
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start < 0) return { reason: `${what}: no JSON in ${text.length} chars` };
-  if (end <= start) return { reason: `${what}: unterminated JSON, truncated at ${text.length} chars` };
+  if (end <= start)
+    return { reason: `${what}: unterminated JSON, truncated at ${text.length} chars` };
   try {
     const raw = JSON.parse(text.slice(start, end + 1));
-    if (typeof raw !== "object" || raw === null) return { reason: `${what}: JSON was not an object` };
+    if (typeof raw !== "object" || raw === null)
+      return { reason: `${what}: JSON was not an object` };
     return { obj: raw as Record<string, unknown> };
   } catch (e) {
     return { reason: `${what}: bad JSON: ${(e as Error).message.slice(0, 60)}` };

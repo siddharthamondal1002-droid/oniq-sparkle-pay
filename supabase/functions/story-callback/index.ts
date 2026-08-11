@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     // the row to `generating` — one round trip, and no read credential.
     if (action === "claim") {
       const got = await fetch(
-        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status`,
+        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status,cast_json`,
         { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
       );
       if (!got.ok) return json({ error: "could not read the job" }, 502);
@@ -68,16 +68,19 @@ Deno.serve(async (req) => {
       // must not restart one that is already generating and already paid for.
       if (job.status !== "queued") return json({ error: `job is ${job.status}` }, 409);
 
-      const moved = await fetch(`${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&status=eq.queued`, {
-        method: "PATCH",
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-          "content-type": "application/json",
-          Prefer: "return=representation",
+      const moved = await fetch(
+        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&status=eq.queued`,
+        {
+          method: "PATCH",
+          headers: {
+            apikey: serviceKey,
+            Authorization: `Bearer ${serviceKey}`,
+            "content-type": "application/json",
+            Prefer: "return=representation",
+          },
+          body: JSON.stringify({ status: "generating" }),
         },
-        body: JSON.stringify({ status: "generating" }),
-      });
+      );
       const movedRows = moved.ok ? await moved.json() : [];
       // The status filter makes this the atomic claim: if another runner won
       // the race, zero rows come back and this one steps aside.
@@ -90,6 +93,9 @@ Deno.serve(async (req) => {
         prompt: job.prompt,
         shotCount: job.shot_count,
         requestedSeconds: job.requested_seconds,
+        // The user's recurring characters, if they attached any before the
+        // claim won the race. Passed through verbatim; story-plot validates.
+        castJson: job.cast_json ?? null,
       });
     }
 
@@ -118,7 +124,11 @@ Deno.serve(async (req) => {
       }
       const { url } = (await signed.json()) as { url?: string };
       if (!url) return json({ error: "no signed url returned" }, 502);
-      return json({ ok: true, uploadUrl: `${supabaseUrl}/storage/v1${url}`, storagePath: objectPath });
+      return json({
+        ok: true,
+        uploadUrl: `${supabaseUrl}/storage/v1${url}`,
+        storagePath: objectPath,
+      });
     }
 
     const patch: Record<string, unknown> = {};

@@ -207,6 +207,7 @@ async function claimJob() {
         prompt: got.prompt,
         requestedSeconds: got.requestedSeconds,
         shotCount: got.shotCount,
+        castJson: got.castJson ?? null,
       };
     } catch (e) {
       // 409 means another runner won the race, or Supabase re-dispatched a job
@@ -222,7 +223,7 @@ async function claimJob() {
   }
 
   const queued = await db(
-    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count',
+    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json',
   );
   if (!queued || queued.length === 0) return null;
   const row = queued[0];
@@ -233,6 +234,7 @@ async function claimJob() {
     prompt: row.prompt,
     requestedSeconds: row.requested_seconds,
     shotCount: row.shot_count,
+    castJson: row.cast_json ?? null,
   };
 }
 
@@ -479,7 +481,13 @@ if (offline) {
     }
     console.log(`  ${shots} shots${job.shotCount ? ' (from the row)' : ' (derived from seconds)'}`);
 
-    const { plan } = await edge('story-plot', { prompt: job.prompt, shots });
+    // The library cast rides to the planner as `reuse` — story-plot bounds and
+    // validates it, and tells Ting to keep these people, verbatim.
+    const { plan } = await edge('story-plot', {
+      prompt: job.prompt,
+      shots,
+      ...(Array.isArray(job.castJson) && job.castJson.length ? { reuse: job.castJson } : {}),
+    });
     console.log(`  plot: "${plan.title}", ${plan.shots.length} shots`);
 
     // One voice for the whole film. A narrator that changes between shots is
