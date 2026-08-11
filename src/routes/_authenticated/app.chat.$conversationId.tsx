@@ -40,6 +40,8 @@ import {
   Languages,
 } from "lucide-react";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
+import { doodleSurfaceStyle } from "@/lib/chatWallpaper";
+import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { LANG_NATIVE } from "@/lib/userLanguage";
 import { WINDOW_STEP, windowRows, windowSizeToReveal } from "@/lib/chat/messageWindow";
@@ -234,6 +236,10 @@ function ChatThread() {
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
   const swipedRef = useRef(false);
   const navigate = useNavigate();
+  // No custom wallpaper → the doodle paper, not a flat dark slab. A wallpaper
+  // the user chose always wins; the shell paints that one behind everything.
+  const { data: chatTheme } = useUserTheme();
+  const doodle = !chatTheme?.wallpaper_url;
   const [showMembersSheet, setShowMembersSheet] = useState(false);
   const [showMediaSheet, setShowMediaSheet] = useState(false);
   const [showContactSheet, setShowContactSheet] = useState(false);
@@ -1873,6 +1879,7 @@ function ChatThread() {
           setShowJump((cur) => (cur === !nearBottom ? cur : !nearBottom));
         }}
         className="relative flex-1 overflow-y-auto overscroll-contain px-3 pb-2 pt-3"
+        style={doodle ? doodleSurfaceStyle : undefined}
       >
         {isLoading ? (
           <div className="text-center text-sm text-muted-foreground">Loading…</div>
@@ -1915,6 +1922,25 @@ function ChatThread() {
               }
               const { m, firstOfGroup, lastOfGroup } = r;
               const mine = m.sender_id === me?.id;
+              // On the doodle paper BOTH bubbles are light, so "mine" can no
+              // longer mean "white text". These four tokens are the only place
+              // that decision lives; every colour inside a bubble reads them.
+              const ink = doodle ? "text-[#111b21]" : mine ? "text-white" : "text-foreground";
+              const inkSoft = doodle
+                ? "text-black/55"
+                : mine
+                  ? "text-white/70"
+                  : "text-muted-foreground";
+              const inkRule = doodle
+                ? "border-black/10"
+                : mine
+                  ? "border-white/20"
+                  : "border-border";
+              const inkChip = doodle
+                ? "bg-black/[0.06] text-[#111b21]"
+                : mine
+                  ? "bg-white/15 text-white/90"
+                  : "bg-primary/15 text-primary";
               const groupGap = firstOfGroup ? "mt-2.5" : "mt-[2px]";
               const prev = windowedRows[idx - 1];
               const isFirstAfterBreak = firstOfGroup || (prev && prev.kind !== "msg");
@@ -1940,7 +1966,7 @@ function ChatThread() {
                     className={`flex ${mine ? "justify-end" : "justify-start"} ${groupGap}`}
                   >
                     <div
-                      className={`max-w-[min(80%,26rem)] px-3 py-2 text-[15px] italic leading-[21px] text-muted-foreground shadow-[0_1px_1px_rgba(0,0,0,0.28),0_1px_3px_rgba(0,0,0,0.22)] ${bubbleRadius} ${mine ? "border border-white/10 bg-[#0d6e58]/40" : "border border-border bg-surface-2"}`}
+                      className={`max-w-[min(80%,26rem)] px-3 py-2 text-[15px] italic leading-[21px] text-muted-foreground shadow-[0_1px_1px_rgba(0,0,0,0.28),0_1px_3px_rgba(0,0,0,0.22)] ${bubbleRadius} ${doodle ? "border border-black/5 bg-white/70 text-black/50" : mine ? "border border-white/10 bg-[#0d6e58]/40" : "border border-border bg-surface-2"}`}
                     >
                       <div className="flex items-center gap-1.5">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -1992,9 +2018,13 @@ function ChatThread() {
                         ? "p-1"
                         : "px-3 py-2"
                     } ${bubbleRadius} ${
-                      mine
-                        ? "border border-white/10 bg-[#0d6e58] text-white"
-                        : "border border-border bg-surface-2 text-foreground"
+                      doodle
+                        ? mine
+                          ? "border border-black/5 bg-[#d9fdd3] text-[#111b21]"
+                          : "border border-black/5 bg-white text-[#111b21]"
+                        : mine
+                          ? "border border-white/10 bg-[#0d6e58] text-white"
+                          : "border border-border bg-surface-2 text-foreground"
                     }`}
                   >
                     {isGroup &&
@@ -2020,7 +2050,7 @@ function ChatThread() {
                       <button
                         type="button"
                         onClick={() => scrollToMessage(quoted.id)}
-                        className={`mb-1.5 block w-full overflow-hidden rounded-[10px] border-l-[3px] border-primary py-1 pl-2 pr-2 text-left normal-case tracking-normal ${mine ? "bg-black/25" : "bg-white/[0.06]"}`}
+                        className={`mb-1.5 block w-full overflow-hidden rounded-[10px] border-l-[3px] border-primary py-1 pl-2 pr-2 text-left normal-case tracking-normal ${doodle ? "bg-black/[0.05]" : mine ? "bg-black/25" : "bg-white/[0.06]"}`}
                       >
                         <div className="mb-px truncate text-[13px] font-semibold leading-[16px] text-primary">
                           {quoted.sender_id === me?.id
@@ -2028,7 +2058,7 @@ function ChatThread() {
                             : senderMap.get(quoted.sender_id)?.name || title || "Message"}
                         </div>
                         <div
-                          className={`truncate text-[13px] font-normal leading-[17px] ${mine ? "text-white/75" : "text-muted-foreground"}`}
+                          className={`truncate text-[13px] font-normal leading-[17px] ${inkSoft}`}
                         >
                           {quoted.is_deleted
                             ? "This message was deleted"
@@ -2038,7 +2068,7 @@ function ChatThread() {
                     )}
                     {m.is_ai && (
                       <div
-                        className={`mb-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${mine ? "bg-white/15 text-white/90" : "bg-primary/15 text-primary"}`}
+                        className={`mb-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${inkChip}`}
                       >
                         <Sparkles className="h-2.5 w-2.5" /> AI-generated
                       </div>
@@ -2070,7 +2100,12 @@ function ChatThread() {
                         />
                       </button>
                     ) : m.type === "voice" && m.media_url ? (
-                      <VoiceBubble url={m.media_url} durationS={m.duration_s ?? 0} mine={mine} />
+                      <VoiceBubble
+                        url={m.media_url}
+                        durationS={m.duration_s ?? 0}
+                        mine={mine}
+                        onLight={doodle}
+                      />
                     ) : m.type === "video" && m.media_url ? (
                       <video
                         src={m.media_url}
@@ -2081,29 +2116,23 @@ function ChatThread() {
                       />
                     ) : m.type === "file" && m.media_url ? (
                       <div
-                        className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${mine ? "bg-white/10 backdrop-blur" : "border border-border bg-muted/60"}`}
+                        className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${doodle ? "bg-black/[0.05]" : mine ? "bg-white/10 backdrop-blur" : "border border-border bg-muted/60"}`}
                       >
                         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-black/25 text-lg">
                           📄
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div
-                            className={`truncate text-sm font-medium ${mine ? "text-white" : "text-foreground"}`}
-                          >
+                          <div className={`truncate text-sm font-medium ${ink}`}>
                             {truncateMiddle(m.file_name || "File", 30)}
                           </div>
                           {m.file_size ? (
-                            <div
-                              className={`text-xs ${mine ? "text-white/70" : "text-muted-foreground"}`}
-                            >
-                              {humanSize(m.file_size)}
-                            </div>
+                            <div className={`text-xs ${inkSoft}`}>{humanSize(m.file_size)}</div>
                           ) : null}
                         </div>
                         <button
                           type="button"
                           onClick={() => window.open(m.media_url!, "_blank", "noopener,noreferrer")}
-                          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${mine ? "bg-white/20 text-white" : "bg-primary/15 text-primary"}`}
+                          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${inkChip}`}
                         >
                           Open
                         </button>
@@ -2134,16 +2163,12 @@ function ChatThread() {
                       words they actually typed would present a guess as the
                       message itself. The original stays one tap away always. */}
                     {translatingId === m.id && !translated[m.id] && (
-                      <div
-                        className={`mt-1 text-[11px] italic ${mine ? "text-white/70" : "text-muted-foreground"}`}
-                      >
-                        translating…
-                      </div>
+                      <div className={`mt-1 text-[11px] italic ${inkSoft}`}>translating…</div>
                     )}
                     {translated[m.id] && !showOriginal[m.id] && (
                       <div
                         data-testid={`translation-${m.id}`}
-                        className={`mt-1.5 border-t pt-1.5 ${mine ? "border-white/20" : "border-border"}`}
+                        className={`mt-1.5 border-t pt-1.5 ${inkRule}`}
                       >
                         <div className="whitespace-pre-wrap break-words">
                           <LinkifiedText text={translated[m.id]} />
@@ -2151,7 +2176,7 @@ function ChatThread() {
                         <button
                           type="button"
                           onClick={() => setShowOriginal((s) => ({ ...s, [m.id]: true }))}
-                          className={`mt-1 text-[10px] underline ${mine ? "text-white/70" : "text-muted-foreground"}`}
+                          className={`mt-1 text-[10px] underline ${inkSoft}`}
                         >
                           translated by AI · show original
                         </button>
@@ -2161,7 +2186,7 @@ function ChatThread() {
                       <button
                         type="button"
                         onClick={() => setShowOriginal((s) => ({ ...s, [m.id]: false }))}
-                        className={`mt-1 text-[10px] underline ${mine ? "text-white/70" : "text-muted-foreground"}`}
+                        className={`mt-1 text-[10px] underline ${inkSoft}`}
                       >
                         show translation
                       </button>
@@ -2173,7 +2198,7 @@ function ChatThread() {
                           ? "float-right -mr-0.5 ml-2 mt-[7px]"
                           : "mt-0.5 justify-end"
                       } flex items-center gap-1 text-[11px] tabular-nums ${
-                        mine ? "text-white/60" : "text-muted-foreground"
+                        doodle ? "text-black/45" : mine ? "text-white/60" : "text-muted-foreground"
                       }`}
                     >
                       {m.edited_at && <span className="italic">edited</span>}
@@ -2865,7 +2890,18 @@ function ChatThread() {
   );
 }
 
-function VoiceBubble({ url, durationS, mine }: { url: string; durationS: number; mine: boolean }) {
+function VoiceBubble({
+  url,
+  durationS,
+  mine,
+  onLight,
+}: {
+  url: string;
+  durationS: number;
+  mine: boolean;
+  /** Doodle paper: the bubble is light, so white-on-white must not happen. */
+  onLight?: boolean;
+}) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -2910,19 +2946,21 @@ function VoiceBubble({ url, durationS, mine }: { url: string; durationS: number;
         type="button"
         onClick={toggle}
         aria-label={playing ? "Pause" : "Play"}
-        className={`grid h-8 w-8 place-items-center rounded-full ${mine ? "bg-white/20" : "bg-primary/20"}`}
+        className={`grid h-8 w-8 place-items-center rounded-full ${onLight ? "bg-black/10" : mine ? "bg-white/20" : "bg-primary/20"}`}
       >
         {playing ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
       </button>
       <div
-        className={`h-1.5 w-32 overflow-hidden rounded-full ${mine ? "bg-white/20" : "bg-muted"}`}
+        className={`h-1.5 w-32 overflow-hidden rounded-full ${onLight ? "bg-black/10" : mine ? "bg-white/20" : "bg-muted"}`}
       >
         <div
-          className={`h-full ${mine ? "bg-white" : "bg-primary"}`}
+          className={`h-full ${onLight ? "bg-[#111b21]" : mine ? "bg-white" : "bg-primary"}`}
           style={{ width: `${Math.round(progress * 100)}%` }}
         />
       </div>
-      <span className={`text-xs tabular-nums ${mine ? "text-white/80" : "text-muted-foreground"}`}>
+      <span
+        className={`text-xs tabular-nums ${onLight ? "text-black/55" : mine ? "text-white/80" : "text-muted-foreground"}`}
+      >
         {mm}:{ss}
       </span>
       <audio ref={audioRef} src={url} preload="metadata" />

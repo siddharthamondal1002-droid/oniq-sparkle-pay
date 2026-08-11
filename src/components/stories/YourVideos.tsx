@@ -17,13 +17,24 @@
  * is worse than an empty list.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Clapperboard, Download, Loader2, Play, Share2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Clapperboard,
+  Download,
+  Loader2,
+  Play,
+  Share2,
+  Smartphone,
+  Trash2,
+} from "lucide-react";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { shareVideoFile } from "@/lib/share";
+import { listSavedVideos, onSavedVideosChanged, type SavedVideo } from "@/lib/savedVideos";
 import {
   PROGRESS,
   SETTLED,
   type StoryJobRow,
+  deleteSavedVideo,
   isWatchable,
   listStories,
   openStory,
@@ -56,6 +67,11 @@ export function YourVideos() {
   const [sharing, setSharing] = useState(false);
   const [sharePct, setSharePct] = useState<number | null>(null);
   const [shareHint, setShareHint] = useState<string | null>(null);
+  // Films already on this phone. Kept in local state because the server has
+  // nothing left to list once a film is saved — saving purges it there.
+  const [onDevice, setOnDevice] = useState<SavedVideo[]>([]);
+  const [playing, setPlaying] = useState<SavedVideo | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -68,6 +84,46 @@ export function YourVideos() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Saved-to-device library. Re-reads on the change event so a save that
+  // finishes while this screen is open shows up without a refresh.
+  useEffect(() => {
+    const sync = () => setOnDevice(listSavedVideos());
+    sync();
+    return onSavedVideosChanged(sync);
+  }, []);
+
+  const removeFromDevice = useCallback(async (v: SavedVideo) => {
+    await deleteSavedVideo(v);
+    setPlaying((cur) => (cur?.id === v.id ? null : cur));
+    setConfirmDelete(null);
+  }, []);
+
+  const sendSaved = useCallback(async (v: SavedVideo) => {
+    setSharing(true);
+    setShareHint(null);
+    setError(null);
+    try {
+      const outcome = await shareVideoFile(
+        v.uri,
+        v.fileName,
+        {
+          title: "My ONIQ Story",
+          text: "Made with AI on ONIQ 🎬 oniqhub.com",
+          url: "https://oniqhub.com",
+        },
+        setSharePct,
+      );
+      if (outcome === "failed") {
+        setError("Could not share that film. It is still on your device.");
+      } else if (outcome === "unsupported") {
+        setShareHint("Sharing isn't available here — send it from your gallery instead.");
+      }
+    } finally {
+      setSharing(false);
+      setSharePct(null);
+    }
+  }, []);
 
   // Poll only while something is actually moving. A settled list is a static
   // list, and polling it forever is load with no answer attached.
@@ -135,7 +191,8 @@ export function YourVideos() {
     setBusy(true);
     setError(null);
     try {
-      await saveStoryToDevice(openId, filmUrl);
+      const title = (rows ?? []).find((r) => r.id === openId)?.prompt ?? undefined;
+      await saveStoryToDevice(openId, filmUrl, title);
       setSaved(openId);
       setOpenId(null);
       setFilmUrl(null);
@@ -150,7 +207,7 @@ export function YourVideos() {
     } finally {
       setBusy(false);
     }
-  }, [openId, filmUrl, refresh]);
+  }, [openId, filmUrl, refresh, rows]);
 
   return (
     <div className="pb-4">
@@ -166,8 +223,9 @@ export function YourVideos() {
 
       {saved ? (
         <div className="mt-3 rounded-2xl border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-[11px] text-emerald-300">
-          Saved to your device, and deleted from ours. It is yours now — share it anywhere from your
-          gallery.
+          Saved to your device, and deleted from ours. It is yours now — it's in your gallery, and
+          under <span className="font-semibold">On this phone</span> below you can replay, send or
+          delete it.
         </div>
       ) : null}
       {error ? <p className="mt-3 text-center text-[11px] text-destructive">{error}</p> : null}
@@ -218,9 +276,104 @@ export function YourVideos() {
         </div>
       ) : null}
 
+      {/* On this phone. Listed above the server-side jobs because these are
+          finished films the user already owns, and because after a save the
+          server has nothing left to show for them. */}
+      {onDevice.length > 0 ? (
+        <section className="mt-4">
+          <h3 className="flex items-center gap-1.5 px-0.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Smartphone className="h-3.5 w-3.5" /> On this phone
+          </h3>
+          <ul className="mt-2 space-y-2.5">
+            {onDevice.map((v) => (
+              <li key={v.id} className="rounded-2xl border border-border bg-card/70 p-3">
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-foreground">{v.title}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
+                      {(v.bytes / (1024 * 1024)).toFixed(1)} MB · saved {whenLabel(v.savedAt)}
+                      {v.galleryUri ? " · in your gallery" : ""}
+                    </p>
+                  </div>
+                </div>
+
+                {playing?.id === v.id ? (
+                  <video
+                    src={v.uri}
+                    controls
+                    autoPlay
+                    playsInline
+                    className="mt-2.5 w-full rounded-xl bg-black"
+                    style={{ aspectRatio: "9 / 16", maxHeight: "60vh" }}
+                  />
+                ) : null}
+
+                <div className="mt-2.5 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPlaying(playing?.id === v.id ? null : v)}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-[11px] font-semibold text-primary-foreground"
+                  >
+                    <Play className="h-3.5 w-3.5" /> {playing?.id === v.id ? "Stop" : "Replay"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void sendSaved(v)}
+                    disabled={sharing}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-xl border border-primary/50 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary disabled:opacity-50"
+                  >
+                    {sharing ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Share2 className="h-3.5 w-3.5" />
+                    )}
+                    Send
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDelete(confirmDelete === v.id ? null : v.id)}
+                    aria-label={`Delete ${v.title}`}
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-destructive/40 text-destructive"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+
+                {confirmDelete === v.id ? (
+                  <div className="mt-2 rounded-xl border border-destructive/40 bg-destructive/10 p-2.5">
+                    <p className="text-[11px] text-foreground">
+                      Remove from ONIQ?{" "}
+                      {v.galleryUri
+                        ? "The copy in your gallery stays."
+                        : "This deletes the file — there is no copy left on our servers."}
+                    </p>
+                    <div className="mt-2 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void removeFromDevice(v)}
+                        className="flex-1 rounded-lg bg-destructive px-3 py-1.5 text-[11px] font-semibold text-white"
+                      >
+                        Delete
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmDelete(null)}
+                        className="flex-1 rounded-lg border border-border px-3 py-1.5 text-[11px] font-semibold"
+                      >
+                        Keep
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       {rows === null ? (
         <p className="mt-6 text-center text-[11px] text-muted-foreground">Loading…</p>
-      ) : rows.length === 0 ? (
+      ) : rows.length === 0 && onDevice.length === 0 ? (
         <div className="mt-6 rounded-2xl border border-border bg-card/50 p-5 text-center">
           <Clapperboard className="mx-auto h-6 w-6 text-muted-foreground/60" />
           <p className="mt-2 text-xs font-semibold text-foreground">No videos yet</p>

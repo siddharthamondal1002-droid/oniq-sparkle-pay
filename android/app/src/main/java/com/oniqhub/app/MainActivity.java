@@ -41,6 +41,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SpeakerRouterPlugin.class);
         registerPlugin(ContactsBridgePlugin.class);
         registerPlugin(CallSettingsPlugin.class);
+        registerPlugin(MediaSaverPlugin.class);
 
         super.onCreate(savedInstanceState);
         applyCallWindowFlags(getIntent());

@@ -18,22 +18,22 @@
 // controls (mute, camera, end), ringback/ringtone, opus munge, TURN, bitrate
 // caps, and connect-timeout are preserved.
 
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-  useState,
-} from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
-import { ChevronDown, Mic, MicOff, Phone, PhoneOff, Video, VideoOff, Volume2, VolumeX } from "lucide-react";
-import { toast } from "sonner";
 import {
-  ensureNotificationPermission,
-  playRingback,
-  stopAllCallSounds,
-} from "@/lib/callSounds";
+  ChevronDown,
+  Mic,
+  MicOff,
+  Phone,
+  PhoneOff,
+  Video,
+  VideoOff,
+  Volume2,
+  VolumeX,
+} from "lucide-react";
+import { toast } from "sonner";
+import { ensureNotificationPermission, playRingback, stopAllCallSounds } from "@/lib/callSounds";
 import { sendPush } from "@/lib/push";
 
 // --- Native SpeakerRouter bridge (Capacitor Android plugin). No-op on web. ---
@@ -48,7 +48,10 @@ async function getSpeakerPlugin(): Promise<SpeakerRouterPlugin | null> {
   try {
     const core = await import("@capacitor/core");
     _isNative = !!core.Capacitor?.isNativePlatform?.();
-    if (!_isNative) { _speakerPlugin = null; return null; }
+    if (!_isNative) {
+      _speakerPlugin = null;
+      return null;
+    }
     _speakerPlugin = core.registerPlugin<SpeakerRouterPlugin>("SpeakerRouter");
     return _speakerPlugin;
   } catch {
@@ -69,15 +72,18 @@ async function nativeSetSpeaker(on: boolean): Promise<void> {
   try {
     const plugin = await getSpeakerPlugin();
     if (plugin) await plugin.setSpeaker({ on });
-  } catch { /* no-op */ }
+  } catch {
+    /* no-op */
+  }
 }
 async function nativeResetSpeaker(): Promise<void> {
   try {
     const plugin = await getSpeakerPlugin();
     if (plugin) await plugin.reset();
-  } catch { /* no-op */ }
+  } catch {
+    /* no-op */
+  }
 }
-
 
 export type CallType = "audio" | "video";
 export type CallHandle = { startCall: (type: CallType) => void };
@@ -123,9 +129,7 @@ function withMungedSdp(desc: RTCSessionDescriptionInit): RTCSessionDescriptionIn
 // (auth-gated, server holds the Metered API key). We prefetch once per call
 // session into `sessionIceServers` so `getIceConfig` stays synchronous inside
 // the signaling flow. Never inline creds anywhere else.
-const STUN_ONLY: RTCIceServer[] = [
-  { urls: "stun:stun.l.google.com:19302" },
-];
+const STUN_ONLY: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
 
 const ICE_TTL_MS = 30 * 60 * 1000;
 let cachedIce: { servers: RTCIceServer[]; expiresAt: number } | null = null;
@@ -156,7 +160,9 @@ async function ensureIceServers(): Promise<RTCIceServer[]> {
   const servers = data.iceServers as RTCIceServer[];
   const hasTurn = servers.some((s) => {
     const u = Array.isArray(s.urls) ? s.urls : [s.urls];
-    return u.some((x) => typeof x === "string" && (x.startsWith("turn:") || x.startsWith("turns:")));
+    return u.some(
+      (x) => typeof x === "string" && (x.startsWith("turn:") || x.startsWith("turns:")),
+    );
   });
   // eslint-disable-next-line no-console
   console.log(`[ice] got ${servers.length} servers, source=${source}, hasTurn=${hasTurn}`);
@@ -176,11 +182,12 @@ function getIceConfig(forceRelay = false): RTCConfiguration {
   };
 }
 
-
 type Status = "idle" | "outgoing" | "incoming" | "connecting" | "connected" | "ended";
 
 const genId = () => {
-  try { return crypto.randomUUID(); } catch {
+  try {
+    return crypto.randomUUID();
+  } catch {
     return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 };
@@ -228,7 +235,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const [hasMedia, setHasMedia] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [peerAvatar, setPeerAvatar] = useState<string | null>(null);
-  useEffect(() => { void detectNative().then(setIsNative); }, []);
+  useEffect(() => {
+    void detectNative().then(setIsNative);
+  }, []);
 
   // ---- refs (session-scoped state) ----
   const peerPoolRef = useRef<Map<string, PeerEntry>>(new Map());
@@ -256,7 +265,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   // Keep statusRef in sync so signaling handlers (whose closures are captured
   // once at mount) can read the latest status without stale-closure bugs.
-  useEffect(() => { statusRef.current = status; }, [status]);
+  useEffect(() => {
+    statusRef.current = status;
+  }, [status]);
   // Sync local video srcObject whenever the PiP <video> mounts or status/callType changes.
   // Guarantees the caller's self-preview attaches even if the stream existed before the element rendered.
   useEffect(() => {
@@ -302,11 +313,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     setCallType(t);
   };
 
-  const sendSig = (
-    event: string,
-    to: string | null,
-    payload: Record<string, unknown> = {},
-  ) => {
+  const sendSig = (event: string, to: string | null, payload: Record<string, unknown> = {}) => {
     channelRef.current?.send({
       type: "broadcast",
       event,
@@ -336,7 +343,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       // eslint-disable-next-line no-console
       console.warn(
         "[mesh] ICE connect timeout after 20s — peers:",
-        peers.map((p) => ({ id: p.peerId, ice: p.pc.iceConnectionState, conn: p.connState, forceRelay: p.forceRelay })),
+        peers.map((p) => ({
+          id: p.peerId,
+          ice: p.pc.iceConnectionState,
+          conn: p.connState,
+          forceRelay: p.forceRelay,
+        })),
       );
       toast.error("network issue — call couldn't connect");
       // Never demote an ANSWERED call to failed: this timeout also re-arms
@@ -357,7 +369,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const stopUserRingBroadcast = () => {
     for (const c of userRingChannelsRef.current) {
-      try { supabase.removeChannel(c); } catch {}
+      try {
+        supabase.removeChannel(c);
+      } catch {}
     }
     userRingChannelsRef.current = [];
   };
@@ -372,7 +386,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         if (kind === "video") params.encodings[0].maxBitrate = 400_000;
         else if (kind === "audio") params.encodings[0].maxBitrate = 64_000;
         await sender.setParameters(params);
-      } catch { /* some browsers reject mid-negotiation */ }
+      } catch {
+        /* some browsers reject mid-negotiation */
+      }
     }
   };
 
@@ -381,17 +397,27 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const getMedia = async (type: CallType) => {
     try {
       const audio: MediaTrackConstraints = {
-        echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1,
       };
       const video: MediaTrackConstraints | false =
         type === "video"
-          ? { width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 20, max: 24 }, facingMode: "user" }
+          ? {
+              width: { ideal: 640 },
+              height: { ideal: 480 },
+              frameRate: { ideal: 20, max: 24 },
+              facingMode: "user",
+            }
           : false;
       return await navigator.mediaDevices.getUserMedia({ audio, video });
     } catch (err) {
       const name = (err as { name?: string })?.name ?? "Error";
-      if (name === "NotAllowedError" || name === "PermissionDeniedError") toast.error("Mic/camera blocked — enable in your app settings");
-      else if (name === "NotFoundError" || name === "OverconstrainedError") toast.error("No mic/camera found");
+      if (name === "NotAllowedError" || name === "PermissionDeniedError")
+        toast.error("Mic/camera blocked — enable in your app settings");
+      else if (name === "NotFoundError" || name === "OverconstrainedError")
+        toast.error("No mic/camera found");
       else if (name === "NotReadableError") toast.error("Mic in use by another app");
       else toast.error(`Couldn't start call: ${name}`);
       throw err;
@@ -438,11 +464,13 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     };
     pc.ontrack = (e) => {
       const incoming = e.streams[0];
-      const stream = incoming ?? (() => {
-        const s = entry.remoteStream ?? new MediaStream();
-        if (!s.getTracks().find((x) => x.id === e.track.id)) s.addTrack(e.track);
-        return s;
-      })();
+      const stream =
+        incoming ??
+        (() => {
+          const s = entry.remoteStream ?? new MediaStream();
+          if (!s.getTracks().find((x) => x.id === e.track.id)) s.addTrack(e.track);
+          return s;
+        })();
       entry.remoteStream = stream;
       stopAllCallSounds();
       publishTiles();
@@ -495,7 +523,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               // eslint-disable-next-line no-console
               console.log(`[mesh] peer ${peerId} restartIce after 5s disconnect`);
               cur.pc.restartIce();
-            } catch (err) { console.warn("[mesh] restartIce failed", err); }
+            } catch (err) {
+              console.warn("[mesh] restartIce failed", err);
+            }
           }
         }, 5000);
         return;
@@ -508,7 +538,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             // eslint-disable-next-line no-console
             console.log(`[mesh] peer ${peerId} restartIce on ice-failed`);
             pc.restartIce();
-          } catch (err) { console.warn("[mesh] restartIce failed", err); }
+          } catch (err) {
+            console.warn("[mesh] restartIce failed", err);
+          }
           if (entry.recoveryTimer) clearTimeout(entry.recoveryTimer);
           entry.recoveryTimer = window.setTimeout(() => {
             entry.recoveryTimer = null;
@@ -533,8 +565,14 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (st === "connected") {
         entry.reachedConnected = true;
         entry.restartAttempts = 0;
-        if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
-        if (entry.disconnectedTimer) { clearTimeout(entry.disconnectedTimer); entry.disconnectedTimer = null; }
+        if (entry.recoveryTimer) {
+          clearTimeout(entry.recoveryTimer);
+          entry.recoveryTimer = null;
+        }
+        if (entry.disconnectedTimer) {
+          clearTimeout(entry.disconnectedTimer);
+          entry.disconnectedTimer = null;
+        }
         entry.disconnectedSince = null;
         clearConnectTimeout();
         stopAllCallSounds();
@@ -577,34 +615,44 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     const local = localStreamRef.current;
     if (local) {
       for (const t of local.getTracks()) {
-        try { pc.addTrack(t, local); } catch {}
+        try {
+          pc.addTrack(t, local);
+        } catch {}
       }
     }
     void applyBitrateCaps(pc);
     // eslint-disable-next-line no-console
-    console.log(`[mesh] PeerPool size: ${peerPoolRef.current.size} (added ${peerId}${forceRelay ? " relay-only" : ""})`);
+    console.log(
+      `[mesh] PeerPool size: ${peerPoolRef.current.size} (added ${peerId}${forceRelay ? " relay-only" : ""})`,
+    );
     publishTiles();
     return entry;
   };
 
   const flushPendingIce = async (entry: PeerEntry) => {
     for (const c of entry.pendingIce) {
-      try { await entry.pc.addIceCandidate(c); } catch {}
+      try {
+        await entry.pc.addIceCandidate(c);
+      } catch {}
     }
     entry.pendingIce = [];
   };
 
-  const teardownPeer = (
-    peerId: string,
-    sendBye: boolean,
-    opts?: { rebuilding?: boolean },
-  ) => {
+  const teardownPeer = (peerId: string, sendBye: boolean, opts?: { rebuilding?: boolean }) => {
     const entry = peerPoolRef.current.get(peerId);
     if (!entry) return;
-    if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
-    if (entry.disconnectedTimer) { clearTimeout(entry.disconnectedTimer); entry.disconnectedTimer = null; }
+    if (entry.recoveryTimer) {
+      clearTimeout(entry.recoveryTimer);
+      entry.recoveryTimer = null;
+    }
+    if (entry.disconnectedTimer) {
+      clearTimeout(entry.disconnectedTimer);
+      entry.disconnectedTimer = null;
+    }
     if (sendBye) sendSig("bye", peerId, opts?.rebuilding ? { rebuilding: true } : undefined);
-    try { entry.pc.close(); } catch {}
+    try {
+      entry.pc.close();
+    } catch {}
     peerPoolRef.current.delete(peerId);
     // eslint-disable-next-line no-console
     console.log(`[mesh] PeerPool size: ${peerPoolRef.current.size} (removed ${peerId})`);
@@ -627,7 +675,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     // callee device; without this it loops its ringtone for the full 35s
     // after the caller already hung up.
     if (isCallerRef.current && callIdRef.current && logStatusRef.current !== "answered") {
-      sendPush({ conversation_id: conversationId, kind: "call_cancel", call_id: callIdRef.current });
+      sendPush({
+        conversation_id: conversationId,
+        kind: "call_cancel",
+        call_id: callIdRef.current,
+      });
     }
     // Call log: if this was an answered call, record duration on end.
     if (isCallerRef.current && logIdRef.current && logStatusRef.current === "answered") {
@@ -644,18 +696,36 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     for (const peerId of [...peerPoolRef.current.keys()]) {
       const entry = peerPoolRef.current.get(peerId);
       if (entry) {
-        if (entry.recoveryTimer) { clearTimeout(entry.recoveryTimer); entry.recoveryTimer = null; }
-        if (entry.disconnectedTimer) { clearTimeout(entry.disconnectedTimer); entry.disconnectedTimer = null; }
-        try { entry.pc.close(); } catch {}
+        if (entry.recoveryTimer) {
+          clearTimeout(entry.recoveryTimer);
+          entry.recoveryTimer = null;
+        }
+        if (entry.disconnectedTimer) {
+          clearTimeout(entry.disconnectedTimer);
+          entry.disconnectedTimer = null;
+        }
+        try {
+          entry.pc.close();
+        } catch {}
       }
       peerPoolRef.current.delete(peerId);
     }
     clearConnectTimeout();
     stopAllCallSounds();
     stopUserRingBroadcast();
-    if (ringTimeoutRef.current) { clearTimeout(ringTimeoutRef.current); ringTimeoutRef.current = null; }
-    if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; }
-    localStreamRef.current?.getTracks().forEach((t) => { try { t.stop(); } catch {} });
+    if (ringTimeoutRef.current) {
+      clearTimeout(ringTimeoutRef.current);
+      ringTimeoutRef.current = null;
+    }
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    localStreamRef.current?.getTracks().forEach((t) => {
+      try {
+        t.stop();
+      } catch {}
+    });
     localStreamRef.current = null;
     setHasMedia(false);
     setMinimized(false);
@@ -688,7 +758,6 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     endEveryone(false);
   };
 
-
   // ---- fetch peer ids for ringing ----
 
   useEffect(() => {
@@ -713,7 +782,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         const first = rows[0]?.profiles?.avatar_url;
         if (!isGroup && typeof first === "string" && first) setPeerAvatar(first);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId, meId]);
 
@@ -746,7 +817,6 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     ensureNotificationPermission();
     playRingback();
 
-
     // Call log: caller inserts a 'no_answer' row up front; later transitions
     // (answered / missed / declined / duration) update this row.
     logStatusRef.current = "no_answer";
@@ -772,7 +842,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     // seconds during which a closed app's phone stayed silent — and any
     // failure in them used to return early with no push ever sent. The
     // callee's phone should start ringing the moment the caller commits.
-    sendPush({ conversation_id: conversationId, kind: "call", call_type: type, call_id: callIdRef.current ?? undefined });
+    sendPush({
+      conversation_id: conversationId,
+      kind: "call",
+      call_type: type,
+      call_id: callIdRef.current ?? undefined,
+    });
 
     try {
       const stream = await getMedia(type);
@@ -785,14 +860,21 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
 
     // Room ring on the call channel.
-    sendSig("ring", null, { callType: type, fromName: meName, isGroup: !!isGroup, groupTitle: groupTitle ?? "" });
+    sendSig("ring", null, {
+      callType: type,
+      fromName: meName,
+      isGroup: !!isGroup,
+      groupTitle: groupTitle ?? "",
+    });
     // Announce presence to any accepters.
     sendSig("hello", null, { fromName: meName });
 
     // Per-user rings so recipients see the incoming UI from anywhere.
     stopUserRingBroadcast();
     for (const peerId of peerIdsRef.current) {
-      const uch = supabase.channel(`user-calls:${peerId}`, { config: { broadcast: { self: false } } });
+      const uch = supabase.channel(`user-calls:${peerId}`, {
+        config: { broadcast: { self: false } },
+      });
       uch.subscribe((s) => {
         if (s === "SUBSCRIBED") {
           uch.send({
@@ -817,7 +899,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         if (logIdRef.current && logStatusRef.current === "no_answer") {
           logStatusRef.current = "missed";
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (supabase as any).from("call_logs").update({ status: "missed" }).eq("id", logIdRef.current).then(() => {});
+          (supabase as any)
+            .from("call_logs")
+            .update({ status: "missed" })
+            .eq("id", logIdRef.current)
+            .then(() => {});
         }
         toast("They're not around — try a message 💬");
         endEveryone(true);
@@ -826,7 +912,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     armConnectTimeout();
   };
 
-  useImperativeHandle(ref, () => ({ startCall: (t) => { void startCall(t); } }));
+  useImperativeHandle(ref, () => ({
+    startCall: (t) => {
+      void startCall(t);
+    },
+  }));
 
   // GlobalCallHost props: autoStart fires a new outgoing call; autoAccept
   // adopts an incoming callId. Both dispatched after a tick so the signaling
@@ -875,7 +965,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (status !== "outgoing") return;
     const id = window.setInterval(() => {
       if (!isCallerRef.current || !activeRef.current || !callIdRef.current) return;
-      sendSig("ring", null, { callType: callTypeRef.current, fromName: meName, isGroup: !!isGroup, groupTitle: groupTitle ?? "" });
+      sendSig("ring", null, {
+        callType: callTypeRef.current,
+        fromName: meName,
+        isGroup: !!isGroup,
+        groupTitle: groupTitle ?? "",
+      });
       sendSig("hello", null, { fromName: meName });
       for (const uch of userRingChannelsRef.current) {
         void uch.send({
@@ -915,7 +1010,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   useEffect(() => {
     if (!meId) return;
-    const ch = supabase.channel(`call:${conversationId}`, { config: { broadcast: { self: false } } });
+    const ch = supabase.channel(`call:${conversationId}`, {
+      config: { broadcast: { self: false } },
+    });
     channelRef.current = ch;
 
     // Payloads must be scoped: either to me, or room-scope (to === null).
@@ -929,14 +1026,23 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     // ROOM: ring — show incoming if idle.
     ch.on("broadcast", { event: "ring" }, ({ payload }) => {
-      const p = payload as { from: string; to: null; callId: string; callType: CallType; fromName?: string; groupTitle?: string };
+      const p = payload as {
+        from: string;
+        to: null;
+        callId: string;
+        callType: CallType;
+        fromName?: string;
+        groupTitle?: string;
+      };
       if (!forMe(p)) return;
       if (activeRef.current) return;
       activeRef.current = true;
       isCallerRef.current = false;
       callIdRef.current = p.callId ?? genId();
       setCallTypeBoth(p.callType);
-      setIncomingFromName(p.fromName || (isGroup ? (p.groupTitle || groupTitle || "Group") : peerName));
+      setIncomingFromName(
+        p.fromName || (isGroup ? p.groupTitle || groupTitle || "Group" : peerName),
+      );
       setStatus("incoming");
     });
 
@@ -946,7 +1052,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (!forMe(p) || !matchesCall(p)) return;
       if (p.fromName) peerNamesRef.current.set(p.from, p.fromName);
       // Any inbound hello during outgoing means someone accepted → move on.
-      if (statusRef.current === "outgoing" || (isCallerRef.current && !peerPoolRef.current.has(p.from))) {
+      if (
+        statusRef.current === "outgoing" ||
+        (isCallerRef.current && !peerPoolRef.current.has(p.from))
+      ) {
         setStatus("connecting");
         stopAllCallSounds();
       }
@@ -977,7 +1086,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     // TARGETED: offer.
     ch.on("broadcast", { event: "offer" }, async ({ payload }) => {
-      const p = payload as { from: string; to: string; callId: string; sdp: RTCSessionDescriptionInit };
+      const p = payload as {
+        from: string;
+        to: string;
+        callId: string;
+        sdp: RTCSessionDescriptionInit;
+      };
       if (!forMe(p) || !matchesCall(p)) return;
       try {
         sessionIceServers = await ensureIceServers();
@@ -1002,7 +1116,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     // TARGETED: answer.
     ch.on("broadcast", { event: "answer" }, async ({ payload }) => {
-      const p = payload as { from: string; to: string; callId: string; sdp: RTCSessionDescriptionInit };
+      const p = payload as {
+        from: string;
+        to: string;
+        callId: string;
+        sdp: RTCSessionDescriptionInit;
+      };
       if (!forMe(p) || !matchesCall(p)) return;
       const entry = peerPoolRef.current.get(p.from);
       if (!entry) return;
@@ -1017,12 +1136,19 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     // TARGETED: ice.
     ch.on("broadcast", { event: "ice" }, async ({ payload }) => {
-      const p = payload as { from: string; to: string; callId: string; candidate: RTCIceCandidateInit };
+      const p = payload as {
+        from: string;
+        to: string;
+        callId: string;
+        candidate: RTCIceCandidateInit;
+      };
       if (!forMe(p) || !matchesCall(p) || !p.candidate) return;
       const entry = peerPoolRef.current.get(p.from);
       if (!entry) return;
       if (entry.hasRemoteDesc) {
-        try { await entry.pc.addIceCandidate(p.candidate); } catch {}
+        try {
+          await entry.pc.addIceCandidate(p.candidate);
+        } catch {}
       } else {
         entry.pendingIce.push(p.candidate);
       }
@@ -1058,7 +1184,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       if (logIdRef.current && logStatusRef.current === "no_answer") {
         logStatusRef.current = "declined";
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase as any).from("call_logs").update({ status: "declined" }).eq("id", logIdRef.current).then(() => {});
+        (supabase as any)
+          .from("call_logs")
+          .update({ status: "declined" })
+          .eq("id", logIdRef.current)
+          .then(() => {});
       }
       if (peerIdsRef.current.length <= 1) {
         toast("Call declined");
@@ -1086,7 +1216,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       setCallTypeBoth(acceptType === "video" ? "video" : "audio");
       setIncomingFromName(peerName);
       setStatus("incoming");
-      window.setTimeout(() => { void accept(true); }, 60);
+      window.setTimeout(() => {
+        void accept(true);
+      }, 60);
     };
 
     ch.subscribe((sStatus) => {
@@ -1102,7 +1234,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           window.history.replaceState({}, "", url.toString());
         } catch {}
         if (!activeRef.current) {
-          window.setTimeout(() => { void startCall(startType); }, 400);
+          window.setTimeout(() => {
+            void startCall(startType);
+          }, 400);
         }
       }
       const acceptId = params.get("acceptCall");
@@ -1119,8 +1253,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     const onAcceptEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail as
-        | { callId?: string; callType?: CallType; conversationId?: string }
-        | undefined;
+        { callId?: string; callType?: CallType; conversationId?: string } | undefined;
       if (!detail?.callId) return;
       if (detail.conversationId && detail.conversationId !== conversationId) return;
       autoAcceptTriedRef.current = false;
@@ -1167,48 +1300,57 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     endEveryone(false);
   };
 
+  // Both toggles used to compute `next` as the INVERTED enabled flag and then
+  // write back `!next` — which is the original value. Tapping Mute or Video
+  // did nothing at all: the track stayed exactly as it was and the label
+  // flipped back on the next render. Read the current state, invert it once,
+  // write that.
   const toggleMute = () => {
     const s = localStreamRef.current;
-    if (!s) return;
-    const next = !(s.getAudioTracks()[0]?.enabled ?? true);
-    s.getAudioTracks().forEach((t) => (t.enabled = !next));
-    setMuted(next);
+    const tracks = s?.getAudioTracks() ?? [];
+    if (tracks.length === 0) return;
+    const nextEnabled = !(tracks[0].enabled ?? true);
+    tracks.forEach((t) => (t.enabled = nextEnabled));
+    setMuted(!nextEnabled);
   };
 
   const toggleCam = () => {
     const s = localStreamRef.current;
-    if (!s) return;
-    const next = !(s.getVideoTracks()[0]?.enabled ?? true);
-    s.getVideoTracks().forEach((t) => (t.enabled = !next));
-    setCamOff(next);
+    const tracks = s?.getVideoTracks() ?? [];
+    if (tracks.length === 0) return;
+    const nextEnabled = !(tracks[0].enabled ?? true);
+    tracks.forEach((t) => (t.enabled = nextEnabled));
+    setCamOff(!nextEnabled);
   };
 
   if (status === "idle") return null;
 
   const statusText =
-    status === "outgoing" ? "Ringing…"
-    : status === "incoming" ? `Incoming ${callType} call`
-    : status === "connecting" ? "Connecting…"
-    : status === "connected" ? `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`
-    : "Call ended";
+    status === "outgoing"
+      ? "Ringing…"
+      : status === "incoming"
+        ? `Incoming ${callType} call`
+        : status === "connecting"
+          ? "Connecting…"
+          : status === "connected"
+            ? `${String(Math.floor(elapsed / 60)).padStart(2, "0")}:${String(elapsed % 60).padStart(2, "0")}`
+            : "Call ended";
 
-  const displayName = status === "incoming"
-    ? incomingFromName
-    : (isGroup ? (groupTitle || "Group") : peerName);
+  const displayName =
+    status === "incoming" ? incomingFromName : isGroup ? groupTitle || "Group" : peerName;
   const monogram = (displayName || "?").charAt(0).toUpperCase();
 
   // Grid: 1=fullscreen, 2=split, 3-4=2x2
   const tileCount = tiles.length;
   const gridCls =
-    tileCount <= 1 ? "grid-cols-1"
-    : tileCount === 2 ? "grid-cols-1 sm:grid-cols-2"
-    : "grid-cols-2";
+    tileCount <= 1 ? "grid-cols-1" : tileCount === 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2";
 
   // Minimized: floating pill instead of fullscreen. PC/tracks keep running.
   if (minimized) {
     const mm = String(Math.floor(elapsed / 60)).padStart(2, "0");
     const ss = String(elapsed % 60).padStart(2, "0");
-    const timeLabel = status === "connected" ? `${mm}:${ss}` : (status === "connecting" ? "connecting…" : "ringing…");
+    const timeLabel =
+      status === "connected" ? `${mm}:${ss}` : status === "connecting" ? "connecting…" : "ringing…";
     return (
       <button
         type="button"
@@ -1236,7 +1378,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           <ChevronDown className="h-5 w-5" />
         </button>
       )}
-      {status !== "incoming" && (status === "connected" || status === "connecting") && tileCount > 0 ? (
+      {status !== "incoming" &&
+      (status === "connected" || status === "connecting") &&
+      tileCount > 0 ? (
         <div className={`grid ${gridCls} gap-1 flex-1 p-1`}>
           {tiles.map((t) => (
             <RemoteTile key={t.peerId} tile={t} showVideo={callType === "video"} />
@@ -1268,13 +1412,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         </div>
       )}
 
-      {callType === "video" && (status === "outgoing" || status === "connecting" || status === "connected") && (
-        <video
-          ref={localVideoRef}
-          autoPlay muted playsInline
-          className="pointer-events-none absolute right-4 top-16 z-20 h-40 w-28 -scale-x-100 rounded-2xl border border-white/20 bg-black object-cover"
-        />
-      )}
+      {callType === "video" &&
+        (status === "outgoing" || status === "connecting" || status === "connected") && (
+          <video
+            ref={localVideoRef}
+            autoPlay
+            muted
+            playsInline
+            className="pointer-events-none absolute right-4 top-16 z-20 h-40 w-28 -scale-x-100 rounded-2xl border border-white/20 bg-black object-cover"
+          />
+        )}
 
       {/* WhatsApp-style control tray: a rounded card, labeled circular
           buttons, End set apart in red. Labels matter — an unlabeled icon
@@ -1288,7 +1435,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               </CallAction>
               <CallAction
                 label="Answer"
-                onClick={() => { void accept(); }}
+                onClick={() => {
+                  void accept();
+                }}
                 tone="success"
                 ariaLabel="Accept call"
                 testId="call-accept"
@@ -1439,9 +1588,16 @@ function RemoteTile({ tile, showVideo }: { tile: PeerTile; showVideo: boolean })
     <div className="relative flex items-center justify-center overflow-hidden rounded-lg bg-black/60">
       <audio ref={audioRef} autoPlay playsInline className="hidden" />
       {showVideo ? (
+        // MUTED ON PURPOSE. The same MediaStream is attached to this <video>
+        // and to the <audio> above; if both play it, the peer's voice is
+        // decoded twice a few ms apart and comb-filters against itself —
+        // which sounds thin and far away, not twice as loud. The <audio>
+        // element owns sound so one element owns gain and routing.
         <video
           ref={videoRef}
-          autoPlay playsInline
+          autoPlay
+          playsInline
+          muted
           className="h-full w-full bg-black object-cover"
         />
       ) : (
@@ -1450,7 +1606,8 @@ function RemoteTile({ tile, showVideo }: { tile: PeerTile; showVideo: boolean })
         </div>
       )}
       <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-xs">
-        {tile.peerName || "…"}{connecting ? " · connecting…" : ""}
+        {tile.peerName || "…"}
+        {connecting ? " · connecting…" : ""}
       </div>
     </div>
   );

@@ -15,15 +15,10 @@
  * hiding a real name mismatch rather than a timing one.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { forgetSavedVideo, rememberSavedVideo, type SavedVideo } from "@/lib/savedVideos";
 
 /** Every state a Story can be in that is not gone. */
-export const OPEN_STATUSES = [
-  "queued",
-  "generating",
-  "assembling",
-  "ready",
-  "delivering",
-] as const;
+export const OPEN_STATUSES = ["queued", "generating", "assembling", "ready", "delivering"] as const;
 
 /** Statuses where nothing more will change without the user doing something. */
 export const SETTLED: ReadonlySet<string> = new Set([
@@ -88,8 +83,14 @@ const COLUMNS = "id,status,prompt,requested_seconds,shot_count,error,created_at"
  */
 export async function listStories(limit = 20): Promise<StoryJobRow[]> {
   const q = jobs().select(COLUMNS) as unknown as {
-    in: (c: string, v: readonly string[]) => {
-      order: (c: string, o: { ascending: boolean }) => {
+    in: (
+      c: string,
+      v: readonly string[],
+    ) => {
+      order: (
+        c: string,
+        o: { ascending: boolean },
+      ) => {
         limit: (n: number) => Promise<{ data: unknown }>;
       };
     };
@@ -113,8 +114,14 @@ export async function readJobRow(id: string): Promise<StoryJobRow | null> {
 /** The newest Story still in flight or waiting to be collected. */
 export async function latestOpenJob(): Promise<StoryJobRow | null> {
   const q = jobs().select(COLUMNS) as unknown as {
-    in: (c: string, v: readonly string[]) => {
-      order: (c: string, o: { ascending: boolean }) => {
+    in: (
+      c: string,
+      v: readonly string[],
+    ) => {
+      order: (
+        c: string,
+        o: { ascending: boolean },
+      ) => {
         limit: (n: number) => {
           maybeSingle: () => Promise<{ data: unknown }>;
         };
@@ -161,27 +168,121 @@ export async function releaseStory(jobId: string): Promise<void> {
 }
 
 /**
- * Save a Story to the device, then delete it from ours — in that order.
+ * Save a Story to the device, then delete it from ours — in that order, and
+ * only if the first part actually happened.
  *
- * FETCHED AS A BLOB, NOT LINKED. A cross-origin href ignores the `download`
- * attribute and opens the video in a tab instead, which on a phone means it was
- * never saved at all.
+ * THE OLD VERSION LOST FILMS. It fetched a blob, created an `<a download>` and
+ * clicked it. That is a browser idiom, and a Capacitor WebView has no download
+ * handler attached, so the click was swallowed with no error and nothing
+ * reached the phone. The line straight after it called deliver("done"), which
+ * purges the bytes from our storage — so "Save to my device" reliably destroyed
+ * the only copy and saved nothing. Hence: on native we write the file
+ * ourselves, verify a non-zero file exists, and only then purge.
  *
- * The purge is not a background job: the screen promises deletion BEFORE anyone
- * spends a second of their allowance, and a promise made before the action has
- * to be kept by the action.
+ * Two copies are written on purpose. An app-private one under Directory.Data
+ * backs in-app replay/share/delete (the library keeps working even after the
+ * server copy is gone), and MediaSaver publishes a second into the device's
+ * Movies collection so it shows up in the gallery like any other video. The
+ * gallery copy is the user's; deleting the film inside ONIQ never touches it.
  */
-export async function saveStoryToDevice(jobId: string, url: string): Promise<void> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`);
-  const blob = await res.blob();
-  const objectUrl = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = objectUrl;
-  a.download = `oniq-story-${jobId.slice(0, 8)}.mp4`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(objectUrl);
+export async function saveStoryToDevice(
+  jobId: string,
+  url: string,
+  title?: string,
+): Promise<SavedVideo> {
+  const fileName = `oniq-story-${jobId.slice(0, 8)}.mp4`;
+  const { Capacitor } = await import("@capacitor/core");
+
+  if (!Capacitor.isNativePlatform()) {
+    // Real browsers do honour <a download> for a blob URL.
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Download failed: ${res.status}`);
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = objectUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(objectUrl);
+    await deliver("done", jobId);
+    const record: SavedVideo = {
+      id: jobId,
+      title: title?.trim() || "Untitled story",
+      path: "",
+      uri: "",
+      galleryUri: null,
+      fileName,
+      bytes: blob.size,
+      savedAt: new Date().toISOString(),
+    };
+    return record;
+  }
+
+  const { Filesystem, Directory } = await import("@capacitor/filesystem");
+  const path = `videos/${fileName}`;
+
+  // downloadFile streams to disk — a 20 MB film never becomes a base64 string
+  // in JS memory, which is what makes this survive on cheap phones.
+  const dl = await Filesystem.downloadFile({
+    url,
+    path,
+    directory: Directory.Data,
+    recursive: true,
+  });
+  if (!dl.path) throw new Error("The download did not complete.");
+
+  // Prove it before we let the server delete anything.
+  const stat = await Filesystem.stat({ path, directory: Directory.Data });
+  if (!stat.size || stat.size <= 0) {
+    throw new Error("The saved file came out empty.");
+  }
+  const { uri } = await Filesystem.getUri({ path, directory: Directory.Data });
+
+  // Publish into the gallery. Best-effort: a phone that refuses MediaStore
+  // still has the app-private copy, and losing the gallery entry is not worth
+  // failing a save that already put the bytes on the device.
+  let galleryUri: string | null = null;
+  try {
+    const { registerPlugin } = await import("@capacitor/core");
+    const MediaSaver = registerPlugin<{
+      saveVideo(o: { path: string; fileName: string }): Promise<{ uri: string; bytes: number }>;
+    }>("MediaSaver");
+    const out = await MediaSaver.saveVideo({ path: dl.path, fileName });
+    galleryUri = out?.uri ?? null;
+  } catch {
+    galleryUri = null;
+  }
+
   await deliver("done", jobId);
+
+  const record: SavedVideo = {
+    id: jobId,
+    title: title?.trim() || "Untitled story",
+    path,
+    uri,
+    galleryUri,
+    fileName,
+    bytes: stat.size,
+    savedAt: new Date().toISOString(),
+  };
+  rememberSavedVideo(record);
+  return record;
+}
+
+/** Remove a saved film from the device and from the in-app library. */
+export async function deleteSavedVideo(v: SavedVideo): Promise<void> {
+  try {
+    const { Capacitor } = await import("@capacitor/core");
+    if (Capacitor.isNativePlatform() && v.path) {
+      const { Filesystem, Directory } = await import("@capacitor/filesystem");
+      await Filesystem.deleteFile({ path: v.path, directory: Directory.Data }).catch(() => {});
+    }
+  } finally {
+    // The gallery copy is deliberately left alone — it belongs to the user's
+    // photo library now, and silently deleting from there would be a
+    // surprising thing for a chat app to do.
+    forgetSavedVideo(v.id);
+  }
 }
