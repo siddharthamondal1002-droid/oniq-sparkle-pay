@@ -61,6 +61,8 @@ import { callGemini, callClaude, langInstruction } from "../_shared/llm.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
 import { MOVIE_RULES, MAX_DIALOGUE_WORDS } from "../_shared/movieGrammar.ts";
+import { paletteFor } from "../_shared/cinemaLexicon.ts";
+import { styleBlockFor } from "../_shared/directorStyles.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -207,6 +209,17 @@ Deno.serve(async (req) => {
           `names, and repeat each lock VERBATIM in every still that shows them:\n` +
           reuse.map((c) => `- ${c.name}: ${c.lock}`).join("\n")
         : "";
+    // The film's vocabulary palette: a small deterministic sample of the
+    // full cinema lexicon (~550 terms), seeded by the user's prompt. Sampling
+    // is the discipline — the whole lexicon in every request would crowd the
+    // plan out of its own token budget.
+    const paletteBlock = `\n\n${paletteFor(prompt)}`;
+    // Opt-in director style: technique language only, resolved from a stable
+    // key. Unknown keys degrade to no style — never fail a paid plan over a
+    // stale picker value.
+    const styleKey = typeof body?.style === "string" ? body.style : "";
+    const styleText = styleKey ? styleBlockFor(styleKey) : "";
+    const styleBlock = styleText ? `\n\n${styleText}` : "";
 
     if (!prompt) return json({ error: "Tell me what happens in your story." }, 400);
     if (prompt.length > MAX_PROMPT) return json({ error: "That prompt is too long." }, 400);
@@ -220,7 +233,7 @@ Deno.serve(async (req) => {
         {
           role: "user" as const,
           content:
-            `Write a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}\n\n` +
+            `Write a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}${styleBlock}${paletteBlock}\n\n` +
             `Return exactly ${shots} shots.`,
         },
       ],
@@ -283,7 +296,7 @@ Deno.serve(async (req) => {
           {
             role: "user" as const,
             content:
-              `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}\n\n` +
+              `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}${styleBlock}\n\n` +
               `Return exactly ${shots} beats.`,
           },
         ],
@@ -320,7 +333,7 @@ Deno.serve(async (req) => {
                   {
                     role: "user" as const,
                     content:
-                      `${locks}\n\nFILM: ${spine.title}\n\n` +
+                      `${locks}${styleBlock}${paletteBlock}\n\nFILM: ${spine.title}\n\n` +
                       `Draw shots ${b.from + 1}–${b.from + b.beats.length} of ${shots}. ` +
                       `One shot per beat, in order:\n` +
                       b.beats.map((t, i) => `${b.from + i + 1}. ${t}`).join("\n"),
