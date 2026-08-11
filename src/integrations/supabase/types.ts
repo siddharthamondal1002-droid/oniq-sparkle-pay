@@ -442,6 +442,30 @@ export type Database = {
           },
         ]
       }
+      channel_monetize_config: {
+        Row: {
+          id: boolean
+          min_channel_age_days: number
+          min_members: number
+          min_posts: number
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          min_channel_age_days?: number
+          min_members?: number
+          min_posts?: number
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          min_channel_age_days?: number
+          min_members?: number
+          min_posts?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       chapter_notes: {
         Row: {
           board: string
@@ -904,6 +928,124 @@ export type Database = {
           target_table?: string | null
           target_url?: string | null
           work_described?: string
+        }
+        Relationships: []
+      }
+      creator_payout_runs: {
+        Row: {
+          channels: number
+          distributed_paise: number
+          id: string
+          pool_paise: number
+          ran_at: string
+        }
+        Insert: {
+          channels?: number
+          distributed_paise?: number
+          id?: string
+          pool_paise: number
+          ran_at?: string
+        }
+        Update: {
+          channels?: number
+          distributed_paise?: number
+          id?: string
+          pool_paise?: number
+          ran_at?: string
+        }
+        Relationships: []
+      }
+      creator_payouts: {
+        Row: {
+          allocation_paise: number
+          channel_id: string
+          created_at: string
+          creator_id: string
+          creator_paise: number
+          engagement_points: number
+          id: string
+          oniq_paise: number
+          run_id: string
+          subscriber_count: number
+          subscriber_paise: number
+        }
+        Insert: {
+          allocation_paise: number
+          channel_id: string
+          created_at?: string
+          creator_id: string
+          creator_paise: number
+          engagement_points: number
+          id?: string
+          oniq_paise: number
+          run_id: string
+          subscriber_count: number
+          subscriber_paise: number
+        }
+        Update: {
+          allocation_paise?: number
+          channel_id?: string
+          created_at?: string
+          creator_id?: string
+          creator_paise?: number
+          engagement_points?: number
+          id?: string
+          oniq_paise?: number
+          run_id?: string
+          subscriber_count?: number
+          subscriber_paise?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_payouts_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creator_payouts_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creator_payouts_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "creator_payout_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creator_program_config: {
+        Row: {
+          creator_pct: number
+          enabled: boolean
+          id: boolean
+          oniq_pct: number
+          period_pool_paise: number
+          subscriber_pct: number
+          updated_at: string
+        }
+        Insert: {
+          creator_pct?: number
+          enabled?: boolean
+          id?: boolean
+          oniq_pct?: number
+          period_pool_paise?: number
+          subscriber_pct?: number
+          updated_at?: string
+        }
+        Update: {
+          creator_pct?: number
+          enabled?: boolean
+          id?: boolean
+          oniq_pct?: number
+          period_pool_paise?: number
+          subscriber_pct?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -3828,6 +3970,7 @@ export type Database = {
         Returns: undefined
       }
       can_read_message: { Args: { _message_id: string }; Returns: boolean }
+      channel_monetize_status: { Args: { _channel_id: string }; Returns: Json }
       child_restricted: { Args: { _uid: string }; Returns: boolean }
       claim_story_seconds: {
         Args: { _prompt: string; _requested_seconds: number }
@@ -4221,6 +4364,7 @@ export type Database = {
         Returns: string
       }
       rotate_profile_qr_token: { Args: never; Returns: string }
+      run_creator_payouts: { Args: { _pool_paise?: number }; Returns: Json }
       send_friend_request: { Args: { _to: string }; Returns: undefined }
       set_signup_profile: {
         Args: {
