@@ -60,6 +60,8 @@
 import { callGemini, callClaude, langInstruction } from "../_shared/llm.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
+import { MOVIE_RULES, MAX_DIALOGUE_WORDS } from "../_shared/movieGrammar.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -84,7 +86,8 @@ const SYSTEM = [
   "Shape:",
   '{ "title": string, "logline": string, "setting": string,',
   '  "cast": [{ "name": string, "lock": string }],',
-  '  "shots": [{ "still": string, "narration": string }] }',
+  '  "shots": [{ "still": string, "narration": string, "motion": string,',
+  '             "dialogue"?: { "speaker": string, "line": string }, "vfx"?: string }] }',
   "",
   "RULES THAT MATTER:",
   "1. Return EXACTLY the number of shots asked for. Not more, not fewer.",
@@ -101,6 +104,8 @@ const SYSTEM = [
   "   words. It will be read aloud by a voice, not displayed.",
   "6. Vary the shot sizes across the film: establishing, wide, medium, close.",
   "   Say the size at the start of each `still`.",
+  "",
+  MOVIE_RULES,
   "",
   "CONTENT RULES, non-negotiable, carried from the Arabian Nights season:",
   "no prophets, no divine figures, no scripture; no real living people; no",
@@ -443,7 +448,16 @@ function textOf(data: unknown): string {
     .join("");
 }
 
-type Shot = { still: string; narration: string };
+type Shot = {
+  still: string;
+  narration: string;
+  /** What MOVES — camera + subject movement. Never re-describes the frame. */
+  motion?: string;
+  /** Optional spoken line, lip-synced by the video model's native audio. */
+  dialogue?: { speaker: string; line: string };
+  /** Optional atmosphere/effect cue. */
+  vfx?: string;
+};
 type Plan = {
   title: string;
   logline: string;
@@ -532,7 +546,8 @@ const BATCH_SYSTEM = [
   "",
   "Return ONLY a JSON object. No prose, no markdown fence, no commentary.",
   "",
-  'Shape: { "shots": [{ "still": string, "narration": string }] }',
+  'Shape: { "shots": [{ "still": string, "narration": string, "motion": string,',
+  '           "dialogue"?: { "speaker": string, "line": string }, "vfx"?: string }] }',
   "",
   "RULES:",
   "1. Return EXACTLY one shot per beat, in the same order.",
@@ -547,6 +562,8 @@ const BATCH_SYSTEM = [
   "   read aloud by a voice, not displayed.",
   "5. Say the shot size at the start of each `still`: establishing, wide, medium",
   "   or close. Vary them.",
+  "",
+  MOVIE_RULES,
   "",
   "CONTENT RULES: no prophets, no divine figures, no scripture; no real living",
   "people; no named brands or copyrighted characters; violence implied, never",
@@ -608,13 +625,40 @@ function parseSpine(text: string, shots: number): { spine: Spine } | { reason: s
   };
 }
 
+/**
+ * The movie fields, read leniently. `motion`/`dialogue`/`vfx` are ADDITIVE —
+ * a model that omits them has still produced a renderable film (the current
+ * renderer only consumes still+narration), so their absence must never reject
+ * a shot the way a missing still does. Dialogue is bounded here because a
+ * ten-second clip truncates a speech mid-word, and it is cheaper to trim at
+ * the plan than to discover it in the render.
+ */
+function movieFields(o: Record<string, unknown>): Pick<Shot, "motion" | "dialogue" | "vfx"> {
+  const out: Pick<Shot, "motion" | "dialogue" | "vfx"> = {};
+  const motion = trimmed(o.motion);
+  if (motion) out.motion = motion.slice(0, 400);
+  const vfx = trimmed(o.vfx);
+  if (vfx) out.vfx = vfx.slice(0, 200);
+  const d = (o.dialogue ?? null) as { speaker?: unknown; line?: unknown } | null;
+  if (d && typeof d === "object") {
+    const speaker = trimmed(d.speaker);
+    let line = trimmed(d.line);
+    if (speaker && line) {
+      const words = line.split(/\s+/);
+      if (words.length > MAX_DIALOGUE_WORDS) line = words.slice(0, MAX_DIALOGUE_WORDS).join(" ");
+      out.dialogue = { speaker: speaker.slice(0, 60), line: line.slice(0, 200) };
+    }
+  }
+  return out;
+}
+
 function parseShots(text: string, want: number): { shots: Shot[] } | { reason: string } {
   const got = jsonIn(text, "batch");
   if ("reason" in got) return got;
   const shots = (Array.isArray(got.obj.shots) ? got.obj.shots : [])
     .map((s) => {
       const o = (s ?? {}) as Record<string, unknown>;
-      return { still: trimmed(o.still), narration: trimmed(o.narration) };
+      return { still: trimmed(o.still), narration: trimmed(o.narration), ...movieFields(o) };
     })
     .filter((s) => s.still && s.narration);
   if (shots.length < want) return { reason: `batch: ${shots.length} shots, wanted ${want}` };
@@ -676,7 +720,7 @@ function parsePlan(text: string, shots: number): ParseResult {
   const parsed: Shot[] = shotsRaw
     .map((s) => {
       const o = (s ?? {}) as Record<string, unknown>;
-      return { still: str(o.still), narration: str(o.narration) };
+      return { still: str(o.still), narration: str(o.narration), ...movieFields(o) };
     })
     .filter((s) => s.still && s.narration);
 

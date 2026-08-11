@@ -485,6 +485,22 @@ if (offline) {
     // One voice for the whole film. A narrator that changes between shots is
     // the audio version of the character drift the cast locks exist to fix.
     const voice = process.env.STORY_VOICE ?? 'Charon';
+
+    // DIALOGUE VOICES. A shot may carry a spoken line (plan.shots[i].dialogue,
+    // written by story-plot's movie grammar). It is voiced with a DIFFERENT
+    // Gemini voice from the narrator and appended after the shot's narration —
+    // narrator sets the scene, the character speaks, which is the oldest cut
+    // in film. The voice is chosen by hashing the speaker's name, so the same
+    // character keeps the same voice for the whole film — the audio version of
+    // the cast lock — and the narrator's voice is excluded from the pool so a
+    // character can never be mistaken for the storyteller.
+    const CHARACTER_VOICES = ['Puck', 'Kore', 'Fenrir', 'Aoede', 'Orus', 'Leda'];
+    const voiceFor = (speaker) => {
+      let h = 0;
+      for (const ch of String(speaker).toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      const pool = CHARACTER_VOICES.filter((v) => v !== voice);
+      return pool[h % pool.length];
+    };
     const ffmpeg = findBin('ffmpeg');
     const rendered = [];
     let movingShots = 0;
@@ -508,8 +524,35 @@ if (offline) {
       if (isSlide(framing)) movingShots += 1;
 
       const voiced = await edge('story-voice', { text: shot.narration, voice });
-      const wav = path.join(assetRoot, `${stem}.wav`);
+      let wav = path.join(assetRoot, `${stem}.wav`);
       fs.writeFileSync(wav, wrapPcmAsWav(Buffer.from(voiced.data, 'base64'), rateOf(voiced.mime)));
+
+      // The shot's spoken line, if the plan wrote one. Appended AFTER the
+      // narration with a 350ms breath, into ONE wav — the measured duration
+      // below then includes it automatically, so narration-as-clock, the Ken
+      // Burns length and the mouth spans all keep working unchanged. A failure
+      // here downgrades the shot to narration-only rather than failing the
+      // film: dialogue is seasoning, not structure.
+      if (shot.dialogue && shot.dialogue.line && shot.dialogue.speaker) {
+        try {
+          const dv = await edge('story-voice', {
+            text: shot.dialogue.line,
+            voice: voiceFor(shot.dialogue.speaker),
+          });
+          const dwav = path.join(assetRoot, `${stem}.line.wav`);
+          fs.writeFileSync(dwav, wrapPcmAsWav(Buffer.from(dv.data, 'base64'), rateOf(dv.mime)));
+          const mixed = path.join(assetRoot, `${stem}.mix.wav`);
+          execFileSync(ffmpeg, [
+            '-y', '-i', wav, '-i', dwav,
+            '-filter_complex', '[0:a]apad=pad_dur=0.35[a0];[a0][1:a]concat=n=2:v=0:a=1[a]',
+            '-map', '[a]', mixed,
+          ], { stdio: 'pipe' });
+          wav = mixed;
+          console.log(`  dialogue ${i + 1}: ${shot.dialogue.speaker} (${voiceFor(shot.dialogue.speaker)})`);
+        } catch (err) {
+          console.log(`  dialogue ${i + 1} skipped: ${err?.message ?? err}`);
+        }
+      }
 
       // MEASURED, both of them. The duration decides how long the shot is on
       // screen — narration is the clock and a word-count estimate drifts
@@ -525,7 +568,10 @@ if (offline) {
         // separators explicitly: this is a URL path once it reaches the
         // browser, not a filesystem path.
         still: `${assetDir}/${stem}.png`,
-        audio: `${assetDir}/${stem}.wav`,
+        // path.basename, not `${stem}.wav`: when the shot carries dialogue the
+        // playable file is the CONCATENATED one — pointing the composition at
+        // the narration-only wav would desync the clock and drop the line.
+        audio: `${assetDir}/${path.basename(wav)}`,
         seconds,
         // Camera per shot rather than a house constant: measured across six ep3
         // clips it ran 0.0 to 19.2 percent, half of them locked off.

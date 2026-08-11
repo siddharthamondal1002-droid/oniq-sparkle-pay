@@ -213,6 +213,29 @@ output is stored in the `video-gen` bucket.
 Settings are allowlisted in `runway.server.ts`: `gen4_turbo`, ratios including
 the season's `720:1280`, durations `[5, 10]`, ~5 credits/second.
 
+## The movie grammar — user Stories, 2026-08-11
+
+`story-plot` now writes MOVIE plans, not slideshow plans. Each shot may carry,
+beyond `still` + `narration`:
+
+- `motion` — what MOVES: a camera move + subject movement, never a
+  re-description of the frame (the ep3 split, enforced in the prompt).
+- `dialogue` — `{ speaker, line }`, ≤ 14 words. The worker voices it with a
+  per-character Gemini voice (hash of the speaker name, narrator excluded)
+  and concatenates it after the shot's narration into ONE wav, so
+  narration-as-clock and the mouth spans keep working untouched.
+- `vfx` — one atmosphere cue (dust, embers, smoke, magic glow…), phrased as
+  motion because that is all a video model can add to a frame.
+
+The grammar lives in `supabase/functions/_shared/movieGrammar.ts`, including
+`composeVideoPrompt(shot)` — the Veo-ready motion+vfx+dialogue prompt for the
+day the Story pipeline gets its clip stage. Until then `motion`/`vfx` ride in
+the plan unrendered (the runner is still Ken Burns over stills) and `dialogue`
+is already audible. Before building the clip stage, reread
+`references/video-generation.md`: starting-frame-only, no cast locks to the
+video model, filter refusals are retryable, and the arithmetic — 43 clips per
+7 minutes at ~100× a text call — goes in front of the owner FIRST.
+
 ## The remaining gap — the episode JOB QUEUE
 
 Episodes now get made (see Path 1), but they get made **by hand**, out of
