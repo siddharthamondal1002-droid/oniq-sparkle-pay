@@ -448,6 +448,7 @@ export type Database = {
           min_channel_age_days: number
           min_members: number
           min_posts: number
+          min_videos: number
           updated_at: string
         }
         Insert: {
@@ -455,6 +456,7 @@ export type Database = {
           min_channel_age_days?: number
           min_members?: number
           min_posts?: number
+          min_videos?: number
           updated_at?: string
         }
         Update: {
@@ -462,6 +464,7 @@ export type Database = {
           min_channel_age_days?: number
           min_members?: number
           min_posts?: number
+          min_videos?: number
           updated_at?: string
         }
         Relationships: []
@@ -781,6 +784,49 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      content_views: {
+        Row: {
+          channel_id: string
+          message_id: string
+          viewed_on: string
+          viewer_id: string
+        }
+        Insert: {
+          channel_id: string
+          message_id: string
+          viewed_on?: string
+          viewer_id: string
+        }
+        Update: {
+          channel_id?: string
+          message_id?: string
+          viewed_on?: string
+          viewer_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_views_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_views_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "content_views_viewer_id_fkey"
+            columns: ["viewer_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       conversation_members: {
         Row: {
@@ -2571,6 +2617,96 @@ export type Database = {
           },
         ]
       }
+      payout_methods: {
+        Row: {
+          updated_at: string
+          user_id: string
+          vpa: string
+        }
+        Insert: {
+          updated_at?: string
+          user_id: string
+          vpa: string
+        }
+        Update: {
+          updated_at?: string
+          user_id?: string
+          vpa?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_methods_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payout_queue: {
+        Row: {
+          amount_paise: number
+          channel_id: string
+          created_at: string
+          error: string | null
+          id: string
+          kind: string
+          provider_payout_id: string | null
+          recipient_id: string
+          run_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount_paise: number
+          channel_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind: string
+          provider_payout_id?: string | null
+          recipient_id: string
+          run_id: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_paise?: number
+          channel_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          kind?: string
+          provider_payout_id?: string | null
+          recipient_id?: string
+          run_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payout_queue_channel_id_fkey"
+            columns: ["channel_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payout_queue_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payout_queue_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "creator_payout_runs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       post_views: {
         Row: {
           first_viewed_at: string
@@ -3972,6 +4108,7 @@ export type Database = {
       can_read_message: { Args: { _message_id: string }; Returns: boolean }
       channel_monetize_status: { Args: { _channel_id: string }; Returns: Json }
       child_restricted: { Args: { _uid: string }; Returns: boolean }
+      claim_payout_batch: { Args: { _limit?: number }; Returns: Json[] }
       claim_story_seconds: {
         Args: { _prompt: string; _requested_seconds: number }
         Returns: Json
@@ -4184,6 +4321,15 @@ export type Database = {
         Args: { _error: string; _provider_order_id: string }
         Returns: Json
       }
+      mark_payout_result: {
+        Args: {
+          _error?: string
+          _id: string
+          _provider_payout_id?: string
+          _status: string
+        }
+        Returns: undefined
+      }
       mark_policy_notice_seen: { Args: never; Returns: undefined }
       match_contacts: {
         Args: { _phones: string[] }
@@ -4328,6 +4474,10 @@ export type Database = {
           read_ct: number
         }[]
       }
+      record_channel_views: {
+        Args: { _channel_id: string; _message_ids: string[] }
+        Returns: number
+      }
       record_clip_view: { Args: { _clip_id: string }; Returns: undefined }
       record_consent: {
         Args: {
@@ -4366,6 +4516,7 @@ export type Database = {
       rotate_profile_qr_token: { Args: never; Returns: string }
       run_creator_payouts: { Args: { _pool_paise?: number }; Returns: Json }
       send_friend_request: { Args: { _to: string }; Returns: undefined }
+      set_payout_vpa: { Args: { _vpa: string }; Returns: Json }
       set_signup_profile: {
         Args: {
           _dob: string
