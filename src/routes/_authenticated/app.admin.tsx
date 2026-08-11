@@ -1,4 +1,5 @@
 import { homeFormat } from "@/lib/format";
+import { formatPaise } from "@/lib/storyPricing";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,7 +29,9 @@ type ReporterMap = Record<string, { username: string | null; display_name: strin
 
 function AdminInbox() {
   const qc = useQueryClient();
-  const [section, setSection] = useState<"reports" | "kyc" | "takedowns" | "proofs">("reports");
+  const [section, setSection] = useState<"reports" | "kyc" | "takedowns" | "proofs" | "payouts">(
+    "reports",
+  );
   const [statusFilter, setStatusFilter] = useState<"open" | "resolved" | "dismissed" | "all">(
     "open",
   );
@@ -171,6 +174,7 @@ function AdminInbox() {
             ["kyc", "partner KYC 🪪"],
             ["takedowns", "takedowns ⚖️"],
             ["proofs", "proofs ✅"],
+            ["payouts", "payouts 💸"],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -188,6 +192,8 @@ function AdminInbox() {
       {section === "takedowns" && <TakedownPanel />}
 
       {section === "proofs" && <DeletionProofPanel />}
+
+      {section === "payouts" && <PayoutsPanel />}
 
       {section === "reports" && (
         <>
@@ -670,6 +676,211 @@ function TakedownPanel() {
         {orders.length === 0 && (
           <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
             no takedown orders logged
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Creator Program payouts ----------------
+   The owner's money desk. One button computes a payout run — the pool is
+   split across qualified channels by measured views, 70% to the creator,
+   20% retained by ONIQ, 10% shared among the subscribers who watched —
+   and the same request dispatches every queued rupee through RazorpayX
+   straight to each recipient's UPI ID. No wallet anywhere; Razorpay's
+   answer is the only thing that marks a row paid. */
+
+type PayoutRun = {
+  id: string;
+  pool_paise: number;
+  distributed_paise: number;
+  channels: number;
+  ran_at: string;
+};
+
+type ProgramConfig = {
+  period_pool_paise: number;
+  enabled: boolean;
+};
+
+function PayoutsPanel() {
+  const qc = useQueryClient();
+  const [poolRupees, setPoolRupees] = useState("");
+  const [running, setRunning] = useState(false);
+  const [lastResult, setLastResult] = useState<string | null>(null);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+
+  const { data: config = null } = useQuery<ProgramConfig | null>({
+    queryKey: ["admin-payout-config"],
+    queryFn: async () => {
+      const { data } = await sb
+        .from("creator_program_config")
+        .select("period_pool_paise, enabled")
+        .limit(1)
+        .maybeSingle();
+      return data ?? null;
+    },
+  });
+
+  const { data: runs = [] } = useQuery({
+    queryKey: ["admin-payout-runs"],
+    queryFn: async (): Promise<PayoutRun[]> => {
+      const { data } = await sb
+        .from("creator_payout_runs")
+        .select("*")
+        .order("ran_at", { ascending: false })
+        .limit(12);
+      return data ?? [];
+    },
+  });
+
+  const { data: queue = null } = useQuery({
+    queryKey: ["admin-payout-queue"],
+    queryFn: async (): Promise<Record<string, { n: number; paise: number }>> => {
+      const { data } = await sb.from("payout_queue").select("status, amount_paise").limit(5000);
+      const sum: Record<string, { n: number; paise: number }> = {};
+      for (const r of (data ?? []) as { status: string; amount_paise: number }[]) {
+        sum[r.status] = sum[r.status] ?? { n: 0, paise: 0 };
+        sum[r.status].n += 1;
+        sum[r.status].paise += r.amount_paise;
+      }
+      return sum;
+    },
+  });
+
+  async function runCycle() {
+    setRunning(true);
+    setLastResult(null);
+    try {
+      const rupees = Number(poolRupees);
+      const poolPaise =
+        poolRupees.trim() !== "" && Number.isFinite(rupees) && rupees > 0
+          ? Math.round(rupees * 100)
+          : undefined;
+      const { data, error } = await supabase.functions.invoke("razorpay-order", {
+        body: { runPayouts: true, ...(poolPaise ? { poolPaise } : {}) },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error ?? error?.message ?? "payout run failed");
+        return;
+      }
+      const run = (data?.run ?? {}) as { ok?: boolean; reason?: string } & Record<string, number>;
+      if (run.ok === false) {
+        const why =
+          run.reason === "no-qualified-channels"
+            ? "no channel is qualified yet (10,000 subscribers · 50 videos · 14 days old)"
+            : run.reason === "disabled"
+              ? "the program is switched off in creator_program_config"
+              : run.reason === "no-pool"
+                ? "the pool is zero"
+                : String(run.reason ?? "unknown");
+        setLastResult(`No run: ${why}.`);
+        toast.info("Nothing to distribute");
+      } else {
+        const channels = run.channels ?? 0;
+        const parts = [
+          `${channels} channel${channels === 1 ? "" : "s"}`,
+          `${formatPaise(run.distributedPaise ?? 0)} allocated`,
+          `${data?.dispatched ?? 0} payouts sent via RazorpayX`,
+        ];
+        if (data?.noMethod) parts.push(`${data.noMethod} waiting for a UPI ID`);
+        if (data?.failed) parts.push(`${data.failed} failed`);
+        setLastResult(parts.join(" · ") + (data?.note ? ` — ${data.note}` : ""));
+        toast.success("Payout run complete");
+      }
+      qc.invalidateQueries({ queryKey: ["admin-payout-runs"] });
+      qc.invalidateQueries({ queryKey: ["admin-payout-queue"] });
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "payout run failed");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  const statusLabel: Record<string, string> = {
+    queued: "queued",
+    paid: "paid out",
+    no_method: "no UPI ID yet",
+    failed: "failed",
+  };
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="rounded-2xl border border-border bg-card p-4 text-xs">
+        <div className="font-semibold">Run a payout cycle</div>
+        <p className="mt-1 text-muted-foreground">
+          Splits the pool across qualified channels by views — 70% creator · 20% ONIQ · 10% shared
+          among watching subscribers — then pays every UPI ID through RazorpayX in the same request.
+          Recipients without a UPI ID stay queued until they add one in their profile.
+        </p>
+        {config && !config.enabled && (
+          <div className="mt-2 rounded-lg bg-red-500/10 p-2 font-semibold text-red-400">
+            The program is currently disabled — runs will refuse until it is enabled.
+          </div>
+        )}
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            value={poolRupees}
+            onChange={(e) => setPoolRupees(e.target.value)}
+            inputMode="decimal"
+            placeholder={
+              config ? `pool: ${formatPaise(config.period_pool_paise)}` : "pool override"
+            }
+            className="input-base flex-1"
+          />
+          <button
+            onClick={runCycle}
+            disabled={running}
+            className="press rounded-xl bg-primary px-4 py-2.5 font-semibold text-primary-foreground disabled:opacity-50"
+          >
+            {running ? "Running…" : "Run payouts ▶️"}
+          </button>
+        </div>
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          leave the box empty to use the configured pool; a number here is this run&apos;s pool in
+          rupees.
+        </p>
+        {lastResult && <div className="mt-2 rounded-lg bg-muted/40 p-2">{lastResult}</div>}
+      </div>
+
+      {queue && Object.keys(queue).length > 0 && (
+        <div className="rounded-2xl border border-border bg-card p-4 text-xs">
+          <div className="font-semibold">Queue ledger</div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {(["queued", "paid", "no_method", "failed"] as const).map((s) =>
+              queue[s] ? (
+                <div key={s} className="rounded-lg bg-muted/30 p-2">
+                  <div className="font-semibold">{statusLabel[s]}</div>
+                  <div className="mt-0.5 text-muted-foreground">
+                    {queue[s].n} · {formatPaise(queue[s].paise)}
+                  </div>
+                </div>
+              ) : null,
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {runs.map((r) => (
+          <div key={r.id} className="rounded-2xl border border-border bg-card p-3 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold">
+                {formatPaise(r.distributed_paise)} / {formatPaise(r.pool_paise)} distributed
+              </span>
+              <span className="text-muted-foreground">{homeFormat().dateTime(r.ran_at)}</span>
+            </div>
+            <div className="mt-0.5 text-muted-foreground">
+              {r.channels} qualified channel{r.channels === 1 ? "" : "s"}
+            </div>
+          </div>
+        ))}
+        {runs.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-border p-6 text-center text-xs text-muted-foreground">
+            no payout runs yet
           </div>
         )}
       </div>
