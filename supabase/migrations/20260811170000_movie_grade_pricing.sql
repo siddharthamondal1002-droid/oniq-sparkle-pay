@@ -29,8 +29,20 @@ alter table public.story_price_tiers
 
 -- Rebuild the key around (seconds, grade). Postgres cannot alter a PK in
 -- place; drop and re-add inside the one transaction this migration runs in.
+-- Guarded, because this migration was ALSO applied through Lovable's
+-- migration tool under its own filename (2026-08-11) — the live tracker
+-- knows that copy, not this file, and a runner replaying this one must find
+-- the work already done rather than fail on a second primary key.
 alter table public.story_price_tiers drop constraint if exists story_price_tiers_pkey;
-alter table public.story_price_tiers add primary key (seconds, grade);
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+     where conrelid = 'public.story_price_tiers'::regclass and contype = 'p'
+  ) then
+    alter table public.story_price_tiers add primary key (seconds, grade);
+  end if;
+end $$;
 
 -- The movie chart, priced from the cost model, INACTIVE until the clip stage
 -- ships. Sort orders continue after the classic chart's 1-5.
