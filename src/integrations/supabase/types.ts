@@ -3048,6 +3048,7 @@ export type Database = {
         Row: {
           active: boolean
           currency: string
+          grade: string
           label: string
           price_paise: number
           seconds: number
@@ -3057,6 +3058,7 @@ export type Database = {
         Insert: {
           active?: boolean
           currency?: string
+          grade?: string
           label: string
           price_paise: number
           seconds: number
@@ -3066,6 +3068,7 @@ export type Database = {
         Update: {
           active?: boolean
           currency?: string
+          grade?: string
           label?: string
           price_paise?: number
           seconds?: number
@@ -3103,6 +3106,7 @@ export type Database = {
           created_at: string
           currency: string
           error: string | null
+          grade: string
           id: string
           origin: string
           paid_at: string | null
@@ -3120,6 +3124,7 @@ export type Database = {
           created_at?: string
           currency: string
           error?: string | null
+          grade?: string
           id?: string
           origin?: string
           paid_at?: string | null
@@ -3137,6 +3142,7 @@ export type Database = {
           created_at?: string
           currency?: string
           error?: string | null
+          grade?: string
           id?: string
           origin?: string
           paid_at?: string | null
@@ -3886,7 +3892,7 @@ export type Database = {
         Returns: string
       }
       create_story_purchase: {
-        Args: { _origin?: string; _seconds: number }
+        Args: { _grade?: string; _origin?: string; _seconds: number }
         Returns: Json
       }
       credit_story_purchase: {
