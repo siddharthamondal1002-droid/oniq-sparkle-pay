@@ -448,6 +448,7 @@ export type Database = {
           min_channel_age_days: number
           min_members: number
           min_posts: number
+          min_total_views: number
           min_videos: number
           updated_at: string
         }
@@ -456,6 +457,7 @@ export type Database = {
           min_channel_age_days?: number
           min_members?: number
           min_posts?: number
+          min_total_views?: number
           min_videos?: number
           updated_at?: string
         }
@@ -464,6 +466,7 @@ export type Database = {
           min_channel_age_days?: number
           min_members?: number
           min_posts?: number
+          min_total_views?: number
           min_videos?: number
           updated_at?: string
         }
