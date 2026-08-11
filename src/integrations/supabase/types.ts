@@ -2989,6 +2989,7 @@ export type Database = {
       }
       story_jobs: {
         Row: {
+          cast_json: Json | null
           created_at: string
           dispatched_at: string | null
           error: string | null
@@ -3007,6 +3008,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cast_json?: Json | null
           created_at?: string
           dispatched_at?: string | null
           error?: string | null
@@ -3025,6 +3027,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          cast_json?: Json | null
           created_at?: string
           dispatched_at?: string | null
           error?: string | null
@@ -4228,6 +4231,7 @@ export type Database = {
         }
         Returns: Json
       }
+      set_story_cast: { Args: { _cast: Json; _job_id: string }; Returns: Json }
       share_reel_to_moots: {
         Args: { _clip_id: string; _note?: string; _recipient_ids: string[] }
         Returns: {
