@@ -12,9 +12,11 @@
  * TWO FACES. The OWNER sees the road to monetization — live progress
  * against the same thresholds channel_monetize_status enforces — and, once
  * qualified, what the program has paid them. A MEMBER of a qualified
- * channel sees that being subscribed here earns real payouts; members of
- * unqualified channels see nothing, because a program pitch on a channel
- * that cannot pay yet is noise.
+ * channel sees the INVERSE MODEL: the creator qualified by producing, the
+ * subscriber qualifies by consuming — videos watched and days subscribed,
+ * mirroring the creator's bar — and until they cross it they see their own
+ * road to earning. Members of unqualified channels see nothing, because a
+ * program pitch on a channel that cannot pay yet is noise.
  */
 import { useEffect, useState } from "react";
 import { BadgeCheck, TrendingUp } from "lucide-react";
@@ -37,6 +39,16 @@ type Progress = {
   minAgeDays: number;
 };
 
+type EarnStatus = {
+  ok: boolean;
+  member: boolean;
+  qualified: boolean;
+  watchedVideos: number;
+  minWatchedVideos: number;
+  memberDays: number;
+  minMemberDays: number;
+};
+
 export function ChannelSubBar({
   conversationId,
   isOwner,
@@ -48,6 +60,7 @@ export function ChannelSubBar({
   const { number } = useFormat();
   const [progress, setProgress] = useState<Progress | null>(null);
   const [earnedPaise, setEarnedPaise] = useState<number>(0);
+  const [earn, setEarn] = useState<EarnStatus | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +75,21 @@ export function ChannelSubBar({
       cancelled = true;
     };
   }, [conversationId]);
+
+  useEffect(() => {
+    if (isOwner) return;
+    let cancelled = false;
+    void supabase
+      .rpc("subscriber_earn_status" as never, { _channel_id: conversationId } as never)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const d = data as unknown as EarnStatus | null;
+        if (d?.ok) setEarn(d);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwner, conversationId]);
 
   useEffect(() => {
     if (!isOwner) return;
@@ -126,11 +154,25 @@ export function ChannelSubBar({
             </div>
           </div>
         )
+      ) : earn && earn.member && !earn.qualified ? (
+        <div className="normal-case tracking-normal">
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+            <TrendingUp className="h-3.5 w-3.5 text-primary" /> Road to earning
+          </div>
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+            <span className={earn.watchedVideos >= earn.minWatchedVideos ? "text-emerald-300" : ""}>
+              {number(earn.watchedVideos)}/{number(earn.minWatchedVideos)} videos watched
+            </span>
+            <span className={earn.memberDays >= earn.minMemberDays ? "text-emerald-300" : ""}>
+              {earn.memberDays}/{earn.minMemberDays} days subscribed
+            </span>
+          </div>
+        </div>
       ) : (
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <BadgeCheck className="h-3.5 w-3.5 text-emerald-300" />
           This channel earns from the ONIQ Creator Program — watching earns you a share, paid to
-          your UPI.
+          your UPI.{earn?.qualified ? " You qualify." : ""}
         </div>
       )}
     </div>

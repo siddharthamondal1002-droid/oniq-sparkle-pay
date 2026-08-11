@@ -814,7 +814,8 @@ function PayoutsPanel() {
         <p className="mt-1 text-muted-foreground">
           Splits the pool across qualified channels by views — 70% creator · 20% ONIQ · 10% shared
           among watching subscribers — then pays every UPI ID through RazorpayX in the same request.
-          Recipients without a UPI ID stay queued until they add one in their profile.
+          Subscribers qualify by the inverse bar: 50 videos watched · 14 days subscribed. Recipients
+          without a UPI ID stay queued until they add one in their profile.
         </p>
         {config && !config.enabled && (
           <div className="mt-2 rounded-lg bg-red-500/10 p-2 font-semibold text-red-400">
