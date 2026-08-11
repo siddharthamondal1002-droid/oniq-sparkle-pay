@@ -1582,6 +1582,86 @@ function RemoteTile({ tile, showVideo }: { tile: PeerTile; showVideo: boolean })
     }
   }, [tile.stream]);
 
+  /**
+   * Make the peer audibly louder than the element alone can.
+   *
+   * An <audio> element caps at volume 1.0, and on Android the WebView hands
+   * that to the media stream at a level that is genuinely too quiet to hold a
+   * conversation. A compressor plus makeup gain lifts quiet speech without
+   * clipping the loud parts — the compressor is what stops "louder" becoming
+   * "distorted", so it is not optional here.
+   *
+   * FAIL-SAFE ORDERING IS THE WHOLE DESIGN. The element keeps playing until a
+   * running AudioContext exists; only then is it muted, so the graph is the
+   * single path. If the context never starts — autoplay policy, an OEM
+   * WebView, anything — nothing is muted and the user still hears the call at
+   * the old volume. Silence is the one outcome this must never produce.
+   */
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el || !tile.stream) return;
+    const Ctx: typeof AudioContext | undefined =
+      window.AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (!Ctx) return;
+
+    let ctx: AudioContext | null = null;
+    let cancelled = false;
+    let unlock: (() => void) | null = null;
+
+    try {
+      ctx = new Ctx();
+      const source = ctx.createMediaStreamSource(tile.stream);
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -30;
+      comp.knee.value = 24;
+      comp.ratio.value = 8;
+      comp.attack.value = 0.003;
+      comp.release.value = 0.25;
+      const gain = ctx.createGain();
+      gain.gain.value = 2.4;
+      source.connect(comp);
+      comp.connect(gain);
+      gain.connect(ctx.destination);
+    } catch {
+      try {
+        ctx?.close();
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+
+    const engage = () => {
+      if (cancelled || !ctx) return;
+      void ctx
+        .resume()
+        .then(() => {
+          // Only now is it safe to hand sound over to the graph.
+          if (!cancelled && ctx?.state === "running") el.muted = true;
+        })
+        .catch(() => {});
+    };
+    engage();
+    if (ctx.state !== "running") {
+      unlock = () => engage();
+      window.addEventListener("pointerdown", unlock, true);
+    }
+
+    return () => {
+      cancelled = true;
+      if (unlock) window.removeEventListener("pointerdown", unlock, true);
+      // Give sound back to the element before tearing the graph down, or a
+      // re-render would land on a muted element with nothing feeding it.
+      el.muted = false;
+      try {
+        void ctx?.close();
+      } catch {
+        /* ignore */
+      }
+    };
+  }, [tile.stream]);
+
   const mono = (tile.peerName || "?").charAt(0).toUpperCase();
   const connecting = tile.connState !== "connected";
   return (
