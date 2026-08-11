@@ -1008,6 +1008,7 @@ function ChatThread() {
     duration_s?: number;
     file_name?: string;
     file_size?: number;
+    skipPush?: boolean;
   }) => {
     if (!me) return;
     const { error } = await supabase.from("messages").insert({
@@ -1035,11 +1036,13 @@ function ChatThread() {
       video: "🎥 Video",
       file: "📎 File",
     } as const;
-    sendPush({
-      conversation_id: conversationId,
-      kind: "message",
-      preview: previewMap[payload.type],
-    });
+    if (!payload.skipPush) {
+      sendPush({
+        conversation_id: conversationId,
+        kind: "message",
+        preview: previewMap[payload.type],
+      });
+    }
   };
 
   // ---- per-file validation + upload (used by single & batch flows) ----
@@ -1090,13 +1093,13 @@ function ChatThread() {
   };
 
   type BatchKind = "image" | "video" | "file";
-  const uploadOne = async (f: File, kind: BatchKind): Promise<boolean> => {
+  const uploadOne = async (f: File, kind: BatchKind, skipPush = false): Promise<boolean> => {
     try {
       const rawExt = (f.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
       if (kind === "image") {
         const ext = rawExt || "jpg";
         const url = await uploadToChatMedia(f, ext);
-        await insertMediaMessage({ type: "image", media_url: url });
+        await insertMediaMessage({ type: "image", media_url: url, skipPush });
       } else if (kind === "video") {
         const allowed = ["mp4", "mov", "webm", "mkv"];
         const ext = allowed.includes(rawExt) ? rawExt : "mp4";
@@ -1106,6 +1109,7 @@ function ChatThread() {
           media_url: url,
           file_name: f.name,
           file_size: f.size,
+          skipPush,
         });
       } else {
         const url = await uploadToChatMedia(f, rawExt);
@@ -1114,6 +1118,7 @@ function ChatThread() {
           media_url: url,
           file_name: f.name,
           file_size: f.size,
+          skipPush,
         });
       }
       return true;
@@ -1202,16 +1207,17 @@ function ChatThread() {
     if (items.length === 0) return;
     setUploading(true);
     setBatchProgress({ done: 0, total: items.length });
+    // Multi-item batches suppress the per-item push and send ONE "N items"
+    // nudge at the end — ten photos used to buzz the recipient eleven times.
+    const multi = items.length > 1;
     let ok = 0;
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      const success = await uploadOne(it.file, it.kind);
+      const success = await uploadOne(it.file, it.kind, multi);
       if (success) ok++;
       setBatchProgress({ done: i + 1, total: items.length });
     }
-    // One push per batch (insertMediaMessage already pushes per item, but we
-    // want a single "N items" nudge for the recipient — best-effort override).
-    if (ok > 1) {
+    if (multi && ok > 0) {
       sendPush({
         conversation_id: conversationId,
         kind: "message",

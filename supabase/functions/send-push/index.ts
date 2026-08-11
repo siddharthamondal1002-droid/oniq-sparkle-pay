@@ -110,7 +110,7 @@ Deno.serve(async (req) => {
 
   let body: {
     conversation_id?: string;
-    kind?: "message" | "call";
+    kind?: "message" | "call" | "call_cancel";
     preview?: string;
     call_type?: string;
     call_id?: string;
@@ -212,6 +212,7 @@ Deno.serve(async (req) => {
         // OniqMessagingService always runs — even when the app is backgrounded
         // or killed — and can ring the phone via a full-screen intent.
         const isCall = kind === "call";
+        const isCancel = kind === "call_cancel";
         // Include acceptCall+acceptType in the deep link so tapping the call
         // notification lands the user directly on the accepting call —
         // GlobalIncomingCall's URL-adopt path picks these up on load.
@@ -228,23 +229,32 @@ Deno.serve(async (req) => {
               call_id: call_id ?? "",
               conversation_id,
             }
-          : {
-              kind: "message",
-              title,
-              body: bodyText,
-              url: `/app/chat/${conversation_id}`,
-              conversation_id,
-            };
+          : isCancel
+            ? {
+                // Data-only "stop ringing" signal: the native service cancels
+                // the insistent call notification. No visible notification of
+                // its own — the missed call surfaces in the app's call log.
+                kind: "call_cancel",
+                call_id: call_id ?? "",
+                conversation_id,
+              }
+            : {
+                kind: "message",
+                title,
+                body: bodyText,
+                url: `/app/chat/${conversation_id}`,
+                conversation_id,
+              };
 
         const messagePayload: Record<string, unknown> = {
           token,
           data: dataPayload,
           android: {
             priority: "HIGH",
-            ttl: isCall ? "60s" : "3600s",
+            ttl: isCall ? "60s" : isCancel ? "120s" : "3600s",
           },
         };
-        if (!isCall) {
+        if (!isCall && !isCancel) {
           messagePayload.notification = { title, body: bodyText };
         }
 
@@ -260,13 +270,16 @@ Deno.serve(async (req) => {
           sent++;
         } else {
           failed++;
-          if (r.status === 404) {
+          const errText = await r.text().catch(() => "");
+          // Delete a token ONLY on signals scoped to the token itself:
+          // 404/UNREGISTERED. INVALID_ARGUMENT also fires for a malformed
+          // PAYLOAD field — treating it as a dead token meant one bad payload
+          // deleted every recipient's device_tokens row in a single send.
+          if (r.status === 404 || errText.includes("UNREGISTERED")) {
             staleTokens.push(token);
           } else {
-            const errText = await r.text();
-            if (errText.includes("UNREGISTERED") || errText.includes("INVALID_ARGUMENT")) {
-              staleTokens.push(token);
-            }
+            // Status + FCM error code only — never the token.
+            console.error("fcm send failed", r.status, errText.slice(0, 300));
           }
         }
       } catch {

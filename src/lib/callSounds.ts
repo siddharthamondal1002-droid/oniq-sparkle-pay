@@ -30,7 +30,9 @@ export function getSelectedRingtone(): RingtoneId {
 }
 
 export function setSelectedRingtone(id: RingtoneId) {
-  try { localStorage.setItem(LS_RING, id); } catch {}
+  try {
+    localStorage.setItem(LS_RING, id);
+  } catch {}
 }
 
 export function getSelectedPing(): PingId {
@@ -42,7 +44,9 @@ export function getSelectedPing(): PingId {
 }
 
 export function setSelectedPing(id: PingId) {
-  try { localStorage.setItem(LS_PING, id); } catch {}
+  try {
+    localStorage.setItem(LS_PING, id);
+  } catch {}
 }
 
 type Tone = {
@@ -77,6 +81,24 @@ export function stopAllCallSounds() {
     if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
       navigator.vibrate(0);
     }
+  } catch {}
+  clearNativeRinging();
+}
+
+/**
+ * Cancel the native ringing call notification (Android, id 4242). The
+ * full-screen intent deliberately does NOT auto-answer, so once the in-app
+ * ring UI resolves — answer, decline, quick-reply, or the caller giving up —
+ * the system-side insistent ringtone must be silenced from here. Best-effort:
+ * a web build resolves to a no-op proxy and the catch swallows it.
+ */
+export function clearNativeRinging() {
+  try {
+    void import("@capacitor/core").then(({ Capacitor, registerPlugin }) => {
+      if (!Capacitor.isNativePlatform()) return;
+      const CallSettings = registerPlugin<{ clearRinging(): Promise<void> }>("CallSettings");
+      CallSettings.clearRinging().catch(() => {});
+    });
   } catch {}
 }
 
@@ -113,22 +135,30 @@ const PATTERNS: Record<RingtoneId, RingPattern> = {
     intervalMs: 2000,
     play: (ctx, tone) => {
       playBeep(ctx, [880], 400, 0.3, "sine");
-      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [660], 400, 0.3, "sine"); }, 500);
+      window.setTimeout(() => {
+        if (!tone.stopped) playBeep(ctx, [660], 400, 0.3, "sine");
+      }, 500);
     },
   },
   synth: {
     intervalMs: 2200,
     play: (ctx, tone) => {
       playBeep(ctx, [523.25, 659.25], 500, 0.28, "sawtooth");
-      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [783.99], 700, 0.28, "sawtooth"); }, 550);
+      window.setTimeout(() => {
+        if (!tone.stopped) playBeep(ctx, [783.99], 700, 0.28, "sawtooth");
+      }, 550);
     },
   },
   arcade: {
     intervalMs: 1600,
     play: (ctx, tone) => {
       playBeep(ctx, [1046.5], 120, 0.3, "square");
-      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [1318.5], 120, 0.3, "square"); }, 150);
-      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [1568], 200, 0.3, "square"); }, 300);
+      window.setTimeout(() => {
+        if (!tone.stopped) playBeep(ctx, [1318.5], 120, 0.3, "square");
+      }, 150);
+      window.setTimeout(() => {
+        if (!tone.stopped) playBeep(ctx, [1568], 200, 0.3, "square");
+      }, 300);
     },
   },
   minimal: {
@@ -151,14 +181,15 @@ const PING_PATTERNS: Record<PingId, (ctx: AudioContext) => void> = {
     setTimeout(() => playBeep(ctx, [1320], 60, 0.14, "sawtooth"), 70);
   },
   soft: (ctx) => {
-    playBeep(ctx, [523.25], 260, 0.10, "triangle");
+    playBeep(ctx, [523.25], 260, 0.1, "triangle");
   },
 };
 
 // Louder two-tone ring for incoming calls (~1s on, 1s off).
 export function playRingtone(id?: RingtoneId) {
   stopAllCallSounds();
-  const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+  const AC = (window.AudioContext || (window as any).webkitAudioContext) as
+    typeof AudioContext | undefined;
   if (!AC) return;
   let ctx: AudioContext;
   try {
@@ -173,7 +204,9 @@ export function playRingtone(id?: RingtoneId) {
   const pattern = PATTERNS[id ?? getSelectedRingtone()] ?? PATTERNS.classic;
   const ring = () => {
     if (tone.stopped) return;
-    try { pattern.play(ctx, tone); } catch {}
+    try {
+      pattern.play(ctx, tone);
+    } catch {}
   };
   ring();
   tone.timer = window.setInterval(ring, pattern.intervalMs);
@@ -181,7 +214,11 @@ export function playRingtone(id?: RingtoneId) {
   // Vibration loop (feature-detect).
   try {
     if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
-      const vib = () => { try { navigator.vibrate([400, 200, 400]); } catch {} };
+      const vib = () => {
+        try {
+          navigator.vibrate([400, 200, 400]);
+        } catch {}
+      };
       vib();
       tone.vibTimer = window.setInterval(vib, 1200);
     }
@@ -191,7 +228,8 @@ export function playRingtone(id?: RingtoneId) {
 // Phonelike ringback (caller side) — classic dual-tone ring, loud enough.
 export function playRingback() {
   stopAllCallSounds();
-  const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+  const AC = (window.AudioContext || (window as any).webkitAudioContext) as
+    typeof AudioContext | undefined;
   if (!AC) return;
   let ctx: AudioContext;
   try {
@@ -207,7 +245,9 @@ export function playRingback() {
     if (tone.stopped) return;
     try {
       playBeep(ctx, [440], 400, 0.22, "sine");
-      window.setTimeout(() => { if (!tone.stopped) playBeep(ctx, [480], 400, 0.22, "sine"); }, 500);
+      window.setTimeout(() => {
+        if (!tone.stopped) playBeep(ctx, [480], 400, 0.22, "sine");
+      }, 500);
     } catch {}
   };
   ring();
@@ -216,16 +256,25 @@ export function playRingback() {
 
 // One-shot chat/notification ping using the selected ping sound.
 export function playPing(id?: PingId) {
-  const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext | undefined;
+  const AC = (window.AudioContext || (window as any).webkitAudioContext) as
+    typeof AudioContext | undefined;
   if (!AC) return;
   let ctx: AudioContext;
-  try { ctx = new AC(); } catch { return; }
+  try {
+    ctx = new AC();
+  } catch {
+    return;
+  }
   ctx.resume?.().catch(() => {});
   try {
     (PING_PATTERNS[id ?? getSelectedPing()] ?? PING_PATTERNS.chime)(ctx);
   } catch {}
   // Auto-close after a short window so we don't leak AudioContexts.
-  setTimeout(() => { try { void ctx.close(); } catch {} }, 900);
+  setTimeout(() => {
+    try {
+      void ctx.close();
+    } catch {}
+  }, 900);
 }
 
 // Ask once, remember result at module scope.

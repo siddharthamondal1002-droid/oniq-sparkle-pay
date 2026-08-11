@@ -46,6 +46,42 @@ public class MainActivity extends BridgeActivity {
         applyCallWindowFlags(getIntent());
         applyEdgeToEdgeInsets();
         requestBestRefreshRate();
+        ensureNotificationChannels();
+    }
+
+    /**
+     * Create both notification channels at startup. Message pushes carry an
+     * FCM notification block rendered by the SYSTEM on the channel named in
+     * the manifest meta-data ("oniq_messages") — if that channel doesn't
+     * exist yet, FCM quietly falls back to its own "Miscellaneous" channel
+     * with whatever defaults the OEM ships. The service creates channels
+     * lazily, but only on code paths IT renders; the system-rendered path
+     * needs them to exist before the first push ever arrives.
+     */
+    private void ensureNotificationChannels() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        android.app.NotificationManager nm = getSystemService(android.app.NotificationManager.class);
+        if (nm == null) return;
+        if (nm.getNotificationChannel("oniq_messages") == null) {
+            nm.createNotificationChannel(new android.app.NotificationChannel(
+                "oniq_messages", "Messages", android.app.NotificationManager.IMPORTANCE_DEFAULT));
+        }
+        if (nm.getNotificationChannel("oniq_calls") == null) {
+            android.app.NotificationChannel calls = new android.app.NotificationChannel(
+                "oniq_calls", "Incoming calls", android.app.NotificationManager.IMPORTANCE_HIGH);
+            calls.setDescription("Rings your phone for incoming ONIQ voice and video calls.");
+            android.net.Uri ringUri = android.media.RingtoneManager.getDefaultUri(
+                android.media.RingtoneManager.TYPE_RINGTONE);
+            calls.setSound(ringUri, new android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build());
+            calls.enableVibration(true);
+            calls.setVibrationPattern(new long[] { 0, 800, 600, 800, 600, 800 });
+            calls.setLockscreenVisibility(android.app.Notification.VISIBILITY_PUBLIC);
+            calls.setBypassDnd(true);
+            nm.createNotificationChannel(calls);
+        }
     }
 
     /**
@@ -337,6 +373,22 @@ public class MainActivity extends BridgeActivity {
         // Uri.encodedPath() would encode ? and break the one-tap-answer flow.
         String target = url.startsWith("http") ? url : ("https://oniqhub.com" + url);
         final String finalTarget = target;
-        runOnUiThread(() -> bridge.getWebView().loadUrl(finalTarget));
+        final String path = url.startsWith("http") ? null : url;
+        runOnUiThread(() -> {
+            android.webkit.WebView wv = bridge.getWebView();
+            String current = wv.getUrl();
+            boolean siteLive = current != null && current.startsWith("https://oniqhub.com");
+            if (siteLive && path != null) {
+                // The SPA is already running: hand it the route as an event
+                // instead of a full page load. loadUrl() here tore down the
+                // whole JS world — including the live WebRTC session of the
+                // call the user just answered from the tray.
+                String js = "window.dispatchEvent(new CustomEvent('oniq:push-navigate',{detail:{url:'"
+                    + path.replace("\\", "\\\\").replace("'", "\\'") + "'}}))";
+                wv.evaluateJavascript(js, null);
+            } else {
+                wv.loadUrl(finalTarget);
+            }
+        });
     }
 }

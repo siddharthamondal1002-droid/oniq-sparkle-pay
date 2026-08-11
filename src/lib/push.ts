@@ -2,7 +2,7 @@
 // Web builds are unaffected: dynamic import + isNativePlatform guard.
 import { supabase } from "@/integrations/supabase/client";
 
-export type PushKind = "message" | "call";
+export type PushKind = "message" | "call" | "call_cancel";
 
 export function sendPush(payload: {
   conversation_id: string;
@@ -19,13 +19,50 @@ export function sendPush(payload: {
   }
 }
 
-let initialized = false;
+export type PushInitResult = "granted" | "denied" | "unavailable";
 
-export async function initPush() {
-  if (initialized) return;
+let listenersAttached = false;
+let registered = false;
+// The FCM token this device most recently registered, kept so a later
+// initPush() (after an account switch) can re-bind the row to the new user,
+// and so sign-out can delete it.
+let currentToken: string | null = null;
+let boundUserId: string | null = null;
+
+async function upsertToken(token: string) {
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+    const { error } = await supabase.from("device_tokens").upsert(
+      {
+        user_id: user.id,
+        token,
+        platform: "android",
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "token" },
+    );
+    if (error) {
+      // The common cause: the row still belongs to the PREVIOUS account on
+      // this device, and RLS blocks user B from updating user A's row. The
+      // fix for that path is removePushToken() before sign-out; this log is
+      // so the failure is at least visible instead of a silent void.
+      // eslint-disable-next-line no-console
+      console.warn("device_tokens upsert failed:", error.message);
+      return;
+    }
+    boundUserId = user.id;
+  } catch {
+    // swallow — push is best-effort
+  }
+}
+
+export async function initPush(): Promise<PushInitResult> {
   try {
     const { Capacitor } = await import("@capacitor/core");
-    if (!Capacitor.isNativePlatform()) return;
+    if (!Capacitor.isNativePlatform()) return "unavailable";
 
     const { PushNotifications } = await import("@capacitor/push-notifications" as string);
 
@@ -35,54 +72,75 @@ export async function initPush() {
       const req = await PushNotifications.requestPermissions();
       granted = req.receive === "granted";
     }
-    // Latch AFTER the permission gate, not before it. Latching first meant one
-    // refusal poisoned the whole session: the onboarding screen's retry called
-    // initPush(), hit the latch, silently did nothing — and then reported
-    // "notifications on 🔔" with no token registered anywhere.
-    if (!granted) return;
-    initialized = true;
+    // No latch before the permission gate: one refusal must not poison the
+    // session — the onboarding screen's retry calls initPush() again.
+    if (!granted) return "denied";
 
-    // Listener BEFORE register(): the registration event must have somewhere
-    // to land. Today the plugin happens to retain the event until consumed,
-    // but ordering correctness should not hang off an undocumented buffer.
-    PushNotifications.addListener("registration", async (t: { value: string }) => {
-      try {
+    // Already registered in this session: re-bind the stored token to the
+    // CURRENT user. On a shared device, sign-out → sign-in used to leave the
+    // token row pointing at the previous account, ringing user A's calls on
+    // user B's phone.
+    if (registered) {
+      if (currentToken) {
         const {
           data: { user },
         } = await supabase.auth.getUser();
-        if (!user) return;
-        await supabase
-          .from("device_tokens")
-          .upsert(
-            {
-              user_id: user.id,
-              token: t.value,
-              platform: "android",
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "token" },
-          );
-      } catch {
-        // swallow — push is best-effort
+        if (user && user.id !== boundUserId) await upsertToken(currentToken);
       }
-    });
+      return "granted";
+    }
 
-    PushNotifications.addListener("registrationError", () => {
-      // ignore
-    });
+    // Listeners BEFORE register(): the registration event must have somewhere
+    // to land. Today the plugin happens to retain the event until consumed,
+    // but ordering correctness should not hang off an undocumented buffer.
+    if (!listenersAttached) {
+      listenersAttached = true;
+
+      PushNotifications.addListener("registration", async (t: { value: string }) => {
+        currentToken = t.value;
+        await upsertToken(t.value);
+      });
+
+      PushNotifications.addListener("registrationError", () => {
+        // Allow a later initPush() to retry the whole registration.
+        registered = false;
+      });
+
+      PushNotifications.addListener(
+        "pushNotificationActionPerformed",
+        (action: { notification?: { data?: Record<string, unknown> } }) => {
+          const url = (action.notification?.data as { url?: string } | undefined)?.url;
+          if (url) {
+            window.location.assign(url);
+          }
+        },
+      );
+    }
 
     await PushNotifications.register();
-
-    PushNotifications.addListener(
-      "pushNotificationActionPerformed",
-      (action: { notification?: { data?: Record<string, unknown> } }) => {
-        const url = (action.notification?.data as { url?: string } | undefined)?.url;
-        if (url) {
-          window.location.assign(url);
-        }
-      },
-    );
+    // Latch only after register() resolves — a throw above leaves the latch
+    // open so the next call retries instead of silently doing nothing.
+    registered = true;
+    return "granted";
   } catch {
     // native module not available — silently no-op
+    return "unavailable";
+  }
+}
+
+/**
+ * Delete this device's token row. MUST run BEFORE supabase.auth.signOut():
+ * RLS only lets the row's owner delete it, and after sign-out there is no
+ * owner in the session. Without this, a signed-out (or re-used) device keeps
+ * receiving the previous account's messages and calls.
+ */
+export async function removePushToken() {
+  const token = currentToken;
+  if (!token) return;
+  try {
+    await supabase.from("device_tokens").delete().eq("token", token);
+    boundUserId = null;
+  } catch {
+    // best-effort
   }
 }

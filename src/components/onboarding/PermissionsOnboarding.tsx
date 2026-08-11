@@ -30,7 +30,9 @@ export function PermissionsOnboarding() {
       if (typeof window === "undefined") return;
       if (localStorage.getItem(FLAG)) return;
       setOpen(true);
-    } catch { /* noop */ }
+    } catch {
+      /* noop */
+    }
   }, []);
 
   useEffect(() => {
@@ -45,7 +47,11 @@ export function PermissionsOnboarding() {
   }, [open]);
 
   const finish = () => {
-    try { localStorage.setItem(FLAG, "1"); } catch { /* noop */ }
+    try {
+      localStorage.setItem(FLAG, "1");
+    } catch {
+      /* noop */
+    }
     setOpen(false);
   };
 
@@ -54,9 +60,19 @@ export function PermissionsOnboarding() {
     try {
       if (Capacitor.isNativePlatform()) {
         try {
-          await initPush();
-          setNotif("granted");
-          toast.success("notifications on 🔔");
+          // initPush reports what actually happened — claiming "granted" after
+          // a denial flipped the card to a state with no retry and told the
+          // user notifications were on when no token existed anywhere.
+          const result = await initPush();
+          if (result === "granted") {
+            setNotif("granted");
+            toast.success("notifications on 🔔");
+          } else if (result === "denied") {
+            setNotif("denied");
+            toast("no notifications — you can allow them in system settings 🔧");
+          } else {
+            toast("notifications not supported on this device");
+          }
         } catch (e: unknown) {
           const name = (e as { name?: string; message?: string })?.name || "Error";
           const msg = (e as { message?: string })?.message || "couldn't turn on";
@@ -78,7 +94,9 @@ export function PermissionsOnboarding() {
       }
     } catch {
       toast.error("couldn't turn on notifications");
-    } finally { setBusy(null); }
+    } finally {
+      setBusy(null);
+    }
   };
 
   const askLocation = () => {
@@ -89,8 +107,16 @@ export function PermissionsOnboarding() {
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      () => { setGeo("granted"); toast.success("location on 📍"); setBusy(null); },
-      () => { setGeo("denied"); toast("no location — that's fine"); setBusy(null); },
+      () => {
+        setGeo("granted");
+        toast.success("location on 📍");
+        setBusy(null);
+      },
+      () => {
+        setGeo("denied");
+        toast("no location — that's fine");
+        setBusy(null);
+      },
       { timeout: 10000 },
     );
   };
@@ -105,8 +131,14 @@ export function PermissionsOnboarding() {
     } catch (e: unknown) {
       const name = (e as { name?: string })?.name;
       setCam("denied");
-      toast(name === "NotAllowedError" ? "no worries — enable later in settings" : "couldn't access camera/mic");
-    } finally { setBusy(null); }
+      toast(
+        name === "NotAllowedError"
+          ? "no worries — enable later in settings"
+          : "couldn't access camera/mic",
+      );
+    } finally {
+      setBusy(null);
+    }
   };
 
   if (!open) return null;
@@ -128,7 +160,9 @@ export function PermissionsOnboarding() {
             <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="text-sm text-muted-foreground mb-4">turn these on so ONIQ can actually do its thing. skip whatever, no pressure.</p>
+        <p className="text-sm text-muted-foreground mb-4">
+          turn these on so ONIQ can actually do its thing. skip whatever, no pressure.
+        </p>
 
         <ul className="space-y-2">
           <PermCard
@@ -161,7 +195,9 @@ export function PermissionsOnboarding() {
             desc="find ur ppl — asked when you tap it"
             state="ondemand"
             busy={false}
-            onAsk={() => { /* no blanket permission on web */ }}
+            onAsk={() => {
+              /* no blanket permission on web */
+            }}
           />
         </ul>
 
@@ -213,7 +249,9 @@ function PermCard({
             <Check className="h-3.5 w-3.5" /> on
           </span>
         ) : isOnDemand ? (
-          <span className="rounded-full bg-surface px-2 py-1 text-xs text-muted-foreground">on-demand ✓</span>
+          <span className="rounded-full bg-surface px-2 py-1 text-xs text-muted-foreground">
+            on-demand ✓
+          </span>
         ) : (
           <button
             type="button"

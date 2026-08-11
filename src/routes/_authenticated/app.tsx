@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet, Link, useLocation } from "@tanstack/react-router";
+import { createFileRoute, Outlet, Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Home, MessageCircle, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -46,6 +46,7 @@ const CHAT_SUBTABS = new Set([
 
 function AppShell() {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const { data: theme } = useUserTheme();
   const { data: me } = useQuery({
     queryKey: ["me"],
@@ -55,6 +56,41 @@ function AppShell() {
   useEffect(() => {
     if (me?.id) void initPush();
   }, [me?.id]);
+  // Native push taps land here as a soft navigation. MainActivity dispatches
+  // this event instead of WebView.loadUrl when the SPA is already running —
+  // a full page load tore down every live object, including the WebRTC call
+  // the user had just answered from the tray.
+  useEffect(() => {
+    const onPushNavigate = (e: Event) => {
+      const url = (e as CustomEvent<{ url?: string }>).detail?.url;
+      if (typeof url !== "string" || !url.startsWith("/")) return;
+      const [path, qs] = url.split("?");
+      const search = qs ? Object.fromEntries(new URLSearchParams(qs)) : undefined;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      navigate({ to: path as any, search: search as any });
+      // Tray tap on a ringing call: same-route navigation won't remount
+      // CallOverlay, so mirror GlobalIncomingCall's fallback event.
+      const acceptCall = search?.acceptCall;
+      if (acceptCall) {
+        const conversationId = path.split("/").pop() ?? "";
+        setTimeout(() => {
+          try {
+            window.dispatchEvent(
+              new CustomEvent("oniq:accept-call", {
+                detail: {
+                  callId: acceptCall,
+                  callType: search?.acceptType === "video" ? "video" : "audio",
+                  conversationId,
+                },
+              }),
+            );
+          } catch {}
+        }, 300);
+      }
+    };
+    window.addEventListener("oniq:push-navigate", onPushNavigate);
+    return () => window.removeEventListener("oniq:push-navigate", onPushNavigate);
+  }, [navigate]);
   const wallpaper = theme?.wallpaper_url ?? null;
 
   const normalized =

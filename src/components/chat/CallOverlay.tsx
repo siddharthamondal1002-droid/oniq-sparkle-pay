@@ -622,6 +622,13 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
   const endEveryone = (notify: boolean) => {
     if (notify && activeRef.current) sendSig("end", null);
+    // Caller gave up before anyone answered → tell the phones to stop
+    // ringing. The "call" push posted an insistent notification on every
+    // callee device; without this it loops its ringtone for the full 35s
+    // after the caller already hung up.
+    if (isCallerRef.current && callIdRef.current && logStatusRef.current !== "answered") {
+      sendPush({ conversation_id: conversationId, kind: "call_cancel", call_id: callIdRef.current });
+    }
     // Call log: if this was an answered call, record duration on end.
     if (isCallerRef.current && logIdRef.current && logStatusRef.current === "answered") {
       const dur = timerRef.current ? Math.floor((Date.now() - startedAtRef.current) / 1000) : null;

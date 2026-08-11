@@ -38,6 +38,25 @@ public class CallSettingsPlugin extends Plugin {
         call.resolve(r);
     }
 
+    /**
+     * Cancel the ringing incoming-call notification (id 4242 in
+     * OniqMessagingService). The full-screen intent deliberately carries no
+     * accept semantics, so once the user answers, declines, or the ring
+     * expires IN THE APP, the web layer calls this to silence the insistent
+     * system ringtone that would otherwise loop to its 35s timeout.
+     */
+    @PluginMethod
+    public void clearRinging(PluginCall call) {
+        try {
+            NotificationManager nm = (NotificationManager)
+                getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm != null) nm.cancel(4242);
+        } catch (Throwable t) {
+            // best-effort — never fail the JS caller
+        }
+        call.resolve();
+    }
+
     @PluginMethod
     public void openFullScreenIntentSettings(PluginCall call) {
         Context ctx = getContext();
