@@ -1006,6 +1006,12 @@ function PayoutSection() {
           {paidPaise > 0 ? `Paid out so far: ${moneyIn(paidPaise / 100, "INR")}` : ""}
         </p>
       )}
+      <Link
+        to="/app/creator"
+        className="mt-3 inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary"
+      >
+        Open Creator Studio 📊
+      </Link>
     </section>
   );
 }

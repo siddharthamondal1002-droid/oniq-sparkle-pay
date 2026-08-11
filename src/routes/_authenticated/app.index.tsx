@@ -34,6 +34,8 @@ import { useT } from "@/lib/i18n/LanguageProvider";
 import { tileName, type TileKey } from "@/lib/i18n/tileLabel";
 import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
 import { recordSignal } from "@/lib/personalisation";
+import { LORE_COLLECTIONS } from "@/data/lores";
+import { AiOutputReport } from "@/components/safety/AiOutputReport";
 
 export const Route = createFileRoute("/_authenticated/app/")({
   component: HomeScreen,
@@ -1010,6 +1012,9 @@ type ClipPreview = {
   created_at: string;
 };
 
+// Originals with a playable file, flattened once — the home loop's playlist.
+const HOME_ORIGINALS = LORE_COLLECTIONS.flatMap((c) => c.videos).filter((v) => !!v.url);
+
 function MastPreview() {
   const navigate = useNavigate();
   const media = useMediaCoordinator();
@@ -1017,6 +1022,13 @@ function MastPreview() {
   const [idx, setIdx] = useState(0);
   const [pickNonce, setPickNonce] = useState(0);
   const [muted, setMuted] = useState(true);
+  // OWNER DIRECTIVE: Originals live on Home UNDER A TOGGLE, with the same
+  // loop features as the brainrot card — autoplay, loop, swipe-to-advance,
+  // mute, auto-rotate. One card, two faces; the choice sticks per session.
+  const [face, setFace] = useState<"mast" | "originals">(() => {
+    if (typeof sessionStorage === "undefined") return "mast";
+    return (sessionStorage.getItem("oniq_home_loop") as "mast" | "originals") ?? "mast";
+  });
 
   const { data, isLoading } = useQuery({
     queryKey: ["clips-preview"],
@@ -1030,37 +1042,40 @@ function MastPreview() {
   });
 
   const clips = data ?? [];
-  const active = clips[idx];
+  const listLength = face === "mast" ? clips.length : HOME_ORIGINALS.length;
+  const active = face === "mast" ? clips[idx % Math.max(1, clips.length)] : undefined;
+  const activeLore =
+    face === "originals" ? HOME_ORIGINALS[idx % Math.max(1, HOME_ORIGINALS.length)] : undefined;
 
   // Auto-advance every 30s; resets whenever idx or pickNonce changes so a
   // manual tap gets a fresh 30s countdown rather than a stale timer firing.
   useEffect(() => {
-    if (clips.length <= 1) return;
+    if (listLength <= 1) return;
     const t = setTimeout(() => {
-      setIdx((i) => (i + 1) % clips.length);
+      setIdx((i) => (i + 1) % listLength);
     }, 30_000);
     return () => clearTimeout(t);
-  }, [idx, pickNonce, clips.length]);
+  }, [idx, pickNonce, listLength]);
 
   // Register the current video with the single-audio-source coordinator so
   // Only one media surface plays audio at a time.
   useEffect(() => {
     if (videoRef.current) media.register(videoRef.current);
-  }, [idx, media]);
+  }, [idx, face, media]);
 
   useEffect(() => {
     if (videoRef.current) videoRef.current.muted = muted;
-  }, [muted, idx]);
+  }, [muted, idx, face]);
 
-  const openReels = () => navigate({ to: "/app/chat/reels" });
+  const openAll = () => navigate({ to: face === "mast" ? "/app/chat/reels" : "/app/lores" });
 
   return (
     <div
-      onClick={openReels}
+      onClick={openAll}
       role="link"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") openReels();
+        if (e.key === "Enter" || e.key === " ") openAll();
       }}
       className="press fade-up relative block cursor-pointer overflow-hidden rounded-3xl border border-border p-4"
       style={{
@@ -1069,25 +1084,56 @@ function MastPreview() {
       }}
     >
       <div className="flex items-center justify-between">
-        <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
-          <Film className="h-3 w-3" /> mast 🎬
+        <div className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider">
+          {(
+            [
+              ["mast", "mast 🎬"],
+              ["originals", "originals 🍿"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setFace(k);
+                setIdx(0);
+                setPickNonce((n) => n + 1);
+                if (typeof sessionStorage !== "undefined")
+                  sessionStorage.setItem("oniq_home_loop", k);
+              }}
+              className={`press inline-flex items-center gap-1 rounded-full px-2 py-1 ${
+                face === k ? "bg-foreground text-background" : "text-muted-foreground"
+              }`}
+            >
+              {k === "mast" ? <Film className="h-3 w-3" /> : null}
+              {label}
+            </button>
+          ))}
         </div>
         <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground inline-flex items-center gap-1">
           Open all <ChevronRight className="h-3 w-3" />
         </div>
       </div>
 
-      {isLoading ? (
+      {face === "mast" && isLoading ? (
         <div className="mt-3 aspect-video animate-pulse rounded-xl bg-surface" />
-      ) : clips.length === 0 || !active ? (
+      ) : face === "mast" && (clips.length === 0 || !active) ? (
         <div className="mt-4">
           <div className="font-display text-xl font-bold text-foreground">no clips yet</div>
           <div className="mt-1 text-xs text-muted-foreground">be the first to post 🎬</div>
         </div>
+      ) : face === "originals" && !activeLore ? (
+        <div className="mt-4">
+          <div className="font-display text-xl font-bold text-foreground">Originals soon</div>
+          <div className="mt-1 text-xs text-muted-foreground">the first season is rendering 🍿</div>
+        </div>
       ) : (
         <>
           <div
-            className="mt-3 relative mx-auto aspect-[9/16] w-full max-w-[240px] overflow-hidden rounded-xl bg-black border border-border/60 touch-pan-y"
+            className={`mt-3 relative mx-auto overflow-hidden rounded-xl bg-black border border-border/60 touch-pan-y ${
+              face === "mast" ? "aspect-[9/16] w-full max-w-[240px]" : "aspect-video w-full"
+            }`}
             onTouchStart={(e) => {
               const t = e.touches[0];
               (e.currentTarget as HTMLDivElement).dataset.sx = String(t.clientX);
@@ -1106,26 +1152,46 @@ function MastPreview() {
               if (Math.max(absX, absY) < 40) return;
               e.stopPropagation();
               const forward = absY > absX ? dy < 0 : dx < 0; // up or left → next
-              setIdx((i) =>
-                forward ? (i + 1) % clips.length : (i - 1 + clips.length) % clips.length,
-              );
+              setIdx((i) => (forward ? (i + 1) % listLength : (i - 1 + listLength) % listLength));
               setPickNonce((n) => n + 1);
             }}
           >
-            <video
-              ref={videoRef}
-              key={active.id}
-              src={`${active.video_url}${active.video_url.includes("#") ? "&" : "#"}t=0.5`}
-              muted={muted}
-              playsInline
-              autoPlay
-              loop
-              preload="auto"
-              disablePictureInPicture
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              {...({ disableremoteplayback: "" } as any)}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
+            {face === "mast" && active ? (
+              <video
+                ref={videoRef}
+                key={active.id}
+                src={`${active.video_url}${active.video_url.includes("#") ? "&" : "#"}t=0.5`}
+                muted={muted}
+                playsInline
+                autoPlay
+                loop
+                preload="auto"
+                disablePictureInPicture
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                {...({ disableremoteplayback: "" } as any)}
+                className="absolute inset-0 h-full w-full object-cover"
+              />
+            ) : activeLore ? (
+              <>
+                <video
+                  ref={videoRef}
+                  key={activeLore.id}
+                  src={activeLore.url ?? undefined}
+                  muted={muted}
+                  playsInline
+                  autoPlay
+                  loop
+                  preload="metadata"
+                  disablePictureInPicture
+                  className="absolute inset-0 h-full w-full object-contain"
+                />
+                {/* Play's AI-content policy: generated video carries its label
+                    wherever it plays, the home loop included. */}
+                <span className="absolute start-2 top-2 z-10 rounded-full bg-black/55 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-amber-300 backdrop-blur">
+                  AI-generated 🤖
+                </span>
+              </>
+            ) : null}
             <button
               type="button"
               onClick={(e) => {
@@ -1140,33 +1206,58 @@ function MastPreview() {
             </button>
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
             <div className="absolute inset-x-2 bottom-2 flex items-center justify-between text-[11px] text-white">
-              <span className="inline-flex items-center gap-1">
-                <Heart className="h-3 w-3" />
-                {active.like_count}
-              </span>
-              <Play className="h-3.5 w-3.5 opacity-90" />
+              {face === "mast" && active ? (
+                <>
+                  <span className="inline-flex items-center gap-1">
+                    <Heart className="h-3 w-3" />
+                    {active.like_count}
+                  </span>
+                  <Play className="h-3.5 w-3.5 opacity-90" />
+                </>
+              ) : activeLore ? (
+                <>
+                  <span className="truncate pe-2 font-semibold">{activeLore.title}</span>
+                  <Play className="h-3.5 w-3.5 shrink-0 opacity-90" />
+                </>
+              ) : null}
             </div>
-            {clips.length > 1 && (
+            {listLength > 1 && (
               <div className="absolute inset-x-0 bottom-1 flex justify-center gap-1.5">
-                {clips.map((c, i) => (
+                {Array.from({ length: listLength }, (_, i) => (
                   <button
-                    key={c.id}
-                    aria-label={`clip ${i + 1}`}
+                    key={i}
+                    aria-label={`item ${i + 1}`}
                     onClick={(e) => {
                       e.stopPropagation();
                       setIdx(i);
                       setPickNonce((n) => n + 1);
                     }}
                     className={`h-1.5 rounded-full transition-all ${
-                      i === idx ? "w-4 bg-white" : "w-1.5 bg-white/40"
+                      i === idx % listLength ? "w-4 bg-white" : "w-1.5 bg-white/40"
                     }`}
                   />
                 ))}
               </div>
             )}
           </div>
-          {active.caption && (
+          {face === "mast" && active?.caption && (
             <div className="mt-3 text-xs text-foreground line-clamp-1">{active.caption}</div>
+          )}
+          {face === "originals" && activeLore && (
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="min-w-0 truncate text-xs text-foreground">
+                {activeLore.title} · {activeLore.runtime}
+              </div>
+              {/* Play policy: generated output must be reportable IN-APP from
+                  the surface that plays it — the chip labels, this reports. */}
+              <span
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+                role="presentation"
+              >
+                <AiOutputReport surface="home_originals_loop" targetId={activeLore.id} />
+              </span>
+            </div>
           )}
         </>
       )}

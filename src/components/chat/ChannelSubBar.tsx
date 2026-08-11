@@ -19,6 +19,7 @@
  * program pitch on a channel that cannot pay yet is noise.
  */
 import { useEffect, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { BadgeCheck, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPaise } from "@/lib/storyPricing";
@@ -115,45 +116,49 @@ export function ChannelSubBar({
   return (
     <div className="border-b border-border/60 bg-card/60 px-3 py-2">
       {isOwner ? (
-        progress.qualified ? (
-          <div className="flex items-center justify-between">
-            <span className="flex items-center gap-1.5 text-[11px] text-emerald-300">
-              <BadgeCheck className="h-3.5 w-3.5" /> Creator Program: qualified ·{" "}
-              {number(progress.views30)} views/30d
-            </span>
-            <span className="text-[11px] font-semibold text-foreground">
-              earned {formatPaise(earnedPaise)}
-            </span>
-          </div>
-        ) : (
-          <div className="normal-case tracking-normal">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-              <TrendingUp className="h-3.5 w-3.5 text-primary" /> Road to monetization
-            </div>
-            <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
-              <span className={progress.members >= progress.minMembers ? "text-emerald-300" : ""}>
-                {number(progress.members)}/{number(progress.minMembers)} subscribers
+        /* The strip is the door: tapping the owner's progress opens the full
+           Creator Studio dashboard. */
+        <Link to="/app/creator" className="block">
+          {progress.qualified ? (
+            <div className="flex items-center justify-between">
+              <span className="flex items-center gap-1.5 text-[11px] text-emerald-300">
+                <BadgeCheck className="h-3.5 w-3.5" /> Creator Program: qualified ·{" "}
+                {number(progress.views30)} views/30d
               </span>
-              <span className={progress.videos >= progress.minVideos ? "text-emerald-300" : ""}>
-                {progress.videos}/{progress.minVideos} videos
-              </span>
-              <span
-                className={
-                  (progress.viewsTotal ?? 0) >= (progress.minViewsTotal ?? 1000000)
-                    ? "text-emerald-300"
-                    : ""
-                }
-              >
-                {number(progress.viewsTotal ?? 0)}/{number(progress.minViewsTotal ?? 1000000)} total
-                views
-              </span>
-              <span>{number(progress.views30)} views/30d</span>
-              <span className={progress.ageDays >= progress.minAgeDays ? "text-emerald-300" : ""}>
-                {progress.ageDays}/{progress.minAgeDays} days old
+              <span className="text-[11px] font-semibold text-foreground">
+                earned {formatPaise(earnedPaise)}
               </span>
             </div>
-          </div>
-        )
+          ) : (
+            <div className="normal-case tracking-normal">
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
+                <TrendingUp className="h-3.5 w-3.5 text-primary" /> Road to monetization
+              </div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
+                <span className={progress.members >= progress.minMembers ? "text-emerald-300" : ""}>
+                  {number(progress.members)}/{number(progress.minMembers)} subscribers
+                </span>
+                <span className={progress.videos >= progress.minVideos ? "text-emerald-300" : ""}>
+                  {progress.videos}/{progress.minVideos} videos
+                </span>
+                <span
+                  className={
+                    (progress.viewsTotal ?? 0) >= (progress.minViewsTotal ?? 1000000)
+                      ? "text-emerald-300"
+                      : ""
+                  }
+                >
+                  {number(progress.viewsTotal ?? 0)}/{number(progress.minViewsTotal ?? 1000000)}{" "}
+                  total views
+                </span>
+                <span>{number(progress.views30)} views/30d</span>
+                <span className={progress.ageDays >= progress.minAgeDays ? "text-emerald-300" : ""}>
+                  {progress.ageDays}/{progress.minAgeDays} days old
+                </span>
+              </div>
+            </div>
+          )}
+        </Link>
       ) : earn && earn.member && !earn.qualified ? (
         <div className="normal-case tracking-normal">
           <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">

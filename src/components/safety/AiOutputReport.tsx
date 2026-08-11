@@ -30,7 +30,9 @@ export type AiSurface =
   /** Lores — "Your videos", the library where a finished Story is watched. */
   | "stories_library_output"
   /** The internal Runway tool. An admin screen still generates AI content. */
-  | "runway_admin_output";
+  | "runway_admin_output"
+  /** Home — the Originals face of the front-door loop card. */
+  | "home_originals_loop";
 
 export function AiOutputReport({
   surface,

@@ -96,6 +96,13 @@ export const AI_SURFACES = [
     screen: "Admin — Runway video tool (internal)",
     file: "src/routes/_authenticated/app.admin.video.tsx",
   },
+  {
+    // The Home loop's Originals face — the same generated season, autoplaying
+    // on the app's front door, which is exactly where the label matters most.
+    id: "home_originals_loop",
+    screen: "Home — Originals loop",
+    file: "src/routes/_authenticated/app.index.tsx",
+  },
 ] as const;
 
 /**
