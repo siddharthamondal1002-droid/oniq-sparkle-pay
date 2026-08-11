@@ -136,7 +136,7 @@ public class OniqMessagingService extends FirebaseMessagingService {
         PendingIntent fullScreenPi = PendingIntent.getActivity(ctx, 1002, ring, piFlags);
 
         NotificationCompat.Builder b = new NotificationCompat.Builder(ctx, CALL_CHANNEL_ID)
-            .setSmallIcon(ctx.getApplicationInfo().icon)
+            .setSmallIcon(R.drawable.ic_stat_oniq)
             .setContentTitle(senderName)
             .setContentText("Incoming " + callType + " call — tap to answer")
             .setPriority(NotificationCompat.PRIORITY_MAX)
@@ -214,7 +214,7 @@ public class OniqMessagingService extends FirebaseMessagingService {
         PendingIntent pi = PendingIntent.getActivity(ctx, convId, tap, piFlags);
 
         Notification n = new NotificationCompat.Builder(ctx, MSG_CHANNEL_ID)
-            .setSmallIcon(ctx.getApplicationInfo().icon)
+            .setSmallIcon(R.drawable.ic_stat_oniq)
             .setContentTitle(safe(title, "New message"))
             .setContentText(safe(body, ""))
             .setAutoCancel(true)

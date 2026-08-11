@@ -130,6 +130,32 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "content-type": "application/json" },
     });
   }
+  // The TypeScript annotation on `body` is erased at runtime — nothing above
+  // stops a caller putting a number where a string belongs, and a non-string
+  // value inside FCM's `data` map fails the WHOLE send with INVALID_ARGUMENT
+  // for every token identically. Validate for real.
+  if (kind !== "message" && kind !== "call" && kind !== "call_cancel") {
+    return new Response(JSON.stringify({ error: "bad kind" }), {
+      status: 400,
+      headers: { ...corsHeaders, "content-type": "application/json" },
+    });
+  }
+  for (const [k, v] of Object.entries({ conversation_id, preview, call_type, call_id })) {
+    if (v !== undefined && typeof v !== "string") {
+      return new Response(JSON.stringify({ error: `${k} must be a string` }), {
+        status: 400,
+        headers: { ...corsHeaders, "content-type": "application/json" },
+      });
+    }
+  }
+  // Everything that enters the FCM data map goes through this: bound the
+  // length and drop lone surrogates — the client's preview is built with
+  // content.slice(0, 60), which can split an emoji's surrogate pair, and the
+  // resulting invalid UTF-16 is rejected by FCM as INVALID_ARGUMENT.
+  const clean = (v: unknown) =>
+    String(v ?? "")
+      .replace(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g, "")
+      .slice(0, 200);
 
   const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
     global: { fetch: wrapFetch(SERVICE_KEY) },
@@ -222,12 +248,12 @@ Deno.serve(async (req) => {
         const dataPayload: Record<string, string> = isCall
           ? {
               kind: "call",
-              title,
-              body: bodyText,
+              title: clean(title),
+              body: clean(bodyText),
               url: callUrl,
-              call_type: call_type ?? "voice",
-              call_id: call_id ?? "",
-              conversation_id,
+              call_type: clean(call_type ?? "voice"),
+              call_id: clean(call_id ?? ""),
+              conversation_id: clean(conversation_id),
             }
           : isCancel
             ? {
@@ -235,15 +261,15 @@ Deno.serve(async (req) => {
                 // the insistent call notification. No visible notification of
                 // its own — the missed call surfaces in the app's call log.
                 kind: "call_cancel",
-                call_id: call_id ?? "",
-                conversation_id,
+                call_id: clean(call_id ?? ""),
+                conversation_id: clean(conversation_id),
               }
             : {
                 kind: "message",
-                title,
-                body: bodyText,
+                title: clean(title),
+                body: clean(bodyText),
                 url: `/app/chat/${conversation_id}`,
-                conversation_id,
+                conversation_id: clean(conversation_id),
               };
 
         const messagePayload: Record<string, unknown> = {
@@ -255,7 +281,7 @@ Deno.serve(async (req) => {
           },
         };
         if (!isCall && !isCancel) {
-          messagePayload.notification = { title, body: bodyText };
+          messagePayload.notification = { title: clean(title), body: clean(bodyText) };
         }
 
         const r = await fetch(url, {
@@ -270,15 +296,46 @@ Deno.serve(async (req) => {
           sent++;
         } else {
           failed++;
+          // Delete a token ONLY on evidence scoped to the token itself.
+          // Substring-matching the whole error body is not evidence: an
+          // INVALID_ARGUMENT (or an echoed detail string) fires identically
+          // for a malformed PAYLOAD field, and acting on it deleted every
+          // recipient's device_tokens row in a single send. Parse the
+          // structured error instead; an unparseable body deletes nothing —
+          // a genuinely dead token will fail again next send.
+          let stale = r.status === 404;
           const errText = await r.text().catch(() => "");
-          // Delete a token ONLY on signals scoped to the token itself:
-          // 404/UNREGISTERED. INVALID_ARGUMENT also fires for a malformed
-          // PAYLOAD field — treating it as a dead token meant one bad payload
-          // deleted every recipient's device_tokens row in a single send.
-          if (r.status === 404 || errText.includes("UNREGISTERED")) {
+          if (!stale && (r.status === 400 || r.status === 403)) {
+            try {
+              const j = JSON.parse(errText) as {
+                error?: {
+                  details?: {
+                    "@type"?: string;
+                    errorCode?: string;
+                    fieldViolations?: { field?: string }[];
+                  }[];
+                };
+              };
+              const details = j.error?.details ?? [];
+              const fcmErr = details.find((d) =>
+                d["@type"]?.endsWith("google.firebase.fcm.v1.FcmError")
+              );
+              if (fcmErr?.errorCode === "UNREGISTERED") {
+                stale = true;
+              } else if (fcmErr?.errorCode === "INVALID_ARGUMENT") {
+                // Ambiguous on its own — only token-scoped when BadRequest
+                // names the token field, not some payload field.
+                const badReq = details.find((d) => d["@type"]?.endsWith("google.rpc.BadRequest"));
+                stale = (badReq?.fieldViolations ?? []).some((v) => v.field === "message.token");
+              }
+            } catch {
+              // unparseable — never delete on a guess
+            }
+          }
+          if (stale) {
             staleTokens.push(token);
           } else {
-            // Status + FCM error code only — never the token.
+            // Status + FCM error body head only — never the token.
             console.error("fcm send failed", r.status, errText.slice(0, 300));
           }
         }
@@ -288,8 +345,15 @@ Deno.serve(async (req) => {
     })
   );
 
-  if (staleTokens.length > 0) {
+  // Circuit-breaker: N devices belonging to N different users do not all die
+  // between two sends. A 100% identical failure across multiple tokens is a
+  // message-level fault by definition — log it, delete nothing. This guard
+  // survives any future change in FCM's error shape.
+  const uniformWipe = sent === 0 && staleTokens.length === tokenList.length && tokenList.length > 1;
+  if (staleTokens.length > 0 && !uniformWipe) {
     await admin.from("device_tokens").delete().in("token", staleTokens);
+  } else if (uniformWipe) {
+    console.error("send-push: every token failed identically — payload fault, skipping cleanup");
   }
 
   return new Response(JSON.stringify({ sent, failed, cleaned: staleTokens.length }), {
