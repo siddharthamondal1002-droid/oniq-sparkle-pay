@@ -2,16 +2,17 @@
  * The Creator Program strip a channel wears under its header.
  *
  * NOBODY PAYS HERE — that is the product. ONIQ funds a payout pool and
- * qualified channels earn from it by engagement (the YouTube/Instagram
+ * qualified channels earn from it by measured VIEWS (the YouTube/Instagram
  * model); of every rupee a channel generates, 70% goes to the influencer,
- * 20% to ONIQ, 10% is shared among the channel's subscribers as rewards.
+ * 20% to ONIQ, 10% is shared among the subscribers who watched — paid out
+ * DIRECTLY through RazorpayX to each person's UPI ID, no in-app balance.
  * Since no digital content is ever purchased in-app, there is nothing for
  * Play's billing policy to apply to.
  *
  * TWO FACES. The OWNER sees the road to monetization — live progress
  * against the same thresholds channel_monetize_status enforces — and, once
  * qualified, what the program has paid them. A MEMBER of a qualified
- * channel sees that being subscribed here earns wallet rewards; members of
+ * channel sees that being subscribed here earns real payouts; members of
  * unqualified channels see nothing, because a program pitch on a channel
  * that cannot pay yet is noise.
  */
@@ -19,13 +20,15 @@ import { useEffect, useState } from "react";
 import { BadgeCheck, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPaise } from "@/lib/storyPricing";
+import { useFormat } from "@/lib/format";
 
 type Progress = {
   qualified: boolean;
   members: number;
   minMembers: number;
-  posts: number;
-  minPosts: number;
+  videos: number;
+  minVideos: number;
+  views30: number;
   ageDays: number;
   minAgeDays: number;
 };
@@ -38,6 +41,7 @@ export function ChannelSubBar({
   isOwner: boolean;
 }) {
   // EVERY HOOK ABOVE EVERY EARLY RETURN. rules-of-hooks is a release blocker.
+  const { number } = useFormat();
   const [progress, setProgress] = useState<Progress | null>(null);
   const [earnedPaise, setEarnedPaise] = useState<number>(0);
 
@@ -82,7 +86,8 @@ export function ChannelSubBar({
         progress.qualified ? (
           <div className="flex items-center justify-between">
             <span className="flex items-center gap-1.5 text-[11px] text-emerald-300">
-              <BadgeCheck className="h-3.5 w-3.5" /> Creator Program: qualified
+              <BadgeCheck className="h-3.5 w-3.5" /> Creator Program: qualified ·{" "}
+              {number(progress.views30)} views/30d
             </span>
             <span className="text-[11px] font-semibold text-foreground">
               earned {formatPaise(earnedPaise)}
@@ -95,11 +100,12 @@ export function ChannelSubBar({
             </div>
             <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[10px] text-muted-foreground">
               <span className={progress.members >= progress.minMembers ? "text-emerald-300" : ""}>
-                {progress.members}/{progress.minMembers} members
+                {number(progress.members)}/{number(progress.minMembers)} subscribers
               </span>
-              <span className={progress.posts >= progress.minPosts ? "text-emerald-300" : ""}>
-                {progress.posts}/{progress.minPosts} posts
+              <span className={progress.videos >= progress.minVideos ? "text-emerald-300" : ""}>
+                {progress.videos}/{progress.minVideos} videos
               </span>
+              <span>{number(progress.views30)} views/30d</span>
               <span className={progress.ageDays >= progress.minAgeDays ? "text-emerald-300" : ""}>
                 {progress.ageDays}/{progress.minAgeDays} days old
               </span>
@@ -109,7 +115,8 @@ export function ChannelSubBar({
       ) : (
         <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
           <BadgeCheck className="h-3.5 w-3.5 text-emerald-300" />
-          This channel earns from the ONIQ Creator Program — subscribers share in the rewards.
+          This channel earns from the ONIQ Creator Program — watching earns you a share, paid to
+          your UPI.
         </div>
       )}
     </div>

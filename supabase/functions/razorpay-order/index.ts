@@ -37,7 +37,7 @@
 // GUARD ORDER, the same one the rest of this project uses: authenticate, kill
 // switch, ownership, state, bounds — and only then the call that creates a real
 // payment at a real provider.
-import { createRazorpayOrder, razorpayCreds } from "../_shared/razorpay.ts";
+import { createRazorpayOrder, createRazorpayPayout, razorpayCreds } from "../_shared/razorpay.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -68,6 +68,111 @@ Deno.serve(async (req) => {
     if (!userId) return json({ error: "Unauthorized" }, 401);
 
     const body = await req.json().catch(() => ({}));
+
+    // -----------------------------------------------------------------------
+    // CREATOR PROGRAM PAYOUT RUN — money OUT, not in. It lives on this
+    // function because the platform cannot ADD edge functions to this project
+    // (see the header), and payouts are a Razorpay operation. ADMIN ONLY:
+    // this moves real money from the RazorpayX account.
+    //
+    // One request does the whole directive — computes the run (creator and
+    // subscriber legs queued in the same transaction) and immediately
+    // dispatches the queue through RazorpayX composite payouts to each
+    // recipient's registered UPI ID. Recipients without a UPI ID on file are
+    // marked no_method and wait, visible to them, until they add one.
+    // -----------------------------------------------------------------------
+    if (body?.runPayouts === true) {
+      const svcHeaders = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
+      const adminRes = await fetch(
+        `${supabaseUrl}/rest/v1/profiles?id=eq.${userId}&select=is_admin&limit=1`,
+        { headers: svcHeaders },
+      );
+      const adminRow = adminRes.ok ? ((await adminRes.json())[0] ?? null) : null;
+      if (adminRow?.is_admin !== true) return json({ error: "admins only" }, 403);
+
+      const runRes = await fetch(`${supabaseUrl}/rest/v1/rpc/run_creator_payouts`, {
+        method: "POST",
+        headers: { ...svcHeaders, "content-type": "application/json" },
+        body: JSON.stringify({
+          _pool_paise: Number.isInteger(body?.poolPaise) ? body.poolPaise : null,
+        }),
+      });
+      if (!runRes.ok) {
+        const detail = await runRes.text().catch(() => "");
+        console.error("payout run rpc", runRes.status, detail.slice(0, 200));
+        return json({ error: "could not compute the payout run" }, 502);
+      }
+      const run = (await runRes.json()) as Record<string, unknown>;
+
+      // Dispatch — even when THIS run queued nothing, older queued rows are
+      // drained, so a recipient who added their UPI ID late still gets paid.
+      const accountNumber = Deno.env.get("RAZORPAYX_ACCOUNT_NUMBER");
+      if (!accountNumber) {
+        return json({
+          ok: true,
+          run,
+          dispatched: 0,
+          note: "RAZORPAYX_ACCOUNT_NUMBER is not set — payouts are queued, not sent.",
+        });
+      }
+
+      let dispatched = 0;
+      let failed = 0;
+      let noMethod = 0;
+      // Bounded batches so one request stays inside the function's time box.
+      for (let round = 0; round < 5; round++) {
+        const batchRes = await fetch(`${supabaseUrl}/rest/v1/rpc/claim_payout_batch`, {
+          method: "POST",
+          headers: { ...svcHeaders, "content-type": "application/json" },
+          body: JSON.stringify({ _limit: 20 }),
+        });
+        if (!batchRes.ok) break;
+        const batch = (await batchRes.json()) as {
+          id: string;
+          recipientId: string;
+          amountPaise: number;
+          kind: string;
+          vpa: string | null;
+        }[];
+        if (!Array.isArray(batch) || batch.length === 0) break;
+
+        for (const item of batch) {
+          const mark = async (status: string, providerId?: string, error?: string) => {
+            await fetch(`${supabaseUrl}/rest/v1/rpc/mark_payout_result`, {
+              method: "POST",
+              headers: { ...svcHeaders, "content-type": "application/json" },
+              body: JSON.stringify({
+                _id: item.id,
+                _status: status,
+                _provider_payout_id: providerId ?? null,
+                _error: error ?? null,
+              }),
+            }).catch(() => {});
+          };
+          if (!item.vpa) {
+            noMethod++;
+            await mark("no_method", undefined, "no UPI ID on file");
+            continue;
+          }
+          const paid = await createRazorpayPayout(creds, accountNumber, {
+            amountPaise: item.amountPaise,
+            vpa: item.vpa,
+            recipientName: item.kind === "creator" ? "ONIQ creator" : "ONIQ subscriber",
+            referenceId: item.id,
+          });
+          if ("error" in paid) {
+            failed++;
+            await mark("failed", undefined, paid.error);
+          } else {
+            dispatched++;
+            await mark("paid", paid.id);
+          }
+        }
+        if (batch.length < 20) break;
+      }
+
+      return json({ ok: true, run, dispatched, failed, noMethod });
+    }
     const wantsOrder = body?.orderId !== undefined && body?.orderId !== null;
     const wantsStory = body?.seconds !== undefined && body?.seconds !== null;
 

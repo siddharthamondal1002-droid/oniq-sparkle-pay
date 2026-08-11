@@ -847,6 +847,33 @@ function ChatThread() {
     setRecentReactions(readRecentReactions());
   }, []);
 
+  // VIEWS — the Creator Program's measured mechanism. Every VIDEO post
+  // rendered in a channel counts one view per viewer per day, deduped
+  // server-side by primary key and here by a sent-set so a re-render is not
+  // a network call. Best-effort: a failed beacon is a lost view, never a
+  // broken thread.
+  const sentViewsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isChannel || !me?.id) return;
+    const fresh = messages
+      .filter((m) => m.type === "video" && !m.is_deleted && !sentViewsRef.current.has(m.id))
+      .map((m) => m.id)
+      .slice(0, 50);
+    if (fresh.length === 0) return;
+    fresh.forEach((id) => sentViewsRef.current.add(id));
+    void supabase
+      .rpc(
+        "record_channel_views" as never,
+        {
+          _channel_id: conversationId,
+          _message_ids: fresh,
+        } as never,
+      )
+      .then(({ error }) => {
+        if (error) fresh.forEach((id) => sentViewsRef.current.delete(id));
+      });
+  }, [isChannel, me?.id, messages, conversationId]);
+
   const reactionRow = (() => {
     const seen = new Set<string>();
     const out: string[] = [];

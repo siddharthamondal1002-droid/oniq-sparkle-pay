@@ -155,3 +155,65 @@ export async function createRazorpayOrder(
     return { error: `razorpay returned non-JSON: ${text.slice(0, 120)}` };
   }
 }
+
+/**
+ * Send ONE payout through RazorpayX's composite payout API — money OUT, to a
+ * recipient's UPI ID, in one call (contact + fund account created inline).
+ *
+ * A fourth secret joins the three above: RAZORPAYX_ACCOUNT_NUMBER, the
+ * X-account the money leaves from. Payouts authenticate with the same
+ * key id/secret pair as the gateway.
+ *
+ * `queue_if_low_balance` is deliberate: a payout run bigger than the X
+ * balance QUEUES at Razorpay rather than half-failing, which matches how the
+ * payout_queue itself behaves on our side.
+ */
+export async function createRazorpayPayout(
+  creds: RazorpayCreds,
+  accountNumber: string,
+  p: {
+    amountPaise: number;
+    vpa: string;
+    recipientName: string;
+    referenceId: string;
+  },
+): Promise<{ id: string; status: string } | { error: string }> {
+  try {
+    const res = await fetch("https://api.razorpay.com/v1/payouts", {
+      method: "POST",
+      headers: {
+        Authorization: "Basic " + btoa(`${creds.keyId}:${creds.keySecret}`),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        account_number: accountNumber,
+        amount: p.amountPaise,
+        currency: "INR",
+        mode: "UPI",
+        purpose: "payout",
+        queue_if_low_balance: true,
+        reference_id: p.referenceId.slice(0, 40),
+        narration: "ONIQ Creator Program",
+        fund_account: {
+          account_type: "vpa",
+          vpa: { address: p.vpa },
+          contact: {
+            name: p.recipientName.slice(0, 50) || "ONIQ user",
+            type: "vendor",
+          },
+        },
+      }),
+    });
+    const body = (await res.json().catch(() => ({}))) as {
+      id?: string;
+      status?: string;
+      error?: { description?: string };
+    };
+    if (!res.ok || !body.id) {
+      return { error: body.error?.description ?? `payout http ${res.status}` };
+    }
+    return { id: body.id, status: body.status ?? "queued" };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "payout call failed" };
+  }
+}

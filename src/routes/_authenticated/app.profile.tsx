@@ -38,6 +38,7 @@ import {
   type PingId,
 } from "@/lib/callSounds";
 
+import { moneyIn } from "@/lib/format";
 import { z } from "zod";
 
 export const Route = createFileRoute("/_authenticated/app/profile")({
@@ -209,6 +210,8 @@ function ProfileScreen() {
       <SoundsSection />
 
       <LanguageSection />
+
+      <PayoutSection />
 
       <MyDataSection />
 
@@ -898,5 +901,111 @@ function ViewIdentityToggle() {
         </button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Where Creator Program money actually lands. Payouts go straight from
+ * RazorpayX to a UPI ID — there is no in-app balance for program earnings —
+ * so anyone who earns (creators AND subscribers who watch) registers their
+ * UPI here. Queued rows wait in `no_method` until this is filled in; nothing
+ * is ever forfeited for being late.
+ */
+function PayoutSection() {
+  const [vpa, setVpa] = useState("");
+  const [savedVpa, setSavedVpa] = useState<string | null>(null);
+  const [pendingPaise, setPendingPaise] = useState(0);
+  const [paidPaise, setPaidPaise] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data: me } = await supabase.auth.getUser();
+      const uid = me.user?.id;
+      if (!uid) return;
+      const [pmRes, qRes] = await Promise.all([
+        supabase
+          .from("payout_methods" as never)
+          .select("vpa")
+          .eq("user_id" as never, uid as never)
+          .maybeSingle(),
+        supabase.from("payout_queue" as never).select("amount_paise,status"),
+      ]);
+      if (cancelled) return;
+      const pm = pmRes.data as { vpa?: string } | null;
+      if (pm?.vpa) {
+        setSavedVpa(pm.vpa);
+        setVpa(pm.vpa);
+      }
+      const rows = (qRes.data ?? []) as { amount_paise: number; status: string }[];
+      setPendingPaise(
+        rows
+          .filter((r) => r.status === "queued" || r.status === "no_method")
+          .reduce((s, r) => s + r.amount_paise, 0),
+      );
+      setPaidPaise(rows.filter((r) => r.status === "paid").reduce((s, r) => s + r.amount_paise, 0));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { data, error } = await supabase.rpc(
+        "set_payout_vpa" as never,
+        {
+          _vpa: vpa,
+        } as never,
+      );
+      const out = data as { ok?: boolean; reason?: string } | null;
+      if (error || !out?.ok) {
+        toast.error(
+          out?.reason === "bad-vpa" ? "That doesn't look like a UPI ID" : "Couldn't save",
+        );
+        return;
+      }
+      setSavedVpa(vpa.trim().toLowerCase());
+      toast.success("UPI ID saved — payouts go here 💸");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="mt-8">
+      <h2 className="text-sm font-semibold text-foreground">Get paid — Creator Program</h2>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Channel earnings and viewer rewards are paid straight to your UPI ID by Razorpay. No UPI ID
+        on file means your payouts wait — they are never lost.
+      </p>
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          value={vpa}
+          onChange={(e) => setVpa(e.target.value)}
+          placeholder="yourname@upi"
+          autoCapitalize="none"
+          autoCorrect="off"
+          className="min-w-0 flex-1 rounded-2xl border border-border bg-input/40 px-3 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+        />
+        <button
+          type="button"
+          disabled={saving || !vpa.trim() || vpa.trim().toLowerCase() === savedVpa}
+          onClick={() => void save()}
+          className="rounded-2xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+        >
+          Save
+        </button>
+      </div>
+      {(pendingPaise > 0 || paidPaise > 0) && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          {pendingPaise > 0 ? `Waiting to be paid: ${moneyIn(pendingPaise / 100, "INR")}` : ""}
+          {pendingPaise > 0 && paidPaise > 0 ? " · " : ""}
+          {paidPaise > 0 ? `Paid out so far: ${moneyIn(paidPaise / 100, "INR")}` : ""}
+        </p>
+      )}
+    </section>
   );
 }
