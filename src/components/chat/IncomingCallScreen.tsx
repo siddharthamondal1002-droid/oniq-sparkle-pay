@@ -217,7 +217,7 @@ export function IncomingCallScreen({
                 onClick={async () => {
                   await send(t);
                 }}
-                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm text-white/90 transition hover:bg-white/10 disabled:opacity-60"
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-left text-sm font-normal normal-case tracking-normal text-white/90 transition hover:bg-white/10 disabled:opacity-60"
               >
                 {t}
               </button>
