@@ -1075,6 +1075,8 @@ export type Database = {
           id: boolean
           oniq_pct: number
           period_pool_paise: number
+          sub_min_member_days: number
+          sub_min_watched_videos: number
           subscriber_pct: number
           updated_at: string
         }
@@ -1084,6 +1086,8 @@ export type Database = {
           id?: boolean
           oniq_pct?: number
           period_pool_paise?: number
+          sub_min_member_days?: number
+          sub_min_watched_videos?: number
           subscriber_pct?: number
           updated_at?: string
         }
@@ -1093,6 +1097,8 @@ export type Database = {
           id?: boolean
           oniq_pct?: number
           period_pool_paise?: number
+          sub_min_member_days?: number
+          sub_min_watched_videos?: number
           subscriber_pct?: number
           updated_at?: string
         }
@@ -4548,6 +4554,7 @@ export type Database = {
         Args: { _token_ref: string }
         Returns: Json
       }
+      subscriber_earn_status: { Args: { _channel_id: string }; Returns: Json }
       toggle_clip_like: { Args: { _clip_id: string }; Returns: boolean }
       toggle_message_star: { Args: { _message_id: string }; Returns: boolean }
       toggle_moment_like: { Args: { _post_id: string }; Returns: boolean }
