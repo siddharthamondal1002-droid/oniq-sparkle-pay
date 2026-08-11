@@ -27,12 +27,16 @@ export type StoryPriceTier = {
 };
 
 /** Mirrors the `story_price_tiers` seed rows, in `sort_order`. */
+// Repriced 2026-08-11 to the mandated margin policy (28% short / 26% mid /
+// 21% long, infrastructure recovered) — see storyCostModel.priceFor(), which
+// DERIVES these numbers. Exact-formula prices, not retail-pretty ones: the
+// margin is the requirement, and ₹48 at 26.4% beats ₹49 at "about right".
 export const PRICE_TIERS: readonly StoryPriceTier[] = [
-  { seconds: 30, label: "30 seconds", pricePaise: 4900, currency: "INR" },
-  { seconds: 60, label: "1 minute", pricePaise: 9900, currency: "INR" },
-  { seconds: 120, label: "2 minutes", pricePaise: 17900, currency: "INR" },
-  { seconds: 180, label: "3 minutes", pricePaise: 24900, currency: "INR" },
-  { seconds: 300, label: "5 minutes", pricePaise: 39900, currency: "INR" },
+  { seconds: 30, label: "30 seconds", pricePaise: 2700, currency: "INR" },
+  { seconds: 60, label: "1 minute", pricePaise: 4800, currency: "INR" },
+  { seconds: 120, label: "2 minutes", pricePaise: 9200, currency: "INR" },
+  { seconds: 180, label: "3 minutes", pricePaise: 12600, currency: "INR" },
+  { seconds: 300, label: "5 minutes", pricePaise: 20800, currency: "INR" },
 ];
 
 /**

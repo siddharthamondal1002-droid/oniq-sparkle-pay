@@ -291,3 +291,38 @@ export async function payForStorySeconds(opts: StoryPayOptions): Promise<StoryPa
   }
   return out;
 }
+
+export type ChannelSubPayResult =
+  | { status: "paid"; channelName: string }
+  | { status: "dismissed" }
+  | { status: "failed"; message: string };
+
+/**
+ * Subscribe to a creator's channel for a month. WEB PAGES ONLY — the native
+ * build links out to /pay/subscribe, the same posture as Story time and for
+ * the same Play Billing reason. The server names the price; the webhook (or
+ * the verify callback, whichever lands first) settles the three-way split —
+ * creator, ONIQ, subscriber cashback — atomically in
+ * credit_channel_subscription.
+ */
+export async function payForChannelSub(opts: {
+  channelId: string;
+  origin?: "web" | "native-handoff";
+  prefill?: PayOptions["prefill"];
+}): Promise<ChannelSubPayResult> {
+  const { data, error } = await supabase.functions.invoke("razorpay-order", {
+    body: { channelId: opts.channelId, origin: opts.origin ?? "web" },
+  });
+  const start = (data ?? {}) as OrderStart & { channelName?: string };
+  const problem = startProblem(error, start);
+  if (problem) return { status: "failed", message: problem };
+
+  const out = await collectPayment(
+    start as { keyId: string; providerOrderId: string; amountMinor?: number; currency?: string },
+    { description: `${start.channelName ?? "Channel"} — 1 month`, prefill: opts.prefill },
+  );
+  if (out.status === "verified") {
+    return { status: "paid", channelName: start.channelName ?? "the channel" };
+  }
+  return out;
+}

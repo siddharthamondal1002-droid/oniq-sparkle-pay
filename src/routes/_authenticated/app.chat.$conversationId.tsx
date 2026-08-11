@@ -40,6 +40,7 @@ import {
   Languages,
 } from "lucide-react";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
+import { ChannelSubBar } from "@/components/chat/ChannelSubBar";
 import { doodleSurfaceStyle } from "@/lib/chatWallpaper";
 import { ProfilePhotoPopup } from "@/components/chat/ProfilePhotoPopup";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
@@ -1851,6 +1852,10 @@ function ChatThread() {
           )}
         </div>
       </header>
+      {/* Channels wear their subscription strip under the header: the offer
+          for members, the shop for the owner. Renders nothing for channels
+          that never set a price. */}
+      {isChannel && <ChannelSubBar conversationId={conversationId} isOwner={myRole === "owner"} />}
       {showSearch && (
         <div className="flex items-center gap-2 border-b border-border/60 bg-background/95 px-3 py-2">
           <Search className="h-4 w-4 text-muted-foreground" />

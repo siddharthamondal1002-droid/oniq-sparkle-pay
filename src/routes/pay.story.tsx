@@ -95,6 +95,7 @@ function PayStoryPage() {
           .from("story_price_tiers")
           .select("seconds,label,price_paise,currency")
           .eq("active", true)
+          .eq("grade" as never, "classic" as never)
           .order("sort_order"),
         supabase.from("story_purchase_config").select("enabled").limit(1).maybeSingle(),
       ]);

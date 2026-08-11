@@ -79,11 +79,22 @@ Deno.serve(async (req) => {
     if ("failed" in foodHit) return json({ error: "could not read that payment" }, 502);
     let row = foodHit.row;
     let isStory = false;
+    let isSub = false;
     if (!row) {
       const storyHit = await findIn("story_purchases", "user_id,seconds,status");
       if ("failed" in storyHit) return json({ error: "could not read that payment" }, 502);
       row = storyHit.row;
       isStory = !!row;
+    }
+    if (!row) {
+      // Subscription receipts carry subscriber_id, not user_id — normalise so
+      // the ownership check below stays one line for all three products.
+      const subHit = await findIn("channel_subscriptions", "subscriber_id,status");
+      if ("failed" in subHit) return json({ error: "could not read that payment" }, 502);
+      if (subHit.row) {
+        row = { ...subHit.row, user_id: subHit.row.subscriber_id };
+        isSub = true;
+      }
     }
 
     // THE SIGNATURE PROVES A PAYMENT HAPPENED, NOT WHOSE IT WAS. A valid
@@ -96,7 +107,11 @@ Deno.serve(async (req) => {
       return json({ error: "no such payment" }, 404);
     }
 
-    const rpc = isStory ? "credit_story_purchase" : "mark_order_paid";
+    const rpc = isSub
+      ? "credit_channel_subscription"
+      : isStory
+        ? "credit_story_purchase"
+        : "mark_order_paid";
     const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
       method: "POST",
       headers: { ...svc, "content-type": "application/json" },
@@ -112,7 +127,11 @@ Deno.serve(async (req) => {
       return json({ error: "Payment taken, but recording it failed." }, 502);
     }
     const result = await marked.json();
-    return json({ ok: true, kind: isStory ? "story_seconds" : "order", ...result });
+    return json({
+      ok: true,
+      kind: isSub ? "channel_sub" : isStory ? "story_seconds" : "order",
+      ...result,
+    });
   } catch (e) {
     console.error("razorpay-verify fn error", e);
     return json({ error: "Something went sideways" }, 500);
