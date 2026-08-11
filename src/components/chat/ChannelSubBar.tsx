@@ -29,6 +29,10 @@ type Progress = {
   videos: number;
   minVideos: number;
   views30: number;
+  /* Optional because a cached status payload from before the million-views
+     bar carries neither field; the strip then shows 0 progress, not NaN. */
+  viewsTotal?: number;
+  minViewsTotal?: number;
   ageDays: number;
   minAgeDays: number;
 };
@@ -104,6 +108,16 @@ export function ChannelSubBar({
               </span>
               <span className={progress.videos >= progress.minVideos ? "text-emerald-300" : ""}>
                 {progress.videos}/{progress.minVideos} videos
+              </span>
+              <span
+                className={
+                  (progress.viewsTotal ?? 0) >= (progress.minViewsTotal ?? 1000000)
+                    ? "text-emerald-300"
+                    : ""
+                }
+              >
+                {number(progress.viewsTotal ?? 0)}/{number(progress.minViewsTotal ?? 1000000)} total
+                views
               </span>
               <span>{number(progress.views30)} views/30d</span>
               <span className={progress.ageDays >= progress.minAgeDays ? "text-emerald-300" : ""}>

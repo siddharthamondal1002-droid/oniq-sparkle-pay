@@ -771,7 +771,7 @@ function PayoutsPanel() {
       if (run.ok === false) {
         const why =
           run.reason === "no-qualified-channels"
-            ? "no channel is qualified yet (10,000 subscribers · 50 videos · 14 days old)"
+            ? "no channel is qualified yet (10,000 subscribers · 50 videos · 1M total views · 14 days old)"
             : run.reason === "disabled"
               ? "the program is switched off in creator_program_config"
               : run.reason === "no-pool"
