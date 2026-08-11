@@ -27,6 +27,7 @@ import {
   MicOff,
   Phone,
   PhoneOff,
+  SwitchCamera,
   Video,
   VideoOff,
   Volume2,
@@ -223,6 +224,17 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const [status, setStatus] = useState<Status>("idle");
   const [callType, setCallType] = useState<CallType>("audio");
   const [muted, setMuted] = useState(false);
+  const [facing, setFacing] = useState<"user" | "environment">("user");
+  const facingRef = useRef<"user" | "environment">("user");
+  const flippingRef = useRef(false);
+  // Self-view drag position, as an offset from its top-right home.
+  const [pipOffset, setPipOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const pipDragRef = useRef<{
+    startX: number;
+    startY: number;
+    baseX: number;
+    baseY: number;
+  } | null>(null);
   const [camOff, setCamOff] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [incomingFromName, setIncomingFromName] = useState("");
@@ -741,6 +753,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     callIdRef.current = null;
     autoAcceptTriedRef.current = false;
     setMuted(false);
+    setFacing("user");
+    facingRef.current = "user";
+    setPipOffset({ x: 0, y: 0 });
     setCamOff(false);
     setElapsed(0);
     setTiles([]);
@@ -1329,6 +1344,54 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     setCamOff(!nextEnabled);
   };
 
+  /**
+   * Front ↔ back camera. A NEW track is captured with the opposite facingMode
+   * and swapped via RTCRtpSender.replaceTrack — no renegotiation, the peers
+   * never notice. The old track is stopped only after the swap so a failure
+   * (no back camera on a tablet, camera in use) leaves the call exactly as it
+   * was. The self-preview mirrors only for the front camera: a mirrored rear
+   * camera makes text in the room read backwards, which is how every native
+   * camera app behaves.
+   */
+  const flipCamera = async () => {
+    const s = localStreamRef.current;
+    const oldTrack = s?.getVideoTracks()[0];
+    if (!s || !oldTrack || flippingRef.current) return;
+    flippingRef.current = true;
+    const next = facingRef.current === "user" ? "environment" : "user";
+    try {
+      const fresh = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          frameRate: { ideal: 20, max: 24 },
+          facingMode: next === "environment" ? { exact: "environment" } : "user",
+        },
+      });
+      const newTrack = fresh.getVideoTracks()[0];
+      if (!newTrack) throw new Error("no track");
+      newTrack.enabled = oldTrack.enabled; // respect an active "Video off"
+      for (const entry of peerPoolRef.current.values()) {
+        for (const sender of entry.pc.getSenders()) {
+          if (sender.track?.kind === "video") {
+            await sender.replaceTrack(newTrack).catch(() => {});
+          }
+        }
+      }
+      s.removeTrack(oldTrack);
+      s.addTrack(newTrack);
+      oldTrack.stop();
+      if (localVideoRef.current) localVideoRef.current.srcObject = s;
+      facingRef.current = next;
+      setFacing(next);
+    } catch {
+      toast.error(next === "environment" ? "No back camera found" : "Couldn't switch camera");
+    } finally {
+      flippingRef.current = false;
+    }
+  };
+
   if (status === "idle") return null;
 
   const statusText =
@@ -1420,13 +1483,50 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
       {callType === "video" &&
         (status === "outgoing" || status === "connecting" || status === "connected") && (
-          <video
-            ref={localVideoRef}
-            autoPlay
-            muted
-            playsInline
-            className="pointer-events-none absolute right-4 top-16 z-20 h-40 w-28 -scale-x-100 rounded-2xl border border-white/20 bg-black object-cover"
-          />
+          // Draggable self-view. It was pointer-events-none — literally
+          // inoperable — and it sat wherever it sat, covering faces. Drag
+          // moves it; the flip chip on it switches front/back camera.
+          <div
+            className="absolute right-4 top-16 z-20 touch-none"
+            style={{ transform: `translate(${pipOffset.x}px, ${pipOffset.y}px)` }}
+            onTouchStart={(e) => {
+              const t = e.touches[0];
+              pipDragRef.current = {
+                startX: t.clientX,
+                startY: t.clientY,
+                baseX: pipOffset.x,
+                baseY: pipOffset.y,
+              };
+            }}
+            onTouchMove={(e) => {
+              const d = pipDragRef.current;
+              if (!d) return;
+              const t = e.touches[0];
+              setPipOffset({
+                x: d.baseX + (t.clientX - d.startX),
+                y: d.baseY + (t.clientY - d.startY),
+              });
+            }}
+            onTouchEnd={() => {
+              pipDragRef.current = null;
+            }}
+          >
+            <video
+              ref={localVideoRef}
+              autoPlay
+              muted
+              playsInline
+              className={`h-40 w-28 rounded-2xl border border-white/20 bg-black object-cover ${facing === "user" ? "-scale-x-100" : ""}`}
+            />
+            <button
+              type="button"
+              onClick={() => void flipCamera()}
+              aria-label="Switch camera"
+              className="absolute -bottom-2 -left-2 grid h-9 w-9 place-items-center rounded-full border border-white/20 bg-black/70 text-white backdrop-blur transition active:scale-90"
+            >
+              <SwitchCamera className="h-4 w-4" />
+            </button>
+          </div>
         )}
 
       {/* WhatsApp-style control tray: a rounded card, labeled circular

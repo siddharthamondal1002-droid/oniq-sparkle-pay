@@ -4,16 +4,29 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchClearButton } from "@/components/ui/SearchClearButton";
-import { MessageCircle, Search, Edit3, X, Check, CheckCheck, Users, Trash2, ArrowLeft, Megaphone, Plus, UserPlus } from "lucide-react";
+import {
+  MessageCircle,
+  Search,
+  Edit3,
+  X,
+  Check,
+  CheckCheck,
+  Users,
+  Trash2,
+  ArrowLeft,
+  Megaphone,
+  Plus,
+  UserPlus,
+} from "lucide-react";
 import { toast } from "sonner";
 import { format, isToday, isYesterday, differenceInDays } from "date-fns";
 import { useOnlineUsers } from "@/hooks/usePresence";
+import { ProfilePhotoPopup, type ProfilePhotoTarget } from "@/components/chat/ProfilePhotoPopup";
 import { getNativeContacts, isNativeContactsAvailable, normalizePhone } from "@/lib/nativeContacts";
 
 export const Route = createFileRoute("/_authenticated/app/chat/")({
   component: ChatList,
 });
-
 
 type EnrichedConv = {
   id: string;
@@ -31,8 +44,16 @@ type EnrichedConv = {
 };
 
 const AVATAR_COLORS = [
-  "#0B5A4E", "#8B5CF6", "#F59E0B", "#EF4444", "#10B981",
-  "#3B82F6", "#EC4899", "#14B8A6", "#F97316", "#6366F1",
+  "#0B5A4E",
+  "#8B5CF6",
+  "#F59E0B",
+  "#EF4444",
+  "#10B981",
+  "#3B82F6",
+  "#EC4899",
+  "#14B8A6",
+  "#F97316",
+  "#6366F1",
 ];
 function colorFor(seed: string) {
   let h = 0;
@@ -53,6 +74,7 @@ function ChatList() {
   const qc = useQueryClient();
   const onlineSet = useOnlineUsers();
   const [showNew, setShowNew] = useState(false);
+  const [photoTarget, setPhotoTarget] = useState<ProfilePhotoTarget | null>(null);
   const [showSearch, setShowSearch] = useState(false);
   const [showRequests, setShowRequests] = useState(false);
   const [query, setQuery] = useState("");
@@ -81,7 +103,9 @@ function ChatList() {
     if (!actionConv || deleting) return;
     setDeleting(true);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).rpc("delete_chat", { _conversation_id: actionConv.id });
+    const { error } = await (supabase as any).rpc("delete_chat", {
+      _conversation_id: actionConv.id,
+    });
     setDeleting(false);
     if (error) {
       toast.error(error.message);
@@ -109,7 +133,10 @@ function ChatList() {
     queryKey: ["blocked-ids", me?.id],
     enabled: !!me,
     queryFn: async (): Promise<string[]> => {
-      const { data } = await supabase.from("blocked_users").select("blocked_id").eq("blocker_id", me!.id);
+      const { data } = await supabase
+        .from("blocked_users")
+        .select("blocked_id")
+        .eq("blocker_id", me!.id);
       return (data ?? []).map((r) => r.blocked_id);
     },
   });
@@ -136,7 +163,16 @@ function ChatList() {
           avatar_url: r.avatar_url ?? null,
           type: r.type,
           updated_at: r.updated_at,
-          last_message: r.last_type === "image" ? "📷 Photo" : r.last_type === "voice" ? "🎙 Voice note" : r.last_type === "video" ? "🎥 Video" : r.last_type === "file" ? `📎 ${r.last_message || "File"}` : (r.last_message ?? null),
+          last_message:
+            r.last_type === "image"
+              ? "📷 Photo"
+              : r.last_type === "voice"
+                ? "🎙 Voice note"
+                : r.last_type === "video"
+                  ? "🎥 Video"
+                  : r.last_type === "file"
+                    ? `📎 ${r.last_message || "File"}`
+                    : (r.last_message ?? null),
           last_sender_id: r.last_sender_id ?? null,
           last_sender_name: r.last_sender_name ?? null,
           last_created_at: r.last_created_at ?? null,
@@ -161,7 +197,6 @@ function ChatList() {
     },
   });
 
-
   // Realtime: patch the affected row in place instead of invalidating the
   // whole list — invalidating caused the list to reshuffle/animate on every
   // incoming message anywhere in the app (visible up/down jitter).
@@ -178,37 +213,44 @@ function ChatList() {
           if (!m?.conversation_id) return;
           const isMine = m.sender_id === me.id;
           const preview =
-            m.type === "image" ? "📷 Photo" :
-            m.type === "voice" ? "🎙 Voice note" :
-            m.type === "video" ? "🎥 Video" :
-            m.type === "file" ? `📎 ${m.content || "File"}` :
-            (m.content ?? null);
-          qc.setQueriesData<EnrichedConv[] | undefined>(
-            { queryKey: ["conversations"] },
-            (prev) => {
-              if (!prev) return prev;
-              const idx = prev.findIndex((c) => c.id === m.conversation_id);
-              if (idx === -1) return prev;
-              const row = prev[idx];
-              const openHere = typeof window !== "undefined" &&
-                window.location.pathname === `/app/chat/${m.conversation_id}`;
-              const patched: EnrichedConv = {
-                ...row,
-                last_message: preview,
-                last_sender_id: m.sender_id,
-                last_created_at: m.created_at,
-                updated_at: m.created_at,
-                unread: isMine || openHere ? row.unread : (row.unread ?? 0) + 1,
-              };
-              const rest = prev.filter((_, i) => i !== idx);
-              return [patched, ...rest];
-            },
-          );
+            m.type === "image"
+              ? "📷 Photo"
+              : m.type === "voice"
+                ? "🎙 Voice note"
+                : m.type === "video"
+                  ? "🎥 Video"
+                  : m.type === "file"
+                    ? `📎 ${m.content || "File"}`
+                    : (m.content ?? null);
+          qc.setQueriesData<EnrichedConv[] | undefined>({ queryKey: ["conversations"] }, (prev) => {
+            if (!prev) return prev;
+            const idx = prev.findIndex((c) => c.id === m.conversation_id);
+            if (idx === -1) return prev;
+            const row = prev[idx];
+            const openHere =
+              typeof window !== "undefined" &&
+              window.location.pathname === `/app/chat/${m.conversation_id}`;
+            const patched: EnrichedConv = {
+              ...row,
+              last_message: preview,
+              last_sender_id: m.sender_id,
+              last_created_at: m.created_at,
+              updated_at: m.created_at,
+              unread: isMine || openHere ? row.unread : (row.unread ?? 0) + 1,
+            };
+            const rest = prev.filter((_, i) => i !== idx);
+            return [patched, ...rest];
+          });
         },
       )
       .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "conversation_members", filter: `user_id=eq.${me.id}` },
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "conversation_members",
+          filter: `user_id=eq.${me.id}`,
+        },
         () => {
           // Own last_read_at moved (e.g. read on another tab) — reconcile.
           qc.invalidateQueries({ queryKey: ["conversations"] });
@@ -227,7 +269,6 @@ function ChatList() {
     return () => window.removeEventListener("focus", onFocus);
   }, [qc]);
 
-
   const filtered = useMemo(() => {
     if (!convs) return [];
     let list = convs;
@@ -236,9 +277,7 @@ function ChatList() {
     const q = query.trim().toLowerCase();
     if (!q) return list;
     return list.filter(
-      (c) =>
-        c.title.toLowerCase().includes(q) ||
-        (c.last_message ?? "").toLowerCase().includes(q),
+      (c) => c.title.toLowerCase().includes(q) || (c.last_message ?? "").toLowerCase().includes(q),
     );
   }, [convs, query, chip]);
 
@@ -246,11 +285,17 @@ function ChatList() {
     <div className="px-4 pt-12 pb-4">
       <div className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2">
-          <Link to="/app" aria-label="Back" className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted">
+          <Link
+            to="/app"
+            aria-label="Back"
+            className="grid h-10 w-10 place-items-center rounded-full hover:bg-muted"
+          >
             <ArrowLeft className="h-5 w-5" />
           </Link>
           <h1 className="font-display text-3xl font-bold">
-            <span className="bg-gradient-to-r from-foreground via-foreground to-fuchsia-400 bg-clip-text text-transparent">Chats</span>
+            <span className="bg-gradient-to-r from-foreground via-foreground to-fuchsia-400 bg-clip-text text-transparent">
+              Chats
+            </span>
           </h1>
         </div>
         <div className="flex items-center gap-1">
@@ -285,7 +330,6 @@ function ChatList() {
             <Edit3 className="h-5 w-5" />
           </button>
         </div>
-
       </div>
 
       {showSearch && (
@@ -306,12 +350,17 @@ function ChatList() {
 
       <ChannelsStrip convs={convs ?? []} />
 
-      <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none" data-testid="chat-filter-chips">
-        {([
-          { k: "all", label: "All" },
-          { k: "unread", label: "Unread" },
-          { k: "groups", label: "Groups" },
-        ] as const).map((c) => {
+      <div
+        className="mt-3 flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none"
+        data-testid="chat-filter-chips"
+      >
+        {(
+          [
+            { k: "all", label: "All" },
+            { k: "unread", label: "Unread" },
+            { k: "groups", label: "Groups" },
+          ] as const
+        ).map((c) => {
           const active = chip === c.k;
           return (
             <button
@@ -382,8 +431,33 @@ function ChatList() {
                             : "bg-transparent"
                         }`}
                       >
-                        <span className={`block rounded-full ${c.unread > 0 ? "bg-background p-[2px]" : ""}`}>
-                          <Avatar name={c.title} url={c.avatar_url} size={48} group={c.type === "group"} channel={isChannel} />
+                        <span
+                          className={`block rounded-full ${c.unread > 0 ? "bg-background p-[2px]" : ""}`}
+                          role="button"
+                          tabIndex={0}
+                          aria-label={`View ${c.title}'s photo`}
+                          onClick={(e) => {
+                            // The DP answers "show me the photo", the rest of
+                            // the row answers "open the chat" — WhatsApp's
+                            // split, and the one users expect.
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setPhotoTarget({
+                              conversationId: c.id,
+                              title: c.title,
+                              avatarUrl: c.avatar_url,
+                              isGroup: c.type === "group",
+                              isChannel,
+                            });
+                          }}
+                        >
+                          <Avatar
+                            name={c.title}
+                            url={c.avatar_url}
+                            size={48}
+                            group={c.type === "group"}
+                            channel={isChannel}
+                          />
                         </span>
                       </span>
                       {online && (
@@ -395,7 +469,9 @@ function ChatList() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
-                        <div className="truncate font-semibold">{isChannel ? `📢 ${c.title}` : c.title}</div>
+                        <div className="truncate font-semibold">
+                          {isChannel ? `📢 ${c.title}` : c.title}
+                        </div>
                         <div
                           className={`shrink-0 text-xs ${
                             c.unread > 0 ? "font-semibold text-[#25D366]" : "text-muted-foreground"
@@ -406,7 +482,8 @@ function ChatList() {
                       </div>
                       <div className="mt-0.5 flex items-center justify-between gap-2">
                         <div className="flex min-w-0 items-center gap-1 text-[13px] text-muted-foreground">
-                          {mine && c.type === "direct" &&
+                          {mine &&
+                            c.type === "direct" &&
                             (isRead ? (
                               <CheckCheck className="h-3.5 w-3.5 shrink-0 text-[#25D366]" />
                             ) : (
@@ -438,22 +515,34 @@ function ChatList() {
         )}
       </div>
 
-
       {/* Compose FAB removed on Chats — it overlapped the tab bar / My Page.
           The header pencil remains the compose entry point. */}
       {showNew && me && <NewChatSheet meId={me.id} onClose={() => setShowNew(false)} />}
-      {showRequests && me && <FriendRequestsSheet meId={me.id} onClose={() => setShowRequests(false)} />}
+      {showRequests && me && (
+        <FriendRequestsSheet meId={me.id} onClose={() => setShowRequests(false)} />
+      )}
 
       {actionConv && (
-        <div className="fixed inset-0 z-[80] flex items-end bg-black/60" onClick={() => setActionConv(null)}>
+        <div
+          className="fixed inset-0 z-[80] flex items-end bg-black/60"
+          onClick={() => setActionConv(null)}
+        >
           <div
             className="w-full rounded-t-3xl border-t border-border bg-background p-5 pb-8"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3">
-              <Avatar name={actionConv.title} url={actionConv.avatar_url} size={40} group={actionConv.type === "group"} channel={actionConv.type === "channel"} />
+              <Avatar
+                name={actionConv.title}
+                url={actionConv.avatar_url}
+                size={40}
+                group={actionConv.type === "group"}
+                channel={actionConv.type === "channel"}
+              />
               <div className="min-w-0">
-                <div className="truncate font-display text-lg font-semibold">{actionConv.title}</div>
+                <div className="truncate font-display text-lg font-semibold">
+                  {actionConv.title}
+                </div>
                 <div className="text-xs text-muted-foreground">
                   {actionConv.type === "direct"
                     ? "Deletes this chat for you only — they keep their copy. If they message you again, the chat comes back empty."
@@ -470,7 +559,11 @@ function ChatList() {
               className="press mt-5 flex w-full items-center justify-center gap-2 rounded-2xl bg-red-500/10 px-4 py-3 font-semibold text-red-500 disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" />
-              {deleting ? "Deleting…" : actionConv.type === "direct" ? "Delete chat" : "Leave & remove"}
+              {deleting
+                ? "Deleting…"
+                : actionConv.type === "direct"
+                  ? "Delete chat"
+                  : "Leave & remove"}
             </button>
             <button
               onClick={() => setActionConv(null)}
@@ -482,11 +575,26 @@ function ChatList() {
         </div>
       )}
 
+      {photoTarget ? (
+        <ProfilePhotoPopup target={photoTarget} onClose={() => setPhotoTarget(null)} />
+      ) : null}
     </div>
   );
 }
 
-function Avatar({ name, url, size = 44, group = false, channel = false }: { name: string; url: string | null; size?: number; group?: boolean; channel?: boolean }) {
+function Avatar({
+  name,
+  url,
+  size = 44,
+  group = false,
+  channel = false,
+}: {
+  name: string;
+  url: string | null;
+  size?: number;
+  group?: boolean;
+  channel?: boolean;
+}) {
   const initial = (name || "?").charAt(0).toUpperCase();
   const bg = colorFor(name || "?");
   return (
@@ -494,7 +602,17 @@ function Avatar({ name, url, size = 44, group = false, channel = false }: { name
       className="grid shrink-0 place-items-center overflow-hidden rounded-full font-semibold text-white"
       style={{ width: size, height: size, backgroundColor: bg, fontSize: size * 0.42 }}
     >
-      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : channel ? <span aria-hidden style={{ fontSize: size * 0.5 }}>📢</span> : group ? <Users style={{ width: size * 0.5, height: size * 0.5 }} /> : initial}
+      {url ? (
+        <img src={url} alt="" className="h-full w-full object-cover" />
+      ) : channel ? (
+        <span aria-hidden style={{ fontSize: size * 0.5 }}>
+          📢
+        </span>
+      ) : group ? (
+        <Users style={{ width: size * 0.5, height: size * 0.5 }} />
+      ) : (
+        initial
+      )}
     </div>
   );
 }
@@ -520,7 +638,11 @@ function ChannelsStrip({ convs }: { convs: EnrichedConv[] }) {
             className="flex shrink-0 min-h-11 items-center gap-1.5 rounded-full bg-primary/10 px-4 py-2 text-xs font-medium text-primary"
           >
             📢 <span className="max-w-[9rem] truncate">{c.title}</span>
-            {c.unread > 0 && <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] text-black">{c.unread}</span>}
+            {c.unread > 0 && (
+              <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-[#25D366] px-1 text-[10px] text-black">
+                {c.unread}
+              </span>
+            )}
           </Link>
         ))}
       </div>
@@ -535,20 +657,38 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
   const [joining, setJoining] = useState<string | null>(null);
   const navigate = useNavigate();
   const qc = useQueryClient();
-  useEffect(() => { const t = setTimeout(() => setDebounced(q.trim()), 200); return () => clearTimeout(t); }, [q]);
-  const { data: channels = [], isFetching, refetch } = useQuery({
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(q.trim()), 200);
+    return () => clearTimeout(t);
+  }, [q]);
+  const {
+    data: channels = [],
+    isFetching,
+    refetch,
+  } = useQuery({
     queryKey: ["discover-channels", debounced],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("list_public_channels", { _search: debounced || undefined, _limit: 30 });
+      const { data, error } = await supabase.rpc("list_public_channels", {
+        _search: debounced || undefined,
+        _limit: 30,
+      });
       if (error) throw error;
-      return (data ?? []) as Array<{ id: string; name: string; description: string | null; subscriber_count: number }>;
+      return (data ?? []) as Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        subscriber_count: number;
+      }>;
     },
   });
   const join = async (id: string) => {
     setJoining(id);
     const { error } = await supabase.rpc("join_channel", { _conversation_id: id });
     setJoining(null);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Joined 📢");
     qc.invalidateQueries({ queryKey: ["conversations"] });
     refetch();
@@ -560,11 +700,23 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
       <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold">Discover channels 📢</h2>
-          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"><X className="h-4 w-4" /></button>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+          >
+            <X className="h-4 w-4" />
+          </button>
         </div>
         <div className="relative mt-3">
           <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search channels" className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-10 text-sm focus:border-primary focus:outline-none" />
+          <input
+            autoFocus
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search channels"
+            className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-11 pr-10 text-sm focus:border-primary focus:outline-none"
+          />
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
             <SearchClearButton value={q} onClear={() => setQ("")} />
           </div>
@@ -573,30 +725,48 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
           {isFetching ? (
             <div className="py-6 text-center text-sm text-muted-foreground">Loading…</div>
           ) : channels.length === 0 ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">No public channels yet — create the first 📢</div>
-          ) : channels.map((ch) => (
-            <div key={ch.id} className="flex items-start gap-3 rounded-2xl border border-border/60 bg-card/40 p-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-lg" style={{ backgroundColor: colorFor(ch.name) }}>📢</div>
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-semibold">{ch.name}</div>
-                {ch.description && <div className="line-clamp-2 text-xs text-muted-foreground">{ch.description}</div>}
-                <div className="mt-0.5 text-xs text-muted-foreground">{ch.subscriber_count} subscriber{ch.subscriber_count === 1 ? "" : "s"}</div>
-              </div>
-              <button
-                onClick={() => join(ch.id)}
-                disabled={joining === ch.id}
-                className="shrink-0 rounded-full bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50"
-              >
-                {joining === ch.id ? "Joining…" : "Join"}
-              </button>
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No public channels yet — create the first 📢
             </div>
-          ))}
+          ) : (
+            channels.map((ch) => (
+              <div
+                key={ch.id}
+                className="flex items-start gap-3 rounded-2xl border border-border/60 bg-card/40 p-3"
+              >
+                <div
+                  className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-lg"
+                  style={{ backgroundColor: colorFor(ch.name) }}
+                >
+                  📢
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-semibold">{ch.name}</div>
+                  {ch.description && (
+                    <div className="line-clamp-2 text-xs text-muted-foreground">
+                      {ch.description}
+                    </div>
+                  )}
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    {ch.subscriber_count} subscriber{ch.subscriber_count === 1 ? "" : "s"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => join(ch.id)}
+                  disabled={joining === ch.id}
+                  className="shrink-0 rounded-full bg-[#25D366] px-3 py-1.5 text-xs font-semibold text-black disabled:opacity-50"
+                >
+                  {joining === ch.id ? "Joining…" : "Join"}
+                </button>
+              </div>
+            ))
+          )}
         </div>
       </div>
+
     </div>
   );
 }
-
 
 function EmptyChats({ onNew }: { onNew: () => void }) {
   return (
@@ -618,7 +788,12 @@ function EmptyChats({ onNew }: { onNew: () => void }) {
   );
 }
 
-type PickedUser = { id: string; display_name: string | null; username: string | null; avatar_url: string | null };
+type PickedUser = {
+  id: string;
+  display_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+};
 
 function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) {
   const [mode, setMode] = useState<"chat" | "group" | "channel">("chat");
@@ -655,29 +830,41 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
   });
 
   // My friendships → Map<otherId, 'pending-out'|'pending-in'|'accepted'>
-  const { data: friendMap = new Map<string, "pending-out" | "pending-in" | "accepted">() } = useQuery({
-    queryKey: ["friend-map", meId],
-    queryFn: async () => {
-      const { data } = await supabase.from("friendships").select("user_a, user_b, status, requested_by");
-      const m = new Map<string, "pending-out" | "pending-in" | "accepted">();
-      for (const r of data ?? []) {
-        const other = r.user_a === meId ? r.user_b : r.user_a;
-        m.set(other, r.status === "accepted" ? "accepted" : r.requested_by === meId ? "pending-out" : "pending-in");
-      }
-      return m;
-    },
-  });
+  const { data: friendMap = new Map<string, "pending-out" | "pending-in" | "accepted">() } =
+    useQuery({
+      queryKey: ["friend-map", meId],
+      queryFn: async () => {
+        const { data } = await supabase
+          .from("friendships")
+          .select("user_a, user_b, status, requested_by");
+        const m = new Map<string, "pending-out" | "pending-in" | "accepted">();
+        for (const r of data ?? []) {
+          const other = r.user_a === meId ? r.user_b : r.user_a;
+          m.set(
+            other,
+            r.status === "accepted"
+              ? "accepted"
+              : r.requested_by === meId
+                ? "pending-out"
+                : "pending-in",
+          );
+        }
+        return m;
+      },
+    });
   const qc = useQueryClient();
   const [addingId, setAddingId] = useState<string | null>(null);
   const addFriend = async (otherId: string) => {
     setAddingId(otherId);
     const { error } = await supabase.rpc("send_friend_request", { _to: otherId });
     setAddingId(null);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("moot request sent 🫡");
     qc.invalidateQueries({ queryKey: ["friend-map", meId] });
   };
-
 
   const startChat = async (otherId: string) => {
     setStarting(true);
@@ -746,19 +933,25 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
 
   const hint = useMemo(() => {
     if (mode === "channel") return null;
-    if (!debounced) return mode === "group" ? "Search users to add" : "Type a username or name to search";
+    if (!debounced)
+      return mode === "group" ? "Search users to add" : "Type a username or name to search";
     if (isFetching) return "Searching…";
     if (results.length === 0) return "No users found";
     return null;
   }, [debounced, isFetching, results.length, mode]);
 
-
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
       <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 sm:rounded-3xl sm:border">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-xl font-semibold">{mode === "channel" ? "New channel 📢" : mode === "group" ? "New group 👥" : "New chat"}</h2>
-          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
+          <h2 className="font-display text-xl font-semibold">
+            {mode === "channel" ? "New channel 📢" : mode === "group" ? "New group 👥" : "New chat"}
+          </h2>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -800,7 +993,10 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
             {picked.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {picked.map((p) => (
-                  <span key={p.id} className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-xs text-primary">
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2 py-1 text-xs text-primary"
+                  >
                     {p.display_name || p.username}
                     <button type="button" onClick={() => togglePick(p)} aria-label="Remove">
                       <X className="h-3 w-3" />
@@ -829,8 +1025,16 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
               className="w-full rounded-2xl border border-border bg-input/40 px-4 py-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
             />
             <label className="flex items-center justify-between rounded-2xl border border-border bg-input/20 px-4 py-3 text-sm">
-              <span>Public channel <span className="text-xs text-muted-foreground">(anyone can discover & join)</span></span>
-              <input type="checkbox" checked={channelPublic} onChange={(e) => setChannelPublic(e.target.checked)} className="h-4 w-4 accent-[#25D366]" />
+              <span>
+                Public channel{" "}
+                <span className="text-xs text-muted-foreground">(anyone can discover & join)</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={channelPublic}
+                onChange={(e) => setChannelPublic(e.target.checked)}
+                className="h-4 w-4 accent-[#25D366]"
+              />
             </label>
             <button
               type="button"
@@ -875,36 +1079,49 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
                         onClick={() => (mode === "group" ? togglePick(u) : startChat(u.id))}
                         className="flex min-w-0 flex-1 items-center gap-3 text-left disabled:opacity-50"
                       >
-                        <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={44} />
+                        <Avatar
+                          name={u.display_name || u.username || "?"}
+                          url={u.avatar_url}
+                          size={44}
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-medium">{u.display_name}</div>
-                          <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            @{u.username}
+                          </div>
                         </div>
                         {mode === "group" && isPicked && <Check className="h-4 w-4 text-primary" />}
                       </button>
-                      {mode === "chat" && (
-                        fs === "accepted" ? (
-                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">moots ✓</span>
+                      {mode === "chat" &&
+                        (fs === "accepted" ? (
+                          <span className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">
+                            moots ✓
+                          </span>
                         ) : fs === "pending-out" ? (
-                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">pending fr ⏳</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                            pending fr ⏳
+                          </span>
                         ) : fs === "pending-in" ? (
-                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">they added u 👀</span>
+                          <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                            they added u 👀
+                          </span>
                         ) : (
                           <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); addFriend(u.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              addFriend(u.id);
+                            }}
                             disabled={addingId === u.id}
                             className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
                           >
                             {addingId === u.id ? "…" : "add moot ➕"}
                           </button>
-                        )
-                      )}
+                        ))}
                     </div>
                   );
                 })
               )}
-
             </div>
 
             {mode === "group" && (
@@ -940,8 +1157,18 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
       const { data: rows } = await supabase
         .from("friendships")
         .select("user_a, user_b, status, requested_by, created_at");
-      const otherIds = Array.from(new Set((rows ?? []).map((r) => (r.user_a === meId ? r.user_b : r.user_a))));
-      const profByIdMap = new Map<string, { id: string; display_name: string | null; username: string | null; avatar_url: string | null }>();
+      const otherIds = Array.from(
+        new Set((rows ?? []).map((r) => (r.user_a === meId ? r.user_b : r.user_a))),
+      );
+      const profByIdMap = new Map<
+        string,
+        {
+          id: string;
+          display_name: string | null;
+          username: string | null;
+          avatar_url: string | null;
+        }
+      >();
       if (otherIds.length) {
         const { data: profs } = await supabase
           .from("profiles")
@@ -949,12 +1176,25 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
           .in("id", otherIds);
         for (const p of profs ?? []) profByIdMap.set(p.id, p);
       }
-      const incoming: Array<{ id: string; prof: typeof profByIdMap extends Map<string, infer V> ? V : never }> = [];
-      const friends: Array<{ id: string; prof: typeof profByIdMap extends Map<string, infer V> ? V : never }> = [];
+      const incoming: Array<{
+        id: string;
+        prof: typeof profByIdMap extends Map<string, infer V> ? V : never;
+      }> = [];
+      const friends: Array<{
+        id: string;
+        prof: typeof profByIdMap extends Map<string, infer V> ? V : never;
+      }> = [];
       const statusMap = new Map<string, "pending-out" | "pending-in" | "accepted">();
       for (const r of rows ?? []) {
         const other = r.user_a === meId ? r.user_b : r.user_a;
-        statusMap.set(other, r.status === "accepted" ? "accepted" : r.requested_by === meId ? "pending-out" : "pending-in");
+        statusMap.set(
+          other,
+          r.status === "accepted"
+            ? "accepted"
+            : r.requested_by === meId
+              ? "pending-out"
+              : "pending-in",
+        );
         const prof = profByIdMap.get(other);
         if (!prof) continue;
         if (r.status === "accepted") friends.push({ id: other, prof });
@@ -966,9 +1206,15 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
 
   const respond = async (otherId: string, accept: boolean) => {
     setBusy(otherId);
-    const { error } = await supabase.rpc("respond_friend_request", { _other: otherId, _accept: accept });
+    const { error } = await supabase.rpc("respond_friend_request", {
+      _other: otherId,
+      _accept: accept,
+    });
     setBusy(null);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success(accept ? "6 7!! you're moots now 🤝✨" : "nah'd it ✕");
     qc.invalidateQueries({ queryKey: ["friends-full", meId] });
     qc.invalidateQueries({ queryKey: ["friend-requests-incoming", meId] });
@@ -976,14 +1222,25 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   };
 
   const openChat = async (otherId: string) => {
-    const { data: id, error } = await supabase.rpc("find_or_create_direct_conversation", { other_user_id: otherId });
-    if (error || !id) { toast.error(error?.message || "Couldn't open chat"); return; }
+    const { data: id, error } = await supabase.rpc("find_or_create_direct_conversation", {
+      other_user_id: otherId,
+    });
+    if (error || !id) {
+      toast.error(error?.message || "Couldn't open chat");
+      return;
+    }
     onClose();
     navigate({ to: "/app/chat/$conversationId", params: { conversationId: id as string } });
   };
 
   // ── Contacts discovery ──
-  type OnOniqRow = { user_id: string; username: string | null; display_name: string | null; avatar_url: string | null; email: string };
+  type OnOniqRow = {
+    user_id: string;
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+    email: string;
+  };
   type PickedContact = { name: string; email: string };
   const [picking, setPicking] = useState(false);
   const [onOniq, setOnOniq] = useState<OnOniqRow[] | null>(null);
@@ -991,13 +1248,20 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   const [noEmailCount, setNoEmailCount] = useState(0);
   const [addingId, setAddingId] = useState<string | null>(null);
   // Native (Capacitor) contacts flow — separate from web email flow.
-  type NativeMatch = { id: string; username: string | null; display_name: string | null; avatar_url: string | null };
+  type NativeMatch = {
+    id: string;
+    username: string | null;
+    display_name: string | null;
+    avatar_url: string | null;
+  };
   const [isNative, setIsNative] = useState(false);
   const [nativePicking, setNativePicking] = useState(false);
   const [nativeMatches, setNativeMatches] = useState<NativeMatch[] | null>(null);
   const [nativeNotCount, setNativeNotCount] = useState(0);
   const [nativeDenied, setNativeDenied] = useState(false);
-  useEffect(() => { isNativeContactsAvailable().then(setIsNative); }, []);
+  useEffect(() => {
+    isNativeContactsAvailable().then(setIsNative);
+  }, []);
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const [searchQ, setSearchQ] = useState("");
   const [searchDebounced, setSearchDebounced] = useState("");
@@ -1015,7 +1279,12 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
         .neq("id", meId)
         .or(`username.ilike.%${searchDebounced}%,display_name.ilike.%${searchDebounced}%`)
         .limit(15);
-      return (data ?? []) as Array<{ id: string; username: string | null; display_name: string | null; avatar_url: string | null }>;
+      return (data ?? []) as Array<{
+        id: string;
+        username: string | null;
+        display_name: string | null;
+        avatar_url: string | null;
+      }>;
     },
   });
 
@@ -1025,7 +1294,11 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
   const invite = async () => {
     try {
       if (typeof navigator !== "undefined" && "share" in navigator) {
-        await (navigator as Navigator).share({ title: "ONIQ", text: inviteMessage, url: inviteUrl });
+        await (navigator as Navigator).share({
+          title: "ONIQ",
+          text: inviteMessage,
+          url: inviteUrl,
+        });
         return;
       }
     } catch {
@@ -1043,14 +1316,27 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     setAddingId(otherId);
     const { error } = await supabase.rpc("send_friend_request", { _to: otherId });
     setAddingId(null);
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("moot request sent 🫡");
     qc.invalidateQueries({ queryKey: ["friends-full", meId] });
     qc.invalidateQueries({ queryKey: ["friend-map", meId] });
   };
 
   const pickContacts = async () => {
-    const nav = typeof navigator !== "undefined" ? (navigator as unknown as { contacts?: { select: (props: string[], opts: { multiple: boolean }) => Promise<Array<{ name?: string[]; email?: string[] }>> } }) : null;
+    const nav =
+      typeof navigator !== "undefined"
+        ? (navigator as unknown as {
+            contacts?: {
+              select: (
+                props: string[],
+                opts: { multiple: boolean },
+              ) => Promise<Array<{ name?: string[]; email?: string[] }>>;
+            };
+          })
+        : null;
     if (!nav?.contacts || typeof nav.contacts.select !== "function") {
       toast("ur browser can't do contacts 😔 — search by @username instead 🔍");
       searchInputRef.current?.focus();
@@ -1063,17 +1349,29 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
       let skipped = 0;
       for (const c of contacts) {
         const name = (c.name?.[0] ?? "").trim() || "friend";
-        const emails = (c.email ?? []).map((e) => e.trim().toLowerCase()).filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
-        if (emails.length === 0) { skipped++; continue; }
+        const emails = (c.email ?? [])
+          .map((e) => e.trim().toLowerCase())
+          .filter((e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+        if (emails.length === 0) {
+          skipped++;
+          continue;
+        }
         for (const e of emails) picked.push({ name, email: e });
       }
       setNoEmailCount(skipped);
       const capped = picked.slice(0, 100);
       const uniqueEmails = Array.from(new Set(capped.map((p) => p.email)));
-      const resp = await supabase.functions.invoke<{ on_oniq: OnOniqRow[]; not_on_oniq: string[] }>("match-contacts", {
-        body: { emails: uniqueEmails },
-      });
-      if (resp.error || !resp.data) { toast.error(resp.error?.message || "couldn't reach ONIQ"); setPicking(false); return; }
+      const resp = await supabase.functions.invoke<{ on_oniq: OnOniqRow[]; not_on_oniq: string[] }>(
+        "match-contacts",
+        {
+          body: { emails: uniqueEmails },
+        },
+      );
+      if (resp.error || !resp.data) {
+        toast.error(resp.error?.message || "couldn't reach ONIQ");
+        setPicking(false);
+        return;
+      }
       const onEmails = new Set(resp.data.on_oniq.map((f) => f.email));
       setOnOniq(resp.data.on_oniq);
       // dedupe not-on-oniq by email, keep the contact name for display
@@ -1086,7 +1384,8 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
         notOnDedup.push(c);
       }
       setNotOnOniq(notOnDedup);
-      if (resp.data.on_oniq.length === 0 && notOnDedup.length === 0) toast("nothing to match — try picking again");
+      if (resp.data.on_oniq.length === 0 && notOnDedup.length === 0)
+        toast("nothing to match — try picking again");
     } catch (e) {
       const name = (e as { name?: string })?.name;
       const msg = String((e as { message?: string })?.message ?? "");
@@ -1109,8 +1408,10 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     try {
       const res = await getNativeContacts();
       if (!res.ok) {
-        if (res.denied) { setNativeDenied(true); toast("contacts permission denied — tap retry to allow"); }
-        else toast.error("couldn't read contacts");
+        if (res.denied) {
+          setNativeDenied(true);
+          toast("contacts permission denied — tap retry to allow");
+        } else toast.error("couldn't read contacts");
         return;
       }
       const normalized = new Set<string>();
@@ -1118,12 +1419,16 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
       for (const c of res.contacts) {
         for (const p of c.phones ?? []) {
           const n = normalizePhone(p);
-          if (n) { normalized.add(n); submitted++; }
+          if (n) {
+            normalized.add(n);
+            submitted++;
+          }
         }
       }
       const phones = Array.from(normalized);
       if (phones.length === 0) {
-        setNativeMatches([]); setNativeNotCount(0);
+        setNativeMatches([]);
+        setNativeNotCount(0);
         toast("no usable phone numbers in ur contacts");
         return;
       }
@@ -1133,10 +1438,18 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
       for (let i = 0; i < phones.length; i += 500) {
         const slice = phones.slice(i, i + 500);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: rows, error } = await (supabase.rpc as any)("match_contacts", { _phones: slice });
-        if (error) { toast.error(error.message); return; }
+        const { data: rows, error } = await (supabase.rpc as any)("match_contacts", {
+          _phones: slice,
+        });
+        if (error) {
+          toast.error(error.message);
+          return;
+        }
         for (const r of (rows ?? []) as NativeMatch[]) {
-          if (!seen.has(r.id)) { seen.add(r.id); matches.push(r); }
+          if (!seen.has(r.id)) {
+            seen.add(r.id);
+            matches.push(r);
+          }
         }
       }
       setNativeMatches(matches);
@@ -1149,20 +1462,24 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     }
   };
 
-  const contactsSupported = typeof navigator !== "undefined"
-    && "contacts" in navigator
-    && typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select === "function"
-    && typeof window !== "undefined"
-    && window.top === window.self;
-
-
+  const contactsSupported =
+    typeof navigator !== "undefined" &&
+    "contacts" in navigator &&
+    typeof (navigator as unknown as { contacts?: { select?: unknown } }).contacts?.select ===
+      "function" &&
+    typeof window !== "undefined" &&
+    window.top === window.self;
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end bg-black/60 backdrop-blur-sm sm:items-center sm:justify-center">
       <div className="w-full max-w-md rounded-t-3xl border-t border-border bg-background p-5 pb-8 sm:rounded-3xl sm:border">
         <div className="flex items-center justify-between">
           <h2 className="font-display text-xl font-semibold">the moots 🤝</h2>
-          <button onClick={onClose} aria-label="Close" className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -1177,7 +1494,11 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             data-testid="moots-search-input"
           />
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
-            <SearchClearButton value={searchQ} onClear={() => setSearchQ("")} inputRef={searchInputRef} />
+            <SearchClearButton
+              value={searchQ}
+              onClear={() => setSearchQ("")}
+              inputRef={searchInputRef}
+            />
           </div>
         </div>
         {searchDebounced.length >= 1 && (
@@ -1192,19 +1513,40 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                   const fs = data?.statusMap.get(u.id);
                   return (
                     <li key={u.id} className="flex items-center gap-3 p-2">
-                      <Avatar name={u.display_name || u.username || "?"} url={u.avatar_url} size={36} />
+                      <Avatar
+                        name={u.display_name || u.username || "?"}
+                        url={u.avatar_url}
+                        size={36}
+                      />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-medium">{u.display_name}</div>
                         <div className="truncate text-xs text-muted-foreground">@{u.username}</div>
                       </div>
                       {fs === "accepted" ? (
-                        <button onClick={() => openChat(u.id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">chat 💬</button>
+                        <button
+                          onClick={() => openChat(u.id)}
+                          className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary"
+                        >
+                          chat 💬
+                        </button>
                       ) : fs === "pending-out" ? (
-                        <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">pending ⏳</span>
+                        <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                          pending ⏳
+                        </span>
                       ) : fs === "pending-in" ? (
-                        <button disabled={busy === u.id} onClick={() => respond(u.id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50">accept ✅</button>
+                        <button
+                          disabled={busy === u.id}
+                          onClick={() => respond(u.id, true)}
+                          className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
+                        >
+                          accept ✅
+                        </button>
                       ) : (
-                        <button disabled={addingId === u.id} onClick={() => addMoot(u.id)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50">
+                        <button
+                          disabled={addingId === u.id}
+                          onClick={() => addMoot(u.id)}
+                          className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
+                        >
                           {addingId === u.id ? "…" : "add moot ➕"}
                         </button>
                       )}
@@ -1217,22 +1559,44 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
         )}
         <div className="mt-3 max-h-[65vh] space-y-4 overflow-y-auto">
           <section>
-            <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">moot requests 👀</div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
+              moot requests 👀
+            </div>
             {isLoading ? (
               <div className="py-3 text-sm text-muted-foreground">Loading…</div>
             ) : (data?.incoming ?? []).length === 0 ? (
-              <div className="py-3 text-sm text-muted-foreground">no requests rn — go add some moots ✨</div>
+              <div className="py-3 text-sm text-muted-foreground">
+                no requests rn — go add some moots ✨
+              </div>
             ) : (
               <ul className="space-y-1">
                 {data!.incoming.map((r) => (
                   <li key={r.id} className="flex items-center gap-3 rounded-2xl p-2">
-                    <Avatar name={r.prof.display_name || r.prof.username || "?"} url={r.prof.avatar_url} size={40} />
+                    <Avatar
+                      name={r.prof.display_name || r.prof.username || "?"}
+                      url={r.prof.avatar_url}
+                      size={40}
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{r.prof.display_name}</div>
-                      <div className="truncate text-xs text-muted-foreground">@{r.prof.username}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        @{r.prof.username}
+                      </div>
                     </div>
-                    <button disabled={busy === r.id} onClick={() => respond(r.id, true)} className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black disabled:opacity-50">bet ✅</button>
-                    <button disabled={busy === r.id} onClick={() => respond(r.id, false)} className="rounded-full border border-border px-3 py-1 text-xs disabled:opacity-50">nah ✕</button>
+                    <button
+                      disabled={busy === r.id}
+                      onClick={() => respond(r.id, true)}
+                      className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black disabled:opacity-50"
+                    >
+                      bet ✅
+                    </button>
+                    <button
+                      disabled={busy === r.id}
+                      onClick={() => respond(r.id, false)}
+                      className="rounded-full border border-border px-3 py-1 text-xs disabled:opacity-50"
+                    >
+                      nah ✕
+                    </button>
                   </li>
                 ))}
               </ul>
@@ -1250,7 +1614,10 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             )}
 
             {noEmailCount > 0 && (
-              <div className="mt-1 text-xs text-muted-foreground">{noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by email for now</div>
+              <div className="mt-1 text-xs text-muted-foreground">
+                {noEmailCount} contact{noEmailCount === 1 ? "" : "s"} had no email — ONIQ matches by
+                email for now
+              </div>
             )}
 
             {isNative && (
@@ -1265,33 +1632,62 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
             )}
             {isNative && nativeDenied && (
               <div className="mt-2 flex items-center justify-between rounded-2xl border border-border/60 p-2 text-xs">
-                <span className="text-muted-foreground">contacts access blocked — enable it to match ur ppl</span>
-                <button onClick={pickNativeContacts} className="rounded-full bg-primary/15 px-2.5 py-1 font-semibold text-primary">retry</button>
+                <span className="text-muted-foreground">
+                  contacts access blocked — enable it to match ur ppl
+                </span>
+                <button
+                  onClick={pickNativeContacts}
+                  className="rounded-full bg-primary/15 px-2.5 py-1 font-semibold text-primary"
+                >
+                  retry
+                </button>
               </div>
             )}
             {nativeMatches !== null && (
               <div className="mt-3 space-y-2">
-                <div className="text-xs uppercase tracking-wider text-muted-foreground">on ONIQ ✨</div>
+                <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                  on ONIQ ✨
+                </div>
                 {nativeMatches.length === 0 ? (
-                  <div className="py-2 text-sm text-muted-foreground">none of ur contacts are on ONIQ yet — invite below 📤</div>
+                  <div className="py-2 text-sm text-muted-foreground">
+                    none of ur contacts are on ONIQ yet — invite below 📤
+                  </div>
                 ) : (
                   <ul className="space-y-1">
                     {nativeMatches.map((m) => (
                       <li key={m.id} className="flex items-center gap-3 rounded-2xl p-2">
-                        <Avatar name={m.display_name || m.username || "?"} url={m.avatar_url} size={40} />
+                        <Avatar
+                          name={m.display_name || m.username || "?"}
+                          url={m.avatar_url}
+                          size={40}
+                        />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium">{m.display_name}</div>
-                          <div className="truncate text-xs text-muted-foreground">@{m.username}</div>
+                          <div className="truncate text-xs text-muted-foreground">
+                            @{m.username}
+                          </div>
                         </div>
-                        <button onClick={() => openChat(m.id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">chat 💬</button>
+                        <button
+                          onClick={() => openChat(m.id)}
+                          className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary"
+                        >
+                          chat 💬
+                        </button>
                       </li>
                     ))}
                   </ul>
                 )}
                 {nativeNotCount > 0 && (
                   <div className="flex items-center justify-between rounded-2xl border border-border/60 p-2">
-                    <span className="text-xs text-muted-foreground">{nativeNotCount} contact{nativeNotCount === 1 ? "" : "s"} not on ONIQ yet</span>
-                    <button onClick={invite} className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black">Invite 📤</button>
+                    <span className="text-xs text-muted-foreground">
+                      {nativeNotCount} contact{nativeNotCount === 1 ? "" : "s"} not on ONIQ yet
+                    </span>
+                    <button
+                      onClick={invite}
+                      className="rounded-full bg-[#25D366] px-3 py-1 text-xs font-semibold text-black"
+                    >
+                      Invite 📤
+                    </button>
                   </div>
                 )}
               </div>
@@ -1301,26 +1697,49 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
           {onOniq !== null && (
             <>
               <section>
-                <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">already here 😎</div>
+                <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
+                  already here 😎
+                </div>
                 {onOniq.length === 0 ? (
-                  <div className="py-3 text-sm text-muted-foreground">none of ur ppl are on ONIQ yet — drag them in below 📤</div>
+                  <div className="py-3 text-sm text-muted-foreground">
+                    none of ur ppl are on ONIQ yet — drag them in below 📤
+                  </div>
                 ) : (
                   <ul className="space-y-1">
                     {onOniq.map((f) => {
                       const fs = data?.statusMap.get(f.user_id);
                       return (
                         <li key={f.user_id} className="flex items-center gap-3 rounded-2xl p-2">
-                          <Avatar name={f.display_name || f.username || "?"} url={f.avatar_url} size={40} />
+                          <Avatar
+                            name={f.display_name || f.username || "?"}
+                            url={f.avatar_url}
+                            size={40}
+                          />
                           <div className="min-w-0 flex-1">
                             <div className="truncate text-sm font-medium">{f.display_name}</div>
-                            <div className="truncate text-xs text-muted-foreground">@{f.username}</div>
+                            <div className="truncate text-xs text-muted-foreground">
+                              @{f.username}
+                            </div>
                           </div>
                           {fs === "accepted" ? (
-                            <button onClick={() => openChat(f.user_id)} className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary">moots ✓</button>
+                            <button
+                              onClick={() => openChat(f.user_id)}
+                              className="shrink-0 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary"
+                            >
+                              moots ✓
+                            </button>
                           ) : fs === "pending-out" ? (
-                            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">pending fr ⏳</span>
+                            <span className="shrink-0 rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                              pending fr ⏳
+                            </span>
                           ) : fs === "pending-in" ? (
-                            <button disabled={busy === f.user_id} onClick={() => respond(f.user_id, true)} className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50">accept ✅</button>
+                            <button
+                              disabled={busy === f.user_id}
+                              onClick={() => respond(f.user_id, true)}
+                              className="shrink-0 rounded-full bg-[#25D366] px-2.5 py-1 text-xs font-semibold text-black disabled:opacity-50"
+                            >
+                              accept ✅
+                            </button>
                           ) : (
                             <button
                               onClick={() => addMoot(f.user_id)}
@@ -1338,9 +1757,13 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
               </section>
 
               <section>
-                <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">drag them in 📤</div>
+                <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
+                  drag them in 📤
+                </div>
                 {notOnOniq.length === 0 ? (
-                  <div className="py-3 text-sm text-muted-foreground">everyone u picked is already here 🎉</div>
+                  <div className="py-3 text-sm text-muted-foreground">
+                    everyone u picked is already here 🎉
+                  </div>
                 ) : (
                   <ul className="space-y-1">
                     {notOnOniq.map((c) => (
@@ -1362,21 +1785,34 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
                 )}
               </section>
             </>
-
           )}
 
           <section>
-            <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">your moots</div>
+            <div className="mb-1 text-xs uppercase tracking-wider text-muted-foreground">
+              your moots
+            </div>
             {(data?.friends ?? []).length === 0 ? (
-              <div className="py-3 text-sm text-muted-foreground">zero moots?? not for long — search someone 🔍</div>
+              <div className="py-3 text-sm text-muted-foreground">
+                zero moots?? not for long — search someone 🔍
+              </div>
             ) : (
               <ul className="space-y-1">
                 {data!.friends.map((r) => (
-                  <button key={r.id} onClick={() => openChat(r.id)} className="flex w-full items-center gap-3 rounded-2xl p-2 text-left hover:bg-muted">
-                    <Avatar name={r.prof.display_name || r.prof.username || "?"} url={r.prof.avatar_url} size={40} />
+                  <button
+                    key={r.id}
+                    onClick={() => openChat(r.id)}
+                    className="flex w-full items-center gap-3 rounded-2xl p-2 text-left hover:bg-muted"
+                  >
+                    <Avatar
+                      name={r.prof.display_name || r.prof.username || "?"}
+                      url={r.prof.avatar_url}
+                      size={40}
+                    />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{r.prof.display_name}</div>
-                      <div className="truncate text-xs text-muted-foreground">@{r.prof.username}</div>
+                      <div className="truncate text-xs text-muted-foreground">
+                        @{r.prof.username}
+                      </div>
                     </div>
                     <MessageCircle className="h-4 w-4 shrink-0 text-muted-foreground" />
                   </button>
@@ -1392,7 +1828,3 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     </div>
   );
 }
-
-
-
-

@@ -272,6 +272,13 @@ export function AttachmentSheet({
         input.multiple = wantsCamera ? false : Boolean(option.multiple);
 
         input.click();
+        // Close NOW, not in the input's change handler. `change` only fires
+        // when the user actually picks something — cancelling the picker or
+        // backing out of the camera fires nothing, and the sheet sat open
+        // behind the dismissed picker looking stuck. The input below lives
+        // OUTSIDE the `open` guard precisely so it survives this close and
+        // still delivers the files.
+        onClose();
         return;
       }
       onSelect(option);
@@ -282,55 +289,59 @@ export function AttachmentSheet({
     [acceptOverride, onSelect, onClose],
   );
 
-  if (!open) return null;
-
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} aria-hidden="true" />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Attach to ${surface}`}
-        className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-md rounded-t-3xl border-t border-border bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl"
-      >
-        <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-muted" />
+      {open ? (
+        <>
+          <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} aria-hidden="true" />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Attach to ${surface}`}
+            className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-md rounded-t-3xl border-t border-border bg-background p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] shadow-2xl"
+          >
+            <div className="mx-auto mb-4 h-1.5 w-10 rounded-full bg-muted" />
 
-        <div className="grid grid-cols-4 gap-x-2 gap-y-5">
-          {options.map((option, i) => {
-            const Icon = option.icon;
-            return (
-              <button
-                key={option.id}
-                ref={i === 0 ? firstTileRef : undefined}
-                type="button"
-                data-testid={`attach-${option.id}`}
-                onClick={() => handleTile(option)}
-                className="flex flex-col items-center gap-2 rounded-xl p-1 outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                <span
-                  className={`flex h-14 w-14 items-center justify-center rounded-2xl ${option.tint} transition-transform active:scale-90`}
-                >
-                  <Icon className="h-6 w-6" strokeWidth={1.75} />
-                </span>
-                <span className="text-xs text-muted-foreground">{option.label}</span>
-              </button>
-            );
-          })}
-        </div>
+            <div className="grid grid-cols-4 gap-x-2 gap-y-5">
+              {options.map((option, i) => {
+                const Icon = option.icon;
+                return (
+                  <button
+                    key={option.id}
+                    ref={i === 0 ? firstTileRef : undefined}
+                    type="button"
+                    data-testid={`attach-${option.id}`}
+                    onClick={() => handleTile(option)}
+                    className="flex flex-col items-center gap-2 rounded-xl p-1 outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                  >
+                    <span
+                      className={`flex h-14 w-14 items-center justify-center rounded-2xl ${option.tint} transition-transform active:scale-90`}
+                    >
+                      <Icon className="h-6 w-6" strokeWidth={1.75} />
+                    </span>
+                    <span className="text-xs text-muted-foreground">{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      ) : null}
 
-        <input
-          ref={inputRef}
-          type="file"
-          className="hidden"
-          onChange={(e) => {
-            const option = pendingRef.current;
-            const files = Array.from(e.target.files ?? []);
-            pendingRef.current = null;
-            if (option && files.length) onFiles(option, files);
-            onClose();
-          }}
-        />
-      </div>
+      {/* Always mounted: the sheet closes when a picker launches, and an input
+          inside the `open` guard would unmount with it — taking the pending
+          pick down too. */}
+      <input
+        ref={inputRef}
+        type="file"
+        className="hidden"
+        onChange={(e) => {
+          const option = pendingRef.current;
+          const files = Array.from(e.target.files ?? []);
+          pendingRef.current = null;
+          if (option && files.length) onFiles(option, files);
+        }}
+      />
     </>
   );
 }

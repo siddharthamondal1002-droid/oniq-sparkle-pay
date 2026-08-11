@@ -68,50 +68,47 @@
   --radius: 1rem;
 
   /* ONIQ palette — spec hexes */
-  --background: #0E0F13;
-  --foreground: #FFFFFF;
+  --background: #0e0f13;
+  --foreground: #ffffff;
 
-  --surface: #16181E;
-  --surface-2: #1B1E26;
+  --surface: #16181e;
+  --surface-2: #1b1e26;
 
-  --card: #16181E;
-  --card-foreground: #FFFFFF;
+  --card: #16181e;
+  --card-foreground: #ffffff;
 
-  --popover: #16181E;
-  --popover-foreground: #FFFFFF;
+  --popover: #16181e;
+  --popover-foreground: #ffffff;
 
   /* Electric teal — primary brand */
-  --primary: #00D4B8;
-  --primary-foreground: #0E0F13;
+  --primary: #00d4b8;
+  --primary-foreground: #0e0f13;
 
-  --accent: #00D4B8;
-  --accent-foreground: #0E0F13;
+  --accent: #00d4b8;
+  --accent-foreground: #0e0f13;
 
-  --magenta: #00D4B8; /* legacy alias — folded into teal */
-  --neon: #00D4B8;
-  --amber: #F7B955;
-  --success: #34D399;
+  --magenta: #00d4b8; /* legacy alias — folded into teal */
+  --neon: #00d4b8;
+  --amber: #f7b955;
+  --success: #34d399;
 
-  --secondary: #1B1E26;
-  --secondary-foreground: #FFFFFF;
+  --secondary: #1b1e26;
+  --secondary-foreground: #ffffff;
 
-  --muted: #1B1E26;
-  --muted-foreground: #B8BDCC;
+  --muted: #1b1e26;
+  --muted-foreground: #b8bdcc;
 
-  --destructive: #F87171;
-  --destructive-foreground: #0E0F13;
+  --destructive: #f87171;
+  --destructive-foreground: #0e0f13;
 
   --border: rgba(255, 255, 255, 0.14);
-  --input: #1B1E26;
-  --ring: #00D4B8;
+  --input: #1b1e26;
+  --ring: #00d4b8;
 
-  --gradient-primary: linear-gradient(135deg, #00D4B8 0%, #00A8E8 100%);
-  --gradient-accent: linear-gradient(135deg, #00D4B8 0%, #00A8E8 100%);
-  --gradient-hero: radial-gradient(
-      ellipse at 20% 0%,
-      rgba(0, 212, 184, 0.18) 0%,
-      transparent 55%
-    ),
+  --gradient-primary: linear-gradient(135deg, #00d4b8 0%, #00a8e8 100%);
+  --gradient-accent: linear-gradient(135deg, #00d4b8 0%, #00a8e8 100%);
+  --gradient-hero:
+    radial-gradient(ellipse at 20% 0%, rgba(0, 212, 184, 0.18) 0%, transparent 55%),
     radial-gradient(ellipse at 80% 30%, rgba(0, 168, 232, 0.14) 0%, transparent 55%);
   --gradient-card: linear-gradient(
     140deg,
@@ -123,27 +120,90 @@
   --shadow-magenta: 0 0 30px rgba(0, 212, 184, 0.3);
   --shadow-card: 0 10px 40px -10px rgba(0, 0, 0, 0.7);
 
-  --sidebar: #16181E;
-  --sidebar-foreground: #FFFFFF;
-  --sidebar-primary: #00D4B8;
-  --sidebar-primary-foreground: #0E0F13;
-  --sidebar-accent: #1B1E26;
-  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar: #16181e;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #00d4b8;
+  --sidebar-primary-foreground: #0e0f13;
+  --sidebar-accent: #1b1e26;
+  --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.08);
-  --sidebar-ring: #00D4B8;
+  --sidebar-ring: #00d4b8;
 
-  --chart-1: #00D4B8;
-  --chart-2: #00A8E8;
-  --chart-3: #F7B955;
-  --chart-4: #F87171;
-  --chart-5: #8B90A0;
+  --chart-1: #00d4b8;
+  --chart-2: #00a8e8;
+  --chart-3: #f7b955;
+  --chart-4: #f87171;
+  --chart-5: #8b90a0;
 }
-
 
 .dark {
-  --background: #0E0F13;
+  --background: #0e0f13;
 }
 
+/* Light mode — the same token contract, re-valued. Applied by adding `light`
+   to <html> (src/lib/theme.ts owns that, persisted per device). Everything
+   that reads tokens flips automatically; surfaces that hardcode darkness
+   (call screens, media viewers) intentionally stay dark in both modes, the
+   way every messenger keeps its camera and call UI dark. Primary shifts from
+   electric teal to a deeper #008F7A: the bright teal that glows on #0E0F13
+   washes out on white, and accent text must survive a white card. */
+.light {
+  --background: #f5f6f8;
+  --foreground: #171a21;
+
+  --surface: #ffffff;
+  --surface-2: #eef0f4;
+
+  --card: #ffffff;
+  --card-foreground: #171a21;
+
+  --popover: #ffffff;
+  --popover-foreground: #171a21;
+
+  --primary: #008f7a;
+  --primary-foreground: #ffffff;
+
+  --accent: #008f7a;
+  --accent-foreground: #ffffff;
+
+  --magenta: #008f7a;
+  --neon: #008f7a;
+  --amber: #b45309;
+  --success: #047857;
+
+  --secondary: #eef0f4;
+  --secondary-foreground: #171a21;
+
+  --muted: #e9ebf0;
+  --muted-foreground: #5a6172;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: rgba(17, 24, 39, 0.12);
+  --input: #eef0f4;
+  --ring: #008f7a;
+
+  --gradient-primary: linear-gradient(135deg, #008f7a 0%, #0077b6 100%);
+  --gradient-accent: linear-gradient(135deg, #008f7a 0%, #0077b6 100%);
+  --gradient-hero:
+    radial-gradient(ellipse at 20% 0%, rgba(0, 143, 122, 0.1) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 30%, rgba(0, 119, 182, 0.08) 0%, transparent 55%);
+  --gradient-card: linear-gradient(140deg, rgba(17, 24, 39, 0.03) 0%, rgba(17, 24, 39, 0.01) 100%);
+
+  --shadow-glow: 0 0 40px rgba(0, 143, 122, 0.15), 0 0 80px rgba(0, 119, 182, 0.08);
+  --shadow-magenta: 0 0 30px rgba(0, 143, 122, 0.18);
+  --shadow-card: 0 10px 40px -10px rgba(17, 24, 39, 0.15);
+
+  --sidebar: #ffffff;
+  --sidebar-foreground: #171a21;
+  --sidebar-primary: #008f7a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #eef0f4;
+  --sidebar-accent-foreground: #171a21;
+  --sidebar-border: rgba(17, 24, 39, 0.08);
+  --sidebar-ring: #008f7a;
+}
 
 @layer base {
   * {
@@ -171,7 +231,10 @@
      <button> elements. Long-form body text, chat bubbles, and article paragraphs
      use font-sans (Inter) and are intentionally excluded. */
   .font-display,
-  h1, h2, h3, h4,
+  h1,
+  h2,
+  h3,
+  h4,
   button {
     text-transform: uppercase;
     font-weight: 700;
@@ -183,11 +246,29 @@
      fallback. Per-script Baloo variants (Google Fonts) — friendly, rounded,
      modern — for Indic scripts; Noto for the rest. Loaded via <link> in
      src/routes/__root.tsx. */
-  :lang(bn), :lang(hi), :lang(ta), :lang(te), :lang(kn), :lang(ml),
-  :lang(gu), :lang(pa), :lang(or), :lang(as), :lang(mr), :lang(ur),
-  :lang(si), :lang(zh), :lang(ar), :lang(ja), :lang(ko), :lang(th) {
+  :lang(bn),
+  :lang(hi),
+  :lang(ta),
+  :lang(te),
+  :lang(kn),
+  :lang(ml),
+  :lang(gu),
+  :lang(pa),
+  :lang(or),
+  :lang(as),
+  :lang(mr),
+  :lang(ur),
+  :lang(si),
+  :lang(zh),
+  :lang(ar),
+  :lang(ja),
+  :lang(ko),
+  :lang(th) {
     & .font-display,
-    & h1, & h2, & h3, & h4,
+    & h1,
+    & h2,
+    & h3,
+    & h4,
     & button {
       font-size: 1.08em;
       letter-spacing: 0;
@@ -195,33 +276,67 @@
     }
   }
 
-  :lang(hi), :lang(mr) { font-family: "Baloo 2", system-ui, sans-serif; }
-  :lang(bn), :lang(as) { font-family: "Baloo Da 2", system-ui, sans-serif; }
-  :lang(ta) { font-family: "Baloo Thambi 2", system-ui, sans-serif; }
-  :lang(kn) { font-family: "Baloo Tamma 2", system-ui, sans-serif; }
-  :lang(te) { font-family: "Baloo Tammudu 2", system-ui, sans-serif; }
-  :lang(ml) { font-family: "Baloo Chettan 2", system-ui, sans-serif; }
-  :lang(gu) { font-family: "Baloo Bhai 2", system-ui, sans-serif; }
-  :lang(pa) { font-family: "Baloo Paaji 2", system-ui, sans-serif; }
-  :lang(or) { font-family: "Baloo Bhaina 2", system-ui, sans-serif; }
+  :lang(hi),
+  :lang(mr) {
+    font-family: "Baloo 2", system-ui, sans-serif;
+  }
+  :lang(bn),
+  :lang(as) {
+    font-family: "Baloo Da 2", system-ui, sans-serif;
+  }
+  :lang(ta) {
+    font-family: "Baloo Thambi 2", system-ui, sans-serif;
+  }
+  :lang(kn) {
+    font-family: "Baloo Tamma 2", system-ui, sans-serif;
+  }
+  :lang(te) {
+    font-family: "Baloo Tammudu 2", system-ui, sans-serif;
+  }
+  :lang(ml) {
+    font-family: "Baloo Chettan 2", system-ui, sans-serif;
+  }
+  :lang(gu) {
+    font-family: "Baloo Bhai 2", system-ui, sans-serif;
+  }
+  :lang(pa) {
+    font-family: "Baloo Paaji 2", system-ui, sans-serif;
+  }
+  :lang(or) {
+    font-family: "Baloo Bhaina 2", system-ui, sans-serif;
+  }
   /* Arabic — bundled locally (font-display: swap comes from the @fontsource
      face). Arabic needs a taller line-box than Latin: ascenders/descenders and
      diacritics collide at Latin's 1.5. */
-  :lang(ar), [dir="rtl"] {
+  :lang(ar),
+  [dir="rtl"] {
     font-family: "Noto Sans Arabic", "Baloo Bhaijaan 2", system-ui, sans-serif;
     line-height: 1.85;
   }
-  :lang(ur) { font-family: "Noto Nastaliq Urdu", system-ui, serif; }
-  :lang(si) { font-family: "Noto Sans Sinhala", system-ui, sans-serif; }
-  :lang(zh) { font-family: "Noto Sans SC", system-ui, sans-serif; }
-  :lang(ja) { font-family: "Noto Sans JP", system-ui, sans-serif; }
-  :lang(ko) { font-family: "Noto Sans KR", system-ui, sans-serif; }
-  :lang(th) { font-family: "Noto Sans Thai", system-ui, sans-serif; }
+  :lang(ur) {
+    font-family: "Noto Nastaliq Urdu", system-ui, serif;
+  }
+  :lang(si) {
+    font-family: "Noto Sans Sinhala", system-ui, sans-serif;
+  }
+  :lang(zh) {
+    font-family: "Noto Sans SC", system-ui, sans-serif;
+  }
+  :lang(ja) {
+    font-family: "Noto Sans JP", system-ui, sans-serif;
+  }
+  :lang(ko) {
+    font-family: "Noto Sans KR", system-ui, sans-serif;
+  }
+  :lang(th) {
+    font-family: "Noto Sans Thai", system-ui, sans-serif;
+  }
 
   /* RTL: nothing may spill sideways once the layout mirrors. */
-  [dir="rtl"] body { overflow-x: hidden; }
+  [dir="rtl"] body {
+    overflow-x: hidden;
+  }
 }
-
 
 @utility text-gradient-primary {
   background: var(--gradient-primary);
@@ -247,7 +362,6 @@
   border: 1px solid color-mix(in oklab, var(--border) 60%, transparent);
 }
 
-
 @utility glow {
   box-shadow: var(--shadow-glow);
 }
@@ -257,13 +371,19 @@
 }
 
 @utility glow-primary {
-  box-shadow: 0 0 24px color-mix(in oklab, var(--primary) 35%, transparent),
-              0 0 2px color-mix(in oklab, var(--primary) 60%, transparent);
+  box-shadow:
+    0 0 24px color-mix(in oklab, var(--primary) 35%, transparent),
+    0 0 2px color-mix(in oklab, var(--primary) 60%, transparent);
 }
 
 @keyframes float-slow {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-12px); }
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
 }
 
 @utility animate-float-slow {
@@ -277,15 +397,19 @@
   }
 }
 
-
 @keyframes fade-up {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @utility fade-up {
   animation: fade-up 0.4s ease-out both;
 }
-
 
 /* ------------------------------------------------------------------ *
  * Global interaction standards (desktop + mobile web polish)
@@ -313,7 +437,12 @@ button:disabled {
 
 /* Remove the 300ms double-tap-zoom delay on interactive elements while
    keeping pinch-zoom available on content. */
-button, a, [role="button"], input, select, textarea {
+button,
+a,
+[role="button"],
+input,
+select,
+textarea {
   touch-action: manipulation;
 }
 
@@ -334,7 +463,8 @@ select:focus-visible,
 }
 
 /* No sideways rubber-banding; keep native pull-to-refresh vertical only. */
-html, body {
+html,
+body {
   overscroll-behavior-x: none;
 }
 
@@ -364,10 +494,24 @@ html, body {
 
 /* Browser print: clean A4 paper, no app chrome. */
 @media print {
-  @page { size: A4; margin: 15mm; }
-  body { background: #fff !important; color: #000 !important; }
-  nav, header[data-app-chrome], [data-no-print] { display: none !important; }
-  .print-question, .q { page-break-inside: avoid; break-inside: avoid; }
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  nav,
+  header[data-app-chrome],
+  [data-no-print] {
+    display: none !important;
+  }
+  .print-question,
+  .q {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -404,15 +548,15 @@ html, body {
  * dvh, not vh, so mobile browser chrome is accounted for.
  * ------------------------------------------------------------------------ */
 :where(
-    .fixed.inset-0:not([data-full-bleed]):is(
-        .place-items-center,
-        .items-center,
-        .items-end,
-        .justify-end,
-        .justify-center
-      )
-      > *:not([data-full-bleed])
-  ) {
+  .fixed.inset-0:not([data-full-bleed]):is(
+      .place-items-center,
+      .items-center,
+      .items-end,
+      .justify-end,
+      .justify-center
+    )
+    > *:not([data-full-bleed])
+) {
   max-height: calc(100dvh - 2rem);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -421,8 +565,7 @@ html, body {
 /* Bottom sheets sit flush against the edge, so their last row needs the
  * gesture bar cleared. Centred dialogs already have the overlay's padding. */
 :where(
-    .fixed.inset-0:not([data-full-bleed]):is(.items-end, .justify-end)
-      > *:not([data-full-bleed])
-  ) {
+  .fixed.inset-0:not([data-full-bleed]):is(.items-end, .justify-end) > *:not([data-full-bleed])
+) {
   padding-bottom: env(safe-area-inset-bottom);
 }

@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
 import { doodleSurfaceStyle } from "@/lib/chatWallpaper";
+import { ProfilePhotoPopup } from "@/components/chat/ProfilePhotoPopup";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { LANG_NATIVE } from "@/lib/userLanguage";
@@ -241,6 +242,7 @@ function ChatThread() {
   const { data: chatTheme } = useUserTheme();
   const doodle = !chatTheme?.wallpaper_url;
   const [showMembersSheet, setShowMembersSheet] = useState(false);
+  const [showPhotoPopup, setShowPhotoPopup] = useState(false);
   const [showMediaSheet, setShowMediaSheet] = useState(false);
   const [showContactSheet, setShowContactSheet] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -1607,7 +1609,12 @@ function ChatThread() {
         </Link>
         <button
           type="button"
-          onClick={() => (isGroup || isChannel) && setShowMembersSheet(true)}
+          onClick={
+            () =>
+              isGroup || isChannel
+                ? setShowMembersSheet(true)
+                : setShowPhotoPopup(true) /* 1:1 — the tap asks to SEE the DP */
+          }
           className="flex min-w-0 flex-1 items-center gap-2 text-left normal-case tracking-normal"
         >
           <div
@@ -1882,7 +1889,22 @@ function ChatThread() {
         style={doodle ? doodleSurfaceStyle : undefined}
       >
         {isLoading ? (
-          <div className="text-center text-sm text-muted-foreground">Loading…</div>
+          // Skeleton bubbles, not a "Loading…" line. Opening from a
+          // notification cold-starts this screen, and a bare line of text that
+          // pops into a full thread reads as broken; ghost bubbles in the real
+          // layout read as loading.
+          <div className="space-y-2.5 pt-2" aria-hidden>
+            {[68, 44, 80, 56, 72, 38].map((w, i) => (
+              <div key={i} className={`flex ${i % 3 === 1 ? "justify-end" : "justify-start"}`}>
+                <div
+                  className={`h-10 animate-pulse rounded-[18px] ${
+                    i % 3 === 1 ? "bg-primary/15" : "bg-muted/60"
+                  }`}
+                  style={{ width: `${w}%`, maxWidth: "26rem" }}
+                />
+              </div>
+            ))}
+          </div>
         ) : rendered.length === 0 ? (
           <div className="mt-10 text-center text-sm text-muted-foreground">
             No messages yet. Say hi 👋
@@ -2558,6 +2580,19 @@ function ChatThread() {
 
       {showMediaSheet && (
         <MediaLinksDocsSheet messages={messages} onClose={() => setShowMediaSheet(false)} />
+      )}
+
+      {showPhotoPopup && (
+        <ProfilePhotoPopup
+          target={{
+            conversationId,
+            title,
+            avatarUrl: header?.avatar_url ?? null,
+            isGroup,
+            isChannel,
+          }}
+          onClose={() => setShowPhotoPopup(false)}
+        />
       )}
 
       {showMembersSheet && (isGroup || isChannel) && (

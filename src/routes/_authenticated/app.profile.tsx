@@ -13,7 +13,11 @@ import {
   Music2,
   Database,
   Camera,
+  Moon,
+  Sun,
+  SunMoon,
 } from "lucide-react";
+import { getThemeMode, setThemeMode, type ThemeMode } from "@/lib/theme";
 import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
 import { COUNTRIES, useCountry } from "@/lib/country";
 import { removePushToken } from "@/lib/push";
@@ -199,6 +203,8 @@ function ProfileScreen() {
           </button>
         </form>
       )}
+
+      <AppearanceSection />
 
       <SoundsSection />
 
@@ -459,6 +465,47 @@ function SafetySection() {
         )}
       </div>
     </div>
+  );
+}
+
+function AppearanceSection() {
+  const [mode, setMode] = useState<ThemeMode>(() => getThemeMode());
+  const pick = (m: ThemeMode) => {
+    setMode(m);
+    setThemeMode(m);
+  };
+  return (
+    <section className="mt-8">
+      <h2 className="flex items-center gap-2 font-display text-lg font-bold">
+        <SunMoon className="h-4 w-4 text-primary" /> Appearance
+      </h2>
+      <div className="mt-3 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => pick("dark")}
+          aria-pressed={mode === "dark"}
+          className={`flex items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold ${
+            mode === "dark"
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border text-muted-foreground"
+          }`}
+        >
+          <Moon className="h-4 w-4" /> Dark
+        </button>
+        <button
+          type="button"
+          onClick={() => pick("light")}
+          aria-pressed={mode === "light"}
+          className={`flex items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold ${
+            mode === "light"
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border text-muted-foreground"
+          }`}
+        >
+          <Sun className="h-4 w-4" /> Light
+        </button>
+      </div>
+    </section>
   );
 }
 

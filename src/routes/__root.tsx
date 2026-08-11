@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import { DirectionalToaster } from "@/components/DirectionalToaster";
 
 import appCss from "../styles.css?url";
+import { THEME_BOOT_SCRIPT } from "../lib/theme";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -131,6 +132,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
     ],
     scripts: [
+      {
+        // Theme before first paint: a light-mode user must never see a dark
+        // flash while React boots. Tiny, inline, dependency-free.
+        children: THEME_BOOT_SCRIPT,
+      },
       {
         type: "application/ld+json",
         children: JSON.stringify({
