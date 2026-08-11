@@ -53,6 +53,26 @@ export function GlobalIncomingCall() {
   const [incoming, setIncoming] = useState<Incoming | null>(null);
   const incomingRef = useRef<Incoming | null>(null);
   const activeCallIdRef = useRef<string | null>(null);
+  /**
+   * Calls this window has already answered or declined.
+   *
+   * THIS IS WHAT BROKE ANSWERING IN-APP. Tapping Answer clears `incoming` and
+   * then takes ~700ms to mount a CallOverlay (navigate, a profile lookup, a
+   * re-dispatch tick). The caller re-rings every 2s, and a re-ring landing in
+   * that gap found: no CallOverlay mounted yet, `incoming` already null — so it
+   * sailed past every guard and re-opened the incoming screen ON TOP of the
+   * call that was connecting. The ringtone restarted, the z-[100] screen hid
+   * the live call, and the natural reaction — tap Decline on the call that
+   * "won't connect" — broadcast a decline that killed it for real.
+   *
+   * It only worked from the notification because the app had been backgrounded
+   * with its realtime socket suspended: no re-rings arrived during the mount
+   * window, so nothing clobbered the overlay.
+   *
+   * callIds are per-call UUIDs, so an id in here can never legitimately ring
+   * again and this never needs clearing.
+   */
+  const handledCallIdRef = useRef<string | null>(null);
   const dismissTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -108,6 +128,22 @@ export function GlobalIncomingCall() {
     };
   }, [incoming]);
 
+  // An accept can originate somewhere other than this screen's button — the
+  // notification tap routes through MainActivity → oniq:push-navigate →
+  // AppShell, which dispatches oniq:accept-call directly. When that happens
+  // this component must stand down too, or it keeps its own incoming screen up
+  // over the call and the next re-ring keeps it alive.
+  useEffect(() => {
+    const onAccepted = (e: Event) => {
+      const id = (e as CustomEvent<{ callId?: string }>).detail?.callId;
+      if (!id) return;
+      handledCallIdRef.current = id;
+      setIncoming((cur) => (cur && cur.callId === id ? null : cur));
+    };
+    window.addEventListener("oniq:accept-call", onAccepted);
+    return () => window.removeEventListener("oniq:accept-call", onAccepted);
+  }, []);
+
   // Subscribe to user-scoped ring channel.
   useEffect(() => {
     if (!me) return;
@@ -123,6 +159,10 @@ export function GlobalIncomingCall() {
         fromId: string;
       };
       if (!p?.callId || p.fromId === me) return;
+      // Already answered or declined in this window — every later re-ring for
+      // it is noise, and acting on one re-opens the incoming screen over a
+      // call that is already connecting. This check must come FIRST.
+      if (handledCallIdRef.current === p.callId) return;
       // Already dialing or in a call in this window — a CallOverlay session is
       // mounted, and painting an incoming screen over it would be the very
       // overlap the retired thread-open check existed for. (Re-rings for the
@@ -170,6 +210,7 @@ export function GlobalIncomingCall() {
     const cur = incomingRef.current;
     if (!cur) return;
     activeCallIdRef.current = cur.callId;
+    handledCallIdRef.current = cur.callId;
     setIncoming(null);
     const dispatchAccept = () => {
       try {
@@ -184,22 +225,26 @@ export function GlobalIncomingCall() {
         );
       } catch {}
     };
+    // FIRST, not after navigation. GlobalCallHost lives above the routed
+    // <Outlet />, so mounting the overlay never needed the route to change —
+    // and waiting on navigate() put ~300ms of dead air between "user tapped
+    // Answer" and "anything started happening", every millisecond of which was
+    // a window for a re-ring to land. Navigation still runs, because the user
+    // should end up in the conversation; it just no longer gates the call.
+    dispatchAccept();
     navigate({
       to: "/app/chat/$conversationId" as any,
       params: { conversationId: cur.conversationId } as any,
-      search: {
-        acceptCall: cur.callId,
-        acceptType: cur.callType,
-      } as any,
     })
       .then(() => {
-        // Same-route navigation won't remount CallOverlay → the URL-param
-        // adoption inside its subscribe callback won't re-fire. Dispatch the
-        // fallback event after navigation settles.
-        setTimeout(dispatchAccept, 300);
+        // Belt and braces: if the overlay mounted late, its own listener is
+        // registered by now. adoptAndAccept is idempotent once active.
+        setTimeout(dispatchAccept, 400);
       })
       .catch(() => {
-        window.location.href = `/app/chat/${cur.conversationId}?acceptCall=${cur.callId}&acceptType=${cur.callType}`;
+        // Do NOT hard-navigate. window.location.href reloads the whole app and
+        // destroys the call that is mid-handshake — the accept event above has
+        // already started it, and the overlay is route-independent.
       });
     setTimeout(() => {
       activeCallIdRef.current = null;
@@ -209,6 +254,9 @@ export function GlobalIncomingCall() {
   const decline = () => {
     const cur = incomingRef.current;
     if (!cur) return;
+    // Same trap as accept: without this, the caller's next re-ring re-opens
+    // the screen the user just dismissed.
+    handledCallIdRef.current = cur.callId;
     // Reuse an existing `call:{conversationId}` channel if one exists in this
     // client (paranoid guard — duplicate topics from one client can poison
     // the original subscription). One exists only while a CallOverlay session

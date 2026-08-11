@@ -279,14 +279,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
   }, [status, callType]);
 
-  // Native audio routing: default speaker ON for video, OFF (earpiece) for audio,
-  // whenever a call enters connecting/connected. Reset on idle/ended.
+  // Native audio routing whenever a call enters connecting/connected.
+  // Reset on idle/ended.
   useEffect(() => {
     if (!isNative) return;
     if (status === "connecting" || status === "connected") {
-      const desired = callType === "video";
-      setSpeakerOn(desired);
-      void nativeSetSpeaker(desired);
+      // SPEAKER ON FOR AUDIO CALLS TOO, which is not what a phone normally
+      // does. In this WebView the earpiece route is reported as too quiet to
+      // hold a conversation — repeatedly, across builds — because WebRTC audio
+      // is emitted on the media stream while MODE_IN_COMMUNICATION meters and
+      // routes it as a call. An earpiece nobody can hear is not the "correct"
+      // default; it is a broken call. Speaker is audible, and one labelled tap
+      // goes back to the earpiece for anyone holding the phone to their ear.
+      setSpeakerOn(true);
+      void nativeSetSpeaker(true);
     } else if (status === "idle" || status === "ended") {
       setSpeakerOn(false);
       void nativeResetSpeaker();
@@ -1619,7 +1625,11 @@ function RemoteTile({ tile, showVideo }: { tile: PeerTile; showVideo: boolean })
       comp.attack.value = 0.003;
       comp.release.value = 0.25;
       const gain = ctx.createGain();
-      gain.gain.value = 2.4;
+      // 3.6x, up from 2.4 — still reported quiet at 2.4 on real hardware. The
+      // compressor above (8:1 above -30dB) is doing the work that keeps this
+      // from clipping: peaks are pinned before the makeup gain sees them, so
+      // the number that rises is the floor, not the ceiling.
+      gain.gain.value = 3.6;
       source.connect(comp);
       comp.connect(gain);
       gain.connect(ctx.destination);
