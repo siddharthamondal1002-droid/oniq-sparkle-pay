@@ -99,18 +99,12 @@ Deno.serve(async (req) => {
       ...((orderEntity.notes as Record<string, unknown>) ?? {}),
       ...((paymentEntity.notes as Record<string, unknown>) ?? {}),
     };
-    const kindNote = String(notes.kind ?? "");
-    const isStory = kindNote === "story_seconds";
-    const isSub = kindNote === "channel_sub";
+    const isStory = String(notes.kind ?? "") === "story_seconds";
 
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
 
     if (PAID_EVENTS.has(name)) {
-      const rpc = isSub
-        ? "credit_channel_subscription"
-        : isStory
-          ? "credit_story_purchase"
-          : "mark_order_paid";
+      const rpc = isStory ? "credit_story_purchase" : "mark_order_paid";
       const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
         method: "POST",
         headers: { ...svc, "content-type": "application/json" },
@@ -129,21 +123,13 @@ Deno.serve(async (req) => {
         return json({ error: "could not record the payment" }, 500);
       }
       return json(
-        {
-          ok: true,
-          kind: isSub ? "channel_sub" : isStory ? "story_seconds" : "order",
-          ...(await marked.json()),
-        },
+        { ok: true, kind: isStory ? "story_seconds" : "order", ...(await marked.json()) },
         200,
       );
     }
 
     if (FAILED_EVENTS.has(name)) {
-      const rpc = isSub
-        ? "fail_channel_subscription"
-        : isStory
-          ? "fail_story_purchase"
-          : "mark_payment_failed";
+      const rpc = isStory ? "fail_story_purchase" : "mark_payment_failed";
       await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
         method: "POST",
         headers: { ...svc, "content-type": "application/json" },

@@ -70,15 +70,13 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const wantsOrder = body?.orderId !== undefined && body?.orderId !== null;
     const wantsStory = body?.seconds !== undefined && body?.seconds !== null;
-    const wantsSub = body?.channelId !== undefined && body?.channelId !== null;
 
-    // EXACTLY ONE PRODUCT PER REQUEST. More than one, or none, is refused
-    // rather than resolved by precedence — a request that names two products
-    // is a client bug, and picking one silently is how the wrong thing gets
-    // charged for.
-    const named = Number(wantsOrder) + Number(wantsStory) + Number(wantsSub);
-    if (named !== 1) {
-      return json({ error: "name exactly one of orderId, seconds or channelId" }, 400);
+    // EXACTLY ONE PRODUCT PER REQUEST. Both together, or neither, is refused
+    // rather than resolved by precedence — a request that names a food order
+    // AND a Story length is a client bug, and picking one of them silently is
+    // how the wrong thing gets charged for.
+    if (wantsOrder === wantsStory) {
+      return json({ error: "name exactly one of orderId or seconds" }, 400);
     }
 
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
@@ -94,95 +92,6 @@ Deno.serve(async (req) => {
     if (!cfg) return json({ error: "payments are not configured" }, 503);
     if (cfg.enabled !== true) {
       return json({ error: "Payments are paused right now. Try again later." }, 503);
-    }
-
-    // -----------------------------------------------------------------------
-    // CHANNEL SUBSCRIPTION. A month of a creator's channel. Same posture as
-    // Story time: the app links out, the web pays, the webhook settles the
-    // three-way split (creator / ONIQ / subscriber cashback) atomically in
-    // credit_channel_subscription. The client names a CHANNEL, never a price.
-    // -----------------------------------------------------------------------
-    if (wantsSub) {
-      const channelId = String(body.channelId ?? "");
-      if (!/^[0-9a-f-]{36}$/i.test(channelId)) return json({ error: "bad channel id" }, 400);
-      const subOrigin = body?.origin === "native-handoff" ? "native-handoff" : "web";
-
-      const subStart = await fetch(`${supabaseUrl}/rest/v1/rpc/create_channel_sub_purchase`, {
-        method: "POST",
-        headers: {
-          ...svc,
-          "content-type": "application/json",
-          // Runs as the CALLER, so auth.uid() inside is this user.
-          Authorization: authHeader,
-        },
-        body: JSON.stringify({ _channel_id: channelId, _origin: subOrigin }),
-      });
-      if (!subStart.ok) {
-        const detail = await subStart.text().catch(() => "");
-        console.error("razorpay-order sub create", subStart.status, detail.slice(0, 200));
-        return json({ error: "Could not start that payment." }, 502);
-      }
-      const sub = (await subStart.json()) as {
-        ok?: boolean;
-        reason?: string;
-        subId?: string;
-        channelName?: string;
-        amountMinor?: number;
-        currency?: string;
-        periodEnd?: string;
-      };
-      if (!sub?.ok) {
-        if (sub?.reason === "already-subscribed") {
-          return json({ error: "You are already subscribed.", periodEnd: sub.periodEnd }, 409);
-        }
-        if (sub?.reason === "own-channel") {
-          return json({ error: "That is your own channel." }, 400);
-        }
-        return json({ error: "That channel is not selling subscriptions." }, 400);
-      }
-
-      const subAmount = Number(sub.amountMinor);
-      if (!Number.isInteger(subAmount) || subAmount <= 0) {
-        return json({ error: "Could not start that payment." }, 502);
-      }
-      if (subAmount < Number(cfg.min_amount_minor) || subAmount > Number(cfg.max_amount_minor)) {
-        console.error("razorpay-order sub outside bounds", channelId, subAmount);
-        return json({ error: "That subscription is outside the payable range." }, 409);
-      }
-
-      const createdSub = await createRazorpayOrder(
-        creds,
-        subAmount,
-        String(sub.currency ?? "INR"),
-        String(sub.subId),
-        { kind: "channel_sub", sub_id: String(sub.subId) },
-      );
-      if ("error" in createdSub) {
-        console.error("razorpay-order sub razorpay", createdSub.error);
-        return json({ error: "Could not start that payment." }, 502);
-      }
-
-      const subAttach = await fetch(`${supabaseUrl}/rest/v1/rpc/attach_channel_sub_order`, {
-        method: "POST",
-        headers: { ...svc, "content-type": "application/json" },
-        body: JSON.stringify({ _sub_id: sub.subId, _provider_order_id: createdSub.id }),
-      });
-      if (!subAttach.ok) {
-        const detail = await subAttach.text().catch(() => "");
-        console.error("razorpay-order sub attach", subAttach.status, detail.slice(0, 200));
-        return json({ error: "Could not start that payment." }, 502);
-      }
-
-      return json({
-        configured: true,
-        kind: "channel_sub",
-        keyId: creds.keyId,
-        providerOrderId: createdSub.id,
-        subId: sub.subId,
-        channelName: sub.channelName,
-        amountMinor: subAmount,
-        currency: sub.currency ?? "INR",
-      });
     }
 
     // -----------------------------------------------------------------------
