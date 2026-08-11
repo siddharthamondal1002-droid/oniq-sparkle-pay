@@ -9,11 +9,10 @@ android {
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 8
         versionName "1.6"
-        // NOTE: 1.6 is staged, not shipped. The native half of the call-audio
-        // fix (SpeakerRouter focus/volume routing) and MediaSaver's gallery
-        // publish sit in this tree waiting for whenever a native build is
-        // actually wanted. Everything else in 1.6 reaches users through the
-        // web publish, because the app is a thin wrapper around oniqhub.com.
+        // 1.6 carries native work that a web publish cannot deliver:
+        // SpeakerRouter now takes audio focus and points the volume rocker at
+        // the call stream, and MediaSaver publishes saved videos into the
+        // device's Movies collection so they appear in the gallery.
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
