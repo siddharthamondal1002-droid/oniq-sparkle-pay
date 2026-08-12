@@ -33,6 +33,18 @@ const corsHeaders = {
 const TTS_MODEL = "gemini-2.5-flash-preview-tts";
 
 /**
+ * The 429 fallback, and ONLY the 429 fallback. Five proof runs in one day
+ * emptied flash-TTS's DAILY bucket — run 66's first voice call 429'd and
+ * stayed 429 through three minutes of backoff, which no retry can fix
+ * because the bucket refills at midnight, not next minute. The pro TTS
+ * model draws from a SEPARATE quota bucket, so it can finish a film the
+ * flash bucket abandoned mid-day. It is dearer per call, which is why it
+ * only ever runs after a 429: an error that is not a throttle fails the
+ * same way on both models and would just double the bill on the way down.
+ */
+const TTS_FALLBACK_MODEL = "gemini-2.5-pro-preview-tts";
+
+/**
  * Default narrator.
  *
  * One voice per Story, chosen by the caller and then held for every shot. A
@@ -88,9 +100,9 @@ Deno.serve(async (req) => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 60000);
     let res: Response;
-    try {
-      res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${TTS_MODEL}:generateContent?key=${encodeURIComponent(key)}`,
+    const speak = (model: string) =>
+      fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
         {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -104,6 +116,15 @@ Deno.serve(async (req) => {
           }),
         },
       );
+    try {
+      res = await speak(TTS_MODEL);
+      // A throttle — and only a throttle — earns the dearer bucket. The
+      // prebuilt voice names are the same on both models, so the narrator
+      // does not change mid-film when this path fires.
+      if (res.status === 429) {
+        console.warn("story-voice: flash TTS throttled (429) — trying the pro bucket");
+        res = await speak(TTS_FALLBACK_MODEL);
+      }
     } finally {
       clearTimeout(timer);
     }
