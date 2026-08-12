@@ -291,3 +291,31 @@ export async function payForStorySeconds(opts: StoryPayOptions): Promise<StoryPa
   }
   return out;
 }
+
+export type WatermarkPayResult =
+  { status: "paid" } | { status: "dismissed" } | { status: "failed"; message: string };
+
+/**
+ * The flat watermark-removal addon. Same rails as Story seconds: the server
+ * prices it from story_addons, the webhook/verify settles it, and settlement
+ * queues a clean re-render when the film has already shipped. The client
+ * names only WHICH job — never a price.
+ */
+export async function payForWatermarkRemoval(opts: {
+  jobId: string;
+  prefill?: { name?: string; email?: string; contact?: string };
+}): Promise<WatermarkPayResult> {
+  const { data, error } = await supabase.functions.invoke("razorpay-order", {
+    body: { watermarkJobId: opts.jobId },
+  });
+  const start = (data ?? {}) as OrderStart;
+  const problem = startProblem(error, start);
+  if (problem) return { status: "failed", message: problem };
+
+  const out = await collectPayment(
+    start as { keyId: string; providerOrderId: string; amountMinor?: number; currency?: string },
+    { description: start.label ?? "Remove the ONIQ watermark", prefill: opts.prefill },
+  );
+  if (out.status === "verified") return { status: "paid" };
+  return out;
+}

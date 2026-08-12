@@ -175,13 +175,14 @@ Deno.serve(async (req) => {
     }
     const wantsOrder = body?.orderId !== undefined && body?.orderId !== null;
     const wantsStory = body?.seconds !== undefined && body?.seconds !== null;
+    const wantsWatermark = body?.watermarkJobId !== undefined && body?.watermarkJobId !== null;
 
-    // EXACTLY ONE PRODUCT PER REQUEST. Both together, or neither, is refused
+    // EXACTLY ONE PRODUCT PER REQUEST. Several together, or none, is refused
     // rather than resolved by precedence — a request that names a food order
     // AND a Story length is a client bug, and picking one of them silently is
     // how the wrong thing gets charged for.
-    if (wantsOrder === wantsStory) {
-      return json({ error: "name exactly one of orderId or seconds" }, 400);
+    if ([wantsOrder, wantsStory, wantsWatermark].filter(Boolean).length !== 1) {
+      return json({ error: "name exactly one of orderId, seconds, or watermarkJobId" }, 400);
     }
 
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
@@ -298,6 +299,102 @@ Deno.serve(async (req) => {
         providerOrderId: createdStory.id,
         purchaseId: start.purchaseId,
         seconds: start.seconds,
+        label: start.label,
+        amountMinor,
+        currency: start.currency ?? "INR",
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // WATERMARK REMOVAL. Flat-priced addon on a Story the user already owns.
+    // Same discipline as Story seconds: the row exists before the Razorpay
+    // order, the price comes from story_addons, the webhook settles by
+    // provider order id, and settlement clones a clean re-render when the
+    // film has already shipped.
+    // -----------------------------------------------------------------------
+    if (wantsWatermark) {
+      const jobId = String(body.watermarkJobId ?? "");
+      if (!/^[0-9a-f-]{36}$/i.test(jobId)) return json({ error: "bad job id" }, 400);
+
+      const startRes = await fetch(`${supabaseUrl}/rest/v1/rpc/create_watermark_purchase`, {
+        method: "POST",
+        headers: {
+          ...svc,
+          "content-type": "application/json",
+          // Caller-auth: auth.uid() inside the RPC is this user, so ownership
+          // of the job is checked where the price is read.
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({ _job_id: jobId }),
+      });
+      if (!startRes.ok) {
+        const detail = await startRes.text().catch(() => "");
+        console.error("razorpay-order watermark create", startRes.status, detail.slice(0, 200));
+        return json({ error: "Could not start that payment." }, 502);
+      }
+      const start = (await startRes.json()) as {
+        ok?: boolean;
+        reason?: string;
+        purchaseId?: string;
+        label?: string;
+        amountMinor?: number;
+        currency?: string;
+      };
+      if (!start?.ok) {
+        if (start?.reason === "disabled")
+          return json({ error: "Watermark removal is paused right now." }, 503);
+        if (start?.reason === "already-clean")
+          return json({ error: "That video already has no watermark." }, 409);
+        return json({ error: "No such video." }, 404);
+      }
+
+      const amountMinor = Number(start.amountMinor);
+      if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+        return json({ error: "Could not start that payment." }, 502);
+      }
+      if (
+        amountMinor < Number(cfg.min_amount_minor) ||
+        amountMinor > Number(cfg.max_amount_minor)
+      ) {
+        console.error("razorpay-order watermark outside bounds", amountMinor);
+        return json({ error: "Watermark removal is paused right now." }, 409);
+      }
+
+      const createdWm = await createRazorpayOrder(
+        creds,
+        amountMinor,
+        String(start.currency ?? "INR"),
+        String(start.purchaseId),
+        { kind: "watermark_removal", purchase_id: String(start.purchaseId) },
+      );
+      if ("error" in createdWm) {
+        console.error("razorpay-order watermark razorpay", createdWm.error);
+        return json({ error: "Could not start that payment." }, 502);
+      }
+
+      const attachWm = await fetch(
+        `${supabaseUrl}/rest/v1/rpc/attach_watermark_purchase_order`,
+        {
+          method: "POST",
+          headers: { ...svc, "content-type": "application/json" },
+          body: JSON.stringify({
+            _purchase_id: start.purchaseId,
+            _provider_order_id: createdWm.id,
+          }),
+        },
+      );
+      if (!attachWm.ok) {
+        const detail = await attachWm.text().catch(() => "");
+        console.error("razorpay-order watermark attach", attachWm.status, detail.slice(0, 200));
+        return json({ error: "Could not start that payment." }, 502);
+      }
+
+      return json({
+        configured: true,
+        kind: "watermark_removal",
+        keyId: creds.keyId,
+        providerOrderId: createdWm.id,
+        purchaseId: start.purchaseId,
         label: start.label,
         amountMinor,
         currency: start.currency ?? "INR",

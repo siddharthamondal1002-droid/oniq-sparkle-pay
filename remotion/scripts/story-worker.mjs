@@ -208,6 +208,7 @@ async function claimJob() {
         requestedSeconds: got.requestedSeconds,
         shotCount: got.shotCount,
         castJson: got.castJson ?? null,
+        noWatermark: got.noWatermark === true,
       };
     } catch (e) {
       // 409 means another runner won the race, or Supabase re-dispatched a job
@@ -223,7 +224,7 @@ async function claimJob() {
   }
 
   const queued = await db(
-    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json',
+    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json,no_watermark',
   );
   if (!queued || queued.length === 0) return null;
   const row = queued[0];
@@ -235,6 +236,7 @@ async function claimJob() {
     requestedSeconds: row.requested_seconds,
     shotCount: row.shot_count,
     castJson: row.cast_json ?? null,
+    noWatermark: row.no_watermark === true,
   };
 }
 
@@ -599,7 +601,10 @@ if (offline) {
 
     await markAssembling(job);
     const outFile = path.join(work, 'story.mp4');
-    await renderPlan({ title: plan.title, shots: rendered }, outFile);
+    // The ONIQ mark is burned in unless the job PAID it off (no_watermark).
+    // Passing the flag explicitly rather than omitting it keeps the intent
+    // readable here; the composition defaults ON either way.
+    await renderPlan({ title: plan.title, shots: rendered, watermark: !job.noWatermark }, outFile);
 
     const storagePath = await uploadFinished(job, outFile);
     await markReady(job, storagePath, rendered.length);

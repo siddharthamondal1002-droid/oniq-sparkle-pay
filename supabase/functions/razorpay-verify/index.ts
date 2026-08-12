@@ -79,11 +79,18 @@ Deno.serve(async (req) => {
     if ("failed" in foodHit) return json({ error: "could not read that payment" }, 502);
     let row = foodHit.row;
     let isStory = false;
+    let isWatermark = false;
     if (!row) {
       const storyHit = await findIn("story_purchases", "user_id,seconds,status");
       if ("failed" in storyHit) return json({ error: "could not read that payment" }, 502);
       row = storyHit.row;
       isStory = !!row;
+    }
+    if (!row) {
+      const wmHit = await findIn("watermark_purchases", "user_id,job_id,status");
+      if ("failed" in wmHit) return json({ error: "could not read that payment" }, 502);
+      row = wmHit.row;
+      isWatermark = !!row;
     }
 
     // THE SIGNATURE PROVES A PAYMENT HAPPENED, NOT WHOSE IT WAS. A valid
@@ -96,7 +103,11 @@ Deno.serve(async (req) => {
       return json({ error: "no such payment" }, 404);
     }
 
-    const rpc = isStory ? "credit_story_purchase" : "mark_order_paid";
+    const rpc = isStory
+      ? "credit_story_purchase"
+      : isWatermark
+        ? "settle_watermark_purchase"
+        : "mark_order_paid";
     const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
       method: "POST",
       headers: { ...svc, "content-type": "application/json" },
@@ -112,7 +123,11 @@ Deno.serve(async (req) => {
       return json({ error: "Payment taken, but recording it failed." }, 502);
     }
     const result = await marked.json();
-    return json({ ok: true, kind: isStory ? "story_seconds" : "order", ...result });
+    return json({
+      ok: true,
+      kind: isStory ? "story_seconds" : isWatermark ? "watermark_removal" : "order",
+      ...result,
+    });
   } catch (e) {
     console.error("razorpay-verify fn error", e);
     return json({ error: "Something went sideways" }, 500);

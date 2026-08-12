@@ -53,6 +53,8 @@ export type StoryJobRow = {
   prompt: string | null;
   requested_seconds: number | null;
   shot_count: number | null;
+  /** Paid watermark removal. Optional so cached rows from before the column keep parsing. */
+  no_watermark?: boolean;
   error: string | null;
   created_at: string;
 };
@@ -67,7 +69,7 @@ function jobs() {
   return (supabase as unknown as Q).from("story_jobs");
 }
 
-const COLUMNS = "id,status,prompt,requested_seconds,shot_count,error,created_at";
+const COLUMNS = "id,status,prompt,requested_seconds,shot_count,no_watermark,error,created_at";
 
 /**
  * Every Story of the caller's that still exists, newest first.

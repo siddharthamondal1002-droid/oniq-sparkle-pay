@@ -93,6 +93,14 @@ export type StoryFilmProps = {
   title: string;
   shots: StoryShotInput[];
   fps?: number;
+  /**
+   * The ONIQ mark, burned into the frames. DEFAULTS ON — absence of the flag
+   * means watermarked, so an old worker or a missing column can never ship a
+   * clean film by accident. Removal is a paid addon (story_addons,
+   * 'watermark_removal'); the worker passes false only when the job row says
+   * no_watermark.
+   */
+  watermark?: boolean;
 };
 
 export const STORY_FPS = 30;
@@ -195,7 +203,7 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
   );
 };
 
-export const StoryFilm: React.FC<StoryFilmProps> = ({ shots, fps }) => {
+export const StoryFilm: React.FC<StoryFilmProps> = ({ shots, fps, watermark }) => {
   const { fps: configFps } = useVideoConfig();
   const perShot = storyFrames(shots, fps ?? configFps);
 
@@ -211,6 +219,33 @@ export const StoryFilm: React.FC<StoryFilmProps> = ({ shots, fps }) => {
           </Sequence>
         );
       })}
+      {/* The ONIQ mark rides ABOVE every shot, outside all camera transforms,
+          so it is burned into every frame of the export. Subtle by design:
+          the film is the product, the mark is the maker. */}
+      {watermark !== false ? (
+        <AbsoluteFill
+          style={{
+            justifyContent: "flex-end",
+            alignItems: "flex-end",
+            padding: 26,
+            pointerEvents: "none",
+          }}
+        >
+          <div
+            style={{
+              fontFamily:
+                "system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+              fontWeight: 800,
+              fontSize: 30,
+              letterSpacing: 7,
+              color: "rgba(255,255,255,0.5)",
+              textShadow: "0 1px 8px rgba(0,0,0,0.45)",
+            }}
+          >
+            ONIQ
+          </div>
+        </AbsoluteFill>
+      ) : null}
     </AbsoluteFill>
   );
 };

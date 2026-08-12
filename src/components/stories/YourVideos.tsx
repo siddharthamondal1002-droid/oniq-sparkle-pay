@@ -418,6 +418,25 @@ export function YourVideos() {
                   </div>
                 ) : null}
 
+                {watchable && r.no_watermark !== true ? (
+                  /* Paid addon, sold ON THE WEB like Story time — the app
+                     never collects the money, it opens the checkout page.
+                     No price named here: the server prices from story_addons. */
+                  <button
+                    type="button"
+                    onClick={() =>
+                      window.open(
+                        `https://oniqhub.com/pay/story?wm=${r.id}&from=app`,
+                        "_blank",
+                        "noopener",
+                      )
+                    }
+                    className="mt-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[11px] font-semibold text-primary"
+                  >
+                    Remove ONIQ watermark ✨
+                  </button>
+                ) : null}
+
                 {failed ? (
                   <div className="mt-2 flex items-start gap-1.5 text-[11px] text-amber-300">
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />

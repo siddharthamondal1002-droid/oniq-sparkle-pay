@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     // the row to `generating` — one round trip, and no read credential.
     if (action === "claim") {
       const got = await fetch(
-        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status,cast_json`,
+        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status,cast_json,no_watermark`,
         { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
       );
       if (!got.ok) return json({ error: "could not read the job" }, 502);
@@ -96,6 +96,10 @@ Deno.serve(async (req) => {
         // The user's recurring characters, if they attached any before the
         // claim won the race. Passed through verbatim; story-plot validates.
         castJson: job.cast_json ?? null,
+        // Paid watermark removal. Absence means watermarked — the composition
+        // defaults the mark ON, so an old runner can never ship clean by
+        // accident.
+        noWatermark: job.no_watermark === true,
       });
     }
 

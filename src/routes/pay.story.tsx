@@ -32,14 +32,17 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { Check, Clapperboard, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { payForStorySeconds } from "@/lib/razorpay";
+import { payForStorySeconds, payForWatermarkRemoval } from "@/lib/razorpay";
 import { formatPaise } from "@/lib/storyPricing";
 
 type Tier = { seconds: number; label: string; price_paise: number; currency: string };
 
 export const Route = createFileRoute("/pay/story")({
-  validateSearch: (search: Record<string, unknown>): { from?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { from?: string; wm?: string } => ({
     from: typeof search.from === "string" ? search.from : undefined,
+    // A Story job id: this visit is buying the flat watermark-removal addon
+    // for that video rather than Story time.
+    wm: typeof search.wm === "string" && /^[0-9a-f-]{36}$/i.test(search.wm) ? search.wm : undefined,
   }),
   head: () => ({
     meta: [
@@ -59,7 +62,7 @@ function PayStoryPage() {
   // EVERY HOOK ABOVE EVERY EARLY RETURN — rules-of-hooks is a release blocker
   // in this repo. There are no early returns in this component; the branching
   // lives in the JSX below.
-  const { from } = Route.useSearch();
+  const { from, wm } = Route.useSearch();
   const fromApp = from === "app";
 
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
@@ -70,6 +73,9 @@ function PayStoryPage() {
   const [buying, setBuying] = useState<number | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   const [credited, setCredited] = useState<number | null>(null);
+  const [wmPrice, setWmPrice] = useState<{ label: string; price_paise: number } | null>(null);
+  const [wmBuying, setWmBuying] = useState(false);
+  const [wmDone, setWmDone] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +131,39 @@ function PayStoryPage() {
   useEffect(() => {
     if (signedIn) void refreshBalance();
   }, [signedIn, refreshBalance]);
+
+  // Watermark mode: the visit names a job, so show the flat addon instead of
+  // the time chart. Price from the database, like everything on this page.
+  useEffect(() => {
+    if (!wm) return;
+    let cancelled = false;
+    void supabase
+      .from("story_addons" as never)
+      .select("label, price_paise")
+      .eq("key" as never, "watermark_removal" as never)
+      .eq("active" as never, true as never)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data)
+          setWmPrice(data as unknown as { label: string; price_paise: number });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [wm]);
+
+  const buyWatermark = useCallback(async () => {
+    if (!wm) return;
+    setWmBuying(true);
+    setPayError(null);
+    try {
+      const result = await payForWatermarkRemoval({ jobId: wm });
+      if (result.status === "paid") setWmDone(true);
+      else if (result.status === "failed") setPayError(result.message);
+    } finally {
+      setWmBuying(false);
+    }
+  }, [wm]);
 
   const buy = useCallback(
     async (seconds: number) => {
@@ -204,6 +243,43 @@ function PayStoryPage() {
             >
               Sign in to ONIQ
             </a>
+          </div>
+        ) : wm ? (
+          <div className="mt-6 space-y-2.5">
+            {wmDone ? (
+              <div className="rounded-2xl border border-primary/40 bg-primary/10 p-4">
+                <div className="flex items-center gap-2 font-semibold text-primary">
+                  <Check className="h-5 w-5" /> Watermark removed
+                </div>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  A clean copy of your video is rendering now and will appear in Your videos when
+                  it&apos;s done.
+                  {fromApp ? " You can head back to the ONIQ app." : ""}
+                </p>
+              </div>
+            ) : (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  Remove the ONIQ watermark from this video — one flat price, whatever the length. A
+                  clean copy is rendered and delivered to Your videos.
+                </p>
+                <button
+                  type="button"
+                  disabled={wmBuying || signedIn !== true || !wmPrice}
+                  onClick={() => void buyWatermark()}
+                  className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3.5 text-left transition-colors hover:border-primary disabled:opacity-50"
+                >
+                  <span className="text-sm font-semibold">
+                    {wmPrice?.label ?? "Remove the ONIQ watermark"}
+                  </span>
+                  <span className="flex items-center gap-2 text-sm text-primary">
+                    {wmBuying ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {wmPrice ? formatPaise(wmPrice.price_paise) : "…"}
+                  </span>
+                </button>
+                {payError ? <p className="text-sm text-destructive">{payError}</p> : null}
+              </>
+            )}
           </div>
         ) : (
           <div className="mt-6 space-y-2.5">
