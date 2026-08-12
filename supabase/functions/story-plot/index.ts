@@ -152,10 +152,11 @@ const MAX_SHOTS = 90;
  * repeats the cast lock and the setting verbatim — so the budget should be too.
  *
  * Capped at 90s because an edge function has a wall clock and this is not the
- * only call inside it. This budget only ever applies to the SINGLE-CALL path,
- * which is capped at SINGLE_CALL_MAX_SHOTS — a longer film goes through the
- * spine-and-batches path instead, where no single call is ever asked to write
- * more than eight shots.
+ * only call inside it. This budget only ever applies to the SINGLE-CALL path
+ * — the common case under SINGLE_CALL_MAX_SHOTS, plus the rescue attempt up
+ * to SINGLE_CALL_RESCUE_MAX_SHOTS when the spine path has failed. A longer
+ * film goes through spine-and-batches, where no single call is ever asked to
+ * write more than eight shots.
  */
 function attemptBudget(shots: number): number {
   return Math.min(90_000, 30_000 + shots * 5_000);
@@ -237,14 +238,16 @@ Deno.serve(async (req) => {
             `Return exactly ${shots} shots.`,
         },
       ],
-      // 260 a shot, not 160. Rule 2 of the system prompt makes every `still`
-      // repeat its character's lock VERBATIM and rule 3 does the same for the
-      // setting — that is the whole anti-drift mechanism, and it means a shot
-      // is a paragraph, not a line. The old budget was sized as if a shot were
-      // a sentence, and a plan truncated mid-JSON parses as a failure rather
-      // than as a short film, so being wrong here is silently expensive: the
-      // user is charged and gets nothing.
-      maxTokens: Math.min(8192, 1200 + shots * 260),
+      // 8192 FLAT, NOT SIZED TO THE SHOT COUNT. max_tokens is a ceiling, not
+      // a spend — the bill is for tokens actually written — so a generous cap
+      // costs nothing on plans that fit and saves the ones that don't. The
+      // old arithmetic (1200 + shots x 260) assumed ~260 tokens a shot, but a
+      // movie-grammar shot repeats its lock AND the setting verbatim and adds
+      // motion, dialogue and vfx: ~350 tokens measured. A seventeen-shot plan
+      // hit the cap mid-array, surfaced as "bad JSON", and the whole engine
+      // chain burned down from there. The budget that varies is TIME, below —
+      // never tokens.
+      maxTokens: 8192,
       // SCALED, because a fixed 45s was a budget sized for a short film and
       // silently applied to long ones. A 60-second Story is nine shots, each of
       // them a paragraph repeating the cast lock verbatim, and it timed out —
@@ -278,6 +281,19 @@ Deno.serve(async (req) => {
     const remaining = () => deadline - Date.now();
     /** Under ten seconds left is not an attempt, it is a guaranteed timeout. */
     const roomFor = (want: number) => (remaining() > 10_000 ? Math.min(want, remaining()) : 0);
+    /**
+     * What a CLAUDE attempt may take: remaining time minus a reserve for the
+     * last-resort engine. The seventeen-shot proof run died with
+     * `{"engine":"gemini","reason":"no time left after Claude"}` — Claude's
+     * retry was started with the last 25 seconds and timed out, so the one
+     * engine that had not yet failed was never asked. The reserve only exists
+     * while there IS a fallback to protect.
+     */
+    const GEMINI_RESERVE_MS = 25_000;
+    const claudeRoomFor = (want: number) => {
+      const usable = remaining() - (hasGemini ? GEMINI_RESERVE_MS : 0);
+      return usable > 10_000 ? Math.min(want, usable) : 0;
+    };
 
     let plan: Plan | null = null;
     let servedBy = "anthropic";
@@ -290,7 +306,7 @@ Deno.serve(async (req) => {
     // LONG FILMS TAKE THE TWO-STAGE PATH. Below the threshold the single call
     // is proven and simpler, and simpler is worth keeping for the common case.
     if (!plan && hasClaude && shots > SINGLE_CALL_MAX_SHOTS) {
-      const spineRes = await callClaude({
+      const spineOpts = {
         system: SPINE_SYSTEM + langInstruction(lang),
         messages: [
           {
@@ -300,9 +316,11 @@ Deno.serve(async (req) => {
               `Return exactly ${shots} beats.`,
           },
         ],
-        maxTokens: Math.min(8192, 1200 + shots * 40),
-        timeoutMs: roomFor(45_000),
-      });
+        // A ceiling, not a spend — same reasoning as the single-call cap.
+        maxTokens: 8192,
+      };
+      let spine: Spine | null = null;
+      const spineRes = await callClaude({ ...spineOpts, timeoutMs: claudeRoomFor(45_000) });
 
       if (!spineRes.ok) {
         tried.push({
@@ -312,77 +330,141 @@ Deno.serve(async (req) => {
       } else {
         const parsedSpine = parseSpine(textOf(spineRes.data), shots);
         if ("reason" in parsedSpine) {
-          tried.push({ engine: "anthropic:spine", reason: parsedSpine.reason });
+          tried.push({
+            engine: "anthropic:spine",
+            reason: (parsedSpine.reason + cutNote(spineRes.data)).slice(0, 160),
+          });
         } else {
-          const spine = parsedSpine.spine;
-          const locks = lockText(spine);
+          spine = parsedSpine.spine;
+        }
+      }
 
-          // Batches run AT THE SAME TIME. Six sequential expansions would be the
-          // timeout again; six concurrent ones cost one expansion of wall clock.
-          const batches: { from: number; beats: string[] }[] = [];
-          for (let i = 0; i < shots; i += BATCH_SHOTS) {
-            batches.push({ from: i, beats: spine.beats.slice(i, i + BATCH_SHOTS) });
-          }
-          const batchMs = roomFor(60_000);
-          const results = await Promise.all(
-            batches.map(async (b) => {
-              if (batchMs === 0) return { reason: "batch: no time left after the spine" };
-              const res = await callClaude({
-                system: BATCH_SYSTEM + langInstruction(lang),
-                messages: [
-                  {
-                    role: "user" as const,
-                    content:
-                      `${locks}${styleBlock}${paletteBlock}\n\nFILM: ${spine.title}\n\n` +
-                      `Draw shots ${b.from + 1}–${b.from + b.beats.length} of ${shots}. ` +
-                      `One shot per beat, in order:\n` +
-                      b.beats.map((t, i) => `${b.from + i + 1}. ${t}`).join("\n"),
-                  },
-                ],
-                maxTokens: Math.min(8192, 600 + b.beats.length * 300),
-                timeoutMs: batchMs,
-              });
-              if (!res.ok)
-                return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };
-              return parseShots(textOf(res.data), b.beats.length);
-            }),
-          );
-
-          // ALL OR NOTHING. A film missing shots nine to sixteen is not a
-          // shorter film, it is a broken one, and every shot downstream costs
-          // money — so a gap must fail here, before any of it is spent.
-          const bad = results.find((r) => "reason" in r);
-          if (bad && "reason" in bad) {
-            tried.push({ engine: "anthropic:batch", reason: bad.reason.slice(0, 160) });
+      // Second go at the spine, same contract as the single-call retry below:
+      // only for a reply that arrived and would not parse, and told what was
+      // wrong. This used to fall through to a single call for the WHOLE film
+      // — the exact call this path exists to avoid, and on seventeen shots it
+      // failed the same way the spine did.
+      const spineReason = tried.at(-1)?.reason;
+      if (!spine && spineRes.ok && spineReason) {
+        const retryMs = claudeRoomFor(45_000);
+        if (retryMs === 0) {
+          tried.push({ engine: "anthropic:spine-retry", reason: "no time left after the spine" });
+        } else {
+          const retry = await callClaude({
+            ...spineOpts,
+            timeoutMs: retryMs,
+            messages: [
+              ...spineOpts.messages,
+              {
+                role: "assistant" as const,
+                content: "I returned a skeleton that could not be used.",
+              },
+              {
+                role: "user" as const,
+                content:
+                  `That reply was rejected: ${spineReason}.\n` +
+                  `Return ONLY the JSON object, with exactly ${shots} beats. ` +
+                  `Keep every beat under twelve words and every lock under fifty.`,
+              },
+            ],
+          });
+          if (!retry.ok) {
+            tried.push({
+              engine: "anthropic:spine-retry",
+              reason: String(retry.reason ?? "failed").slice(0, 160),
+            });
           } else {
-            const all = results.flatMap((r) => ("shots" in r ? r.shots : []));
-            if (all.length !== shots) {
+            const p2 = parseSpine(textOf(retry.data), shots);
+            if ("reason" in p2) {
               tried.push({
-                engine: "anthropic:batch",
-                reason: `assembled ${all.length} shots, wanted ${shots}`,
+                engine: "anthropic:spine-retry",
+                reason: (p2.reason + cutNote(retry.data)).slice(0, 160),
               });
             } else {
-              plan = {
-                title: spine.title,
-                logline: spine.logline,
-                setting: spine.setting,
-                cast: spine.cast,
-                shots: all,
-              };
-              servedBy = `anthropic:spine+${batches.length}`;
+              spine = p2.spine;
             }
+          }
+        }
+      }
+
+      if (spine) {
+        // A const alias, because narrowing on a `let` does not survive into
+        // the batch closures below.
+        const sp = spine;
+        const locks = lockText(sp);
+
+        // Batches run AT THE SAME TIME. Six sequential expansions would be the
+        // timeout again; six concurrent ones cost one expansion of wall clock.
+        const batches: { from: number; beats: string[] }[] = [];
+        for (let i = 0; i < shots; i += BATCH_SHOTS) {
+          batches.push({ from: i, beats: sp.beats.slice(i, i + BATCH_SHOTS) });
+        }
+        const batchMs = claudeRoomFor(60_000);
+        const results = await Promise.all(
+          batches.map(async (b) => {
+            if (batchMs === 0) return { reason: "batch: no time left after the spine" };
+            const res = await callClaude({
+              system: BATCH_SYSTEM + langInstruction(lang),
+              messages: [
+                {
+                  role: "user" as const,
+                  content:
+                    `${locks}${styleBlock}${paletteBlock}\n\nFILM: ${sp.title}\n\n` +
+                    `Draw shots ${b.from + 1}–${b.from + b.beats.length} of ${shots}. ` +
+                    `One shot per beat, in order:\n` +
+                    b.beats.map((t, i) => `${b.from + i + 1}. ${t}`).join("\n"),
+                },
+              ],
+              // A ceiling, not a spend — same reasoning as the other caps.
+              maxTokens: 8192,
+              timeoutMs: batchMs,
+            });
+            if (!res.ok)
+              return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };
+            const parsed = parseShots(textOf(res.data), b.beats.length);
+            if ("reason" in parsed) return { reason: parsed.reason + cutNote(res.data) };
+            return parsed;
+          }),
+        );
+
+        // ALL OR NOTHING. A film missing shots nine to sixteen is not a
+        // shorter film, it is a broken one, and every shot downstream costs
+        // money — so a gap must fail here, before any of it is spent.
+        const bad = results.find((r) => "reason" in r);
+        if (bad && "reason" in bad) {
+          tried.push({ engine: "anthropic:batch", reason: bad.reason.slice(0, 160) });
+        } else {
+          const all = results.flatMap((r) => ("shots" in r ? r.shots : []));
+          if (all.length !== shots) {
+            tried.push({
+              engine: "anthropic:batch",
+              reason: `assembled ${all.length} shots, wanted ${shots}`,
+            });
+          } else {
+            plan = {
+              title: sp.title,
+              logline: sp.logline,
+              setting: sp.setting,
+              cast: sp.cast,
+              shots: all,
+            };
+            servedBy = `anthropic:spine+${batches.length}`;
           }
         }
       }
     }
 
-    if (!plan && hasClaude) {
-      const firstMs = roomFor(attemptBudget(shots));
-      const first = await callClaude({ ...opts, timeoutMs: firstMs });
+    if (!plan && hasClaude && shots <= SINGLE_CALL_RESCUE_MAX_SHOTS) {
+      const firstMs = claudeRoomFor(attemptBudget(shots));
+      const first =
+        firstMs === 0
+          ? ({ ok: false, reason: "no time left after the spine" } as const)
+          : await callClaude({ ...opts, timeoutMs: firstMs });
       if (first.ok) {
         const r = parsePlan(textOf(first.data), shots);
         if ("plan" in r) plan = r.plan;
-        else tried.push({ engine: "anthropic", reason: r.reason });
+        else
+          tried.push({ engine: "anthropic", reason: (r.reason + cutNote(first.data)).slice(0, 160) });
       } else {
         const why = String(first.reason ?? "failed");
         tried.push({
@@ -399,7 +481,7 @@ Deno.serve(async (req) => {
       // be told to be terser, and one that miscounted needs the count repeated.
       const firstReason = tried.at(-1)?.reason;
       if (!plan && first.ok && firstReason) {
-        const retryMs = roomFor(attemptBudget(shots));
+        const retryMs = claudeRoomFor(attemptBudget(shots));
         const retry =
           retryMs === 0
             ? ({ ok: false, reason: "no time left after the first attempt" } as const)
@@ -428,7 +510,10 @@ Deno.serve(async (req) => {
             plan = r.plan;
             servedBy = "anthropic:retry";
           } else {
-            tried.push({ engine: "anthropic:retry", reason: r.reason });
+            tried.push({
+              engine: "anthropic:retry",
+              reason: (r.reason + cutNote(retry.data)).slice(0, 160),
+            });
           }
         } else {
           tried.push({
@@ -451,7 +536,7 @@ Deno.serve(async (req) => {
       if (g.ok) {
         const r = parsePlan(textOf(g.data), shots);
         if ("plan" in r) plan = r.plan;
-        else tried.push({ engine: "gemini", reason: r.reason });
+        else tried.push({ engine: "gemini", reason: (r.reason + cutNote(g.data)).slice(0, 160) });
       } else {
         tried.push({ engine: "gemini", reason: String(g.reason ?? "failed").slice(0, 160) });
       }
@@ -608,6 +693,29 @@ const BATCH_SYSTEM = [
 
 /** Above this many shots, one call stops being realistic. Below it, the proven path. */
 const SINGLE_CALL_MAX_SHOTS = 12;
+
+/**
+ * The single-call RESCUE bound. When the spine path fails, one call for the
+ * whole film is still worth an attempt while the plan can physically fit the
+ * 8,192-token cap — a movie-grammar shot runs ~350 tokens, which puts the
+ * ceiling near twenty shots. Past it a single call can only ever truncate,
+ * so attempting one spends the clock to buy a guaranteed parse failure.
+ */
+const SINGLE_CALL_RESCUE_MAX_SHOTS = 20;
+
+/**
+ * Names a reply the API itself says it cut off. A truncated plan is a budget
+ * problem, not a prompt problem — the seventeen-shot proof run surfaced as
+ * "bad JSON: Expected ',' or ']' after array element", which read like a
+ * model failure and hid the real cause. The note rides on the parse reason,
+ * so the corrective retry tells the model to be terser WITH cause, and the
+ * runner's log names the truncation outright.
+ */
+function cutNote(data: unknown): string {
+  return (data as { stop_reason?: unknown })?.stop_reason === "max_tokens"
+    ? " (reply hit max_tokens — cut off mid-JSON)"
+    : "";
+}
 
 /** Shots per expansion batch. Eight is ~2,100 tokens — comfortable, not tight. */
 const BATCH_SHOTS = 8;
