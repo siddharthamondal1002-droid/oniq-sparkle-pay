@@ -576,6 +576,33 @@ export type Database = {
         }
         Relationships: []
       }
+      client_error_reports: {
+        Row: {
+          created_at: string
+          detail: string | null
+          id: string
+          message: string
+          surface: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          message: string
+          surface: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          id?: string
+          message?: string
+          surface?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       clips: {
         Row: {
           caption: string | null
@@ -4604,6 +4631,10 @@ export type Database = {
         Returns: undefined
       }
       repeat_infringer_strikes: { Args: { _uid: string }; Returns: number }
+      report_client_error: {
+        Args: { _detail?: string; _message: string; _surface: string }
+        Returns: undefined
+      }
       request_parental_consent: {
         Args: { _method?: string; _parent_email: string }
         Returns: Json
