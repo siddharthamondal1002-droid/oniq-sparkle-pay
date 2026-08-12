@@ -146,9 +146,23 @@ Deno.serve(async (req) => {
     if (!image) {
       // A refusal comes back as a 200 with no image part rather than an error
       // status, so "ok but empty" has to be treated as a failure here or the
-      // caller stores an undefined and finds out at assembly.
-      console.error("story-still no image part", JSON.stringify(data).slice(0, 300));
-      return json({ error: "That frame was refused. Try rewording the shot." }, 422);
+      // caller stores an undefined and finds out at assembly. The WHY rides
+      // in the body: the worker retries refused frames down a ladder of
+      // safer prompts, and a bare "refused" left it (and the runner log)
+      // guessing whether the trigger was the wording, the safety filter or
+      // the prompt being blocked outright.
+      const d = data as {
+        candidates?: { finishReason?: string }[];
+        promptFeedback?: { blockReason?: string };
+      };
+      const why = [d?.candidates?.[0]?.finishReason, d?.promptFeedback?.blockReason]
+        .filter(Boolean)
+        .join("/");
+      console.error("story-still no image part", why, JSON.stringify(data).slice(0, 300));
+      return json(
+        { error: `That frame was refused (${why || "no image part"}). Try rewording the shot.` },
+        422,
+      );
     }
 
     return json({ configured: true, mime: image.mime, data: image.data });
