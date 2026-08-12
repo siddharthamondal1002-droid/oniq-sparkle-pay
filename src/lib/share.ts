@@ -11,6 +11,47 @@ export function canNativeShare(): boolean {
   return Capacitor.isPluginAvailable("Share");
 }
 
+/**
+ * Why the last share attempt ended the way it did.
+ *
+ * "Share doesn't work" is a report with no failure in it: every path here
+ * returns a WORD ("unsupported", "failed") and throws the actual reason away,
+ * so the difference between a missing plugin, a dead URL and a cancelled
+ * sheet never leaves the device. This records the shape of the attempt so a
+ * caller can file it, and it is deliberately just facts — no URL, because a
+ * signed media URL is a credential.
+ */
+export type ShareDiagnostics = {
+  platform: string;
+  native: boolean;
+  sharePlugin: boolean;
+  filesystemPlugin: boolean;
+  webShare: boolean;
+  webShareFiles: boolean;
+  /** Where it got to before it stopped. */
+  stage: string;
+  error?: string;
+};
+
+let lastDiag: ShareDiagnostics | null = null;
+
+export function lastShareDiagnostics(): ShareDiagnostics | null {
+  return lastDiag;
+}
+
+function baseDiag(stage: string): ShareDiagnostics {
+  const nav = typeof navigator !== "undefined" ? navigator : undefined;
+  return {
+    platform: Capacitor.getPlatform(),
+    native: Capacitor.isNativePlatform(),
+    sharePlugin: Capacitor.isPluginAvailable("Share"),
+    filesystemPlugin: Capacitor.isPluginAvailable("Filesystem"),
+    webShare: typeof nav?.share === "function",
+    webShareFiles: typeof nav?.canShare === "function",
+    stage,
+  };
+}
+
 /** Try the system share sheet. Returns false when the caller should show
  *  the inline fallback instead. */
 export async function systemShare(p: SharePayload): Promise<boolean> {
@@ -48,7 +89,10 @@ export async function shareMediaFile(
   p: SharePayload,
   onProgress?: (pct: number | null) => void,
 ): Promise<"shared" | "cancelled" | "failed" | "unsupported"> {
-  if (!canNativeShare() || !Capacitor.isPluginAvailable("Filesystem")) return "unsupported";
+  if (!canNativeShare() || !Capacitor.isPluginAvailable("Filesystem")) {
+    lastDiag = baseDiag("native-plugins-missing");
+    return "unsupported";
+  }
   const { Filesystem, Directory } = await import("@capacitor/filesystem");
   const { Share } = await import("@capacitor/share");
   const path = `share/${filename}`;
@@ -67,12 +111,23 @@ export async function shareMediaFile(
       recursive: true,
       progress: !!onProgress,
     });
-    if (!dl.path) return "failed";
+    if (!dl.path) {
+      lastDiag = baseDiag("download-no-path");
+      return "failed";
+    }
     const fileUri = (await Filesystem.getUri({ path, directory: Directory.Cache })).uri;
     await Share.share({ title: p.title, text: p.text, dialogTitle: p.title, files: [fileUri] });
     return "shared";
   } catch (e) {
-    if (e instanceof Error && /cancel/i.test(e.message)) return "cancelled";
+    const msg = e instanceof Error ? e.message : String(e);
+    if (e instanceof Error && /cancel/i.test(e.message)) {
+      lastDiag = baseDiag("native-cancelled");
+      return "cancelled";
+    }
+    // The reason lives HERE and nowhere else — downloadFile failing on a dead
+    // or unreachable URL looks identical to a share sheet refusing a file
+    // unless the message is kept.
+    lastDiag = { ...baseDiag("native-threw"), error: msg };
     return "failed";
   } finally {
     if (listener) void listener.remove();
@@ -108,24 +163,33 @@ export async function shareVideoFile(
   if (native !== "unsupported") return native;
 
   if (typeof navigator === "undefined" || typeof navigator.share !== "function") {
+    lastDiag = baseDiag("web-share-absent");
     return "unsupported";
   }
   try {
     onProgress?.(null);
     const res = await fetch(mediaUrl);
-    if (!res.ok) return "failed";
+    if (!res.ok) {
+      lastDiag = { ...baseDiag("web-fetch-failed"), error: `http ${res.status}` };
+      return "failed";
+    }
     const blob = await res.blob();
     const file = new File([blob], filename, { type: blob.type || "video/mp4" });
     // canShare is the feature test for FILE payloads; navigator.share existing
     // alone only proves link-sharing. Checked after the download because the
     // File object itself is part of the question being asked.
     if (typeof navigator.canShare !== "function" || !navigator.canShare({ files: [file] })) {
+      lastDiag = baseDiag("web-cannot-share-files");
       return "unsupported";
     }
     await navigator.share({ files: [file], title: p.title, text: p.text });
     return "shared";
   } catch (e) {
-    if (e instanceof DOMException && e.name === "AbortError") return "cancelled";
+    if (e instanceof DOMException && e.name === "AbortError") {
+      lastDiag = baseDiag("web-cancelled");
+      return "cancelled";
+    }
+    lastDiag = { ...baseDiag("web-threw"), error: e instanceof Error ? e.message : String(e) };
     return "failed";
   }
 }

@@ -28,7 +28,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
-import { shareVideoFile } from "@/lib/share";
+import { lastShareDiagnostics, shareVideoFile } from "@/lib/share";
+import { reportClientError } from "@/lib/errorReport";
 import { listSavedVideos, onSavedVideosChanged, type SavedVideo } from "@/lib/savedVideos";
 import {
   PROGRESS,
@@ -113,6 +114,9 @@ export function YourVideos() {
         },
         setSharePct,
       );
+      if (outcome === "failed" || outcome === "unsupported") {
+        reportClientError("share-saved-video", `share ${outcome}`, lastShareDiagnostics());
+      }
       if (outcome === "failed") {
         setError("Could not share that film. It is still on your device.");
       } else if (outcome === "unsupported") {
@@ -171,6 +175,12 @@ export function YourVideos() {
         },
         setSharePct,
       );
+      if (outcome === "failed" || outcome === "unsupported") {
+        // File the SHAPE of the failure, not just the word. "Share doesn't
+        // work" is unfixable as a report; "native-threw: download failed,
+        // http 400" is a one-line fix.
+        reportClientError("share-video", `share ${outcome}`, lastShareDiagnostics());
+      }
       if (outcome === "failed") {
         setError("Could not share that film. It is still here — try again.");
       } else if (outcome === "unsupported") {
@@ -200,6 +210,9 @@ export function YourVideos() {
       await saveStoryToDevice(openId, filmUrl, title);
       await refresh();
     } catch (e) {
+      reportClientError("save-video", e instanceof Error ? e.message : String(e), {
+        stack: e instanceof Error ? e.stack : null,
+      });
       setError(e instanceof Error ? e.message : "Could not save that file.");
       // Hand it back so a dropped connection does not cost somebody their film.
       await releaseStory(openId);
