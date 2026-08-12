@@ -43,7 +43,8 @@ import {
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
 import { ChannelSubBar } from "@/components/chat/ChannelSubBar";
 import { doodleSurfaceStyle } from "@/lib/chatWallpaper";
-import { doodleFor } from "@/data/doodleLibrary";
+import { doodleByKey, doodleFor, doodleScatter, DOODLES } from "@/data/doodleLibrary";
+import { prettyFail } from "@/lib/errorReport";
 import { ProfilePhotoPopup } from "@/components/chat/ProfilePhotoPopup";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -195,6 +196,16 @@ const SIGNED_TTL = 60 * 60 * 24 * 365 * 5;
 const VIDEO_NOTE_MARK = "__videonote__";
 /** Max length of a round video note — long enough to say it, short enough to watch. */
 const VIDEO_NOTE_MAX_S = 60;
+
+/**
+ * Prefix that turns a 'sticker' row into an Open Doodles drawing.
+ *
+ * Sent as `__doodle__coffee`; anything else of type 'sticker' is still a
+ * plain glyph. Chosen to be something no human types by accident, and kept
+ * next to the video-note mark for the same reason: these two markers are the
+ * app's whole vocabulary of "this text is not text".
+ */
+const DOODLE_MARK = "__doodle__";
 
 /* The sticker rack. Big single glyphs sent as their own message type —
    no assets to ship, no storage to fill, every platform renders them. */
@@ -1183,6 +1194,47 @@ function ChatThread() {
     sendPush({ conversation_id: conversationId, kind: "message", preview: `${glyph} Sticker` });
   };
 
+  /**
+   * Doodles: an Open Doodles drawing sent as a message.
+   *
+   * It rides the EXISTING 'sticker' type carrying a `__doodle__` key rather
+   * than earning a type of its own. That is deliberate: the messages type
+   * CHECK constraint is the exact thing that silently killed every channel
+   * ever created here (it never learned the word 'channel'), and a new type
+   * would need the database to agree before a single client could send one.
+   * A doodle IS a sticker in this app — a picture with no caption, drawn
+   * bubble-less at size — so it costs nothing to say so.
+   *
+   * The key travels, not the image: 33 drawings ship with the app, so the
+   * message body stays a few bytes and renders instantly with no upload, no
+   * storage and no signed URL.
+   */
+  const sendDoodle = async (key: string) => {
+    if (!me) return;
+    setShowEmojiPicker(false);
+    const d = doodleByKey(key);
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      sender_id: me.id,
+      content: `${DOODLE_MARK}${key}`,
+      type: "sticker",
+    });
+    if (error) {
+      toast.error(prettyFail("send-doodle", error, "Couldn't send that doodle — try again 🎨"));
+      return;
+    }
+    await supabase
+      .from("conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", conversationId);
+    markRead();
+    sendPush({
+      conversation_id: conversationId,
+      kind: "message",
+      preview: `🎨 ${d?.label ?? "Doodle"}`,
+    });
+  };
+
   // ---- per-file validation + upload (used by single & batch flows) ----
   const validateImage = (f: File): string | null => {
     if (!/^image\//.test(f.type)) return "images only";
@@ -2017,15 +2069,33 @@ function ChatThread() {
         style={doodle ? doodleSurfaceStyle : undefined}
       >
         {doodle && (
-          /* One Open Doodles figure per chat (stable by conversation id),
-             faint in a corner UNDER the bubbles — the wallpaper gets a person
-             in it, the messages stay the loudest thing on screen. */
-          <img
-            src={doodleFor(conversationId).src}
-            alt=""
-            aria-hidden
-            className="pointer-events-none sticky top-[65%] start-1 -mb-32 h-32 w-32 opacity-[0.13] select-none"
-          />
+          /* The doodle wallpaper: a scatter of Open Doodles figures UNDER the
+             bubbles, stable per conversation so a chat always looks like
+             itself. It was one figure in one corner, which read as a stray
+             graphic rather than paper; a spread of them across the height
+             reads as a printed sheet the messages sit on.
+
+             The layer is `sticky` at zero height, so it costs the thread no
+             layout at all and stays put while messages scroll over it — an
+             absolutely positioned layer would only ever cover the first
+             screenful of a long thread. */
+          <div className="pointer-events-none sticky top-0 z-0 h-0 select-none" aria-hidden>
+            {doodleScatter(conversationId).map((d) => (
+              <img
+                key={d.key}
+                src={d.src}
+                alt=""
+                className="absolute opacity-[0.11]"
+                style={{
+                  top: `${d.top}vh`,
+                  insetInlineStart: `${d.start}%`,
+                  height: d.size,
+                  width: d.size,
+                  transform: `rotate(${d.rotate}deg)${d.flip ? " scaleX(-1)" : ""}`,
+                }}
+              />
+            ))}
+          </div>
         )}
         {isLoading ? (
           // Skeleton bubbles, not a "Loading…" line. Opening from a
@@ -2245,7 +2315,27 @@ function ChatThread() {
                         <Sparkles className="h-2.5 w-2.5" /> AI-generated
                       </div>
                     )}
-                    {m.type === "sticker" ? (
+                    {m.type === "sticker" && m.content?.startsWith(DOODLE_MARK) ? (
+                      /* A doodle: the key was sent, the drawing ships with the
+                         app. An unknown key means a newer build sent a figure
+                         this one doesn't carry — say so plainly rather than
+                         rendering a broken image. */
+                      (() => {
+                        const d = doodleByKey(m.content.slice(DOODLE_MARK.length));
+                        return d ? (
+                          <img
+                            src={d.src}
+                            alt={d.label}
+                            className="h-40 w-40 select-none object-contain"
+                            draggable={false}
+                          />
+                        ) : (
+                          <div className="px-1 py-0.5 text-[15px] italic opacity-70">
+                            🎨 a doodle from a newer version
+                          </div>
+                        );
+                      })()
+                    ) : m.type === "sticker" ? (
                       <div className="select-none px-1 py-0.5 text-[64px] leading-[1.1]">
                         {m.content}
                       </div>
@@ -3041,6 +3131,32 @@ function ChatThread() {
                               className="grid h-14 w-14 place-items-center rounded-xl text-4xl transition active:scale-90 hover:bg-muted"
                             >
                               {s}
+                            </button>
+                          ))}
+                        </div>
+                        {/* Doodles sit in the same drawer as stickers because
+                            that is what they are here: a picture you send
+                            instead of a sentence. All 33 of them, drawn from
+                            the app's own assets, so the rack works offline. */}
+                        <div className="sticky top-0 z-10 bg-card px-1 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Doodles 🎨
+                        </div>
+                        <div className="mb-1 grid grid-cols-4 gap-1">
+                          {DOODLES.map((d) => (
+                            <button
+                              key={`doodle-${d.key}`}
+                              type="button"
+                              onClick={() => void sendDoodle(d.key)}
+                              title={d.label}
+                              aria-label={`Send doodle: ${d.label}`}
+                              className="grid h-20 place-items-center rounded-xl p-1 transition active:scale-90 hover:bg-muted"
+                            >
+                              <img
+                                src={d.src}
+                                alt=""
+                                className="h-full w-full object-contain"
+                                draggable={false}
+                              />
                             </button>
                           ))}
                         </div>

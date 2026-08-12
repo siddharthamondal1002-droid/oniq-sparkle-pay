@@ -24,6 +24,22 @@ import { useOnlineUsers } from "@/hooks/usePresence";
 import { ProfilePhotoPopup, type ProfilePhotoTarget } from "@/components/chat/ProfilePhotoPopup";
 import { getNativeContacts, isNativeContactsAvailable, normalizePhone } from "@/lib/nativeContacts";
 import { prettyFail } from "@/lib/errorReport";
+import { doodleByKey } from "@/data/doodleLibrary";
+
+/**
+ * What a 'sticker' row reads as in the chat list.
+ *
+ * Two things share the type: a plain glyph, and an Open Doodles drawing sent
+ * as `__doodle__<key>`. Without this, a doodle's preview line would be the
+ * literal marker text — the raw internals of the feature, printed in the
+ * list, on the row people look at most.
+ */
+function stickerPreview(content: string | null | undefined): string {
+  if (content?.startsWith("__doodle__")) {
+    return `🎨 ${doodleByKey(content.slice("__doodle__".length))?.label ?? "Doodle"}`;
+  }
+  return `${content || "💟"} Sticker`;
+}
 
 export const Route = createFileRoute("/_authenticated/app/chat/")({
   component: ChatList,
@@ -175,7 +191,9 @@ function ChatList() {
                     ? "🎥 Video note"
                     : "🎥 Video"
                   : r.last_type === "sticker"
-                    ? `${r.last_message || "💟"} Sticker`
+                    ? // Doodles ride the sticker type with a content marker, so
+                      // the raw key must never surface as the preview text.
+                      stickerPreview(r.last_message)
                     : r.last_type === "file"
                       ? `📎 ${r.last_message || "File"}`
                       : (r.last_message ?? null),
@@ -228,7 +246,7 @@ function ChatList() {
                     ? "🎥 Video note"
                     : "🎥 Video"
                   : m.type === "sticker"
-                    ? `${m.content || "💟"} Sticker`
+                    ? stickerPreview(m.content)
                     : m.type === "file"
                       ? `📎 ${m.content || "File"}`
                       : (m.content ?? null);
