@@ -629,15 +629,21 @@ if (offline) {
       //      plate, so a character still stands in the finished shot.
       // All three refused fails the job as before: inventing content beyond
       // the plan to dodge a filter is the second-planner problem.
+      // Every ask is sliced under story-still's 2000-char MAX_PROMPT. Run 67
+      // finished SIXTEEN of seventeen shots and then died on this: one
+      // verbose still text plus the setting crossed the cap and the 400 was
+      // outside the ladder. The slice loses the tail of the setting, which
+      // is repeated in every other shot anyway — a marginally vaguer frame
+      // beats a dead film, the same trade as the refusal rungs below.
       const locks = (plan.cast ?? []).map((c) => `${c.name}: ${c.lock}`).join('\n');
       const asks = [
-        `${shot.still}\n\nSetting: ${plan.setting}`,
+        `${shot.still}\n\nSetting: ${plan.setting}`.slice(0, 1900),
         (
           `Gentle, family-friendly animated storybook illustration. ` +
           `${shot.narration}\n\nCharacters:\n${locks}\n\nSetting: ${plan.setting}`
         ).slice(0, 1900),
         `A gentle watercolor storybook illustration of a place with no people in it: ` +
-          `${plan.setting}. Soft warm light, wide view.`,
+          `${plan.setting}. Soft warm light, wide view.`.slice(0, 1900),
       ];
       let still;
       for (let a = 0; a < asks.length; a++) {
@@ -646,7 +652,10 @@ if (offline) {
           break;
         } catch (err) {
           const msg = String(err?.message ?? err);
-          if (!/story-still: 422/.test(msg) || a === asks.length - 1) throw err;
+          // A refusal or a length rejection both step down; anything else is
+          // a real failure and throws.
+          const steppable = /story-still: 422/.test(msg) || /story-still: 400 .*too long/i.test(msg);
+          if (!steppable || a === asks.length - 1) throw err;
           console.log(`  still ${i + 1}: refused (${msg.slice(0, 120)}) — step-down ${a + 2}/3`);
         }
       }
