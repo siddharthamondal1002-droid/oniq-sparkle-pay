@@ -665,17 +665,31 @@ if (offline) {
           `${plan.setting}. Soft warm light, wide view.`.slice(0, 1900),
       ];
       let still;
-      for (let a = 0; a < asks.length; a++) {
-        try {
-          still = await edge('story-still', { prompt: asks[a] });
-          break;
-        } catch (err) {
-          const msg = String(err?.message ?? err);
-          // A refusal or a length rejection both step down; anything else is
-          // a real failure and throws.
-          const steppable = /story-still: 422/.test(msg) || /story-still: 400 .*too long/i.test(msg);
-          if (!steppable || a === asks.length - 1) throw err;
-          console.log(`  still ${i + 1}: refused (${msg.slice(0, 120)}) — step-down ${a + 2}/3`);
+      outer: for (let a = 0; a < asks.length; a++) {
+        // NO_IMAGE is an EMPTY reply, not a verdict — run 66 saw it clear on
+        // the next identical call while run 69 lost a film to it on the
+        // scenery rung, whose content cannot be the problem. One same-ask
+        // repeat before it counts as a refusal; a named refusal
+        // (PROHIBITED_CONTENT) steps straight down.
+        for (let t = 0; t < 2; t++) {
+          try {
+            still = await edge('story-still', { prompt: asks[a] });
+            break outer;
+          } catch (err) {
+            const msg = String(err?.message ?? err);
+            // A refusal or a length rejection both step down; anything else
+            // is a real failure and throws.
+            const steppable =
+              /story-still: 422/.test(msg) || /story-still: 400 .*too long/i.test(msg);
+            if (!steppable) throw err;
+            if (/NO_IMAGE/.test(msg) && t === 0) {
+              console.log(`  still ${i + 1}: empty reply — same ask once more`);
+              continue;
+            }
+            if (a === asks.length - 1) throw err;
+            console.log(`  still ${i + 1}: refused (${msg.slice(0, 120)}) — step-down ${a + 2}/3`);
+            break;
+          }
         }
       }
       const stem = `shot${String(i).padStart(3, '0')}`;
