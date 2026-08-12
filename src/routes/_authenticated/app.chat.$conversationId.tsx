@@ -43,6 +43,7 @@ import {
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
 import { ChannelSubBar } from "@/components/chat/ChannelSubBar";
 import { doodleSurfaceStyle } from "@/lib/chatWallpaper";
+import { doodleFor } from "@/data/doodleLibrary";
 import { ProfilePhotoPopup } from "@/components/chat/ProfilePhotoPopup";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -2015,6 +2016,17 @@ function ChatThread() {
         className="relative flex-1 overflow-y-auto overscroll-contain px-3 pb-2 pt-3"
         style={doodle ? doodleSurfaceStyle : undefined}
       >
+        {doodle && (
+          /* One Open Doodles figure per chat (stable by conversation id),
+             faint in a corner UNDER the bubbles — the wallpaper gets a person
+             in it, the messages stay the loudest thing on screen. */
+          <img
+            src={doodleFor(conversationId).src}
+            alt=""
+            aria-hidden
+            className="pointer-events-none sticky top-[65%] start-1 -mb-32 h-32 w-32 opacity-[0.13] select-none"
+          />
+        )}
         {isLoading ? (
           // Skeleton bubbles, not a "Loading…" line. Opening from a
           // notification cold-starts this screen, and a bare line of text that
@@ -2033,7 +2045,13 @@ function ChatThread() {
             ))}
           </div>
         ) : rendered.length === 0 ? (
-          <div className="mt-10 text-center text-sm text-muted-foreground">
+          <div className="mt-10 flex flex-col items-center gap-3 text-center text-sm text-muted-foreground">
+            <img
+              src={doodleFor(conversationId).src}
+              alt=""
+              aria-hidden
+              className="h-36 w-36 opacity-70"
+            />
             No messages yet. Say hi 👋
           </div>
         ) : (

@@ -29,9 +29,9 @@ type ReporterMap = Record<string, { username: string | null; display_name: strin
 
 function AdminInbox() {
   const qc = useQueryClient();
-  const [section, setSection] = useState<"reports" | "kyc" | "takedowns" | "proofs" | "payouts">(
-    "reports",
-  );
+  const [section, setSection] = useState<
+    "reports" | "kyc" | "takedowns" | "proofs" | "payouts" | "errors"
+  >("reports");
   const [statusFilter, setStatusFilter] = useState<"open" | "resolved" | "dismissed" | "all">(
     "open",
   );
@@ -175,6 +175,7 @@ function AdminInbox() {
             ["takedowns", "takedowns ⚖️"],
             ["proofs", "proofs ✅"],
             ["payouts", "payouts 💸"],
+            ["errors", "errors 🐞"],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -194,6 +195,8 @@ function AdminInbox() {
       {section === "proofs" && <DeletionProofPanel />}
 
       {section === "payouts" && <PayoutsPanel />}
+
+      {section === "errors" && <ErrorReportsPanel />}
 
       {section === "reports" && (
         <>
@@ -679,6 +682,80 @@ function TakedownPanel() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/* ---------------- Client error reports ----------------
+   The other half of "pretty message for users": the RAW detail lands here,
+   admin-eyes only. Users saw one kind sentence; this panel shows what
+   actually broke, newest first. */
+function ErrorReportsPanel() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sb = supabase as any;
+  const { data: rows = [], refetch } = useQuery({
+    queryKey: ["admin-error-reports"],
+    queryFn: async () => {
+      const { data } = await sb
+        .from("client_error_reports")
+        .select("id, user_id, surface, message, detail, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
+      return (data ?? []) as {
+        id: string;
+        user_id: string | null;
+        surface: string;
+        message: string;
+        detail: string | null;
+        created_at: string;
+      }[];
+    },
+  });
+
+  return (
+    <div className="mt-4 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Raw client failures. Users saw a friendly line; this is the detail.
+        </p>
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-muted-foreground"
+        >
+          Refresh
+        </button>
+      </div>
+      {rows.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
+          no client errors reported 🎉
+        </div>
+      ) : (
+        rows.map((r) => (
+          <div key={r.id} className="rounded-2xl border border-border bg-card p-3 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <span className="rounded-full bg-red-500/15 px-2 py-0.5 font-semibold text-red-400">
+                {r.surface}
+              </span>
+              <span className="text-muted-foreground">{homeFormat().dateTime(r.created_at)}</span>
+            </div>
+            <div className="mt-1.5 break-words font-mono text-[11px]">{r.message}</div>
+            {r.detail ? (
+              <details className="mt-1">
+                <summary className="cursor-pointer text-[10px] text-muted-foreground">
+                  stack / detail
+                </summary>
+                <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all font-mono text-[9px] text-muted-foreground">
+                  {r.detail}
+                </pre>
+              </details>
+            ) : null}
+            <div className="mt-1 break-all text-[9px] text-muted-foreground">
+              user {r.user_id ?? "unknown"}
+            </div>
+          </div>
+        ))
+      )}
     </div>
   );
 }

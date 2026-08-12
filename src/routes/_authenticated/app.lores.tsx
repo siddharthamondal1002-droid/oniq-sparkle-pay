@@ -31,83 +31,65 @@ export const Route = createFileRoute("/_authenticated/app/lores")({
 const PREVIEW_SECONDS = 15;
 
 function LoreCard({ v }: { v: LoreVideo }) {
-  // idle: the film's own first frame as the poster (preload="metadata" — a
-  // few KB, no flat gradient pretending to be a thumbnail). preview: the
-  // first 15 seconds, muted, then the watch-full ask. playing: the episode.
+  // ONE persistent <video> for every mode. The first build swapped in a
+  // fresh element per mode and leaned on autoPlay — which mobile browsers
+  // BLOCK for unmuted video after a React remount (the tap's activation
+  // does not survive the re-render), so "Watch the full episode" froze on
+  // a black frame in the field. Calling .play() synchronously inside the
+  // tap handler on an element that already exists keeps the gesture and
+  // the playback position.
   const [mode, setMode] = useState<"idle" | "preview" | "previewEnded" | "playing">("idle");
-  const previewRef = useRef<HTMLVideoElement | null>(null);
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  const startPreview = () => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.muted = true;
+    el.currentTime = 0;
+    void el.play().catch(() => {});
+    setMode("preview");
+  };
+  const startFull = (fromStart: boolean) => {
+    const el = videoRef.current;
+    if (!el) return;
+    el.muted = false;
+    if (fromStart) el.currentTime = 0;
+    void el.play().catch(() => {});
+    setMode("playing");
+  };
 
   return (
     <div className="overflow-hidden rounded-2xl border border-border bg-card/70">
       <div className="relative aspect-video bg-black">
         {v.url ? (
-          mode === "playing" ? (
+          <>
             <video
+              ref={videoRef}
               src={v.url}
-              controls
-              autoPlay
+              preload="metadata"
               playsInline
+              controls={mode === "playing"}
+              onTimeUpdate={(e) => {
+                // A capped taste, not the film: stop at the mark rather than
+                // trusting a second source or a trimmed asset to exist.
+                if (
+                  modeRef.current === "preview" &&
+                  e.currentTarget.currentTime >= PREVIEW_SECONDS
+                ) {
+                  e.currentTarget.pause();
+                  setMode("previewEnded");
+                }
+              }}
+              onEnded={() => setMode((m) => (m === "preview" ? "previewEnded" : m))}
               className="h-full w-full object-contain"
             />
-          ) : mode === "preview" ? (
-            <button
-              type="button"
-              onClick={() => setMode("playing")}
-              className="relative block h-full w-full"
-              aria-label={`Watch ${v.title} in full`}
-            >
-              <video
-                ref={previewRef}
-                src={v.url}
-                autoPlay
-                muted
-                playsInline
-                onTimeUpdate={(e) => {
-                  // A capped taste, not the film: stop at the mark rather than
-                  // trusting a second source or a trimmed asset to exist.
-                  if (e.currentTarget.currentTime >= PREVIEW_SECONDS) {
-                    e.currentTarget.pause();
-                    setMode("previewEnded");
-                  }
-                }}
-                onEnded={() => setMode("previewEnded")}
-                className="h-full w-full object-contain"
-              />
-              <span className="absolute start-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90">
-                Preview
-              </span>
-              <span className="absolute bottom-2 end-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white/90 normal-case tracking-normal">
-                Tap for full episode
-              </span>
-            </button>
-          ) : mode === "previewEnded" ? (
-            <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#1a1230] via-[#241a40] to-[#0d0a18]">
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-[11px] text-white/70">That was a taste 🎬</span>
-                <button
-                  type="button"
-                  onClick={() => setMode("playing")}
-                  className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
-                >
-                  Watch the full episode
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              {/* The poster is the film's own first frame. */}
-              <video
-                src={v.url}
-                preload="metadata"
-                muted
-                playsInline
-                aria-hidden
-                className="pointer-events-none h-full w-full object-contain"
-              />
+            {mode === "idle" && (
               <div className="absolute inset-0 flex items-center justify-center gap-3 bg-black/30">
                 <button
                   type="button"
-                  onClick={() => setMode("preview")}
+                  onClick={startPreview}
                   className="rounded-full border border-white/30 bg-black/50 px-4 py-2 text-xs font-semibold text-white backdrop-blur-sm transition active:scale-95"
                   aria-label={`Preview ${v.title}`}
                 >
@@ -115,15 +97,44 @@ function LoreCard({ v }: { v: LoreVideo }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setMode("playing")}
+                  onClick={() => startFull(true)}
                   className="grid h-12 w-12 place-items-center rounded-full bg-primary text-primary-foreground transition-transform active:scale-95"
                   aria-label={`Play ${v.title}`}
                 >
                   <Play className="h-5 w-5" />
                 </button>
               </div>
-            </>
-          )
+            )}
+            {mode === "preview" && (
+              <button
+                type="button"
+                onClick={() => startFull(false)}
+                className="absolute inset-0 block h-full w-full"
+                aria-label={`Watch ${v.title} in full`}
+              >
+                <span className="absolute start-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90">
+                  Preview
+                </span>
+                <span className="absolute bottom-2 end-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white/90 normal-case tracking-normal">
+                  Tap for full episode
+                </span>
+              </button>
+            )}
+            {mode === "previewEnded" && (
+              <div className="absolute inset-0 grid h-full w-full place-items-center bg-gradient-to-br from-[#1a1230]/95 via-[#241a40]/95 to-[#0d0a18]/95">
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-[11px] text-white/70">That was a taste 🎬</span>
+                  <button
+                    type="button"
+                    onClick={() => startFull(true)}
+                    className="rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground"
+                  >
+                    Watch the full episode
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         ) : (
           <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#1a1230] via-[#241a40] to-[#0d0a18] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             in production

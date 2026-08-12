@@ -16,6 +16,7 @@ import { ArrowLeft, BadgeCheck, Clapperboard, TrendingUp, Wallet } from "lucide-
 import { formatPaise } from "@/lib/storyPricing";
 import { useFormat } from "@/lib/format";
 import { homeFormat } from "@/lib/format";
+import { ProgramCriteria, useProgramBars } from "@/components/chat/ProgramInfoSheet";
 
 export const Route = createFileRoute("/_authenticated/app/creator")({
   component: CreatorStudio,
@@ -255,6 +256,7 @@ function MemberChannelCard({ ch }: { ch: Channel }) {
 function CreatorStudio() {
   // EVERY HOOK ABOVE EVERY EARLY RETURN. rules-of-hooks is a release blocker.
   const { number } = useFormat();
+  const bars = useProgramBars();
   const [me, setMe] = useState<string | null>(null);
   const [tab, setTab] = useState<"influencer" | "subscriber">("influencer");
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -341,6 +343,15 @@ function CreatorStudio() {
         you&apos;re both. Every creator is a subscriber, every subscriber can be a creator — earn
         from channels you run and from channels you watch, both paid to the same UPI.
       </p>
+
+      <details className="mt-3 rounded-2xl border border-border bg-card p-4">
+        <summary className="cursor-pointer text-sm font-semibold">
+          How the program works — the exact bars 📖
+        </summary>
+        <div className="mt-3">
+          <ProgramCriteria bars={bars} />
+        </div>
+      </details>
 
       <div className="mt-4 grid grid-cols-2 rounded-2xl border border-border bg-card p-1 text-xs">
         {(

@@ -148,11 +148,15 @@
    electric teal to a deeper #008F7A: the bright teal that glows on #0E0F13
    washes out on white, and accent text must survive a white card. */
 .light {
-  --background: #f5f6f8;
-  --foreground: #171a21;
+  /* Warmer and brighter than the first pass (owner: "adjust light mode
+     light setting"): the cool #f5f6f8 canvas read as grey overcast next to
+     white cards. A near-white warm paper lifts the whole screen, and the
+     slightly deeper muted ink keeps small text legible on it. */
+  --background: #faf9f7;
+  --foreground: #15181f;
 
   --surface: #ffffff;
-  --surface-2: #eef0f4;
+  --surface-2: #f1f0ec;
 
   --card: #ffffff;
   --card-foreground: #171a21;
@@ -174,8 +178,8 @@
   --secondary: #eef0f4;
   --secondary-foreground: #171a21;
 
-  --muted: #e9ebf0;
-  --muted-foreground: #5a6172;
+  --muted: #edecf0;
+  --muted-foreground: #4d5464;
 
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;

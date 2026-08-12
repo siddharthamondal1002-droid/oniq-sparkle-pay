@@ -23,6 +23,7 @@ import { format, isToday, isYesterday, differenceInDays } from "date-fns";
 import { useOnlineUsers } from "@/hooks/usePresence";
 import { ProfilePhotoPopup, type ProfilePhotoTarget } from "@/components/chat/ProfilePhotoPopup";
 import { getNativeContacts, isNativeContactsAvailable, normalizePhone } from "@/lib/nativeContacts";
+import { prettyFail } from "@/lib/errorReport";
 
 export const Route = createFileRoute("/_authenticated/app/chat/")({
   component: ChatList,
@@ -169,10 +170,15 @@ function ChatList() {
               : r.last_type === "voice"
                 ? "🎙 Voice note"
                 : r.last_type === "video"
-                  ? "🎥 Video"
-                  : r.last_type === "file"
-                    ? `📎 ${r.last_message || "File"}`
-                    : (r.last_message ?? null),
+                  ? // Video notes ride the video type with a content marker.
+                    r.last_message === "__videonote__"
+                    ? "🎥 Video note"
+                    : "🎥 Video"
+                  : r.last_type === "sticker"
+                    ? `${r.last_message || "💟"} Sticker`
+                    : r.last_type === "file"
+                      ? `📎 ${r.last_message || "File"}`
+                      : (r.last_message ?? null),
           last_sender_id: r.last_sender_id ?? null,
           last_sender_name: r.last_sender_name ?? null,
           last_created_at: r.last_created_at ?? null,
@@ -218,10 +224,14 @@ function ChatList() {
               : m.type === "voice"
                 ? "🎙 Voice note"
                 : m.type === "video"
-                  ? "🎥 Video"
-                  : m.type === "file"
-                    ? `📎 ${m.content || "File"}`
-                    : (m.content ?? null);
+                  ? m.content === "__videonote__"
+                    ? "🎥 Video note"
+                    : "🎥 Video"
+                  : m.type === "sticker"
+                    ? `${m.content || "💟"} Sticker`
+                    : m.type === "file"
+                      ? `📎 ${m.content || "File"}`
+                      : (m.content ?? null);
           qc.setQueriesData<EnrichedConv[] | undefined>({ queryKey: ["conversations"] }, (prev) => {
             if (!prev) return prev;
             const idx = prev.findIndex((c) => c.id === m.conversation_id);
@@ -763,7 +773,6 @@ function DiscoverChannelsSheet({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
-
     </div>
   );
 }
@@ -902,8 +911,14 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     });
     setStarting(false);
     if (error || !data) {
-      console.error(error);
-      toast.error(error?.message || "Couldn't create group");
+      // Detail goes to the admin errors panel; the user gets one kind line.
+      toast.error(
+        prettyFail(
+          "create-group",
+          error ?? new Error("no id returned"),
+          "Couldn't create the group — we've noted it and we're on it 🛠️",
+        ),
+      );
       return;
     }
     toast.success("Group created 🎉");
@@ -922,8 +937,13 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     });
     setStarting(false);
     if (error || !data) {
-      console.error(error);
-      toast.error(error?.message || "Couldn't create channel");
+      toast.error(
+        prettyFail(
+          "create-channel",
+          error ?? new Error("no id returned"),
+          "Couldn't create the channel — we've noted it and we're on it 🛠️",
+        ),
+      );
       return;
     }
     toast.success("Channel is live 📢");
