@@ -573,9 +573,33 @@ if (offline) {
       // One call per shot, sequentially. Not a fan-out: the rate limit is per
       // call and a loop that ignores it is how a month of credits goes in an
       // hour.
-      const still = await edge('story-still', {
-        prompt: `${shot.still}\n\nSetting: ${plan.setting}`,
-      });
+      //
+      // A REFUSED FRAME IS REWORDED ONCE, NOT FATAL. Gemini's image filter
+      // refuses the odd frame out of a plan that is otherwise fine — the
+      // first Aladdin proof film died on shot four of seventeen: one 422,
+      // three finished shots thrown away, no film. The refusal names the fix
+      // itself ("Try rewording the shot"), so one softer ask is made: the
+      // shot's NARRATION as the scene (the refused wording was the `still`
+      // text), the cast locks kept so the frame stays on-model, and an
+      // explicit storybook framing. A second refusal fails the job as
+      // before — inventing content beyond the plan to dodge a filter is the
+      // second-planner problem, and a film with a missing frame is not a
+      // film.
+      let still;
+      try {
+        still = await edge('story-still', {
+          prompt: `${shot.still}\n\nSetting: ${plan.setting}`,
+        });
+      } catch (err) {
+        if (!/story-still: 422/.test(String(err?.message ?? err))) throw err;
+        console.log(`  still ${i + 1}: refused — one reworded retry`);
+        const locks = (plan.cast ?? []).map((c) => `${c.name}: ${c.lock}`).join('\n');
+        still = await edge('story-still', {
+          prompt:
+            `Gentle, family-friendly animated storybook illustration. ` +
+            `${shot.narration}\n\nCharacters:\n${locks}\n\nSetting: ${plan.setting}`.slice(0, 1900),
+        });
+      }
       const stem = `shot${String(i).padStart(3, '0')}`;
       const stillFile = path.join(assetRoot, `${stem}.png`);
       fs.writeFileSync(stillFile, Buffer.from(still.data, 'base64'));
