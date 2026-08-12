@@ -37,14 +37,26 @@ export type StoryStatus =
   | "purged";
 
 /**
- * How long a finished Story waits for a user who may never come back.
+ * How long a finished Story is kept.
  *
- * Two hours is a compromise, and worth naming as one. Shorter and a user who
- * generates on the bus and opens the app at home loses their video. Longer and
- * we are quietly a video host. If this is ever raised, raise the sweeper
- * frequency with it, not just this number.
+ * THIRTY DAYS, and ONIQ is now knowingly a video host for that window.
+ *
+ * It was two hours, which worked only because "Save to my device" existed as
+ * the escape hatch: make a film, save it, and we deleted ours. The owner
+ * removed that hatch on 2026-08-12 — films are shared straight out of Your
+ * videos and nothing is copied onto the phone — and a two-hour clock under
+ * that rule is not a compromise, it is a shredder. Every film would become
+ * unshareable two hours after it finished, with no copy anywhere.
+ *
+ * Thirty days rather than forever because a bounded promise is one we can
+ * keep and cost: storage grows with films made, not with users, and an
+ * unbounded window is a bill nobody chose. The sweeper still runs on the same
+ * cadence; it now finds far less to do, which is the point.
+ *
+ * MIRRORED in supabase/functions/story-sweep/index.ts, which is the copy that
+ * actually deletes. Change both or the deletion outlives the promise.
  */
-export const READY_TTL_MS = 2 * 60 * 60 * 1000;
+export const READY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * How long a Story may sit mid-generation before we treat it as dead.

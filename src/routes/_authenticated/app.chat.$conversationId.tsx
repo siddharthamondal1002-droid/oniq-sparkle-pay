@@ -2085,6 +2085,7 @@ function ChatThread() {
                 key={d.key}
                 src={d.src}
                 alt=""
+                decoding="async"
                 className="absolute opacity-[0.11]"
                 style={{
                   top: `${d.top}vh`,
@@ -3154,6 +3155,12 @@ function ChatThread() {
                               <img
                                 src={d.src}
                                 alt=""
+                                // 33 detailed vector drawings in one grid is a
+                                // real cost on a phone: without these the
+                                // drawer fetched and rasterised every one the
+                                // moment it opened.
+                                loading="lazy"
+                                decoding="async"
                                 className="h-full w-full object-contain"
                                 draggable={false}
                               />

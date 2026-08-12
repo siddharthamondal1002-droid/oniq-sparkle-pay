@@ -140,7 +140,7 @@ export type ScatteredDoodle = Doodle & {
   flip: boolean;
 };
 
-export function doodleScatter(seed: string, count = 6): ScatteredDoodle[] {
+export function doodleScatter(seed: string, count = 4): ScatteredDoodle[] {
   const h = hash(seed);
   const out: ScatteredDoodle[] = [];
   const used = new Set<string>();

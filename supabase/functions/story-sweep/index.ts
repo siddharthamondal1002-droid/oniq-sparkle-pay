@@ -20,8 +20,18 @@
 // SERVICE ROLE ONLY. It is a scheduled internal job. An authenticated user
 // calling it could delete other people's films.
 
-/** ready -> expired. Long enough to make one, walk away, and come back. */
-const READY_TTL_MS = 2 * 60 * 60 * 1000;
+/**
+ * ready -> expired. Thirty days: a film lives in Your videos and is shared
+ * from there, so this is a retention window, not a pickup slot.
+ *
+ * It was two hours, which was correct while "Save to my device" existed —
+ * the film moved to the phone and we deleted ours. That hatch is gone (owner
+ * directive, 2026-08-12: share direct, nothing downloaded), so a two-hour
+ * clock would destroy every film two hours after it finished, with no copy
+ * anywhere. MIRRORED in src/lib/storyLifecycle.ts; storyLifecycle.test.ts
+ * fails if the two drift.
+ */
+const READY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /** queued/generating/assembling -> stale. A render is minutes, not half hours. */
 const STALE_TTL_MS = 30 * 60 * 1000;

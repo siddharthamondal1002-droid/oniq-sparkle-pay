@@ -20,7 +20,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Clapperboard,
-  Download,
   Loader2,
   Play,
   Share2,
@@ -38,8 +37,6 @@ import {
   isWatchable,
   listStories,
   openStory,
-  releaseStory,
-  saveStoryToDevice,
 } from "./storyJobsClient";
 
 /** Six seconds. The step being waited on takes minutes; faster only adds load. */
@@ -62,7 +59,6 @@ export function YourVideos() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [filmUrl, setFilmUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [saved, setSaved] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [sharePct, setSharePct] = useState<number | null>(null);
@@ -150,11 +146,11 @@ export function YourVideos() {
 
   /**
    * Share the FILM ITSELF into WhatsApp, Facebook, or whatever the device
-   * offers. The bytes stay on our servers afterwards — sharing is not saving,
-   * and only "Save to my device" triggers the delete-from-ours step. On
-   * surfaces where no file share exists (desktop browsers), the honest answer
-   * is guidance, not a link: the URL behind this film expires, so a pasted
-   * link would die in the recipient's chat.
+   * offers, straight from Your videos. The bytes stay on our servers, so the
+   * same film can be shared again tomorrow — there is no longer a save step
+   * that takes it away. On surfaces with no file share (desktop browsers) the
+   * honest answer is guidance, not a link: the URL behind this film expires,
+   * so a pasted link would die in the recipient's chat.
    */
   const share = useCallback(async () => {
     if (!openId || !filmUrl) return;
@@ -176,7 +172,7 @@ export function YourVideos() {
         setError("Could not share that film. It is still here — try again.");
       } else if (outcome === "unsupported") {
         setShareHint(
-          "Sharing isn't available in this browser — use Save to my device, then share it from your gallery.",
+          "Sharing isn't available in this browser — open ONIQ on your phone to send it.",
         );
       }
       // "shared" and "cancelled" both end quietly; the user saw the sheet.
@@ -186,28 +182,6 @@ export function YourVideos() {
     }
   }, [openId, filmUrl]);
 
-  const save = useCallback(async () => {
-    if (!openId || !filmUrl) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const title = (rows ?? []).find((r) => r.id === openId)?.prompt ?? undefined;
-      await saveStoryToDevice(openId, filmUrl, title);
-      setSaved(openId);
-      setOpenId(null);
-      setFilmUrl(null);
-      await refresh();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save that file.");
-      // Hand it back so a dropped connection does not cost somebody their film.
-      await releaseStory(openId);
-      setOpenId(null);
-      setFilmUrl(null);
-      await refresh();
-    } finally {
-      setBusy(false);
-    }
-  }, [openId, filmUrl, refresh, rows]);
 
   return (
     <div className="pb-4">
@@ -221,13 +195,6 @@ export function YourVideos() {
         <AiOutputReport surface="stories_library_output" targetId="stories-library" />
       </div>
 
-      {saved ? (
-        <div className="mt-3 rounded-2xl border border-emerald-400/40 bg-emerald-400/10 px-3 py-2.5 text-[11px] text-emerald-300">
-          Saved to your device, and deleted from ours. It is yours now — it's in your gallery, and
-          under <span className="font-semibold">On this phone</span> below you can replay, send or
-          delete it.
-        </div>
-      ) : null}
       {error ? <p className="mt-3 text-center text-[11px] text-destructive">{error}</p> : null}
 
       {filmUrl ? (
@@ -240,20 +207,20 @@ export function YourVideos() {
             className="w-full rounded-xl bg-black"
             style={{ aspectRatio: "9 / 16", maxHeight: "60vh" }}
           />
-          <button
-            type="button"
-            onClick={() => void save()}
-            disabled={busy || sharing}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {busy ? "Saving…" : "Save to my device"}
-          </button>
+          {/* SHARE IS THE ONLY WAY OUT, and that is the point (owner
+              directive, 2026-08-12: "share it directly from your videos and
+              videos not download in user phone").
+
+              The old primary action copied the film onto the phone AND
+              deleted it from our servers, which made every film a one-way
+              door: save it and it could never be shared from here again, lose
+              the phone and it was gone. Films now stay put, so Share works
+              today, tomorrow and from any device the account signs in on. */}
           <button
             type="button"
             onClick={() => void share()}
             disabled={busy || sharing}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/50 bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary disabled:opacity-50"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-50"
           >
             {sharing ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -270,8 +237,8 @@ export function YourVideos() {
             <p className="mt-2 text-center text-[10px] text-amber-300">{shareHint}</p>
           ) : null}
           <p className="mt-2 text-center text-[10px] text-muted-foreground">
-            Sharing sends the video itself and keeps it here. Saving deletes it from our servers —
-            watch and share first, because there is no re-download.
+            Your films live here in Your videos — nothing is copied onto your phone, and sharing
+            sends the video itself, as many times as you like.
           </p>
         </div>
       ) : null}
