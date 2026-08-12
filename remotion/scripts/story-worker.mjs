@@ -580,11 +580,30 @@ if (offline) {
 
     // The library cast rides to the planner as `reuse` — story-plot bounds and
     // validates it, and tells Ting to keep these people, verbatim.
-    const { plan } = await edge('story-plot', {
-      prompt: job.prompt,
-      shots,
-      ...(Array.isArray(job.castJson) && job.castJson.length ? { reuse: job.castJson } : {}),
-    });
+    //
+    // ONE RETRY ON A 502, because a plot 502 is the function's whole engine
+    // chain running out of ITS wall clock — run 68 died on "batch 1:
+    // timeout" after five straight runs where the same call succeeded, which
+    // is transient model latency, not a prompt problem. A second invocation
+    // gets a fresh 115-second budget and its own internal retries; a second
+    // 502 in a row fails the job as before.
+    let planRes;
+    for (let a = 1; ; a++) {
+      try {
+        planRes = await edge('story-plot', {
+          prompt: job.prompt,
+          shots,
+          ...(Array.isArray(job.castJson) && job.castJson.length ? { reuse: job.castJson } : {}),
+        });
+        break;
+      } catch (err) {
+        const msg = String(err?.message ?? err);
+        if (a >= 2 || !/story-plot: 502/.test(msg)) throw err;
+        console.log(`  plot retry in 15s (${msg.slice(0, 140)})`);
+        await new Promise((r) => setTimeout(r, 15_000));
+      }
+    }
+    const { plan } = planRes;
     console.log(`  plot: "${plan.title}", ${plan.shots.length} shots`);
 
     // One voice for the whole film. A narrator that changes between shots is
