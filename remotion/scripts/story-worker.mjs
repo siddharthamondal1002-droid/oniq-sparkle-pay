@@ -186,27 +186,39 @@ async function edge(fn, body) {
 }
 
 /**
- * story-voice, with patience for a throttle.
+ * story-voice, paced and with patience for a throttle.
  *
- * The third Aladdin proof run built fourteen shots and then died on a
- * narration: story-voice 502, twice on dialogue just before — the cluster
- * shape of an upstream per-minute quota, not of a refusal. The no-retry
- * house rule is about refusals, which fail identically the second time; a
- * throttle is the opposite case, the one failure where waiting IS the fix.
- * So: a 502 earns a spaced retry (the wait grows each time, giving a
- * per-minute window room to roll over), anything else — a 422 refusal, a
- * missing key — throws straight through. Narration gets three attempts
- * because it is the film's clock; dialogue keeps its existing skip and gets
- * two.
+ * MEASURED, not guessed: run 65 named the failure `upstream 429`. A shot
+ * fires narration and dialogue back to back, which is ~9-10 TTS calls a
+ * minute — riding exactly at a 10-requests-per-minute quota — and once the
+ * rolling window saturates, a 20-40s wait only part-drains it before the
+ * next burst refills it; run 65 lost a narration to three straight 429s
+ * that way. Two answers, both here:
+ *
+ *   PACING. Every attempt waits out a fixed gap since the previous voice
+ *   call, turning bursts of two into a steady ~9/min that stays under the
+ *   window instead of slamming it.
+ *
+ *   PATIENCE. A 502 earns growing waits (30/60/90s) — long enough for a
+ *   saturated minute to actually roll over. The no-retry house rule is
+ *   about refusals, which fail identically the second time; a throttle is
+ *   the one failure where waiting IS the fix. Anything that is not a 502
+ *   still throws straight through. Narration gets four attempts because it
+ *   is the film's clock; dialogue gets two before its existing skip.
  */
+const VOICE_GAP_MS = 6_500;
+let lastVoiceAt = 0;
 async function voiceWithRetry(payload, attempts) {
   for (let a = 1; ; a++) {
+    const gap = lastVoiceAt + VOICE_GAP_MS - Date.now();
+    if (gap > 0) await new Promise((r) => setTimeout(r, gap));
+    lastVoiceAt = Date.now();
     try {
       return await edge('story-voice', payload);
     } catch (err) {
       const msg = String(err?.message ?? err);
       if (a >= attempts || !/story-voice: 502/.test(msg)) throw err;
-      const wait = 20_000 * a;
+      const wait = 30_000 * a;
       console.log(`  voice retry in ${wait / 1000}s (${msg.slice(0, 100)})`);
       await new Promise((r) => setTimeout(r, wait));
     }
@@ -679,7 +691,7 @@ if (offline) {
       const framing = framingFor(shot.still, movingShots);
       if (isSlide(framing)) movingShots += 1;
 
-      const voiced = await voiceWithRetry({ text: shot.narration, voice }, 3);
+      const voiced = await voiceWithRetry({ text: shot.narration, voice }, 4);
       let wav = path.join(assetRoot, `${stem}.wav`);
       fs.writeFileSync(wav, wrapPcmAsWav(Buffer.from(voiced.data, 'base64'), rateOf(voiced.mime)));
 
