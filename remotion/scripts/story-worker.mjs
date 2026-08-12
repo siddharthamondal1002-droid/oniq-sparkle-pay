@@ -59,6 +59,7 @@ import { findBin } from './findFfmpeg.mjs';
 import { envelope, speechSpans } from './speech.mjs';
 import { framingFor, isSlide } from '../../src/lib/shotGrammar.ts';
 import { rhubarbCuesForWav } from './rhubarb.mjs';
+import { applyFilmLook } from './filmLook.mjs';
 import { planStory } from '../../src/lib/storyPlan.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -410,6 +411,30 @@ function rigFor(plan, shot) {
 /** Kept in step with CHARACTER_RIGS by hand; the render just skips an unknown key. */
 const MEASURED_RIGS = new Set(['aladdin']);
 
+
+/**
+ * The film look, as a step-down stage: grade the master in place, and if the
+ * grade fails for any reason ship the clean master instead. One to two cents
+ * of CPU per finished minute, most of the visible "filmed" quality, and
+ * STORY_FILM_LOOK=off turns it off without a deploy.
+ */
+function gradeInPlace(file) {
+  if ((process.env.STORY_FILM_LOOK ?? 'on') === 'off') {
+    console.log('film look: off by env');
+    return;
+  }
+  const graded = `${file}.look.mp4`;
+  try {
+    const t0 = Date.now();
+    applyFilmLook(findBin('ffmpeg'), file, graded);
+    fs.renameSync(graded, file);
+    console.log(`film look: graded in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+  } catch (err) {
+    fs.rmSync(graded, { force: true });
+    console.log(`film look: skipped (${err?.message ?? err}) — shipping the clean master`);
+  }
+}
+
 /** ffprobe duration, because narration is the clock and estimates drift. */
 function secondsOf(file) {
   const out = execFileSync(findBin('ffprobe'), [
@@ -437,6 +462,7 @@ if (offline) {
   }
   console.log(`${plan.title}: ${plan.shots.length} shots -> ${OUT}`);
   await renderPlan(plan, OUT);
+  gradeInPlace(OUT);
   console.log(`${(fs.statSync(OUT).size / 1024 / 1024).toFixed(1)} MB`);
 } else {
   // --- online path: claim a job and run it ----------------------------------
@@ -640,6 +666,7 @@ if (offline) {
     // Passing the flag explicitly rather than omitting it keeps the intent
     // readable here; the composition defaults ON either way.
     await renderPlan({ title: plan.title, shots: rendered, watermark: !job.noWatermark }, outFile);
+    gradeInPlace(outFile);
 
     const storagePath = await uploadFinished(job, outFile);
     await markReady(job, storagePath, rendered.length);

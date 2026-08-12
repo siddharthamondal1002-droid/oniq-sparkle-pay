@@ -72,10 +72,12 @@ permissions:
 jobs:
   render:
     runs-on: ubuntu-latest
-    # A ten-minute Story is ~33 minutes of render plus generation and upload.
-    # Past this the job is wedged rather than slow, and a hung runner holds the
-    # concurrency lock against every other Story.
-    timeout-minutes: 60
+    # A ten-minute Story is ~33 minutes of render plus generation and upload,
+    # and the film-look grade pass adds up to ~2.5x realtime on this runner's
+    # two cores (~25 minutes at maximum length). Past this the job is wedged
+    # rather than slow. The lock this timeout protects is now per-job, so a
+    # wedged runner delays only its own Story.
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v5
 
