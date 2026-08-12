@@ -170,8 +170,14 @@ export async function releaseStory(jobId: string): Promise<void> {
 }
 
 /**
- * Save a Story to the device, then delete it from ours — in that order, and
- * only if the first part actually happened.
+ * Save a Story to the device — and KEEP ours.
+ *
+ * Saving used to purge the server copy, which made every film a one-way door:
+ * save it and it could never be shared from Your videos again. Films are now
+ * retained for thirty days (storyLifecycle.READY_TTL_MS), so a save is just a
+ * copy. The job is RELEASED back to `ready` rather than marked delivered —
+ * `delivered` is a terminal state that purges — which is also what a dropped
+ * download does, so both endings leave the film exactly where it was.
  *
  * THE OLD VERSION LOST FILMS. It fetched a blob, created an `<a download>` and
  * clicked it. That is a browser idiom, and a Capacitor WebView has no download
@@ -179,7 +185,7 @@ export async function releaseStory(jobId: string): Promise<void> {
  * reached the phone. The line straight after it called deliver("done"), which
  * purges the bytes from our storage — so "Save to my device" reliably destroyed
  * the only copy and saved nothing. Hence: on native we write the file
- * ourselves, verify a non-zero file exists, and only then purge.
+ * ourselves and verify a non-zero file exists before reporting success.
  *
  * Two copies are written on purpose. An app-private one under Directory.Data
  * backs in-app replay/share/delete (the library keeps working even after the
@@ -208,7 +214,8 @@ export async function saveStoryToDevice(
     a.click();
     a.remove();
     URL.revokeObjectURL(objectUrl);
-    await deliver("done", jobId);
+    // Release, NOT done: `done` purges, and the film has to survive.
+    await deliver("cancel", jobId);
     const record: SavedVideo = {
       id: jobId,
       title: title?.trim() || "Untitled story",
@@ -257,7 +264,8 @@ export async function saveStoryToDevice(
     galleryUri = null;
   }
 
-  await deliver("done", jobId);
+  // Release, NOT done: `done` purges, and the film has to survive.
+  await deliver("cancel", jobId);
 
   const record: SavedVideo = {
     id: jobId,

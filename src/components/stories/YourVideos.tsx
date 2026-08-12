@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Clapperboard,
+  Download,
   Loader2,
   Play,
   Share2,
@@ -37,6 +38,8 @@ import {
   isWatchable,
   listStories,
   openStory,
+  releaseStory,
+  saveStoryToDevice,
 } from "./storyJobsClient";
 
 /** Six seconds. The step being waited on takes minutes; faster only adds load. */
@@ -183,6 +186,29 @@ export function YourVideos() {
   }, [openId, filmUrl]);
 
 
+  /**
+   * Save a copy onto the phone. The film STAYS in Your videos afterwards —
+   * this is a copy, not a handover, which is why the release step below is a
+   * cancel rather than a done.
+   */
+  const save = useCallback(async () => {
+    if (!openId || !filmUrl) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const title = (rows ?? []).find((r) => r.id === openId)?.prompt ?? undefined;
+      await saveStoryToDevice(openId, filmUrl, title);
+      await refresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save that file.");
+      // Hand it back so a dropped connection does not cost somebody their film.
+      await releaseStory(openId);
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  }, [openId, filmUrl, refresh, rows]);
+
   return (
     <div className="pb-4">
       {/* Same labelling rule as every other generative surface: the label AND
@@ -233,12 +259,25 @@ export function YourVideos() {
                 : "Preparing…"
               : "Share — WhatsApp, Facebook & more"}
           </button>
+          {/* Saving is BACK, and it is no longer a trapdoor. It used to delete
+              the film from our side, so a save meant you could never share it
+              from here again; now it is simply a copy and the film stays put
+              for thirty days either way. */}
+          <button
+            type="button"
+            onClick={() => void save()}
+            disabled={busy || sharing}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/50 bg-primary/10 px-4 py-2.5 text-sm font-semibold text-primary disabled:opacity-50"
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            {busy ? "Saving…" : "Also save to my phone"}
+          </button>
           {shareHint ? (
             <p className="mt-2 text-center text-[10px] text-amber-300">{shareHint}</p>
           ) : null}
           <p className="mt-2 text-center text-[10px] text-muted-foreground">
-            Your films live here in Your videos — nothing is copied onto your phone, and sharing
-            sends the video itself, as many times as you like.
+            Your films stay here in Your videos for 30 days — share them as often as you like, and
+            saving a copy to your phone no longer removes them from here.
           </p>
         </div>
       ) : null}
