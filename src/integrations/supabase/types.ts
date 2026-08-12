@@ -3190,6 +3190,27 @@ export type Database = {
           },
         ]
       }
+      story_addons: {
+        Row: {
+          active: boolean
+          key: string
+          label: string
+          price_paise: number
+        }
+        Insert: {
+          active?: boolean
+          key: string
+          label: string
+          price_paise: number
+        }
+        Update: {
+          active?: boolean
+          key?: string
+          label?: string
+          price_paise?: number
+        }
+        Relationships: []
+      }
       story_allowance: {
         Row: {
           daily_day: string
@@ -3282,6 +3303,7 @@ export type Database = {
           error: string | null
           has_bytes: boolean
           id: string
+          no_watermark: boolean
           paid_seconds_charged: number
           prompt: string
           refunded_at: string | null
@@ -3301,6 +3323,7 @@ export type Database = {
           error?: string | null
           has_bytes?: boolean
           id?: string
+          no_watermark?: boolean
           paid_seconds_charged?: number
           prompt: string
           refunded_at?: string | null
@@ -3320,6 +3343,7 @@ export type Database = {
           error?: string | null
           has_bytes?: boolean
           id?: string
+          no_watermark?: boolean
           paid_seconds_charged?: number
           prompt?: string
           refunded_at?: string | null
@@ -4029,6 +4053,62 @@ export type Database = {
         }
         Relationships: []
       }
+      watermark_purchases: {
+        Row: {
+          applied: boolean
+          created_at: string
+          currency: string
+          error: string | null
+          id: string
+          job_id: string
+          price_paise: number
+          provider: string
+          provider_order_id: string | null
+          provider_payment_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          applied?: boolean
+          created_at?: string
+          currency?: string
+          error?: string | null
+          id?: string
+          job_id: string
+          price_paise: number
+          provider?: string
+          provider_order_id?: string | null
+          provider_payment_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          applied?: boolean
+          created_at?: string
+          currency?: string
+          error?: string | null
+          id?: string
+          job_id?: string
+          price_paise?: number
+          provider?: string
+          provider_order_id?: string | null
+          provider_payment_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "watermark_purchases_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "story_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -4085,6 +4165,10 @@ export type Database = {
       attach_story_purchase_order: {
         Args: { _provider_order_id: string; _purchase_id: string }
         Returns: Json
+      }
+      attach_watermark_purchase_order: {
+        Args: { _provider_order_id: string; _purchase_id: string }
+        Returns: undefined
       }
       book_service: {
         Args: {
@@ -4191,6 +4275,7 @@ export type Database = {
         Args: { _grade?: string; _origin?: string; _seconds: number }
         Returns: Json
       }
+      create_watermark_purchase: { Args: { _job_id: string }; Returns: Json }
       credit_story_purchase: {
         Args: {
           _confirmed_by?: string
@@ -4216,6 +4301,10 @@ export type Database = {
       fail_story_purchase: {
         Args: { _error: string; _provider_order_id: string }
         Returns: Json
+      }
+      fail_watermark_purchase: {
+        Args: { _error?: string; _provider_order_id: string }
+        Returns: undefined
       }
       find_or_create_direct_conversation: {
         Args: { other_user_id: string }
@@ -4270,6 +4359,7 @@ export type Database = {
           provider_count: number
         }[]
       }
+      grant_watermark_removal: { Args: { _job_id: string }; Returns: Json }
       has_active_legal_hold: { Args: { _user_id: string }; Returns: boolean }
       health_data_allowed: { Args: { _user_id: string }; Returns: boolean }
       health_request_region_ok: { Args: never; Returns: boolean }
@@ -4540,6 +4630,14 @@ export type Database = {
         Returns: Json
       }
       set_story_cast: { Args: { _cast: Json; _job_id: string }; Returns: Json }
+      settle_watermark_purchase: {
+        Args: {
+          _confirmed_by?: string
+          _provider_order_id: string
+          _provider_payment_id?: string
+        }
+        Returns: Json
+      }
       share_reel_to_moots: {
         Args: { _clip_id: string; _note?: string; _recipient_ids: string[] }
         Returns: {
