@@ -42,6 +42,21 @@ const IMAGE_MODEL = "gemini-2.5-flash-image";
 /** Portrait, matching the episode pipeline. Everything downstream assumes it. */
 const ASPECT = "9:16";
 
+/**
+ * RESOLUTION HEADROOM — the research's highest value-per-effort finding
+ * (2026-08-12). Stills were generated at 1K, exactly display size, so every
+ * Ken Burns move showed the frame at 112-118% of native: every shot of every
+ * film was a soft upscale before any zoom was perceived. Asking for 2K gives
+ * the camera real pixels to move through and every film gets sharper with no
+ * downstream change at all — the composition scales DOWN instead of up.
+ *
+ * Sent with a fallback, not blindly: some model versions accept the field
+ * and ignore it (harmless — output stays 1K), but a version that rejected it
+ * would 400 every still in the app. The call below retries once without the
+ * field on a 400 that names it.
+ */
+const IMAGE_SIZE = "2K";
+
 const MAX_PROMPT = 2000;
 
 const rlBuckets = new Map<string, number[]>();
@@ -88,8 +103,8 @@ Deno.serve(async (req) => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 60000);
     let res: Response;
-    try {
-      res = await fetch(
+    const draw = (withSize: boolean) =>
+      fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${encodeURIComponent(key)}`,
         {
           method: "POST",
@@ -99,11 +114,22 @@ Deno.serve(async (req) => {
             contents: [{ role: "user", parts: [{ text: prompt }] }],
             generationConfig: {
               responseModalities: ["IMAGE"],
-              imageConfig: { aspectRatio: ASPECT },
+              imageConfig: withSize
+                ? { aspectRatio: ASPECT, imageSize: IMAGE_SIZE }
+                : { aspectRatio: ASPECT },
             },
           }),
         },
       );
+    try {
+      res = await draw(true);
+      // A model version that rejects the field must not take the app's
+      // stills down with it: one retry at the old shape, only when the 400
+      // actually names the size parameter.
+      if (res.status === 400) {
+        const reason = await res.clone().text().catch(() => "");
+        if (/image_?size/i.test(reason)) res = await draw(false);
+      }
     } finally {
       clearTimeout(timer);
     }
