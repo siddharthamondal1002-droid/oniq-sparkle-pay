@@ -60,6 +60,13 @@ import { envelope, speechSpans } from './speech.mjs';
 import { framingFor, isSlide } from '../../src/lib/shotGrammar.ts';
 import { rhubarbCuesForWav } from './rhubarb.mjs';
 import { applyFilmLook } from './filmLook.mjs';
+import { ensureDepthModel, inferDepth, cutNearPlane } from './depth.mjs';
+import {
+  PARALLAX,
+  nearPlaneAlpha,
+  normalizeDepth,
+  planeCoverage,
+} from '../../src/lib/parallaxPlanes.ts';
 import { planStory } from '../../src/lib/storyPlan.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -435,6 +442,27 @@ function gradeInPlace(file) {
   }
 }
 
+
+/**
+ * The depth model, fetched once per run and failing CLOSED for the whole
+ * film: if the 66MB MiDaS download or its sha256 pin fails, every shot ships
+ * as plain Ken Burns and one log line says why. Never per-shot retries — a
+ * host that refused the model once will refuse it nine times, and the render
+ * budget belongs to frames.
+ */
+let depthModelPromise = null;
+function depthModel() {
+  if ((process.env.STORY_PARALLAX ?? 'on') === 'off') return Promise.resolve(null);
+  if (!depthModelPromise) {
+    const cache = process.env.DEPTH_MODEL_CACHE ?? path.join(os.tmpdir(), 'oniq-depth-cache');
+    depthModelPromise = ensureDepthModel(cache).catch((err) => {
+      console.log(`parallax: depth model unavailable (${err?.message ?? err})`);
+      return null;
+    });
+  }
+  return depthModelPromise;
+}
+
 /** ffprobe duration, because narration is the clock and estimates drift. */
 function secondsOf(file) {
   const out = execFileSync(findBin('ffprobe'), [
@@ -553,6 +581,35 @@ if (offline) {
       fs.writeFileSync(stillFile, Buffer.from(still.data, 'base64'));
       console.log(`  still ${i + 1}/${plan.shots.length}`);
 
+      // RUNG 0.5 — the 2.5D near plane. Depth once per shot (~2s of CPU),
+      // alpha-cut the near content, and let the composition slide it faster
+      // than the base. Every failure and both coverage gates step the shot
+      // down to plain Ken Burns; the film never waits on this stage's mood.
+      let nearPlane = null;
+      try {
+        const model = await depthModel();
+        if (model) {
+          const depth01 = normalizeDepth(await inferDepth(model, stillFile));
+          const alpha = nearPlaneAlpha(depth01, PARALLAX.threshold);
+          const coverage = planeCoverage(alpha);
+          const out = await cutNearPlane(
+            stillFile,
+            path.join(assetRoot, `${stem}.near.png`),
+            alpha,
+            coverage,
+            PARALLAX,
+          );
+          if (out) {
+            nearPlane = `${assetDir}/${stem}.near.png`;
+            console.log(`  depth ${i + 1}: near plane ${(coverage * 100).toFixed(0)}%`);
+          } else {
+            console.log(`  depth ${i + 1}: flat (coverage ${(coverage * 100).toFixed(0)}%) — plain Ken Burns`);
+          }
+        }
+      } catch (err) {
+        console.log(`  depth ${i + 1}: skipped (${err?.message ?? err})`);
+      }
+
       // The camera comes from what the SHOT IS, read off Ting's own size word,
       // not from the shot's position in the film. Only SLIDES advance the
       // alternation: every shot moves now, so counting movement would let a
@@ -640,6 +697,7 @@ if (offline) {
         travel: framing.travel,
         pan: framing.pan,
         figureHeight: framing.figureHeight,
+        ...(nearPlane ? { parallax: { near: nearPlane } } : {}),
         // A character only where the plan says someone is on screen AND that
         // someone has a measured rig. An unmeasured character would need a
         // guessed mouth anchor, which looks like it works until the mouth opens

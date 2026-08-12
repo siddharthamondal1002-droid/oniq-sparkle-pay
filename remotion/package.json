@@ -17,10 +17,12 @@
     "@remotion/renderer": "^4.0.507",
     "@remotion/transitions": "^4.0.507",
     "@types/react": "^19.2.18",
+    "onnxruntime-web": "^1.27.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "remotion": "^4.0.507",
-    "rhubarb-lip-sync-wasm": "^0.1.8"
+    "rhubarb-lip-sync-wasm": "^0.1.8",
+    "sharp": "^0.35.3"
   },
   "overrides": {
     "typescript": "5.9.3"

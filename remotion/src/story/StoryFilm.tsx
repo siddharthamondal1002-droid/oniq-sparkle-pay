@@ -37,6 +37,7 @@ import {
   type MouthCue,
   type RhubarbCue,
 } from "../../../src/lib/visemes";
+import { PARALLAX } from "../../../src/lib/parallaxPlanes";
 import { Character } from "../rig/Character";
 import { CHARACTER_RIGS } from "../rig/characterRig";
 
@@ -67,6 +68,19 @@ export type StoryShotInput = {
    * derives this from the size word Ting wrote.
    */
   figureHeight?: number;
+  /**
+   * The 2.5D near plane: the same still with depth-derived alpha, cut by the
+   * worker's MiDaS stage. When present it rides ABOVE the base at
+   * PARALLAX.nearRate of the camera move — near things moving more than far
+   * things is the entire difference between "the camera moved through the
+   * scene" and "the image was zoomed". Absent (depth failed, coverage gate
+   * refused, model unreachable) the shot is pixel-identical to the shipped
+   * Ken Burns: the base layer below carries EXACTLY the old transform.
+   */
+  parallax?: {
+    /** Path under remotion/public, same addressing as `still`. */
+    near: string;
+  };
   /**
    * A rigged character standing in this shot, breathing and speaking.
    *
@@ -205,6 +219,26 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
           transform: `scale(${zoom}) translate(${x}%, ${y}%)`,
         }}
       />
+      {shot.parallax?.near ? (
+        /* The near plane: same eased move, amplified by nearRate, with extra
+           zoom proportional to travel so its faster excursion never reveals
+           its own edge. The full-frame base behind it backs every pixel the
+           cutout's edge uncovers, which is why no inpainting is needed at
+           these move sizes. */
+        <Img
+          src={src(shot.parallax.near)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: `scale(${zoom + travel * PARALLAX.nearCoverGain}) translate(${
+              x * PARALLAX.nearRate
+            }%, ${y * PARALLAX.nearRate}%)`,
+          }}
+        />
+      ) : null}
       {/* The character stands OUTSIDE the camera transform above, because the
           still is the plate and the puppet is a layer on it — scaling both by
           the same Ken Burns would slide the figure across the ground it is
