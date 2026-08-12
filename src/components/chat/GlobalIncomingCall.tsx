@@ -16,6 +16,7 @@ import {
   type IncomingCallInfo,
 } from "./IncomingCallScreen";
 import { activeCallSession } from "./GlobalCallHost";
+import { prefetchIceServers } from "./CallOverlay";
 import { bumpMissedCallCount } from "@/components/onboarding/FullScreenIntentPrompt";
 
 type CallType = "audio" | "video";
@@ -177,6 +178,11 @@ export function GlobalIncomingCall() {
       }
       if (cur) return;
       ensureNotificationPermission();
+      // Warm the TURN credentials NOW, while this screen is still ringing.
+      // Answer used to pay for that round trip in series with the camera
+      // prompt, and every second of it landed in the gap the caller hears
+      // between "they picked up" and "I can hear them".
+      prefetchIceServers();
       setIncoming({
         conversationId: p.conversationId,
         callId: p.callId,

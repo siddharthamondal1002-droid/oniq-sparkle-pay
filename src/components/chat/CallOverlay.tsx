@@ -43,6 +43,7 @@ import { toast } from "sonner";
 import { ensureNotificationPermission, playRingback, stopAllCallSounds } from "@/lib/callSounds";
 import { sendPush } from "@/lib/push";
 import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
+import { reportClientError } from "@/lib/errorReport";
 
 // --- Native SpeakerRouter bridge (Capacitor Android plugin). No-op on web. ---
 type SpeakerRouterPlugin = {
@@ -180,6 +181,23 @@ async function ensureIceServers(): Promise<RTCIceServer[]> {
   }
   cachedIce = { servers, expiresAt: now + ICE_TTL_MS };
   return [...servers];
+}
+
+/**
+ * Warm the TURN credentials while a phone is still RINGING.
+ *
+ * `ensureIceServers` is a round trip to an auth-gated edge function, and on
+ * the answer path it sat in series behind getUserMedia — so the seconds
+ * between "I pressed Answer" and "I can hear you" included a credentials
+ * fetch that could have happened while the phone was ringing. Fire this the
+ * moment an incoming call appears: by the time Answer is pressed the cache is
+ * warm and `ensureIceServers()` returns without touching the network.
+ *
+ * Deliberately silent — a failed prefetch changes nothing, because the real
+ * call path still awaits (and still reports) the same function.
+ */
+export function prefetchIceServers(): void {
+  void ensureIceServers().catch(() => {});
 }
 
 function getIceConfig(forceRelay = false): RTCConfiguration {
@@ -406,6 +424,23 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         })),
       );
       toast.error("network issue — call couldn't connect");
+      // The admin errors panel is the only place this is visible after the
+      // fact; call_logs says 'failed' but never says WHY. Peer ICE state at
+      // the moment of death is the whole diagnosis.
+      reportClientError(
+        "call-connect-timeout",
+        `no peer reached connected in 20s (${peers.length} peer(s))`,
+        {
+          role: isCallerRef.current ? "caller" : "callee",
+          callType: callTypeRef.current,
+          peers: peers.map((p) => ({
+            ice: p.pc.iceConnectionState,
+            conn: p.connState,
+            forceRelay: p.forceRelay,
+            reachedConnected: p.reachedConnected,
+          })),
+        },
+      );
       // Never demote an ANSWERED call to failed: this timeout also re-arms
       // during mid-call relay rebuilds, and a rebuild that dies should leave
       // the log saying "answered, N seconds" — which is what happened.
@@ -646,10 +681,29 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         setStatus("connected");
         if (!timerRef.current) {
           startedAtRef.current = Date.now();
-          timerRef.current = window.setInterval(
-            () => setElapsed(Math.floor((Date.now() - startedAtRef.current) / 1000)),
-            500,
-          );
+          // The tick is 500ms, so a bare `secs % 15` fires twice on every
+          // boundary. Track the last checkpoint instead of the clock.
+          let lastDurationWrite = 0;
+          timerRef.current = window.setInterval(() => {
+            const secs = Math.floor((Date.now() - startedAtRef.current) / 1000);
+            setElapsed(secs);
+            // Checkpoint the duration every 15s. It used to be written once,
+            // at hang-up, by the caller alone — so a caller whose app was
+            // killed mid-call (screen off, OS reclaim, closed tab) left the
+            // row saying 'answered' with duration NULL forever. Half the
+            // answered calls in the log read that way, which made the call
+            // reports unusable for exactly the question being asked of them:
+            // how long did it survive before it died?
+            if (isCallerRef.current && logIdRef.current && secs >= lastDurationWrite + 15) {
+              lastDurationWrite = secs;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (supabase as any)
+                .from("call_logs")
+                .update({ duration_s: secs })
+                .eq("id", logIdRef.current)
+                .then(() => {});
+            }
+          }, 500);
         }
         // Call log: first successful connect → mark answered.
         if (isCallerRef.current && logIdRef.current && logStatusRef.current !== "answered") {
@@ -825,6 +879,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const handleIceUnavailable = (err: unknown) => {
     console.warn("[ice] unhealthy — refusing to start call", err);
     toast.error("calls are having a moment 📞 try again in a sec");
+    reportClientError(
+      "call-ice-unavailable",
+      err instanceof Error ? err.message : String(err),
+      { role: isCallerRef.current ? "caller" : "callee", callType: callTypeRef.current },
+    );
     if (isCallerRef.current && logIdRef.current) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any)
@@ -867,6 +926,32 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   }, [conversationId, meId]);
 
   // ---- start / accept / decline ----
+
+  /**
+   * Camera/mic AND TURN credentials, at the same time instead of one after
+   * the other. They are independent — a permission prompt does not need the
+   * credentials, and the credentials do not need a camera — but they were
+   * awaited in series on every dial and every answer, so the user waited for
+   * the sum of two round trips where the slower one alone would do.
+   *
+   * If the credentials fail we stop the tracks we just took: otherwise the
+   * camera light stays on after a call that never started, which reads as the
+   * app watching you.
+   */
+  const acquireMediaAndIce = async (type: CallType): Promise<MediaStream> => {
+    const [mediaR, iceR] = await Promise.allSettled([getMedia(type), ensureIceServers()]);
+    if (mediaR.status === "rejected") throw mediaR.reason;
+    if (iceR.status === "rejected") {
+      for (const t of mediaR.value.getTracks()) {
+        try {
+          t.stop();
+        } catch {}
+      }
+      throw iceR.reason;
+    }
+    sessionIceServers = iceR.value;
+    return mediaR.value;
+  };
 
   const startCall = async (type: CallType) => {
     if (!meId || activeRef.current) return;
@@ -927,8 +1012,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     });
 
     try {
-      const stream = await getMedia(type);
-      sessionIceServers = await ensureIceServers();
+      const stream = await acquireMediaAndIce(type);
       attachLocal(stream, type);
     } catch (e) {
       if (e instanceof IceUnavailableError) handleIceUnavailable(e);
@@ -971,7 +1055,15 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     }
 
     ringTimeoutRef.current = window.setTimeout(() => {
-      if (isCallerRef.current && peerPoolRef.current.size === 0) {
+      // Still ringing means still `outgoing`. A pickup at 28s flips us to
+      // `connecting` before its PeerEntry exists (the callee's media is still
+      // resolving), and the pool-size test alone would call that "nobody
+      // answered" and hang up on them.
+      if (
+        isCallerRef.current &&
+        statusRef.current === "outgoing" &&
+        peerPoolRef.current.size === 0
+      ) {
         // Call log: nobody answered in 30s → missed.
         if (logIdRef.current && logStatusRef.current === "no_answer") {
           logStatusRef.current = "missed";
@@ -986,7 +1078,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         endEveryone(true);
       }
     }, 30000);
-    armConnectTimeout();
+    // NO CONNECT DEADLINE HERE. This used to arm the 20s ICE deadline the
+    // moment the caller pressed Call — while the other phone was still
+    // RINGING. Any pickup later than 20 seconds (a phone in a pocket, which
+    // is most of them) walked into a timer that fired "network issue — call
+    // couldn't connect", wrote status='failed' and hung up on a call that had
+    // just been answered; a pickup at 18s got two seconds to finish ICE
+    // before the caller killed it. That is the "calls drop right as I answer"
+    // report, and it also made the 30s missed path above nearly unreachable —
+    // the 20s deadline always fired first, so genuinely unanswered calls were
+    // logged 'failed' instead of 'missed'.
+    //
+    // The deadline belongs to CONNECTING, not to ringing: it is armed in the
+    // `hello` handler below the moment someone accepts, on accept() for the
+    // callee, and again on a relay rebuild.
   };
 
   useImperativeHandle(ref, () => ({
@@ -1121,6 +1226,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         p.fromName || (isGroup ? p.groupTitle || groupTitle || "Group" : peerName),
       );
       setStatus("incoming");
+      // Fetch TURN credentials during the ring, so Answer doesn't wait on them.
+      prefetchIceServers();
     });
 
     // ROOM or TARGETED: hello — a peer joined (or replied to our hello).
@@ -1135,6 +1242,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       ) {
         setStatus("connecting");
         stopAllCallSounds();
+        // Someone accepted: NOW the 20s ICE deadline is meaningful, and its
+        // clock starts from the pickup rather than from the dial. Ringing is
+        // covered by the 30s missed timer instead.
+        armConnectTimeout();
       }
       const wasRoomScoped = p.to == null;
       const alreadyHad = peerPoolRef.current.has(p.from);
@@ -1358,8 +1469,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     armConnectTimeout();
     stopAllCallSounds();
     try {
-      const stream = await getMedia(callTypeRef.current);
-      sessionIceServers = await ensureIceServers();
+      const stream = await acquireMediaAndIce(callTypeRef.current);
       attachLocal(stream, callTypeRef.current);
       // Announce presence — existing members will offer to us.
       sendSig("hello", null, { fromName: meName });

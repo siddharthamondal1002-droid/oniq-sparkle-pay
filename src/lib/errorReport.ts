@@ -12,6 +12,43 @@
  */
 import { supabase } from "@/integrations/supabase/client";
 
+/**
+ * File a report with no user-facing message attached.
+ *
+ * `prettyFail` exists for the toast path — a failure the user is watching.
+ * Some failures have no toast to hang off, or already have one written by
+ * hand: a call that never reached ICE-connected, TURN credentials that came
+ * back unusable. Those still belong in the admin panel, with the state that
+ * explains them, so "calls are dropping" stops being a report we can only
+ * answer by reading code.
+ */
+export function reportClientError(surface: string, message: string, detail?: unknown): void {
+  const text =
+    typeof detail === "string" ? detail : detail == null ? null : safeStringify(detail);
+  try {
+    void supabase
+      .rpc(
+        "report_client_error" as never,
+        {
+          _surface: surface,
+          _message: message.slice(0, 500),
+          _detail: text ? text.slice(0, 2000) : null,
+        } as never,
+      )
+      .then(() => {});
+  } catch {
+    /* reporting must never throw */
+  }
+}
+
+function safeStringify(value: unknown): string | null {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
+}
+
 export function prettyFail(surface: string, err: unknown, pretty: string): string {
   const raw =
     err instanceof Error
