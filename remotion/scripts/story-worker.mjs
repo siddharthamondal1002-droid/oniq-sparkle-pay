@@ -185,6 +185,34 @@ async function edge(fn, body) {
   return json;
 }
 
+/**
+ * story-voice, with patience for a throttle.
+ *
+ * The third Aladdin proof run built fourteen shots and then died on a
+ * narration: story-voice 502, twice on dialogue just before — the cluster
+ * shape of an upstream per-minute quota, not of a refusal. The no-retry
+ * house rule is about refusals, which fail identically the second time; a
+ * throttle is the opposite case, the one failure where waiting IS the fix.
+ * So: a 502 earns a spaced retry (the wait grows each time, giving a
+ * per-minute window room to roll over), anything else — a 422 refusal, a
+ * missing key — throws straight through. Narration gets three attempts
+ * because it is the film's clock; dialogue keeps its existing skip and gets
+ * two.
+ */
+async function voiceWithRetry(payload, attempts) {
+  for (let a = 1; ; a++) {
+    try {
+      return await edge('story-voice', payload);
+    } catch (err) {
+      const msg = String(err?.message ?? err);
+      if (a >= attempts || !/story-voice: 502/.test(msg)) throw err;
+      const wait = 20_000 * a;
+      console.log(`  voice retry in ${wait / 1000}s (${msg.slice(0, 100)})`);
+      await new Promise((r) => setTimeout(r, wait));
+    }
+  }
+}
+
 /** Move a job on, letting the DB trigger reject an illegal transition. */
 async function setStatus(id, status, extra = {}) {
   await db(`story_jobs?id=eq.${id}`, {
@@ -651,7 +679,7 @@ if (offline) {
       const framing = framingFor(shot.still, movingShots);
       if (isSlide(framing)) movingShots += 1;
 
-      const voiced = await edge('story-voice', { text: shot.narration, voice });
+      const voiced = await voiceWithRetry({ text: shot.narration, voice }, 3);
       let wav = path.join(assetRoot, `${stem}.wav`);
       fs.writeFileSync(wav, wrapPcmAsWav(Buffer.from(voiced.data, 'base64'), rateOf(voiced.mime)));
 
@@ -663,10 +691,10 @@ if (offline) {
       // film: dialogue is seasoning, not structure.
       if (shot.dialogue && shot.dialogue.line && shot.dialogue.speaker) {
         try {
-          const dv = await edge('story-voice', {
-            text: shot.dialogue.line,
-            voice: voiceFor(shot.dialogue.speaker),
-          });
+          const dv = await voiceWithRetry(
+            { text: shot.dialogue.line, voice: voiceFor(shot.dialogue.speaker) },
+            2,
+          );
           const dwav = path.join(assetRoot, `${stem}.line.wav`);
           fs.writeFileSync(dwav, wrapPcmAsWav(Buffer.from(dv.data, 'base64'), rateOf(dv.mime)));
           const mixed = path.join(assetRoot, `${stem}.mix.wav`);

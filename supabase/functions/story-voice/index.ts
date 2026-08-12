@@ -112,7 +112,12 @@ Deno.serve(async (req) => {
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       console.error("story-voice upstream", res.status, detail.slice(0, 300));
-      return json({ error: "Could not read that line." }, 502);
+      // The upstream status rides in the body: the worker retries a THROTTLE
+      // (429/5xx passes with time) but not a refusal, and a bare "could not
+      // read" left it unable to tell the two apart — three narrations died
+      // that way in one proof run while the platform's own logs were the
+      // only place the 429 was written.
+      return json({ error: `Could not read that line. (upstream ${res.status})` }, 502);
     }
 
     const data = await res.json();
