@@ -13,10 +13,18 @@ name: story worker
 # loop turns one bad plan into a bill. The schedule below runs it again; nothing
 # loops.
 #
-# CONCURRENCY IS A LOCK, not an optimisation. Two runners claiming the same
-# `queued` row would both generate it and both pay for it. `cancel-in-progress:
-# false` matters as much as the group: cancelling a run mid-render would leave a
-# job stuck at `generating` with its stills already bought.
+# CONCURRENCY IS PER JOB, and the double-pay guard lives in the CLAIM. The
+# group used to be one global gate, on the theory that two runners claiming
+# the same `queued` row would both generate it and both pay for it — but that
+# guarantee is story-callback's: the claim moves queued->generating atomically
+# and answers the second claimant with a 409, which claimJob() already treats
+# as "nothing to do". Globally keyed, the gate was the scaling ceiling
+# instead: ONE Story rendered at a time while everyone else's queued into the
+# 30-minute stale sweep and died there — at five simultaneous users, jobs
+# were being killed for waiting. Keyed on the job id, N Stories render in
+# parallel and the same-job race stays impossible. `cancel-in-progress:
+# false` still matters: cancelling a run mid-render would leave a job stuck
+# at `generating` with its stills already bought.
 #
 # TWO WAYS IN, and only one of them is the product. A repository_dispatch from
 # story-dispatch carries a job id and a per-job token, and the runner needs no
@@ -52,7 +60,10 @@ on:
         required: false
 
 concurrency:
-  group: story-worker
+  # Manual workflow_dispatch runs have no job id yet (the runner claims one
+  # itself), so they key on the run id — each its own group, the atomic claim
+  # still guarding them.
+  group: story-${{ github.event.client_payload.job_id || github.run_id }}
   cancel-in-progress: false
 
 permissions:

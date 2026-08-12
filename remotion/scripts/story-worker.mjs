@@ -58,6 +58,7 @@ import { findChromium } from './findChromium.mjs';
 import { findBin } from './findFfmpeg.mjs';
 import { envelope, speechSpans } from './speech.mjs';
 import { framingFor, isSlide } from '../../src/lib/shotGrammar.ts';
+import { rhubarbCuesForWav } from './rhubarb.mjs';
 import { planStory } from '../../src/lib/storyPlan.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -573,6 +574,31 @@ if (offline) {
       const durationFrames = Math.max(1, Math.round(seconds * FPS));
       const spans = speechSpans(envelope(ffmpeg, wav)).filter(([a]) => a < durationFrames);
 
+      // A LISTENED mouth, where a rig will actually draw one. Rhubarb's phone
+      // recognizer replaces the spelled-caption guess with the shapes the
+      // audio really makes — its alphabet IS the rig's Viseme set. Run only
+      // when the shot has a character (CPU is the render budget), and treat
+      // any failure exactly like a failed dialogue line: log, step down to
+      // the text heuristic, keep the film.
+      // Shipped RAW, in seconds: the frames conversion (cuesFromRhubarb)
+      // lives in visemes.ts, which only the composition can import — its
+      // internal extensionless imports defeat Node's type-stripping, and a
+      // second JS copy here is exactly the drift the repo keeps refusing.
+      let heardCues = null;
+      if (rigFor(plan, shot)) {
+        try {
+          const heard = await rhubarbCuesForWav(
+            ffmpeg,
+            wav,
+            `${shot.narration} ${shot.dialogue?.line ?? ''}`.trim(),
+          );
+          if (heard.length > 0) heardCues = heard;
+          console.log(`  mouth ${i + 1}: rhubarb heard ${heard.length} cues`);
+        } catch (err) {
+          console.log(`  mouth ${i + 1}: rhubarb skipped (${err?.message ?? err})`);
+        }
+      }
+
       rendered.push({
         // Relative to public/, because that is what staticFile() takes. Posix
         // separators explicitly: this is a URL path once it reaches the
@@ -593,7 +619,16 @@ if (offline) {
         // guessed mouth anchor, which looks like it works until the mouth opens
         // near the chin.
         ...(rigFor(plan, shot)
-          ? { character: { rig: rigFor(plan, shot), text: shot.narration, speech: spans } }
+          ? {
+              character: {
+                rig: rigFor(plan, shot),
+                text: shot.narration,
+                speech: spans,
+                // Present only when Rhubarb succeeded; the composition
+                // prefers it and falls back to text+spans when absent.
+                ...(heardCues ? { heard: heardCues } : {}),
+              },
+            }
           : {}),
       });
       console.log(`  voice ${i + 1}/${plan.shots.length} — ${seconds.toFixed(2)}s, ${spans.length} spans`);

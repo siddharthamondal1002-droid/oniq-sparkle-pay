@@ -487,3 +487,103 @@ export function segmentsFromPauses(
   }
   return segments;
 }
+
+/** One cue as Rhubarb Lip Sync emits it: seconds, and a shape name. */
+export type RhubarbCue = {
+  start: number;
+  end: number;
+  value: string;
+};
+
+const VISEME_SET: ReadonlySet<string> = new Set(["A", "B", "C", "D", "E", "F", "G", "H", "X"]);
+
+/**
+ * A Rhubarb cue list into a full mouth track, in frames.
+ *
+ * THE MEASURED PATH. `buildMouthCues` above GUESSES: it spells the caption
+ * into shapes and spreads them over the speech spans, which reads as talking
+ * but matches no particular sound. Rhubarb listens to the actual audio with a
+ * phone recognizer and says which shape the mouth makes when — and it speaks
+ * this file's exact vocabulary, because the Preston Blair set here IS
+ * Rhubarb's alphabet. So the conversion is arithmetic, not translation:
+ * seconds to frames, gaps filled with rest, flickers absorbed.
+ *
+ * The output honours the same invariants as `buildMouthCues`: full coverage
+ * of `[0, totalFrames)`, no overlaps, nothing shorter than the minimum hold —
+ * a shape held under ~2 frames reads as a rendering fault, so a too-short cue
+ * is absorbed into its neighbour rather than shown. An empty or garbage cue
+ * list degrades to a resting mouth, never a throw: by the time this runs the
+ * audio is already paid for, and a film with a resting mouth beats no film.
+ */
+export function cuesFromRhubarb(
+  rhubarb: readonly RhubarbCue[],
+  fps: number,
+  totalFrames: number,
+  opts: VisemeOptions = {},
+): MouthCue[] {
+  if (!Number.isInteger(totalFrames) || totalFrames <= 0) {
+    throw new Error(`cuesFromRhubarb: totalFrames ${totalFrames} is not a frame count`);
+  }
+  if (!Number.isFinite(fps) || fps <= 0) {
+    throw new Error(`cuesFromRhubarb: fps ${fps} is not a rate`);
+  }
+  const minHold = opts.minHoldFrames ?? DEFAULT_MIN_HOLD;
+
+  // Seconds to clamped, ordered, non-overlapping frame windows. Rhubarb's
+  // cues already abut, but the rounding to frames can re-introduce overlap
+  // at boundaries; the later cue yields, matching how ears resolve it.
+  type Win = { startFrame: number; endFrame: number; viseme: Viseme };
+  const wins: Win[] = [];
+  for (const cue of rhubarb) {
+    if (!Number.isFinite(cue.start) || !Number.isFinite(cue.end)) continue;
+    const viseme = (VISEME_SET.has(cue.value) ? cue.value : "B") as Viseme;
+    let startFrame = Math.max(0, Math.round(cue.start * fps));
+    const endFrame = Math.min(totalFrames, Math.round(cue.end * fps));
+    const prev = wins[wins.length - 1];
+    if (prev && startFrame < prev.endFrame) startFrame = prev.endFrame;
+    if (endFrame > startFrame) wins.push({ startFrame, endFrame, viseme });
+  }
+
+  // Full coverage: rest wherever Rhubarb said nothing.
+  const track: MouthCue[] = [];
+  let at = 0;
+  for (const w of wins) {
+    if (w.startFrame > at) track.push({ startFrame: at, frames: w.startFrame - at, viseme: REST });
+    track.push({ startFrame: w.startFrame, frames: w.endFrame - w.startFrame, viseme: w.viseme });
+    at = w.endFrame;
+  }
+  if (at < totalFrames) track.push({ startFrame: at, frames: totalFrames - at, viseme: REST });
+
+  // Flickers are absorbed into the cue before them (the first into the one
+  // after), then identical neighbours merge. Absorbing can itself create a
+  // new too-short head cue, so run to a fixed point; each pass shrinks the
+  // track, so this terminates.
+  let changed = true;
+  while (changed && track.length > 1) {
+    changed = false;
+    for (let i = 0; i < track.length; i++) {
+      if (track[i].frames >= minHold) continue;
+      if (i > 0) {
+        track[i - 1].frames += track[i].frames;
+      } else {
+        track[1].startFrame = track[0].startFrame;
+        track[1].frames += track[0].frames;
+      }
+      track.splice(i, 1);
+      changed = true;
+      break;
+    }
+  }
+  const merged: MouthCue[] = [];
+  for (const cue of track) {
+    const prev = merged[merged.length - 1];
+    if (prev && prev.viseme === cue.viseme) prev.frames += cue.frames;
+    else merged.push({ ...cue });
+  }
+
+  const covered = merged.reduce((sum, c) => sum + c.frames, 0);
+  if (covered !== totalFrames) {
+    throw new Error(`cuesFromRhubarb: track covers ${covered} frames, expected ${totalFrames}`);
+  }
+  return merged;
+}

@@ -31,9 +31,11 @@ import {
 import { KEN_BURNS_SCALE } from "../../../src/lib/episodeTimeline";
 import {
   buildMouthCues,
+  cuesFromRhubarb,
   segmentsFromSpans,
   visemeAtFrame,
   type MouthCue,
+  type RhubarbCue,
 } from "../../../src/lib/visemes";
 import { Character } from "../rig/Character";
 import { CHARACTER_RIGS } from "../rig/characterRig";
@@ -86,6 +88,20 @@ export type StoryShotInput = {
      * character talking continuously for seven minutes through every pause.
      */
     speech: [number, number][];
+    /**
+     * A LISTENED mouth, when the worker managed to hear one.
+     *
+     * Rhubarb ran a phone recognizer over the shot's actual audio and said
+     * which shape the mouth makes when — against that, the text heuristic
+     * below is a guess that merely looks like talking. Shipped RAW, in
+     * Rhubarb's own seconds, because the frames conversion needs fps and
+     * lives in cuesFromRhubarb — which this file can import and the worker
+     * cannot (visemes.ts's extensionless internal imports defeat Node's
+     * type-stripping outside a bundler). Absent means the Rhubarb pass
+     * failed and the guess carries the shot — the same graceful step-down
+     * the dialogue path takes.
+     */
+    heard?: RhubarbCue[];
   };
 };
 
@@ -143,14 +159,20 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
   // Built once per shot rather than per frame: buildMouthCues walks the whole
   // shot on every call, and a per-frame rebuild is both wasteful and the only
   // way the track could ever disagree with itself between two frames.
+  const { fps } = useVideoConfig();
   const cues = React.useMemo<MouthCue[]>(() => {
     if (!shot.character) return [];
+    // The LISTENED mouth wins when the worker delivered one; the spelled
+    // guess is the fallback, not a second opinion.
+    if (shot.character.heard && shot.character.heard.length > 0) {
+      return cuesFromRhubarb(shot.character.heard, fps, durationInFrames);
+    }
     return buildMouthCues(
       shot.character.text,
       segmentsFromSpans(shot.character.speech, durationInFrames),
       durationInFrames,
     );
-  }, [shot.character, durationInFrames]);
+  }, [shot.character, fps, durationInFrames]);
 
   const travel = shot.travel ?? 0;
 

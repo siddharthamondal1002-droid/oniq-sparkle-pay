@@ -19,7 +19,8 @@
     "@types/react": "^19.2.18",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "remotion": "^4.0.507"
+    "remotion": "^4.0.507",
+    "rhubarb-lip-sync-wasm": "^0.1.8"
   },
   "overrides": {
     "typescript": "5.9.3"
