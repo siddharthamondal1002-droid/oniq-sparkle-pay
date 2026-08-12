@@ -335,6 +335,7 @@ Deno.serve(async (req) => {
       const start = (await startRes.json()) as {
         ok?: boolean;
         reason?: string;
+        free?: boolean;
         purchaseId?: string;
         label?: string;
         amountMinor?: number;
@@ -346,6 +347,12 @@ Deno.serve(async (req) => {
         if (start?.reason === "already-clean")
           return json({ error: "That video already has no watermark." }, 409);
         return json({ error: "No such video." }, 404);
+      }
+
+      // Admin accounts get every paid feature free: the RPC already applied
+      // the removal, so there is no order to create and nothing to charge.
+      if (start.free === true) {
+        return json({ configured: true, kind: "watermark_removal", free: true });
       }
 
       const amountMinor = Number(start.amountMinor);

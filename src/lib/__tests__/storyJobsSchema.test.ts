@@ -44,8 +44,12 @@ const PURCHASE_SQL = readFileSync(
   join(ROOT, "supabase/migrations/20260810115624_9ba7e01b-3f20-4d70-974a-029d5f5f1db8.sql"),
   "utf8",
 );
+const OWNER_SQL = readFileSync(
+  join(ROOT, "supabase/migrations/20260812010000_owner_rides_free.sql"),
+  "utf8",
+);
 /** Migration order. Later files replace earlier definitions, same as Postgres. */
-const MIGRATIONS = [JOBS_SQL, PURCHASE_SQL];
+const MIGRATIONS = [JOBS_SQL, PURCHASE_SQL, OWNER_SQL];
 
 /**
  * The body of one `create or replace function` block, up to its `$$;` close —
@@ -216,16 +220,21 @@ describe("the claim refuses in the same order the pure check does", () => {
 });
 
 describe("the guards that make this safe to expose", () => {
-  it("enables row level security on every table either migration creates", () => {
+  it("enables row level security on every table any migration creates", () => {
+    // The owner-rides-free migration replaces functions and creates no
+    // tables, so the ≥1-table demand is on the SET, not on each file — the
+    // real invariant is that no created table ships without RLS.
+    let totalCreated = 0;
     for (const sql of MIGRATIONS) {
       const created = [...sql.matchAll(/create table if not exists public\.(\w+)/g)].map(
         ([, t]) => t,
       );
-      expect(created.length).toBeGreaterThan(0);
+      totalCreated += created.length;
       for (const table of created) {
         expect(sql, table).toContain(`alter table public.${table} enable row level security`);
       }
     }
+    expect(totalCreated).toBeGreaterThan(0);
   });
 
   it("gives authenticated users read access and nothing more", () => {

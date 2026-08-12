@@ -308,9 +308,13 @@ export async function payForWatermarkRemoval(opts: {
   const { data, error } = await supabase.functions.invoke("razorpay-order", {
     body: { watermarkJobId: opts.jobId },
   });
-  const start = (data ?? {}) as OrderStart;
+  const start = (data ?? {}) as OrderStart & { free?: boolean };
   const problem = startProblem(error, start);
   if (problem) return { status: "failed", message: problem };
+
+  // Admin accounts ride free: the server already applied the removal, so
+  // there is no Razorpay sheet to open.
+  if (start.free === true) return { status: "paid" };
 
   const out = await collectPayment(
     start as { keyId: string; providerOrderId: string; amountMinor?: number; currency?: string },
