@@ -11,6 +11,7 @@ import {
   Video,
   Smile,
   Mic,
+  CircleDot,
   Check,
   CheckCheck,
   Reply,
@@ -59,7 +60,43 @@ import {
   type AttachmentOption,
 } from "@/components/attach/AttachmentSheet";
 import { scanProvenance } from "@/lib/provenance";
+import { resolveMedia, isStoragePath } from "@/lib/media/resolveMedia";
 import { ReelChatCard, extractReelShare } from "@/components/chat/ReelChatCard";
+
+/* B1 adoption: newer rows (in-call attachments first) store BARE storage
+   paths in media_url; legacy rows carry full 5-year signed URLs. This
+   render-prop resolves either shape — passthrough for URLs, TTL-capped
+   signing (cached in resolveMedia) for paths — so every media branch of the
+   thread handles both without caring which era the row is from. */
+function ResolvedSrc({
+  refPath,
+  children,
+}: {
+  refPath: string;
+  children: (url: string | null) => React.ReactNode;
+}) {
+  const [url, setUrl] = useState<string | null>(isStoragePath(refPath) ? null : refPath);
+  useEffect(() => {
+    let cancelled = false;
+    if (!isStoragePath(refPath)) {
+      setUrl(refPath);
+      return () => {
+        cancelled = true;
+      };
+    }
+    void resolveMedia("chat-media", refPath)
+      .then((u) => {
+        if (!cancelled) setUrl(u);
+      })
+      .catch(() => {
+        if (!cancelled) setUrl(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [refPath]);
+  return <>{children(url)}</>;
+}
 
 // Make http(s) links in plain-text messages tappable (maps links, shared
 // URLs). Only real URLs become anchors; everything else stays text.
@@ -150,6 +187,42 @@ function truncateMiddle(s: string, max = 32) {
 }
 
 const SIGNED_TTL = 60 * 60 * 24 * 365 * 5;
+
+/* Video notes ride the 'video' message type; this content marker is what
+   flips the bubble round. A marker beats a schema change: old clients render
+   the same message as an ordinary video, losing nothing but the shape. */
+const VIDEO_NOTE_MARK = "__videonote__";
+/** Max length of a round video note — long enough to say it, short enough to watch. */
+const VIDEO_NOTE_MAX_S = 60;
+
+/* The sticker rack. Big single glyphs sent as their own message type —
+   no assets to ship, no storage to fill, every platform renders them. */
+const STICKERS = [
+  "😂",
+  "🥹",
+  "😍",
+  "😎",
+  "🥳",
+  "😭",
+  "😤",
+  "🤯",
+  "🤡",
+  "💀",
+  "👻",
+  "🤖",
+  "❤️",
+  "💖",
+  "🔥",
+  "💯",
+  "✨",
+  "🎉",
+  "👍",
+  "🙏",
+  "👀",
+  "🫡",
+  "🐒",
+  "🦄",
+] as const;
 
 export const Route = createFileRoute("/_authenticated/app/chat/$conversationId")({
   component: ChatThread,
@@ -265,6 +338,7 @@ function ChatThread() {
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null);
   const [showAttachSheet, setShowAttachSheet] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showVideoNote, setShowVideoNote] = useState(false);
   const [recentReactions, setRecentReactions] = useState<string[]>([]);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const recChunksRef = useRef<Blob[]>([]);
@@ -1045,12 +1119,16 @@ function ChatThread() {
     file_name?: string;
     file_size?: number;
     skipPush?: boolean;
+    /* Content marker override — video notes ride the 'video' type with
+       content VIDEO_NOTE_MARK so the round bubble needs no schema change. */
+    content?: string;
   }) => {
     if (!me) return;
     const { error } = await supabase.from("messages").insert({
       conversation_id: conversationId,
       sender_id: me.id,
-      content: payload.file_name && payload.type === "file" ? payload.file_name : "",
+      content:
+        payload.content ?? (payload.file_name && payload.type === "file" ? payload.file_name : ""),
       type: payload.type,
       media_url: payload.media_url,
       duration_s: payload.duration_s ?? null,
@@ -1069,7 +1147,7 @@ function ChatThread() {
     const previewMap = {
       image: "📷 Photo",
       voice: "🎙 Voice note",
-      video: "🎥 Video",
+      video: payload.content === VIDEO_NOTE_MARK ? "🎥 Video note" : "🎥 Video",
       file: "📎 File",
     } as const;
     if (!payload.skipPush) {
@@ -1079,6 +1157,29 @@ function ChatThread() {
         preview: previewMap[payload.type],
       });
     }
+  };
+
+  // Stickers: a message whose whole body is one big glyph. No media upload,
+  // no storage — the content IS the sticker, rendered huge and bubble-less.
+  const sendSticker = async (glyph: string) => {
+    if (!me) return;
+    setShowEmojiPicker(false);
+    const { error } = await supabase.from("messages").insert({
+      conversation_id: conversationId,
+      sender_id: me.id,
+      content: glyph,
+      type: "sticker",
+    });
+    if (error) {
+      toast.error(error.message || "Couldn't send");
+      return;
+    }
+    await supabase
+      .from("conversations")
+      .update({ updated_at: new Date().toISOString() })
+      .eq("id", conversationId);
+    markRead();
+    sendPush({ conversation_id: conversationId, kind: "message", preview: `${glyph} Sticker` });
   };
 
   // ---- per-file validation + upload (used by single & batch flows) ----
@@ -1684,13 +1785,9 @@ function ChatThread() {
         {CALLS_ENABLED &&
           !isChannel &&
           (() => {
-            const memberCount = isGroup ? members.length : 2;
-            const overCap = memberCount > 4;
+            // No participant cap (owner directive): the mesh takes whoever
+            // the conversation holds, and quality degrades gracefully.
             const onClick = (t: "audio" | "video") => () => {
-              if (overCap) {
-                toast.error("group calls fit 4 for now 🎥 — smaller squad");
-                return;
-              }
               const meName =
                 (me?.user_metadata as { display_name?: string; full_name?: string } | undefined)
                   ?.display_name ||
@@ -1718,8 +1815,7 @@ function ChatThread() {
                   data-testid="call-audio"
                   onClick={onClick("audio")}
                   aria-label="Voice call"
-                  disabled={overCap}
-                  className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
+                  className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
                 >
                   <Phone className="h-5 w-5" />
                 </button>
@@ -1727,8 +1823,7 @@ function ChatThread() {
                   data-testid="call-video"
                   onClick={onClick("video")}
                   aria-label="Video call"
-                  disabled={overCap}
-                  className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted disabled:opacity-40"
+                  className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
                 >
                   <Video className="h-5 w-5" />
                 </button>
@@ -2067,18 +2162,23 @@ function ChatThread() {
                       e.preventDefault();
                       setMenuFor(m);
                     }}
-                    className={`group relative max-w-[min(80%,26rem)] flow-root text-[15px] leading-[21px] shadow-[0_1px_1px_rgba(0,0,0,0.28),0_1px_3px_rgba(0,0,0,0.22)] ${
-                      (m.type === "image" || m.type === "video") && m.media_url
-                        ? "p-1"
-                        : "px-3 py-2"
-                    } ${bubbleRadius} ${
-                      doodle
-                        ? mine
-                          ? "border border-black/5 bg-[#d9fdd3] text-[#111b21]"
-                          : "border border-black/5 bg-white text-[#111b21]"
-                        : mine
-                          ? "border border-white/10 bg-[#0d6e58] text-white"
-                          : "border border-border bg-surface-2 text-foreground"
+                    className={`group relative max-w-[min(80%,26rem)] flow-root text-[15px] leading-[21px] ${
+                      m.type === "sticker"
+                        ? /* Stickers wear no bubble — the glyph IS the message. */
+                          "bg-transparent p-0.5 shadow-none"
+                        : `shadow-[0_1px_1px_rgba(0,0,0,0.28),0_1px_3px_rgba(0,0,0,0.22)] ${
+                            (m.type === "image" || m.type === "video") && m.media_url
+                              ? "p-1"
+                              : "px-3 py-2"
+                          } ${bubbleRadius} ${
+                            doodle
+                              ? mine
+                                ? "border border-black/5 bg-[#d9fdd3] text-[#111b21]"
+                                : "border border-black/5 bg-white text-[#111b21]"
+                              : mine
+                                ? "border border-white/10 bg-[#0d6e58] text-white"
+                                : "border border-border bg-surface-2 text-foreground"
+                          }`
                     }`}
                   >
                     {isGroup &&
@@ -2127,47 +2227,94 @@ function ChatThread() {
                         <Sparkles className="h-2.5 w-2.5" /> AI-generated
                       </div>
                     )}
-                    {m.type === "image" && m.media_url ? (
-                      <button
-                        type="button"
-                        onClick={() => setViewerUrl(m.media_url!)}
-                        className="block overflow-hidden rounded-[14px]"
-                      >
-                        <img
-                          src={m.media_url}
-                          alt=""
-                          loading="lazy"
-                          className="max-h-64 w-full object-cover"
-                          onError={(e) => {
-                            // Swap the SRC, never the NODE. replaceWith() pulled
-                            // a React-owned element out of the DOM; the next
-                            // reconciliation of the row (a reaction, an edit)
-                            // then threw NotFoundError and blanked the thread.
-                            const el = e.currentTarget;
-                            el.onerror = null;
-                            el.src =
-                              "data:image/svg+xml," +
-                              encodeURIComponent(
-                                '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="128"><rect width="100%" height="100%" fill="#1a1c24"/><text x="50%" y="50%" font-size="28" text-anchor="middle" dominant-baseline="central">📷</text></svg>',
-                              );
-                          }}
-                        />
-                      </button>
+                    {m.type === "sticker" ? (
+                      <div className="select-none px-1 py-0.5 text-[64px] leading-[1.1]">
+                        {m.content}
+                      </div>
+                    ) : m.type === "video" && m.media_url && m.content === VIDEO_NOTE_MARK ? (
+                      /* Round video note — tap toggles play, WhatsApp-style. */
+                      <ResolvedSrc refPath={m.media_url}>
+                        {(src) =>
+                          src ? (
+                            <video
+                              src={src}
+                              playsInline
+                              preload="metadata"
+                              onClick={(e) => {
+                                const v = e.currentTarget;
+                                if (v.paused) void v.play().catch(() => {});
+                                else v.pause();
+                              }}
+                              className="h-52 w-52 cursor-pointer rounded-full bg-black object-cover"
+                            />
+                          ) : (
+                            <div className="h-52 w-52 animate-pulse rounded-full bg-black/40" />
+                          )
+                        }
+                      </ResolvedSrc>
+                    ) : m.type === "image" && m.media_url ? (
+                      <ResolvedSrc refPath={m.media_url}>
+                        {(src) =>
+                          src ? (
+                            <button
+                              type="button"
+                              onClick={() => setViewerUrl(src)}
+                              className="block overflow-hidden rounded-[14px]"
+                            >
+                              <img
+                                src={src}
+                                alt=""
+                                loading="lazy"
+                                className="max-h-64 w-full object-cover"
+                                onError={(e) => {
+                                  // Swap the SRC, never the NODE. replaceWith() pulled
+                                  // a React-owned element out of the DOM; the next
+                                  // reconciliation of the row (a reaction, an edit)
+                                  // then threw NotFoundError and blanked the thread.
+                                  const el = e.currentTarget;
+                                  el.onerror = null;
+                                  el.src =
+                                    "data:image/svg+xml," +
+                                    encodeURIComponent(
+                                      '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="128"><rect width="100%" height="100%" fill="#1a1c24"/><text x="50%" y="50%" font-size="28" text-anchor="middle" dominant-baseline="central">📷</text></svg>',
+                                    );
+                                }}
+                              />
+                            </button>
+                          ) : (
+                            <div className="h-40 w-56 max-w-full animate-pulse rounded-[14px] bg-black/30" />
+                          )
+                        }
+                      </ResolvedSrc>
                     ) : m.type === "voice" && m.media_url ? (
-                      <VoiceBubble
-                        url={m.media_url}
-                        durationS={m.duration_s ?? 0}
-                        mine={mine}
-                        onLight={doodle}
-                      />
+                      <ResolvedSrc refPath={m.media_url}>
+                        {(src) =>
+                          src ? (
+                            <VoiceBubble
+                              url={src}
+                              durationS={m.duration_s ?? 0}
+                              mine={mine}
+                              onLight={doodle}
+                            />
+                          ) : null
+                        }
+                      </ResolvedSrc>
                     ) : m.type === "video" && m.media_url ? (
-                      <video
-                        src={m.media_url}
-                        controls
-                        playsInline
-                        preload="metadata"
-                        className="max-h-64 w-full rounded-[14px] bg-black"
-                      />
+                      <ResolvedSrc refPath={m.media_url}>
+                        {(src) =>
+                          src ? (
+                            <video
+                              src={src}
+                              controls
+                              playsInline
+                              preload="metadata"
+                              className="max-h-64 w-full rounded-[14px] bg-black"
+                            />
+                          ) : (
+                            <div className="h-36 w-56 max-w-full animate-pulse rounded-[14px] bg-black/30" />
+                          )
+                        }
+                      </ResolvedSrc>
                     ) : m.type === "file" && m.media_url ? (
                       <div
                         className={`flex items-center gap-2.5 rounded-xl px-3 py-2 ${doodle ? "bg-black/[0.05]" : mine ? "bg-white/10 backdrop-blur" : "border border-border bg-muted/60"}`}
@@ -2183,13 +2330,20 @@ function ChatThread() {
                             <div className={`text-xs ${inkSoft}`}>{humanSize(m.file_size)}</div>
                           ) : null}
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => window.open(m.media_url!, "_blank", "noopener,noreferrer")}
-                          className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${inkChip}`}
-                        >
-                          Open
-                        </button>
+                        <ResolvedSrc refPath={m.media_url}>
+                          {(src) => (
+                            <button
+                              type="button"
+                              disabled={!src}
+                              onClick={() =>
+                                src && window.open(src, "_blank", "noopener,noreferrer")
+                              }
+                              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-50 ${inkChip}`}
+                            >
+                              Open
+                            </button>
+                          )}
+                        </ResolvedSrc>
                       </div>
                     ) : (
                       (() => {
@@ -2857,6 +3011,21 @@ function ChatThread() {
                         onClick={() => setShowEmojiPicker(false)}
                       />
                       <div className="absolute bottom-14 left-0 right-0 z-40 max-h-[260px] overflow-y-auto rounded-2xl border border-border bg-card p-2 shadow-2xl">
+                        <div className="sticky top-0 z-10 bg-card px-1 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Stickers
+                        </div>
+                        <div className="mb-1 flex flex-wrap">
+                          {STICKERS.map((s) => (
+                            <button
+                              key={`stk-${s}`}
+                              type="button"
+                              onClick={() => void sendSticker(s)}
+                              className="grid h-14 w-14 place-items-center rounded-xl text-4xl transition active:scale-90 hover:bg-muted"
+                            >
+                              {s}
+                            </button>
+                          ))}
+                        </div>
                         {EMOJI_CATEGORIES.map((cat) => (
                           <div key={cat.name}>
                             <div className="sticky top-0 z-10 bg-card px-1 py-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -2907,21 +3076,48 @@ function ChatThread() {
                     <Send className="h-5 w-5" />
                   </button>
                 ) : (
-                  <button
-                    type="button"
-                    onClick={startRecording}
-                    disabled={isBlocked}
-                    data-testid="chat-mic"
-                    className="grid h-11 w-11 place-items-center rounded-full bg-[#0d6e58] text-white transition active:scale-95 disabled:opacity-40"
-                    aria-label="Voice note"
-                  >
-                    <Mic className="h-5 w-5" />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setShowVideoNote(true)}
+                      disabled={isBlocked}
+                      data-testid="chat-video-note"
+                      className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card text-foreground transition active:scale-95 disabled:opacity-40"
+                      aria-label="Video note"
+                    >
+                      <CircleDot className="h-5 w-5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={startRecording}
+                      disabled={isBlocked}
+                      data-testid="chat-mic"
+                      className="grid h-11 w-11 place-items-center rounded-full bg-[#0d6e58] text-white transition active:scale-95 disabled:opacity-40"
+                      aria-label="Voice note"
+                    >
+                      <Mic className="h-5 w-5" />
+                    </button>
+                  </>
                 )}
               </div>
             </div>
           )}
         </form>
+      )}
+
+      {showVideoNote && (
+        <VideoNoteRecorder
+          onClose={() => setShowVideoNote(false)}
+          onSend={async (blob, ext, durationS) => {
+            const url = await uploadToChatMedia(blob, ext);
+            await insertMediaMessage({
+              type: "video",
+              media_url: url,
+              duration_s: durationS,
+              content: VIDEO_NOTE_MARK,
+            });
+          }}
+        />
       )}
 
       {/* Full-bleed image viewer, not a card — `data-full-bleed` opts it out of
@@ -3477,22 +3673,26 @@ function MediaLinksDocsSheet({ messages, onClose }: { messages: Message[]; onClo
             ) : (
               <div className="grid grid-cols-3 gap-1.5">
                 {media.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => window.open(m.media_url!, "_blank")}
-                    className="aspect-square overflow-hidden rounded-lg bg-muted"
-                  >
-                    {m.type === "image" ? (
-                      <img
-                        src={m.media_url!}
-                        alt=""
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <video src={m.media_url!} muted className="h-full w-full object-cover" />
+                  <ResolvedSrc key={m.id} refPath={m.media_url!}>
+                    {(src) => (
+                      <button
+                        disabled={!src}
+                        onClick={() => src && window.open(src, "_blank")}
+                        className="aspect-square overflow-hidden rounded-lg bg-muted disabled:opacity-60"
+                      >
+                        {!src ? null : m.type === "image" ? (
+                          <img
+                            src={src}
+                            alt=""
+                            loading="lazy"
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <video src={src} muted className="h-full w-full object-cover" />
+                        )}
+                      </button>
                     )}
-                  </button>
+                  </ResolvedSrc>
                 ))}
               </div>
             ))}
@@ -3521,27 +3721,7 @@ function MediaLinksDocsSheet({ messages, onClose }: { messages: Message[]; onClo
             ) : (
               <div className="space-y-2">
                 {docs.map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => window.open(m.media_url!, "_blank")}
-                    className="flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left normal-case tracking-normal"
-                  >
-                    {m.type === "voice" ? (
-                      <Mic className="h-4 w-4 shrink-0 text-primary" />
-                    ) : (
-                      <FileText className="h-4 w-4 shrink-0 text-primary" />
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">
-                        {m.file_name || (m.type === "voice" ? "Voice note" : "File")}
-                      </span>
-                      {m.file_size ? (
-                        <span className="text-[11px] font-normal text-muted-foreground">
-                          {humanSize(m.file_size)}
-                        </span>
-                      ) : null}
-                    </span>
-                  </button>
+                  <ResolvedDocRow key={m.id} m={m} />
                 ))}
               </div>
             ))}
@@ -3553,4 +3733,215 @@ function MediaLinksDocsSheet({ messages, onClose }: { messages: Message[]; onClo
 
 function Empty({ label }: { label: string }) {
   return <div className="py-10 text-center text-sm text-muted-foreground">{label}</div>;
+}
+
+/* One row of the docs tab, resolving legacy signed URLs and B1 bare paths alike. */
+function ResolvedDocRow({ m }: { m: Message }) {
+  return (
+    <ResolvedSrc refPath={m.media_url!}>
+      {(src) => (
+        <button
+          disabled={!src}
+          onClick={() => src && window.open(src, "_blank")}
+          className="flex w-full items-center gap-3 rounded-xl border border-border p-3 text-left normal-case tracking-normal disabled:opacity-60"
+        >
+          {m.type === "voice" ? (
+            <Mic className="h-4 w-4 shrink-0 text-primary" />
+          ) : (
+            <FileText className="h-4 w-4 shrink-0 text-primary" />
+          )}
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">
+              {m.file_name || (m.type === "voice" ? "Voice note" : "File")}
+            </span>
+            {m.file_size ? (
+              <span className="text-[11px] font-normal text-muted-foreground">
+                {humanSize(m.file_size)}
+              </span>
+            ) : null}
+          </span>
+        </button>
+      )}
+    </ResolvedSrc>
+  );
+}
+
+/* ---------------- Video notes ----------------
+   A round, front-camera moment — record up to VIDEO_NOTE_MAX_S seconds and
+   send. Rides the 'video' message type with VIDEO_NOTE_MARK as content, so
+   nothing about storage, RLS, or older clients changes; only the bubble
+   turns round. */
+function VideoNoteRecorder({
+  onClose,
+  onSend,
+}: {
+  onClose: () => void;
+  onSend: (blob: Blob, ext: string, durationS: number) => Promise<void>;
+}) {
+  // EVERY HOOK ABOVE EVERY EARLY RETURN. rules-of-hooks is a release blocker.
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const recRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<BlobPart[]>([]);
+  const cancelRef = useRef(false);
+  const startedAtRef = useRef(0);
+  const [ready, setReady] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 720 } },
+          audio: true,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          void videoRef.current.play().catch(() => {});
+        }
+        setReady(true);
+      } catch {
+        toast.error("Camera unavailable");
+        onClose();
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (recRef.current && recRef.current.state === "recording") {
+        cancelRef.current = true;
+        recRef.current.stop();
+      }
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+    };
+    // onClose identity is stable enough for a mount-once effect; re-running
+    // this on parent re-renders would restart the camera mid-recording.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!recording) return;
+    const t = setInterval(() => {
+      const s = Math.round((Date.now() - startedAtRef.current) / 1000);
+      setElapsed(s);
+      if (s >= VIDEO_NOTE_MAX_S && recRef.current?.state === "recording") {
+        recRef.current.stop();
+      }
+    }, 250);
+    return () => clearInterval(t);
+  }, [recording]);
+
+  function begin() {
+    const stream = streamRef.current;
+    if (!stream || recording || typeof MediaRecorder === "undefined") return;
+    const mime = ["video/webm;codecs=vp8,opus", "video/webm", "video/mp4"].find((m) =>
+      MediaRecorder.isTypeSupported(m),
+    );
+    let rec: MediaRecorder;
+    try {
+      rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    } catch {
+      toast.error("Recording not supported on this device");
+      return;
+    }
+    chunksRef.current = [];
+    cancelRef.current = false;
+    rec.ondataavailable = (e) => {
+      if (e.data.size > 0) chunksRef.current.push(e.data);
+    };
+    rec.onstop = () => {
+      setRecording(false);
+      if (cancelRef.current) return;
+      const type = rec.mimeType || "video/webm";
+      const blob = new Blob(chunksRef.current, { type });
+      if (blob.size === 0) return;
+      const ext = type.includes("mp4") ? "mp4" : "webm";
+      const durationS = Math.max(
+        1,
+        Math.min(VIDEO_NOTE_MAX_S, Math.round((Date.now() - startedAtRef.current) / 1000)),
+      );
+      setBusy(true);
+      onSend(blob, ext, durationS)
+        .then(() => onClose())
+        .catch((e2) => {
+          toast.error(e2 instanceof Error ? e2.message : "Couldn't send");
+          setBusy(false);
+        });
+    };
+    recRef.current = rec;
+    startedAtRef.current = Date.now();
+    setElapsed(0);
+    rec.start(250);
+    setRecording(true);
+  }
+
+  function finish() {
+    if (recRef.current?.state === "recording") recRef.current.stop();
+  }
+
+  return (
+    <div
+      data-full-bleed
+      className="fixed inset-0 z-[85] flex flex-col items-center justify-center bg-black/90"
+    >
+      <div className="relative h-72 w-72 overflow-hidden rounded-full border-2 border-white/20 bg-black">
+        <video
+          ref={videoRef}
+          muted
+          playsInline
+          className="h-full w-full -scale-x-100 object-cover"
+        />
+        {recording && (
+          <div className="absolute inset-x-0 top-3 flex justify-center">
+            <span className="rounded-full bg-red-600/90 px-2.5 py-0.5 text-[11px] font-semibold text-white">
+              ● {elapsed}s / {VIDEO_NOTE_MAX_S}s
+            </span>
+          </div>
+        )}
+      </div>
+      <div className="mt-6 flex items-center gap-4">
+        <button
+          type="button"
+          onClick={() => {
+            cancelRef.current = true;
+            if (recRef.current?.state === "recording") recRef.current.stop();
+            onClose();
+          }}
+          disabled={busy}
+          className="rounded-full border border-white/30 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        {recording ? (
+          <button
+            type="button"
+            onClick={finish}
+            disabled={busy}
+            className="grid h-16 w-16 place-items-center rounded-full bg-red-600 text-white shadow-lg disabled:opacity-50"
+            aria-label="Stop and send"
+          >
+            <Send className="h-6 w-6" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={begin}
+            disabled={!ready || busy}
+            className="grid h-16 w-16 place-items-center rounded-full bg-white disabled:opacity-50"
+            aria-label="Start recording"
+          >
+            <span className="h-7 w-7 rounded-full bg-red-600" />
+          </button>
+        )}
+      </div>
+      {busy && <div className="mt-4 text-xs text-white/80">Sending…</div>}
+    </div>
+  );
 }

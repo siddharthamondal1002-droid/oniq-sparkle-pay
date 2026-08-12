@@ -1,4 +1,4 @@
-// Mesh WebRTC group calls (≤4 participants). 1:1 is the N=1 case of the same code path.
+// Mesh WebRTC group calls, no participant cap. 1:1 is the N=1 case of the same code path.
 //
 // Signaling: all payloads on channel `call:{conversationId}` carry
 // `{ from: meId, to: peerId | null, callId }`. Room events (to=null): ring, end, hello.
@@ -23,19 +23,26 @@ import { supabase } from "@/integrations/supabase/client";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   ChevronDown,
+  ChevronUp,
   Mic,
   MicOff,
+  Paperclip,
   Phone,
   PhoneOff,
+  Search,
   SwitchCamera,
+  UserPlus,
   Video,
   VideoOff,
   Volume2,
   VolumeX,
+  Wand2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ensureNotificationPermission, playRingback, stopAllCallSounds } from "@/lib/callSounds";
 import { sendPush } from "@/lib/push";
+import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
 
 // --- Native SpeakerRouter bridge (Capacitor Android plugin). No-op on web. ---
 type SpeakerRouterPlugin = {
@@ -193,6 +200,17 @@ const genId = () => {
   }
 };
 
+// Live call filters — CSS filter chains drawn through a canvas so the PEER
+// sees them too (a CSS class on the local <video> would only fool yourself).
+const CALL_FILTERS = [
+  { id: "none", label: "None" },
+  { id: "alien", label: "Alien 👽", css: "hue-rotate(95deg) saturate(1.7) contrast(1.12)" },
+  { id: "thermal", label: "Thermal 🔥", css: "invert(0.85) hue-rotate(160deg) saturate(2.4)" },
+  { id: "noir", label: "Noir 🎞️", css: "grayscale(1) contrast(1.3)" },
+  { id: "neon", label: "Neon ⚡", css: "saturate(1.85) contrast(1.2) hue-rotate(8deg)" },
+  { id: "ghost", label: "Ghost 👻", css: "invert(1) brightness(1.15) blur(0.6px)" },
+] as const;
+
 type PeerEntry = {
   peerId: string;
   peerName: string;
@@ -247,6 +265,25 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const [hasMedia, setHasMedia] = useState(false);
   const [minimized, setMinimized] = useState(false);
   const [peerAvatar, setPeerAvatar] = useState<string | null>(null);
+  // Owner directive: the control tray must not be welded to the screen — the
+  // user hides and recalls it. Hidden slides it off-canvas; a floating chevron
+  // brings it back. Incoming calls never hide their Answer/Decline.
+  const [trayHidden, setTrayHidden] = useState(false);
+  const trayTouchRef = useRef<number | null>(null);
+  // In-call attachment sheet + add-people sheet + live video filter.
+  const [showAttach, setShowAttach] = useState(false);
+  const [showAddPeople, setShowAddPeople] = useState(false);
+  const [callFilter, setCallFilter] = useState("none");
+  const callFilterRef = useRef("none");
+  const fxRef = useRef<{
+    raf: number;
+    canvas: HTMLCanvasElement;
+    video: HTMLVideoElement;
+    track: MediaStreamTrack;
+    stream: MediaStream;
+  } | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const attachCtx = useAttachmentContext();
   useEffect(() => {
     void detectNative().then(setIsNative);
   }, []);
@@ -446,6 +483,18 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     localStreamRef.current = stream;
     setHasMedia(true);
     if (type === "video" && localVideoRef.current) localVideoRef.current.srcObject = stream;
+  };
+
+  // The offer path used to build a PeerEntry before getUserMedia resolved,
+  // producing a PC with ZERO senders — no video to the peer, and a camera
+  // flip that replaceTrack'd into nothing, forever. Wait briefly for media
+  // (the same guard the hello path always had) before building the PC.
+  const waitForLocalMedia = async (timeoutMs = 8000) => {
+    const t0 = Date.now();
+    while (!localStreamRef.current && activeRef.current && Date.now() - t0 < timeoutMs) {
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    return !!localStreamRef.current;
   };
 
   // ---- PeerPool ----
@@ -759,6 +808,14 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     setCamOff(false);
     setElapsed(0);
     setTiles([]);
+    // Filter pipeline + in-call sheets die with the call.
+    teardownFx();
+    callFilterRef.current = "none";
+    setCallFilter("none");
+    setFilterOpen(false);
+    setShowAttach(false);
+    setShowAddPeople(false);
+    setTrayHidden(false);
     setStatus("ended");
     window.setTimeout(() => setStatus((s) => (s === "ended" ? "idle" : s)), 700);
   };
@@ -826,10 +883,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       peerIdsRef.current = ((data ?? []) as any[]).map((r) => r.user_id).filter(Boolean);
     }
-    if (peerIdsRef.current.length > 3) {
-      toast("Group calls support up to 4 people for now");
-      return;
-    }
+    // No participant cap — the mesh takes whoever the conversation holds.
+    // (Owner directive: "no restriction in numbers". Physics still applies:
+    // every extra person is another peer connection on every phone.)
     activeRef.current = true;
     isCallerRef.current = true;
     callIdRef.current = genId();
@@ -1122,7 +1178,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         return;
       }
       let entry = peerPoolRef.current.get(p.from);
-      if (!entry) entry = createPeerEntry(p.from);
+      if (!entry) {
+        if (!localStreamRef.current) await waitForLocalMedia();
+        entry = createPeerEntry(p.from);
+      }
       try {
         await entry.pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
         entry.hasRemoteDesc = true;
@@ -1360,29 +1419,60 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     flippingRef.current = true;
     const next = facingRef.current === "user" ? "environment" : "user";
     try {
-      const fresh = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          width: { ideal: 640 },
-          height: { ideal: 480 },
-          frameRate: { ideal: 20, max: 24 },
-          facingMode: next === "environment" ? { exact: "environment" } : "user",
-        },
-      });
+      // `exact` first (guarantees the rear lens on multi-camera phones), but
+      // fall back to `ideal` instead of failing: `exact` throws
+      // OverconstrainedError on plenty of real devices/WebViews that DO have
+      // a back camera but label it differently — which is exactly the
+      // "back camera doesn't work for the caller" report from the field.
+      const baseVideo = {
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        frameRate: { ideal: 20, max: 24 },
+      } as MediaTrackConstraints;
+      let fresh: MediaStream;
+      try {
+        fresh = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { ...baseVideo, facingMode: next === "environment" ? { exact: "environment" } : "user" },
+        });
+      } catch {
+        fresh = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: { ...baseVideo, facingMode: { ideal: next } },
+        });
+      }
       const newTrack = fresh.getVideoTracks()[0];
       if (!newTrack) throw new Error("no track");
       newTrack.enabled = oldTrack.enabled; // respect an active "Video off"
-      for (const entry of peerPoolRef.current.values()) {
-        for (const sender of entry.pc.getSenders()) {
-          if (sender.track?.kind === "video") {
-            await sender.replaceTrack(newTrack).catch(() => {});
+      if (fxRef.current) {
+        // A filter pipeline owns the senders (they carry the canvas track);
+        // feed the new camera into the pipeline instead of the peers.
+        fxRef.current.video.srcObject = new MediaStream([newTrack]);
+        void fxRef.current.video.play().catch(() => {});
+      } else {
+        for (const entry of peerPoolRef.current.values()) {
+          let replaced = false;
+          for (const sender of entry.pc.getSenders()) {
+            if (sender.track?.kind === "video") {
+              await sender.replaceTrack(newTrack).catch(() => {});
+              replaced = true;
+            }
+          }
+          // A PC built before media resolved has NO video sender at all, so
+          // replaceTrack found nothing and the flip silently never reached
+          // that peer — the other half of the caller's dead flip button.
+          // addTrack renegotiates (offerer side) and repairs the connection.
+          if (!replaced) {
+            try {
+              entry.pc.addTrack(newTrack, s);
+            } catch {}
           }
         }
       }
       s.removeTrack(oldTrack);
       s.addTrack(newTrack);
       oldTrack.stop();
-      if (localVideoRef.current) localVideoRef.current.srcObject = s;
+      if (localVideoRef.current && !fxRef.current) localVideoRef.current.srcObject = s;
       facingRef.current = next;
       setFacing(next);
     } catch {
@@ -1390,6 +1480,164 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     } finally {
       flippingRef.current = false;
     }
+  };
+
+  /**
+   * Live filter for the OUTGOING video. Camera frames are drawn through a
+   * canvas with ctx.filter and the canvas track replaces the camera track on
+   * every peer connection, so the other side sees the effect — not just the
+   * self-view. "None" swaps the raw camera track back and tears the canvas
+   * down so no per-frame work survives the fun.
+   */
+  const teardownFx = () => {
+    const fx = fxRef.current;
+    if (!fx) return;
+    cancelAnimationFrame(fx.raf);
+    try {
+      fx.track.stop();
+    } catch {}
+    fxRef.current = null;
+  };
+
+  const applyCallFilter = async (id: string) => {
+    callFilterRef.current = id;
+    setCallFilter(id);
+    const s = localStreamRef.current;
+    const camTrack = s?.getVideoTracks()[0];
+    if (!s || !camTrack) return;
+    if (id === "none") {
+      teardownFx();
+      for (const entry of peerPoolRef.current.values()) {
+        for (const sender of entry.pc.getSenders()) {
+          if (sender.track?.kind === "video") await sender.replaceTrack(camTrack).catch(() => {});
+        }
+      }
+      if (localVideoRef.current) localVideoRef.current.srcObject = s;
+      return;
+    }
+    if (!fxRef.current) {
+      const video = document.createElement("video");
+      video.muted = true;
+      video.playsInline = true;
+      video.srcObject = new MediaStream([camTrack]);
+      await video.play().catch(() => {});
+      const canvas = document.createElement("canvas");
+      const st = camTrack.getSettings();
+      canvas.width = st.width || 640;
+      canvas.height = st.height || 480;
+      const stream = canvas.captureStream(20);
+      const track = stream.getVideoTracks()[0];
+      const ctx = canvas.getContext("2d");
+      const fx = { raf: 0, canvas, video, track, stream };
+      fxRef.current = fx;
+      const draw = () => {
+        const cur = fxRef.current;
+        if (!cur || !ctx) return;
+        const active = CALL_FILTERS.find((x) => x.id === callFilterRef.current);
+        ctx.filter = (active && "css" in active && active.css) || "none";
+        try {
+          ctx.drawImage(cur.video, 0, 0, canvas.width, canvas.height);
+        } catch {}
+        cur.raf = requestAnimationFrame(draw);
+      };
+      draw();
+      for (const entry of peerPoolRef.current.values()) {
+        for (const sender of entry.pc.getSenders()) {
+          if (sender.track?.kind === "video") await sender.replaceTrack(track).catch(() => {});
+        }
+      }
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+    }
+  };
+
+  /**
+   * Mid-call attachments: files picked in the call go into the SAME chat the
+   * call lives in, through the same bucket and message shape the thread uses.
+   * The person on the other end sees them in the conversation the moment the
+   * call ends — or immediately, if they glance at the chat.
+   */
+  const sendCallAttachment = async (files: File[]) => {
+    if (!meId) return;
+    let sent = 0;
+    for (const f of files.slice(0, 5)) {
+      try {
+        const ext = (f.name.split(".").pop() || "bin").toLowerCase();
+        const path = `${meId}/${genId()}.${ext}`;
+        const { error: upErr } = await supabase.storage
+          .from("chat-media")
+          .upload(path, f, { contentType: f.type || undefined, upsert: false });
+        if (upErr) throw upErr;
+        const kind = f.type.startsWith("image/")
+          ? "image"
+          : f.type.startsWith("video/")
+            ? "video"
+            : "file";
+        // B1: store the BARE storage path — the thread resolves it through
+        // resolveMedia (TTL-capped signer) at render. First adopter of the
+        // pattern the media-url fence exists to force.
+        const { error: insErr } = await supabase.from("messages").insert({
+          conversation_id: conversationId,
+          sender_id: meId,
+          content: kind === "file" ? f.name : "",
+          type: kind,
+          media_url: path,
+          file_name: kind === "file" ? f.name : null,
+          file_size: kind === "file" ? f.size : null,
+        });
+        if (insErr) throw insErr;
+        sent += 1;
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Couldn't send that one");
+      }
+    }
+    if (sent > 0) {
+      sendPush({
+        conversation_id: conversationId,
+        kind: "message",
+        preview: sent === 1 ? "📎 Shared in call" : `📎 ${sent} files shared in call`,
+      });
+      toast.success(sent === 1 ? "Sent to the chat 📎" : `${sent} sent to the chat 📎`);
+    }
+  };
+
+  /**
+   * Conference by addition — either side rings one more person INTO the live
+   * call. The invite rides the same per-user ring channel an ordinary call
+   * uses, carrying the live callId, so their accept drops them straight into
+   * this mesh. Re-rung every 2s for 30s because the incoming overlay expires
+   * without re-rings. (A push only reaches them if they're a member of this
+   * conversation — for everyone else the in-app ring does the work.)
+   */
+  const ringUser = (userId: string, name?: string) => {
+    if (!callIdRef.current || !activeRef.current) return;
+    if (userId === meId || peerPoolRef.current.has(userId)) return;
+    if (name) peerNamesRef.current.set(userId, name);
+    if (!peerIdsRef.current.includes(userId)) peerIdsRef.current.push(userId);
+    const uch = supabase.channel(`user-calls:${userId}`, {
+      config: { broadcast: { self: false } },
+    });
+    const payload = () => ({
+      conversationId,
+      callId: callIdRef.current,
+      callType: callTypeRef.current,
+      fromName: meName,
+      fromId: meId,
+    });
+    uch.subscribe((st) => {
+      if (st === "SUBSCRIBED") {
+        void uch.send({ type: "broadcast", event: "ring", payload: payload() });
+      }
+    });
+    const iv = window.setInterval(() => {
+      if (!activeRef.current || peerPoolRef.current.has(userId)) {
+        window.clearInterval(iv);
+        return;
+      }
+      void uch.send({ type: "broadcast", event: "ring", payload: payload() });
+    }, 2000);
+    window.setTimeout(() => window.clearInterval(iv), 30000);
+    userRingChannelsRef.current.push(uch);
+    toast(`Ringing ${name || "them"}… 📞`);
   };
 
   if (status === "idle") return null;
@@ -1470,7 +1718,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           <div className="text-2xl font-semibold">{displayName}</div>
           <div className="text-sm text-white/70">{statusText}</div>
           {isGroup && status !== "incoming" && (
-            <div className="text-xs text-white/50">group call · up to 4</div>
+            <div className="text-xs text-white/50">group call</div>
           )}
         </div>
       )}
@@ -1529,11 +1777,69 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           </div>
         )}
 
+      {/* Tray recall chip — the way back once the user swipes the tray away. */}
+      {trayHidden && status !== "incoming" && (
+        <button
+          type="button"
+          onClick={() => setTrayHidden(false)}
+          aria-label="Show call controls"
+          data-testid="call-tray-show"
+          className="absolute bottom-[max(1rem,env(safe-area-inset-bottom))] left-1/2 z-30 -translate-x-1/2 grid h-10 w-14 place-items-center rounded-full border border-white/15 bg-black/60 text-white backdrop-blur"
+        >
+          <ChevronUp className="h-5 w-5" />
+        </button>
+      )}
+
+      {/* Live filter chips — visible while the filter picker is open. */}
+      {filterOpen && !trayHidden && status !== "incoming" && callType === "video" && (
+        <div className="absolute bottom-[9.5rem] left-0 right-0 z-30 flex justify-center px-4">
+          <div className="flex max-w-full gap-1.5 overflow-x-auto rounded-full border border-white/10 bg-black/60 px-2 py-1.5 backdrop-blur">
+            {CALL_FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                onClick={() => void applyCallFilter(f.id)}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                  callFilter === f.id ? "bg-white text-black" : "text-white/80"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* WhatsApp-style control tray: a rounded card, labeled circular
           buttons, End set apart in red. Labels matter — an unlabeled icon
-          grid is exactly what "primitive" feedback points at. */}
-      <div className="absolute bottom-0 left-0 right-0 z-30 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+          grid is exactly what "primitive" feedback points at.
+          NOT welded to the screen (owner directive): swipe down or tap the
+          grab-handle to slide it away; the chevron chip recalls it. Incoming
+          calls always keep Answer/Decline on screen. */}
+      <div
+        className={`absolute bottom-0 left-0 right-0 z-30 px-4 pb-[max(1.25rem,env(safe-area-inset-bottom))] transition-transform duration-200 ${
+          trayHidden && status !== "incoming" ? "translate-y-[130%]" : ""
+        }`}
+        onTouchStart={(e) => {
+          trayTouchRef.current = e.touches[0].clientY;
+        }}
+        onTouchEnd={(e) => {
+          const start = trayTouchRef.current;
+          trayTouchRef.current = null;
+          if (start == null || status === "incoming") return;
+          if (e.changedTouches[0].clientY - start > 40) setTrayHidden(true);
+        }}
+      >
         <div className="mx-auto w-full max-w-md rounded-3xl border border-white/10 bg-[#12141c]/95 px-4 py-4 shadow-2xl backdrop-blur">
+          {status !== "incoming" && (
+            <button
+              type="button"
+              onClick={() => setTrayHidden(true)}
+              aria-label="Hide call controls"
+              data-testid="call-tray-hide"
+              className="mx-auto mb-2 block h-1.5 w-12 rounded-full bg-white/25"
+            />
+          )}
           {status === "incoming" ? (
             <div className="flex items-center justify-around">
               <CallAction label="Decline" onClick={decline} tone="danger" ariaLabel="Decline call">
@@ -1552,7 +1858,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               </CallAction>
             </div>
           ) : (
-            <div className="flex items-start justify-around">
+            <div className="flex flex-wrap items-start justify-center gap-x-2 gap-y-3">
               <CallAction
                 label={muted ? "Unmute" : "Mute"}
                 onClick={toggleMute}
@@ -1596,6 +1902,38 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
                   {camOff ? <VideoOff className="h-5 w-5" /> : <Video className="h-5 w-5" />}
                 </CallAction>
               )}
+              {(status === "connected" || status === "connecting") && (
+                <CallAction
+                  label="Share"
+                  onClick={() => setShowAttach(true)}
+                  ariaLabel="Share a file into the chat"
+                  testId="call-attach"
+                >
+                  <Paperclip className="h-5 w-5" />
+                </CallAction>
+              )}
+              {callType === "video" && (
+                <CallAction
+                  label="Filter"
+                  active={callFilter !== "none"}
+                  onClick={() => setFilterOpen((v) => !v)}
+                  disabled={!hasMedia}
+                  ariaLabel="Video filters"
+                  testId="call-filter"
+                >
+                  <Wand2 className="h-5 w-5" />
+                </CallAction>
+              )}
+              {(status === "connected" || status === "connecting") && (
+                <CallAction
+                  label="Add"
+                  onClick={() => setShowAddPeople(true)}
+                  ariaLabel="Add someone to this call"
+                  testId="call-add-person"
+                >
+                  <UserPlus className="h-5 w-5" />
+                </CallAction>
+              )}
               <CallAction
                 label="End"
                 onClick={() => endEveryone(true)}
@@ -1609,6 +1947,32 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           )}
         </div>
       </div>
+
+      {/* Mid-call attachments: the same sheet the chat composer uses, sending
+          into the same conversation this call lives in. */}
+      <AttachmentSheet
+        open={showAttach}
+        surface="chat"
+        context={attachCtx}
+        onClose={() => setShowAttach(false)}
+        onFiles={(_opt, files) => {
+          setShowAttach(false);
+          void sendCallAttachment(files);
+        }}
+        onSelect={() => {}}
+      />
+
+      {showAddPeople && (
+        <AddPeopleSheet
+          meId={meId}
+          excludeIds={[...peerPoolRef.current.keys(), ...peerIdsRef.current]}
+          onPick={(u) => {
+            setShowAddPeople(false);
+            ringUser(u.id, u.name);
+          }}
+          onClose={() => setShowAddPeople(false)}
+        />
+      )}
     </div>
   );
 });
@@ -1798,6 +2162,125 @@ function RemoteTile({ tile, showVideo }: { tile: PeerTile; showVideo: boolean })
       <div className="absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-xs">
         {tile.peerName || "…"}
         {connecting ? " · connecting…" : ""}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- Add people mid-call ----------------
+   Conference by addition: search anyone by name or username and ring them
+   straight into the live mesh. Membership of the conversation is not
+   required — the invite carries the live callId over their personal ring
+   channel, and their accept joins this call's mesh like any other peer. */
+function AddPeopleSheet({
+  meId,
+  excludeIds,
+  onPick,
+  onClose,
+}: {
+  meId: string | null | undefined;
+  excludeIds: string[];
+  onPick: (u: { id: string; name: string }) => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const [rows, setRows] = useState<
+    { id: string; username: string | null; display_name: string | null; avatar_url: string | null }[]
+  >([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const term = q.trim();
+    if (term.length < 2) {
+      setRows([]);
+      return;
+    }
+    let cancelled = false;
+    setBusy(true);
+    const t = window.setTimeout(() => {
+      void supabase
+        .from("profiles")
+        .select("id, username, display_name, avatar_url")
+        .or(`username.ilike.%${term}%,display_name.ilike.%${term}%`)
+        .limit(10)
+        .then(({ data }) => {
+          if (cancelled) return;
+          setBusy(false);
+          const skip = new Set([meId, ...excludeIds]);
+          setRows(((data ?? []) as typeof rows).filter((r) => !skip.has(r.id)));
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(t);
+    };
+    // excludeIds is a fresh array each render of the parent; depending on it
+    // would re-fire every search — the set only matters at pick time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, meId]);
+
+  return (
+    <div
+      data-full-bleed
+      className="fixed inset-0 z-[60] flex flex-col justify-end bg-black/70"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[70vh] rounded-t-3xl border-t border-white/10 bg-[#12141c] p-5 text-white"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-base font-semibold">Add to call</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-8 w-8 place-items-center rounded-full bg-white/10"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-2">
+          <Search className="h-4 w-4 shrink-0 text-white/50" />
+          <input
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Search by name or @username"
+            autoFocus
+            className="w-full bg-transparent text-sm placeholder:text-white/40 focus:outline-none"
+          />
+        </div>
+        <div className="mt-3 max-h-[45vh] space-y-1 overflow-y-auto">
+          {rows.map((r) => {
+            const name = r.display_name || r.username || "user";
+            return (
+              <button
+                key={r.id}
+                type="button"
+                onClick={() => onPick({ id: r.id, name })}
+                className="flex w-full items-center gap-3 rounded-xl px-2 py-2 text-left hover:bg-white/5"
+              >
+                {r.avatar_url ? (
+                  <img src={r.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" />
+                ) : (
+                  <span className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-sm font-bold">
+                    {name.charAt(0).toUpperCase()}
+                  </span>
+                )}
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{name}</span>
+                  {r.username && (
+                    <span className="block truncate text-xs text-white/50">@{r.username}</span>
+                  )}
+                </span>
+                <UserPlus className="h-4 w-4 shrink-0 text-white/60" />
+              </button>
+            );
+          })}
+          {q.trim().length >= 2 && rows.length === 0 && !busy && (
+            <div className="py-6 text-center text-xs text-white/50">nobody found</div>
+          )}
+        </div>
       </div>
     </div>
   );

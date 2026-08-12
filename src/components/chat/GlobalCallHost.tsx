@@ -40,6 +40,8 @@ type Session =
       callId: string;
       callType: CallType;
       peerName: string;
+      isGroup?: boolean;
+      groupTitle?: string;
       meId?: string;
       meName: string;
     };
@@ -105,6 +107,8 @@ export function GlobalCallHost() {
         return;
       }
       let peerName = "Someone";
+      let isGroup = false;
+      let groupTitle: string | undefined;
       try {
         const { data: rows } = await supabase
           .from("conversation_members")
@@ -116,6 +120,19 @@ export function GlobalCallHost() {
         if (first) {
           peerName = first.profiles?.display_name || first.profiles?.username || peerName;
         }
+        // The accept branch used to mount without group context, so an
+        // answered GROUP call rendered with 1:1 chrome (peer's name as the
+        // title, no "group call" tag). Resolve it from the conversation row.
+        const { data: conv } = await supabase
+          .from("conversations")
+          .select("type, name")
+          .eq("id", d.conversationId)
+          .maybeSingle();
+        if (conv && (conv.type === "group" || conv.type === "channel")) {
+          isGroup = true;
+          groupTitle = conv.name ?? undefined;
+          if (groupTitle) peerName = groupTitle;
+        }
       } catch {
         /* ignore */
       }
@@ -126,6 +143,8 @@ export function GlobalCallHost() {
         callId: d.callId,
         callType: d.callType,
         peerName,
+        isGroup,
+        groupTitle,
         meId: me?.id,
         meName,
       });
@@ -164,6 +183,8 @@ export function GlobalCallHost() {
       meId={session.meId}
       meName={session.meName}
       peerName={session.peerName}
+      isGroup={session.isGroup}
+      groupTitle={session.groupTitle}
       autoAccept={{ callId: session.callId, callType: session.callType }}
       onEnded={() => setSession(null)}
     />

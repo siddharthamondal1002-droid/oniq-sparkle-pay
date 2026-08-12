@@ -27,25 +27,136 @@ const f = (n: number) => Math.round(n * 1000) / 1000;
 
 export const PRESETS: Preset[] = [
   { id: "original", label: "Original", css: () => "" },
-  { id: "clarity", label: "Clarity", css: (t) => `contrast(${f(lerp(1, 1.18, t))}) saturate(${f(lerp(1, 1.12, t))})` },
-  { id: "warm", label: "Warm", css: (t) => `sepia(${f(0.32 * t)}) saturate(${f(lerp(1, 1.25, t))}) brightness(${f(lerp(1, 1.05, t))})` },
-  { id: "cool", label: "Cool", css: (t) => `hue-rotate(${f(12 * t)}deg) saturate(${f(lerp(1, 1.08, t))}) brightness(${f(lerp(1, 1.03, t))}) contrast(${f(lerp(1, 1.04, t))})` },
-  { id: "vivid", label: "Vivid", css: (t) => `saturate(${f(lerp(1, 1.55, t))}) contrast(${f(lerp(1, 1.12, t))})` },
-  { id: "fade", label: "Fade", css: (t) => `contrast(${f(lerp(1, 0.78, t))}) brightness(${f(lerp(1, 1.1, t))}) saturate(${f(lerp(1, 0.75, t))})` },
+  {
+    id: "clarity",
+    label: "Clarity",
+    css: (t) => `contrast(${f(lerp(1, 1.18, t))}) saturate(${f(lerp(1, 1.12, t))})`,
+  },
+  {
+    id: "warm",
+    label: "Warm",
+    css: (t) =>
+      `sepia(${f(0.32 * t)}) saturate(${f(lerp(1, 1.25, t))}) brightness(${f(lerp(1, 1.05, t))})`,
+  },
+  {
+    id: "cool",
+    label: "Cool",
+    css: (t) =>
+      `hue-rotate(${f(12 * t)}deg) saturate(${f(lerp(1, 1.08, t))}) brightness(${f(lerp(1, 1.03, t))}) contrast(${f(lerp(1, 1.04, t))})`,
+  },
+  {
+    id: "vivid",
+    label: "Vivid",
+    css: (t) => `saturate(${f(lerp(1, 1.55, t))}) contrast(${f(lerp(1, 1.12, t))})`,
+  },
+  {
+    id: "fade",
+    label: "Fade",
+    css: (t) =>
+      `contrast(${f(lerp(1, 0.78, t))}) brightness(${f(lerp(1, 1.1, t))}) saturate(${f(lerp(1, 0.75, t))})`,
+  },
   { id: "noir", label: "Noir", css: (t) => `grayscale(${f(t)}) contrast(${f(lerp(1, 1.28, t))})` },
   { id: "sepia", label: "Sepia", css: (t) => `sepia(${f(t)})` },
-  { id: "retro", label: "Retro", css: (t) => `sepia(${f(0.5 * t)}) contrast(${f(lerp(1, 1.15, t))}) saturate(${f(lerp(1, 0.82, t))}) hue-rotate(${f(-8 * t)}deg)`, vignette: true },
-  { id: "dusk", label: "Dusk", css: (t) => `brightness(${f(lerp(1, 0.86, t))}) hue-rotate(${f(-18 * t)}deg) saturate(${f(lerp(1, 1.18, t))})`, vignette: true },
-  { id: "neon", label: "Neon", css: (t) => `saturate(${f(lerp(1, 1.85, t))}) contrast(${f(lerp(1, 1.2, t))}) hue-rotate(${f(8 * t)}deg)` },
-  { id: "monocontrast", label: "Mono+", css: (t) => `grayscale(${f(t)}) contrast(${f(lerp(1, 1.55, t))}) brightness(${f(lerp(1, 1.04, t))})` },
-  { id: "soft", label: "Soft", css: (t) => `blur(${f(1.1 * t)}px) brightness(${f(lerp(1, 1.06, t))}) saturate(${f(lerp(1, 1.05, t))})` },
-  { id: "grain", label: "Film Grain", css: (t) => `contrast(${f(lerp(1, 1.1, t))}) saturate(${f(lerp(1, 0.92, t))})`, grain: true },
+  {
+    id: "retro",
+    label: "Retro",
+    css: (t) =>
+      `sepia(${f(0.5 * t)}) contrast(${f(lerp(1, 1.15, t))}) saturate(${f(lerp(1, 0.82, t))}) hue-rotate(${f(-8 * t)}deg)`,
+    vignette: true,
+  },
+  {
+    id: "dusk",
+    label: "Dusk",
+    css: (t) =>
+      `brightness(${f(lerp(1, 0.86, t))}) hue-rotate(${f(-18 * t)}deg) saturate(${f(lerp(1, 1.18, t))})`,
+    vignette: true,
+  },
+  {
+    id: "neon",
+    label: "Neon",
+    css: (t) =>
+      `saturate(${f(lerp(1, 1.85, t))}) contrast(${f(lerp(1, 1.2, t))}) hue-rotate(${f(8 * t)}deg)`,
+  },
+  {
+    id: "monocontrast",
+    label: "Mono+",
+    css: (t) =>
+      `grayscale(${f(t)}) contrast(${f(lerp(1, 1.55, t))}) brightness(${f(lerp(1, 1.04, t))})`,
+  },
+  {
+    id: "soft",
+    label: "Soft",
+    css: (t) =>
+      `blur(${f(1.1 * t)}px) brightness(${f(lerp(1, 1.06, t))}) saturate(${f(lerp(1, 1.05, t))})`,
+  },
+  {
+    id: "grain",
+    label: "Film Grain",
+    css: (t) => `contrast(${f(lerp(1, 1.1, t))}) saturate(${f(lerp(1, 0.92, t))})`,
+    grain: true,
+  },
+  // ---- the FUNNY rack (owner directive: "all sorts of ai funny filters") ----
+  // Every one is a pure CSS filter chain, so preview stays GPU-cheap and the
+  // existing ctx.filter export path renders them without new code.
+  {
+    id: "alien",
+    label: "Alien 👽",
+    css: (t) =>
+      `hue-rotate(${f(95 * t)}deg) saturate(${f(lerp(1, 1.7, t))}) contrast(${f(lerp(1, 1.12, t))})`,
+  },
+  {
+    id: "thermal",
+    label: "Thermal 🔥",
+    css: (t) =>
+      `invert(${f(0.85 * t)}) hue-rotate(${f(160 * t)}deg) saturate(${f(lerp(1, 2.4, t))})`,
+  },
+  {
+    id: "ghost",
+    label: "Ghost 👻",
+    css: (t) => `invert(${f(t)}) brightness(${f(lerp(1, 1.15, t))}) blur(${f(0.6 * t)}px)`,
+  },
+  {
+    id: "vapor",
+    label: "Vapor 🌴",
+    css: (t) =>
+      `hue-rotate(${f(-45 * t)}deg) saturate(${f(lerp(1, 1.9, t))}) brightness(${f(lerp(1, 1.08, t))}) contrast(${f(lerp(1, 0.92, t))})`,
+  },
+  {
+    id: "cyber",
+    label: "Cyber 🤖",
+    css: (t) =>
+      `hue-rotate(${f(200 * t)}deg) saturate(${f(lerp(1, 2.1, t))}) contrast(${f(lerp(1, 1.35, t))}) brightness(${f(lerp(1, 0.95, t))})`,
+  },
+  {
+    id: "toasty",
+    label: "Toasty 🍞",
+    css: (t) =>
+      `sepia(${f(0.9 * t)}) saturate(${f(lerp(1, 2.2, t))}) hue-rotate(${f(-25 * t)}deg) contrast(${f(lerp(1, 1.18, t))})`,
+  },
 ];
 
-type Adjust = { brightness: number; contrast: number; saturation: number; warmth: number; blur: number; sharpen: number };
-const ADJUST_DEFAULT: Adjust = { brightness: 100, contrast: 100, saturation: 100, warmth: 0, blur: 0, sharpen: 0 };
+type Adjust = {
+  brightness: number;
+  contrast: number;
+  saturation: number;
+  warmth: number;
+  blur: number;
+  sharpen: number;
+};
+const ADJUST_DEFAULT: Adjust = {
+  brightness: 100,
+  contrast: 100,
+  saturation: 100,
+  warmth: 0,
+  blur: 0,
+  sharpen: 0,
+};
 type CropAspect = "free" | "1:1" | "4:5" | "9:16";
-const CROP_RATIOS: Record<Exclude<CropAspect, "free">, number> = { "1:1": 1, "4:5": 4 / 5, "9:16": 9 / 16 };
+const CROP_RATIOS: Record<Exclude<CropAspect, "free">, number> = {
+  "1:1": 1,
+  "4:5": 4 / 5,
+  "9:16": 9 / 16,
+};
 
 function adjustCss(a: Adjust, blurScale = 1): string {
   const parts: string[] = [];
@@ -99,7 +210,9 @@ export function PhotoStudio({
   const [crop, setCrop] = useState<CropAspect>("free");
   // Free-drag crop: pan the image inside the crop window (0..1, 0.5 = center).
   const [pan, setPan] = useState({ x: 0.5, y: 0.5 });
-  const dragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(
+    null,
+  );
   const onDragStart = (cx: number, cy: number) => {
     dragRef.current = { startX: cx, startY: cy, panX: pan.x, panY: pan.y };
   };
@@ -145,7 +258,9 @@ export function PhotoStudio({
         c.getContext("2d")!.drawImage(bmp, 0, 0, c.width, c.height);
         bmp.close();
         if (!cancelled) setThumbUrl(c.toDataURL("image/jpeg", 0.7));
-      } catch { /* strip just shows unfiltered src */ }
+      } catch {
+        /* strip just shows unfiltered src */
+      }
     })();
     return () => {
       cancelled = true;
@@ -185,7 +300,9 @@ export function PhotoStudio({
       // blur radius must scale with resolution to match the preview look
       const previewEdge = 360;
       const blurScale = Math.max(outW, outH) / previewEdge;
-      ctx.filter = [preset.css(intensity / 100), adjustCss(adjust, blurScale)].filter(Boolean).join(" ") || "none";
+      ctx.filter =
+        [preset.css(intensity / 100), adjustCss(adjust, blurScale)].filter(Boolean).join(" ") ||
+        "none";
 
       ctx.save();
       ctx.translate(outW / 2, outH / 2);
@@ -242,7 +359,14 @@ export function PhotoStudio({
         ctx.restore();
       }
       if (preset.vignette && t > 0) {
-        const g = ctx.createRadialGradient(outW / 2, outH / 2, Math.min(outW, outH) * 0.45, outW / 2, outH / 2, Math.max(outW, outH) * 0.72);
+        const g = ctx.createRadialGradient(
+          outW / 2,
+          outH / 2,
+          Math.min(outW, outH) * 0.45,
+          outW / 2,
+          outH / 2,
+          Math.max(outW, outH) * 0.72,
+        );
         g.addColorStop(0, "rgba(0,0,0,0)");
         g.addColorStop(1, `rgba(0,0,0,${0.28 * t})`);
         ctx.fillStyle = g;
@@ -254,7 +378,11 @@ export function PhotoStudio({
           (b) => {
             if (b && b.type === "image/webp") return resolve(b);
             // WebP unsupported → JPEG fallback
-            canvas.toBlob((j) => (j ? resolve(j) : reject(new Error("encode failed"))), "image/jpeg", 0.85);
+            canvas.toBlob(
+              (j) => (j ? resolve(j) : reject(new Error("encode failed"))),
+              "image/jpeg",
+              0.85,
+            );
           },
           "image/webp",
           0.85,
@@ -270,16 +398,27 @@ export function PhotoStudio({
   }
 
   const cropStyle = crop === "free" ? undefined : { aspectRatio: CROP_RATIOS[crop] };
-  const dirty = presetId !== "original" || rotate !== 0 || crop !== "free" || JSON.stringify(adjust) !== JSON.stringify(ADJUST_DEFAULT);
+  const dirty =
+    presetId !== "original" ||
+    rotate !== 0 ||
+    crop !== "free" ||
+    JSON.stringify(adjust) !== JSON.stringify(ADJUST_DEFAULT);
 
   return (
     // stopPropagation: hosts render this inside click-to-dismiss overlays
     // (AvatarEditorSheet, EditPostSheet) — without it every tap in the studio
     // bubbles to the overlay's onClose and unmounts the studio mid-edit.
-    <div className="fixed inset-0 z-[90] flex flex-col bg-black" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-[90] flex flex-col bg-black"
+      onClick={(e) => e.stopPropagation()}
+    >
       {/* top bar */}
       <div className="flex items-center justify-between px-3 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
-        <button onClick={onCancel} aria-label="Cancel" className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white">
+        <button
+          onClick={onCancel}
+          aria-label="Cancel"
+          className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white"
+        >
           <X className="h-4 w-4" />
         </button>
         <div className="flex items-center gap-2">
@@ -302,7 +441,12 @@ export function PhotoStudio({
             data-testid="photostudio-done"
             className="flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-60"
           >
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} done
+            {exporting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Check className="h-4 w-4" />
+            )}{" "}
+            done
           </button>
         </div>
       </div>
@@ -312,11 +456,18 @@ export function PhotoStudio({
         <div
           className="relative max-h-full touch-none overflow-hidden rounded-xl"
           style={cropStyle}
-          onTouchStart={(e) => crop !== "free" && onDragStart(e.touches[0].clientX, e.touches[0].clientY)}
-          onTouchMove={(e) => crop !== "free" && onDragMove(e.touches[0].clientX, e.touches[0].clientY, e.currentTarget)}
+          onTouchStart={(e) =>
+            crop !== "free" && onDragStart(e.touches[0].clientX, e.touches[0].clientY)
+          }
+          onTouchMove={(e) =>
+            crop !== "free" &&
+            onDragMove(e.touches[0].clientX, e.touches[0].clientY, e.currentTarget)
+          }
           onTouchEnd={() => (dragRef.current = null)}
           onMouseDown={(e) => crop !== "free" && onDragStart(e.clientX, e.clientY)}
-          onMouseMove={(e) => crop !== "free" && e.buttons === 1 && onDragMove(e.clientX, e.clientY, e.currentTarget)}
+          onMouseMove={(e) =>
+            crop !== "free" && e.buttons === 1 && onDragMove(e.clientX, e.clientY, e.currentTarget)
+          }
           onMouseUp={() => (dragRef.current = null)}
         >
           <img
@@ -327,7 +478,12 @@ export function PhotoStudio({
               filter: filterStr || undefined,
               transform: rotate ? `rotate(${rotate}deg)` : undefined,
               ...(crop !== "free"
-                ? { height: "100%", width: "100%", objectFit: "cover" as const, objectPosition: `${pan.x * 100}% ${pan.y * 100}%` }
+                ? {
+                    height: "100%",
+                    width: "100%",
+                    objectFit: "cover" as const,
+                    objectPosition: `${pan.x * 100}% ${pan.y * 100}%`,
+                  }
                 : {}),
             }}
             draggable={false}
@@ -335,7 +491,9 @@ export function PhotoStudio({
           {preset.vignette && intensity > 0 && (
             <div
               className="pointer-events-none absolute inset-0"
-              style={{ background: `radial-gradient(circle, transparent 55%, rgba(0,0,0,${0.28 * (intensity / 100)}) 100%)` }}
+              style={{
+                background: `radial-gradient(circle, transparent 55%, rgba(0,0,0,${0.28 * (intensity / 100)}) 100%)`,
+              }}
             />
           )}
           {preset.grain && intensity > 0 && (
@@ -372,7 +530,11 @@ export function PhotoStudio({
                       draggable={false}
                     />
                   </span>
-                  <span className={`text-[10px] ${presetId === p.id ? "font-semibold text-primary" : "text-white/70"}`}>{p.label}</span>
+                  <span
+                    className={`text-[10px] ${presetId === p.id ? "font-semibold text-primary" : "text-white/70"}`}
+                  >
+                    {p.label}
+                  </span>
                 </button>
               ))}
             </div>
@@ -394,14 +556,16 @@ export function PhotoStudio({
           </>
         ) : (
           <div className="space-y-2 px-4 py-2">
-            {([
-              ["brightness", 50, 150],
-              ["contrast", 50, 150],
-              ["saturation", 0, 200],
-              ["warmth", 0, 100],
-              ["blur", 0, 40],
-              ["sharpen", 0, 100],
-            ] as const).map(([key, min, max]) => (
+            {(
+              [
+                ["brightness", 50, 150],
+                ["contrast", 50, 150],
+                ["saturation", 0, 200],
+                ["warmth", 0, 100],
+                ["blur", 0, 40],
+                ["sharpen", 0, 100],
+              ] as const
+            ).map(([key, min, max]) => (
               <div key={key} className="flex items-center gap-3">
                 <span className="w-16 text-[11px] capitalize text-white/70">{key}</span>
                 <input
@@ -455,7 +619,11 @@ export function PhotoStudio({
             <SlidersHorizontal className="h-3.5 w-3.5" /> Adjust
           </button>
         </div>
-        {dirty && <div className="mt-1 text-center text-[10px] text-white/40">exports clean — no location or camera data leaves your phone</div>}
+        {dirty && (
+          <div className="mt-1 text-center text-[10px] text-white/40">
+            exports clean — no location or camera data leaves your phone
+          </div>
+        )}
       </div>
     </div>
   );
