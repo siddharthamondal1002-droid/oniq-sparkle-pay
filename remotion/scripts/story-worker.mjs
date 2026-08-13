@@ -69,6 +69,7 @@ import {
   normalizeDepth,
   planeCoverage,
 } from '../../src/lib/parallaxPlanes.ts';
+import { vfxKindFor, vfxSeed } from '../../src/lib/particleField.ts';
 import { planStory } from '../../src/lib/storyPlan.ts';
 import { composeVideoPrompt } from '../../supabase/functions/_shared/movieGrammar.ts';
 
@@ -1045,6 +1046,20 @@ if (offline) {
         }
       }
 
+      // RUNG 3 — the particle atmosphere, movie grade only. The shot's own
+      // words choose the effect (or nothing — absence is the honest default),
+      // and the seed is hashed from the shot's identity so every render of
+      // this plan draws the same air. Skipped over clips: Veo scenes carry
+      // their own atmosphere and a second one on top would disagree.
+      let vfx = null;
+      if (cinematic && !clip) {
+        const kind = vfxKindFor(`${shot.still} ${shot.narration}`);
+        if (kind) {
+          vfx = { kind, seed: vfxSeed(`${i}:${shot.still}`) };
+          console.log(`  vfx ${i + 1}: ${kind}`);
+        }
+      }
+
       rendered.push({
         // Relative to public/, because that is what staticFile() takes. Posix
         // separators explicitly: this is a URL path once it reaches the
@@ -1068,6 +1083,7 @@ if (offline) {
               },
             }
           : {}),
+        ...(vfx ? { vfx } : {}),
         // Real motion, when the clip stage delivered it. The composition
         // plays this INSTEAD of the Ken Burns/parallax/rig stack — Veo
         // animated the character in the frame, so a puppet on top would be a

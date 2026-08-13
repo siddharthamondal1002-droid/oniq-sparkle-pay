@@ -40,8 +40,10 @@ import {
   type RhubarbCue,
 } from "../../../src/lib/visemes";
 import { PARALLAX } from "../../../src/lib/parallaxPlanes";
+import type { VfxKind } from "../../../src/lib/particleField";
 import { Character } from "../rig/Character";
 import { CHARACTER_RIGS } from "../rig/characterRig";
+import { ParticleOverlay } from "./ParticleOverlay";
 
 export type StoryShotInput = {
   /** Path under remotion/public, or an absolute URL. */
@@ -149,6 +151,16 @@ export type StoryShotInput = {
      * the dialogue path takes.
      */
     heard?: RhubarbCue[];
+  };
+  /**
+   * Rung 3, movie grade only: a procedural particle atmosphere over the
+   * shot — embers, dust, rain, snow or fireflies, chosen by the worker from
+   * the shot's own words (vfxKindFor). Deterministic from the seed; absent
+   * for scenes whose text earns no effect, and for every classic film.
+   */
+  vfx?: {
+    kind: VfxKind;
+    seed: number;
   };
 };
 
@@ -339,6 +351,11 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
           heightRatio={shot.figureHeight}
         />
       ) : null}
+      {/* The atmosphere rides ABOVE the character and the depth stack:
+          embers and rain pass in front of people, which is what puts the
+          person IN the weather. Never over a clip — Veo scenes carry their
+          own air. */}
+      {!shot.clip && shot.vfx ? <ParticleOverlay kind={shot.vfx.kind} seed={shot.vfx.seed} /> : null}
 
       {/* Mounted INSIDE the shot so it starts with it. Episode 1 shipped as a
           4:47 silent slideshow with every mp3 generated and none referenced,
