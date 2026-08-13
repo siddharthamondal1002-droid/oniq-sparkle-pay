@@ -245,6 +245,20 @@ processes and concatenate with `-c copy`. Two halves at once ran ~5 fps EACH.
 **Split on a scene boundary**, and recompute the boundary if `TRANSITION`
 changes — it moved from 6184 to 6135 when the transition was halved.
 
+Three amendments from the Episode 4 build, all paid for in wall-clock:
+
+- **`FRAME_RANGE` is INCLUSIVE on both ends.** The last frame is `TOTAL−1`,
+  so 10,901 frames partition as `0-5366` + `5367-10900`. Writing `0-5367`
+  renders frame 5367 twice and the concat carries a duplicated frame.
+- **The parallel-halves figure was measured on 64 cores. On the 4-core/8GB
+  dev container, run the halves SEQUENTIALLY.** Two parallel halves there
+  drove load to 12, put kswapd into swap, and silently wedged one encoder at
+  46% for 28 minutes. Sequential halves at `CONCURRENCY=4` run ~19 minutes
+  each — slower on paper, strictly faster in practice.
+- **Arm a stall monitor on the pre-encode output's mtime.** More than ~4
+  minutes with no growth means the encoder is wedged, not slow — kill and
+  restart that half rather than waiting it out.
+
 **Step 9 has a script now**, and it gates rather than informs:
 
 ```bash

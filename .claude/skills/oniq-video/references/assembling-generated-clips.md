@@ -330,6 +330,13 @@ checksums clean.
 Do not gzip the raws — 970 MB of h264 does not compress and squeezing it costs a
 minute of runner time to save nothing.
 
+**Downloading the asset back on a PRIVATE repo:** the release's
+`browser_download_url` 404s from the dev container even with credentials.
+Fetch through the API instead — `api.github.com/repos/<o>/<r>/releases/assets/<id>`
+with `Accept: application/octet-stream` — which the proxy authenticates.
+(Episode 4: raws fetched in 53s this way, tarball sha256 plus all 56 inner
+checksums verified.)
+
 ## Getting a FINISHED episode back the other way
 
 **This is step 10 of `making-an-episode.md` and it was already written down.**
@@ -430,7 +437,10 @@ outbound under the presigned upload's 250 MB — and rejoin with `cat`, verified
 byte-exact. What does NOT scale is the render: 0.15x realtime on one encoder, so
 half an hour of video is 3.3 hours a pass and several passes are normal. Past
 that you want a bigger machine, an overnight budget, or more parallel
-`FRAME_RANGE` halves than two.
+`FRAME_RANGE` halves than two — but parallel halves need the cores to back
+them: on the 4-core/8GB dev container they thrash (Episode 4 measured it —
+load 12, swap, one encoder wedged 28 minutes), so there the rule is
+sequential halves, ~19 minutes each. Details in `making-an-episode.md` step 8.
 
 Below about a minute nothing is known — the scene/narration machinery has never
 been run that small, and the promo path may simply be the better tool.
