@@ -947,7 +947,201 @@ const episode3: Episode = {
   ],
 };
 
-export const ORIGINALS: Episode[] = [episode1, episode2, episode3];
+/**
+ * Episode 4 — the owner's cut of the Aladdin tale (commissioned 2026-08-13,
+ * "a movie like episode 3, Aladdin only, the same procedure").
+ *
+ * SAME WORLD, DIFFERENT FILM. Episode 3 tells the whole classic tale as the
+ * boy's story; this one tells the CONTEST — the magician against two clever
+ * people — with the princess as co-lead and the rooftop taking as the climax.
+ * The thesis is the owner's line: cleverness beats magic.
+ *
+ * EVERYTHING LOCKED IS REUSED, NOT REWRITTEN. Style is STORYBOOK_STYLE, the
+ * cast is EP3_CAST, the lamp is EP3_PROPS.lamp — the same people and the same
+ * object, because a season where Aladdin changes face between episodes is the
+ * drift all these locks exist to prevent.
+ */
+const episode4: Episode = {
+  id: 'ep4',
+  number: 4,
+  title: 'Aladdin and the Ember King',
+  runtime: '~6½ min',
+  style: STORYBOOK_STYLE,
+  cast: EP3_CAST,
+  bed:
+    'Slow Arabian nights film underscore, sustained strings and low frame drum, warm and ' +
+    'wondering, no melody hook, loopable, no fade in or out.',
+  scenes: [
+    {
+      id: 'ep4_s01',
+      label: 'S1 — Clever hands',
+      stillPrompt:
+        'Crowded bazaar in late amber light, a boy in his early teens flipping a date from a ' +
+        'stall into his own mouth mid-stride, weaving through the crowd, vendors laughing ' +
+        'rather than angry.',
+      motionPrompt:
+        'The crowd flows around him. He moves against its current, light on his feet. Tracking ' +
+        'alongside, then slow push in.',
+      cast: ['aladdin'],
+    },
+    {
+      id: 'ep4_s02',
+      label: 'S2 — The garden of stone fruit',
+      stillPrompt:
+        'Underground garden lit by no visible source: trees bearing fruit of clear green, red ' +
+        'and blue stone, and on a rock ledge beyond them a small dull brass oil lamp, dented ' +
+        'and unpolished, the least splendid thing in the frame.',
+      motionPrompt:
+        'Light glimmers through the stone fruit as if breathing. Dust motes turn in the air. ' +
+        'Slow pan across the trees, coming to rest on the lamp.',
+      cast: ['aladdin'],
+    },
+    {
+      id: 'ep4_s03',
+      label: 'S3 — The Ember King rises',
+      stillPrompt:
+        'A towering jinni of smoke and living ember unfurling from the spout of a small brass ' +
+        'lamp held in a boy’s hands, filling a dark cave to the roof, sparks drifting ' +
+        'upward, the boy lit orange from below, awed but not cowering.',
+      motionPrompt:
+        'Smoke coils upward and thickens into shoulders. Embers drift and scatter. The boy ' +
+        'holds still. Slow tilt up the jinni’s full height.',
+      cast: ['lampJinni', 'aladdin'],
+    },
+    {
+      id: 'ep4_s04',
+      label: 'S4 — Splendour, carefully',
+      stillPrompt:
+        'A palace assembling itself above a city at dusk: marble terraces and lamplit arches ' +
+        'standing where bare ground was, streamers of ember-light still settling into the ' +
+        'stonework, the city below beginning to notice.',
+      motionPrompt:
+        'Ember-light sinks into the stone and fades. Banners lift in the wind. Crane rise ' +
+        'revealing the whole palace.',
+    },
+    {
+      id: 'ep4_s05',
+      label: 'S5 — The princess counts',
+      stillPrompt:
+        'A palace hall in warm lamplight: a young princess in emerald and gold examining a ' +
+        'gift of jewelled fruit with a merchant’s appraising eye rather than a bride’s ' +
+        'delight, the young man watching her watch the jewels.',
+      motionPrompt:
+        'She turns a stone fruit slowly in her fingers, holds it to the light. Her eyes lift ' +
+        'to him. Over-the-shoulder hold, then slow push in on her face.',
+      cast: ['princess', 'aladdin'],
+    },
+    {
+      id: 'ep4_s06',
+      label: 'S6 — The shelf',
+      stillPrompt:
+        'A quiet alcove in a rich palace room: the small dented brass oil lamp pushed to the ' +
+        'back of a high shelf behind finer things, half in shadow, a thin line of dust along ' +
+        'its spout, evening light low.',
+      motionPrompt:
+        'Nothing moves but dust in a shaft of light and the slow slide of the sun. Very slow ' +
+        'push in on the lamp.',
+    },
+    {
+      id: 'ep4_s07',
+      label: 'S7 — New lamps for old',
+      stillPrompt:
+        'A street below palace walls at dusk: a tall gaunt pedlar with a barrow of bright new ' +
+        'brass lamps, polished and catching the last light, calling up toward the windows, his ' +
+        'shadow much too long for the hour.',
+      motionPrompt:
+        'The new lamps glint as the barrow shifts. His head tilts up toward a window. The ' +
+        'shadow does not move with him. Slow pan right along the barrow to his face.',
+      cast: ['magician'],
+    },
+    {
+      id: 'ep4_s08',
+      label: 'S8 — The morning after',
+      stillPrompt:
+        'Dawn over the city: a bare hilltop where a palace stood the night before, a perfect ' +
+        'rectangle of crushed grass and nothing else, birds circling the empty air, the city ' +
+        'below waking to the absence.',
+      motionPrompt:
+        'Birds wheel over the empty ground. Fog rolls low across the crushed grass. Slow pull ' +
+        'back from the bare hilltop.',
+    },
+    {
+      id: 'ep4_s09',
+      label: 'S9 — The road west',
+      stillPrompt:
+        'A long desert road under high hard sun: a young man walking alone with a bundle over ' +
+        'his shoulder, dunes to the horizon, heat shimmer rising, his stride even and ' +
+        'unhurried and absolutely certain.',
+      motionPrompt:
+        'Heat shimmer rises off the road. His walk eats the distance. Tracking alongside at ' +
+        'his pace.',
+      cast: ['aladdin'],
+    },
+    {
+      id: 'ep4_s10',
+      label: 'S10 — The lamp in the window',
+      stillPrompt:
+        'A strange white palace in a strange green valley at dusk, and in one high window a ' +
+        'small oil lamp set on the sill, lit, its flame steady — a signal only one person in ' +
+        'the world would understand.',
+      motionPrompt:
+        'The tiny flame flickers in the window. Lights come on elsewhere in the palace, but ' +
+        'the camera stays on that one. Very slow push in toward the window.',
+    },
+    {
+      id: 'ep4_s11',
+      label: 'S11 — Her feast, his climb',
+      stillPrompt:
+        'Split composition inside the stolen palace: in warm light below, the princess in ' +
+        'emerald pouring wine for the gaunt magician at a laden table, all smiles and ' +
+        'attention; through the window behind them, far up the moonlit outer wall, a small ' +
+        'figure climbing.',
+      motionPrompt:
+        'She pours slowly. He watches only her. Beyond the window the small figure moves up ' +
+        'one handhold. Slow push in past their table toward the window.',
+      cast: ['princess', 'magician', 'aladdin'],
+    },
+    {
+      id: 'ep4_s12',
+      label: 'S12 — Rooftops by moonlight',
+      stillPrompt:
+        'Moonlit palace rooftops in blue and silver: a young man crossing a high ridge of ' +
+        'tiles between domes, arms out for balance, the drop vast and soft with mist below, ' +
+        'the moon enormous behind him.',
+      motionPrompt:
+        'Cloth and mist move in the wind; his steps are quick and sure along the ridge. ' +
+        'Tracking alongside him across the rooftop.',
+      cast: ['aladdin'],
+    },
+    {
+      id: 'ep4_s13',
+      label: 'S13 — Whose hand holds the lamp',
+      stillPrompt:
+        'A dim treasure room: the young man lifting the small dented brass lamp from a velvet ' +
+        'stand, and the first coil of ember-lit smoke already rising from its spout, the ' +
+        'doorway behind him bursting with lamplight and a tall gaunt silhouette.',
+      motionPrompt:
+        'Smoke curls from the spout and thickens. The silhouette in the doorway raises its ' +
+        'staff. Handheld drift, barely perceptible, tightening on the lamp in his hands.',
+      cast: ['aladdin', 'magician', 'lampJinni'],
+    },
+    {
+      id: 'ep4_s14',
+      label: 'S14 — Cleverness beats magic',
+      stillPrompt:
+        'The home city at night, whole again: the palace back on its hill with every window ' +
+        'lit, the bazaar rowdy and bright below, and on the highest terrace two small figures ' +
+        'side by side watching their city, embers from festival fires drifting up like stars ' +
+        'returning.',
+      motionPrompt:
+        'Festival embers drift upward past the terrace. Banners and awnings stir below. Slow ' +
+        'pull back and crane up until the city holds the frame.',
+      cast: ['aladdin', 'princess'],
+    },
+  ],
+};
+
+export const ORIGINALS: Episode[] = [episode1, episode2, episode3, episode4];
 
 export const ALL_SCENES: { episode: Episode; scene: Scene }[] = ORIGINALS.flatMap((episode) =>
   episode.scenes.map((scene) => ({ episode, scene })),

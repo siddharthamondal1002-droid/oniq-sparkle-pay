@@ -30,12 +30,12 @@ import { ALLOWED_DURATIONS } from "@/lib/runway.server";
 const allScenes = ORIGINALS.flatMap((e) => e.scenes);
 
 describe("every scene has exactly one line, and every line a scene", () => {
-  it("covers all 44 scenes", () => {
+  it("covers all 58 scenes", () => {
     // Hardcoded on purpose: a scene silently disappearing is otherwise
     // invisible, because every remaining scene would still have its line.
     // 40 until the two finales were split three ways each — see the hold
-    // ceiling below.
-    expect(allScenes).toHaveLength(44);
+    // ceiling below. 44 until ep4 (the owner's Aladdin cut) added fourteen.
+    expect(allScenes).toHaveLength(58);
     for (const s of allScenes) {
       expect(narrationFor(s.id), `no narration for ${s.id} (${s.label})`).toBeTruthy();
     }

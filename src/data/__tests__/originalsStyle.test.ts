@@ -32,6 +32,9 @@ describe("a scene is prompted in its own episode's style", () => {
     ep1: HOUSE_STYLE,
     ep2: STORYBOOK_STYLE,
     ep3: STORYBOOK_STYLE,
+    // ep4 deliberately carries ep3's look: same tale, same world, same cast
+    // locks — a different style would read as a different show.
+    ep4: STORYBOOK_STYLE,
   };
 
   it("gives every episode exactly the style it is meant to have", () => {

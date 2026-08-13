@@ -371,6 +371,100 @@ export const SEASON_SCRIPT: ScriptLine[] = [
     narration:
       "Aladdin kept the lamp after that. But he used it less and less as the years went on, and he never again left it lying about. He had learned the thing the magician never did. It was never the lamp that mattered. It was being the sort of person who could be trusted with one.",
   },
+
+  // ---------------------------------------------------------------- ep 4 ---
+  // The owner's cut: the same tale told as a CONTEST — the magician against
+  // two clever people — with the princess as co-lead. The thesis is stated in
+  // the last scene and earned in every one before it: cleverness beats magic.
+  {
+    sceneId: "ep4_s01",
+    narration:
+      "In the city where this happened, everyone agreed that Aladdin would come to nothing, and Aladdin agreed with them cheerfully. He had no trade, no prospects, and no plans. What he had was quicker than all three. He had a way of seeing how things worked — locks, arguments, people — and the bazaar was his school.",
+  },
+  {
+    sceneId: "ep4_s02",
+    narration:
+      "How he came to be in the cave is a story with a liar in it, and we will meet the liar soon enough. What matters is what he found there. A garden where the fruit was living stone, green and red and blue. And past all that treasure, alone on a ledge, one small dented lamp that any sensible thief would have left behind.",
+  },
+  {
+    sceneId: "ep4_s03",
+    narration:
+      "He rubbed it to read the maker’s mark. What rose from the spout was smoke, and then embers, and then a king made of both, tall as the cave and burning quietly. “Name your wish,” said the Ember King. Aladdin, being Aladdin, asked a question instead. “What do wishes cost?” The jinni smiled for the first time in a thousand years.",
+    segments: [
+      { voice: "narrator", text: "He rubbed it to read the maker’s mark. What rose from the spout was smoke, and then embers, and then a king made of both, tall as the cave and burning quietly." },
+      { voice: "lampJinni", text: "“Name your wish,”" },
+      { voice: "narrator", text: "said the Ember King. Aladdin, being Aladdin, asked a question instead." },
+      { voice: "aladdin", text: "“What do wishes cost?”" },
+      { voice: "narrator", text: "The jinni smiled for the first time in a thousand years." },
+    ],
+  },
+  {
+    sceneId: "ep4_s04",
+    narration:
+      "He wished carefully, the way he did everything. Not for a mountain of gold, which gets a man robbed, but for splendour with a purpose: a palace above the city, raised in one night of falling embers, fine enough to open a certain gate. For Aladdin had seen the Sultan’s daughter at the market, arguing a jeweller down to half his price, and had been lost ever since.",
+  },
+  {
+    sceneId: "ep4_s05",
+    narration:
+      "The princess received his gift of jewelled fruit the way she received everything: as evidence. She turned the stones in the light, weighed them, and then weighed him. A fraud, she decided, but not a fool — and unlike every suitor before him, he had brought her something interesting. She asked him where the stones were from. He told her the truth. That was the moment she chose him.",
+  },
+  {
+    sceneId: "ep4_s06",
+    narration:
+      "They were happy, and happiness is careless. The lamp that had built the palace went up onto a high shelf, behind finer things, the way a ladder is put away once a man has climbed it. Aladdin knew better. He simply forgot that knowing better is not the same as doing better. The dust settled on the spout, one quiet day at a time.",
+  },
+  {
+    sceneId: "ep4_s07",
+    narration:
+      "The liar from the cave had spent those years learning exactly one fact, and it had cost him dearly, so he meant to be repaid. He came up the palace street at dusk with a barrow of bright new lamps, crying a madman’s trade. “New lamps for old! New lamps for old!” A maid on the balcony laughed, and remembered the ugly old thing on the shelf, and thought to do her mistress a kindness.",
+    segments: [
+      { voice: "narrator", text: "The liar from the cave had spent those years learning exactly one fact, and it had cost him dearly, so he meant to be repaid. He came up the palace street at dusk with a barrow of bright new lamps, crying a madman’s trade." },
+      { voice: "magician", text: "“New lamps for old! New lamps for old!”" },
+      { voice: "narrator", text: "A maid on the balcony laughed, and remembered the ugly old thing on the shelf, and thought to do her mistress a kindness." },
+    ],
+  },
+  {
+    sceneId: "ep4_s08",
+    narration:
+      "The city woke to an absence. Where the palace had stood there was a hilltop of crushed grass, already springing back, and a silence with a shape in it. The Sultan raged. The court whispered. And Aladdin stood on the empty hill where his whole life had been, and did the thing he had always done best. He looked at how the trick worked.",
+  },
+  {
+    sceneId: "ep4_s09",
+    narration:
+      "A palace does not vanish. A palace is moved, and moving it takes the lamp, and the lamp was in one man’s hand. So the question was not where the palace had gone. It was where that man would feel safe enough to gloat. Aladdin took the road west with nothing but the ring from the cave and his own two eyes, and he did not hurry, because he was thinking.",
+  },
+  {
+    sceneId: "ep4_s10",
+    narration:
+      "He found it in a green valley a long way from anywhere, white and wrong against the hills. And in one high window, where anyone else would have hung jewels, someone had set a small lit oil lamp on the sill. To the magician it was a servant’s economy. To Aladdin it was a message in a language two people spoke. She knew the lamp mattered. She was telling him where it was.",
+  },
+  {
+    sceneId: "ep4_s11",
+    narration:
+      "That night the princess gave the magician what he wanted most, which was her attention. She poured his wine and asked about his travels and laughed at the right moments, and the great sorcerer, who could move palaces, never once looked at the window behind him. Past that window, up the moonlit wall, her husband climbed hand over hand toward the highest roof.",
+  },
+  {
+    sceneId: "ep4_s12",
+    narration:
+      "The rooftops were silver and the drop below was full of mist, and Aladdin crossed the high ridge of the world with his arms out, one sure step at a time. No wishes now. No jinni to catch him. Just a market boy’s balance and a thief’s quiet feet, and the moon lighting the way like an accomplice.",
+  },
+  {
+    sceneId: "ep4_s13",
+    narration:
+      "The lamp stood in the treasure room on a velvet stand, honoured at last by the only man who had ever understood it. Aladdin lifted it, and the first smoke was already curling from the spout when the doorway filled with light and the magician’s long shadow. “Whose hand holds the lamp?” asked the Ember King. “Mine,” said Aladdin. And that was the whole of the battle.",
+    segments: [
+      { voice: "narrator", text: "The lamp stood in the treasure room on a velvet stand, honoured at last by the only man who had ever understood it. Aladdin lifted it, and the first smoke was already curling from the spout when the doorway filled with light and the magician’s long shadow." },
+      { voice: "lampJinni", text: "“Whose hand holds the lamp?”" },
+      { voice: "narrator", text: "asked the Ember King." },
+      { voice: "aladdin", text: "“Mine,”" },
+      { voice: "narrator", text: "said Aladdin. And that was the whole of the battle." },
+    ],
+  },
+  {
+    sceneId: "ep4_s14",
+    narration:
+      "The palace came home the way it had left, in one night, and the city threw a festival that lasted three. On the highest terrace two clever people stood side by side and watched the embers rise from the fires below like stars going back where they belonged. The magician had owned every power in the world except the ones that matter. Patience. Attention. A partner. Cleverness beats magic, every single time it is allowed to finish.",
+  },
 ];
 
 /** Narration for a scene, or null where none is written yet. */
