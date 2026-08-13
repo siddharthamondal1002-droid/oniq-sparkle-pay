@@ -123,6 +123,16 @@ verbatim; nothing ep4-specific is known yet beyond the plan:
 ## Resume ledger (update this section as the build advances)
 
 - 2026-08-13: phases 1–4 complete and on main (episode data `b67f209`).
-  Phase 5 in flight: batch 1 verified (15/56 stills on the agent's box),
-  batch 2 (s05–s08) generating, driver armed. Clips not started; movie
-  tiers in the app remain inactive and unrelated to this build.
+- 2026-08-13 ~14:10Z: **PHASE 5 (STILLS) COMPLETE — 56/56** on the agent's
+  box at `/mnt/documents/ep4/stills/`, contact sheet at
+  `/mnt/documents/ep4/contact_sheet.jpg`. Fifteen shots needed a second
+  take; every failure traced to the same disease — an under-anchored
+  prompt (generic "lamps", "the city", "stone fruit", unnamed rooms and
+  roofs) — and every fix was naming the thing in the shot text on main,
+  then regenerating. The Ember King's climax (s13d) needed the lock
+  restated in the ask. Residual judgment items awaiting the OWNER's
+  stills gate: s12c is a fast-tier frame (standard refused twice on
+  safety), slightly softer than neighbours; s01b minor Aladdin face
+  drift; s08d boyish hero in married-man beats (the season's locked
+  design). Next: owner approval → PHASE 6, clips (image-to-video from
+  each still, motion text only, batched like the stills, raws kept).
