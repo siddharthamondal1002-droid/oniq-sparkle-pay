@@ -116,6 +116,24 @@ export type Database = {
           },
         ]
       }
+      api_budget: {
+        Row: {
+          bucket: string
+          day: string
+          used: number
+        }
+        Insert: {
+          bucket: string
+          day: string
+          used?: number
+        }
+        Update: {
+          bucket?: string
+          day?: string
+          used?: number
+        }
+        Relationships: []
+      }
       assessment_competency: {
         Row: {
           bloom_level: string
@@ -4179,6 +4197,11 @@ export type Database = {
         Args: { _content_id: string; _content_type: string; _reason?: string }
         Returns: undefined
       }
+      api_budget_day: { Args: never; Returns: string }
+      api_budget_left: {
+        Args: { _bucket: string; _cap: number }
+        Returns: number
+      }
       append_audit: {
         Args: {
           _actor?: string
@@ -4603,6 +4626,10 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
+      }
+      record_api_use: {
+        Args: { _amount: number; _bucket: string }
+        Returns: undefined
       }
       record_channel_views: {
         Args: { _channel_id: string; _message_ids: string[] }
