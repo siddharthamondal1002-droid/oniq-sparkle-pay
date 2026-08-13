@@ -466,21 +466,43 @@ function rateOf(mime) {
 /**
  * Which rigged character, if any, belongs in this shot.
  *
- * Only characters with a MEASURED rig can appear. Today that is Aladdin alone,
- * so a user's Story gets no puppet unless their plan names him — which is
- * correct rather than unfortunate: the alternative is a guessed mouth anchor.
+ * Only characters with a MEASURED rig can appear — the alternative is a
+ * guessed mouth anchor. Since rung 2 (2026-08-13) the whole eleven-sheet
+ * repertory is measured, so a plan naming a princess, a fisherman or a
+ * magician gets a speaking puppet, not just one naming Aladdin.
+ *
+ * A cast NAME is prose ("Ali Baba", "The Magician") while a rig KEY is an
+ * identifier ("aliBaba", "magician"), so the match strips "the " and every
+ * non-alphanumeric before comparing — and returns the KEY, because that is
+ * what the composition indexes CHARACTER_RIGS with.
  */
 function rigFor(plan, shot) {
   const text = `${shot.still} ${shot.narration}`.toLowerCase();
   for (const member of plan.cast ?? []) {
-    const key = String(member.name ?? '').toLowerCase();
-    if (key && text.includes(key) && MEASURED_RIGS.has(key)) return key;
+    const name = String(member.name ?? '').toLowerCase();
+    if (!name || !text.includes(name)) continue;
+    const key = RIG_KEY_BY_NAME.get(name.replace(/^the\s+/, '').replace(/[^a-z0-9]/g, ''));
+    if (key) return key;
   }
   return null;
 }
 
-/** Kept in step with CHARACTER_RIGS by hand; the render just skips an unknown key. */
-const MEASURED_RIGS = new Set(['aladdin']);
+/** Kept in step with CHARACTER_RIGS by hand; characterRigs.test.ts pins the sync. */
+const MEASURED_RIGS = new Set([
+  'aladdin',
+  'aliBaba',
+  'captain',
+  'fisherman',
+  'jarJinni',
+  'lampJinni',
+  'magician',
+  'morgiana',
+  'mother',
+  'princess',
+  'ringJinni',
+]);
+/** 'alibaba' -> 'aliBaba': normalized prose name to rig key. */
+const RIG_KEY_BY_NAME = new Map([...MEASURED_RIGS].map((k) => [k.toLowerCase(), k]));
 
 
 /**
