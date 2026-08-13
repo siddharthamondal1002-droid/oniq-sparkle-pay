@@ -3346,6 +3346,7 @@ export type Database = {
           created_at: string
           dispatched_at: string | null
           error: string | null
+          grade: string
           has_bytes: boolean
           id: string
           no_watermark: boolean
@@ -3366,6 +3367,7 @@ export type Database = {
           created_at?: string
           dispatched_at?: string | null
           error?: string | null
+          grade?: string
           has_bytes?: boolean
           id?: string
           no_watermark?: boolean
@@ -3386,6 +3388,7 @@ export type Database = {
           created_at?: string
           dispatched_at?: string | null
           error?: string | null
+          grade?: string
           has_bytes?: boolean
           id?: string
           no_watermark?: boolean
