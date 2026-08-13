@@ -10,6 +10,7 @@ import promoAsset from "@/assets/oniq-promo.mp4.asset.json";
 import ep1Asset from "@/assets/oniq-ep1.mp4.asset.json";
 import ep2Asset from "@/assets/oniq-ep2.mp4.asset.json";
 import ep3Asset from "@/assets/oniq-ep3.mp4.asset.json";
+import ep4Asset from "@/assets/oniq-ep4.mp4.asset.json";
 
 // PROVENANCE. Recorded here because both clips were produced OUTSIDE this repo
 // and neither went through the guarded Runway pipeline in runwayOps.server.ts
@@ -92,6 +93,7 @@ const RENDERED: Record<string, { url: string; runtime: string }> = {
   ep1: { url: ep1Asset.url, runtime: "4:47" },
   ep2: { url: ep2Asset.url, runtime: "5:35" },
   ep3: { url: ep3Asset.url, runtime: "6:54" },
+  ep4: { url: ep4Asset.url, runtime: "6:03" },
 };
 
 function fromEpisode(ep: Episode): LoreVideo {
