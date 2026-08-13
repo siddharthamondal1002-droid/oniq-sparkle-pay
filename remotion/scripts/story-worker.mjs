@@ -368,11 +368,30 @@ async function renderPlan(plan, outFile) {
     entryPoint: path.resolve(__dirname, '../src/story.ts'),
     webpackOverride: (c) => c,
   });
-  const browser = await openBrowser('chrome', {
-    browserExecutable: findChromium(),
-    chromiumOptions: { args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] },
-    chromeMode: 'chrome-for-testing',
-  });
+  // THREE ATTEMPTS AT THE BROWSER, because a launch flake after generation is
+  // the most expensive 25 seconds in the pipeline. Run 73 lost a fully-paid
+  // film — every still, every clip, every voice — to one "timed out
+  // connecting to the browser" on a runner that had launched the identical
+  // build an hour earlier. A launch timeout is transient runner weather, not
+  // a verdict; a refusal-style no-retry rule does not apply to it.
+  let browser;
+  for (let a = 1; ; a++) {
+    try {
+      browser = await openBrowser('chrome', {
+        browserExecutable: findChromium(),
+        chromiumOptions: { args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] },
+        chromeMode: 'chrome-for-testing',
+      });
+      break;
+    } catch (err) {
+      if (a >= 3) throw err;
+      console.log(
+        `browser launch failed (attempt ${a}/3) — again in 20s: ` +
+          String(err?.message ?? err).slice(0, 120),
+      );
+      await new Promise((r) => setTimeout(r, 20_000));
+    }
+  }
   try {
     const composition = await selectComposition({
       serveUrl: bundled,
@@ -571,6 +590,16 @@ async function generateClip(shot, stillFile, shotSeconds) {
       const msg = String(err?.message ?? err);
       if (attempt === 1 && /story-clip: 422/.test(msg)) {
         console.log('    clip refused — one retry, the filter is sampling-flaky');
+        continue;
+      }
+      // A 502 in under a second is the submission being turned away, not a
+      // generation failing — run 73's shots 8 and 9 died exactly there after
+      // ten rapid submissions, which reads as a per-minute quota. A throttle
+      // is the one failure where waiting IS the fix (the story-voice lesson),
+      // so it earns one paced retry before the shot steps down to stills.
+      if (attempt === 1 && /story-clip: 502/.test(msg)) {
+        console.log('    clip upstream busy — one retry in 45s');
+        await new Promise((r) => setTimeout(r, 45_000));
         continue;
       }
       throw err;
@@ -1023,3 +1052,11 @@ if (offline) {
     fs.rmSync(assetRoot, { recursive: true, force: true });
   }
 }
+
+// EXIT EXPLICITLY, with whatever code the run earned. A failed browser launch
+// leaves live handles behind — the bundler's esbuild service, Chromium's
+// crashpad — and node dutifully waits on them: run 73 marked its job failed
+// at 08:36 and then sat as a wedged runner until it was cancelled by hand.
+// Everything that matters is awaited by this line; anything still holding the
+// event loop open is debris.
+process.exit(process.exitCode ?? 0);
