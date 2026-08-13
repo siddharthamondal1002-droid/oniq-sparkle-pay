@@ -961,13 +961,38 @@ const episode3: Episode = {
  * object, because a season where Aladdin changes face between episodes is the
  * drift all these locks exist to prevent.
  */
+/**
+ * Episode 4's cast: episode 3's people verbatim, with ONE recast — the jinni.
+ *
+ * The probe caught this before the set was paid for: EP3_CAST's lampJinni is
+ * a blue-violet night-sky being locked to "NO fire, NO smoke", and the owner's
+ * film is titled for a jinni of exactly fire and smoke. Handing the scene text
+ * and the lock to the generator in contradiction, the lock won and the Ember
+ * King came back as a starfield. So this film declares its own being — the
+ * season now holds FOUR distinct jinn, and the distinctness notes below are
+ * what keep it from reading as episode 1's jar jinni, the only other ember
+ * being in the show.
+ */
+export const EP4_CAST: Record<string, string> = {
+  ...EP3_CAST,
+  lampJinni:
+    'THE EMBER KING is the same being in every shot: a VAST, REGAL jinni formed of banked ' +
+    'coals and slow smoke — a composed, upright king, never a monster. A body of dark ' +
+    'charcoal plates with living orange ember-light glowing in the seams, a mantle of slow ' +
+    'grey smoke across the shoulders, a crown of five tall flames burning steady and low, ' +
+    'eyes like blown embers. Below the waist he gathers into a column of smoke and rising ' +
+    'sparks. Courteous, unhurried, faintly amused; he STOOPS to fit beneath roofs. NOT ' +
+    'cracked, NOT ruined, NOT monstrous — where the jar jinni of episode 1 is a broken ' +
+    'giant, this is an unbroken king.',
+};
+
 const episode4: Episode = {
   id: 'ep4',
   number: 4,
   title: 'Aladdin and the Ember King',
   runtime: '~6½ min',
   style: STORYBOOK_STYLE,
-  cast: EP3_CAST,
+  cast: EP4_CAST,
   bed:
     'Slow Arabian nights film underscore, sustained strings and low frame drum, warm and ' +
     'wondering, no melody hook, loopable, no fade in or out.',

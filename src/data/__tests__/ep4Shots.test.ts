@@ -5,7 +5,7 @@
  * for why each guard exists; nothing here is new, which is the point.
  */
 import { describe, expect, it } from "vitest";
-import { EP3_CAST, EP3_PROPS, ORIGINALS, STORYBOOK_STYLE } from "@/data/originals";
+import { EP3_PROPS, EP4_CAST, ORIGINALS, STORYBOOK_STYLE } from "@/data/originals";
 import { EP4_SHOTS, shotPromptFor, shotsFor, type Ep4Shot } from "@/data/ep4Shots";
 import { estimateSeconds, narrationFor } from "@/data/originalsScript";
 import { allocateFrames, checkShotFrames } from "@/lib/shotAllocation";
@@ -89,7 +89,7 @@ describe("the cast locks hold across fifty-six generations", () => {
   it("resolves every cast key a shot names", () => {
     for (const shot of EP4_SHOTS) {
       for (const key of shot.cast ?? []) {
-        expect(EP3_CAST[key], `${shot.id} names unknown cast key "${key}"`).toBeTruthy();
+        expect(EP4_CAST[key], `${shot.id} names unknown cast key "${key}"`).toBeTruthy();
       }
     }
   });

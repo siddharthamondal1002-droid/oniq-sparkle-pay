@@ -18,10 +18,11 @@
 //   STILL is what the frame IS; MOTION is what MOVES. The video model gets
 //   the image plus `motion` only — never a re-description, never a name.
 //
-// The cast and props resolve against EP3_CAST and EP3_PROPS on purpose: same
-// people, same lamp, same look. This is the same world as episode 3.
+// The cast and props resolve against EP4_CAST and EP3_PROPS: episode 3's
+// people and lamp verbatim, with ONE recast — this film's jinni is the Ember
+// King, not ep3's night-sky being. See EP4_CAST in originals.ts for why.
 
-import { EP3_CAST, EP3_PROPS, STORYBOOK_STYLE } from "./originals";
+import { EP3_PROPS, EP4_CAST, STORYBOOK_STYLE } from "./originals";
 
 export type Ep4Shot = {
   /** `ep4_s01a`. Stable: it is the filename stem for the still and the clip. */
@@ -34,7 +35,7 @@ export type Ep4Shot = {
   still: string;
   /** What MOVES. Camera and movement only — never a re-description. */
   motion: string;
-  /** Cast keys locked in this shot, resolved against EP3_CAST. */
+  /** Cast keys locked in this shot, resolved against EP4_CAST. */
   cast?: string[];
   /** Recurring props in frame, resolved against EP3_PROPS. */
   props?: string[];
@@ -761,7 +762,7 @@ export function shotsFor(sceneId: string): Ep4Shot[] {
  */
 export function shotPromptFor(shot: Ep4Shot): string {
   const cast = (shot.cast ?? [])
-    .map((key) => EP3_CAST[key])
+    .map((key) => EP4_CAST[key])
     .filter(Boolean)
     .join(" ");
   const props = (shot.props ?? [])
