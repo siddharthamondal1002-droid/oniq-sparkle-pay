@@ -620,7 +620,8 @@ export const EP4_SHOTS: Ep4Shot[] = [
     weight: 0.9,
     still:
       "Close on bare quick feet finding the ridge line of moonlit tiles, one step then " +
-      "another, the drop beyond them soft with mist and moon.",
+      "another, the white domes and flat roofs of the Arabian palace dropping away soft " +
+      "with mist and moon beyond.",
     motion:
       "The feet take the ridge one sure step at a time. A loose tile shifts and is " +
       "left behind. Mist drifts across the drop. Tracking alongside.",
@@ -656,8 +657,9 @@ export const EP4_SHOTS: Ep4Shot[] = [
     sceneId: "ep4_s13",
     weight: 1,
     still:
-      "A young man lifting the dented lamp from its velvet stand, the first coil of " +
-      "smoke already rising from the spout, his face half-lit and resolved.",
+      "Inside the dim treasure room, gold and silk heaped in shadow behind him: a young " +
+      "man lifting the dented lamp from its velvet stand, the first coil of smoke " +
+      "already rising from the spout, his face half-lit and resolved.",
     motion:
       "He lifts the lamp and the smoke thickens as if waking. His grip settles. " +
       "Handheld drift, barely perceptible, tightening on the lamp.",
@@ -746,9 +748,9 @@ export const EP4_SHOTS: Ep4Shot[] = [
     sceneId: "ep4_s14",
     weight: 1.1,
     still:
-      "The whole city from high above at night, whole again: the palace bright on its " +
-      "hill, the bazaar a river of fire and lanterns, embers rising like stars going " +
-      "back where they belonged.",
+      "The whole city from high above at night, whole again, every rooftop below empty " +
+      "and small: the palace bright on its hill, the bazaar a river of fire and " +
+      "lanterns, embers rising like stars going back where they belonged.",
     motion:
       "Embers climb slowly toward the camera like a star field in reverse. The city " +
       "lights shimmer. Crane up and pull back until the night holds the frame.",
