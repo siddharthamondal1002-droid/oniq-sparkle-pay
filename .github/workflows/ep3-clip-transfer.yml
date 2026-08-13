@@ -102,8 +102,12 @@ jobs:
         run: |
           bun scripts/ingest-ep3-clips.mjs --check
           n=$(ls "public/$EPISODE/clips"/*.mp4 | wc -l)
-          want=$(ls "public/$EPISODE/clips"/*.mp4.asset.json | wc -l)
-          echo "$n clips, $want pointers"
+          # Count against the RAW pointers, not conformed ones: conformed clips
+          # are DERIVED on this runner (see the step above), and an episode
+          # born after that lesson (ep4 onward) never commits conformed
+          # pointers at all — the raws are the record.
+          want=$(ls "public/$EPISODE/raw"/*.mp4.asset.json | wc -l)
+          echo "$n clips, $want raw pointers"
           test "$n" -eq "$want"
 
       # Checksums travel with the bundle so the receiving box can prove it got
