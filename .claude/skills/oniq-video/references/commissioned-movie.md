@@ -179,3 +179,37 @@ verbatim; nothing ep4-specific is known yet beyond the plan:
   effect on this episode's render path. Next after cleanup: close this
   phase, then the render sitting (transfer → TTS → manifest →
   Episode4.tsx → halves → verify → upload → ASK where it lands).
+- 2026-08-13 ~19:00Z: **PHASE 6 CLOSED — 56/56 + cleanup.** C7 9/9 no
+  refusals. Cleanup batch: 10 overwrite-in-place retries, 8 better, 2
+  same (s08c thin crowd, s09d faint silhouette — shipped), s09c retry
+  came back 8.00s/1080-wide — VERIFIED sufficient because its snapped
+  allocation is 223 frames (7.43s): check the allocation before
+  demanding a spec-perfect raw. Owner waived the report gate ("Just
+  render and workflow") and decided delivery: BOTH hub and Your videos.
+  Launch publish VERIFIED live (production serves the movie-grade
+  studio copy; crawl the route chunks, not just the homepage bundle).
+- 2026-08-13 21:06Z: **PHASES 7–9 CLOSED — THE FILM VERIFIES.**
+  TTS: 14 scenes, 366.9s measured; all 13 joins cover TRANSITION=0.25
+  (tightest 0.273s). Allocation closed first try: 56 shots, 11,029
+  generated frames, EP4_TOTAL=10901 (363.37s). Raw upload: 966MB, 56
+  pointers, sizes byte-verified. Transfer run: raws fetched in 53s,
+  conform 19min on the 2-core runner, both bundles published. GOTCHA:
+  on a private repo the release `browser_download_url` 404s from this
+  container — download via `api.github.com/...\/releases/assets/<id>`
+  with `Accept: application/octet-stream`, which the proxy
+  authenticates. Tarball sha256 + all 56 inner checksums verified.
+  RENDER LESSONS, both expensive: (1) **FRAME_RANGE is INCLUSIVE** —
+  last frame is TOTAL−1; `0-5366` + `5367-10900` partition 10901
+  frames. (2) **This container is 4-core/8GB: parallel halves THRASH**
+  (load 12, kswapd swapping, one encoder silently wedged 28 min at 46%)
+  — the runbook's parallel-halves figure was measured on 64 cores. Run
+  halves SEQUENTIALLY here: ~19 min each at CONCURRENCY=4, and arm a
+  stall monitor on the pre-encode mtime (>4 min silent = wedged).
+  Concat `-c copy`, verify: 363.43s vs 363.37 expected (+0.06s ok),
+  105.6MB, h264+AAC, RMS healthy at three points. Uploaded via
+  presigned PUT: 110,733,231 bytes, HTTP 200, 8.8s, sha256
+  08243c4628c96e376051b69b8647acd3ffe3065102bf964f354403ac3d6ae8bb.
+  Delivery in flight: agent registering `src/assets/oniq-ep4.mp4.asset.json`
+  + owner's Your videos row (file attached via send_message `files` —
+  an ARRAY OF OBJECTS `{file_id, file_name}`, not bare strings); then
+  lores.ts wiring here, publish, hub verification per oniq-ship.
