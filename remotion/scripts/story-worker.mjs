@@ -61,6 +61,7 @@ import { framingFor, isSlide } from '../../src/lib/shotGrammar.ts';
 import { rhubarbCuesForWav } from './rhubarb.mjs';
 import { applyFilmLook } from './filmLook.mjs';
 import { ensureDepthModel, inferDepth, cutNearPlane } from './depth.mjs';
+import { defaultTtsCache, ensureLocalTts, speakerFor, synthLocal } from './localTts.mjs';
 import {
   PARALLAX,
   nearPlaneAlpha,
@@ -503,6 +504,26 @@ function depthModel() {
   return depthModelPromise;
 }
 
+/**
+ * The in-house voice, fetched lazily and once. STORY_LOCAL_TTS=off disables
+ * the fallback entirely (a film then dies where it used to when the cloud
+ * bucket is dry); a download or verify failure logs and returns null, so a
+ * broken mirror degrades to exactly the old behaviour instead of a crash.
+ */
+let localTtsPromise = null;
+function localTts() {
+  if ((process.env.STORY_LOCAL_TTS ?? 'on') === 'off') return Promise.resolve(null);
+  if (!localTtsPromise) {
+    localTtsPromise = Promise.resolve()
+      .then(() => ensureLocalTts(defaultTtsCache()))
+      .catch((err) => {
+        console.log(`local tts unavailable (${err?.message ?? err})`);
+        return null;
+      });
+  }
+  return localTtsPromise;
+}
+
 /** ffprobe duration, because narration is the clock and estimates drift. */
 function secondsOf(file) {
   const out = execFileSync(findBin('ffprobe'), [
@@ -609,6 +630,13 @@ if (offline) {
     // One voice for the whole film. A narrator that changes between shots is
     // the audio version of the character drift the cast locks exist to fix.
     const voice = process.env.STORY_VOICE ?? 'Charon';
+
+    // Which engine speaks. 'cloud' is Gemini, the primary; 'local' is Piper
+    // on this runner's own CPU. STORY_LOCAL_TTS=only starts the film fully
+    // in-house (the owner's quota-free switch); otherwise the engine flips
+    // to local exactly once, mid-film, if the cloud bucket dies — and stays
+    // there so voices do not flip-flop between shots.
+    let ttsEngine = process.env.STORY_LOCAL_TTS === 'only' ? 'local' : 'cloud';
 
     // DIALOGUE VOICES. A shot may carry a spoken line (plan.shots[i].dialogue,
     // written by story-plot's movie grammar). It is voiced with a DIFFERENT
@@ -733,24 +761,64 @@ if (offline) {
       const framing = framingFor(shot.still, movingShots);
       if (isSlide(framing)) movingShots += 1;
 
-      const voiced = await voiceWithRetry({ text: shot.narration, voice }, 4);
+      // NARRATION: the cloud voice first, the in-house voice when the cloud
+      // cannot answer. A story-voice 502 that survives every paced retry is
+      // the daily bucket gone — waiting will not fix it inside this run —
+      // and a fourteen-shot film died exactly there with every frame paid
+      // for. Piper speaks the line instead, and the ENGINE STAYS SWITCHED
+      // for the rest of the film: a narrator changing voice once, at the
+      // moment the bucket died, beats one flip-flopping minute to minute.
+      // Anything that is not a 502 (a refusal, a missing key) still throws.
       let wav = path.join(assetRoot, `${stem}.wav`);
-      fs.writeFileSync(wav, wrapPcmAsWav(Buffer.from(voiced.data, 'base64'), rateOf(voiced.mime)));
+      if (ttsEngine === 'cloud') {
+        try {
+          const voiced = await voiceWithRetry({ text: shot.narration, voice }, 4);
+          fs.writeFileSync(wav, wrapPcmAsWav(Buffer.from(voiced.data, 'base64'), rateOf(voiced.mime)));
+        } catch (err) {
+          if (!/story-voice: 502/.test(String(err?.message ?? err))) throw err;
+          if (!(await localTts())) throw err;
+          ttsEngine = 'local';
+          console.log(`  voice ${i + 1}: cloud quota dry — in-house piper carries the film from here`);
+        }
+      }
+      if (ttsEngine === 'local') {
+        const tts = await localTts();
+        if (!tts) throw new Error('in-house tts unavailable and cloud voice exhausted');
+        synthLocal(ffmpeg, tts, shot.narration, wav);
+      }
 
       // The shot's spoken line, if the plan wrote one. Appended AFTER the
       // narration with a 350ms breath, into ONE wav — the measured duration
       // below then includes it automatically, so narration-as-clock, the Ken
       // Burns length and the mouth spans all keep working unchanged. A failure
       // here downgrades the shot to narration-only rather than failing the
-      // film: dialogue is seasoning, not structure.
+      // film: dialogue is seasoning, not structure. Local dialogue draws a
+      // stable speaker from the 904-voice cast model by name hash — the same
+      // voice-lock idea as voiceFor() on the cloud path.
       if (shot.dialogue && shot.dialogue.line && shot.dialogue.speaker) {
         try {
-          const dv = await voiceWithRetry(
-            { text: shot.dialogue.line, voice: voiceFor(shot.dialogue.speaker) },
-            2,
-          );
           const dwav = path.join(assetRoot, `${stem}.line.wav`);
-          fs.writeFileSync(dwav, wrapPcmAsWav(Buffer.from(dv.data, 'base64'), rateOf(dv.mime)));
+          let spokenBy = voiceFor(shot.dialogue.speaker);
+          if (ttsEngine === 'cloud') {
+            try {
+              const dv = await voiceWithRetry(
+                { text: shot.dialogue.line, voice: spokenBy },
+                2,
+              );
+              fs.writeFileSync(dwav, wrapPcmAsWav(Buffer.from(dv.data, 'base64'), rateOf(dv.mime)));
+            } catch (err) {
+              if (!/story-voice: 502/.test(String(err?.message ?? err))) throw err;
+              if (!(await localTts())) throw err;
+              ttsEngine = 'local';
+            }
+          }
+          if (ttsEngine === 'local') {
+            const tts = await localTts();
+            if (!tts) throw new Error('in-house tts unavailable');
+            const speaker = speakerFor(shot.dialogue.speaker, tts.castSpeakers);
+            synthLocal(ffmpeg, tts, shot.dialogue.line, dwav, { speaker });
+            spokenBy = `piper#${speaker}`;
+          }
           const mixed = path.join(assetRoot, `${stem}.mix.wav`);
           execFileSync(ffmpeg, [
             '-y', '-i', wav, '-i', dwav,
@@ -758,7 +826,7 @@ if (offline) {
             '-map', '[a]', mixed,
           ], { stdio: 'pipe' });
           wav = mixed;
-          console.log(`  dialogue ${i + 1}: ${shot.dialogue.speaker} (${voiceFor(shot.dialogue.speaker)})`);
+          console.log(`  dialogue ${i + 1}: ${shot.dialogue.speaker} (${spokenBy})`);
         } catch (err) {
           console.log(`  dialogue ${i + 1} skipped: ${err?.message ?? err}`);
         }
