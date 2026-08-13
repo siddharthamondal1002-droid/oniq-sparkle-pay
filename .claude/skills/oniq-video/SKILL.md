@@ -125,6 +125,13 @@ live on two different machines: the Lovable agent has image generation, TTS and
 a full ffmpeg, while this container has the repo, Remotion, Chromium and a
 cut-down ffmpeg. The rest of this section is the reference material behind it.
 
+**When the OWNER commissions a movie ("make me a film like episode 3"), follow
+`references/commissioned-movie.md`.** It is that runbook executed for episode 4
+with every lesson the build added — the cost answer (Lovable credits, never the
+Google key), the read-every-lock-you-reuse recast lesson, the batched-stills
+queue discipline, the driver loop, the owner gates — and it carries a resume
+ledger so a future session can pick the build up mid-flight.
+
 ```
 remotion/src/ep1/Episode1.tsx   TransitionSeries: one Sequence per scene,
                                 KenBurns + <Audio src={staticFile(...)} />
