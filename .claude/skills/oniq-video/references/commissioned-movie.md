@@ -145,3 +145,27 @@ verbatim; nothing ep4-specific is known yet beyond the plan:
   drift; s08d boyish hero in married-man beats (the season's locked
   design). Next: owner approval → PHASE 6, clips (image-to-video from
   each still, motion text only, batched like the stills, raws kept).
+- 2026-08-13 ~15:10Z: owner approved the contact sheet and said "drive
+  it" — PHASE 6 (CLIPS) running under a self-re-arming driver (~12 min
+  one-shots), batches C1–C7 sequential, keep-and-skip, refusal→one
+  verbatim retry then flag-and-continue.
+- 2026-08-13 18:0xZ: **PHASE 6 at 47/56.** C1 s01–s02 (7/7), C2 s03–s04
+  (8/8), C3 s05–s06 (8/8), C4 s07–s08 (8/8), C5 s09–s10 (9/9, one
+  refusal s10e cleared on its single retry), C6 s11–s12 (7/7,
+  owner-confirmed). C7 s13–s14 (9, the final batch) accepted by the
+  agent 18:00:46Z. All raws 1088×1920 24fps 10.04s video-only at
+  `/mnt/documents/ep4/clips/`. SOFT-FLAG LIST for the one cleanup batch
+  after C7 (overwrite-in-place is the cleanup pass's deliberate
+  exception to keep-and-skip): s05d smile fades instead of holding,
+  s08a greenery grows on the bare hill, s08c crowd barely gathers, s09c
+  Aladdin skews younger than his lock, s09d road silhouette illegible,
+  s10c window flame balloons on the push-in — plus whatever C6/C7's
+  verdict tables add. Queue discipline held all day: a send_message 60s
+  client timeout means QUEUED (never resend), confirm by artifact.
+  Parallel but separate: the movie-grade LAUNCH web build deployed from
+  main 16:50Z (bundle verification owed when this queue idles), and the
+  story engine gained rungs 1–2 on main (mid depth plane `9fafd17`,
+  eleven measured rigs `8adc7a7`) — engine work for user movies, no
+  effect on this episode's render path. Next after cleanup: close this
+  phase, then the render sitting (transfer → TTS → manifest →
+  Episode4.tsx → halves → verify → upload → ASK where it lands).
