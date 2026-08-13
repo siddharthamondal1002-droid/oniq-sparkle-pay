@@ -111,6 +111,14 @@ what's next) so it survives context summarization.
 
 ### 7–11. Clips, transfer, assembly, render, delivery (NOT YET RUN)
 
+**OWNER RULE (2026-08-13, stated twice — treat as standing): the final
+video is NEVER rendered on Lovable.** Lovable's box only generates assets
+(stills, clips). The finished film is made by running the GitHub transfer
+workflow, rendering HERE in this container, verifying, and only then
+uploading the finished file to Lovable. If a future session finds itself
+asking the Lovable agent to assemble or render video, it has left the
+procedure.
+
 Follow `making-an-episode.md` video-variant + `assembling-generated-clips.md`
 verbatim; nothing ep4-specific is known yet beyond the plan:
 
