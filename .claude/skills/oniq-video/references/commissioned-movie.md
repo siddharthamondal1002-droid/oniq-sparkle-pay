@@ -1,10 +1,16 @@
-# Building a commissioned movie — the Episode 4 procedure
+# Building a commissioned movie — THE procedure for all future videos
 
-How "Aladdin and the Ember King" (ep4) is being built, recorded AS IT RUNS so
-the job can be repeated — or resumed mid-flight — by a future session. This is
-the ep3 procedure (`making-an-episode.md`, video variant) executed for an
+**Standing owner directive (2026-08-13): every future video — a new episode,
+a commissioned film, "make me a movie" in any phrasing — is built with THIS
+procedure.** It was recorded as "Aladdin and the Ember King" (ep4) ran, so it
+can be repeated — or resumed mid-flight — by a future session. It is the ep3
+procedure (`making-an-episode.md`, video variant) executed for an
 owner-commissioned film, plus every lesson this build added. Read that runbook
 and `assembling-generated-clips.md` first; this file records what they don't.
+The build ends only when the film is verified live per `oniq-ship` (grep the
+data chunk that carries the asset id, not the entry bundle) and delivered
+where the owner chose — for ep4 that was BOTH the Originals hub and their
+Your videos, and both-destinations is the default to offer.
 
 ## The commission, and the cost answer that matters
 

@@ -125,12 +125,17 @@ live on two different machines: the Lovable agent has image generation, TTS and
 a full ffmpeg, while this container has the repo, Remotion, Chromium and a
 cut-down ffmpeg. The rest of this section is the reference material behind it.
 
-**When the OWNER commissions a movie ("make me a film like episode 3"), follow
-`references/commissioned-movie.md`.** It is that runbook executed for episode 4
-with every lesson the build added — the cost answer (Lovable credits, never the
-Google key), the read-every-lock-you-reuse recast lesson, the batched-stills
-queue discipline, the driver loop, the owner gates — and it carries a resume
-ledger so a future session can pick the build up mid-flight.
+**ALL future videos — episodes, commissioned films, anything the owner asks
+for — follow `references/commissioned-movie.md`. This is a standing owner
+directive (2026-08-13), not a suggestion.** That file is the ep3 runbook
+executed for episode 4 with every lesson the build added — the cost answer
+(Lovable credits, never the Google key), the read-every-lock-you-reuse recast
+lesson, the batched-stills queue discipline, the driver loop, the owner gates,
+delivery to BOTH the Originals hub and the owner's Your videos, and
+chunk-level live verification per oniq-ship — and it carries a resume ledger
+so a future session can pick a build up mid-flight. The only exceptions are
+pure motion-graphics work (promo/trailer — plain Remotion, above) and the
+in-app user Story pipeline, which has its own guarded worker.
 
 ```
 remotion/src/ep1/Episode1.tsx   TransitionSeries: one Sequence per scene,
