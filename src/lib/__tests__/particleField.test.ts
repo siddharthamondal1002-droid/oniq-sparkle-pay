@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { VFX, particlesAt, vfxKindFor, vfxSeed, type VfxKind } from "@/lib/particleField";
 
@@ -48,6 +50,26 @@ describe("vfxKindFor", () => {
     expect(vfxKindFor("A soothing voice from the doorway")).toBeNull();
     expect(vfxKindFor("He looked away, ashamed")).toBeNull();
     expect(vfxKindFor("The crowd hailed the young king")).toBeNull();
+    // The review's second sweep of prose traps:
+    expect(vfxKindFor("A burnished shield above the door")).toBeNull();
+    expect(vfxKindFor("He would never forget her face")).toBeNull();
+    expect(vfxKindFor("The sandals stride through frame")).toBeNull();
+    expect(vfxKindFor("A twinkle in his eye")).toBeNull();
+    expect(vfxKindFor("She stormed out of the hall")).toBeNull();
+  });
+
+  it("routes compound storms to their own element, not to rain", () => {
+    expect(vfxKindFor("A snowstorm over the pass")).toBe("snow");
+    expect(vfxKindFor("A sandstorm swallows the caravan")).toBe("dust");
+    expect(vfxKindFor("The dust storm rolls toward the city")).toBe("dust");
+    expect(vfxKindFor("A storm breaks over the harbour")).toBe("rain");
+  });
+
+  it("pins the priority ladder beyond the rain-vs-fireflies rung", () => {
+    // Embers are checked first — a fire IN weather stays a fire scene.
+    expect(vfxKindFor("The storm drowned the campfire")).toBe("embers");
+    // Fireflies outrank dust: a moonlit bazaar is a night scene.
+    expect(vfxKindFor("The moonlit bazaar, empty and silver")).toBe("fireflies");
   });
 });
 
@@ -88,12 +110,15 @@ describe("particlesAt", () => {
     expect(late).not.toEqual(particlesAt("embers", 77, 499, 30));
   });
 
-  it("keeps every particle inside the frame and every opacity in 0..1", () => {
+  it("keeps particles inside the frame (x may overhang by sway) and opacity in 0..1", () => {
     for (const kind of KINDS) {
+      const sway = VFX[kind].sway[0];
       for (const frame of [0, 45, 313, 4000]) {
         for (const p of particlesAt(kind, 999, frame, 30)) {
-          expect(p.x).toBeGreaterThanOrEqual(0);
-          expect(p.x).toBeLessThan(1);
+          // Sway rides OUTSIDE the wrap (the teleport fix), so x may overhang
+          // the frame by up to the sway amplitude; the overlay clips it.
+          expect(p.x).toBeGreaterThanOrEqual(-sway);
+          expect(p.x).toBeLessThan(1 + sway);
           expect(p.y).toBeGreaterThanOrEqual(0);
           expect(p.y).toBeLessThan(1);
           expect(p.r).toBeGreaterThan(0);
@@ -104,11 +129,42 @@ describe("particlesAt", () => {
     }
   });
 
+  it("never teleports: at most one seam recycle per particle per shot", () => {
+    // The review EXECUTED the first version and counted seven full-width
+    // x-jumps in a ten-second embers shot: sway inside the wrap re-crossed
+    // the seam every half-cycle. With drift wrapped alone, |vx| bounds the
+    // legitimate recycles to at most one in ten seconds for every kind.
+    for (const kind of KINDS) {
+      for (const seed of [7, 24, 999]) {
+        const frames = Array.from({ length: 301 }, (_, f) => particlesAt(kind, seed, f, 30));
+        const count = VFX[kind].count;
+        for (let i = 0; i < count; i++) {
+          let jumps = 0;
+          for (let f = 1; f <= 300; f++) {
+            if (Math.abs(frames[f][i].x - frames[f - 1][i].x) > 0.5) jumps++;
+          }
+          expect(jumps, `${kind} seed ${seed} particle ${i}`).toBeLessThanOrEqual(1);
+        }
+      }
+    }
+  });
+
   it("delivers each kind's full count, and different seeds different air", () => {
     for (const kind of KINDS) {
       expect(particlesAt(kind, 5, 10, 30).length).toBe(VFX[kind].count);
     }
     expect(particlesAt("dust", 1, 10, 30)).not.toEqual(particlesAt("dust", 2, 10, 30));
+  });
+
+  it("is gated movie-grade-only in the worker and clip-free in the composition", () => {
+    // The tier contract, pinned as text like every cross-into-remotion test:
+    // classic plans must never carry vfx, clips must never get an overlay,
+    // and the pushed shape must be what StoryShotInput['vfx'] declares.
+    const worker = readFileSync(join(process.cwd(), "remotion/scripts/story-worker.mjs"), "utf8");
+    expect(worker).toMatch(/if \(cinematic && !clip\) \{\s*\n\s*const kind = vfxKindFor\(/);
+    expect(worker).toMatch(/vfx = \{ kind, seed: vfxSeed\(/);
+    const film = readFileSync(join(process.cwd(), "remotion/src/story/StoryFilm.tsx"), "utf8");
+    expect(film).toMatch(/\{!shot\.clip && shot\.vfx \? <ParticleOverlay/);
   });
 
   it("actually moves: embers rise between frames, rain falls fast", () => {

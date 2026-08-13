@@ -26,10 +26,15 @@
  * frame HEIGHT. The composition scales; the math never sees pixels.
  */
 
-export type VfxKind = 'embers' | 'dust' | 'rain' | 'snow' | 'fireflies';
+export type VfxKind = "embers" | "dust" | "rain" | "snow" | "fireflies";
 
 export type Particle = {
-  /** Centre, as fractions of frame width/height. */
+  /**
+   * Centre, as fractions of frame width/height. y is always in [0, 1); x may
+   * overhang by up to the kind's sway amplitude (~0.02) on either side,
+   * because sway rides OUTSIDE the wrap — see the note in particlesAt. The
+   * overlay clips the overhang.
+   */
   x: number;
   y: number;
   /** Radius as a fraction of frame height. */
@@ -55,28 +60,41 @@ export function vfxKindFor(text: string): VfxKind | null {
   const t = text.toLowerCase();
   // fire(?!fl): "fires" and "firelight" are embers, "fireflies" are not.
   // spark(?!l): "sparks" fly, "sparkling" jewels do not.
+  // burn(?!ish): a fire burns, a "burnished" shield only shines.
+  // forge(?!t): a smith's forge, not "forget"/"forgetting".
   if (
-    /\b(ember|flame|fire(?!fl)|torch|burn|coal|bonfire|campfire|hearth|forge|blaze|ablaze|inferno|cinder|spark(?!l)|smoulder|smolder|pyre|brazier|furnace|kiln|candl|volcan)/.test(
+    /\b(ember|flame|fire(?!fl)|torch|burn(?!ish)|coal|bonfire|campfire|hearth|forge(?!t)|blaze|ablaze|inferno|cinder|spark(?!l)|smoulder|smolder|pyre|brazier|furnace|kiln|candl|volcan)/.test(
       t,
     )
   ) {
-    return 'embers';
+    return "embers";
   }
-  if (/\b(rain|storm|monsoon|downpour|drizzle|deluge|cloudburst|squall|torrential|tempest)/.test(t)) {
-    return 'rain';
+  // storm: not snowstorm/sandstorm/duststorm (those belong to their own
+  // kinds), and not the verb — a hero "storming" a gate brings no weather.
+  if (
+    /\b(rain|(?<!snow)(?<!snow )(?<!sand)(?<!sand )(?<!dust)(?<!dust )storm(?!ed|ing)|monsoon|downpour|drizzle|deluge|cloudburst|squall|torrential|tempest)/.test(
+      t,
+    )
+  ) {
+    return "rain";
   }
-  if (/\b(snow|frost|blizzard|sleet|winter|wintry|flurr|hailst|avalanche)/.test(t)) return 'snow';
-  if (/\b(firefl|glow-?worm|starlit|starry|starlight|moonlit|moonbeam|lightning bug|twinkl|lantern|night garden)/.test(t)) {
-    return 'fireflies';
+  if (/\b(snow|frost|blizzard|sleet|winter|wintry|flurr|hailst|avalanche)/.test(t)) return "snow";
+  // twinkling, not twinkl: "a twinkle in his eye" is a smile, not weather.
+  if (
+    /\b(firefl|glow-?worm|starlit|starry|starlight|moonlit|moonbeam|lightning bug|twinkling|lantern|night garden)/.test(
+      t,
+    )
+  ) {
+    return "fireflies";
   }
   // soot(?!h): a chimney's soot, not a "soothing" voice. ash(es)?\b: ash and
-  // ashes, not "ashamed".
+  // ashes, not "ashamed". sand(?!al): the desert, not "sandals"/"sandalwood".
   if (
-    /\b(dust|desert|sand|dune|bazaar|market|cave|cellar|sunbeam|haze|attic|ash(es)?\b|soot(?!h)|cobweb|pollen|smok)/.test(
+    /\b(dust|desert|sand(?!al)|dune|bazaar|market|cave|cellar|sunbeam|haze|attic|ash(es)?\b|soot(?!h)|cobweb|pollen|smok)/.test(
       t,
     )
   ) {
-    return 'dust';
+    return "dust";
   }
   return null;
 }
@@ -103,7 +121,10 @@ function draw(seed: number, lane: number): number {
 
 /** frac(v) that is safe for negative v — wraps into [0, 1). */
 function wrap01(v: number): number {
-  return v - Math.floor(v);
+  const w = v - Math.floor(v);
+  // v - floor(v) rounds to exactly 1.0 for tiny negative v (|v| < ~1.1e-16),
+  // which would violate the [0,1) contract the composition trusts.
+  return w >= 1 ? 0 : w;
 }
 
 type KindSpec = {
@@ -131,7 +152,7 @@ type KindSpec = {
 export const VFX: Readonly<Record<VfxKind, KindSpec>> = {
   embers: {
     count: 60,
-    vy: [-0.10, -0.035], // rising
+    vy: [-0.1, -0.035], // rising
     vx: [-0.015, 0.015],
     r: [0.0012, 0.0034],
     opacity: [0.35, 0.85],
@@ -198,12 +219,20 @@ export function particlesAt(kind: VfxKind, seed: number, frame: number, fps: num
     const baseOpacity = lerp(spec.opacity, draw(seed, base + 5));
     const phase = draw(seed, base + 6) * Math.PI * 2;
 
-    let x = x0 + vx * t;
+    // WRAP THE DRIFT, THEN ADD SWAY — never the other way. The drift term is
+    // monotonic, so it crosses an integer boundary at most once per 1/|vx|
+    // seconds and wrap01 turns that into the intended single recycle. The
+    // review's determinism pass EXECUTED the first version (sway inside the
+    // wrap) and counted seven full-width teleports in a ten-second embers
+    // shot: sway's peak velocity exceeds |vx|, so a particle near the seam
+    // re-crossed it every half-cycle and ping-ponged edge to edge. Sway now
+    // rides outside the wrap, overhanging the frame by at most its amplitude;
+    // the overlay clips the overhang.
+    let x = wrap01(x0 + vx * t);
     if (spec.sway[0] > 0) {
       x += Math.sin(phase + (t / spec.sway[1]) * Math.PI * 2) * spec.sway[0];
     }
     const y = wrap01(y0 + vy * t);
-    x = wrap01(x);
 
     let opacity = baseOpacity;
     if (spec.twinkle[0] > 0) {

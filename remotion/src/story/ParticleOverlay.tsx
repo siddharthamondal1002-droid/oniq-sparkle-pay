@@ -10,21 +10,28 @@
 // rain pass in front of people, which is what puts the person IN the
 // weather instead of behind a screensaver. Colour is presentation and so
 // lives here, not in the math.
-import React from 'react';
-import { AbsoluteFill, useCurrentFrame, useVideoConfig } from 'remotion';
-import { particlesAt, type VfxKind } from '../../../src/lib/particleField';
+import React from "react";
+import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
+import { particlesAt, type VfxKind } from "../../../src/lib/particleField";
 
 /** Per-kind paint: colour, glow, and whether the particle is a streak. */
 const PAINT: Record<VfxKind, { color: string; glow: string; streak: boolean }> = {
-  embers: { color: '#ffb45e', glow: 'rgba(255,140,50,0.55)', streak: false },
-  dust: { color: '#f2e4c8', glow: 'rgba(242,228,200,0.25)', streak: false },
-  rain: { color: '#b9c9d9', glow: 'rgba(185,201,217,0)', streak: true },
-  snow: { color: '#f4f7fb', glow: 'rgba(244,247,251,0.35)', streak: false },
-  fireflies: { color: '#d8f27a', glow: 'rgba(196,240,90,0.7)', streak: false },
+  embers: { color: "#ffb45e", glow: "rgba(255,140,50,0.55)", streak: false },
+  dust: { color: "#f2e4c8", glow: "rgba(242,228,200,0.25)", streak: false },
+  rain: { color: "#b9c9d9", glow: "rgba(185,201,217,0)", streak: true },
+  snow: { color: "#f4f7fb", glow: "rgba(244,247,251,0.35)", streak: false },
+  fireflies: { color: "#d8f27a", glow: "rgba(196,240,90,0.7)", streak: false },
 };
 
-/** Rain's fixed slant, degrees from vertical. One wind for the whole shot. */
-const RAIN_SLANT_DEG = 5;
+/**
+ * Rain's fixed slant, degrees. NEGATIVE, because the math blows the wind
+ * RIGHT (VFX.rain.vx is strictly positive) and a streak tracing down-right
+ * travel leans top-left/bottom-right — which in CSS is a counter-clockwise
+ * (negative) rotation. The review's math pass caught the first version
+ * leaning every streak AGAINST its own motion. Magnitude derived from the
+ * spec: atan(mean vx·width / mean vy·height) at 1080x1920 ≈ 2.5°.
+ */
+const RAIN_SLANT_DEG = -2.5;
 
 export const ParticleOverlay: React.FC<{ kind: VfxKind; seed: number }> = ({ kind, seed }) => {
   const frame = useCurrentFrame();
@@ -33,15 +40,21 @@ export const ParticleOverlay: React.FC<{ kind: VfxKind; seed: number }> = ({ kin
   const particles = particlesAt(kind, seed, frame, fps);
 
   return (
-    <AbsoluteFill style={{ pointerEvents: 'none' }}>
+    /* overflow hidden: sway rides outside the wrap (see particleField.ts),
+       so a particle may overhang the frame edge by its sway amplitude and
+       must clip, not paint outside the shot. */
+    <AbsoluteFill style={{ pointerEvents: "none", overflow: "hidden" }}>
       {particles.map((p, i) => {
         const r = p.r * height;
         const d = Math.max(1, r * 2);
+        /* translate(-50%,-50%): Particle.x/y are the CENTRE. Anchoring the
+           div's top-left corner there instead shifts everything down-right
+           by a radius and makes edge particles pop in whole. */
         return paint.streak ? (
           <div
             key={i}
             style={{
-              position: 'absolute',
+              position: "absolute",
               left: p.x * width,
               top: p.y * height,
               width: Math.max(1, r),
@@ -49,21 +62,22 @@ export const ParticleOverlay: React.FC<{ kind: VfxKind; seed: number }> = ({ kin
               opacity: p.opacity,
               backgroundColor: paint.color,
               borderRadius: r,
-              transform: `rotate(${RAIN_SLANT_DEG}deg)`,
+              transform: `translate(-50%, -50%) rotate(${RAIN_SLANT_DEG}deg)`,
             }}
           />
         ) : (
           <div
             key={i}
             style={{
-              position: 'absolute',
+              position: "absolute",
               left: p.x * width,
               top: p.y * height,
               width: d,
               height: d,
               opacity: p.opacity,
               backgroundColor: paint.color,
-              borderRadius: '50%',
+              borderRadius: "50%",
+              transform: "translate(-50%, -50%)",
               boxShadow: `0 0 ${Math.max(2, r * 3)}px ${paint.glow}`,
             }}
           />
