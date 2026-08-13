@@ -136,6 +136,8 @@ verbatim; nothing ep4-specific is known yet beyond the plan:
   ASK THE OWNER where it lands — the Originals hub (register in
   `src/data/lores.ts` with measured runtime + provenance comment, then the
   publish loop per oniq-ship) or their private Your videos. Do not assume.
+  **DECIDED for ep4 (owner, 2026-08-13): BOTH** — the hub registration AND
+  the owner's Your videos, in that order after verify-episode.mjs passes.
 
 ## Resume ledger (update this section as the build advances)
 
