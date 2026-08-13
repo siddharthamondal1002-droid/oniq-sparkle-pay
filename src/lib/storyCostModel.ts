@@ -32,6 +32,15 @@ export const UNIT = {
   usdPerImage: 0.039,
   usdTtsPerMinute: 0.032,
   usdPerVideoSecond: 0.15,
+  /**
+   * Video seconds BOUGHT per finished minute of movie-grade film. MEASURED,
+   * not the naive 60: the worker's duration ladder asks Veo for 4, 6 or 8
+   * seconds per shot against the shot's narration, and at 8.7 shots/minute
+   * the asks sum to ~68. Priced at 60 (as this was until 2026-08-13) a
+   * full-success film realises ~17% margin against a 26% mandate — the
+   * first live movie films measured it.
+   */
+  videoSecondsPerFinishedMinute: 68,
   inrPerUsd: 84,
   /** Razorpay 2% + 18% GST on the fee, as a fraction of price. */
   paymentFeeOfPrice: 0.0236,
@@ -54,7 +63,7 @@ export function costPaisePerMinute(grade: StoryGrade): number {
   const stills = UNIT.shotsPerMinute * UNIT.usdPerImage;
   const tts = UNIT.usdTtsPerMinute;
   let usd = stills + tts;
-  if (grade === "movie") usd += 60 * UNIT.usdPerVideoSecond;
+  if (grade === "movie") usd += UNIT.videoSecondsPerFinishedMinute * UNIT.usdPerVideoSecond;
   return Math.round(usd * UNIT.inrPerUsd * 100);
 }
 
@@ -88,9 +97,9 @@ export const MOVIE_TIERS: readonly {
   pricePaise: number;
   currency: "INR";
 }[] = [
-  { seconds: 30, label: "30 seconds — movie", pricePaise: 57000, currency: "INR" },
-  { seconds: 60, label: "1 minute — movie", pricePaise: 110300, currency: "INR" },
-  { seconds: 120, label: "2 minutes — movie", pricePaise: 220200, currency: "INR" },
-  { seconds: 180, label: "3 minutes — movie", pricePaise: 308600, currency: "INR" },
-  { seconds: 300, label: "5 minutes — movie", pricePaise: 514000, currency: "INR" },
+  { seconds: 30, label: "30 seconds — movie", pricePaise: 64200, currency: "INR" },
+  { seconds: 60, label: "1 minute — movie", pricePaise: 124400, currency: "INR" },
+  { seconds: 120, label: "2 minutes — movie", pricePaise: 248400, currency: "INR" },
+  { seconds: 180, label: "3 minutes — movie", pricePaise: 348000, currency: "INR" },
+  { seconds: 300, label: "5 minutes — movie", pricePaise: 579800, currency: "INR" },
 ];
