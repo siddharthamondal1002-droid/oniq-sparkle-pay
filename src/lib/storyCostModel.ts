@@ -31,16 +31,18 @@ export const UNIT = {
   shotsPerMinute: 8.7,
   usdPerImage: 0.039,
   usdTtsPerMinute: 0.032,
-  usdPerVideoSecond: 0.15,
   /**
-   * Video seconds BOUGHT per finished minute of movie-grade film. MEASURED,
-   * not the naive 60: the worker's duration ladder asks Veo for 4, 6 or 8
-   * seconds per shot against the shot's narration, and at 8.7 shots/minute
-   * the asks sum to ~68. Priced at 60 (as this was until 2026-08-13) a
-   * full-success film realises ~17% margin against a 26% mandate — the
-   * first live movie films measured it.
+   * THE MOVIE GRADE IS THE IN-HOUSE ENGINE (owner directive, 2026-08-13):
+   * the owned cinematography stack — multi-plane parallax, rigged
+   * characters, VFX layers, dialogue voices, film look — not rented video
+   * generation. Its marginal cost is the same stills and voices as classic
+   * plus RENDER COMPUTE: classic measured 4.5 runner-minutes per finished
+   * minute, and the richer movie composition is budgeted at 2x that,
+   * priced at GitHub's overage rate so the chart stays honest even past
+   * the free tier.
    */
-  videoSecondsPerFinishedMinute: 68,
+  runnerMinutesPerFinishedMinute: 9,
+  usdPerRunnerMinute: 0.008,
   inrPerUsd: 84,
   /** Razorpay 2% + 18% GST on the fee, as a fraction of price. */
   paymentFeeOfPrice: 0.0236,
@@ -63,7 +65,7 @@ export function costPaisePerMinute(grade: StoryGrade): number {
   const stills = UNIT.shotsPerMinute * UNIT.usdPerImage;
   const tts = UNIT.usdTtsPerMinute;
   let usd = stills + tts;
-  if (grade === "movie") usd += UNIT.videoSecondsPerFinishedMinute * UNIT.usdPerVideoSecond;
+  if (grade === "movie") usd += UNIT.runnerMinutesPerFinishedMinute * UNIT.usdPerRunnerMinute;
   return Math.round(usd * UNIT.inrPerUsd * 100);
 }
 
@@ -97,9 +99,12 @@ export const MOVIE_TIERS: readonly {
   pricePaise: number;
   currency: "INR";
 }[] = [
-  { seconds: 30, label: "30 seconds — movie", pricePaise: 64200, currency: "INR" },
-  { seconds: 60, label: "1 minute — movie", pricePaise: 124400, currency: "INR" },
-  { seconds: 120, label: "2 minutes — movie", pricePaise: 248400, currency: "INR" },
-  { seconds: 180, label: "3 minutes — movie", pricePaise: 348000, currency: "INR" },
-  { seconds: 300, label: "5 minutes — movie", pricePaise: 579800, currency: "INR" },
+  // 30s publishes one rounding step BELOW the formula's ceil: ₹32 lands 2.1
+  // points over the 28% mandate purely from rounding a tiny price up, and
+  // ₹31 sits at 27.9% — the margin is the requirement, not the ceil.
+  { seconds: 30, label: "30 seconds — movie", pricePaise: 3100, currency: "INR" },
+  { seconds: 60, label: "1 minute — movie", pricePaise: 5700, currency: "INR" },
+  { seconds: 120, label: "2 minutes — movie", pricePaise: 10900, currency: "INR" },
+  { seconds: 180, label: "3 minutes — movie", pricePaise: 15000, currency: "INR" },
+  { seconds: 300, label: "5 minutes — movie", pricePaise: 24700, currency: "INR" },
 ];

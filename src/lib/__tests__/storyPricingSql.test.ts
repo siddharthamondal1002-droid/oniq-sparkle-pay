@@ -16,9 +16,9 @@ import { PRICE_TIERS } from "@/lib/storyPricing";
 import { MOVIE_TIERS } from "@/lib/storyCostModel";
 
 const SQL = readFileSync(
-  // The NEWEST pricing migration is the one canonical chart. 20260811180000
-  // until the movie grade was repriced to its measured cost.
-  join(process.cwd(), "supabase/migrations/20260813170000_movie_reprice_measured.sql"),
+  // The NEWEST pricing migration is the one canonical chart. 20260811180000,
+  // then the measured-cost reprice, then the in-house reprice the same day.
+  join(process.cwd(), "supabase/migrations/20260813190000_movie_reprice_inhouse.sql"),
   "utf8",
 );
 

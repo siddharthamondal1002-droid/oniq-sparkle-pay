@@ -61,10 +61,14 @@ describe("story pricing sits on the mandated margins", () => {
     }
   });
 
-  it("movie still costs roughly 10x classic to make", () => {
+  it("movie costs a modest premium over classic — it is the IN-HOUSE engine", () => {
+    // Repriced 2026-08-13 (owner directive): movie grade runs on the owned
+    // cinematography stack, so its only extra marginal cost is render
+    // compute — ~1.2x classic, not the ~10x of a rented video model. If this
+    // ratio ever balloons, the movie grade has quietly gone back to renting.
     const ratio = costPaisePerMinute("movie") / costPaisePerMinute("classic");
-    expect(ratio).toBeGreaterThan(8);
-    expect(ratio).toBeLessThan(40);
+    expect(ratio).toBeGreaterThan(1.05);
+    expect(ratio).toBeLessThan(2);
   });
 
   it("movie tiers cover the same durations the classic chart sells", () => {
