@@ -53,6 +53,8 @@ describe("walkFor — gait verbs only, guarded against prose", () => {
   it("hears feet moving through a shot", () => {
     expect(walkFor("They walk the length of the bazaar")).toBe("drift");
     expect(walkFor("Morgiana strides across the courtyard")).toBe("drift");
+    // The irregular past — the tense the plans actually narrate in.
+    expect(walkFor("She strode across the square")).toBe("drift");
     expect(walkFor("The old man trudges up the hill")).toBe("drift");
     expect(walkFor("She hurried along the harbour wall")).toBe("drift");
     expect(walkFor("The boy runs through the alley")).toBe("drift");
@@ -126,6 +128,34 @@ describe("conversationFacings — the 180-degree eyeline pass", () => {
       "right",
       "left",
       "right",
+    ]);
+  });
+
+  it("EVERY cut between two different characters looks across the frame", () => {
+    // The property the global-parity version broke: with three speakers,
+    // two of them could land on adjacent shots facing the same way.
+    // Adjacency-flip makes the property hold by construction; assert it
+    // over sequences that would have failed.
+    const sequences = [
+      ["aladdin", "princess", "magician", "aladdin", "magician"],
+      ["aladdin", "magician", "princess", "aladdin"],
+      ["mother", "aladdin", "mother", "princess", "mother"],
+    ];
+    for (const rigs of sequences) {
+      const facings = conversationFacings(shots(...rigs));
+      for (let i = 1; i < rigs.length; i++) {
+        if (rigs[i] !== rigs[i - 1]) {
+          expect(facings[i], `${rigs.join(",")} @${i}`).not.toBe(facings[i - 1]);
+        }
+      }
+    }
+  });
+
+  it("a character holding consecutive coverage keeps their side", () => {
+    expect(conversationFacings(shots("aladdin", "aladdin", "magician"))).toEqual([
+      "right",
+      "right",
+      "left",
     ]);
   });
 
@@ -285,6 +315,30 @@ describe("puppetPoseAt — bounded, deterministic, at rest when idle", () => {
     expect(puppetPoseAt(104, beaten).dy).toBeGreaterThan(0);
     expect(puppetPoseAt(50, beaten).dy).toBe(0);
     expect(puppetPoseAt(150, beaten).dy).toBe(0);
+  });
+
+  it("an emphasis beat near the cut fades to rest ON the cut frame", () => {
+    // The seam rule: every motion source is at rest at the hard cut. A beat
+    // landing inside the last EMPHASIS_FRAMES must not leave the body
+    // mid-bob on the shot's final frame.
+    const lateBeat: PoseParams = { ...base, speech: [[0, 300]], beats: [295], speaking: true };
+    expect(puppetPoseAt(299, lateBeat).dy).toBe(0);
+    // Away from the cut, the same beat still bobs.
+    const early: PoseParams = { ...base, speech: [[0, 300]], beats: [100], speaking: true };
+    expect(puppetPoseAt(104, early).dy).toBeGreaterThan(0);
+  });
+
+  it("a walking body RISES between footfalls — positive translateY is down", () => {
+    const enter: PoseParams = { ...base, walk: "enter", facing: "right" };
+    let rose = false;
+    for (let frame = 5; frame < 50; frame++) {
+      const pose = puppetPoseAt(frame, enter);
+      // Never sinks into the ground while walking...
+      expect(pose.dy).toBeLessThanOrEqual(0);
+      if (pose.dy < -0.003) rose = true;
+    }
+    // ...and actually lifts off it at some point in the gait.
+    expect(rose).toBe(true);
   });
 });
 

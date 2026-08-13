@@ -169,8 +169,10 @@ export function walkFor(text: string): WalkKind | null {
   }
   // (?:ran|runs|running)(?!\s+out\b)(?!-): running feet, not running out of
   // luck and not a run-down house ("run" bare is never matched at all).
+  // strode: the irregular past of stride, and the tense the plans actually
+  // narrate in — "she strode across the square" must walk like "strides".
   if (
-    /\b(?:walk\w*|strid\w*|stroll\w*|wander\w*|pac(?:es|ed|ing)\b|march\w*|trudg\w*|ambl\w*|hurr(?:y|ies|ied|ying)|rush\w*|chas(?:es|ed|ing)\b|flee(?:s|ing)?\b|fled\b|cross(?:es|ed|ing)\b|climb\w*|(?:ran|runs|running)\b(?!\s+out\b)(?!-))/.test(
+    /\b(?:walk\w*|strid\w*|strode\b|stroll\w*|wander\w*|pac(?:es|ed|ing)\b|march\w*|trudg\w*|ambl\w*|hurr(?:y|ies|ied|ying)|rush\w*|chas(?:es|ed|ing)\b|flee(?:s|ing)?\b|fled\b|cross(?:es|ed|ing)\b|climb\w*|(?:ran|runs|running)\b(?!\s+out\b)(?!-))/.test(
       t,
     )
   ) {
@@ -221,16 +223,28 @@ export function conversationFacings(
   }
 
   for (const [start, end] of runs) {
-    const order: string[] = [];
+    const distinct = new Set<string>();
     for (let i = start; i < end; i++) {
       const rig = shots[i].rig;
-      if (rig !== null && !order.includes(rig)) order.push(rig);
+      if (rig !== null) distinct.add(rig);
     }
-    if (order.length < 2) continue;
+    if (distinct.size < 2) continue;
+    // ADJACENCY, not global parity: each speaker faces opposite the
+    // PREVIOUS different speaker, so every cut between two characters looks
+    // across the frame. Global first-appearance parity failed exactly there
+    // — with three speakers, two odd-indexed rigs could land on adjacent
+    // shots facing the same way from the same mark. A rig keeps its side
+    // while it holds consecutive coverage; only a change of speaker flips.
+    let current: Facing = "right";
+    let prevRig: string | null = null;
     for (let i = start; i < end; i++) {
       const rig = shots[i].rig;
       if (rig === null) continue;
-      facings[i] = order.indexOf(rig) % 2 === 0 ? "right" : "left";
+      if (prevRig !== null && rig !== prevRig) {
+        current = current === "right" ? "left" : "right";
+      }
+      facings[i] = current;
+      prevRig = rig;
     }
   }
   return facings;
@@ -344,14 +358,18 @@ export function puppetPoseAt(frame: number, params: PoseParams): PuppetPose {
   }
 
   // EMPHASIS — one smooth bob per spoken beat, summed where they overlap
-  // and capped so a dense line cannot stack into a shudder.
+  // and capped so a dense line cannot stack into a shudder. Faded to
+  // nothing over the last EMPHASIS_FRAMES of the shot: every motion source
+  // is at rest on the cut frame (the camera's ease-to-identity seam rule),
+  // and a beat landing near the cut must not be the one exception.
   let pulse = 0;
   for (const b of beats) {
     const u = (frame - b) / EMPHASIS_FRAMES;
     if (u < 0 || u >= 1) continue;
     pulse += Math.sin(Math.PI * u);
   }
-  pulse = Math.min(pulse, EMPHASIS_CAP) * voiceGain;
+  const cutFade = clamp((durationInFrames - 1 - frame) / EMPHASIS_FRAMES, 0, 1);
+  pulse = Math.min(pulse, EMPHASIS_CAP) * voiceGain * cutFade;
   if (pulse > 0) {
     dy += EMPHASIS_BOB * pulse;
     rot += facingSign * EMPHASIS_ROT_DEG * pulse * 0.5;
@@ -379,7 +397,10 @@ export function puppetPoseAt(frame: number, params: PoseParams): PuppetPose {
     }
     if (walking > 0) {
       const tSec = frame / fps;
-      dy += walking * STEP_BOB * Math.abs(Math.sin(Math.PI * STEP_HZ * tSec));
+      // NEGATIVE dy: positive translateY is DOWN on screen, and a walking
+      // body RISES between footfalls — the first cut of this line pushed
+      // the figure into the ground on every step.
+      dy -= walking * STEP_BOB * Math.abs(Math.sin(Math.PI * STEP_HZ * tSec));
       rot += walking * STEP_TILT_DEG * Math.sin(Math.PI * STEP_HZ * tSec);
     }
   }

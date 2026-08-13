@@ -908,6 +908,11 @@ if (offline) {
       // film: dialogue is seasoning, not structure. Local dialogue draws a
       // stable speaker from the 904-voice cast model by name hash — the same
       // voice-lock idea as voiceFor() on the cloud path.
+      // Whether the line was actually VOICED, not merely planned — the
+      // rung 4 `speaking` flag keys off this, because a skipped dialogue
+      // line leaves narration-only audio and a full-gain oration over it
+      // would be a body performing a line nobody hears.
+      let dialogueVoiced = false;
       if (shot.dialogue && shot.dialogue.line && shot.dialogue.speaker) {
         try {
           const dwav = path.join(assetRoot, `${stem}.line.wav`);
@@ -939,6 +944,7 @@ if (offline) {
             '-map', '[a]', mixed,
           ], { stdio: 'pipe' });
           wav = mixed;
+          dialogueVoiced = true;
           console.log(`  dialogue ${i + 1}: ${shot.dialogue.speaker} (${spokenBy})`);
         } catch (err) {
           console.log(`  dialogue ${i + 1} skipped: ${err?.message ?? err}`);
@@ -1088,7 +1094,7 @@ if (offline) {
           seed: vfxSeed(`perf:${i}:${shot.still}`),
           ...(facings[i] ? { facing: facings[i], center: centerForFacing(facings[i]) } : {}),
           ...(walk ? { walk } : {}),
-          ...(shot.dialogue?.speaker && speakerMatchesRig(shot.dialogue.speaker, shotRigs[i])
+          ...(dialogueVoiced && speakerMatchesRig(shot.dialogue.speaker, shotRigs[i])
             ? { speaking: true }
             : {}),
         };
