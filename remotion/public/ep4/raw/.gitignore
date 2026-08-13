@@ -1,0 +1,17 @@
+# Raw Veo generations, before conform. Kept for RE-CUTTING, not for rendering.
+#
+# The conformed clips in ../clips are trimmed to exactly their allocation, so a
+# cut can only ever move EARLIER against them. Snapping a cut to a pause in the
+# narration also has to move cuts LATER, and the extra frames exist only here:
+# every raw is 241 frames at 24fps (301 at 30) against a longest allocation of
+# 279. Re-allocate, re-conform from these, re-render — no regeneration.
+#
+# Same storage deal as ../clips: ~970 MB of mp4 cannot go in git and the repo
+# rejects anything over 10 MB, so what is committed is one pointer per shot and
+# the bytes live as Lovable CDN assets.
+#
+# One wrinkle worth knowing: ep3_s01b's raw was lost from the sandbox and
+# recovered from a re-generation probe (probe2_s01b.mp4). It was confirmed to be
+# the same take by conforming it and measuring 46 dB PSNR against the shipped
+# conformed s01b — re-encode noise, not different content.
+*.mp4
