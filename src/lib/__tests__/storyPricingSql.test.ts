@@ -17,8 +17,9 @@ import { MOVIE_TIERS } from "@/lib/storyCostModel";
 
 const SQL = readFileSync(
   // The NEWEST pricing migration is the one canonical chart. 20260811180000,
-  // then the measured-cost reprice, then the in-house reprice the same day.
-  join(process.cwd(), "supabase/migrations/20260813190000_movie_reprice_inhouse.sql"),
+  // the measured-cost reprice, the in-house reprice, then the owner's launch
+  // flip (movie on sale, classic off) — all 2026-08-13.
+  join(process.cwd(), "supabase/migrations/20260813200000_movie_on_classic_off.sql"),
   "utf8",
 );
 
@@ -56,17 +57,18 @@ function chart(): Row[] {
 }
 
 describe("the canonical price chart matches the TypeScript mirrors", () => {
-  it("classic rows equal PRICE_TIERS, all active", () => {
+  it("classic rows equal PRICE_TIERS, all OFF SALE since the movie launch", () => {
+    // Owner directive 2026-08-13: classic inactive for now, movie active.
     const rows = chart().filter((r) => r.grade === "classic");
-    for (const r of rows) expect(r.active).toBe("true");
+    for (const r of rows) expect(r.active).toBe("false");
     expect(rows.map(({ seconds, label, pricePaise }) => ({ seconds, label, pricePaise }))).toEqual(
       PRICE_TIERS.map(({ seconds, label, pricePaise }) => ({ seconds, label, pricePaise })),
     );
   });
 
-  it("movie rows equal MOVIE_TIERS, all inactive until the clip stage ships", () => {
+  it("movie rows equal MOVIE_TIERS, all ON SALE — the in-house engine's tier", () => {
     const rows = chart().filter((r) => r.grade === "movie");
-    for (const r of rows) expect(r.active).toBe("false");
+    for (const r of rows) expect(r.active).toBe("true");
     expect(rows.map(({ seconds, label, pricePaise }) => ({ seconds, label, pricePaise }))).toEqual(
       MOVIE_TIERS.map(({ seconds, label, pricePaise }) => ({ seconds, label, pricePaise })),
     );

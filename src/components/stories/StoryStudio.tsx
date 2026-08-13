@@ -445,38 +445,36 @@ export function StoryStudio() {
         {plan_.seconds}s · {plan_.shots.length} shots
       </div>
 
-      {/* MOVIE GRADE — admin-only while purchased seconds are grade-blind.
-          Real Veo motion per shot, the Aladdin-episode pipeline. The server
-          clamps movie films to 2 minutes until a long one has been timed. */}
-      {quota?.admin ? (
-        <button
-          type="button"
-          aria-pressed={grade === "movie"}
-          onClick={() => setGrade((g) => (g === "movie" ? "classic" : "movie"))}
+      {/* MOVIE GRADE — the in-house engine (owner launch, 2026-08-13): the
+          owned cinematography stack, rendered on ONIQ's own worker. Open to
+          everyone; the server accepts either grade. */}
+      <button
+        type="button"
+        aria-pressed={grade === "movie"}
+        onClick={() => setGrade((g) => (g === "movie" ? "classic" : "movie"))}
+        className={
+          "mt-3 flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left " +
+          (grade === "movie" ? "border-primary bg-primary/10" : "border-border bg-card/50")
+        }
+      >
+        <span>
+          <span className="block text-xs font-semibold text-foreground">🎬 Movie grade</span>
+          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+            The cinematic cut — depth the camera moves through, characters who speak their
+            lines, the film look. Made end to end by ONIQ&apos;s own engine.
+          </span>
+        </span>
+        <span
           className={
-            "mt-3 flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left " +
-            (grade === "movie" ? "border-primary bg-primary/10" : "border-border bg-card/50")
+            "ms-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " +
+            (grade === "movie"
+              ? "bg-primary text-primary-foreground"
+              : "border border-border text-muted-foreground")
           }
         >
-          <span>
-            <span className="block text-xs font-semibold text-foreground">🎬 Movie grade</span>
-            <span className="mt-0.5 block text-[11px] text-muted-foreground">
-              Real motion in every shot — drawn frames handed to the video model. Slower to make,
-              capped at 2 minutes for now.
-            </span>
-          </span>
-          <span
-            className={
-              "ms-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " +
-              (grade === "movie"
-                ? "bg-primary text-primary-foreground"
-                : "border border-border text-muted-foreground")
-            }
-          >
-            {grade === "movie" ? "on" : "off"}
-          </span>
-        </button>
-      ) : null}
+          {grade === "movie" ? "on" : "off"}
+        </span>
+      </button>
 
       {/* YOUR CHARACTERS — the cast library. Saved people the user can put in
           any film. Toggled chips ride into this job as `reuse`; the planner

@@ -52,8 +52,12 @@ const CLIP_SQL = readFileSync(
   join(ROOT, "supabase/migrations/20260813060000_movie_clip_stage.sql"),
   "utf8",
 );
+const LAUNCH_SQL = readFileSync(
+  join(ROOT, "supabase/migrations/20260813200000_movie_on_classic_off.sql"),
+  "utf8",
+);
 /** Migration order. Later files replace earlier definitions, same as Postgres. */
-const MIGRATIONS = [JOBS_SQL, PURCHASE_SQL, OWNER_SQL, CLIP_SQL];
+const MIGRATIONS = [JOBS_SQL, PURCHASE_SQL, OWNER_SQL, CLIP_SQL, LAUNCH_SQL];
 
 /**
  * The body of one `create or replace function` block, up to its `$$;` close —

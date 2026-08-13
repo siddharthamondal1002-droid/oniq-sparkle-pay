@@ -710,13 +710,19 @@ if (offline) {
     const { plan } = planRes;
     console.log(`  plot: "${plan.title}", ${plan.shots.length} shots`);
 
-    // MOVIE GRADE: every shot's still becomes a Veo starting frame, ep3-style.
-    // STORY_MOVIE=off is the no-deploy kill switch, same shape as the film
-    // look's — with it off a movie job renders as a classic film rather than
-    // dying, because the job is already paid for.
-    const movie = job.grade === 'movie' && (process.env.STORY_MOVIE ?? 'on') !== 'off';
+    // THE MOVIE GRADE IS THE IN-HOUSE ENGINE (owner directive, 2026-08-13):
+    // the owned stack this worker already runs — depth parallax, rigged
+    // speaking characters, phoneme lip-sync, dialogue voices, the film look —
+    // priced on THIS runner's minutes. The rented clip stage below survives
+    // as an owner-only experiment, OFF unless STORY_MOVIE=on is set
+    // explicitly: a ₹57 movie sale must never trigger hundreds of rupees of
+    // rented generation, and the tier's cost model says runner compute, not
+    // video-model seconds.
+    const movie = job.grade === 'movie' && process.env.STORY_MOVIE === 'on';
     if (job.grade === 'movie') {
-      console.log(movie ? '  movie grade: clips on' : '  movie grade requested, STORY_MOVIE=off — rendering classic');
+      console.log(movie
+        ? '  movie grade: RENTED clip experiment on (STORY_MOVIE=on)'
+        : '  movie grade: in-house engine');
     }
 
     // One voice for the whole film. A narrator that changes between shots is
