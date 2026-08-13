@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   PARALLAX,
+  bandAlpha,
   nearPlaneAlpha,
   normalizeDepth,
   planeCoverage,
@@ -50,6 +51,47 @@ describe("nearPlaneAlpha", () => {
   it("rejects a threshold outside (0,1) loudly", () => {
     expect(() => nearPlaneAlpha(new Float32Array([0.5]), 0)).toThrow(/threshold/);
     expect(() => nearPlaneAlpha(new Float32Array([0.5]), 1)).toThrow(/threshold/);
+  });
+});
+
+describe("bandAlpha", () => {
+  it("is opaque inside the band and transparent beyond both feathers", () => {
+    const d = new Float32Array([0.1, 0.42, 0.9]);
+    const a = bandAlpha(d, 0.3, 0.55);
+    expect(a[0]).toBe(0); // far field — base plane's territory
+    expect(a[1]).toBe(255); // mid field, clear of both feathers
+    expect(a[2]).toBe(0); // near field — the near plane's territory
+  });
+
+  it("feathers BOTH edges instead of hard-cutting either", () => {
+    const edges = bandAlpha(new Float32Array([0.3, 0.55]), 0.3, 0.55, 0.08);
+    for (const v of edges) {
+      expect(v).toBeGreaterThan(0);
+      expect(v).toBeLessThan(255);
+    }
+    // Rising through the lower feather, falling through the upper one.
+    const ramp = bandAlpha(new Float32Array([0.25, 0.3, 0.35, 0.5, 0.55, 0.6]), 0.3, 0.55, 0.08);
+    expect(ramp[1]).toBeGreaterThan(ramp[0]);
+    expect(ramp[2]).toBeGreaterThan(ramp[1]);
+    expect(ramp[4]).toBeLessThan(ramp[3]);
+    expect(ramp[5]).toBeLessThan(ramp[4]);
+  });
+
+  it("rejects a malformed band loudly", () => {
+    expect(() => bandAlpha(new Float32Array([0.5]), -0.1, 0.5)).toThrow(/band/);
+    expect(() => bandAlpha(new Float32Array([0.5]), 0.3, 1.1)).toThrow(/band/);
+    expect(() => bandAlpha(new Float32Array([0.5]), 0.55, 0.3)).toThrow(/band/);
+  });
+
+  it("PARALLAX orders the three planes: base, mid, near", () => {
+    // The mid band sits below the near threshold and rides slower than the
+    // near plane but faster than the base — the whole point of rung 1.
+    expect(PARALLAX.midThreshold).toBeGreaterThan(0);
+    expect(PARALLAX.midThreshold).toBeLessThan(PARALLAX.threshold);
+    expect(PARALLAX.midRate).toBeGreaterThan(1);
+    expect(PARALLAX.midRate).toBeLessThan(PARALLAX.nearRate);
+    expect(PARALLAX.midCoverGain).toBeGreaterThan(0);
+    expect(PARALLAX.midCoverGain).toBeLessThan(PARALLAX.nearCoverGain);
   });
 });
 

@@ -64,6 +64,7 @@ import { ensureDepthModel, inferDepth, cutNearPlane } from './depth.mjs';
 import { defaultTtsCache, ensureLocalTts, speakerFor, synthLocal } from './localTts.mjs';
 import {
   PARALLAX,
+  bandAlpha,
   nearPlaneAlpha,
   normalizeDepth,
   planeCoverage,
@@ -719,6 +720,11 @@ if (offline) {
     // rented generation, and the tier's cost model says runner compute, not
     // video-model seconds.
     const movie = job.grade === 'movie' && process.env.STORY_MOVIE === 'on';
+    // RUNG 1 — the movie grade's own switch, distinct from the rented
+    // experiment above: every movie job gets the extra in-house work (today:
+    // the mid depth plane), whether or not the clip experiment is on. This is
+    // what the tier's price buys that classic never renders.
+    const cinematic = job.grade === 'movie';
     if (job.grade === 'movie') {
       console.log(movie
         ? '  movie grade: RENTED clip experiment on (STORY_MOVIE=on)'
@@ -946,6 +952,7 @@ if (offline) {
       // film never waits on this stage's mood. A shot with a real clip skips
       // it entirely — measured motion beats simulated motion.
       let nearPlane = null;
+      let midPlane = null;
       if (!clip) {
         try {
           const model = await depthModel();
@@ -965,6 +972,25 @@ if (offline) {
               console.log(`  depth ${i + 1}: near plane ${(coverage * 100).toFixed(0)}%`);
             } else {
               console.log(`  depth ${i + 1}: flat (coverage ${(coverage * 100).toFixed(0)}%) — plain Ken Burns`);
+            }
+            // RUNG 1 — the mid band, movie grade only. Same depth map, same
+            // cutter, same honesty gates; only the band differs. Cut even
+            // when the near plane gated out: a landscape with no foreground
+            // can still carry a moving mid field.
+            if (cinematic) {
+              const midMask = bandAlpha(depth01, PARALLAX.midThreshold, PARALLAX.threshold);
+              const midCoverage = planeCoverage(midMask);
+              const midOut = await cutNearPlane(
+                stillFile,
+                path.join(assetRoot, `${stem}.mid.png`),
+                midMask,
+                midCoverage,
+                PARALLAX,
+              );
+              if (midOut) {
+                midPlane = `${assetDir}/${stem}.mid.png`;
+                console.log(`  depth ${i + 1}: mid plane ${(midCoverage * 100).toFixed(0)}%`);
+              }
             }
           }
         } catch (err) {
@@ -1012,7 +1038,14 @@ if (offline) {
         travel: framing.travel,
         pan: framing.pan,
         figureHeight: framing.figureHeight,
-        ...(nearPlane ? { parallax: { near: nearPlane } } : {}),
+        ...(nearPlane || midPlane
+          ? {
+              parallax: {
+                ...(nearPlane ? { near: nearPlane } : {}),
+                ...(midPlane ? { mid: midPlane } : {}),
+              },
+            }
+          : {}),
         // Real motion, when the clip stage delivered it. The composition
         // plays this INSTEAD of the Ken Burns/parallax/rig stack — Veo
         // animated the character in the frame, so a puppet on top would be a

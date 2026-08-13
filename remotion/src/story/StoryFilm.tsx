@@ -81,7 +81,14 @@ export type StoryShotInput = {
    */
   parallax?: {
     /** Path under remotion/public, same addressing as `still`. */
-    near: string;
+    near?: string;
+    /**
+     * Rung 1, movie grade only: the band between midThreshold and threshold,
+     * riding between base and near at PARALLAX.midRate. Three depths of
+     * motion instead of two — the worker only cuts it for movie jobs, so a
+     * classic film stays pixel-identical to the shipped two-plane look.
+     */
+    mid?: string;
   };
   /**
    * REAL MOTION — a Veo clip generated from this shot's still as its starting
@@ -282,6 +289,24 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
           }}
         />
       )}
+      {!shot.clip && shot.parallax?.mid ? (
+        /* The mid plane rides UNDER the near plane and OVER the base, at its
+           own gentler rate — three depths of motion. Same cover-gain trick as
+           the near plane, scaled to its smaller excursion. */
+        <Img
+          src={src(shot.parallax.mid)}
+          style={{
+            position: "absolute",
+            inset: 0,
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: `scale(${zoom + travel * PARALLAX.midCoverGain}) translate(${
+              x * PARALLAX.midRate
+            }%, ${y * PARALLAX.midRate}%)`,
+          }}
+        />
+      ) : null}
       {!shot.clip && shot.parallax?.near ? (
         /* The near plane: same eased move, amplified by nearRate, with extra
            zoom proportional to travel so its faster excursion never reveals

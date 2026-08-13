@@ -72,6 +72,33 @@ export function nearPlaneAlpha(
 }
 
 /**
+ * Alpha mask for the BAND of depth between `lo` and `hi` — rung 1 of the
+ * in-house cinematography ladder (movie grade, 2026-08-13). Three planes
+ * instead of two: base carries the far field exactly as shipped, the MID
+ * band rides a little faster, the near plane faster still. Feathered on
+ * both edges for the same anti-sticker reason as nearPlaneAlpha; the two
+ * feathers overlap deliberately so adjacent planes cross-fade instead of
+ * leaving a dark seam where neither is fully opaque.
+ */
+export function bandAlpha(
+  depth01: Float32Array,
+  lo: number,
+  hi: number,
+  feather = 0.08,
+): Uint8Array {
+  if (!(lo >= 0) || !(hi <= 1) || !(lo < hi)) {
+    throw new Error(`bandAlpha: band [${lo}, ${hi}) must sit inside [0, 1] with lo < hi`);
+  }
+  const out = new Uint8Array(depth01.length);
+  for (let i = 0; i < depth01.length; i++) {
+    const enter = smoothstep(lo - feather, lo + feather, depth01[i]);
+    const exit = 1 - smoothstep(hi - feather, hi + feather, depth01[i]);
+    out[i] = Math.round(enter * exit * 255);
+  }
+  return out;
+}
+
+/**
  * How much of the frame the near plane actually covers, 0..1.
  *
  * The gate that keeps the effect honest: a shot whose "near plane" is 2% of
@@ -103,4 +130,15 @@ export const PARALLAX = {
   /** Coverage gate: outside these bounds the shot ships without parallax. */
   minCoverage: 0.05,
   maxCoverage: 0.85,
+  /**
+   * Rung 1, the movie grade's mid plane: the band [midThreshold, threshold)
+   * riding between base and near. Rate sits a little under halfway to the
+   * near plane's — depth perception is logarithmic-ish and the mid field is
+   * mostly large surfaces, which show seams sooner than foreground objects
+   * do; its cover gain scales the same way. First-cut values, tuned the way
+   * nearRate was: against rendered shots, not theory.
+   */
+  midRate: 1.16,
+  midCoverGain: 0.25,
+  midThreshold: 0.3,
 } as const;
