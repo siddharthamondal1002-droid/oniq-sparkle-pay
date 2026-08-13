@@ -392,9 +392,9 @@ export const EP4_SHOTS: Ep4Shot[] = [
     sceneId: "ep4_s08",
     weight: 1.1,
     still:
-      "Dawn over the city: the hill where the palace stood now bare, a vast perfect " +
-      "rectangle of crushed pale grass and nothing else, birds circling the empty air " +
-      "above it.",
+      "Dawn over a flat-roofed city of domes and minarets: the hill where the palace " +
+      "stood now bare, a vast perfect rectangle of crushed pale grass and nothing else, " +
+      "birds circling the empty air above it.",
     motion:
       "Birds wheel slowly over the empty ground. Fog rolls low across the crushed grass. " +
       "Slow pull back from the bare hilltop.",
@@ -416,8 +416,9 @@ export const EP4_SHOTS: Ep4Shot[] = [
     sceneId: "ep4_s08",
     weight: 0.9,
     still:
-      "The city below waking to the absence: streets filling, distant small figures " +
-      "stopping and pointing up at the empty hill, washing lines abandoned mid-hang.",
+      "The flat-roofed city below waking to the absence: narrow streets between mud-brick " +
+      "houses and minarets filling with distant small figures stopping and pointing up at " +
+      "the empty hill, washing lines abandoned mid-hang.",
     motion:
       "Small figures gather and point upward. A dropped basket rolls. The crowd thickens " +
       "toward the hill. High angle looking down, static.",
