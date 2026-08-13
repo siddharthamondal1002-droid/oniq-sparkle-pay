@@ -213,3 +213,25 @@ verbatim; nothing ep4-specific is known yet beyond the plan:
   + owner's Your videos row (file attached via send_message `files` —
   an ARRAY OF OBJECTS `{file_id, file_name}`, not bare strings); then
   lores.ts wiring here, publish, hub verification per oniq-ship.
+- 2026-08-13 22:35Z: **COMMISSION CLOSED — EPISODE 4 DELIVERED, BOTH
+  DESTINATIONS.** Your videos: `story_jobs` row `4bdef35b`, bytes
+  verified in the private bucket, replay/send/delete live; note the row
+  rides the 30-day sweep — the CDN asset is the permanent copy.
+  Hub: asset `4d617c81-075b-440f-8925-ed1d9bf009d6` (110,733,231 bytes,
+  byte-exact against the upload sha256), pointer
+  `src/assets/oniq-ep4.mp4.asset.json` + `lores.ts` wiring done BY THE
+  LOVABLE AGENT (owner-directed, to skip the Lovable→GitHub sync wait —
+  a publish builds from Lovable's own tree, so nothing GitHub-side
+  gates it). Deploy called 22:26Z, published from `9dda385` — the same
+  sha the sync then delivered to main, so main and production agree.
+  PROCESS NOTES: (1) send_message can report a 60s MCP timeout and
+  still deliver — check `list_messages` before resending, or you'll
+  double-instruct the agent. (2) This container's egress policy now
+  403s `lovable.app` (curl AND WebFetch) — production verification must
+  be delegated to the Lovable agent's sandbox (shell-only message:
+  crawl index-*.js for the asset id). Final figures: 363.43s (6:03),
+  110.7MB, ~50–60 credits of the 2000/month cap for the whole build
+  (76 stills incl. retries, 56 clips, 14 TTS scenes); transfer conform
+  19 min; two sequential half-renders ~19 min each. The engine keeps
+  lip sync (rung 1), mid-plane parallax and eleven measured rigs
+  (rung 2) from the same push.
