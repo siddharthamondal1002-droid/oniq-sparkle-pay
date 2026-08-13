@@ -125,7 +125,14 @@ export const AI_SURFACES = [
  * because the entire point of enumerating sources is that the declaration
  * exists BEFORE the screen does. That ordering is what Lores got wrong.
  */
-export const AI_CONTENT_MODULES = ["@/data/lores", "@/data/originals", "@/data/ep3Shots"] as const;
+export const AI_CONTENT_MODULES = [
+  "@/data/lores",
+  "@/data/originals",
+  "@/data/ep3Shots",
+  // Episode 4's shot list — declared before anything renders it, which is the
+  // ordering Lores originally got wrong and this list exists to enforce.
+  "@/data/ep4Shots",
+] as const;
 
 /**
  * DATA SAFETY — WHAT ONIQ ACTUALLY COLLECTS, as the Play form, in code.
