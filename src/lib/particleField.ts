@@ -42,15 +42,42 @@ export type Particle = {
  * Which effect a shot's words earn. Checked in priority order — a rainy
  * night scene reads as rain, not fireflies, because water beats light.
  * Returns null for a scene that names nothing: no overlay is the default.
+ *
+ * The vocabularies are THESAURUS-WIDE on purpose (owner directive,
+ * 2026-08-13): a scene saying "blazing brazier" or "a deluge over the
+ * harbour" earns its effect as surely as one saying "fire" or "rain". But
+ * every stem is boundary-anchored and the traps are guarded individually,
+ * because prose is adversarial: "grain" contains rain, "sparkling" jewels
+ * are not sparks, a "soothing" voice is not soot, "ashamed" is not ash,
+ * and a crowd that "hailed the king" brings no hailstones.
  */
 export function vfxKindFor(text: string): VfxKind | null {
   const t = text.toLowerCase();
   // fire(?!fl): "fires" and "firelight" are embers, "fireflies" are not.
-  if (/\b(ember|flame|fire(?!fl)|torch|burn|coal|bonfire|hearth|forge)/.test(t)) return 'embers';
-  if (/\b(rain|storm|monsoon|downpour|drizzle)/.test(t)) return 'rain';
-  if (/\b(snow|frost|blizzard|sleet|winter)/.test(t)) return 'snow';
-  if (/\b(firefl|starlit|starry|moonlit|lantern|night garden)/.test(t)) return 'fireflies';
-  if (/\b(dust|desert|sand|dune|bazaar|market|cave|sunbeam|haze|attic)/.test(t)) return 'dust';
+  // spark(?!l): "sparks" fly, "sparkling" jewels do not.
+  if (
+    /\b(ember|flame|fire(?!fl)|torch|burn|coal|bonfire|campfire|hearth|forge|blaze|ablaze|inferno|cinder|spark(?!l)|smoulder|smolder|pyre|brazier|furnace|kiln|candl|volcan)/.test(
+      t,
+    )
+  ) {
+    return 'embers';
+  }
+  if (/\b(rain|storm|monsoon|downpour|drizzle|deluge|cloudburst|squall|torrential|tempest)/.test(t)) {
+    return 'rain';
+  }
+  if (/\b(snow|frost|blizzard|sleet|winter|wintry|flurr|hailst|avalanche)/.test(t)) return 'snow';
+  if (/\b(firefl|glow-?worm|starlit|starry|starlight|moonlit|moonbeam|lightning bug|twinkl|lantern|night garden)/.test(t)) {
+    return 'fireflies';
+  }
+  // soot(?!h): a chimney's soot, not a "soothing" voice. ash(es)?\b: ash and
+  // ashes, not "ashamed".
+  if (
+    /\b(dust|desert|sand|dune|bazaar|market|cave|cellar|sunbeam|haze|attic|ash(es)?\b|soot(?!h)|cobweb|pollen|smok)/.test(
+      t,
+    )
+  ) {
+    return 'dust';
+  }
   return null;
 }
 

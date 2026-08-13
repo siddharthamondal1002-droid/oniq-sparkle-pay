@@ -17,6 +17,20 @@ describe("vfxKindFor", () => {
     expect(vfxKindFor("A dusty bazaar in late amber light")).toBe("dust");
   });
 
+  it("speaks thesaurus: synonyms earn the same effect as the plain word", () => {
+    expect(vfxKindFor("A blazing brazier beside the throne")).toBe("embers");
+    expect(vfxKindFor("Cinders drift from the smouldering pyre")).toBe("embers");
+    expect(vfxKindFor("A candlelit study, late")).toBe("embers");
+    expect(vfxKindFor("A deluge over the harbour")).toBe("rain");
+    expect(vfxKindFor("The squall drives torrential water down the lanes")).toBe("rain");
+    expect(vfxKindFor("Flurries over the wintry pass")).toBe("snow");
+    expect(vfxKindFor("A hailstorm rattles the shutters")).toBe("snow");
+    expect(vfxKindFor("Glowworms under starlight by the stream")).toBe("fireflies");
+    expect(vfxKindFor("The twinkling city far below")).toBe("fireflies");
+    expect(vfxKindFor("Pollen turns in a sunbeam in the old cellar")).toBe("dust");
+    expect(vfxKindFor("Ashes and smoke hang in the ruined hall")).toBe("dust");
+  });
+
   it("returns NOTHING for a scene that names nothing — absence is the default", () => {
     expect(vfxKindFor("A quiet palace hall, a princess reading a letter")).toBeNull();
     expect(vfxKindFor("")).toBeNull();
@@ -29,6 +43,11 @@ describe("vfxKindFor", () => {
   it("does not fire on mere substrings of other words", () => {
     // 'grain' contains 'rain'; the word-boundary anchor must hold.
     expect(vfxKindFor("Sacks of grain stacked in the storehouse")).toBeNull();
+    // The thesaurus traps, each guarded individually in the classifier:
+    expect(vfxKindFor("Her sparkling jewels catch the light")).toBeNull();
+    expect(vfxKindFor("A soothing voice from the doorway")).toBeNull();
+    expect(vfxKindFor("He looked away, ashamed")).toBeNull();
+    expect(vfxKindFor("The crowd hailed the young king")).toBeNull();
   });
 });
 
