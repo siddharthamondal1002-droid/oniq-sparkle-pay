@@ -1,0 +1,9 @@
+# Conformed Veo clips, written by scripts/ingest-ep3-clips.mjs.
+#
+# Not committed. Fifty-seven clips is well over a gigabyte, and the repo
+# rejects any single file over 10 MB. They are a build input regenerated from
+# the raw generations, the same way node_modules is regenerated from the lock.
+*.mp4
+
+# SHA256SUMS travels inside the transfer bundle; it describes files git ignores.
+SHA256SUMS
