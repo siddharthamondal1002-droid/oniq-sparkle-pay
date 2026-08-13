@@ -5,6 +5,8 @@ import { Episode2 } from './ep2/Episode2';
 import { EP2_TOTAL } from './ep2/manifest';
 import { Episode3 } from './ep3/Episode3';
 import { EP3_TOTAL } from './ep3/manifest';
+import { Episode4 } from './ep4/Episode4';
+import { EP4_TOTAL } from './ep4/manifest';
 
 /**
  * The episodes, and ONLY the episodes. Entry point: src/episodes.ts.
@@ -49,6 +51,14 @@ export const EpisodesRoot: React.FC = () => (
       id="ep3"
       component={Episode3}
       durationInFrames={EP3_TOTAL}
+      fps={30}
+      width={1080}
+      height={1920}
+    />
+    <Composition
+      id="ep4"
+      component={Episode4}
+      durationInFrames={EP4_TOTAL}
       fps={30}
       width={1080}
       height={1920}
