@@ -455,8 +455,9 @@ export const EP4_SHOTS: Ep4Shot[] = [
     sceneId: "ep4_s09",
     weight: 0.9,
     still:
-      "Close on worn brown sandals striding the packed earth, each step raising a small " +
-      "puff of dust, the pace even and unhurried and certain.",
+      "Close on worn brown sandals striding the packed earth below patched TEAL-BLUE " +
+      "trouser hems, each step raising a small puff of dust, the pace even and unhurried " +
+      "and certain.",
     motion:
       "The sandals stride through frame, one-two, dust puffing at each strike. Tracking " +
       "alongside at exactly their pace.",
@@ -514,8 +515,9 @@ export const EP4_SHOTS: Ep4Shot[] = [
     sceneId: "ep4_s10",
     weight: 1,
     still:
-      "One high window apart from the rest: a small brass oil lamp set on the sill, lit, " +
-      "its flame steady, where anyone else would have hung jewels.",
+      "The white palace wall seen from outside at dusk, and one high arched window apart " +
+      "from the rest: a small brass oil lamp set on the sill, lit, its flame steady, " +
+      "where anyone else would have hung jewels.",
     motion:
       "The tiny flame leans and rights itself, steady. Other windows flicker; this one " +
       "holds. Very slow push in toward the sill.",
@@ -577,9 +579,10 @@ export const EP4_SHOTS: Ep4Shot[] = [
     sceneId: "ep4_s11",
     weight: 1,
     still:
-      "Through the bright window behind the feast: far up the moonlit outer wall, a " +
-      "small dark figure climbing hand over hand between the stones, unreadable at this " +
-      "distance.",
+      "Through the arched window of the lamplit feast chamber, out into the night: far " +
+      "up the moonlit white stone of the palace's outer wall, a small dark figure " +
+      "climbing hand over hand, unreadable at this distance, the green valley soft with " +
+      "mist below.",
     motion:
       "The small figure gains one handhold, then another, patient against the pale " +
       "stone. Moonlit mist drifts below. Slow push toward the window glass.",
@@ -589,8 +592,9 @@ export const EP4_SHOTS: Ep4Shot[] = [
     sceneId: "ep4_s11",
     weight: 1,
     still:
-      "Close on the princess mid-laugh at the feast: eyes flicking for half a heartbeat " +
-      "to the window behind her guest and back, the laugh never faltering.",
+      "Close on the princess mid-laugh at the lamplit night feast, the arched window " +
+      "dark with moonlight behind her guest: her eyes flicking to it for half a " +
+      "heartbeat and back, the laugh never faltering.",
     motion:
       "Her eyes flick to the window and return before the laugh ends. She refills his " +
       "goblet without being asked. Static camera, locked off.",
