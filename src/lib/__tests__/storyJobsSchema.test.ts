@@ -48,8 +48,12 @@ const OWNER_SQL = readFileSync(
   join(ROOT, "supabase/migrations/20260812010000_owner_rides_free.sql"),
   "utf8",
 );
+const CLIP_SQL = readFileSync(
+  join(ROOT, "supabase/migrations/20260813060000_movie_clip_stage.sql"),
+  "utf8",
+);
 /** Migration order. Later files replace earlier definitions, same as Postgres. */
-const MIGRATIONS = [JOBS_SQL, PURCHASE_SQL, OWNER_SQL];
+const MIGRATIONS = [JOBS_SQL, PURCHASE_SQL, OWNER_SQL, CLIP_SQL];
 
 /**
  * The body of one `create or replace function` block, up to its `$$;` close —
@@ -335,8 +339,9 @@ describe("the guards that make this safe to expose", () => {
     expect(body).toMatch(/least\(cfg\.max_story_seconds/);
     // And bills the clamped value, not the requested one — with the paid part
     // of it recorded on the job so a refund can put each second back in the
-    // bucket it came from.
-    expect(body).toMatch(/values \(me, prompt_clean, wanted, wanted, spend_paid\)/);
+    // bucket it came from, and the validated grade recorded so the worker
+    // builds the pipeline that was bought.
+    expect(body).toMatch(/values \(me, prompt_clean, wanted, wanted, spend_paid, grade_clean\)/);
   });
 
   it("refunds each second to the bucket it came from", () => {

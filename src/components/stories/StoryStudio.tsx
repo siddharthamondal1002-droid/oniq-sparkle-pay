@@ -98,6 +98,12 @@ type QuotaStatus = {
   nativeLinkOut: boolean;
   /** Where that link goes. A config row, validated again in checkoutTarget. */
   checkoutUrl: string | null;
+  /**
+   * The claim's owner branch. Today it also gates the movie-grade toggle:
+   * movie is admin-only until purchased seconds learn grades, and a toggle
+   * the server would refuse must not be drawn.
+   */
+  admin: boolean;
 };
 
 function readQuota(payload: unknown): QuotaStatus | null {
@@ -119,6 +125,7 @@ function readQuota(payload: unknown): QuotaStatus | null {
     purchaseEnabled: p.purchaseEnabled === true,
     nativeLinkOut: p.nativeLinkOut === true,
     checkoutUrl: typeof p.checkoutUrl === "string" ? p.checkoutUrl : null,
+    admin: p.admin === true,
   };
 }
 
@@ -140,6 +147,10 @@ export function StoryStudio() {
   // The cast library: saved characters, and which of them ride into THIS film.
   const [cast, setCast] = useState<CastMember[]>(() => listCast());
   const [pickedCast, setPickedCast] = useState<Set<string>>(new Set());
+  // Movie grade: every shot's still handed to Veo for real motion, the ep3
+  // pipeline per user film. The toggle renders for admins only (see
+  // QuotaStatus.admin); the server refuses it for anyone else either way.
+  const [grade, setGrade] = useState<"classic" | "movie">("classic");
   const [newCastName, setNewCastName] = useState("");
   const [newCastLock, setNewCastLock] = useState("");
 
@@ -276,6 +287,9 @@ export function StoryStudio() {
       const { data, error: rpcError } = await supabase.rpc("claim_story_seconds", {
         _requested_seconds: plan_.seconds,
         _prompt: prompt.trim(),
+        // Sent only when chosen: an older database without the parameter keeps
+        // answering the two-argument shape it knows.
+        ...(grade === "movie" ? { _grade: "movie" } : {}),
       });
       if (rpcError) {
         setError(rpcError.message);
@@ -332,7 +346,7 @@ export function StoryStudio() {
     } finally {
       setSubmitting(false);
     }
-  }, [plan_.seconds, plan_.shots.length, prompt]);
+  }, [plan_.seconds, plan_.shots.length, prompt, grade, cast, pickedCast]);
 
   const blocked = refusal ?? localBlock;
   const canGenerate = !submitting && !loadingQuota && blocked === null && prompt.trim().length >= 8;
@@ -430,6 +444,39 @@ export function StoryStudio() {
       <div className="mt-1.5 text-[11px] text-muted-foreground">
         {plan_.seconds}s · {plan_.shots.length} shots
       </div>
+
+      {/* MOVIE GRADE — admin-only while purchased seconds are grade-blind.
+          Real Veo motion per shot, the Aladdin-episode pipeline. The server
+          clamps movie films to 2 minutes until a long one has been timed. */}
+      {quota?.admin ? (
+        <button
+          type="button"
+          aria-pressed={grade === "movie"}
+          onClick={() => setGrade((g) => (g === "movie" ? "classic" : "movie"))}
+          className={
+            "mt-3 flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left " +
+            (grade === "movie" ? "border-primary bg-primary/10" : "border-border bg-card/50")
+          }
+        >
+          <span>
+            <span className="block text-xs font-semibold text-foreground">🎬 Movie grade</span>
+            <span className="mt-0.5 block text-[11px] text-muted-foreground">
+              Real motion in every shot — drawn frames handed to the video model. Slower to make,
+              capped at 2 minutes for now.
+            </span>
+          </span>
+          <span
+            className={
+              "ms-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " +
+              (grade === "movie"
+                ? "bg-primary text-primary-foreground"
+                : "border border-border text-muted-foreground")
+            }
+          >
+            {grade === "movie" ? "on" : "off"}
+          </span>
+        </button>
+      ) : null}
 
       {/* YOUR CHARACTERS — the cast library. Saved people the user can put in
           any film. Toggled chips ride into this job as `reuse`; the planner

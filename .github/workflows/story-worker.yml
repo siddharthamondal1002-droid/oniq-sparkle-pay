@@ -74,10 +74,13 @@ jobs:
     runs-on: ubuntu-latest
     # A ten-minute Story is ~33 minutes of render plus generation and upload,
     # and the film-look grade pass adds up to ~2.5x realtime on this runner's
-    # two cores (~25 minutes at maximum length). Past this the job is wedged
-    # rather than slow. The lock this timeout protects is now per-job, so a
-    # wedged runner delays only its own Story.
-    timeout-minutes: 90
+    # two cores (~25 minutes at maximum length). Movie grade adds a Veo
+    # generation per shot — sequential, minutes each, ~17 shots at the 120s
+    # movie cap — which is why this is 150 rather than the 90 the classic
+    # arithmetic needed. Past this the job is wedged rather than slow. The
+    # lock this timeout protects is per-job, so a wedged runner delays only
+    # its own Story.
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v5
 

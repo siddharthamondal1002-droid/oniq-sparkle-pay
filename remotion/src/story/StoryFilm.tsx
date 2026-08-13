@@ -21,7 +21,9 @@ import React from "react";
 import {
   AbsoluteFill,
   Audio,
+  Freeze,
   Img,
+  OffthreadVideo,
   Sequence,
   interpolate,
   staticFile,
@@ -80,6 +82,30 @@ export type StoryShotInput = {
   parallax?: {
     /** Path under remotion/public, same addressing as `still`. */
     near: string;
+  };
+  /**
+   * REAL MOTION — a Veo clip generated from this shot's still as its starting
+   * frame (movie grade). When present it replaces the whole simulated stack:
+   * no Ken Burns, no parallax plane, no rig puppet, because the video model
+   * animated the frame itself and a second performance on top would disagree
+   * with it.
+   *
+   * MUTED ALWAYS. Veo generates its own soundtrack and mixing it under the
+   * narration is the same class of failure as the two audio bugs already
+   * shipped (ep3 ingest trap #1). Narration stays the clock.
+   *
+   * `frames` is MEASURED by the worker (ffprobe, minus a two-frame safety
+   * margin) — never derived from the seconds Veo was asked for, because what
+   * it returns is what it returns. When the shot outlasts the clip, the last
+   * decodable frame holds under a barely-perceptible push — the same
+   * steal-the-tail-from-the-clip-itself lesson ep3 ended on, done in the
+   * composition instead of ffmpeg.
+   */
+  clip?: {
+    /** Path under remotion/public, same addressing as `still`. */
+    src: string;
+    /** Usable clip length in composition frames, measured by the worker. */
+    frames: number;
   };
   /**
    * A rigged character standing in this shot, breathing and speaking.
@@ -208,18 +234,55 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
   const x = shot.pan === "left" ? -amount * 100 : shot.pan === "right" ? amount * 100 : 0;
   const y = shot.pan === "up" ? -amount * 100 : shot.pan === "down" ? amount * 100 : 0;
 
+  // The clip's usable length inside THIS shot — its own tail is the one trim
+  // site, exactly ep3's rule. Whatever narration outlasts it is carried by
+  // the last live frame under a smoothstepped push: at rest when the freeze
+  // begins (no jolt where the real motion stops) and at rest again at the
+  // cut (the ease-to-identity seam rule).
+  const clipFrames = shot.clip ? Math.min(shot.clip.frames, durationInFrames) : 0;
+  const tailSpan = durationInFrames - clipFrames;
+  const tailT = tailSpan > 1 ? Math.min(1, Math.max(0, (frame - clipFrames) / (tailSpan - 1))) : 1;
+  const tailZoom = 1 + 0.04 * tailT * tailT * (3 - 2 * tailT);
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#05040a", overflow: "hidden" }}>
-      <Img
-        src={src(shot.still)}
-        style={{
-          width: "100%",
-          height: "100%",
-          objectFit: "cover",
-          transform: `scale(${zoom}) translate(${x}%, ${y}%)`,
-        }}
-      />
-      {shot.parallax?.near ? (
+      {shot.clip ? (
+        <>
+          <Sequence durationInFrames={clipFrames}>
+            {/* MUTED, unconditionally — Veo writes its own soundtrack and the
+                narration below is the film's only voice. */}
+            <OffthreadVideo
+              muted
+              src={src(shot.clip.src)}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          </Sequence>
+          {tailSpan > 0 ? (
+            <Sequence from={clipFrames}>
+              <AbsoluteFill style={{ transform: `scale(${tailZoom})` }}>
+                <Freeze frame={Math.max(0, clipFrames - 1)}>
+                  <OffthreadVideo
+                    muted
+                    src={src(shot.clip.src)}
+                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                  />
+                </Freeze>
+              </AbsoluteFill>
+            </Sequence>
+          ) : null}
+        </>
+      ) : (
+        <Img
+          src={src(shot.still)}
+          style={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            transform: `scale(${zoom}) translate(${x}%, ${y}%)`,
+          }}
+        />
+      )}
+      {!shot.clip && shot.parallax?.near ? (
         /* The near plane: same eased move, amplified by nearRate, with extra
            zoom proportional to travel so its faster excursion never reveals
            its own edge. The full-frame base behind it backs every pixel the
@@ -242,8 +305,9 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
       {/* The character stands OUTSIDE the camera transform above, because the
           still is the plate and the puppet is a layer on it — scaling both by
           the same Ken Burns would slide the figure across the ground it is
-          standing on. */}
-      {shot.character && CHARACTER_RIGS[shot.character.rig] ? (
+          standing on. Never over a clip: Veo already animated whoever is in
+          the frame, and a puppet on top is a second, disagreeing performance. */}
+      {!shot.clip && shot.character && CHARACTER_RIGS[shot.character.rig] ? (
         <Character
           rig={CHARACTER_RIGS[shot.character.rig]}
           viseme={visemeAtFrame(cues, frame)}
