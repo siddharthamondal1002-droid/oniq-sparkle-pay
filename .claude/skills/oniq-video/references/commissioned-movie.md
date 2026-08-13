@@ -18,6 +18,14 @@ Lovable Cloud plan. When the owner commissions a movie, that is the cost
 model to quote: *Lovable credits, flat Google bill.* Do not route a
 commissioned film through `story-clip`/the Google key.
 
+**Measured on ep4 (owner-confirmed): ~50 Lovable credits for the whole
+build** — 76 image generations, 56 ten-second clips, ~28 agent turns.
+On a Pro plan that is roughly half a month's allowance, so budget ~2
+commissioned movies per month beside normal development, and quote the
+rupee-equivalent as ~₹1,000-1,100 of plan value. The identical film
+through the Google key would be ~₹7,250 cash — and is blocked anyway by
+that key's tiny Veo daily quota (~75s/day, measured 2026-08-13).
+
 ## Phase order, with what each phase actually produced
 
 ### 1. Scenes + narration (this container, committed)
