@@ -41,6 +41,7 @@ import {
 } from "../../../src/lib/visemes";
 import { PARALLAX } from "../../../src/lib/parallaxPlanes";
 import type { VfxKind } from "../../../src/lib/particleField";
+import type { PuppetPerformance } from "../../../src/lib/puppetPerformance";
 import { Character } from "../rig/Character";
 import { CHARACTER_RIGS } from "../rig/characterRig";
 import { ParticleOverlay } from "./ParticleOverlay";
@@ -151,6 +152,14 @@ export type StoryShotInput = {
      * the dialogue path takes.
      */
     heard?: RhubarbCue[];
+    /**
+     * Rung 4, movie grade only: the body language. The worker computes the
+     * eyeline over the whole plan (conversationFacings), reads the gait off
+     * the shot's own words (walkFor), and seeds the phases from the shot's
+     * identity. Absent — every classic film — the puppet renders exactly
+     * the rung-2 markup, pixel-identical.
+     */
+    performance?: PuppetPerformance;
   };
   /**
    * Rung 3, movie grade only: a procedural particle atmosphere over the
@@ -349,6 +358,13 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
           rig={CHARACTER_RIGS[shot.character.rig]}
           viseme={visemeAtFrame(cues, frame)}
           heightRatio={shot.figureHeight}
+          // Rung 4: the body language, when the worker attached one. The
+          // cue track doubles as the gesture's beat source — the same
+          // mouth that speaks decides when the body leans on a word.
+          performance={shot.character.performance}
+          cues={cues}
+          speech={shot.character.speech}
+          durationInFrames={durationInFrames}
         />
       ) : null}
       {/* The atmosphere rides ABOVE the character and the depth stack:

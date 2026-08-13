@@ -70,6 +70,12 @@ import {
   planeCoverage,
 } from '../../src/lib/parallaxPlanes.ts';
 import { vfxKindFor, vfxSeed } from '../../src/lib/particleField.ts';
+import {
+  centerForFacing,
+  conversationFacings,
+  speakerMatchesRig,
+  walkFor,
+} from '../../src/lib/puppetPerformance.ts';
 import { planStory } from '../../src/lib/storyPlan.ts';
 import { composeVideoPrompt } from '../../supabase/functions/_shared/movieGrammar.ts';
 
@@ -781,6 +787,15 @@ if (offline) {
       return pool[h % pool.length];
     };
     const ffmpeg = findBin('ffmpeg');
+
+    // RUNG 4 — the eyeline pass, decided over the WHOLE plan before any shot
+    // renders: in a run of rigged shots where two characters trade coverage,
+    // they face each other across the cuts (the 180-degree rule). Per-shot
+    // grammar cannot see a conversation; only a pass over the sequence can,
+    // which is why this sits outside the loop.
+    const shotRigs = plan.shots.map((s) => rigFor(plan, s));
+    const facings = conversationFacings(shotRigs.map((rig) => ({ rig })));
+
     const rendered = [];
     let movingShots = 0;
     for (const [i, shot] of plan.shots.entries()) {
@@ -1060,6 +1075,31 @@ if (offline) {
         }
       }
 
+      // RUNG 4 — the body language, movie grade only. Facing comes from the
+      // plan-wide eyeline pass above; the gait from the shot's own words
+      // (the vfxKindFor honesty gate, applied to feet); `speaking` marks a
+      // character delivering THEIR line rather than standing under
+      // narration. Classic films get no performance object at all, which is
+      // what keeps them pixel-identical to the rung-2 look.
+      let performance = null;
+      if (cinematic && !clip && shotRigs[i]) {
+        const walk = walkFor(`${shot.still} ${shot.narration}`);
+        performance = {
+          seed: vfxSeed(`perf:${i}:${shot.still}`),
+          ...(facings[i] ? { facing: facings[i], center: centerForFacing(facings[i]) } : {}),
+          ...(walk ? { walk } : {}),
+          ...(shot.dialogue?.speaker && speakerMatchesRig(shot.dialogue.speaker, shotRigs[i])
+            ? { speaking: true }
+            : {}),
+        };
+        const notes = [
+          facings[i] ? `faces ${facings[i]}` : 'to camera',
+          walk ?? 'standing',
+          performance.speaking ? 'speaking' : 'narrated',
+        ];
+        console.log(`  body ${i + 1}: ${notes.join(', ')}`);
+      }
+
       rendered.push({
         // Relative to public/, because that is what staticFile() takes. Posix
         // separators explicitly: this is a URL path once it reaches the
@@ -1093,15 +1133,17 @@ if (offline) {
         // someone has a measured rig. An unmeasured character would need a
         // guessed mouth anchor, which looks like it works until the mouth opens
         // near the chin.
-        ...(!clip && rigFor(plan, shot)
+        ...(!clip && shotRigs[i]
           ? {
               character: {
-                rig: rigFor(plan, shot),
+                rig: shotRigs[i],
                 text: shot.narration,
                 speech: spans,
                 // Present only when Rhubarb succeeded; the composition
                 // prefers it and falls back to text+spans when absent.
                 ...(heardCues ? { heard: heardCues } : {}),
+                // Rung 4's body language — movie grade only, see above.
+                ...(performance ? { performance } : {}),
               },
             }
           : {}),
