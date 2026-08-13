@@ -41,6 +41,17 @@ So **the Lovable agent is the only eye on production.** Ask it to run the
 checks and paste raw output. Do not ask it whether something looks right; ask
 for the command output and read it yourself.
 
+**Grep the chunk that actually carries your marker — learn which one from a
+local build first.** Verifying the Episode 4 wiring produced two false
+NEGATIVES in a row: the entry `index-*.js` and the `app.lores-*.js` route
+chunk were both greped, both clean, and a healthy deploy got re-published and
+nearly re-diagnosed as broken. The data lived in a third file — Vite had
+split `lores.ts` into its own `lores-*.js` data chunk. The reliable order is:
+`npm run build` in the agent sandbox, `rg -l <marker> dist/client` to learn
+the carrying chunk, then fetch THAT file from production. An unchanged entry
+bundle hash is not evidence of a stale deploy — the entry chunk only changes
+when its own inputs do.
+
 ## Working with the Lovable agent
 
 - **`send_message` times out at 60s client-side, but the message is queued.**

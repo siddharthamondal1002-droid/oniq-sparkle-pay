@@ -235,3 +235,11 @@ verbatim; nothing ep4-specific is known yet beyond the plan:
   19 min; two sequential half-renders ~19 min each. The engine keeps
   lip sync (rung 1), mid-plane parallax and eleven measured rigs
   (rung 2) from the same push.
+- 2026-08-13 22:45Z: **HUB VERIFIED LIVE.** `oniqhub.com` serves
+  `lores-Bc3Hsmc9.js` (200) containing `4d617c81`, `6:03` and
+  `ep4:{url:o.url,runtime:"6:03"}`; entry bundle hash matches a fresh
+  local build of the tree, so the FIRST publish had been good — two
+  LIVE-OK-no reports were false negatives from grepping the entry and
+  route chunks while the marker lived in a Vite data chunk (lesson
+  recorded in oniq-ship). Episode 4 plays in the Originals hub beside
+  episodes 1–3. Commission complete, both destinations verified.
