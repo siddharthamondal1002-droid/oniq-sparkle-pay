@@ -143,6 +143,26 @@ Deno.serve(async (req) => {
 
     const data = await res.json();
     const audio = firstAudio(data);
+    if (audio) {
+      // Feed the ledger the dispatcher gates on (public.api_budget).
+      // SUCCESSES ONLY — a 429 consumes nothing upstream, so counting it
+      // would make the ledger pessimistic and hold films back for spend
+      // that never happened. Fire-and-forget: a ledger hiccup must never
+      // fail a voice line that already exists.
+      const svcKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+      const svcUrl = Deno.env.get("SUPABASE_URL");
+      if (svcKey && svcUrl) {
+        fetch(`${svcUrl}/rest/v1/rpc/record_api_use`, {
+          method: "POST",
+          headers: {
+            apikey: svcKey,
+            Authorization: `Bearer ${svcKey}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ _bucket: "tts", _amount: 1 }),
+        }).catch((e) => console.warn("story-voice ledger write failed", e));
+      }
+    }
     if (!audio) {
       // A refusal arrives as a 200 with no audio part rather than an error
       // status. Treating "ok but empty" as success is how a shot ends up with
