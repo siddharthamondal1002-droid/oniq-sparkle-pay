@@ -228,13 +228,23 @@ beyond `still` + `narration`:
   motion because that is all a video model can add to a frame.
 
 The grammar lives in `supabase/functions/_shared/movieGrammar.ts`, including
-`composeVideoPrompt(shot)` — the Veo-ready motion+vfx+dialogue prompt for the
-day the Story pipeline gets its clip stage. Until then `motion`/`vfx` ride in
-the plan unrendered (the runner is still Ken Burns over stills) and `dialogue`
-is already audible. Before building the clip stage, reread
-`references/video-generation.md`: starting-frame-only, no cast locks to the
-video model, filter refusals are retryable, and the arithmetic — 43 clips per
-7 minutes at ~100× a text call — goes in front of the owner FIRST.
+`composeVideoPrompt(shot)` — the Veo-ready motion+vfx+dialogue prompt.
+
+**The clip stage EXISTS now (2026-08-13): `grade = 'movie'` on a story job.**
+`story-clip` (edge function) drives Veo 3.1 Fast on the app's own
+`GOOGLE_AI_API_KEY` — start + poll, job-token auth only; the worker hands each
+shot's still over as the starting frame with `composeVideoPrompt(shot)` and
+plays the result muted in `StoryFilm` (narration stays the clock; a shot
+longer than Veo's 8s ceiling freezes its last frame under a smoothstepped
+push). A refusal retries ONCE (sampling-flaky, measured on ep3), then the
+shot steps down to the classic Ken Burns/parallax path — a still shot in a
+movie film is a shot, not a hole. `STORY_MOVIE=off` on the worker renders
+movie jobs as classic without a deploy. Movie grade is ADMIN-ONLY and clamped
+to 120s in `claim_story_seconds` until purchased seconds learn grades — the
+movie price tiers stay INACTIVE; do not activate them before splitting the
+paid bucket by grade, or classic-priced seconds fund Veo renders. Classic
+jobs (`grade = 'classic'`, the default) are untouched: still Ken Burns +
+parallax over stills, no Veo call anywhere.
 
 ## The remaining gap — the episode JOB QUEUE
 

@@ -4257,7 +4257,7 @@ export type Database = {
       child_restricted: { Args: { _uid: string }; Returns: boolean }
       claim_payout_batch: { Args: { _limit?: number }; Returns: Json[] }
       claim_story_seconds: {
-        Args: { _prompt: string; _requested_seconds: number }
+        Args: { _grade?: string; _prompt: string; _requested_seconds: number }
         Returns: Json
       }
       clips_feed: {

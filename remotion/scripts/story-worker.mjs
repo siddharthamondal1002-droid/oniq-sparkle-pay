@@ -69,6 +69,7 @@ import {
   planeCoverage,
 } from '../../src/lib/parallaxPlanes.ts';
 import { planStory } from '../../src/lib/storyPlan.ts';
+import { composeVideoPrompt } from '../../supabase/functions/_shared/movieGrammar.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -259,6 +260,7 @@ async function claimJob() {
         shotCount: got.shotCount,
         castJson: got.castJson ?? null,
         noWatermark: got.noWatermark === true,
+        grade: got.grade === 'movie' ? 'movie' : 'classic',
       };
     } catch (e) {
       // 409 means another runner won the race, or Supabase re-dispatched a job
@@ -274,7 +276,7 @@ async function claimJob() {
   }
 
   const queued = await db(
-    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json,no_watermark',
+    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json,no_watermark,grade',
   );
   if (!queued || queued.length === 0) return null;
   const row = queued[0];
@@ -287,6 +289,7 @@ async function claimJob() {
     shotCount: row.shot_count,
     castJson: row.cast_json ?? null,
     noWatermark: row.no_watermark === true,
+    grade: row.grade === 'movie' ? 'movie' : 'classic',
   };
 }
 
@@ -524,6 +527,57 @@ function localTts() {
   return localTtsPromise;
 }
 
+/**
+ * One Veo clip for one shot — the episode-3 architecture, per user film.
+ *
+ * The still is the plate: story-still already drew what the frame IS, and the
+ * video model receives it as the starting frame plus a prompt describing ONLY
+ * what moves (composeVideoPrompt: motion + vfx + dialogue — never cast locks,
+ * never style; both were measured on ep3 to invite refusals and drift while
+ * buying nothing).
+ *
+ * ONE RETRY, ON A REFUSAL ONLY. Ep3 measured Veo's third-party-content filter
+ * as sampling-flaky: the same image and prompt were refused repeatedly, then
+ * passed on a plain retry. So a 422 earns exactly one more attempt before the
+ * shot steps down to the stills path. A timeout or any other failure is real
+ * and throws straight through to the same step-down.
+ */
+const CLIP_POLL_MS = 10_000;
+const CLIP_WAIT_MS = 6 * 60_000;
+async function generateClip(shot, stillFile, shotSeconds) {
+  const prompt = composeVideoPrompt(shot).slice(0, 1900);
+  const imageBase64 = fs.readFileSync(stillFile).toString('base64');
+  // Veo's menu is 4, 6 or 8 seconds — no 10, no extend. Ask for the longest
+  // that the narration can use; the composition freezes the last frame under
+  // whatever narration outlasts it.
+  const ask = shotSeconds >= 6.5 ? 8 : shotSeconds >= 4.5 ? 6 : 4;
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const started = await edge('story-clip', {
+        action: 'start',
+        prompt,
+        imageBase64,
+        imageMime: 'image/png',
+        seconds: ask,
+      });
+      const t0 = Date.now();
+      for (;;) {
+        if (Date.now() - t0 > CLIP_WAIT_MS) throw new Error('clip: timed out');
+        await new Promise((r) => setTimeout(r, CLIP_POLL_MS));
+        const got = await edge('story-clip', { action: 'poll', operation: started.operation });
+        if (got.done) return got;
+      }
+    } catch (err) {
+      const msg = String(err?.message ?? err);
+      if (attempt === 1 && /story-clip: 422/.test(msg)) {
+        console.log('    clip refused — one retry, the filter is sampling-flaky');
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 /** ffprobe duration, because narration is the clock and estimates drift. */
 function secondsOf(file) {
   const out = execFileSync(findBin('ffprobe'), [
@@ -627,6 +681,15 @@ if (offline) {
     const { plan } = planRes;
     console.log(`  plot: "${plan.title}", ${plan.shots.length} shots`);
 
+    // MOVIE GRADE: every shot's still becomes a Veo starting frame, ep3-style.
+    // STORY_MOVIE=off is the no-deploy kill switch, same shape as the film
+    // look's — with it off a movie job renders as a classic film rather than
+    // dying, because the job is already paid for.
+    const movie = job.grade === 'movie' && (process.env.STORY_MOVIE ?? 'on') !== 'off';
+    if (job.grade === 'movie') {
+      console.log(movie ? '  movie grade: clips on' : '  movie grade requested, STORY_MOVIE=off — rendering classic');
+    }
+
     // One voice for the whole film. A narrator that changes between shots is
     // the audio version of the character drift the cast locks exist to fix.
     const voice = process.env.STORY_VOICE ?? 'Charon';
@@ -725,35 +788,6 @@ if (offline) {
       fs.writeFileSync(stillFile, Buffer.from(still.data, 'base64'));
       console.log(`  still ${i + 1}/${plan.shots.length}`);
 
-      // RUNG 0.5 — the 2.5D near plane. Depth once per shot (~2s of CPU),
-      // alpha-cut the near content, and let the composition slide it faster
-      // than the base. Every failure and both coverage gates step the shot
-      // down to plain Ken Burns; the film never waits on this stage's mood.
-      let nearPlane = null;
-      try {
-        const model = await depthModel();
-        if (model) {
-          const depth01 = normalizeDepth(await inferDepth(model, stillFile));
-          const alpha = nearPlaneAlpha(depth01, PARALLAX.threshold);
-          const coverage = planeCoverage(alpha);
-          const out = await cutNearPlane(
-            stillFile,
-            path.join(assetRoot, `${stem}.near.png`),
-            alpha,
-            coverage,
-            PARALLAX,
-          );
-          if (out) {
-            nearPlane = `${assetDir}/${stem}.near.png`;
-            console.log(`  depth ${i + 1}: near plane ${(coverage * 100).toFixed(0)}%`);
-          } else {
-            console.log(`  depth ${i + 1}: flat (coverage ${(coverage * 100).toFixed(0)}%) — plain Ken Burns`);
-          }
-        }
-      } catch (err) {
-        console.log(`  depth ${i + 1}: skipped (${err?.message ?? err})`);
-      }
-
       // The camera comes from what the SHOT IS, read off Ting's own size word,
       // not from the shot's position in the film. Only SLIDES advance the
       // alternation: every shot moves now, so counting movement would let a
@@ -841,6 +875,68 @@ if (offline) {
       const durationFrames = Math.max(1, Math.round(seconds * FPS));
       const spans = speechSpans(envelope(ffmpeg, wav)).filter(([a]) => a < durationFrames);
 
+      // THE CLIP — movie grade only, and the reason the grade exists. Runs
+      // AFTER the audio so the ask can match the measured shot length. Every
+      // failure steps the shot down to the classic stills path rather than
+      // failing the film: a Ken Burns shot inside a movie film is a shot,
+      // not a hole, and the ep3 finding is that refusals are luck, not
+      // verdicts. Sequential like every billable call here.
+      let clip = null;
+      if (movie) {
+        try {
+          const got = await generateClip(shot, stillFile, seconds);
+          const clipFile = path.join(assetRoot, `${stem}.clip.mp4`);
+          fs.writeFileSync(clipFile, Buffer.from(got.data, 'base64'));
+          const clipSeconds = secondsOf(clipFile);
+          // Two frames shy of the measured end: the composition must never
+          // seek past the last decodable frame, and the Freeze tail holds
+          // whichever frame the live part ends on.
+          const clipFrames = Math.max(1, Math.floor(clipSeconds * FPS) - 2);
+          clip = { src: `${assetDir}/${stem}.clip.mp4`, frames: clipFrames };
+          console.log(
+            `  clip ${i + 1}/${plan.shots.length}: ${clipSeconds.toFixed(1)}s of motion` +
+              (clipFrames < durationFrames ? ` (freeze tail ${durationFrames - clipFrames}f)` : ''),
+          );
+        } catch (err) {
+          console.log(
+            `  clip ${i + 1}: still carries the shot (${String(err?.message ?? err).slice(0, 140)})`,
+          );
+        }
+      }
+
+      // RUNG 0.5 — the 2.5D near plane, for shots the clip stage did not
+      // cover. Depth once per shot (~2s of CPU), alpha-cut the near content,
+      // and let the composition slide it faster than the base. Every failure
+      // and both coverage gates step the shot down to plain Ken Burns; the
+      // film never waits on this stage's mood. A shot with a real clip skips
+      // it entirely — measured motion beats simulated motion.
+      let nearPlane = null;
+      if (!clip) {
+        try {
+          const model = await depthModel();
+          if (model) {
+            const depth01 = normalizeDepth(await inferDepth(model, stillFile));
+            const alpha = nearPlaneAlpha(depth01, PARALLAX.threshold);
+            const coverage = planeCoverage(alpha);
+            const out = await cutNearPlane(
+              stillFile,
+              path.join(assetRoot, `${stem}.near.png`),
+              alpha,
+              coverage,
+              PARALLAX,
+            );
+            if (out) {
+              nearPlane = `${assetDir}/${stem}.near.png`;
+              console.log(`  depth ${i + 1}: near plane ${(coverage * 100).toFixed(0)}%`);
+            } else {
+              console.log(`  depth ${i + 1}: flat (coverage ${(coverage * 100).toFixed(0)}%) — plain Ken Burns`);
+            }
+          }
+        } catch (err) {
+          console.log(`  depth ${i + 1}: skipped (${err?.message ?? err})`);
+        }
+      }
+
       // A LISTENED mouth, where a rig will actually draw one. Rhubarb's phone
       // recognizer replaces the spelled-caption guess with the shapes the
       // audio really makes — its alphabet IS the rig's Viseme set. Run only
@@ -852,7 +948,7 @@ if (offline) {
       // internal extensionless imports defeat Node's type-stripping, and a
       // second JS copy here is exactly the drift the repo keeps refusing.
       let heardCues = null;
-      if (rigFor(plan, shot)) {
+      if (!clip && rigFor(plan, shot)) {
         try {
           const heard = await rhubarbCuesForWav(
             ffmpeg,
@@ -882,11 +978,16 @@ if (offline) {
         pan: framing.pan,
         figureHeight: framing.figureHeight,
         ...(nearPlane ? { parallax: { near: nearPlane } } : {}),
+        // Real motion, when the clip stage delivered it. The composition
+        // plays this INSTEAD of the Ken Burns/parallax/rig stack — Veo
+        // animated the character in the frame, so a puppet on top would be a
+        // second, disagreeing performance.
+        ...(clip ? { clip } : {}),
         // A character only where the plan says someone is on screen AND that
         // someone has a measured rig. An unmeasured character would need a
         // guessed mouth anchor, which looks like it works until the mouth opens
         // near the chin.
-        ...(rigFor(plan, shot)
+        ...(!clip && rigFor(plan, shot)
           ? {
               character: {
                 rig: rigFor(plan, shot),

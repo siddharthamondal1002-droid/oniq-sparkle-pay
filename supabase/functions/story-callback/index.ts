@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     // the row to `generating` — one round trip, and no read credential.
     if (action === "claim") {
       const got = await fetch(
-        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status,cast_json,no_watermark`,
+        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status,cast_json,no_watermark,grade`,
         { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
       );
       if (!got.ok) return json({ error: "could not read the job" }, 502);
@@ -100,6 +100,10 @@ Deno.serve(async (req) => {
         // defaults the mark ON, so an old runner can never ship clean by
         // accident.
         noWatermark: job.no_watermark === true,
+        // Which pipeline this job bought. Anything but the exact string
+        // 'movie' means classic, so a row from before the column reads as the
+        // grade it was: stills.
+        grade: job.grade === "movie" ? "movie" : "classic",
       });
     }
 
