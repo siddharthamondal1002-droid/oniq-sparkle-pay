@@ -247,8 +247,9 @@ export const EP4_SHOTS: Ep4Shot[] = [
     sceneId: "ep4_s05",
     weight: 1.1,
     still:
-      "A young princess in emerald and gold holding one stone fruit up to the light, one " +
-      "eye narrowed, examining it with a merchant's appraisal rather than a bride's delight.",
+      "A young princess in emerald and gold holding up one fruit carved from clear green " +
+      "gemstone, glowing faintly from inside, one eye narrowed, examining it with a " +
+      "merchant's appraisal rather than a bride's delight.",
     motion:
       "She turns the stone slowly in her fingers, tilts it against the light, and her " +
       "narrowed eye steadies. Slow push in on her face.",
