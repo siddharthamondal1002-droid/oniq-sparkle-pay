@@ -90,9 +90,15 @@ export type MovieShot = {
  * The Veo-ready video prompt for one shot. The still is supplied separately as
  * `starting_frame`; this composes ONLY what moves and what is heard.
  *
- * Dialogue uses the `X says: "…"` grammar Veo's native audio responds to. The
- * speaker is referred to generically (the model can see them in the frame) —
- * deliberately NOT by cast-lock description, per the lesson above.
+ * Dialogue uses the `X says: "…"` grammar Veo's native audio responds to — and
+ * X is ALWAYS the generic "The character in frame", never the speaker's name.
+ * The model can see who is speaking; the name buys nothing and costs shots.
+ * This stopped being theory on the first movie-grade proof film (run 72,
+ * 2026-08-13): five of nine shots were refused by the content filter, and
+ * three of the five carried `Aladdin says:` — a famous name is exactly what a
+ * third-party-content classifier matches. The speaker's NAME still matters
+ * elsewhere: the worker hashes it to keep the character's TTS voice stable.
+ * Same family of lesson as "never send cast locks to the video model" above.
  */
 export function composeVideoPrompt(shot: MovieShot): string {
   const parts: string[] = [];
@@ -107,8 +113,7 @@ export function composeVideoPrompt(shot: MovieShot): string {
   }
   if (shot.dialogue && shot.dialogue.line.trim()) {
     const line = shot.dialogue.line.trim().replace(/^"|"$/g, "");
-    const speaker = shot.dialogue.speaker.trim() || "The character";
-    parts.push(`${speaker} says: "${line}"`);
+    parts.push(`The character in frame says: "${line}"`);
   }
   return parts.join(" ");
 }
