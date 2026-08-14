@@ -117,6 +117,13 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // ~68px on this sheet, for anyone re-deriving the scale.
       mouth: { x: 340, y: 283, width: 95 },
       interocular: 68,
+      // Rung 7. The 3D render's eyes splay a little: measured span 74.
+      eyes: {
+        left: { x: 295, y: 223 },
+        right: { x: 369, y: 221 },
+        width: 46,
+        lid: '#bd6a3c',
+      },
     },
   },
   magician: {
@@ -129,6 +136,15 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // A thin closed smirk; interocular 29.6px.
       mouth: { x: 715.5, y: 218.5, width: 27 },
       interocular: 29.6,
+      // Rung 7: deep-set slits. The lid is the mauve socket shadow, not
+      // skin — closed, they read as shut hollow sockets, which is how the
+      // painting already treats his eye zone.
+      eyes: {
+        left: { x: 701, y: 187 },
+        right: { x: 730, y: 187 },
+        width: 14,
+        lid: '#4a3432',
+      },
     },
   },
   lampJinni: {
@@ -141,6 +157,14 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // Solemn pressed line framed by the moustache; interocular 38.6px.
       mouth: { x: 413.3, y: 194.7, width: 32.7 },
       interocular: 38.6,
+      // Rung 7: narrow white slits under heavy brows. Lid is his blue
+      // socket/cheek skin — the strip above the slit is brow shadow.
+      eyes: {
+        left: { x: 392, y: 155 },
+        right: { x: 429, y: 155.5 },
+        width: 16,
+        lid: '#454f7b',
+      },
     },
   },
   ringJinni: {
@@ -153,6 +177,15 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       crop: { x: 478, y: 38, width: 424, height: 784 },
       mouth: { x: 717.5, y: 263.5, width: 32 },
       interocular: 60,
+      // Rung 7: white almond apertures, no pupils — aperture centres.
+      // Measured span 51 runs ~15% under the recorded interocular; the
+      // lid was brightened one step to sit in the luminous gold skin.
+      eyes: {
+        left: { x: 694, y: 233 },
+        right: { x: 745, y: 237 },
+        width: 26,
+        lid: '#d6a87c',
+      },
     },
   },
   princess: {
@@ -164,6 +197,14 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // Interocular 43.8px.
       mouth: { x: 379, y: 181.7, width: 36 },
       interocular: 43.8,
+      // Rung 7: centres sit on the aperture midline (y 148), not the lid
+      // crease — 1.5px higher leaked her painted lower liner.
+      eyes: {
+        left: { x: 356.5, y: 148 },
+        right: { x: 400, y: 148 },
+        width: 30,
+        lid: '#ab6240',
+      },
     },
   },
   mother: {
@@ -175,6 +216,13 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // Interocular 40px.
       mouth: { x: 817, y: 198, width: 37 },
       interocular: 40,
+      // Rung 7. Measured span 40 — exact against the recorded interocular.
+      eyes: {
+        left: { x: 796, y: 162 },
+        right: { x: 836, y: 162 },
+        width: 21,
+        lid: '#b76f53',
+      },
     },
   },
   aliBaba: {
@@ -186,6 +234,14 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // Smile inside the beard; interocular 32.4px.
       mouth: { x: 808.5, y: 169, width: 41 },
       interocular: 32.4,
+      // Rung 7. Lid is his mid lid/under-eye skin — the strip above the
+      // eye is brow-crease shadow and read as goggles in the proof.
+      eyes: {
+        left: { x: 790, y: 134 },
+        right: { x: 823, y: 133 },
+        width: 18,
+        lid: '#a85832',
+      },
     },
   },
   morgiana: {
@@ -197,6 +253,13 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // Interocular 44.3px.
       mouth: { x: 342.3, y: 178.7, width: 25.3 },
       interocular: 44.3,
+      // Rung 7. Span 44 against recorded 44.3.
+      eyes: {
+        left: { x: 321, y: 140 },
+        right: { x: 365, y: 140 },
+        width: 26,
+        lid: '#75402e',
+      },
     },
   },
   captain: {
@@ -208,6 +271,16 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // The lip line hides at the moustache part; interocular 32px.
       mouth: { x: 425, y: 179, width: 34 },
       interocular: 32,
+      // Rung 7: deep-set slits resolved by a brightness-boosted 16x read
+      // (glint-iris-glint). NOTE the measured span is 40 — the rung-2
+      // interocular above looks understated; kept as-is pending the
+      // verify pass, and it scales nothing today (captain has no busts).
+      eyes: {
+        left: { x: 403, y: 141 },
+        right: { x: 443, y: 141 },
+        width: 16,
+        lid: '#7c4833',
+      },
     },
   },
   fisherman: {
@@ -219,6 +292,13 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // The widest smile of the cast; interocular 38.5px.
       mouth: { x: 750, y: 179, width: 51 },
       interocular: 38.5,
+      // Rung 7. Span 37 against recorded 38.5.
+      eyes: {
+        left: { x: 730, y: 141 },
+        right: { x: 767, y: 141 },
+        width: 21,
+        lid: '#8a4a32',
+      },
     },
   },
   jarJinni: {
@@ -231,6 +311,9 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // Interocular 35px.
       mouth: { x: 597, y: 164, width: 32 },
       interocular: 35,
+      // Rung 7: NO eyes, deliberately. Molten glowing slits with bloom —
+      // no whites, no painted lids, dark cracked sockets. A skin-lid
+      // blink cannot close a fire; he alone in the cast never blinks.
     },
   },
 };

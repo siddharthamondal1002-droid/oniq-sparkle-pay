@@ -75,17 +75,38 @@ export const EXPRESSION_HEADS: Readonly<
       crop: { x: 74, y: 162, width: 134, height: 188 },
       mouth: { x: 159.5, y: 257.5, width: 38 },
       interocular: 31.8,
+      // Rung 7: smile-narrowed eyes.
+      eyes: {
+        left: { x: 141, y: 223 },
+        right: { x: 174, y: 223 },
+        width: 18,
+        lid: '#a05433',
+      },
     },
     wonder: {
       crop: { x: 232, y: 158, width: 136, height: 192 },
       mouth: { x: 326, y: 266.5, width: 26 },
       interocular: 32.2,
+      // Rung 7: wide round eyes — the aperture outgrows the base's.
+      eyes: {
+        left: { x: 307, y: 226 },
+        right: { x: 340, y: 226 },
+        width: 21,
+        lid: '#a0512f',
+      },
     },
     surprise: {
       // The one CORRECTED entry: the verify pass re-derived the mouth.
       crop: { x: 403, y: 157, width: 147, height: 193 },
       mouth: { x: 485, y: 266, width: 30 },
       interocular: 33,
+      // Rung 7: his widest aperture — a startled blink covers a lot.
+      eyes: {
+        left: { x: 462, y: 222 },
+        right: { x: 497, y: 221 },
+        width: 23,
+        lid: '#9e4d2e',
+      },
     },
   },
   mother: {
@@ -93,11 +114,26 @@ export const EXPRESSION_HEADS: Readonly<
       crop: { x: 64, y: 88, width: 244, height: 270 },
       mouth: { x: 186, y: 231, width: 53 },
       interocular: 51,
+      // Rung 7.
+      eyes: {
+        left: { x: 159, y: 188 },
+        right: { x: 211, y: 186 },
+        width: 26,
+        lid: '#c07857',
+      },
     },
     sorrow: {
       crop: { x: 329, y: 101, width: 211, height: 296 },
       mouth: { x: 433, y: 260, width: 38 },
       interocular: 51.5,
+      // Rung 7: the head tilt puts the right pupil 3px higher, and the
+      // droopy hooded eyes need the larger aperture.
+      eyes: {
+        left: { x: 404, y: 208 },
+        right: { x: 452, y: 205 },
+        width: 28,
+        lid: '#b06a4e',
+      },
     },
   },
   jarJinni: {
@@ -131,6 +167,13 @@ export const EXPRESSION_HEADS: Readonly<
       crop: { x: 1244, y: 368, width: 218, height: 285 },
       mouth: { x: 1356.1, y: 511, width: 53.6 },
       interocular: 48.4,
+      // Rung 7: side-glancing whites, no pupils — aperture centres.
+      eyes: {
+        left: { x: 1333, y: 464.5 },
+        right: { x: 1380, y: 464.5 },
+        width: 22,
+        lid: '#3f456b',
+      },
     },
   },
 };
