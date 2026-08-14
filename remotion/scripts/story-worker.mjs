@@ -1264,7 +1264,16 @@ if (offline) {
     // The ONIQ mark is burned in unless the job PAID it off (no_watermark).
     // Passing the flag explicitly rather than omitting it keeps the intent
     // readable here; the composition defaults ON either way.
-    await renderPlan({ title: plan.title, shots: rendered, watermark: !job.noWatermark }, outFile);
+    await renderPlan(
+      {
+        title: plan.title,
+        shots: rendered,
+        watermark: !job.noWatermark,
+        // Rung 9: movie films open on their title and close to black.
+        grade: job.grade === 'movie' ? 'movie' : 'classic',
+      },
+      outFile,
+    );
     gradeInPlace(outFile);
 
     const storagePath = await uploadFinished(job, outFile);

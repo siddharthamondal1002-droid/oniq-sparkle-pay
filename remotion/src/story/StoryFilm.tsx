@@ -42,6 +42,7 @@ import {
 } from "../../../src/lib/visemes";
 import { PARALLAX } from "../../../src/lib/parallaxPlanes";
 import { ambientVolumeAt } from "../../../src/lib/soundStage";
+import { TITLE_SECONDS, endFadeAt, titleOpacityAt } from "../../../src/lib/filmChrome";
 import type { VfxKind } from "../../../src/lib/particleField";
 import type { PuppetPerformance } from "../../../src/lib/puppetPerformance";
 import type { Emotion } from "../../../src/lib/expressionGrammar";
@@ -233,6 +234,13 @@ export type StoryFilmProps = {
    * no_watermark.
    */
   watermark?: boolean;
+  /**
+   * Rung 9: the job's grade, straight off the job row. Movie films open
+   * with a title card over the first shot and close on a fade to black —
+   * neither adds a frame, because Story seconds are paid seconds. Absent
+   * or 'classic' renders exactly the shipped film, chrome-free.
+   */
+  grade?: "classic" | "movie";
 };
 
 export const STORY_FPS = 30;
@@ -469,9 +477,69 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
   );
 };
 
-export const StoryFilm: React.FC<StoryFilmProps> = ({ shots, fps, watermark }) => {
+/**
+ * Rung 9's opening: the film's name over the first shot, serif and
+ * letterspaced like a picture that expects to be watched, on a soft
+ * radial scrim so it reads over any still. Mounted in a Sequence, so the
+ * frame here is title-relative.
+ */
+const TitleCard: React.FC<{ title: string; fps: number }> = ({ title, fps }) => {
+  const frame = useCurrentFrame();
+  const opacity = titleOpacityAt(frame, fps);
+  if (opacity <= 0) return null;
+  return (
+    <AbsoluteFill
+      style={{
+        justifyContent: "center",
+        alignItems: "center",
+        opacity,
+        pointerEvents: "none",
+        background:
+          "radial-gradient(ellipse 60% 42% at 50% 50%, rgba(4,3,10,0.62), rgba(4,3,10,0) 72%)",
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "Georgia, 'Times New Roman', serif",
+          fontWeight: 600,
+          fontSize: 76,
+          letterSpacing: 10,
+          textTransform: "uppercase",
+          textAlign: "center",
+          maxWidth: "78%",
+          lineHeight: 1.25,
+          color: "rgba(246,241,230,0.96)",
+          textShadow: "0 2px 26px rgba(0,0,0,0.75)",
+        }}
+      >
+        {title}
+      </div>
+    </AbsoluteFill>
+  );
+};
+
+/** Rung 9's close: the last seconds easing to black. Root-mounted, so the
+    frame here is the film's own clock. */
+const EndFade: React.FC<{ totalFrames: number; fps: number }> = ({ totalFrames, fps }) => {
+  const frame = useCurrentFrame();
+  const opacity = endFadeAt(frame, totalFrames, fps);
+  if (opacity <= 0) return null;
+  return (
+    <AbsoluteFill style={{ backgroundColor: "#05040a", opacity, pointerEvents: "none" }} />
+  );
+};
+
+export const StoryFilm: React.FC<StoryFilmProps> = ({
+  title,
+  shots,
+  fps,
+  watermark,
+  grade,
+}) => {
   const { fps: configFps } = useVideoConfig();
-  const perShot = storyFrames(shots, fps ?? configFps);
+  const usedFps = fps ?? configFps;
+  const perShot = storyFrames(shots, usedFps);
+  const totalFrames = perShot.reduce((a, b) => a + b, 0);
 
   let at = 0;
   return (
@@ -485,6 +553,16 @@ export const StoryFilm: React.FC<StoryFilmProps> = ({ shots, fps, watermark }) =
           </Sequence>
         );
       })}
+      {/* Rung 9, movie grade only: the opening and the close. Both ride
+          OVER the paid shots — a Story second is a paid second, so the
+          chrome never appends frames. Classic films skip this entirely
+          and stay pixel-identical to the shipped look. */}
+      {grade === "movie" && title ? (
+        <Sequence from={0} durationInFrames={Math.ceil(TITLE_SECONDS * usedFps)}>
+          <TitleCard title={title} fps={usedFps} />
+        </Sequence>
+      ) : null}
+      {grade === "movie" ? <EndFade totalFrames={totalFrames} fps={usedFps} /> : null}
       {/* The ONIQ mark rides ABOVE every shot, outside all camera transforms,
           so it is burned into every frame of the export. Subtle by design:
           the film is the product, the mark is the maker. */}
