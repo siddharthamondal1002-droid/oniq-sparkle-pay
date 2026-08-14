@@ -1,5 +1,30 @@
 # ONIQ — working agreements
 
+## Business decisions are the owner's — ask first
+
+Owner directive, 2026-08-14. Recorded after the Story pipeline was routed
+onto the metered Google AI key by an agent's engineering call (2026-08-09,
+`4bb498e`) without the owner being asked — a provider-and-payment choice
+presented as a code comment instead of a question.
+
+**Before acting, ASK the owner about anything that:**
+
+- chooses or changes a paid provider, API, or model tier, or which
+  account's money a feature spends (Google key vs Lovable credits vs
+  anything else);
+- sets or changes prices, margins, caps, quotas, or what is on sale;
+- spends real money beyond what an existing, owner-approved path already
+  spends in the normal course of running;
+- changes a user-visible policy (watermarks, refunds, content rules,
+  payout terms).
+
+Engineering inside decisions already made — how to implement, test,
+harden, or fix what the owner has approved — stays delegated and does not
+need a question. When unsure which side of the line something is on, it is
+a business decision: ask. An owner decision, once given, is recorded next
+to the code it governs as "owner directive" with the date, the way the
+2026-08-13 movie-on/classic-off flip is.
+
 ## Linting
 
 A task is not complete until `npm run lint:ci` passes. Never use
