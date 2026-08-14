@@ -32,6 +32,15 @@ export const VERBATIM_MAX_FILL = 1.25;
 /** The TTS ceiling per call — mirrors story-voice's MAX_TEXT, by test. */
 export const MAX_NARRATION_CHARS = 1200;
 
+/**
+ * The longest film verbatim mode can honestly make. The prompt is capped
+ * at 2000 characters (claim RPC and textarea alike) — roughly 340 words,
+ * ~136s of speech — so the 300s tier's floor (150s) is unreachable. The
+ * toggle refuses past this instead of telling the user to paste a story
+ * the input cannot hold. Mirrored by the claim RPC's own `wanted > 180`.
+ */
+export const VERBATIM_MAX_SECONDS = 180;
+
 /** Rough seconds of speech in a text. Zero for empty. */
 export function estimateSpokenSeconds(text: string): number {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
@@ -45,6 +54,13 @@ export function verbatimFits(
 ): { fits: boolean; spokenSeconds: number; reason: string | null } {
   const spokenSeconds = estimateSpokenSeconds(text);
   if (requestedSeconds <= 0) return { fits: false, spokenSeconds, reason: "no duration" };
+  if (requestedSeconds > VERBATIM_MAX_SECONDS) {
+    return {
+      fits: false,
+      spokenSeconds,
+      reason: `works up to ${VERBATIM_MAX_SECONDS}s — the prompt box cannot hold a longer story`,
+    };
+  }
   const fill = spokenSeconds / requestedSeconds;
   if (fill < VERBATIM_MIN_FILL) {
     return {
@@ -64,9 +80,10 @@ export function verbatimFits(
 }
 
 /**
- * Sentences, kept EXACTLY as written — each piece carries its own original
- * spacing and punctuation, and concatenating the pieces reproduces the
- * trimmed input character for character. Splits after . ! ? … (with any
+ * Sentences, kept word for word — each piece carries its original inner
+ * spacing and punctuation; BETWEEN sentences the original whitespace run
+ * is normalized to one space when pieces are joined, which the spoken
+ * audio cannot distinguish. Splits after . ! ? … (with any
  * closing quotes/brackets attached) when followed by whitespace; a text
  * with no terminal punctuation is one sentence. A sentence longer than
  * MAX_NARRATION_CHARS is hard-split at word boundaries — the TTS ceiling

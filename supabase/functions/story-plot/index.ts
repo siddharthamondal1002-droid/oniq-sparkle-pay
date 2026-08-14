@@ -239,13 +239,23 @@ Deno.serve(async (req) => {
     if (narrations.length > 0 && narrations.length !== shots) {
       return json({ error: "Narration count must match the shot count." }, 400);
     }
+    // The caps MAX_PROMPT exists to enforce, applied to the new field too:
+    // a chunk is bounded by the voice's own ceiling, and the total by the
+    // prompt cap it was sliced from — the review panel flagged the token
+    // spend this reopened when only the count was checked.
+    if (narrations.some((n) => n.length > 1200)) {
+      return json({ error: "A narration piece is too long." }, 400);
+    }
+    if (narrations.reduce((a, n) => a + n.length, 0) > MAX_PROMPT + 200) {
+      return json({ error: "The narrations are too long." }, 400);
+    }
     const verbatimBlock =
       narrations.length > 0
         ? `\n\nTHE NARRATION IS ALREADY WRITTEN, one piece per shot, in order — the` +
           ` user's own words, which will be read aloud EXACTLY as given. Copy each` +
           ` piece into its shot's \`narration\` unchanged. Design each \`still\` to` +
-          ` picture what its narration says. Only include \`dialogue\` if the line` +
-          ` appears word for word inside the narration.\n\n` +
+          ` picture what its narration says. Do NOT include \`dialogue\` in any` +
+          ` shot: the narrator reads every word, quotes included, exactly once.\n\n` +
           narrations.map((n, i) => `Shot ${i + 1} narration: ${n}`).join("\n")
         : "";
 
@@ -443,8 +453,8 @@ Deno.serve(async (req) => {
                       ? `\n\nThe text after each number is that shot's FINISHED` +
                         ` narration — the user's own words, read aloud exactly as` +
                         ` given. Copy it into \`narration\` unchanged and design the` +
-                        ` still to picture it. Only include \`dialogue\` if the line` +
-                        ` appears word for word inside that narration.`
+                        ` still to picture it. Do NOT include \`dialogue\` in any` +
+                        ` shot: the narrator reads every word exactly once.`
                       : ""),
                 },
               ],

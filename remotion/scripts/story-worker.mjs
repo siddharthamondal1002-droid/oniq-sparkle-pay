@@ -783,19 +783,23 @@ if (offline) {
 
     // Verbatim enforcement is the WORKER's, not Ting's promise-keeping:
     // whatever the planner echoed back, the narration that reaches the voice
-    // is the user's own slice, overwritten here. Invented dialogue is
-    // dropped the same way — a spoken line the user did not write breaks
-    // the very promise the toggle makes; a line that IS in their text
-    // (normalized whitespace) keeps its separate character voice.
+    // is the user's own slice, overwritten here. Dialogue is dropped
+    // ENTIRELY — the review panel proved the first cut's keep-a-verbatim-
+    // line rule spoke every kept line twice (the narration already contains
+    // it; appending a character voice repeat lengthens the film past its
+    // paid seconds and sounds broken). In verbatim mode the narrator reads
+    // every word, quotes included, exactly once.
     if (verbatimChunks) {
-      const source = job.prompt.replace(/\s+/g, ' ');
+      let droppedDialogue = 0;
       for (let i = 0; i < plan.shots.length; i++) {
         plan.shots[i].narration = verbatimChunks[i] ?? plan.shots[i].narration;
-        const line = plan.shots[i].dialogue?.line;
-        if (line && !source.includes(String(line).replace(/\s+/g, ' ').trim())) {
-          console.log(`  verbatim: dropped invented dialogue in shot ${i + 1}`);
+        if (plan.shots[i].dialogue) {
+          droppedDialogue += 1;
           delete plan.shots[i].dialogue;
         }
+      }
+      if (droppedDialogue > 0) {
+        console.log(`  verbatim: dialogue disabled — the narrator reads every word (${droppedDialogue} dropped)`);
       }
     }
 

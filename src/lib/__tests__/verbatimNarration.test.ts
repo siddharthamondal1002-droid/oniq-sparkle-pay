@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_NARRATION_CHARS,
   VERBATIM_MAX_FILL,
+  VERBATIM_MAX_SECONDS,
   VERBATIM_MIN_FILL,
   estimateSpokenSeconds,
   packNarrations,
@@ -98,13 +99,23 @@ describe("the fit band — the pricing guard", () => {
 
   it("mirrors the claim RPC's SQL band exactly", () => {
     // Client and server must refuse the same stories. The SQL divides a
-    // whitespace word count by 2.5 and tests against [0.5x, 1.25x].
+    // whitespace word count by 2.5 and tests against [0.5x, 1.25x] — with
+    // the review panel's three alignment fixes pinned: empty tokens
+    // filtered (Postgres trim only strips spaces), NBSP normalized (JS \\s
+    // matches it, Postgres' does not), and the 300s tier refused outright.
     expect(MIGRATION).toContain("/ 2.5");
     expect(MIGRATION).toContain("wanted * 0.5");
     expect(MIGRATION).toContain("wanted * 1.25");
+    expect(MIGRATION).toContain("where w <> ''");
+    expect(MIGRATION).toContain("translate(prompt_clean, chr(160), ' ')");
+    expect(MIGRATION).toContain("wanted > 180");
     expect(VERBATIM_MIN_FILL).toBe(0.5);
     expect(VERBATIM_MAX_FILL).toBe(1.25);
+    expect(VERBATIM_MAX_SECONDS).toBe(180);
     expect(MODULE_SRC).toContain("SPOKEN_WORDS_PER_SECOND = 2.5");
+    // And the tier past the reach of a 2000-char story refuses in TS too.
+    expect(verbatimFits("word ".repeat(400).trim(), 300).fits).toBe(false);
+    expect(verbatimFits("word ".repeat(400).trim(), 300).reason).toContain("180");
   });
 
   it("keeps chunks under the voice function's own ceiling", () => {
@@ -135,8 +146,20 @@ describe("the wiring pins", () => {
       "the worker no longer ENFORCES the user's words over Ting's echo",
     ).toBe(true);
     expect(
-      WORKER_SRC.includes("dropped invented dialogue"),
-      "invented dialogue would speak words the user never wrote",
+      WORKER_SRC.includes("verbatim: dialogue disabled"),
+      "verbatim dialogue must be dropped entirely — kept lines were spoken twice",
+    ).toBe(true);
+    expect(
+      PLOT_SRC.includes("narrator reads every word"),
+      "the planner is no longer told to skip dialogue in verbatim mode",
+    ).toBe(true);
+    expect(
+      PLOT_SRC.includes("A narration piece is too long."),
+      "the narrations field lost its per-item cap",
+    ).toBe(true);
+    expect(
+      STUDIO_SRC.includes("needs at least"),
+      "the studio no longer gates the toggle on packability before the debit",
     ).toBe(true);
     expect(PLOT_SRC).toContain("Narration count must match the shot count.");
     expect(

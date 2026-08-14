@@ -42,7 +42,7 @@ import { Clapperboard, Clock, Loader2, ShieldAlert, Sparkles, Users2, X } from "
 import { supabase } from "@/integrations/supabase/client";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { openInApp } from "@/lib/miniapps";
-import { verbatimFits } from "@/lib/verbatimNarration";
+import { packNarrations, verbatimFits } from "@/lib/verbatimNarration";
 import {
   DEFAULT_STORY_SECONDS,
   MAX_STORY_SECONDS,
@@ -255,10 +255,24 @@ export function StoryStudio() {
 
   const plan_ = useMemo(() => planStory(seconds), [seconds]);
 
-  // Does the typed text FIT the picked tier as spoken narration? Advisory
-  // twin of the claim RPC's own band check — here so the toggle can explain
-  // itself before a round trip. EVERY HOOK ABOVE EVERY EARLY RETURN.
-  const verbatimFit = useMemo(() => verbatimFits(prompt, plan_.seconds), [prompt, plan_]);
+  // Does the typed text FIT the picked tier as spoken narration, AND can
+  // it actually be SLICED into that tier's shots? The review panel proved
+  // the band alone charges money for unpackable stories (three giant
+  // sentences fit sixty seconds by word count and still cannot fill nine
+  // shots) — so the packer runs here, before any debit, and the toggle
+  // explains which gate refused. EVERY HOOK ABOVE EVERY EARLY RETURN.
+  const verbatimFit = useMemo(() => {
+    const fit = verbatimFits(prompt, plan_.seconds);
+    if (!fit.fits) return fit;
+    if (packNarrations(prompt.trim(), plan_.shots.length) === null) {
+      return {
+        fits: false,
+        spokenSeconds: fit.spokenSeconds,
+        reason: `needs at least ${plan_.shots.length} sentences — one per shot`,
+      };
+    }
+    return fit;
+  }, [prompt, plan_]);
   useEffect(() => {
     // Text edits can un-fit an armed toggle; disarm rather than let the
     // claim refuse later with a colder message.

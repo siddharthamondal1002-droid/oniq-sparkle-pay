@@ -75,9 +75,25 @@ begin
   -- (or would silently exceed) the bought seconds never spends anything.
   -- The client shows the same arithmetic before the button; this is the
   -- copy that cannot be bypassed.
+  --
+  -- The count MIRRORS JS split(/\s+/).filter(Boolean) exactly, which took
+  -- three deliberate moves the review panel forced: empty tokens filtered
+  -- (Postgres trim() strips only spaces, so leading newlines survive and
+  -- would count), NBSP translated to space (JS \s matches it, Postgres'
+  -- does not), and the 300s tier refused outright — the 2000-char prompt
+  -- cap cannot hold 150s of speech, so the band could never pass there
+  -- and the toggle must say so instead of asking for the impossible.
   if coalesce(_verbatim, false) then
+    if wanted > 180 then
+      return jsonb_build_object('ok', false, 'reason', 'verbatim-fit',
+                                'spokenSeconds', 0,
+                                'remaining', 0, 'dailyLeft', 0, 'paidSeconds', 0,
+                                'wanted', wanted);
+    end if;
     spoken_seconds :=
-      coalesce(array_length(regexp_split_to_array(prompt_clean, '\s+'), 1), 0) / 2.5;
+      (select count(*)::numeric
+         from regexp_split_to_table(translate(prompt_clean, chr(160), ' '), '\s+') w
+        where w <> '') / 2.5;
     if spoken_seconds < wanted * 0.5 or spoken_seconds > wanted * 1.25 then
       return jsonb_build_object('ok', false, 'reason', 'verbatim-fit',
                                 'spokenSeconds', round(spoken_seconds),
