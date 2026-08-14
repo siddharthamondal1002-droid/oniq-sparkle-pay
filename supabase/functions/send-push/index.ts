@@ -2,6 +2,7 @@
 // Never logs tokens. Cleans up UNREGISTERED/404 tokens.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SignJWT, importPKCS8 } from "https://esm.sh/jose@5.9.6";
+import { parseVapidJwk, sendWebPush, type VapidJwk } from "../_shared/webpush.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,11 +41,10 @@ async function getAccessToken(): Promise<string> {
     }),
   });
   if (!res.ok) throw new Error("oauth token failed");
-  const j = await res.json() as { access_token: string; expires_in: number };
+  const j = (await res.json()) as { access_token: string; expires_in: number };
   cachedToken = { token: j.access_token, expiresAt: Date.now() + (j.expires_in - 60) * 1000 };
   return j.access_token;
 }
-
 
 // --- rate limit (per-isolate; resets on cold start) ---
 const rlBuckets = new Map<string, number[]>();
@@ -53,13 +53,22 @@ function _subFromAuth(req: Request): string {
   const t = h.startsWith("Bearer ") ? h.slice(7) : "";
   const p = t.split(".");
   if (p.length !== 3) return "anon";
-  try { return JSON.parse(atob(p[1].replace(/-/g,"+").replace(/_/g,"/"))).sub || "anon"; } catch { return "anon"; }
+  try {
+    return JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/"))).sub || "anon";
+  } catch {
+    return "anon";
+  }
 }
 function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   const now = Date.now();
   const arr = (rlBuckets.get(id) ?? []).filter((t) => now - t < windowMs);
-  if (arr.length >= limit) { rlBuckets.set(id, arr); return false; }
-  arr.push(now); rlBuckets.set(id, arr); return true;
+  if (arr.length >= limit) {
+    rlBuckets.set(id, arr);
+    return false;
+  }
+  arr.push(now);
+  rlBuckets.set(id, arr);
+  return true;
 }
 
 Deno.serve(async (req) => {
@@ -82,18 +91,20 @@ Deno.serve(async (req) => {
   // rejects with "Expected 3 parts in JWT; got 1", silently zeroing every DB read
   // in this function. Wrap fetch to send them via `apikey` header only.
   const isNewKey = (k: string) => k.startsWith("sb_publishable_") || k.startsWith("sb_secret_");
-  const wrapFetch = (key: string, extraAuth?: string): typeof fetch => (input, init) => {
-    const headers = new Headers(
-      typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
-    );
-    if (init?.headers) new Headers(init.headers).forEach((v, k) => headers.set(k, v));
-    if (isNewKey(key) && headers.get("Authorization") === `Bearer ${key}`) {
-      headers.delete("Authorization");
-    }
-    headers.set("apikey", key);
-    if (extraAuth) headers.set("Authorization", extraAuth);
-    return fetch(input, { ...init, headers });
-  };
+  const wrapFetch =
+    (key: string, extraAuth?: string): typeof fetch =>
+    (input, init) => {
+      const headers = new Headers(
+        typeof Request !== "undefined" && input instanceof Request ? input.headers : undefined,
+      );
+      if (init?.headers) new Headers(init.headers).forEach((v, k) => headers.set(k, v));
+      if (isNewKey(key) && headers.get("Authorization") === `Bearer ${key}`) {
+        headers.delete("Authorization");
+      }
+      headers.set("apikey", key);
+      if (extraAuth) headers.set("Authorization", extraAuth);
+      return fetch(input, { ...init, headers });
+    };
 
   const userClient = createClient(SUPABASE_URL, ANON, {
     global: { headers: { Authorization: authHeader }, fetch: wrapFetch(ANON, authHeader) },
@@ -106,7 +117,11 @@ Deno.serve(async (req) => {
     });
   }
   const senderId = userRes.user.id;
-  if (!_rateLimit(senderId, 60)) return new Response(JSON.stringify({ error: "slow down bestie 😅" }), { status: 429, headers: { ...corsHeaders, "content-type": "application/json" } });
+  if (!_rateLimit(senderId, 60))
+    return new Response(JSON.stringify({ error: "slow down bestie 😅" }), {
+      status: 429,
+      headers: { ...corsHeaders, "content-type": "application/json" },
+    });
 
   let body: {
     conversation_id?: string;
@@ -190,11 +205,33 @@ Deno.serve(async (req) => {
 
   const { data: tokens } = await admin
     .from("device_tokens")
-    .select("token")
+    .select("token, platform, keys")
     .in("user_id", recipientIds);
-  const tokenList = (tokens ?? []).map((t: { token: string }) => t.token);
-  if (tokenList.length === 0) {
-    return new Response(JSON.stringify({ sent: 0, failed: 0 }), {
+
+  // TWO TRANSPORTS, ONE TABLE. An android row's `token` is an FCM
+  // registration token; a web row's is the subscription endpoint URL, with
+  // its key material in `keys`. Splitting here is not cosmetic — posting an
+  // endpoint URL to FCM fails, and posting an FCM token to a push service is
+  // not even a request.
+  type Row = { token: string; platform: string | null; keys: Record<string, string> | null };
+  const rows = (tokens ?? []) as Row[];
+  const fcmTokens = rows.filter((r) => r.platform !== "web").map((r) => r.token);
+  const webSubs = rows
+    .filter((r) => r.platform === "web" && r.keys?.p256dh && r.keys?.auth)
+    .map((r) => ({
+      endpoint: r.token,
+      keys: { p256dh: r.keys!.p256dh, auth: r.keys!.auth },
+    }));
+
+  if (fcmTokens.length === 0 && webSubs.length === 0) {
+    // THE SILENT FAILURE THAT HID THIS FOR WEEKS. Returning {sent:0,failed:0}
+    // with a 200 is honest — nothing failed — but it is indistinguishable
+    // from a delivery, and that is how 87 unreachable accounts went unnoticed
+    // until the call logs were read by hand. Say it out loud.
+    console.warn(
+      `send-push: no push address for any of ${recipientIds.length} recipient(s) — kind=${kind}`,
+    );
+    return new Response(JSON.stringify({ sent: 0, failed: 0, unaddressed: recipientIds.length }), {
       headers: { ...corsHeaders, "content-type": "application/json" },
     });
   }
@@ -215,15 +252,23 @@ Deno.serve(async (req) => {
       ? `Incoming ${call_type ?? "voice"} call — open ONIQ to answer`
       : (preview ?? "New message");
 
-  let accessToken: string;
-  try {
-    accessToken = await getAccessToken();
-  } catch (e) {
-    console.error("oauth error", (e as Error).message);
-    return new Response(JSON.stringify({ error: "auth failed" }), {
-      status: 500,
-      headers: { ...corsHeaders, "content-type": "application/json" },
-    });
+  // Only pay for a Google OAuth token when there is an FCM row to use it on.
+  // A web-only conversation must not fail because the Firebase service
+  // account is absent, and vice versa — one transport being unconfigured is
+  // not a reason to silence the other.
+  let accessToken = "";
+  if (fcmTokens.length > 0) {
+    try {
+      accessToken = await getAccessToken();
+    } catch (e) {
+      console.error("oauth error", (e as Error).message);
+      if (webSubs.length === 0) {
+        return new Response(JSON.stringify({ error: "auth failed" }), {
+          status: 500,
+          headers: { ...corsHeaders, "content-type": "application/json" },
+        });
+      }
+    }
   }
 
   const url = `https://fcm.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/messages:send`;
@@ -232,7 +277,7 @@ Deno.serve(async (req) => {
   const staleTokens: string[] = [];
 
   await Promise.all(
-    tokenList.map(async (token) => {
+    (accessToken ? fcmTokens : []).map(async (token) => {
       try {
         // For call pushes, send DATA-ONLY (no notification block) so the
         // OniqMessagingService always runs — even when the app is backgrounded
@@ -318,7 +363,7 @@ Deno.serve(async (req) => {
               };
               const details = j.error?.details ?? [];
               const fcmErr = details.find((d) =>
-                d["@type"]?.endsWith("google.firebase.fcm.v1.FcmError")
+                d["@type"]?.endsWith("google.firebase.fcm.v1.FcmError"),
               );
               if (fcmErr?.errorCode === "UNREGISTERED") {
                 stale = true;
@@ -342,21 +387,110 @@ Deno.serve(async (req) => {
       } catch {
         failed++;
       }
-    })
+    }),
   );
 
-  // Circuit-breaker: N devices belonging to N different users do not all die
-  // between two sends. A 100% identical failure across multiple tokens is a
-  // message-level fault by definition — log it, delete nothing. This guard
-  // survives any future change in FCM's error shape.
-  const uniformWipe = sent === 0 && staleTokens.length === tokenList.length && tokenList.length > 1;
-  if (staleTokens.length > 0 && !uniformWipe) {
-    await admin.from("device_tokens").delete().in("token", staleTokens);
-  } else if (uniformWipe) {
-    console.error("send-push: every token failed identically — payload fault, skipping cleanup");
+  // -------------------------------------------------------------------------
+  // WEB PUSH. Same words, different transport.
+  //
+  // The payload is JSON rather than FCM's flat string map because the browser
+  // hands the service worker whatever we encrypted — but the KEYS are kept
+  // identical to the FCM data map so sw.js and OniqMessagingService read the
+  // same field names and cannot drift apart.
+  // -------------------------------------------------------------------------
+  const deadEndpoints: string[] = [];
+  let webSent = 0;
+  let webFailed = 0;
+
+  if (webSubs.length > 0) {
+    let jwk: VapidJwk | null = null;
+    try {
+      const raw = Deno.env.get("VAPID_PRIVATE_KEY");
+      if (raw) jwk = parseVapidJwk(raw);
+    } catch (e) {
+      console.error("send-push: bad VAPID_PRIVATE_KEY —", (e as Error).message);
+    }
+    if (!jwk) {
+      // Not fatal: android recipients were already served above.
+      console.error(`send-push: web push unconfigured, ${webSubs.length} subscriber(s) skipped`);
+      webFailed = webSubs.length;
+    } else {
+      const isCall = kind === "call";
+      const isCancel = kind === "call_cancel";
+      const callUrl = call_id
+        ? `/app/chat/${conversation_id}?acceptCall=${encodeURIComponent(call_id)}&acceptType=${encodeURIComponent(call_type ?? "audio")}`
+        : `/app/chat/${conversation_id}`;
+      const webPayload = JSON.stringify(
+        isCancel
+          ? {
+              kind: "call_cancel",
+              call_id: clean(call_id ?? ""),
+              conversation_id: clean(conversation_id),
+            }
+          : {
+              kind: isCall ? "call" : "message",
+              title: clean(title),
+              body: clean(bodyText),
+              url: isCall ? callUrl : `/app/chat/${conversation_id}`,
+              conversation_id: clean(conversation_id),
+              ...(isCall
+                ? { call_type: clean(call_type ?? "voice"), call_id: clean(call_id ?? "") }
+                : {}),
+            },
+      );
+      const subject = Deno.env.get("VAPID_SUBJECT") ?? "https://oniqhub.com";
+
+      await Promise.all(
+        webSubs.map(async (sub) => {
+          const r = await sendWebPush(sub, webPayload, {
+            jwk: jwk!,
+            subject,
+            // A ring is worthless late. Match the FCM TTLs exactly so the two
+            // transports expire together.
+            ttlSeconds: isCall ? 60 : isCancel ? 120 : 3600,
+            urgency: isCall || isCancel ? "high" : "normal",
+          });
+          if (r.ok) {
+            webSent++;
+            return;
+          }
+          webFailed++;
+          if (r.gone) {
+            deadEndpoints.push(sub.endpoint);
+          } else {
+            // Status and the service's complaint only — the endpoint is a
+            // capability URL and belongs in logs no more than a token does.
+            console.error("web push failed", r.status, r.error);
+          }
+        }),
+      );
+    }
   }
 
-  return new Response(JSON.stringify({ sent, failed, cleaned: staleTokens.length }), {
-    headers: { ...corsHeaders, "content-type": "application/json" },
-  });
+  // Circuit-breaker: N devices belonging to N different users do not all die
+  // between two sends. A 100% identical failure across multiple addresses is a
+  // message-level fault by definition — log it, delete nothing. Applied per
+  // transport, because an FCM payload fault says nothing about the web batch
+  // and folding them together would let one transport's bug wipe the other's
+  // rows.
+  const wipedFcm = sent === 0 && staleTokens.length === fcmTokens.length && fcmTokens.length > 1;
+  const wipedWeb = webSent === 0 && deadEndpoints.length === webSubs.length && webSubs.length > 1;
+  const toDelete = [...(wipedFcm ? [] : staleTokens), ...(wipedWeb ? [] : deadEndpoints)];
+  if (wipedFcm || wipedWeb) {
+    console.error("send-push: a whole transport failed identically — payload fault, no cleanup");
+  }
+  if (toDelete.length > 0) {
+    await admin.from("device_tokens").delete().in("token", toDelete);
+  }
+
+  return new Response(
+    JSON.stringify({
+      sent: sent + webSent,
+      failed: failed + webFailed,
+      cleaned: toDelete.length,
+      fcm: { sent, failed, addressed: fcmTokens.length },
+      web: { sent: webSent, failed: webFailed, addressed: webSubs.length },
+    }),
+    { headers: { ...corsHeaders, "content-type": "application/json" } },
+  );
 });

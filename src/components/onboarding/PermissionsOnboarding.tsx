@@ -58,39 +58,31 @@ export function PermissionsOnboarding() {
   const askNotifications = async () => {
     setBusy("notif");
     try {
-      if (Capacitor.isNativePlatform()) {
-        try {
-          // initPush reports what actually happened — claiming "granted" after
-          // a denial flipped the card to a state with no retry and told the
-          // user notifications were on when no token existed anywhere.
-          const result = await initPush();
-          if (result === "granted") {
-            setNotif("granted");
-            toast.success("notifications on 🔔");
-          } else if (result === "denied") {
-            setNotif("denied");
-            toast("no notifications — you can allow them in system settings 🔧");
-          } else {
-            toast("notifications not supported on this device");
-          }
-        } catch (e: unknown) {
-          const name = (e as { name?: string; message?: string })?.name || "Error";
-          const msg = (e as { message?: string })?.message || "couldn't turn on";
-          toast.error(`${name}: ${msg}`);
-        }
-      } else if (typeof window !== "undefined" && "Notification" in window) {
-        if (Notification.permission === "denied") {
+      // ONE CALL FOR BOTH SURFACES. This used to fork: native ran initPush,
+      // and the browser branch called Notification.requestPermission() and
+      // stopped there — which grants permission to show notifications while
+      // the tab is open and subscribes to NOTHING. Every web user who tapped
+      // "allow" here was told notifications were on and then had no push
+      // address at all. initPush now routes to the right transport itself.
+      try {
+        const result = await initPush();
+        if (result === "granted") {
+          setNotif("granted");
+          toast.success("notifications on 🔔");
+        } else if (result === "denied") {
           setNotif("denied");
-          toast("blocked by ur browser — allow in site settings 🔧");
+          toast(
+            Capacitor.isNativePlatform()
+              ? "no notifications — you can allow them in system settings 🔧"
+              : "blocked by ur browser — allow in site settings 🔧",
+          );
         } else {
-          const p = await Notification.requestPermission();
-          setNotif(p as PermState);
-          if (p === "granted") toast.success("notifications on 🔔");
-          else if (p === "denied") toast("blocked by ur browser — allow in site settings 🔧");
-          else toast("no worries — you can turn it on later");
+          toast("notifications not supported on this device");
         }
-      } else {
-        toast("notifications not supported on this device");
+      } catch (e: unknown) {
+        const name = (e as { name?: string; message?: string })?.name || "Error";
+        const msg = (e as { message?: string })?.message || "couldn't turn on";
+        toast.error(`${name}: ${msg}`);
       }
     } catch {
       toast.error("couldn't turn on notifications");

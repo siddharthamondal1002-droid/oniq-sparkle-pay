@@ -1,6 +1,14 @@
-// Push notification bootstrap — only runs on native Capacitor (Android/iOS).
-// Web builds are unaffected: dynamic import + isNativePlatform guard.
+// Push notification bootstrap.
+//
+// TWO TRANSPORTS SINCE 2026-08-14. Native Capacitor builds register with FCM;
+// everything else subscribes through the browser's own Push API. Until then
+// this file returned "unavailable" on the first line for anyone not on the
+// native app — which was almost everyone. The call-log audit that day found
+// 101 accounts, 14 with a push address ever, and six of the nine people
+// called that day unreachable, while `send-push` reported success because
+// nothing had failed: there was simply nowhere to send.
 import { supabase } from "@/integrations/supabase/client";
+import { subscribeWebPush, unsubscribeWebPush } from "@/lib/webPush";
 
 export type PushKind = "message" | "call" | "call_cancel";
 
@@ -62,7 +70,13 @@ async function upsertToken(token: string) {
 export async function initPush(): Promise<PushInitResult> {
   try {
     const { Capacitor } = await import("@capacitor/core");
-    if (!Capacitor.isNativePlatform()) return "unavailable";
+    if (!Capacitor.isNativePlatform()) {
+      // The browser path. "unsupported" and "error" both collapse to
+      // "unavailable" because the caller's only useful question is whether to
+      // offer a retry, and neither is retryable by asking again.
+      const web = await subscribeWebPush();
+      return web === "granted" ? "granted" : web === "denied" ? "denied" : "unavailable";
+    }
 
     const { PushNotifications } = await import("@capacitor/push-notifications" as string);
 
@@ -135,6 +149,12 @@ export async function initPush(): Promise<PushInitResult> {
  * receiving the previous account's messages and calls.
  */
 export async function removePushToken() {
+  // The browser subscription first, and unconditionally: a web signee has no
+  // `currentToken` at all, so an early return on that would have left every
+  // shared browser ringing for the previous account — the exact bug this
+  // function exists to prevent, reintroduced through the other transport.
+  await unsubscribeWebPush();
+
   const token = currentToken;
   if (!token) return;
   try {
