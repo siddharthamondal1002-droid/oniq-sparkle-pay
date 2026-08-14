@@ -169,23 +169,43 @@ Deno.serve(async (req) => {
 });
 
 /**
- * The first image in a gateway reply, if there is one. The gateway answers
- * in the OpenRouter image shape: choices[0].message.images[].image_url.url
- * carrying a data: URI. Returned SPLIT into { mime, data } so the caller's
- * contract — raw base64, mime alongside — survives the reroute untouched.
+ * The first image in a gateway reply, if there is one. MEASURED FROM THE
+ * LIVE RESPONSE, not the docs: the first film through the gateway failed
+ * with every frame "refused" while the logs showed perfect PNGs arriving
+ * in the OpenAI images shape — { data: [{ b64_json }] } — which the docs
+ * summary had called choices/message/images. Both shapes are read below,
+ * live-observed first, so a gateway-side format change degrades to the
+ * other pocket instead of to a dead film. Mime is sniffed from the bytes'
+ * own magic: b64_json carries no content type.
  */
 function firstImage(data: unknown): { mime: string; data: string } | null {
+  const openai = (data as { data?: { b64_json?: string }[] })?.data;
+  if (Array.isArray(openai)) {
+    for (const item of openai) {
+      if (typeof item?.b64_json === "string" && item.b64_json.length > 0) {
+        return { mime: mimeOfB64(item.b64_json), data: item.b64_json };
+      }
+    }
+  }
   const images = (
     data as { choices?: { message?: { images?: { image_url?: { url?: string } }[] } }[] }
   )?.choices?.[0]?.message?.images;
-  if (!Array.isArray(images)) return null;
-  for (const img of images) {
-    const url = img?.image_url?.url;
-    if (typeof url !== "string") continue;
-    const m = url.match(/^data:([^;]+);base64,(.+)$/s);
-    if (m) return { mime: m[1] || "image/png", data: m[2] };
+  if (Array.isArray(images)) {
+    for (const img of images) {
+      const url = img?.image_url?.url;
+      if (typeof url !== "string") continue;
+      const m = url.match(/^data:([^;]+);base64,(.+)$/s);
+      if (m) return { mime: m[1] || "image/png", data: m[2] };
+    }
   }
   return null;
+}
+
+/** PNG and JPEG announce themselves in the first base64 characters. */
+function mimeOfB64(b64: string): string {
+  if (b64.startsWith("iVBORw0KGgo")) return "image/png";
+  if (b64.startsWith("/9j/")) return "image/jpeg";
+  return "image/png";
 }
 
 function json(payload: unknown, status = 200) {
