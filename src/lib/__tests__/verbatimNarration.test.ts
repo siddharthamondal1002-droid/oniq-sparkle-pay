@@ -162,6 +162,23 @@ describe("the wiring pins", () => {
       "the studio no longer gates the toggle on packability before the debit",
     ).toBe(true);
     expect(PLOT_SRC).toContain("Narration count must match the shot count.");
+    // Owner directive, 2026-08-14: Ting stays the content filter even when
+    // the words are the user's — checked BEFORE a plan is written, and
+    // FAILING CLOSED, because unchecked audio under the ONIQ mark is the
+    // one thing verbatim mode must never produce.
+    expect(
+      PLOT_SRC.includes("CONTENT_GATE_SYSTEM"),
+      "the verbatim content gate is gone — user words would reach the voice unchecked",
+    ).toBe(true);
+    expect(
+      PLOT_SRC.includes("if (narrations.length > 0) {") &&
+        PLOT_SRC.indexOf("CONTENT_GATE_SYSTEM") > 0,
+      "the gate no longer runs on the verbatim path",
+    ).toBe(true);
+    expect(
+      PLOT_SRC.includes("The story check is unavailable right now"),
+      "the gate no longer fails closed when it cannot run",
+    ).toBe(true);
     expect(
       PLOT_SRC.includes("if (narrations.length === shots) sp.beats = narrations;"),
       "long films' spine path no longer carries the user's own beats",

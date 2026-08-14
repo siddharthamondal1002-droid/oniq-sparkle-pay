@@ -249,6 +249,53 @@ Deno.serve(async (req) => {
     if (narrations.reduce((a, n) => a + n.length, 0) > MAX_PROMPT + 200) {
       return json({ error: "The narrations are too long." }, 400);
     }
+    // TING IS THE CONTENT FILTER, ALWAYS (owner directive, 2026-08-14).
+    //
+    // Verbatim mode was the one path where user words reached the narrator
+    // and a watermarked ONIQ video without passing Ting's content rules —
+    // in every other film Ting writes the narration and the rules bind by
+    // construction. The owner's ruling: keep Ting as the filter, keep the
+    // user's words for everything else. So the text is checked BEFORE any
+    // plan is written: one small call instead of a whole plan spent on a
+    // story that will be refused.
+    //
+    // IT FAILS CLOSED. A gate that cannot run must not wave the text
+    // through — the alternative is unchecked audio published under ONIQ's
+    // own mark, which is the exact thing this exists to prevent. A Claude
+    // outage therefore blocks verbatim films (and only verbatim films);
+    // the normal path, where Ting writes the words, is unaffected.
+    if (narrations.length > 0) {
+      if (!hasClaude) {
+        return json({ error: "The story check is unavailable right now — try again later." }, 503);
+      }
+      const gate = await callClaude({
+        system: CONTENT_GATE_SYSTEM,
+        messages: [
+          {
+            role: "user" as const,
+            content: `Check this story text:\n\n${narrations.join("\n\n")}`,
+          },
+        ],
+        maxTokens: 300,
+        timeoutMs: 20_000,
+      });
+      const verdict = gate.ok ? contentVerdict(textOf(gate.data)) : null;
+      if (!verdict) {
+        console.error("story-plot content gate did not answer", String(gate.ok ? "unparseable" : gate.reason));
+        return json({ error: "The story check is unavailable right now — try again later." }, 503);
+      }
+      if (verdict.blocked) {
+        console.log("story-plot content gate refused:", verdict.blocked);
+        return json(
+          {
+            error: `That story cannot be narrated as written: ${verdict.blocked}. Edit it, or switch “My words” off and let Ting retell it.`,
+            blocked: verdict.blocked,
+          },
+          422,
+        );
+      }
+    }
+
     const verbatimBlock =
       narrations.length > 0
         ? `\n\nTHE NARRATION IS ALREADY WRITTEN, one piece per shot, in order — the` +
@@ -599,6 +646,57 @@ Deno.serve(async (req) => {
     return json({ error: "Something went sideways — try again" }, 500);
   }
 });
+
+/**
+ * The content gate's own prompt — the SAME non-negotiables the plan system
+ * prompt carries, asked as a yes/no about text somebody else wrote. Kept
+ * verbatim beside them rather than shared through a constant: the plan
+ * prompt tells Ting how to WRITE within the rules, this one tells Ting how
+ * to JUDGE against them, and collapsing the two would blunt both.
+ */
+const CONTENT_GATE_SYSTEM = [
+  "You are the content gate for ONIQ's Story films. A user supplied their own",
+  "story text to be read aloud, word for word, in a video published under",
+  "ONIQ's mark. Decide whether the text may be narrated as written.",
+  "",
+  "REFUSE text that contains any of:",
+  "- prophets, divine figures, or scripture;",
+  "- real living people (public figures included);",
+  "- named brands or copyrighted characters;",
+  "- violence DEPICTED rather than implied (gore, injury described in detail);",
+  "- anything sexual;",
+  "- slurs or hate directed at a group.",
+  "",
+  "Ordinary fiction — including horror, fear, death implied, conflict, grief —",
+  "is ALLOWED. Judge the text as written, not what a story like it might",
+  "become. Do not rewrite anything.",
+  "",
+  'Return ONLY JSON. Allowed: {"ok":true}. Refused: {"blocked":"<eight words',
+  'or fewer naming the reason>"}. No prose, no markdown fence.',
+].join("\n");
+
+/**
+ * The gate's verdict, or null when the reply cannot be read — null is
+ * treated as a refusal by the caller, because an unreadable gate is a gate
+ * that did not run.
+ */
+function contentVerdict(text: string): { blocked: string | null } | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  const o = (raw ?? {}) as Record<string, unknown>;
+  if (typeof o.blocked === "string" && o.blocked.trim()) {
+    return { blocked: o.blocked.trim().slice(0, 80) };
+  }
+  if (o.ok === true) return { blocked: null };
+  return null;
+}
 
 /** The text blocks of an Anthropic-shaped reply, joined. Gemini answers arrive
  *  in this shape too — _shared/llm.ts translates them — so one reader serves
