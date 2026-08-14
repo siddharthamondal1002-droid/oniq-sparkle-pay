@@ -58,6 +58,48 @@ import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient"
 /** Lengths offered as one tap. Anything between the bounds is still allowed. */
 const PRESETS = [30, 60, 120, 300] as const;
 
+/**
+ * The prompt box's ceiling. Named because it is now quoted in three places —
+ * the input's own `maxLength`, the character counter, and the paste-was-cut
+ * warning — and three literals would drift apart. Mirrors the claim RPC's
+ * `length(prompt_clean) > 2000` refusal.
+ */
+const MAX_PROMPT_CHARS = 2000;
+
+/** The tier chips' own wording, reused wherever a tier is named in prose. */
+function tierLabel(s: number): string {
+  return s < 60 ? `${s}s` : `${s / 60} min`;
+}
+
+/**
+ * Both verbatim gates against one tier: the spoken-length band first, then
+ * the packer.
+ *
+ * Module-level and pure ON PURPOSE. The toggle has to ask this about the
+ * PICKED tier and — when that refuses — about every other tier on offer,
+ * because a refusal that names the length which WOULD work is a fix, while
+ * one that only says "does not fit" is a dead end the user cannot act on.
+ * Measured 2026-08-14: the owner pasted a 328-word story onto the 60s tier
+ * (fill 2.19, refused) when the same text fits 2 min at 1.09, and the UI
+ * never said so.
+ */
+function verbatimGate(
+  prompt: string,
+  seconds: number,
+): { fits: boolean; spokenSeconds: number; reason: string | null } {
+  const plan = planStory(seconds);
+  const fit = verbatimFits(prompt, plan.seconds);
+  if (!fit.fits) return fit;
+  if (packNarrations(prompt.trim(), plan.shots.length) === null) {
+    return {
+      fits: false,
+      spokenSeconds: fit.spokenSeconds,
+      reason: `needs at least ${plan.shots.length} sentences — one per shot`,
+    };
+  }
+  return fit;
+}
+
 /** Ting opens with these, and a blank prompt box is the hardest screen to start. */
 const SUGGESTIONS = [
   "A girl finds a door in the roots of a banyan tree",
@@ -261,18 +303,18 @@ export function StoryStudio() {
   // sentences fit sixty seconds by word count and still cannot fill nine
   // shots) — so the packer runs here, before any debit, and the toggle
   // explains which gate refused. EVERY HOOK ABOVE EVERY EARLY RETURN.
-  const verbatimFit = useMemo(() => {
-    const fit = verbatimFits(prompt, plan_.seconds);
-    if (!fit.fits) return fit;
-    if (packNarrations(prompt.trim(), plan_.shots.length) === null) {
-      return {
-        fits: false,
-        spokenSeconds: fit.spokenSeconds,
-        reason: `needs at least ${plan_.shots.length} sentences — one per shot`,
-      };
+  const verbatimFit = useMemo(() => verbatimGate(prompt, plan_.seconds), [prompt, plan_.seconds]);
+  // Which offered length WOULD take this story? Smallest first, so the answer
+  // is the cheapest tier that works, and never the one already picked. Null
+  // when nothing on the menu fits — then the honest answer is the plain
+  // refusal, not a tier that would refuse a second time.
+  const verbatimTierFix = useMemo(() => {
+    if (verbatimFit.fits || prompt.trim().length < 8) return null;
+    for (const s of PRESETS) {
+      if (s !== plan_.seconds && verbatimGate(prompt, s).fits) return s;
     }
-    return fit;
-  }, [prompt, plan_]);
+    return null;
+  }, [prompt, plan_.seconds, verbatimFit.fits]);
   useEffect(() => {
     // Text edits can un-fit an armed toggle; disarm rather than let the
     // claim refuse later with a colder message.
@@ -430,7 +472,7 @@ export function StoryStudio() {
         value={prompt}
         onChange={(e) => setPrompt(e.target.value)}
         rows={4}
-        maxLength={2000}
+        maxLength={MAX_PROMPT_CHARS}
         placeholder="A girl finds a door in the roots of a banyan tree, and the city on the other side is made of paper lanterns…"
         className="mt-1.5 w-full resize-none rounded-2xl border border-border bg-card/70 px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none"
       />
@@ -450,8 +492,20 @@ export function StoryStudio() {
       ) : null}
 
       <div className="mt-1 text-right text-[10px] text-muted-foreground">
-        {prompt.trim().length < 8 ? "a few more words" : `${prompt.length}/2000`}
+        {prompt.trim().length < 8 ? "a few more words" : `${prompt.length}/${MAX_PROMPT_CHARS}`}
       </div>
+      {/* THE BOX CUTS LONG PASTES SILENTLY, and that is worst precisely where
+          the text is the product. `maxLength` makes the browser drop the
+          overflow with no event and no message, so a pasted screenplay arrives
+          here already beheaded — measured 2026-08-14: three of the owner's own
+          jobs stored exactly 2000 characters. A counter reading "2000/2000"
+          does not read as "your story was cut"; this does. */}
+      {prompt.length >= MAX_PROMPT_CHARS ? (
+        <p className="mt-1 text-[10px] text-amber-300">
+          The box is full at {MAX_PROMPT_CHARS} characters — anything past that in a longer paste
+          was cut. Only the text above gets narrated.
+        </p>
+      ) : null}
 
       <div className="mt-3 text-xs font-semibold text-foreground">How long?</div>
       <div className="mt-1.5 flex flex-wrap gap-2">
@@ -491,8 +545,8 @@ export function StoryStudio() {
         <span>
           <span className="block text-xs font-semibold text-foreground">🎬 Movie grade</span>
           <span className="mt-0.5 block text-[11px] text-muted-foreground">
-            The cinematic cut — depth the camera moves through, characters who speak their
-            lines, the film look. Made end to end by ONIQ&apos;s own engine.
+            The cinematic cut — depth the camera moves through, characters who speak their lines,
+            the film look. Made end to end by ONIQ&apos;s own engine.
           </span>
         </span>
         <span
@@ -531,7 +585,9 @@ export function StoryStudio() {
             {verbatimFit.fits
               ? `Narrated exactly as written — no retelling. Reads as ~${Math.round(verbatimFit.spokenSeconds)}s of speech.`
               : prompt.trim().length >= 8
-                ? `Needs a full story that fits ${plan_.seconds}s: yours ${verbatimFit.reason ?? "does not fit"}.`
+                ? verbatimTierFix
+                  ? `Reads as ~${Math.round(verbatimFit.spokenSeconds)}s of speech — ${verbatimFit.reason ?? "does not fit"} at ${tierLabel(plan_.seconds)}. It fits ${tierLabel(verbatimTierFix)}.`
+                  : `Needs a full story that fits ${tierLabel(plan_.seconds)}: yours ${verbatimFit.reason ?? "does not fit"}.`
                 : "Paste a full story and it will be narrated exactly as written."}
           </span>
         </span>
@@ -546,6 +602,19 @@ export function StoryStudio() {
           {verbatim ? "on" : "off"}
         </span>
       </button>
+      {/* The one-tap way out of a refusal. Its own button rather than part of
+          the toggle above, because a button inside a button is invalid and
+          because the two do different things — this changes the LENGTH, which
+          changes the price, so it must be a deliberate separate tap. */}
+      {verbatimTierFix !== null ? (
+        <button
+          type="button"
+          onClick={() => setSeconds(verbatimTierFix)}
+          className="mt-1.5 w-full rounded-2xl border border-primary/50 bg-primary/10 px-3 py-2 text-[11px] font-semibold text-primary"
+        >
+          Switch to {tierLabel(verbatimTierFix)} so &ldquo;My words&rdquo; can take this story
+        </button>
+      ) : null}
 
       {/* YOUR CHARACTERS — the cast library. Saved people the user can put in
           any film. Toggled chips ride into this job as `reuse`; the planner

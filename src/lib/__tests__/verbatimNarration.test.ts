@@ -21,10 +21,7 @@ const MIGRATION = readFileSync(
   join(ROOT, "supabase/migrations/20260814160000_verbatim_mode.sql"),
   "utf8",
 );
-const STUDIO_SRC = readFileSync(
-  join(ROOT, "src/components/stories/StoryStudio.tsx"),
-  "utf8",
-);
+const STUDIO_SRC = readFileSync(join(ROOT, "src/components/stories/StoryStudio.tsx"), "utf8");
 
 const STORY = [
   "The lighthouse keeper counted ships the way other men counted debts.",
@@ -185,5 +182,47 @@ describe("the wiring pins", () => {
     ).toBe(true);
     expect(STUDIO_SRC).toContain("_verbatim: true");
     expect(STUDIO_SRC).toContain("aria-pressed={verbatim}");
+  });
+});
+
+/**
+ * The refusal the owner actually hit, 2026-08-14.
+ *
+ * A ~330-word story pasted onto the 60s tier is roughly twice the speech the
+ * purchase can hold, so the toggle greys out — correctly. What it did NOT do
+ * was say that the SAME text fits the 2 min tier, which left "My words"
+ * looking broken rather than unfitted. These pin the arithmetic that makes
+ * the "Switch to 2 min" suggestion true, so the suggestion can never start
+ * pointing at a tier that would refuse a second time.
+ */
+describe("the tier suggestion", () => {
+  // 328 words — the measured length of the owner's pasted story, which the
+  // 2000-character box had already truncated to exactly its ceiling.
+  const story = Array.from({ length: 328 }, (_, i) => `word${i}`).join(" ");
+
+  it("refuses the picked 60s tier and accepts 120s for the same text", () => {
+    expect(estimateSpokenSeconds(story)).toBeCloseTo(131.2, 1);
+    expect(verbatimFits(story, 60).fits, "60s should be over the ceiling").toBe(false);
+    expect(verbatimFits(story, 120).fits, "120s should sit inside the band").toBe(true);
+  });
+
+  it("keeps 30s and the 300s tier out of the suggestion's reach", () => {
+    expect(verbatimFits(story, 30).fits, "30s is far over the ceiling").toBe(false);
+    // 300s is refused by VERBATIM_MAX_SECONDS before the band is consulted:
+    // the 2000-char box cannot hold the 150s of speech its floor demands.
+    expect(verbatimFits(story, 300).fits).toBe(false);
+    expect(300).toBeGreaterThan(VERBATIM_MAX_SECONDS);
+  });
+
+  it("still ships the studio's one-tap way out of the refusal", () => {
+    expect(STUDIO_SRC).toContain("verbatimTierFix");
+    expect(
+      STUDIO_SRC.includes("onClick={() => setSeconds(verbatimTierFix)}"),
+      "the suggestion no longer changes the tier when tapped",
+    ).toBe(true);
+    expect(
+      STUDIO_SRC.includes("MAX_PROMPT_CHARS"),
+      "the paste-was-cut warning lost its shared ceiling",
+    ).toBe(true);
   });
 });
