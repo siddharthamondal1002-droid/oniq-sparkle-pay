@@ -137,6 +137,8 @@ export const Character: React.FC<CharacterProps> = ({
       facing: performance.facing ?? null,
       walk: performance.walk ?? null,
       speaking: performance.speaking ?? false,
+      // Rung 10: a listener answers the beats with nods, not oration.
+      listening: performance.listening ?? false,
       seed: performance.seed,
     });
     const baseLeft = width * effectiveCenter - drawnWidth / 2;

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   BEAT_GAP_FRAMES,
   BLINK,
+  LISTEN_GAP_FRAMES,
   POSE_LIMITS,
   TWO_SHOT_MAX_FIGURE_HEIGHT,
   beatFrames,
@@ -462,6 +463,79 @@ describe("rung 6 — the two-shot", () => {
     expect(
       FILM_SRC.includes("shot.companion.speaks ? visemeAtFrame(cues, frame) : REST"),
       "a listening companion no longer holds its mouth at rest",
+    ).toBe(true);
+  });
+});
+
+describe("rung 10 — the listener", () => {
+  const FPS = 30;
+  const base: PoseParams = {
+    durationInFrames: 300,
+    fps: FPS,
+    speech: [[30, 240]],
+    beats: [40, 46, 55, 100, 160],
+    facing: "left",
+    speaking: false,
+    seed: 77,
+  };
+
+  it("nods AFTER a beat — a response, not a chorus — and stays bounded", () => {
+    const listener = { ...base, listening: true };
+    // On the beat itself, nothing has arrived yet.
+    const atBeat = puppetPoseAt(40, listener);
+    const still = puppetPoseAt(20, listener);
+    expect(atBeat.dy).toBeCloseTo(still.dy, 5);
+    // Mid-nod, the body dips DOWN (positive dy) and turns toward the
+    // speaker (facing left → negative rotation contribution).
+    const midNod = puppetPoseAt(51, listener);
+    expect(midNod.dy).toBeGreaterThan(still.dy);
+    for (let f = 0; f < 300; f++) {
+      const p = puppetPoseAt(f, listener);
+      expect(Math.abs(p.dy)).toBeLessThanOrEqual(POSE_LIMITS.dy);
+      expect(Math.abs(p.rotDeg)).toBeLessThanOrEqual(POSE_LIMITS.rotDeg);
+    }
+  });
+
+  it("answers only SOME beats — thinned, never a metronome", () => {
+    // Beats 40 and 46 sit closer than LISTEN_GAP_FRAMES: one nod, not two.
+    expect(46 - 40).toBeLessThan(LISTEN_GAP_FRAMES);
+    const listener = { ...base, listening: true };
+    // If 46 also nodded, dy at its peak would stack above a single nod's
+    // ceiling; instead frames after 46+delay reflect only the tail of 40's.
+    let peak = 0;
+    for (let f = 40; f < 70; f++) peak = Math.max(peak, puppetPoseAt(f, listener).dy - puppetPoseAt(20, listener).dy);
+    let peakSingle = 0;
+    for (let f = 100; f < 130; f++) peakSingle = Math.max(peakSingle, puppetPoseAt(f, listener).dy - puppetPoseAt(90, listener).dy);
+    expect(peak).toBeLessThanOrEqual(peakSingle * 1.05);
+  });
+
+  it("does not orate while listening — the gesture lean belongs to the speaker", () => {
+    // Same params with and without listening, mid-speech, away from any
+    // nod window: the listener's rotation is the idle+facing baseline.
+    const talkerRot = puppetPoseAt(200, { ...base, speaking: true }).rotDeg;
+    const listenerRot = puppetPoseAt(200, { ...base, listening: true }).rotDeg;
+    const idleRot = puppetPoseAt(200, { ...base, speech: [] }).rotDeg;
+    expect(Math.abs(listenerRot - idleRot)).toBeLessThan(0.01);
+    expect(Math.abs(talkerRot - idleRot)).toBeGreaterThan(0.01);
+  });
+
+  it("the worker marks both directions and the rig passes it down", () => {
+    expect(
+      WORKER_SRC.includes("...(compSpeaks ? { speaks: true } : {})") &&
+        WORKER_SRC.includes("...(compSpeaks ? { listening: true } : {})"),
+      "the primary no longer listens when the companion speaks",
+    ).toBe(true);
+    expect(
+      WORKER_SRC.includes("...(primarySpeaks ? { listening: true } : {})"),
+      "the companion no longer listens when the primary speaks",
+    ).toBe(true);
+    const CHARACTER_SRC = readFileSync(
+      join(ROOT, "remotion/src/rig/Character.tsx"),
+      "utf8",
+    );
+    expect(
+      CHARACTER_SRC.includes("listening: performance.listening ?? false"),
+      "Character.tsx no longer passes listening into the pose",
     ).toBe(true);
   });
 });

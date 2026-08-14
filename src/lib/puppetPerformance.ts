@@ -61,6 +61,11 @@ export type PuppetPerformance = {
   walk?: WalkKind;
   /** Whether THIS character speaks the shot's dialogue line. */
   speaking?: boolean;
+  /**
+   * Rung 10: the answering half of a voiced two-shot. A listener nods on
+   * (some of) the speaker's beats instead of orating along with them.
+   */
+  listening?: boolean;
   /** Deterministic phase seed, hashed from the shot's identity. */
   seed: number;
 };
@@ -119,6 +124,21 @@ const DRIFT_DISTANCE = 0.06;
 // photograph between lines. Seeded phase; amplitude under half a degree.
 const IDLE_TURN_PERIOD_SECONDS = 9.7;
 const IDLE_TURN_DEG = 0.45;
+
+// RUNG 10 — the listener. The answering half of a two-shot used to stand
+// politely still while the other spoke; real listeners nod. A nod ARRIVES
+// LATE (~160ms behind the stressed word — a response, not a chorus),
+// dips the body slightly toward the speaker, and answers only SOME beats:
+// thinned to one per LISTEN_GAP_FRAMES, because a metronome listener is
+// worse than a still one. Speaker-side gesture and emphasis switch OFF
+// while listening — those bobs are the orator's, and a listener mirroring
+// them in sync is the exact uncanny the delay exists to break.
+const LISTEN_DELAY_FRAMES = 5;
+const LISTEN_NOD_FRAMES = 12;
+const LISTEN_NOD_DY = 0.004;
+const LISTEN_NOD_DEG = 0.4;
+/** Fewest frames between answered beats — a nod every 1.2s at most. */
+export const LISTEN_GAP_FRAMES = 36;
 
 /** Hard ceilings, asserted by tests over adversarial inputs. */
 export const POSE_LIMITS = {
@@ -414,6 +434,8 @@ export type PoseParams = {
    * NARRATED_GAIN of it — present but not orating.
    */
   speaking?: boolean;
+  /** Rung 10: nod on the speaker's beats instead of orating with them. */
+  listening?: boolean;
   seed: number;
 };
 
@@ -455,9 +477,10 @@ export function puppetPoseAt(frame: number, params: PoseParams): PuppetPose {
   // FACING BIAS — a constant angle toward the interlocutor, full-shot.
   rot += facingSign * FACING_BIAS_DEG;
 
-  // GESTURE — the body talks while the voice does.
+  // GESTURE — the body talks while the voice does. NOT while it listens:
+  // the voice in the spans is the other figure's line.
   const env = speechEnvelope(frame, speech, fps);
-  if (env > 0) {
+  if (env > 0 && !params.listening) {
     const gesturePhase = hash01(seed ^ 0x9e3779b9) * Math.PI * 2;
     const lean = Math.sin((frame / (GESTURE_PERIOD_SECONDS * fps)) * Math.PI * 2 + gesturePhase);
     rot += env * voiceGain * GESTURE_LEAN_DEG * lean;
@@ -468,17 +491,33 @@ export function puppetPoseAt(frame: number, params: PoseParams): PuppetPose {
   // nothing over the last EMPHASIS_FRAMES of the shot: every motion source
   // is at rest on the cut frame (the camera's ease-to-identity seam rule),
   // and a beat landing near the cut must not be the one exception.
-  let pulse = 0;
-  for (const b of beats) {
-    const u = (frame - b) / EMPHASIS_FRAMES;
-    if (u < 0 || u >= 1) continue;
-    pulse += Math.sin(Math.PI * u);
-  }
   const cutFade = clamp((durationInFrames - 1 - frame) / EMPHASIS_FRAMES, 0, 1);
-  pulse = Math.min(pulse, EMPHASIS_CAP) * voiceGain * cutFade;
-  if (pulse > 0) {
-    dy += EMPHASIS_BOB * pulse;
-    rot += facingSign * EMPHASIS_ROT_DEG * pulse * 0.5;
+  if (!params.listening) {
+    let pulse = 0;
+    for (const b of beats) {
+      const u = (frame - b) / EMPHASIS_FRAMES;
+      if (u < 0 || u >= 1) continue;
+      pulse += Math.sin(Math.PI * u);
+    }
+    pulse = Math.min(pulse, EMPHASIS_CAP) * voiceGain * cutFade;
+    if (pulse > 0) {
+      dy += EMPHASIS_BOB * pulse;
+      rot += facingSign * EMPHASIS_ROT_DEG * pulse * 0.5;
+    }
+  } else {
+    // RUNG 10: THE NOD. Late, thinned, toward the speaker, and at rest by
+    // the cut like every other motion source. dy positive is DOWN — a nod
+    // dips, where emphasis bobs.
+    let last = -Infinity;
+    for (const b of beats) {
+      if (b - last < LISTEN_GAP_FRAMES) continue;
+      last = b;
+      const u = (frame - b - LISTEN_DELAY_FRAMES) / LISTEN_NOD_FRAMES;
+      if (u < 0 || u >= 1) continue;
+      const w = Math.sin(Math.PI * u) * cutFade;
+      dy += LISTEN_NOD_DY * w;
+      rot += facingSign * LISTEN_NOD_DEG * w;
+    }
   }
 
   // WALK — mechanics only inside the walking window, at rest outside it.

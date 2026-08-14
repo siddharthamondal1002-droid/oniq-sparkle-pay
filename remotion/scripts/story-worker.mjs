@@ -1162,28 +1162,34 @@ if (offline) {
         // facing wins when it exists, otherwise the primary takes the left
         // third looking right — stable, since who is primary is stable.
         const primaryFacing = facings[i] ?? (twoShot ? 'right' : null);
+        const primarySpeaks =
+          dialogueVoiced && speakerMatchesRig(shot.dialogue.speaker, shotRigs[i]);
+        const compSpeaks =
+          twoShot && dialogueVoiced && speakerMatchesRig(shot.dialogue.speaker, other);
         performance = {
           seed: vfxSeed(`perf:${i}:${shot.still}`),
           ...(primaryFacing
             ? { facing: primaryFacing, center: centerForFacing(primaryFacing) }
             : {}),
           ...(walk ? { walk } : {}),
-          ...(dialogueVoiced && speakerMatchesRig(shot.dialogue.speaker, shotRigs[i])
-            ? { speaking: true }
-            : {}),
+          ...(primarySpeaks ? { speaking: true } : {}),
+          // Rung 10: when the line belongs to the companion, the primary
+          // LISTENS — nods on the beats instead of orating along.
+          ...(compSpeaks ? { listening: true } : {}),
         };
         if (twoShot) {
           const compFacing = oppositeFacing(primaryFacing);
-          const speaks = dialogueVoiced && speakerMatchesRig(shot.dialogue.speaker, other);
           companion = {
             rig: other,
-            ...(speaks ? { speaks: true } : {}),
+            ...(compSpeaks ? { speaks: true } : {}),
             ...(expression ? { expression } : {}),
             performance: {
               seed: vfxSeed(`comp:${i}:${shot.still}`),
               facing: compFacing,
               center: centerForFacing(compFacing),
-              ...(speaks ? { speaking: true } : {}),
+              ...(compSpeaks ? { speaking: true } : {}),
+              // Rung 10, mirrored: the companion listens to the primary.
+              ...(primarySpeaks ? { listening: true } : {}),
             },
           };
         }
