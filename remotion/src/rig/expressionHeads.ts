@@ -101,10 +101,12 @@ export const EXPRESSION_HEADS: Readonly<
       mouth: { x: 485, y: 266, width: 30 },
       interocular: 33,
       // Rung 7: his widest aperture — a startled blink covers a lot.
+      // CORRECTED by the verify pass (first read sat on the sclera/iris
+      // boundary; iris centroids agree with the recorded interocular).
       eyes: {
-        left: { x: 462, y: 222 },
-        right: { x: 497, y: 221 },
-        width: 23,
+        left: { x: 466, y: 222 },
+        right: { x: 500, y: 222 },
+        width: 22,
         lid: '#9e4d2e',
       },
     },
@@ -126,12 +128,14 @@ export const EXPRESSION_HEADS: Readonly<
       crop: { x: 329, y: 101, width: 211, height: 296 },
       mouth: { x: 433, y: 260, width: 38 },
       interocular: 51.5,
-      // Rung 7: the head tilt puts the right pupil 3px higher, and the
-      // droopy hooded eyes need the larger aperture.
+      // Rung 7: the head tilt puts the right pupil ~4px higher, and the
+      // droopy hooded eyes need the larger aperture. CORRECTED by the
+      // verify pass — the first read landed on this painter's
+      // right-of-centre specular highlights, not the iris centres.
       eyes: {
-        left: { x: 404, y: 208 },
-        right: { x: 452, y: 205 },
-        width: 28,
+        left: { x: 399, y: 208 },
+        right: { x: 448, y: 204 },
+        width: 27,
         lid: '#b06a4e',
       },
     },
