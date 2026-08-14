@@ -3352,6 +3352,7 @@ export type Database = {
           no_watermark: boolean
           paid_seconds_charged: number
           prompt: string
+          reaped_count: number
           refunded_at: string | null
           render_target: string | null
           requested_seconds: number
@@ -3373,6 +3374,7 @@ export type Database = {
           no_watermark?: boolean
           paid_seconds_charged?: number
           prompt: string
+          reaped_count?: number
           refunded_at?: string | null
           render_target?: string | null
           requested_seconds: number
@@ -3394,6 +3396,7 @@ export type Database = {
           no_watermark?: boolean
           paid_seconds_charged?: number
           prompt?: string
+          reaped_count?: number
           refunded_at?: string | null
           render_target?: string | null
           requested_seconds?: number
