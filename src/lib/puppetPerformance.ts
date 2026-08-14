@@ -144,40 +144,57 @@ const smooth = (t: number): number => {
   return u * u * (3 - 2 * u);
 };
 
+// The gait vocabularies, applied only AFTER a named walker (see walkFor).
+// enter...\b(?!\s+into\b): walking into a room, not entering into a bargain
+// — the \b BEFORE the lookahead matters, or the optional suffix backtracks
+// ("entered" re-read as "enter"+"ed") and slips past the guard. return is
+// narrowed to home/"to the <place>" so "returned to his senses" stays put.
+const ENTER_VERBS =
+  "(?:enter(?:s|ed|ing)?\\b(?!\\s+into\\b)|arriv\\w*|approach\\w*|return(?:s|ed|ing)?\\s+(?:home\\b|to\\s+the\\b))";
+// (?:ran|runs|running)(?!\s+out\b)(?!-): running feet, not running out of
+// luck and not a run-down house — bare "run" is never matched, and for the
+// same reason bare "march" and "rush" are excluded (By March, a rush of
+// wind). strode: the irregular past the plans actually narrate in. cross is
+// guarded against "crossed her arms" / "crossed his mind" / "paths
+// crossed"; wander against "his mind wandered".
+const DRIFT_VERBS =
+  "(?:walk\\w*|strid\\w*|strode\\b|stroll\\w*|(?<!mind\\s)wander\\w*|pac(?:es|ed|ing)\\b|march(?:es|ed|ing)\\b|trudg\\w*|ambl\\w*|hurr(?:y|ies|ied|ying)\\b|rush(?:es|ed|ing)\\b|chas(?:es|ed|ing)\\b|flee(?:s|ing)?\\b|fled\\b|(?<!paths\\s)cross(?:es|ed|ing)\\b(?!\\s+(?:his|her|their|my|its)\\b)|climb\\w*|(?:ran|runs|running)\\b(?!\\s+out\\b)(?!-))";
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 /**
- * Gait verbs in the shot's own words, or nothing.
+ * Gait verbs WITH A NAMED WALKER, or nothing.
+ *
+ * The first cut of this matched verbs alone and the adversarial pass
+ * walked twenty-one pieces of scenery for it: roads run, winters arrive,
+ * storms approach, suns climb, tears ran down cheeks — and the call site
+ * feeds it the IMAGE PROMPT, which is exactly that kind of prose. So a
+ * verb only counts when one of the shot's cast (or a bare he/she/they —
+ * narration leans on pronouns) stands BEFORE it in the same sentence,
+ * within a phrase's reach. Someone has to do the walking.
  *
  * The vocabulary is deliberately FEET-ONLY: flying, riding and sailing are
  * motion but not walks, and a puppet bobbing to a step cadence on a flying
- * carpet is the kind of wrong that reads instantly. The traps are guarded
- * the particleField way, because prose is adversarial: "ran out of
- * patience" goes nowhere, a "run-down" house never moves, and "entering
- * into an agreement" signs papers rather than doors.
+ * carpet is the kind of wrong that reads instantly. Residual misses
+ * ("He stood. Then walked out." — the pronoun in the second sentence is
+ * fine, a bare verb with no subject is not) land on the honest side:
+ * absence is the default, exactly as vfxKindFor treats weather.
  */
-export function walkFor(text: string): WalkKind | null {
+export function walkFor(text: string, names: ReadonlyArray<string>): WalkKind | null {
   const t = text.toLowerCase();
-  // enter...\b(?!\s+into\b): walking into a room, not entering into a
-  // bargain — the \b BEFORE the lookahead matters, or the optional suffix
-  // backtracks ("entered" re-read as "enter"+"ed") and slips past the
-  // guard. arriv|approach|return: all imply covering ground on screen.
-  if (
-    /\b(?:enter(?:s|ed|ing)?\b(?!\s+into\b)|arriv\w*|approach\w*|return(?:s|ed|ing)?\s+(?:to|home)\b)/.test(
-      t,
-    )
-  ) {
-    return "enter";
-  }
-  // (?:ran|runs|running)(?!\s+out\b)(?!-): running feet, not running out of
-  // luck and not a run-down house ("run" bare is never matched at all).
-  // strode: the irregular past of stride, and the tense the plans actually
-  // narrate in — "she strode across the square" must walk like "strides".
-  if (
-    /\b(?:walk\w*|strid\w*|strode\b|stroll\w*|wander\w*|pac(?:es|ed|ing)\b|march\w*|trudg\w*|ambl\w*|hurr(?:y|ies|ied|ying)|rush\w*|chas(?:es|ed|ing)\b|flee(?:s|ing)?\b|fled\b|cross(?:es|ed|ing)\b|climb\w*|(?:ran|runs|running)\b(?!\s+out\b)(?!-))/.test(
-      t,
-    )
-  ) {
-    return "drift";
-  }
+  const subjects = names
+    .map((n) => n.toLowerCase().trim())
+    .filter((n) => n.length > 0)
+    .map(escapeRe);
+  subjects.push("he", "she", "they");
+  // A subject, then at most a phrase (no sentence boundary), then the verb
+  // — the \b before the verb matters, or the lazy reach would let "walk"
+  // match inside "sidewalk". The subject's own edges are lookarounds, not
+  // \b: a cast name may END in a non-word character ("(the elder)"), and a
+  // \b between ')' and the following space can never match.
+  const reach = `(?<![a-z0-9])(?:${subjects.join("|")})(?:'s)?(?![a-z0-9])[^.!?]{0,60}?\\b`;
+  if (new RegExp(reach + ENTER_VERBS).test(t)) return "enter";
+  if (new RegExp(reach + DRIFT_VERBS).test(t)) return "drift";
   return null;
 }
 
@@ -223,28 +240,26 @@ export function conversationFacings(
   }
 
   for (const [start, end] of runs) {
-    const distinct = new Set<string>();
+    const distinct: string[] = [];
     for (let i = start; i < end; i++) {
       const rig = shots[i].rig;
-      if (rig !== null) distinct.add(rig);
+      if (rig !== null && !distinct.includes(rig)) distinct.push(rig);
     }
-    if (distinct.size < 2) continue;
-    // ADJACENCY, not global parity: each speaker faces opposite the
-    // PREVIOUS different speaker, so every cut between two characters looks
-    // across the frame. Global first-appearance parity failed exactly there
-    // — with three speakers, two odd-indexed rigs could land on adjacent
-    // shots facing the same way from the same mark. A rig keeps its side
-    // while it holds consecutive coverage; only a change of speaker flips.
-    let current: Facing = "right";
-    let prevRig: string | null = null;
+    // TWO-HANDERS ONLY, and that is the correction the adversarial pass
+    // forced twice. With two stage positions, a conversation of three or
+    // more cannot have BOTH of the properties an eyeline needs: global
+    // parity put two different speakers on the same mark facing the same
+    // way across a cut, and flipping on adjacency instead made one
+    // character teleport across the frame when a third interjected. A
+    // two-hander has both properties by construction — each speaker keeps
+    // one side for the whole scene and every cut looks across the frame.
+    // Three or more play to camera, the rung-2 look: absence of a wrong
+    // eyeline is the honest default, exactly as vfxKindFor treats weather.
+    if (distinct.length !== 2) continue;
     for (let i = start; i < end; i++) {
       const rig = shots[i].rig;
       if (rig === null) continue;
-      if (prevRig !== null && rig !== prevRig) {
-        current = current === "right" ? "left" : "right";
-      }
-      facings[i] = current;
-      prevRig = rig;
+      facings[i] = rig === distinct[0] ? "right" : "left";
     }
   }
   return facings;

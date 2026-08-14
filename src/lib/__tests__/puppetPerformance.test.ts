@@ -42,45 +42,78 @@ describe("the module contract", () => {
   });
 });
 
-describe("walkFor — gait verbs only, guarded against prose", () => {
-  it("hears an arrival", () => {
-    expect(walkFor("Aladdin enters the throne room")).toBe("enter");
-    expect(walkFor("She arrives at the gate by dusk")).toBe("enter");
-    expect(walkFor("The captain approaches the bench")).toBe("enter");
-    expect(walkFor("He returned home with empty hands")).toBe("enter");
+describe("walkFor — a named walker plus a gait verb, or nothing", () => {
+  const CAST = ["Aladdin", "Morgiana", "The Captain"];
+
+  it("hears an arrival when a cast member makes one", () => {
+    expect(walkFor("Aladdin enters the throne room", CAST)).toBe("enter");
+    expect(walkFor("The captain approaches the bench", CAST)).toBe("enter");
+    // Narration leans on pronouns; a bare he/she/they is a walker too.
+    expect(walkFor("She arrives at the gate by dusk", CAST)).toBe("enter");
+    expect(walkFor("He returned home with empty hands", CAST)).toBe("enter");
+    expect(walkFor("Morgiana returned to the kitchen", CAST)).toBe("enter");
   });
 
   it("hears feet moving through a shot", () => {
-    expect(walkFor("They walk the length of the bazaar")).toBe("drift");
-    expect(walkFor("Morgiana strides across the courtyard")).toBe("drift");
+    expect(walkFor("They walk the length of the bazaar", CAST)).toBe("drift");
+    expect(walkFor("Morgiana strides across the courtyard", CAST)).toBe("drift");
     // The irregular past — the tense the plans actually narrate in.
-    expect(walkFor("She strode across the square")).toBe("drift");
-    expect(walkFor("The old man trudges up the hill")).toBe("drift");
-    expect(walkFor("She hurried along the harbour wall")).toBe("drift");
-    expect(walkFor("The boy runs through the alley")).toBe("drift");
-    expect(walkFor("He fled into the dark")).toBe("drift");
-    expect(walkFor("The captain paces the deck")).toBe("drift");
+    expect(walkFor("She strode across the square", CAST)).toBe("drift");
+    expect(walkFor("She hurried along the harbour wall", CAST)).toBe("drift");
+    expect(walkFor("He fled into the dark", CAST)).toBe("drift");
+    expect(walkFor("The captain paces the deck", CAST)).toBe("drift");
+    expect(walkFor("Aladdin runs through the alley", CAST)).toBe("drift");
   });
 
   it("an arrival outranks a wander when both appear", () => {
-    expect(walkFor("She walks the corridor and enters the hall")).toBe("enter");
+    expect(walkFor("She walks the corridor and enters the hall", CAST)).toBe("enter");
   });
 
-  it("does not walk on flight, idiom or furniture", () => {
-    // Flying is motion but not a walk — a step-bounce on a carpet reads
-    // instantly as wrong.
-    expect(walkFor("The carpet flies over the sleeping city")).toBeNull();
-    expect(walkFor("The ship sails out of the bay")).toBeNull();
+  it("SCENERY NEVER WALKS — a verb without a named walker is a landscape", () => {
+    // The adversarial pass walked twenty-one of these; the named-subject
+    // rule kills the class. All carry gait verbs; none names a walker.
+    expect(walkFor("Winter arrived early that year", CAST)).toBeNull();
+    expect(walkFor("The storm approaches the harbour", CAST)).toBeNull();
+    expect(walkFor("News of the theft arrived at the palace", CAST)).toBeNull();
+    expect(walkFor("Moonlight entering through the lattice", CAST)).toBeNull();
+    expect(walkFor("Tears ran down the princess's cheeks", CAST)).toBeNull();
+    expect(walkFor("The road runs along the cliff edge", CAST)).toBeNull();
+    expect(walkFor("A winding road runs through the hills", CAST)).toBeNull();
+    expect(walkFor("The sun climbed over the rooftops", CAST)).toBeNull();
+    expect(walkFor("The vine climbed the trellis", CAST)).toBeNull();
+    expect(walkFor("Rumours chased each other through the bazaar", CAST)).toBeNull();
+    expect(walkFor("A hurried whisper in the dark", CAST)).toBeNull();
+    expect(walkFor("The river crosses the plain far below", CAST)).toBeNull();
+  });
+
+  it("guards the idioms and the bare nouns even WITH a walker in reach", () => {
     // Idioms go nowhere.
-    expect(walkFor("He ran out of time")).toBeNull();
-    expect(walkFor("She entered into a bargain with the jinni")).toBeNull();
+    expect(walkFor("He ran out of time", CAST)).toBeNull();
+    expect(walkFor("She entered into a bargain with the jinni", CAST)).toBeNull();
+    expect(walkFor("He returned to his senses", CAST)).toBeNull();
+    // Body language and thought are not locomotion.
+    expect(walkFor("Morgiana crossed her arms and waited", CAST)).toBeNull();
+    expect(walkFor("The thought crossed his mind", CAST)).toBeNull();
+    expect(walkFor("Aladdin's mind wandered to the old days", CAST)).toBeNull();
+    // Bare 'march' and 'rush' are nouns; only the verb forms walk.
+    expect(walkFor("Aladdin waited; by March the mill had failed", CAST)).toBeNull();
+    expect(walkFor("She felt a rush of wind from the shaft", CAST)).toBeNull();
     // Substrings are not verbs.
-    expect(walkFor("A run-down house by the well")).toBeNull();
-    expect(walkFor("The palace stood silent")).toBeNull();
-    expect(walkFor("Space enough for two")).toBeNull();
-    // "across" contains 'cross' with no word boundary.
-    expect(walkFor("A rope stretched across the gorge")).toBeNull();
-    expect(walkFor("")).toBeNull();
+    expect(walkFor("He found a run-down house by the well", CAST)).toBeNull();
+    expect(walkFor("She saw a rope stretched across the gorge", CAST)).toBeNull();
+  });
+
+  it("does not walk on flight or sail, and survives the degenerates", () => {
+    expect(walkFor("The carpet flies over the sleeping city", CAST)).toBeNull();
+    expect(walkFor("The ship sails out of the bay", CAST)).toBeNull();
+    expect(walkFor("", CAST)).toBeNull();
+    // No cast list means no named walker — only the pronouns remain, and
+    // this line has none. (The worker never gets here: no cast, no rig.)
+    expect(walkFor("Aladdin walks in", [])).toBeNull();
+    // Regex metacharacters in a user's cast name must not blow up.
+    expect(walkFor("Mr. O'Brien (the elder) walks the wall", ["Mr. O'Brien (the elder)"])).toBe(
+      "drift",
+    );
   });
 });
 
@@ -123,30 +156,43 @@ describe("conversationFacings — the 180-degree eyeline pass", () => {
     ]);
   });
 
-  it("a third speaker alternates back to the first side", () => {
+  it("three or more speakers play to camera — a wrong eyeline is worse than none", () => {
+    // The adversarial pass killed both clever versions of this: global
+    // parity put two different speakers on the same mark across a cut, and
+    // adjacency-flip teleported a character across the frame when a third
+    // interjected. With two stage positions, only a two-hander can have
+    // stable sides AND opposed cuts — so only a two-hander gets an eyeline.
     expect(conversationFacings(shots("aladdin", "magician", "princess"))).toEqual([
-      "right",
-      "left",
-      "right",
+      null,
+      null,
+      null,
+    ]);
+    expect(conversationFacings(shots("aladdin", "magician", "princess", "aladdin"))).toEqual([
+      null,
+      null,
+      null,
+      null,
     ]);
   });
 
-  it("EVERY cut between two different characters looks across the frame", () => {
-    // The property the global-parity version broke: with three speakers,
-    // two of them could land on adjacent shots facing the same way.
-    // Adjacency-flip makes the property hold by construction; assert it
-    // over sequences that would have failed.
+  it("a two-hander has BOTH eyeline properties by construction", () => {
     const sequences = [
-      ["aladdin", "princess", "magician", "aladdin", "magician"],
-      ["aladdin", "magician", "princess", "aladdin"],
-      ["mother", "aladdin", "mother", "princess", "mother"],
+      ["aladdin", "magician", "aladdin", "magician", "aladdin"],
+      ["mother", "aladdin", "mother", "aladdin"],
+      ["princess", "princess", "morgiana", "princess"],
     ];
     for (const rigs of sequences) {
       const facings = conversationFacings(shots(...rigs));
-      for (let i = 1; i < rigs.length; i++) {
-        if (rigs[i] !== rigs[i - 1]) {
+      const byRig = new Map<string, string | null>();
+      for (let i = 0; i < rigs.length; i++) {
+        // Every cut between different characters looks across the frame...
+        if (i > 0 && rigs[i] !== rigs[i - 1]) {
           expect(facings[i], `${rigs.join(",")} @${i}`).not.toBe(facings[i - 1]);
         }
+        // ...and each character keeps one side for the whole scene.
+        const seen = byRig.get(rigs[i]);
+        if (seen !== undefined) expect(facings[i], `${rigs.join(",")} @${i}`).toBe(seen);
+        byRig.set(rigs[i], facings[i]);
       }
     }
   });

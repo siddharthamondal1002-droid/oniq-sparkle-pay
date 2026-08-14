@@ -1089,7 +1089,11 @@ if (offline) {
       // what keeps them pixel-identical to the rung-2 look.
       let performance = null;
       if (cinematic && !clip && shotRigs[i]) {
-        const walk = walkFor(`${shot.still} ${shot.narration}`);
+        // The cast names are the WALKERS walkFor accepts — a gait verb with
+        // no named subject is scenery, and the still prompt is full of
+        // roads that run and suns that climb.
+        const castNames = (plan.cast ?? []).map((m) => String(m.name ?? ''));
+        const walk = walkFor(`${shot.still} ${shot.narration}`, castNames);
         performance = {
           seed: vfxSeed(`perf:${i}:${shot.still}`),
           ...(facings[i] ? { facing: facings[i], center: centerForFacing(facings[i]) } : {}),
