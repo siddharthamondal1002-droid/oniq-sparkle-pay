@@ -268,13 +268,14 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
     sheetHeight: 894,
     front: {
       crop: { x: 175, y: 62, width: 490, height: 810 },
-      // The lip line hides at the moustache part; interocular 32px.
+      // The lip line hides at the moustache part.
       mouth: { x: 425, y: 179, width: 34 },
-      interocular: 32,
-      // Rung 7: deep-set slits resolved by a brightness-boosted 16x read
-      // (glint-iris-glint). NOTE the measured span is 40 — the rung-2
-      // interocular above looks understated; kept as-is pending the
-      // verify pass, and it scales nothing today (captain has no busts).
+      // CORRECTED by rung 7's verify pass: rung 2 recorded 32, but two
+      // independent brightness-boosted reads of the glint-iris-glint
+      // slits agree the true pupil-to-pupil span is 40. It scaled nothing
+      // in between (captain has no expression busts).
+      interocular: 40,
+      // Rung 7: deep-set slits resolved at boosted 16x-24x.
       eyes: {
         left: { x: 403, y: 141 },
         right: { x: 443, y: 141 },

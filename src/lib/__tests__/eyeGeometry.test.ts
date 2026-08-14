@@ -78,13 +78,10 @@ describe("the measured eye geometry", () => {
     for (const e of all) {
       const span = Math.hypot(e.right.x - e.left.x, e.right.y - e.left.y);
       const drift = Math.abs(span - e.interocular) / e.interocular;
-      // captain (crop x 175) carries a flagged discrepancy: his measured
-      // eye span is 40 against rung 2's recorded interocular 32, and the
-      // verify pass is adjudicating which is right. Until that lands his
-      // entry gets the wide band; every other face holds 15%.
-      const tolerance = e.crop.x === 175 ? 0.3 : 0.155;
+      // One band for the whole cast — captain's rung-2 interocular was
+      // the outlier and the verify pass corrected it to the measured 40.
       expect(drift, `${e.owner} span ${span.toFixed(1)} vs ${e.interocular}`).toBeLessThan(
-        tolerance,
+        0.155,
       );
       // An aperture is part of a face: smaller than the span, bigger than a dot.
       expect(e.width, e.owner).toBeGreaterThan(5);
