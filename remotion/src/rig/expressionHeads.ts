@@ -44,7 +44,86 @@ export type ExpressionHead = {
  * rig key -> emotion -> measured bust. A missing entry means the character
  * has no drawn face for that feeling and keeps the base head — the same
  * absence-is-default contract as vfxKindFor and walkFor.
+ *
+ * MEASURED 2026-08-14, the rung-2 discipline end to end: one pass reading
+ * 3x-16x grid enlargements with a composite proof per bust (mouth-to-mouth
+ * over the base figure, viewed clean before reporting), then an
+ * independent adversarial re-derivation of every mouth and interocular.
+ * Verdicts: nine CONFIRMED, one CORRECTED (aliBaba.surprise — the first
+ * pass measured only the teeth band; the painted mouth is 30px, corners
+ * colour-verified at 16x). jarJinni's crop left edges are trimmed past
+ * the sheet's "1."-"4." label ghosts; its stern head was measured too
+ * (mouth (993,175) w23, interocular 38, crop 937/63/126/177) but maps to
+ * no Emotion and stays out of the table. jarJinni.sigh's interocular is
+ * the composite-proven SCALE KEY (raw closed-lid read 39 under-scales the
+ * swap and lets the base ears peek; 36 covers clean — the composite is
+ * the arbiter). lampJinni.smile: the base topknot peeks above the bust's
+ * shorter skull in matching colours and reads as the figure's own hair.
  */
 export const EXPRESSION_HEADS: Readonly<
   Record<string, Partial<Record<Emotion, ExpressionHead>>>
-> = {};
+> = {
+  aliBaba: {
+    joy: {
+      crop: { x: 74, y: 162, width: 134, height: 188 },
+      mouth: { x: 159.5, y: 257.5, width: 38 },
+      interocular: 31.8,
+    },
+    wonder: {
+      crop: { x: 232, y: 158, width: 136, height: 192 },
+      mouth: { x: 326, y: 266.5, width: 26 },
+      interocular: 32.2,
+    },
+    surprise: {
+      // The one CORRECTED entry: the verify pass re-derived the mouth.
+      crop: { x: 403, y: 157, width: 147, height: 193 },
+      mouth: { x: 485, y: 266, width: 30 },
+      interocular: 33,
+    },
+  },
+  mother: {
+    joy: {
+      crop: { x: 64, y: 88, width: 244, height: 270 },
+      mouth: { x: 186, y: 231, width: 53 },
+      interocular: 51,
+    },
+    sorrow: {
+      crop: { x: 329, y: 101, width: 211, height: 296 },
+      mouth: { x: 433, y: 260, width: 38 },
+      interocular: 51.5,
+    },
+  },
+  jarJinni: {
+    anger: {
+      crop: { x: 1426, y: 36, width: 160, height: 209 },
+      mouth: { x: 1484, y: 177, width: 30 },
+      interocular: 39,
+    },
+    wonder: {
+      // 3/4-turned head with no right ear of its own; the base's ear tip
+      // peeks beside the cheek and reads as the head's own ear.
+      crop: { x: 1092, y: 64, width: 150, height: 178 },
+      mouth: { x: 1155, y: 176, width: 25 },
+      interocular: 33,
+    },
+    // The Ancient Sigh face carries both the weary and the grieving
+    // registers — closed lids, bowed air. One measured bust, two doors in.
+    weary: {
+      crop: { x: 1262, y: 64, width: 143, height: 182 },
+      mouth: { x: 1315, y: 175, width: 26 },
+      interocular: 36,
+    },
+    sorrow: {
+      crop: { x: 1262, y: 64, width: 143, height: 182 },
+      mouth: { x: 1315, y: 175, width: 26 },
+      interocular: 36,
+    },
+  },
+  lampJinni: {
+    joy: {
+      crop: { x: 1244, y: 368, width: 218, height: 285 },
+      mouth: { x: 1356.1, y: 511, width: 53.6 },
+      interocular: 48.4,
+    },
+  },
+};

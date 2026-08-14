@@ -60,6 +60,26 @@ function heads(): Head[] {
 }
 
 describe("the measured expression-head table", () => {
+  it("holds the whole measured set — nine busts, ten doors, four sheets", () => {
+    // jarJinni's Ancient Sigh serves both weary and sorrow: one bust, two
+    // doors. An entry vanishing here means measured data was lost, not
+    // reformatted.
+    expect(heads().map((h) => `${h.rig}.${h.emotion}`).sort()).toEqual(
+      [
+        "aliBaba.joy",
+        "aliBaba.surprise",
+        "aliBaba.wonder",
+        "jarJinni.anger",
+        "jarJinni.sorrow",
+        "jarJinni.weary",
+        "jarJinni.wonder",
+        "lampJinni.joy",
+        "mother.joy",
+        "mother.sorrow",
+      ].sort(),
+    );
+  });
+
   it("names only sheets that carry busts, and only feelings the grammar can pick", () => {
     for (const h of heads()) {
       expect(RIGGED_SHEETS.has(h.rig), `${h.rig} has no expression busts on its sheet`).toBe(
