@@ -72,8 +72,11 @@ import {
 import { vfxKindFor, vfxSeed } from '../../src/lib/particleField.ts';
 import { emotionFor } from '../../src/lib/expressionGrammar.ts';
 import {
+  TWO_SHOT_MAX_FIGURE_HEIGHT,
   centerForFacing,
   conversationFacings,
+  oppositeFacing,
+  riggedMentions,
   speakerMatchesRig,
   walkFor,
 } from '../../src/lib/puppetPerformance.ts';
@@ -1096,6 +1099,12 @@ if (offline) {
       // is the composition's data, so an unmeasured character silently
       // keeps the painted base head.
       let expression = null;
+      // RUNG 6 — the two-shot, movie grade only. When the shot's words put
+      // a SECOND rigged cast member in the frame and the framing is full
+      // or wider, the conversation shares one frame instead of cutting
+      // between singles: primary and companion on opposite thirds, facing
+      // each other, the mouth cues riding whoever the dialogue names.
+      let companion = null;
       if (cinematic && !clip && shotRigs[i]) {
         // The cast names are the WALKERS walkFor accepts — a gait verb with
         // no named subject is scenery, and the still prompt is full of
@@ -1105,19 +1114,61 @@ if (offline) {
         expression = emotionFor(
           `${shot.still} ${shot.narration} ${shot.dialogue?.line ?? ''}`,
         );
+        // Rung 6: a second rigged face in this shot's own words, at a
+        // framing wide enough to hold two figures. The mention scan mirrors
+        // rigFor's matching exactly — same normalisation, same substring
+        // rule — so primary and companion cannot disagree at the margins.
+        const castRigs = (plan.cast ?? []).map((m) => {
+          const name = String(m.name ?? '');
+          return {
+            name,
+            rig:
+              RIG_KEY_BY_NAME.get(
+                name.toLowerCase().replace(/^the\s+/, '').replace(/[^a-z0-9]/g, ''),
+              ) ?? null,
+          };
+        });
+        const other = riggedMentions(`${shot.still} ${shot.narration}`, castRigs).find(
+          (rig) => rig !== shotRigs[i],
+        );
+        const twoShot = Boolean(other) && framing.figureHeight <= TWO_SHOT_MAX_FIGURE_HEIGHT;
+        // In a two-shot nobody plays to camera: a conversation grammar
+        // facing wins when it exists, otherwise the primary takes the left
+        // third looking right — stable, since who is primary is stable.
+        const primaryFacing = facings[i] ?? (twoShot ? 'right' : null);
         performance = {
           seed: vfxSeed(`perf:${i}:${shot.still}`),
-          ...(facings[i] ? { facing: facings[i], center: centerForFacing(facings[i]) } : {}),
+          ...(primaryFacing
+            ? { facing: primaryFacing, center: centerForFacing(primaryFacing) }
+            : {}),
           ...(walk ? { walk } : {}),
           ...(dialogueVoiced && speakerMatchesRig(shot.dialogue.speaker, shotRigs[i])
             ? { speaking: true }
             : {}),
         };
+        if (twoShot) {
+          const compFacing = oppositeFacing(primaryFacing);
+          const speaks = dialogueVoiced && speakerMatchesRig(shot.dialogue.speaker, other);
+          companion = {
+            rig: other,
+            ...(speaks ? { speaks: true } : {}),
+            ...(expression ? { expression } : {}),
+            performance: {
+              seed: vfxSeed(`comp:${i}:${shot.still}`),
+              facing: compFacing,
+              center: centerForFacing(compFacing),
+              ...(speaks ? { speaking: true } : {}),
+            },
+          };
+        }
         const notes = [
-          facings[i] ? `faces ${facings[i]}` : 'to camera',
+          facings[i] ? `faces ${facings[i]}` : twoShot ? 'two-shot left' : 'to camera',
           walk ?? 'standing',
           performance.speaking ? 'speaking' : 'narrated',
           expression ?? 'base face',
+          ...(companion
+            ? [`with ${companion.rig}${companion.speaks ? ' (speaking)' : ''}`]
+            : []),
         ];
         console.log(`  body ${i + 1}: ${notes.join(', ')}`);
       }
@@ -1170,6 +1221,10 @@ if (offline) {
                 // the measured busts by the composition.
                 ...(expression ? { expression } : {}),
               },
+              // Rung 6's second figure — movie grade only. The shot's
+              // measured speech spans ride along so a speaking companion
+              // gestures on the same beats the primary would have.
+              ...(companion ? { companion: { ...companion, speech: spans } } : {}),
             }
           : {}),
       });

@@ -4,10 +4,13 @@ import { describe, expect, it } from "vitest";
 import {
   BEAT_GAP_FRAMES,
   POSE_LIMITS,
+  TWO_SHOT_MAX_FIGURE_HEIGHT,
   beatFrames,
   centerForFacing,
   conversationFacings,
+  oppositeFacing,
   puppetPoseAt,
+  riggedMentions,
   speakerMatchesRig,
   walkFor,
   type PoseParams,
@@ -385,6 +388,79 @@ describe("puppetPoseAt — bounded, deterministic, at rest when idle", () => {
     }
     // ...and actually lifts off it at some point in the gait.
     expect(rose).toBe(true);
+  });
+});
+
+describe("rung 6 — the two-shot", () => {
+  const CAST = [
+    { name: "Ali Baba", rig: "aliBaba" },
+    { name: "The Mother", rig: "mother" },
+    { name: "The Weaver", rig: null },
+    { name: "Morgiana", rig: "morgiana" },
+  ];
+
+  it("finds rigged cast in first-mention order, skipping the unrigged", () => {
+    expect(
+      riggedMentions("The mother ran to Ali Baba as the weaver watched", CAST),
+    ).toEqual(["mother", "aliBaba"]);
+    // Cast order and mention order disagree here; mention order wins.
+    expect(riggedMentions("Morgiana poured wine for Ali Baba", CAST)).toEqual([
+      "morgiana",
+      "aliBaba",
+    ]);
+  });
+
+  it("returns nobody for scenery and no duplicate for a repeated name", () => {
+    expect(riggedMentions("A quiet market street at dawn", CAST)).toEqual([]);
+    expect(
+      riggedMentions("Ali Baba paused. Then Ali Baba spoke.", CAST),
+    ).toEqual(["aliBaba"]);
+  });
+
+  it("answers an eyeline from the other third", () => {
+    expect(oppositeFacing("right")).toBe("left");
+    expect(oppositeFacing("left")).toBe("right");
+    // The two stage positions look AT each other across the frame.
+    expect(centerForFacing("right")).toBeLessThan(centerForFacing("left"));
+  });
+
+  it("mirrors shotGrammar's FULL figure — the widest framing two figures share", () => {
+    // Mirrored, not imported, so puppetPerformance stays zero-import for
+    // the worker. If the grammar re-measures its full shot, this fails
+    // and both move together.
+    const grammar = readFileSync(join(ROOT, "src/lib/shotGrammar.ts"), "utf8");
+    const full = grammar.match(/full:\s*\{[^}]*figureHeight:\s*([\d.]+)/);
+    expect(full).not.toBeNull();
+    expect(TWO_SHOT_MAX_FIGURE_HEIGHT).toBe(Number(full?.[1]));
+  });
+
+  it("the worker stages the companion and the composition renders it", () => {
+    expect(
+      WORKER_SRC.includes("riggedMentions("),
+      "story-worker.mjs no longer scans for a second figure — rung 6 is unplugged",
+    ).toBe(true);
+    expect(
+      WORKER_SRC.includes("TWO_SHOT_MAX_FIGURE_HEIGHT"),
+      "the framing gate is gone — two figures would share a close-up",
+    ).toBe(true);
+    expect(
+      WORKER_SRC.includes("companion: { ...companion, speech: spans }"),
+      "the manifest no longer attaches the companion",
+    ).toBe(true);
+    expect(
+      FILM_SRC.includes("shot.companion && CHARACTER_RIGS[shot.companion.rig]"),
+      "StoryFilm.tsx no longer renders the second figure",
+    ).toBe(true);
+    // The mouth cues ride exactly one mouth: the primary rests when the
+    // companion speaks, and the companion rests when it does not.
+    expect(
+      FILM_SRC.includes("shot.companion?.speaks ? REST : visemeAtFrame(cues, frame)"),
+      "the primary no longer yields the mouth cues to a speaking companion",
+    ).toBe(true);
+    expect(
+      FILM_SRC.includes("shot.companion.speaks ? visemeAtFrame(cues, frame) : REST"),
+      "a listening companion no longer holds its mouth at rest",
+    ).toBe(true);
   });
 });
 

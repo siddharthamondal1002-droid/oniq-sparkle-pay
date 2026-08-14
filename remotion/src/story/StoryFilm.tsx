@@ -32,6 +32,7 @@ import {
 } from "remotion";
 import { KEN_BURNS_SCALE } from "../../../src/lib/episodeTimeline";
 import {
+  REST,
   buildMouthCues,
   cuesFromRhubarb,
   segmentsFromSpans,
@@ -169,6 +170,27 @@ export type StoryShotInput = {
      * silently keeps the base head, so the worker never needs to know
      * which sheets carry which busts.
      */
+    expression?: Emotion;
+  };
+  /**
+   * Rung 6, movie grade only: the SECOND figure of a two-shot. When the
+   * shot's words put two rigged cast members in the same frame (and the
+   * framing is full or wider — two figures cannot share a close-up), the
+   * worker stages the conversation in one frame instead of cutting
+   * between singles: primary on one third, companion answering from the
+   * other. `speaks` routes the shot's mouth cues — true and the companion
+   * mouths them while the primary listens at rest; false and the mouth
+   * stays on the primary exactly as in every single. Absent — every
+   * classic film and every solitary shot — nothing changes.
+   */
+  companion?: {
+    /** Key into CHARACTER_RIGS, same contract as character.rig. */
+    rig: string;
+    /** The dialogue names this figure as the shot's speaker. */
+    speaks?: boolean;
+    /** Same speech spans as the primary — pose gestures gate on speaking. */
+    speech?: [number, number][];
+    performance?: PuppetPerformance;
     expression?: Emotion;
   };
   /**
@@ -366,7 +388,10 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
       {!shot.clip && shot.character && CHARACTER_RIGS[shot.character.rig] ? (
         <Character
           rig={CHARACTER_RIGS[shot.character.rig]}
-          viseme={visemeAtFrame(cues, frame)}
+          // Rung 6: in a two-shot whose line belongs to the companion, the
+          // primary LISTENS — mouth at rest while the cues drive the other
+          // figure. Alone, or holding the line, it mouths them as always.
+          viseme={shot.companion?.speaks ? REST : visemeAtFrame(cues, frame)}
           heightRatio={shot.figureHeight}
           // Rung 4: the body language, when the worker attached one. The
           // cue track doubles as the gesture's beat source — the same
@@ -381,6 +406,25 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
           expressionHead={
             shot.character.expression
               ? EXPRESSION_HEADS[shot.character.rig]?.[shot.character.expression]
+              : undefined
+          }
+        />
+      ) : null}
+      {!shot.clip && shot.companion && CHARACTER_RIGS[shot.companion.rig] ? (
+        // Rung 6: the other half of the two-shot, staged by the worker on
+        // the opposite third with the answering eyeline. Same component,
+        // same contracts — the only asymmetry is who owns the mouth cues.
+        <Character
+          rig={CHARACTER_RIGS[shot.companion.rig]}
+          viseme={shot.companion.speaks ? visemeAtFrame(cues, frame) : REST}
+          heightRatio={shot.figureHeight}
+          performance={shot.companion.performance}
+          cues={cues}
+          speech={shot.companion.speech}
+          durationInFrames={durationInFrames}
+          expressionHead={
+            shot.companion.expression
+              ? EXPRESSION_HEADS[shot.companion.rig]?.[shot.companion.expression]
               : undefined
           }
         />

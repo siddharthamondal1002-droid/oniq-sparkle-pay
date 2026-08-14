@@ -275,6 +275,53 @@ export function centerForFacing(facing: Facing): number {
 }
 
 /**
+ * RUNG 6 — the two-shot. Everything above stages ONE character per frame,
+ * so a conversation could only ever be shot-reverse-shot singles. When a
+ * shot's own words put two rigged cast members in the same frame, the
+ * worker stages them BOTH: primary on one third, companion on the other,
+ * facing each other, the mouth cues riding whichever one the dialogue
+ * names. These helpers are the vocabulary for that decision.
+ */
+
+/**
+ * The rigged cast members a shot's text mentions, in FIRST-MENTION order,
+ * deduplicated. Matching mirrors the worker's rig matcher exactly —
+ * lowercase substring over the prose — because a companion found by a
+ * different rule than the primary would disagree with it at the margins.
+ * Mention order (not cast order) so "the mother ran to Ali Baba" casts
+ * mother as the first figure and Ali Baba as the one she plays against.
+ */
+export function riggedMentions(
+  text: string,
+  cast: ReadonlyArray<{ name: string; rig: string | null }>,
+): string[] {
+  const t = text.toLowerCase();
+  const found: Array<{ at: number; rig: string }> = [];
+  for (const member of cast) {
+    const name = member.name.toLowerCase();
+    if (!name || !member.rig) continue;
+    const at = t.indexOf(name);
+    if (at < 0) continue;
+    if (!found.some((f) => f.rig === member.rig)) found.push({ at, rig: member.rig });
+  }
+  return found.sort((a, b) => a.at - b.at).map((f) => f.rig);
+}
+
+/** The eyeline a companion answers with. */
+export function oppositeFacing(facing: Facing): Facing {
+  return facing === "right" ? "left" : "right";
+}
+
+/**
+ * Widest figure a two-shot tolerates: shotGrammar's FULL figure (0.62 of
+ * frame height — mirrored by test, not imported, so the worker's grammar
+ * stays the single source). At medium (0.95) and close (1.7) two figures
+ * on the thirds would overlap into one four-armed creature; those sizes
+ * stay singles, which is also what film coverage does with them.
+ */
+export const TWO_SHOT_MAX_FIGURE_HEIGHT = 0.62;
+
+/**
  * Does the plan's speaker name mean this rig? "The Magician" is prose and
  * "magician" is a key, so the match strips "the " and every
  * non-alphanumeric before comparing — the same normalisation the worker's
