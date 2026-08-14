@@ -102,9 +102,19 @@ Deno.serve(async (req) => {
           Authorization: `Bearer ${key}`,
         },
         signal: ctrl.signal,
-        // The prebuilt voice names (Charon and the cast) pass through — the
-        // gateway fronts the same Gemini TTS family that minted them.
-        body: JSON.stringify({ model: TTS_MODEL, input: text, voice }),
+        // MEASURED FROM THE LIVE 400, not the docs: for google/*-tts the
+        // gateway PASSES THROUGH Google's own body — it rejected the OpenAI
+        // input/voice fields with Google's "Unknown name" error. So this is
+        // the pre-reroute Gemini body verbatim, plus `model` for routing.
+        // The prebuilt voice names (Charon and the cast) ride unchanged.
+        body: JSON.stringify({
+          model: TTS_MODEL,
+          contents: [{ role: "user", parts: [{ text }] }],
+          generationConfig: {
+            responseModalities: ["AUDIO"],
+            speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
+          },
+        }),
       });
     } finally {
       clearTimeout(timer);
@@ -123,15 +133,22 @@ Deno.serve(async (req) => {
       return json({ error: `Could not read that line. (upstream ${res.status})` }, 502);
     }
 
-    // /v1/audio/speech answers audio BYTES, not JSON — mime in the header.
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    const audio =
-      bytes.length > 0
-        ? {
-            mime: res.headers.get("content-type") ?? "audio/wav",
-            data: b64(bytes),
-          }
-        : null;
+    // Two reply dialects, JSON first: a pass-through gateway answers in
+    // Google's generateContent shape (inlineData carrying base64 PCM with
+    // the rate in its mime — the worker wraps it); a normalizing one would
+    // answer raw audio bytes with the mime in the header. Read whichever
+    // arrived.
+    let audio: { mime: string; data: string } | null = null;
+    const replyType = res.headers.get("content-type") ?? "";
+    if (/json/i.test(replyType)) {
+      const data = await res.json().catch(() => null);
+      audio = firstInlineAudio(data);
+    } else {
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (bytes.length > 0) {
+        audio = { mime: replyType || "audio/wav", data: b64(bytes) };
+      }
+    }
     if (audio) {
       // Feed the ledger the dispatcher gates on (public.api_budget).
       // SUCCESSES ONLY — a 429 consumes nothing upstream, so counting it
@@ -174,6 +191,24 @@ Deno.serve(async (req) => {
     return json({ error: "Something went sideways — try again" }, 500);
   }
 });
+
+/**
+ * The first inline audio part of a Google-shaped reply, if there is one.
+ * The mime (e.g. "audio/L16;codec=pcm;rate=24000") carries the sample rate
+ * the worker's WAV wrap needs, so it passes through un-normalized.
+ */
+function firstInlineAudio(data: unknown): { mime: string; data: string } | null {
+  const parts = (data as { candidates?: { content?: { parts?: unknown[] } }[] })?.candidates?.[0]
+    ?.content?.parts;
+  if (!Array.isArray(parts)) return null;
+  for (const part of parts) {
+    const inline = (part as { inlineData?: { mimeType?: string; data?: string } })?.inlineData;
+    if (inline?.data && typeof inline.data === "string") {
+      return { mime: inline.mimeType ?? "audio/L16;rate=24000", data: inline.data };
+    }
+  }
+  return null;
+}
 
 /** Base64 without blowing the call stack on a multi-megabyte line. */
 function b64(bytes: Uint8Array): string {
