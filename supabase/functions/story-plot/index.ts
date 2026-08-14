@@ -228,13 +228,34 @@ Deno.serve(async (req) => {
       return json({ error: "Bad shot count." }, 400);
     }
 
+    // VERBATIM MODE (owner directive, 2026-08-14): the worker supplies the
+    // narrations — the user's own text, pre-sliced — and Ting designs only
+    // what prose cannot carry: the frames, the locks, the sizes. The worker
+    // overwrites narration again after the reply, so this instruction is
+    // about QUALITY (frames that match the given words), not enforcement.
+    const narrations: string[] = Array.isArray(body?.narrations)
+      ? body.narrations.filter((n: unknown) => typeof n === "string" && n.trim().length > 0)
+      : [];
+    if (narrations.length > 0 && narrations.length !== shots) {
+      return json({ error: "Narration count must match the shot count." }, 400);
+    }
+    const verbatimBlock =
+      narrations.length > 0
+        ? `\n\nTHE NARRATION IS ALREADY WRITTEN, one piece per shot, in order — the` +
+          ` user's own words, which will be read aloud EXACTLY as given. Copy each` +
+          ` piece into its shot's \`narration\` unchanged. Design each \`still\` to` +
+          ` picture what its narration says. Only include \`dialogue\` if the line` +
+          ` appears word for word inside the narration.\n\n` +
+          narrations.map((n, i) => `Shot ${i + 1} narration: ${n}`).join("\n")
+        : "";
+
     const opts = {
       system: SYSTEM + langInstruction(lang),
       messages: [
         {
           role: "user" as const,
           content:
-            `Write a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}${styleBlock}${paletteBlock}\n\n` +
+            `Write a ${shots}-shot film from this idea:\n\n${prompt}${verbatimBlock}${reuseBlock}${styleBlock}${paletteBlock}\n\n` +
             `Return exactly ${shots} shots.`,
         },
       ],
@@ -391,6 +412,11 @@ Deno.serve(async (req) => {
         // A const alias, because narrowing on a `let` does not survive into
         // the batch closures below.
         const sp = spine;
+        // VERBATIM: the user's narrations ARE the beats. The spine call
+        // above still earned its keep — title, setting, cast and locks are
+        // read out of the story — but the batches below expand the user's
+        // own sentences, not Ting's summary of them.
+        if (narrations.length === shots) sp.beats = narrations;
         const locks = lockText(sp);
 
         // Batches run AT THE SAME TIME. Six sequential expansions would be the
@@ -412,7 +438,14 @@ Deno.serve(async (req) => {
                     `${locks}${styleBlock}${paletteBlock}\n\nFILM: ${sp.title}\n\n` +
                     `Draw shots ${b.from + 1}–${b.from + b.beats.length} of ${shots}. ` +
                     `One shot per beat, in order:\n` +
-                    b.beats.map((t, i) => `${b.from + i + 1}. ${t}`).join("\n"),
+                    b.beats.map((t, i) => `${b.from + i + 1}. ${t}`).join("\n") +
+                    (narrations.length === shots
+                      ? `\n\nThe text after each number is that shot's FINISHED` +
+                        ` narration — the user's own words, read aloud exactly as` +
+                        ` given. Copy it into \`narration\` unchanged and design the` +
+                        ` still to picture it. Only include \`dialogue\` if the line` +
+                        ` appears word for word inside that narration.`
+                      : ""),
                 },
               ],
               // A ceiling, not a spend — same reasoning as the other caps.

@@ -72,6 +72,7 @@ import {
 import { vfxKindFor, vfxSeed } from '../../src/lib/particleField.ts';
 import { emotionFor } from '../../src/lib/expressionGrammar.ts';
 import { ambienceFor, ambienceGraph, scoreFor, scoreGraph } from '../../src/lib/soundStage.ts';
+import { packNarrations, verbatimFits } from '../../src/lib/verbatimNarration.ts';
 import {
   TWO_SHOT_MAX_FIGURE_HEIGHT,
   centerForFacing,
@@ -274,6 +275,7 @@ async function claimJob() {
         castJson: got.castJson ?? null,
         noWatermark: got.noWatermark === true,
         grade: got.grade === 'movie' ? 'movie' : 'classic',
+        verbatim: got.verbatim === true,
       };
     } catch (e) {
       // 409 means another runner won the race, or Supabase re-dispatched a job
@@ -289,7 +291,7 @@ async function claimJob() {
   }
 
   const queued = await db(
-    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json,no_watermark,grade',
+    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json,no_watermark,grade,verbatim',
   );
   if (!queued || queued.length === 0) return null;
   const row = queued[0];
@@ -303,6 +305,7 @@ async function claimJob() {
     castJson: row.cast_json ?? null,
     noWatermark: row.no_watermark === true,
     grade: row.grade === 'movie' ? 'movie' : 'classic',
+    verbatim: row.verbatim === true,
   };
 }
 
@@ -740,12 +743,31 @@ if (offline) {
     // is transient model latency, not a prompt problem. A second invocation
     // gets a fresh 115-second budget and its own internal retries; a second
     // 502 in a row fails the job as before.
+    // VERBATIM MODE (owner directive, 2026-08-14): the prompt IS the film's
+    // narration. Sliced here — in order, unchanged — and handed to Ting as
+    // fixed text it designs frames around. Both guards run BEFORE the first
+    // billable call: the fit band (the claim already enforced it; a legacy
+    // row or a drifted estimate must still not stretch a paid minute into
+    // three) and the packer (a story with fewer sentences than shots cannot
+    // honestly fill them).
+    let verbatimChunks = null;
+    if (job.verbatim) {
+      const fit = verbatimFits(job.prompt, job.requestedSeconds);
+      if (!fit.fits) throw new Error(`verbatim: ${fit.reason}`);
+      verbatimChunks = packNarrations(job.prompt, shots);
+      if (!verbatimChunks) {
+        throw new Error(`verbatim: could not slice the story into ${shots} shots`);
+      }
+      console.log(`  verbatim: ${shots} narrations sliced from the user's own text`);
+    }
+
     let planRes;
     for (let a = 1; ; a++) {
       try {
         planRes = await edge('story-plot', {
           prompt: job.prompt,
           shots,
+          ...(verbatimChunks ? { narrations: verbatimChunks } : {}),
           ...(Array.isArray(job.castJson) && job.castJson.length ? { reuse: job.castJson } : {}),
         });
         break;
@@ -758,6 +780,24 @@ if (offline) {
     }
     const { plan } = planRes;
     console.log(`  plot: "${plan.title}", ${plan.shots.length} shots`);
+
+    // Verbatim enforcement is the WORKER's, not Ting's promise-keeping:
+    // whatever the planner echoed back, the narration that reaches the voice
+    // is the user's own slice, overwritten here. Invented dialogue is
+    // dropped the same way — a spoken line the user did not write breaks
+    // the very promise the toggle makes; a line that IS in their text
+    // (normalized whitespace) keeps its separate character voice.
+    if (verbatimChunks) {
+      const source = job.prompt.replace(/\s+/g, ' ');
+      for (let i = 0; i < plan.shots.length; i++) {
+        plan.shots[i].narration = verbatimChunks[i] ?? plan.shots[i].narration;
+        const line = plan.shots[i].dialogue?.line;
+        if (line && !source.includes(String(line).replace(/\s+/g, ' ').trim())) {
+          console.log(`  verbatim: dropped invented dialogue in shot ${i + 1}`);
+          delete plan.shots[i].dialogue;
+        }
+      }
+    }
 
     // THE MOVIE GRADE IS THE IN-HOUSE ENGINE (owner directive, 2026-08-13):
     // the owned stack this worker already runs — depth parallax, rigged
