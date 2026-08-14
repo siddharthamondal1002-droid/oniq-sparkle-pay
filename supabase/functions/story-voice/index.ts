@@ -153,10 +153,15 @@ Deno.serve(async (req) => {
       }
     }
     if (!audio) {
-      // A refusal arrives as a 200 with no audio part rather than an error
+      // A refusal arrives as a 200 with no audio bytes rather than an error
       // status. Treating "ok but empty" as success is how a shot ends up with
-      // a zero-length narration and the whole film's timing shifts.
-      console.error("story-voice no audio part", JSON.stringify(data).slice(0, 300));
+      // a zero-length narration and the whole film's timing shifts. (The
+      // Lovable agent caught the first cut of this branch logging a variable
+      // the reroute had removed — a 422 that would have thrown into a 500.)
+      console.error(
+        "story-voice empty audio body",
+        res.headers.get("content-type") ?? "no content-type",
+      );
       return json({ error: "That line was refused." }, 422);
     }
 
