@@ -41,7 +41,7 @@ import {
   type RhubarbCue,
 } from "../../../src/lib/visemes";
 import { PARALLAX } from "../../../src/lib/parallaxPlanes";
-import { ambientVolumeAt } from "../../../src/lib/soundStage";
+import { ambientVolumeAt, scoreVolumeAt } from "../../../src/lib/soundStage";
 import { TITLE_SECONDS, endFadeAt, titleOpacityAt } from "../../../src/lib/filmChrome";
 import type { VfxKind } from "../../../src/lib/particleField";
 import type { PuppetPerformance } from "../../../src/lib/puppetPerformance";
@@ -241,6 +241,19 @@ export type StoryFilmProps = {
    * or 'classic' renders exactly the shipped film, chrome-free.
    */
   grade?: "classic" | "movie";
+  /**
+   * Rung 11, movie grade only: the film-level drone — one chord in the
+   * film's aggregated register (scoreFor), held under everything at
+   * SCORE_GAIN with SCORE_FADE_SECONDS edges. Below the ambient beds,
+   * which are below the voice. Absent when the shots earned no register,
+   * and for every classic film.
+   */
+  score?: {
+    /** Path under remotion/public, same addressing as shot stills. */
+    src: string;
+    /** The register, for logs and tests. */
+    kind: string;
+  };
 };
 
 export const STORY_FPS = 30;
@@ -535,6 +548,7 @@ export const StoryFilm: React.FC<StoryFilmProps> = ({
   fps,
   watermark,
   grade,
+  score,
 }) => {
   const { fps: configFps } = useVideoConfig();
   const usedFps = fps ?? configFps;
@@ -563,6 +577,15 @@ export const StoryFilm: React.FC<StoryFilmProps> = ({
         </Sequence>
       ) : null}
       {grade === "movie" ? <EndFade totalFrames={totalFrames} fps={usedFps} /> : null}
+      {/* Rung 11: the drone, film-level — mounted at the root so one Audio
+          spans every cut, breathing in with the title and out with the
+          closing fade. Under the beds, which are under the voice. */}
+      {score ? (
+        <Audio
+          src={src(score.src)}
+          volume={(f) => scoreVolumeAt(f, totalFrames, usedFps)}
+        />
+      ) : null}
       {/* The ONIQ mark rides ABOVE every shot, outside all camera transforms,
           so it is burned into every frame of the export. Subtle by design:
           the film is the product, the mark is the maker. */}

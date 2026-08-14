@@ -141,3 +141,94 @@ export function ambienceGraph(kind: AmbienceKind, seed: number): string {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// RUNG 11 — the score. One film, one register, one chord held under it all.
+//
+// DELIBERATELY NOT MUSIC-SHAPED: no melody, no rhythm, no progression — a
+// sustained modal drone in the film's aggregated emotional register, a
+// full octave below the narrator and quieter than the ambient beds. The
+// honest failure mode of procedural music is composition, so this rung
+// refuses to compose: it holds one chord the way a string section holds a
+// pedal tone under narration. A film whose shots earned no emotion gets
+// NO score — the same absence rule as everything else.
+
+/** Registers a whole film can hold. Surprise is a moment, not a movie. */
+export type ScoreRegister = "joy" | "sorrow" | "anger" | "wonder" | "weary";
+
+/** Under the beds, which are under the voice. Texture, not accompaniment. */
+export const SCORE_GAIN = 0.09;
+
+/** Long edges: the score breathes in with the title and out with the fade. */
+export const SCORE_FADE_SECONDS = 2.5;
+
+/**
+ * The film's register: a majority vote over the shots' rung-5 emotions.
+ * Surprise ballots are discarded (a startled film is not a genre), null
+ * ballots don't count, and a tie goes to the register that reached the
+ * winning count first — earlier acts set a film's tone.
+ */
+export function scoreFor(emotions: ReadonlyArray<string | null>): ScoreRegister | null {
+  const counts = new Map<ScoreRegister, number>();
+  let best: ScoreRegister | null = null;
+  for (const e of emotions) {
+    if (e === "joy" || e === "sorrow" || e === "anger" || e === "wonder" || e === "weary") {
+      const n = (counts.get(e) ?? 0) + 1;
+      counts.set(e, n);
+      if (best === null || n > (counts.get(best) ?? 0)) best = e;
+    }
+  }
+  return best;
+}
+
+/**
+ * The drone recipes: a root chosen by seed from three low keys, a chord
+ * spelled in just ratios per register, one partial detuned +0.4Hz so the
+ * chord beats slowly instead of standing still, all low-passed and under
+ * a barely-there swell. The worker runs the graph verbatim, like the beds.
+ *
+ * Register voicings, from the spectral proofs:
+ * - joy: major triad + octave — the open, lit chord.
+ * - sorrow: minor triad, root dropped a fourth — lower and inward.
+ * - anger: root, minor second cluster, fifth — a held tension, no triad.
+ * - wonder: root, fifth, major ninth — open fifths stacked past the octave.
+ * - weary: a bare low fifth, nothing else — the emptiest interval.
+ */
+export function scoreGraph(register: ScoreRegister, seed: number): string {
+  const s = Math.abs(Math.trunc(seed)) % 99991;
+  const root = [98, 110, 123.47][s % 3];
+  const spell: Record<ScoreRegister, number[]> = {
+    joy: [1, 1.25, 1.5, 2],
+    sorrow: [0.75, 0.9, 1.125, 1.5],
+    anger: [0.75, 0.8, 1.125],
+    wonder: [1, 1.5, 2.25],
+    weary: [0.75, 1.125],
+  };
+  const gains = [0.5, 0.34, 0.3, 0.22];
+  const parts = spell[register].map((ratio, i) => {
+    // The second partial carries the detune — the chord's slow breath.
+    const f = (root * ratio + (i === 1 ? 0.4 : 0)).toFixed(2);
+    return `sine=frequency=${f}[p${i}];[p${i}]volume=${gains[i] ?? 0.2}[v${i}];`;
+  });
+  const labels = spell[register].map((_, i) => `[v${i}]`).join("");
+  return (
+    parts.join("") +
+    `${labels}amix=inputs=${spell[register].length}:normalize=0,` +
+    // f=0.1 is ffmpeg's tremolo floor — a ten-second swell, the slowest
+    // breath the filter allows.
+    `lowpass=f=650,tremolo=f=0.1:d=0.22`
+  );
+}
+
+/** The score's volume envelope — AMBIENT-style, with the long fades. */
+export function scoreVolumeAt(
+  frame: number,
+  totalFrames: number,
+  fps: number,
+): number {
+  if (fps <= 0 || totalFrames <= 0) return 0;
+  const fade = Math.max(1, SCORE_FADE_SECONDS * fps);
+  const rise = (frame + 1) / fade;
+  const fall = (totalFrames - frame) / fade;
+  return SCORE_GAIN * Math.max(0, Math.min(1, rise, fall));
+}

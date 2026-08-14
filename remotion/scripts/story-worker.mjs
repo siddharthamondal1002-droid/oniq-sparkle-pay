@@ -71,7 +71,7 @@ import {
 } from '../../src/lib/parallaxPlanes.ts';
 import { vfxKindFor, vfxSeed } from '../../src/lib/particleField.ts';
 import { emotionFor } from '../../src/lib/expressionGrammar.ts';
-import { ambienceFor, ambienceGraph } from '../../src/lib/soundStage.ts';
+import { ambienceFor, ambienceGraph, scoreFor, scoreGraph } from '../../src/lib/soundStage.ts';
 import {
   TWO_SHOT_MAX_FIGURE_HEIGHT,
   centerForFacing,
@@ -802,6 +802,9 @@ if (offline) {
     const facings = conversationFacings(shotRigs.map((rig) => ({ rig })));
 
     const rendered = [];
+    // Rung 11: the shots' emotional registers, collected for the film-level
+    // score vote. Classic films push nulls and vote for silence.
+    const shotEmotions = [];
     let movingShots = 0;
     for (const [i, shot] of plan.shots.entries()) {
       // One call per shot, sequentially. Not a fan-out: the rate limit is per
@@ -1204,6 +1207,7 @@ if (offline) {
         ];
         console.log(`  body ${i + 1}: ${notes.join(', ')}`);
       }
+      shotEmotions.push(expression);
 
       rendered.push({
         // Relative to public/, because that is what staticFile() takes. Posix
@@ -1265,6 +1269,33 @@ if (offline) {
       console.log(`  voice ${i + 1}/${plan.shots.length} — ${seconds.toFixed(2)}s, ${spans.length} spans`);
     }
 
+    // RUNG 11 — the score, movie grade only. The film's shots vote on a
+    // register (rung 5's emotions; surprise ballots discarded, silence
+    // wins when nothing was earned) and one modal drone holds under the
+    // whole film — no melody, no rhythm, an octave below the narrator and
+    // quieter than the beds. A synth failure drops the score, not the film.
+    let score = null;
+    if (job.grade === 'movie') {
+      const register = scoreFor(shotEmotions);
+      if (register) {
+        try {
+          const scoreWav = path.join(assetRoot, 'score.wav');
+          const totalSeconds = rendered.reduce((a, s) => a + s.seconds, 0);
+          execFileSync(ffmpeg, [
+            '-y', '-f', 'lavfi',
+            '-i', scoreGraph(register, vfxSeed(`score:${plan.title}`)),
+            '-t', String(totalSeconds), '-ar', '44100', '-ac', '1', scoreWav,
+          ], { stdio: 'pipe' });
+          score = { src: `${assetDir}/score.wav`, kind: register };
+          console.log(`  score: ${register} drone, ${totalSeconds.toFixed(1)}s`);
+        } catch (err) {
+          console.log(`  score: synth failed (${String(err?.message ?? err).slice(0, 80)}) — silent`);
+        }
+      } else {
+        console.log('  score: no register earned — silent');
+      }
+    }
+
     await markAssembling(job);
     const outFile = path.join(work, 'story.mp4');
     // The ONIQ mark is burned in unless the job PAID it off (no_watermark).
@@ -1277,6 +1308,8 @@ if (offline) {
         watermark: !job.noWatermark,
         // Rung 9: movie films open on their title and close to black.
         grade: job.grade === 'movie' ? 'movie' : 'classic',
+        // Rung 11: the film-level drone, when the shots earned one.
+        ...(score ? { score } : {}),
       },
       outFile,
     );

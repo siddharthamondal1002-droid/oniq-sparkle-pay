@@ -4,10 +4,16 @@ import { describe, expect, it } from "vitest";
 import {
   AMBIENT_FADE_SECONDS,
   AMBIENT_GAIN,
+  SCORE_FADE_SECONDS,
+  SCORE_GAIN,
   ambienceFor,
   ambienceGraph,
   ambientVolumeAt,
+  scoreFor,
+  scoreGraph,
+  scoreVolumeAt,
   type AmbienceKind,
+  type ScoreRegister,
 } from "@/lib/soundStage";
 
 const ROOT = join(__dirname, "../../..");
@@ -104,6 +110,63 @@ describe("the recipes and the mix", () => {
 
   it("the module stays worker-importable — zero imports", () => {
     expect(MODULE_SRC).not.toMatch(/^import /m);
+  });
+
+  it("holds one chord per register, deterministic, distinct, refusing to compose", () => {
+    const REGISTERS: ScoreRegister[] = ["joy", "sorrow", "anger", "wonder", "weary"];
+    const graphs = REGISTERS.map((r) => scoreGraph(r, 555));
+    for (const [i, g] of graphs.entries()) {
+      expect(g).toBe(scoreGraph(REGISTERS[i], 555));
+      expect(g, REGISTERS[i]).not.toBe(scoreGraph(REGISTERS[i], 556));
+      // A drone is sines under a lowpass and one glacial swell — the
+      // moment a recipe grows melody machinery, this pin asks why.
+      expect(g, REGISTERS[i]).toContain("sine=frequency=");
+      expect(g, REGISTERS[i]).toContain("lowpass");
+      expect(g, REGISTERS[i]).toContain("tremolo=f=0.1");
+    }
+    expect(new Set(graphs).size, "two registers share a chord").toBe(REGISTERS.length);
+  });
+
+  it("votes a film's register: majority, surprise discarded, silence honest", () => {
+    expect(scoreFor(["joy", null, "sorrow", "sorrow", null])).toBe("sorrow");
+    // Surprise ballots never count — a startled film is not a genre.
+    expect(scoreFor(["surprise", "surprise", "weary"])).toBe("weary");
+    expect(scoreFor(["surprise", null])).toBeNull();
+    expect(scoreFor([null, null])).toBeNull();
+    expect(scoreFor([])).toBeNull();
+    // A tie goes to the register that REACHED the winning count first —
+    // wonder hits two ballots on shot three, anger only on shot four.
+    expect(scoreFor(["anger", "wonder", "wonder", "anger"])).toBe("wonder");
+  });
+
+  it("sits under the beds, which sit under the voice, with the long fades", () => {
+    expect(SCORE_GAIN).toBeLessThan(AMBIENT_GAIN);
+    expect(SCORE_FADE_SECONDS).toBeGreaterThan(AMBIENT_FADE_SECONDS);
+    const fps = 30;
+    const dur = 60 * fps;
+    expect(scoreVolumeAt(dur / 2, dur, fps)).toBeCloseTo(SCORE_GAIN, 5);
+    expect(scoreVolumeAt(-1, dur, fps)).toBe(0);
+    expect(scoreVolumeAt(dur, dur, fps)).toBe(0);
+    expect(scoreVolumeAt(10, 0, fps)).toBe(0);
+  });
+
+  it("the worker votes and synthesizes the score and the film holds it", () => {
+    expect(
+      WORKER_SRC.includes("scoreFor(shotEmotions)"),
+      "the worker no longer votes the film's register — rung 11 is unplugged",
+    ).toBe(true);
+    expect(
+      WORKER_SRC.includes("shotEmotions.push(expression)"),
+      "the ballots are no longer collected per shot",
+    ).toBe(true);
+    expect(
+      WORKER_SRC.includes("...(score ? { score } : {})"),
+      "renderPlan no longer receives the score",
+    ).toBe(true);
+    expect(
+      FILM_SRC.includes("scoreVolumeAt(f, totalFrames, usedFps)"),
+      "StoryFilm.tsx no longer holds the drone under the film",
+    ).toBe(true);
   });
 
   it("the worker synthesizes the air and the composition plays it", () => {
