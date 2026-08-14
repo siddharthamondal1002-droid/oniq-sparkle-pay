@@ -39,6 +39,24 @@ export type MouthAnchor = {
   width: number;
 };
 
+/**
+ * Rung 7: where the eyes are and what a closed lid looks like. Optional
+ * on both the base view and the expression busts — a face without
+ * measured eyes simply never blinks, the same honest absence as every
+ * other rung. `lid` is the paint the descending lid shows, sampled from
+ * the figure's own upper-lid/skin by the measurer, because a wrong-colour
+ * lid flickering at blink rate is worse than no blink at all.
+ */
+export type EyeGeometry = {
+  /** Pupil (or aperture) centres, sheet pixels. */
+  left: { x: number; y: number };
+  right: { x: number; y: number };
+  /** Painted aperture width of ONE eye, sheet pixels — sizes the lid. */
+  width: number;
+  /** CSS colour of the closed lid. */
+  lid: string;
+};
+
 export type CharacterView = {
   /** The character's bounding box on the sheet. */
   crop: Rect;
@@ -49,6 +67,8 @@ export type CharacterView = {
    * the scale key that sizes an expression-head swap to the figure's face.
    */
   interocular: number;
+  /** Rung 7, when measured: the blink geometry. Absent = never blinks. */
+  eyes?: EyeGeometry;
 };
 
 export type CharacterRig = {

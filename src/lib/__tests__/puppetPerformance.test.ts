@@ -3,9 +3,11 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   BEAT_GAP_FRAMES,
+  BLINK,
   POSE_LIMITS,
   TWO_SHOT_MAX_FIGURE_HEIGHT,
   beatFrames,
+  blinkClosureAt,
   centerForFacing,
   conversationFacings,
   oppositeFacing,
@@ -460,6 +462,81 @@ describe("rung 6 — the two-shot", () => {
     expect(
       FILM_SRC.includes("shot.companion.speaks ? visemeAtFrame(cues, frame) : REST"),
       "a listening companion no longer holds its mouth at rest",
+    ).toBe(true);
+  });
+});
+
+describe("rung 7 — the blink clock", () => {
+  const FPS = 30;
+
+  it("stays a closure in [0,1], deterministic for a seed", () => {
+    for (let frame = 0; frame < 600; frame++) {
+      const c = blinkClosureAt(frame, FPS, 42);
+      expect(c).toBeGreaterThanOrEqual(0);
+      expect(c).toBeLessThanOrEqual(1);
+      expect(c).toBe(blinkClosureAt(frame, FPS, 42));
+    }
+  });
+
+  it("blinks like a person: full closures at a living rate, never at frame 0", () => {
+    // A blink is an onset: the closure leaving zero.
+    const countBlinks = (seed: number) => {
+      let blinks = 0;
+      let prev = 0;
+      for (let frame = 0; frame < 60 * FPS; frame++) {
+        const c = blinkClosureAt(frame, FPS, seed);
+        if (c > 0 && prev === 0) blinks += 1;
+        prev = c;
+      }
+      return blinks;
+    };
+    for (const seed of [1, 7, 99, 1234, 0]) {
+      const blinks = countBlinks(seed);
+      // 60s of gaps between 2.2s and 5.4s (plus the blink itself) must
+      // land between ~10 and ~27 blinks — the human band.
+      expect(blinks).toBeGreaterThanOrEqual(9);
+      expect(blinks).toBeLessThanOrEqual(28);
+      // The first look at a character is never mid-blink.
+      expect(blinkClosureAt(0, FPS, seed)).toBe(0);
+    }
+  });
+
+  it("two seeds drift apart — no metronome across the cast", () => {
+    let differ = 0;
+    for (let frame = 0; frame < 20 * FPS; frame++) {
+      if (blinkClosureAt(frame, FPS, 5) !== blinkClosureAt(frame, FPS, 6)) differ += 1;
+    }
+    expect(differ).toBeGreaterThan(0);
+  });
+
+  it("is safe at the edges, and a blink lasts exactly its envelope", () => {
+    expect(blinkClosureAt(-1, FPS, 3)).toBe(0);
+    expect(blinkClosureAt(100, 0, 3)).toBe(0);
+    // Every positive run is one whole envelope long — ~200ms at 30fps.
+    const envelope = BLINK.CLOSE_FRAMES + BLINK.HOLD_FRAMES + BLINK.OPEN_FRAMES;
+    let run = 0;
+    for (let frame = 0; frame < 20 * FPS; frame++) {
+      if (blinkClosureAt(frame, FPS, 11) > 0) {
+        run += 1;
+      } else if (run > 0) {
+        expect(run).toBe(envelope);
+        run = 0;
+      }
+    }
+  });
+
+  it("the composition draws the lids from whichever face is showing", () => {
+    const CHARACTER_SRC = readFileSync(
+      join(ROOT, "remotion/src/rig/Character.tsx"),
+      "utf8",
+    );
+    expect(
+      CHARACTER_SRC.includes("blinkClosureAt(frame, fps, performance.seed"),
+      "Character.tsx no longer runs the blink clock — rung 7 is unplugged",
+    ).toBe(true);
+    expect(
+      CHARACTER_SRC.includes("expressionHead ? expressionHead.eyes : view.eyes"),
+      "the lids no longer follow the worn face — a bust swap would blink the base eyes",
     ).toBe(true);
   });
 });

@@ -29,7 +29,7 @@
 //     expression heads on their sheets. They keep their painted face, and
 //     that absence is fine — a wrong face is worse than a constant one.
 import type { Emotion } from '../../../src/lib/expressionGrammar';
-import type { MouthAnchor, Rect } from './characterRig';
+import type { EyeGeometry, MouthAnchor, Rect } from './characterRig';
 
 export type ExpressionHead = {
   /** The whole bust on the sheet — headwear and shoulders, no captions. */
@@ -38,6 +38,13 @@ export type ExpressionHead = {
   mouth: MouthAnchor;
   /** Pupil-to-pupil on the bust — the scale key against the base face. */
   interocular: number;
+  /**
+   * Rung 7, when measured: the BUST's own blink geometry, so a swapped
+   * face keeps blinking. Deliberately absent where a blink would be
+   * wrong: jarJinni's sigh is painted already closed, and his glow-eyed
+   * heads plus the rage fire have no lids to speak of.
+   */
+  eyes?: EyeGeometry;
 };
 
 /**

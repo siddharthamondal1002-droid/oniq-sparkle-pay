@@ -322,6 +322,50 @@ export function oppositeFacing(facing: Facing): Facing {
 export const TWO_SHOT_MAX_FIGURE_HEIGHT = 0.62;
 
 /**
+ * RUNG 7 — the eyes. A puppet that never blinks is the oldest cutout tell
+ * there is; shotGrammar's own commentary names blinking as what real
+ * footage shows and a still cannot. Humans blink every few seconds and a
+ * blink lasts ~200ms, so the envelope below closes in 2 frames, holds 1,
+ * and releases over 3 (at 30fps). Gaps are seeded per blink — a metronome
+ * blink reads as a tic — and the whole schedule is a pure function of
+ * frame, so renders stay deterministic and resumable.
+ */
+export const BLINK = {
+  MIN_GAP_SECONDS: 2.2,
+  MAX_GAP_SECONDS: 5.4,
+  CLOSE_FRAMES: 2,
+  HOLD_FRAMES: 1,
+  OPEN_FRAMES: 3,
+} as const;
+
+/**
+ * Lid closure at one frame, 0 (open) to 1 (closed). Walks the seeded gap
+ * sequence from shot start — a shot is seconds long, so the walk is a
+ * dozen steps at worst.
+ */
+export function blinkClosureAt(frame: number, fps: number, seed: number): number {
+  if (frame < 0 || fps <= 0) return 0;
+  const gapSpan = BLINK.MAX_GAP_SECONDS - BLINK.MIN_GAP_SECONDS;
+  const blinkFrames = BLINK.CLOSE_FRAMES + BLINK.HOLD_FRAMES + BLINK.OPEN_FRAMES;
+  let start = Math.round((BLINK.MIN_GAP_SECONDS + gapSpan * hash01(seed)) * fps);
+  for (let k = 1; start <= frame; k++) {
+    const into = frame - start;
+    if (into < blinkFrames) {
+      if (into < BLINK.CLOSE_FRAMES) return (into + 1) / BLINK.CLOSE_FRAMES;
+      if (into < BLINK.CLOSE_FRAMES + BLINK.HOLD_FRAMES) return 1;
+      const opening = into - BLINK.CLOSE_FRAMES - BLINK.HOLD_FRAMES;
+      return 1 - (opening + 1) / (BLINK.OPEN_FRAMES + 1);
+    }
+    start +=
+      blinkFrames +
+      Math.round(
+        (BLINK.MIN_GAP_SECONDS + gapSpan * hash01(seed ^ Math.imul(k, 0x9e3779b9))) * fps,
+      );
+  }
+  return 0;
+}
+
+/**
  * Does the plan's speaker name mean this rig? "The Magician" is prose and
  * "magician" is a key, so the match strips "the " and every
  * non-alphanumeric before comparing — the same normalisation the worker's

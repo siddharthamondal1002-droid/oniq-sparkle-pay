@@ -31,6 +31,7 @@ import type { Viseme } from '../../../src/lib/visemes';
 import { KEN_BURNS_SCALE } from '../../../src/lib/episodeTimeline';
 import {
   beatFrames,
+  blinkClosureAt,
   puppetPoseAt,
   type CueLike,
   type PuppetPerformance,
@@ -160,6 +161,30 @@ export const Character: React.FC<CharacterProps> = ({
       ? Math.max(mouth.width, expressionHead.mouth.width * exprScale)
       : mouth.width;
     const mouthHeightNow = (mouthWidth * MOUTH_VIEWBOX.height) / MOUTH_VIEWBOX.width;
+    // Rung 7: the blink. Lid geometry comes from whichever face is
+    // showing — the bust's own eyes when a bust is worn, the base view's
+    // otherwise — and a face without measured eyes never blinks. The seed
+    // is xored so the blink clock and the pose clock never phase-lock.
+    const eyesNow = expressionHead ? expressionHead.eyes : view.eyes;
+    const blink = eyesNow ? blinkClosureAt(frame, fps, performance.seed ^ 0x0b11) : 0;
+    const lids =
+      eyesNow && blink > 0
+        ? [eyesNow.left, eyesNow.right].map((eye) =>
+            expressionHead
+              ? {
+                  x: exprLeft + (eye.x - expressionHead.crop.x) * exprScale,
+                  y: exprTop + (eye.y - expressionHead.crop.y) * exprScale,
+                  w: eyesNow.width * exprScale,
+                  lid: eyesNow.lid,
+                }
+              : {
+                  x: (eye.x - view.crop.x) * scale,
+                  y: (eye.y - view.crop.y) * scale,
+                  w: eyesNow.width * scale,
+                  lid: eyesNow.lid,
+                },
+          )
+        : [];
     return (
       <div
         style={{
@@ -222,6 +247,32 @@ export const Character: React.FC<CharacterProps> = ({
             />
           </div>
         ) : null}
+        {lids.map((lid, i) => {
+          // The lid overshoots the painted aperture (1.35x wide, 0.8x
+          // tall) so no rim of eye-white survives full closure, and it
+          // descends from the lash line — scaleY anchored at the top —
+          // because lids close downward. Half a pixel of blur melts the
+          // painted edge into the painted face.
+          const w = lid.w * 1.35;
+          const h = lid.w * 0.8;
+          return (
+            <div
+              key={i}
+              style={{
+                position: 'absolute',
+                left: lid.x - w / 2,
+                top: lid.y - h / 2,
+                width: w,
+                height: h,
+                borderRadius: '50%',
+                backgroundColor: lid.lid,
+                transform: `scaleY(${blink})`,
+                transformOrigin: 'center top',
+                filter: 'blur(0.5px)',
+              }}
+            />
+          );
+        })}
         <div
           style={{
             position: 'absolute',
