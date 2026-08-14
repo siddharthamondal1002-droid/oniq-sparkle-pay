@@ -33,13 +33,40 @@ export const VERBATIM_MAX_FILL = 1.25;
 export const MAX_NARRATION_CHARS = 1200;
 
 /**
- * The longest film verbatim mode can honestly make. The prompt is capped
- * at 2000 characters (claim RPC and textarea alike) — roughly 340 words,
- * ~136s of speech — so the 300s tier's floor (150s) is unreachable. The
- * toggle refuses past this instead of telling the user to paste a story
- * the input cannot hold. Mirrored by the claim RPC's own `wanted > 180`.
+ * The prompt box's ceiling, in characters.
+ *
+ * OWNER DIRECTIVE, 2026-08-14: raised 2000 -> 5000. The old cap was set
+ * before verbatim mode existed, when a prompt was a one-line brief rather
+ * than the film's actual script. At 2000 it silently beheaded pasted
+ * stories — three of the owner's own jobs stored exactly 2000 characters —
+ * and it put the 300s tier permanently out of reach. The owner accepted the
+ * added token spend on Ting's plot call and the content gate to fix both.
+ *
+ * THE ONE TS SOURCE OF TRUTH. The textarea, the counter, the was-it-cut
+ * warning, story-plot's own guard and the claim RPC all quote this number;
+ * mirrored to SQL and to the edge function by test, because five literals
+ * drift and a cap that disagrees with itself refuses work the user already
+ * paid the UI for.
  */
-export const VERBATIM_MAX_SECONDS = 180;
+export const MAX_PROMPT_CHARS = 5000;
+
+/**
+ * The longest film verbatim mode can honestly make.
+ *
+ * It is the prompt cap that decides this, not taste: a tier is reachable
+ * only if its FLOOR (half the purchased seconds) can be spoken by a story
+ * the input box can physically hold. At 5000 characters — about 833 words
+ * at ~6 characters a word, ~333s of speech at 2.5 wps — the deepest tier
+ * that clears its own floor is 666s, past the 600s platform maximum. So
+ * nothing on sale is unreachable any more, and this constant is now the
+ * platform ceiling rather than a real restriction.
+ *
+ * It is kept rather than deleted because the fit band still needs an upper
+ * bound to reason against, and because a tier that IS out of reach must
+ * still say so rather than take the money. Mirrored by the claim RPC's own
+ * `wanted > 600`.
+ */
+export const VERBATIM_MAX_SECONDS = 600;
 
 /** Rough seconds of speech in a text. Zero for empty. */
 export function estimateSpokenSeconds(text: string): number {

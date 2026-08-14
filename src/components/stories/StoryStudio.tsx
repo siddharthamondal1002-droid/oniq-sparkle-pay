@@ -42,7 +42,7 @@ import { Clapperboard, Clock, Loader2, ShieldAlert, Sparkles, Users2, X } from "
 import { supabase } from "@/integrations/supabase/client";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { openInApp } from "@/lib/miniapps";
-import { packNarrations, verbatimFits } from "@/lib/verbatimNarration";
+import { MAX_PROMPT_CHARS, packNarrations, verbatimFits } from "@/lib/verbatimNarration";
 import {
   DEFAULT_STORY_SECONDS,
   MAX_STORY_SECONDS,
@@ -57,14 +57,6 @@ import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient"
 
 /** Lengths offered as one tap. Anything between the bounds is still allowed. */
 const PRESETS = [30, 60, 120, 300] as const;
-
-/**
- * The prompt box's ceiling. Named because it is now quoted in three places —
- * the input's own `maxLength`, the character counter, and the paste-was-cut
- * warning — and three literals would drift apart. Mirrors the claim RPC's
- * `length(prompt_clean) > 2000` refusal.
- */
-const MAX_PROMPT_CHARS = 2000;
 
 /** The tier chips' own wording, reused wherever a tier is named in prose. */
 function tierLabel(s: number): string {
@@ -498,7 +490,8 @@ export function StoryStudio() {
           the text is the product. `maxLength` makes the browser drop the
           overflow with no event and no message, so a pasted screenplay arrives
           here already beheaded — measured 2026-08-14: three of the owner's own
-          jobs stored exactly 2000 characters. A counter reading "2000/2000"
+          jobs stored exactly 2000 characters, against the old cap. A counter
+          reading "2000/2000"
           does not read as "your story was cut"; this does. */}
       {prompt.length >= MAX_PROMPT_CHARS ? (
         <p className="mt-1 text-[10px] text-amber-300">

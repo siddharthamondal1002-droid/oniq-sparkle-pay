@@ -141,7 +141,11 @@ function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
 }
 
 /** Bounds on what a caller may ask for, so one request cannot become a novel. */
-const MAX_PROMPT = 2000;
+// Owner directive, 2026-08-14: raised 2000 -> 5000 so a pasted script is not
+// beheaded before Ting reads it. MIRRORS src/lib/verbatimNarration.ts's
+// MAX_PROMPT_CHARS and the claim RPC's own guard, pinned together by test —
+// this function must not refuse a prompt the claim already charged for.
+const MAX_PROMPT = 5000;
 const MAX_SHOTS = 90;
 
 /**

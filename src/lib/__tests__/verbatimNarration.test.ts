@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   MAX_NARRATION_CHARS,
+  MAX_PROMPT_CHARS,
   VERBATIM_MAX_FILL,
   VERBATIM_MAX_SECONDS,
   VERBATIM_MIN_FILL,
@@ -17,8 +18,16 @@ const MODULE_SRC = readFileSync(join(ROOT, "src/lib/verbatimNarration.ts"), "utf
 const WORKER_SRC = readFileSync(join(ROOT, "remotion/scripts/story-worker.mjs"), "utf8");
 const PLOT_SRC = readFileSync(join(ROOT, "supabase/functions/story-plot/index.ts"), "utf8");
 const VOICE_SRC = readFileSync(join(ROOT, "supabase/functions/story-voice/index.ts"), "utf8");
-const MIGRATION = readFileSync(
+// TWO MIGRATIONS, TWO JOBS. The verbatim one ADDS the column; the cap one
+// carries the LIVE definition of claim_story_seconds. Function behaviour is
+// pinned against the newest file on purpose — asserting the superseded copy
+// would keep passing while production disagreed with it.
+const VERBATIM_MIGRATION = readFileSync(
   join(ROOT, "supabase/migrations/20260814160000_verbatim_mode.sql"),
+  "utf8",
+);
+const MIGRATION = readFileSync(
+  join(ROOT, "supabase/migrations/20260814190000_prompt_cap_5000.sql"),
   "utf8",
 );
 const STUDIO_SRC = readFileSync(join(ROOT, "src/components/stories/StoryStudio.tsx"), "utf8");
@@ -105,14 +114,17 @@ describe("the fit band — the pricing guard", () => {
     expect(MIGRATION).toContain("wanted * 1.25");
     expect(MIGRATION).toContain("where w <> ''");
     expect(MIGRATION).toContain("translate(prompt_clean, chr(160), ' ')");
-    expect(MIGRATION).toContain("wanted > 180");
+    expect(MIGRATION).toContain("wanted > 600");
     expect(VERBATIM_MIN_FILL).toBe(0.5);
     expect(VERBATIM_MAX_FILL).toBe(1.25);
-    expect(VERBATIM_MAX_SECONDS).toBe(180);
+    expect(VERBATIM_MAX_SECONDS).toBe(600);
     expect(MODULE_SRC).toContain("SPOKEN_WORDS_PER_SECOND = 2.5");
-    // And the tier past the reach of a 2000-char story refuses in TS too.
-    expect(verbatimFits("word ".repeat(400).trim(), 300).fits).toBe(false);
-    expect(verbatimFits("word ".repeat(400).trim(), 300).reason).toContain("180");
+    // The 300s tier is REACHABLE now — that is the point of the raise. 400
+    // words is 160s of speech, which sits inside 300s' [150, 375] band.
+    expect(verbatimFits("word ".repeat(400).trim(), 300).fits).toBe(true);
+    // Past the platform ceiling it still refuses, and still says so.
+    expect(verbatimFits("word ".repeat(400).trim(), 900).fits).toBe(false);
+    expect(verbatimFits("word ".repeat(400).trim(), 900).reason).toContain("600");
   });
 
   it("keeps chunks under the voice function's own ceiling", () => {
@@ -129,7 +141,7 @@ describe("the wiring pins", () => {
 
   it("the whole chain carries the flag: claim, callback, worker, planner, studio", () => {
     expect(MIGRATION).toContain("_verbatim boolean default false");
-    expect(MIGRATION).toContain("add column if not exists verbatim boolean");
+    expect(VERBATIM_MIGRATION).toContain("add column if not exists verbatim boolean");
     expect(
       readFileSync(join(ROOT, "supabase/functions/story-callback/index.ts"), "utf8"),
     ).toContain("verbatim: job.verbatim === true");
@@ -208,10 +220,12 @@ describe("the tier suggestion", () => {
 
   it("keeps 30s and the 300s tier out of the suggestion's reach", () => {
     expect(verbatimFits(story, 30).fits, "30s is far over the ceiling").toBe(false);
-    // 300s is refused by VERBATIM_MAX_SECONDS before the band is consulted:
-    // the 2000-char box cannot hold the 150s of speech its floor demands.
+    // 300s is no longer barred by the ceiling — since the cap went to 5000
+    // it is reachable in principle. This story is simply too short for it:
+    // 131s of speech against a 150s floor.
     expect(verbatimFits(story, 300).fits).toBe(false);
-    expect(300).toBeGreaterThan(VERBATIM_MAX_SECONDS);
+    expect(verbatimFits(story, 300).reason).toContain("too short");
+    expect(300).toBeLessThanOrEqual(VERBATIM_MAX_SECONDS);
   });
 
   it("still ships the studio's one-tap way out of the refusal", () => {
@@ -224,5 +238,47 @@ describe("the tier suggestion", () => {
       STUDIO_SRC.includes("MAX_PROMPT_CHARS"),
       "the paste-was-cut warning lost its shared ceiling",
     ).toBe(true);
+  });
+});
+
+/**
+ * The prompt cap, in every place that quotes it.
+ *
+ * Owner directive, 2026-08-14: 2000 -> 5000. Four copies enforce it — the
+ * textarea, the claim RPC, story-plot's own guard, and the constant they are
+ * all supposed to mirror. They fail in different directions when they drift:
+ * a client cap ABOVE the RPC's rejects a story the user already typed, and a
+ * story-plot cap BELOW the RPC's fails a job the claim already CHARGED for.
+ * So they are pinned together rather than trusted to stay equal.
+ */
+describe("the prompt cap", () => {
+  it("is 5000 and says so everywhere", () => {
+    expect(MAX_PROMPT_CHARS).toBe(5000);
+    expect(MIGRATION, "the claim RPC is the copy that cannot be bypassed").toContain(
+      "length(prompt_clean) > 5000",
+    );
+    const plot = /const MAX_PROMPT = (\d+)/.exec(PLOT_SRC);
+    expect(plot, "story-plot lost its MAX_PROMPT").not.toBeNull();
+    expect(Number(plot![1]), "story-plot would refuse a prompt the claim already charged for").toBe(
+      MAX_PROMPT_CHARS,
+    );
+    // The studio must not carry a literal of its own any more.
+    expect(STUDIO_SRC).toContain("MAX_PROMPT_CHARS");
+    expect(STUDIO_SRC).toContain("maxLength={MAX_PROMPT_CHARS}");
+  });
+
+  it("makes every tier on sale reachable, which was the point", () => {
+    // A tier is reachable only if its floor can be spoken by a story the box
+    // can hold: 5000 chars is ~833 words at ~6 chars/word, ~333s at 2.5 wps.
+    const maxSpokenSeconds = MAX_PROMPT_CHARS / 6 / 2.5;
+    for (const tier of [30, 60, 120, 300]) {
+      expect(
+        tier * VERBATIM_MIN_FILL,
+        `the ${tier}s tier's floor cannot be reached inside the prompt cap`,
+      ).toBeLessThanOrEqual(maxSpokenSeconds);
+      expect(tier).toBeLessThanOrEqual(VERBATIM_MAX_SECONDS);
+    }
+    // The 300s tier specifically — unreachable at 2000, reachable now.
+    expect(300 * VERBATIM_MIN_FILL).toBeGreaterThan(2000 / 6 / 2.5);
   });
 });
