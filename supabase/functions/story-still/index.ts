@@ -1,10 +1,14 @@
-// story-still — one frame of a Story, generated in-house on the Gemini key.
+// story-still — one frame of a Story, generated through the Lovable gateway.
 //
-// This closes the last hole between a plan and a film. `story-plot` returns the
-// still prompts; this turns one of them into an actual image, using the SAME
-// GOOGLE_AI_API_KEY that already powers Ting's primary path. No new provider,
-// no new secret, and nothing routed through the Lovable gateway — so a Story
-// does not draw down the credit pool that builds ONIQ.
+// OWNER DIRECTIVE, 2026-08-14: Story generation runs through Lovable
+// (ai.gateway.lovable.dev on LOVABLE_API_KEY), spending the Lovable credit
+// pool — reversing the 2026-08-09 engineering call that routed it onto the
+// metered Google key without asking. Provider and payment-source choices
+// are the owner's; this one is now made and recorded.
+//
+// `story-plot` returns the still prompts; this turns one of them into an
+// actual image. The worker's contract is unchanged: { configured, mime,
+// data } with base64 bytes, refusals as 422 with the upstream's why.
 //
 // ONE IMAGE PER CALL, ON PURPOSE. The guard order this project enforces —
 // admin/auth, kill switch, cap, validation, then the billable call — exists
@@ -37,25 +41,18 @@ const corsHeaders = {
  * model fails with a message about modalities that reads like a bug in this
  * file rather than a wrong model name.
  */
-const IMAGE_MODEL = "gemini-2.5-flash-image";
-
-/** Portrait, matching the episode pipeline. Everything downstream assumes it. */
-const ASPECT = "9:16";
+/** Same underlying model as before the reroute, addressed by gateway id. */
+const IMAGE_MODEL = "google/gemini-2.5-flash-image";
 
 /**
- * RESOLUTION HEADROOM — the research's highest value-per-effort finding
- * (2026-08-12). Stills were generated at 1K, exactly display size, so every
- * Ken Burns move showed the frame at 112-118% of native: every shot of every
- * film was a soft upscale before any zoom was perceived. Asking for 2K gives
- * the camera real pixels to move through and every film gets sharper with no
- * downstream change at all — the composition scales DOWN instead of up.
- *
- * Sent with a fallback, not blindly: some model versions accept the field
- * and ignore it (harmless — output stays 1K), but a version that rejected it
- * would 400 every still in the app. The call below retries once without the
- * field on a 400 that names it.
+ * Portrait, matching the episode pipeline. The gateway's OpenRouter-shaped
+ * request has no imageConfig, so the aspect rides IN THE PROMPT and the
+ * composition's objectFit: cover crops any drift rather than breaking.
+ * KNOWN REGRESSION, accepted with the reroute: the Google-path 2K
+ * imageSize field has no gateway equivalent, so stills return at the
+ * model's default resolution until the gateway grows a size control.
  */
-const IMAGE_SIZE = "2K";
+const ASPECT_SUFFIX = "\n\nVertical 9:16 portrait composition, full-bleed.";
 
 const MAX_PROMPT = 2000;
 
@@ -92,7 +89,7 @@ Deno.serve(async (req) => {
     // at a sensible pace and still bounds what a single account can spend.
     if (!_rateLimit(_subFromAuth(req), 30)) return json({ error: "slow down bestie 😅" }, 429);
 
-    const key = Deno.env.get("GOOGLE_AI_API_KEY");
+    const key = Deno.env.get("LOVABLE_API_KEY");
     if (!key) return json({ configured: false }, 200);
 
     const body = await req.json().catch(() => ({}));
@@ -103,38 +100,32 @@ Deno.serve(async (req) => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 60000);
     let res: Response;
-    const draw = (withSize: boolean) =>
-      fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${IMAGE_MODEL}:generateContent?key=${encodeURIComponent(key)}`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          signal: ctrl.signal,
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
-            generationConfig: {
-              responseModalities: ["IMAGE"],
-              imageConfig: withSize
-                ? { aspectRatio: ASPECT, imageSize: IMAGE_SIZE }
-                : { aspectRatio: ASPECT },
-            },
-          }),
-        },
-      );
     try {
-      res = await draw(true);
-      // A model version that rejects the field must not take the app's
-      // stills down with it: one retry at the old shape, only when the 400
-      // actually names the size parameter.
-      if (res.status === 400) {
-        const reason = await res.clone().text().catch(() => "");
-        if (/image_?size/i.test(reason)) res = await draw(false);
-      }
+      res = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        signal: ctrl.signal,
+        body: JSON.stringify({
+          model: IMAGE_MODEL,
+          messages: [{ role: "user", content: prompt + ASPECT_SUFFIX }],
+          modalities: ["image", "text"],
+        }),
+      });
     } finally {
       clearTimeout(timer);
     }
 
     if (res.status === 401 || res.status === 403) return json({ configured: false }, 200);
+    // The pool itself running dry is ITS OWN failure, named plainly: the
+    // worker's log must say "credits", not "the model refused the frame".
+    if (res.status === 402 || res.status === 429) {
+      const detail = await res.text().catch(() => "");
+      console.error("story-still gateway limit", res.status, detail.slice(0, 200));
+      return json({ error: "Image credits exhausted or rate limited — try again later." }, 502);
+    }
     if (!res.ok) {
       const detail = await res.text().catch(() => "");
       console.error("story-still upstream", res.status, detail.slice(0, 300));
@@ -152,10 +143,12 @@ Deno.serve(async (req) => {
       // guessing whether the trigger was the wording, the safety filter or
       // the prompt being blocked outright.
       const d = data as {
-        candidates?: { finishReason?: string }[];
-        promptFeedback?: { blockReason?: string };
+        choices?: { finish_reason?: string; message?: { content?: string } }[];
       };
-      const why = [d?.candidates?.[0]?.finishReason, d?.promptFeedback?.blockReason]
+      const why = [
+        d?.choices?.[0]?.finish_reason,
+        (d?.choices?.[0]?.message?.content ?? "").slice(0, 120),
+      ]
         .filter(Boolean)
         .join("/");
       console.error("story-still no image part", why, JSON.stringify(data).slice(0, 300));
@@ -175,16 +168,22 @@ Deno.serve(async (req) => {
   }
 });
 
-/** The first inline image in a Gemini reply, if there is one. */
+/**
+ * The first image in a gateway reply, if there is one. The gateway answers
+ * in the OpenRouter image shape: choices[0].message.images[].image_url.url
+ * carrying a data: URI. Returned SPLIT into { mime, data } so the caller's
+ * contract — raw base64, mime alongside — survives the reroute untouched.
+ */
 function firstImage(data: unknown): { mime: string; data: string } | null {
-  const parts = (data as { candidates?: { content?: { parts?: unknown[] } }[] })?.candidates?.[0]
-    ?.content?.parts;
-  if (!Array.isArray(parts)) return null;
-  for (const part of parts) {
-    const inline = (part as { inlineData?: { mimeType?: string; data?: string } })?.inlineData;
-    if (inline?.data && typeof inline.data === "string") {
-      return { mime: inline.mimeType ?? "image/png", data: inline.data };
-    }
+  const images = (
+    data as { choices?: { message?: { images?: { image_url?: { url?: string } }[] } }[] }
+  )?.choices?.[0]?.message?.images;
+  if (!Array.isArray(images)) return null;
+  for (const img of images) {
+    const url = img?.image_url?.url;
+    if (typeof url !== "string") continue;
+    const m = url.match(/^data:([^;]+);base64,(.+)$/s);
+    if (m) return { mime: m[1] || "image/png", data: m[2] };
   }
   return null;
 }

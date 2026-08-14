@@ -476,6 +476,20 @@ function rateOf(mime) {
 }
 
 /**
+ * Voice bytes to a playable file. The Google path answered headerless PCM
+ * that needs the WAV header wrapped on; the Lovable gateway (owner
+ * directive, 2026-08-14) answers container audio — wav/mp3, named in the
+ * mime — which must be written AS-IS: wrapping already-containered bytes
+ * in a second header is corrupt audio that ffprobe may still half-read,
+ * the worst kind of working. ffmpeg sniffs content, not extensions, so a
+ * .wav path holding mp3 bytes downstream is fine.
+ */
+function voiceBytesToFile(data, mime) {
+  const bytes = Buffer.from(data, 'base64');
+  return /audio\/l16|pcm/i.test(mime ?? '') ? wrapPcmAsWav(bytes, rateOf(mime)) : bytes;
+}
+
+/**
  * Which rigged character, if any, belongs in this shot.
  *
  * Only characters with a MEASURED rig can appear — the alternative is a
@@ -894,7 +908,7 @@ if (offline) {
       if (ttsEngine === 'cloud') {
         try {
           const voiced = await voiceWithRetry({ text: shot.narration, voice }, 4);
-          fs.writeFileSync(wav, wrapPcmAsWav(Buffer.from(voiced.data, 'base64'), rateOf(voiced.mime)));
+          fs.writeFileSync(wav, voiceBytesToFile(voiced.data, voiced.mime));
         } catch (err) {
           if (!/story-voice: 502/.test(String(err?.message ?? err))) throw err;
           if (!(await localTts())) throw err;
@@ -931,7 +945,7 @@ if (offline) {
                 { text: shot.dialogue.line, voice: spokenBy },
                 2,
               );
-              fs.writeFileSync(dwav, wrapPcmAsWav(Buffer.from(dv.data, 'base64'), rateOf(dv.mime)));
+              fs.writeFileSync(dwav, voiceBytesToFile(dv.data, dv.mime));
             } catch (err) {
               if (!/story-voice: 502/.test(String(err?.message ?? err))) throw err;
               if (!(await localTts())) throw err;

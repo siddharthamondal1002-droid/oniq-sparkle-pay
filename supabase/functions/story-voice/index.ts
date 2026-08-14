@@ -1,4 +1,9 @@
-// story-voice — the narration, on the same Gemini key as the plot and stills.
+// story-voice — the narration, through the Lovable gateway.
+//
+// OWNER DIRECTIVE, 2026-08-14: Story generation runs through Lovable
+// (ai.gateway.lovable.dev on LOVABLE_API_KEY), spending the Lovable credit
+// pool — see story-still's header for the full record. Same Gemini TTS
+// family underneath, addressed by gateway id.
 //
 // Closes the last gap in the Story pipeline. Without it a Story is a silent
 // slideshow, which this project has already shipped once — Episode 1 went out
@@ -10,16 +15,11 @@
 // from audio that exists. No narration means no spans means a character who
 // either never moves their mouth or never stops.
 //
-// SAME SHAPE AS story-plot AND story-still: GOOGLE_AI_API_KEY, the same auth
-// gate, the same per-isolate rate limit, the same `{ configured: false }` when
-// the key is missing so a Story degrades instead of erroring. One provider
-// across plot, picture and voice.
-//
-// RETURNS RAW PCM, NOT A PLAYABLE FILE. Gemini answers with signed 16-bit
-// little-endian PCM at 24 kHz and no container. The caller wraps it — see
-// story-worker.mjs — because the worker already has ffmpeg and this function
-// has no business inventing a WAV header. `mime` carries the rate so the caller
-// never has to assume it.
+// RETURNS WHATEVER AUDIO THE GATEWAY RETURNS, base64 with its mime. The
+// Google path answered raw 24kHz PCM; the gateway's /v1/audio/speech
+// answers container bytes (wav/mp3, named in content-type). The worker
+// checks the mime: PCM gets the WAV header wrapped on, containers are
+// written as-is — its ffmpeg sniffs content, not extensions.
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
@@ -29,20 +29,14 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-/** Gemini's TTS model. Separate from the text and image models on purpose. */
-const TTS_MODEL = "gemini-2.5-flash-preview-tts";
-
 /**
- * The 429 fallback, and ONLY the 429 fallback. Five proof runs in one day
- * emptied flash-TTS's DAILY bucket — run 66's first voice call 429'd and
- * stayed 429 through three minutes of backoff, which no retry can fix
- * because the bucket refills at midnight, not next minute. The pro TTS
- * model draws from a SEPARATE quota bucket, so it can finish a film the
- * flash bucket abandoned mid-day. It is dearer per call, which is why it
- * only ever runs after a 429: an error that is not a throttle fails the
- * same way on both models and would just double the bill on the way down.
+ * Gemini's TTS through the gateway. The Google-path flash/pro two-bucket
+ * dance is gone with the reroute — the gateway is one pool, so a throttle
+ * here is the pool itself and no second model would dodge it. The worker's
+ * own step-down (in-house Piper) is the fallback that remains, and it is
+ * free.
  */
-const TTS_FALLBACK_MODEL = "gemini-2.5-pro-preview-tts";
+const TTS_MODEL = "google/gemini-2.5-flash-tts";
 
 /**
  * Default narrator.
@@ -88,7 +82,7 @@ Deno.serve(async (req) => {
     // line read, so the two calls run at the same cadence.
     if (!_rateLimit(_subFromAuth(req), 30)) return json({ error: "slow down bestie 😅" }, 429);
 
-    const key = Deno.env.get("GOOGLE_AI_API_KEY");
+    const key = Deno.env.get("LOVABLE_API_KEY");
     if (!key) return json({ configured: false }, 200);
 
     const body = await req.json().catch(() => ({}));
@@ -100,31 +94,18 @@ Deno.serve(async (req) => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 60000);
     let res: Response;
-    const speak = (model: string) =>
-      fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,
-        {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          signal: ctrl.signal,
-          body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text }] }],
-            generationConfig: {
-              responseModalities: ["AUDIO"],
-              speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } } },
-            },
-          }),
-        },
-      );
     try {
-      res = await speak(TTS_MODEL);
-      // A throttle — and only a throttle — earns the dearer bucket. The
-      // prebuilt voice names are the same on both models, so the narrator
-      // does not change mid-film when this path fires.
-      if (res.status === 429) {
-        console.warn("story-voice: flash TTS throttled (429) — trying the pro bucket");
-        res = await speak(TTS_FALLBACK_MODEL);
-      }
+      res = await fetch("https://ai.gateway.lovable.dev/v1/audio/speech", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        signal: ctrl.signal,
+        // The prebuilt voice names (Charon and the cast) pass through — the
+        // gateway fronts the same Gemini TTS family that minted them.
+        body: JSON.stringify({ model: TTS_MODEL, input: text, voice }),
+      });
     } finally {
       clearTimeout(timer);
     }
@@ -137,12 +118,20 @@ Deno.serve(async (req) => {
       // (429/5xx passes with time) but not a refusal, and a bare "could not
       // read" left it unable to tell the two apart — three narrations died
       // that way in one proof run while the platform's own logs were the
-      // only place the 429 was written.
+      // only place the 429 was written. A 502 here is also what trips the
+      // worker's own step-down to the free in-house Piper voice.
       return json({ error: `Could not read that line. (upstream ${res.status})` }, 502);
     }
 
-    const data = await res.json();
-    const audio = firstAudio(data);
+    // /v1/audio/speech answers audio BYTES, not JSON — mime in the header.
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    const audio =
+      bytes.length > 0
+        ? {
+            mime: res.headers.get("content-type") ?? "audio/wav",
+            data: b64(bytes),
+          }
+        : null;
     if (audio) {
       // Feed the ledger the dispatcher gates on (public.api_budget).
       // SUCCESSES ONLY — a 429 consumes nothing upstream, so counting it
@@ -181,20 +170,14 @@ Deno.serve(async (req) => {
   }
 });
 
-/** The first inline audio part, if there is one. */
-function firstAudio(data: unknown): { mime: string; data: string } | null {
-  const parts = (data as { candidates?: { content?: { parts?: unknown[] } }[] })?.candidates?.[0]
-    ?.content?.parts;
-  if (!Array.isArray(parts)) return null;
-  for (const part of parts) {
-    const inline = (part as { inlineData?: { mimeType?: string; data?: string } })?.inlineData;
-    if (inline?.data && typeof inline.data === "string") {
-      // e.g. "audio/L16;codec=pcm;rate=24000" — the rate matters to the caller
-      // wrapping this, so it is passed through rather than normalised away.
-      return { mime: inline.mimeType ?? "audio/L16;rate=24000", data: inline.data };
-    }
+/** Base64 without blowing the call stack on a multi-megabyte line. */
+function b64(bytes: Uint8Array): string {
+  let out = "";
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    out += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
   }
-  return null;
+  return btoa(out);
 }
 
 function json(payload: unknown, status = 200) {
