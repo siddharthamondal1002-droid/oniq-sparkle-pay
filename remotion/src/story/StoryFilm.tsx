@@ -42,8 +42,10 @@ import {
 import { PARALLAX } from "../../../src/lib/parallaxPlanes";
 import type { VfxKind } from "../../../src/lib/particleField";
 import type { PuppetPerformance } from "../../../src/lib/puppetPerformance";
+import type { Emotion } from "../../../src/lib/expressionGrammar";
 import { Character } from "../rig/Character";
 import { CHARACTER_RIGS } from "../rig/characterRig";
+import { EXPRESSION_HEADS } from "../rig/expressionHeads";
 import { ParticleOverlay } from "./ParticleOverlay";
 
 export type StoryShotInput = {
@@ -160,6 +162,14 @@ export type StoryShotInput = {
      * the rung-2 markup, pixel-identical.
      */
     performance?: PuppetPerformance;
+    /**
+     * Rung 5, movie grade only: the emotional register the shot's words
+     * earned (emotionFor). The composition resolves it against
+     * EXPRESSION_HEADS — a character with no drawn face for the feeling
+     * silently keeps the base head, so the worker never needs to know
+     * which sheets carry which busts.
+     */
+    expression?: Emotion;
   };
   /**
    * Rung 3, movie grade only: a procedural particle atmosphere over the
@@ -365,6 +375,14 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
           cues={cues}
           speech={shot.character.speech}
           durationInFrames={durationInFrames}
+          // Rung 5: the drawn face for the shot's feeling, if this
+          // character has one. Undefined for every unmeasured character
+          // and every classic film — the base head is the default.
+          expressionHead={
+            shot.character.expression
+              ? EXPRESSION_HEADS[shot.character.rig]?.[shot.character.expression]
+              : undefined
+          }
         />
       ) : null}
       {/* The atmosphere rides ABOVE the character and the depth stack:

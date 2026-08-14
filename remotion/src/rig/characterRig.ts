@@ -43,6 +43,12 @@ export type CharacterView = {
   /** The character's bounding box on the sheet. */
   crop: Rect;
   mouth: MouthAnchor;
+  /**
+   * Pupil-to-pupil distance in sheet pixels. Measured in rung 2 and carried
+   * in the comments below since; promoted to data for rung 5, because it is
+   * the scale key that sizes an expression-head swap to the figure's face.
+   */
+  interocular: number;
 };
 
 export type CharacterRig = {
@@ -90,6 +96,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // Read off a 3x enlargement of the head. Interocular distance measures
       // ~68px on this sheet, for anyone re-deriving the scale.
       mouth: { x: 340, y: 283, width: 95 },
+      interocular: 68,
     },
   },
   magician: {
@@ -101,6 +108,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       crop: { x: 541, y: 105, width: 345, height: 742 },
       // A thin closed smirk; interocular 29.6px.
       mouth: { x: 715.5, y: 218.5, width: 27 },
+      interocular: 29.6,
     },
   },
   lampJinni: {
@@ -112,6 +120,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       crop: { x: 52, y: 20, width: 720, height: 804 },
       // Solemn pressed line framed by the moustache; interocular 38.6px.
       mouth: { x: 413.3, y: 194.7, width: 32.7 },
+      interocular: 38.6,
     },
   },
   ringJinni: {
@@ -123,6 +132,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       // top-left (see the header note). Interocular 60px.
       crop: { x: 478, y: 38, width: 424, height: 784 },
       mouth: { x: 717.5, y: 263.5, width: 32 },
+      interocular: 60,
     },
   },
   princess: {
@@ -133,6 +143,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       crop: { x: 228, y: 58, width: 300, height: 817 },
       // Interocular 43.8px.
       mouth: { x: 379, y: 181.7, width: 36 },
+      interocular: 43.8,
     },
   },
   mother: {
@@ -143,6 +154,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       crop: { x: 674, y: 78, width: 285, height: 777 },
       // Interocular 40px.
       mouth: { x: 817, y: 198, width: 37 },
+      interocular: 40,
     },
   },
   aliBaba: {
@@ -153,6 +165,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       crop: { x: 602, y: 58, width: 398, height: 829 },
       // Smile inside the beard; interocular 32.4px.
       mouth: { x: 808.5, y: 169, width: 41 },
+      interocular: 32.4,
     },
   },
   morgiana: {
@@ -163,6 +176,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       crop: { x: 186, y: 46, width: 320, height: 799 },
       // Interocular 44.3px.
       mouth: { x: 342.3, y: 178.7, width: 25.3 },
+      interocular: 44.3,
     },
   },
   captain: {
@@ -173,6 +187,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       crop: { x: 175, y: 62, width: 490, height: 810 },
       // The lip line hides at the moustache part; interocular 32px.
       mouth: { x: 425, y: 179, width: 34 },
+      interocular: 32,
     },
   },
   fisherman: {
@@ -183,6 +198,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       crop: { x: 592, y: 72, width: 320, height: 786 },
       // The widest smile of the cast; interocular 38.5px.
       mouth: { x: 750, y: 179, width: 51 },
+      interocular: 38.5,
     },
   },
   jarJinni: {
@@ -194,6 +210,7 @@ export const CHARACTER_RIGS: Readonly<Record<string, CharacterRig>> = {
       crop: { x: 358, y: 63, width: 490, height: 798 },
       // Interocular 35px.
       mouth: { x: 597, y: 164, width: 32 },
+      interocular: 35,
     },
   },
 };

@@ -39,6 +39,7 @@ import {
 import { Mouth } from './Mouth';
 import { MOUTH_VIEWBOX } from './mouthShapes';
 import { mouthOnScreen, type CharacterRig } from './characterRig';
+import type { ExpressionHead } from './expressionHeads';
 
 /** Breath cycle in seconds, and its amplitude as a fraction of figure height. */
 const BREATH_SECONDS = 4.5;
@@ -66,6 +67,16 @@ export type CharacterProps = {
   cues?: ReadonlyArray<CueLike>;
   speech?: ReadonlyArray<SpeechSpan>;
   durationInFrames?: number;
+  /**
+   * Rung 5: a measured expression bust to wear instead of the base head,
+   * resolved by StoryFilm from EXPRESSION_HEADS (so this component stays
+   * data-driven and never indexes by rig key). Placed mouth-to-mouth at
+   * interocular scale — see expressionHeads.ts for why that means the
+   * viseme overlay's position never changes. Only honoured alongside a
+   * performance: both ride the same movie-grade gate in the worker, and
+   * the legacy branch below must stay byte-identical for classic films.
+   */
+  expressionHead?: ExpressionHead;
 };
 
 export const Character: React.FC<CharacterProps> = ({
@@ -81,6 +92,7 @@ export const Character: React.FC<CharacterProps> = ({
   cues,
   speech,
   durationInFrames,
+  expressionHead,
 }) => {
   // EVERY HOOK ABOVE EVERY EARLY RETURN. rules-of-hooks is a release blocker
   // in this repo; both render branches below share every hook here.
@@ -130,6 +142,24 @@ export const Character: React.FC<CharacterProps> = ({
     const baseTop = height * (1 - baselineRatio) - drawnHeight;
     const mouthRelX = (view.mouth.x - view.crop.x) * scale;
     const mouthRelY = (view.mouth.y - view.crop.y) * scale;
+    // Rung 5: the expression bust, placed mouth-to-mouth at interocular
+    // scale. Its mouth centre lands exactly on the base mouth anchor, so
+    // the viseme overlay below needs no new position — only a wider mouth
+    // when the bust's painted mouth outsizes the base one (a grin's teeth
+    // must not ghost out from behind a narrower rest shape).
+    const exprScale = expressionHead
+      ? (view.interocular / expressionHead.interocular) * scale
+      : 0;
+    const exprLeft = expressionHead
+      ? mouthRelX - (expressionHead.mouth.x - expressionHead.crop.x) * exprScale
+      : 0;
+    const exprTop = expressionHead
+      ? mouthRelY - (expressionHead.mouth.y - expressionHead.crop.y) * exprScale
+      : 0;
+    const mouthWidth = expressionHead
+      ? Math.max(mouth.width, expressionHead.mouth.width * exprScale)
+      : mouth.width;
+    const mouthHeightNow = (mouthWidth * MOUTH_VIEWBOX.height) / MOUTH_VIEWBOX.width;
     return (
       <div
         style={{
@@ -163,16 +193,45 @@ export const Character: React.FC<CharacterProps> = ({
             }}
           />
         </div>
+        {expressionHead ? (
+          /* The bust rides ABOVE the figure and UNDER the mouth: it must
+             cover the base head entirely (the measurement composites prove
+             each entry does), and the viseme overlay must keep drawing on
+             whatever face is showing. Same windowed-sheet technique as the
+             figure itself — one Img, cropped by an overflow-hidden div. */
+          <div
+            style={{
+              position: 'absolute',
+              left: exprLeft,
+              top: exprTop,
+              width: expressionHead.crop.width * exprScale,
+              height: expressionHead.crop.height * exprScale,
+              overflow: 'hidden',
+            }}
+          >
+            <Img
+              src={staticFile(rig.sheet)}
+              style={{
+                position: 'absolute',
+                left: -expressionHead.crop.x * exprScale,
+                top: -expressionHead.crop.y * exprScale,
+                width: rig.sheetWidth * exprScale,
+                height: rig.sheetHeight * exprScale,
+                maxWidth: 'none',
+              }}
+            />
+          </div>
+        ) : null}
         <div
           style={{
             position: 'absolute',
-            left: mouthRelX - mouth.width / 2,
+            left: mouthRelX - mouthWidth / 2,
             // The viewBox puts the lip line at its vertical centre, so the
             // anchor is the middle of the box rather than its top.
-            top: mouthRelY - mouthHeight / 2,
+            top: mouthRelY - mouthHeightNow / 2,
           }}
         >
-          <Mouth viseme={viseme} width={mouth.width} />
+          <Mouth viseme={viseme} width={mouthWidth} />
         </div>
       </div>
     );

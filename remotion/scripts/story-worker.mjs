@@ -70,6 +70,7 @@ import {
   planeCoverage,
 } from '../../src/lib/parallaxPlanes.ts';
 import { vfxKindFor, vfxSeed } from '../../src/lib/particleField.ts';
+import { emotionFor } from '../../src/lib/expressionGrammar.ts';
 import {
   centerForFacing,
   conversationFacings,
@@ -1088,12 +1089,22 @@ if (offline) {
       // narration. Classic films get no performance object at all, which is
       // what keeps them pixel-identical to the rung-2 look.
       let performance = null;
+      // RUNG 5 — the emotional register, movie grade only. The shot's own
+      // words (narration, the still prompt, and the spoken line — feeling
+      // often lives in the dialogue) pick a drawn face, or nothing. The
+      // worker only names the emotion; WHICH characters own a bust for it
+      // is the composition's data, so an unmeasured character silently
+      // keeps the painted base head.
+      let expression = null;
       if (cinematic && !clip && shotRigs[i]) {
         // The cast names are the WALKERS walkFor accepts — a gait verb with
         // no named subject is scenery, and the still prompt is full of
         // roads that run and suns that climb.
         const castNames = (plan.cast ?? []).map((m) => String(m.name ?? ''));
         const walk = walkFor(`${shot.still} ${shot.narration}`, castNames);
+        expression = emotionFor(
+          `${shot.still} ${shot.narration} ${shot.dialogue?.line ?? ''}`,
+        );
         performance = {
           seed: vfxSeed(`perf:${i}:${shot.still}`),
           ...(facings[i] ? { facing: facings[i], center: centerForFacing(facings[i]) } : {}),
@@ -1106,6 +1117,7 @@ if (offline) {
           facings[i] ? `faces ${facings[i]}` : 'to camera',
           walk ?? 'standing',
           performance.speaking ? 'speaking' : 'narrated',
+          expression ?? 'base face',
         ];
         console.log(`  body ${i + 1}: ${notes.join(', ')}`);
       }
@@ -1154,6 +1166,9 @@ if (offline) {
                 ...(heardCues ? { heard: heardCues } : {}),
                 // Rung 4's body language — movie grade only, see above.
                 ...(performance ? { performance } : {}),
+                // Rung 5's drawn face — movie grade only, resolved against
+                // the measured busts by the composition.
+                ...(expression ? { expression } : {}),
               },
             }
           : {}),
