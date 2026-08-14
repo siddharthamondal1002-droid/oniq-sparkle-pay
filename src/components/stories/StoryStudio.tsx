@@ -42,6 +42,7 @@ import { Clapperboard, Clock, Loader2, ShieldAlert, Sparkles, Users2, X } from "
 import { supabase } from "@/integrations/supabase/client";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { openInApp } from "@/lib/miniapps";
+import { packNarrations, verbatimFits } from "@/lib/verbatimNarration";
 import {
   DEFAULT_STORY_SECONDS,
   MAX_STORY_SECONDS,
@@ -151,6 +152,11 @@ export function StoryStudio() {
   // pipeline per user film. The toggle renders for admins only (see
   // QuotaStatus.admin); the server refuses it for anyone else either way.
   const [grade, setGrade] = useState<"classic" | "movie">("classic");
+  // Verbatim mode (owner directive, 2026-08-14): the prompt is a finished
+  // story, narrated word for word — sliced by the worker, never retold by
+  // Ting. The toggle only arms when the text's spoken length fits the
+  // purchased seconds; the claim RPC re-checks the same band server-side.
+  const [verbatim, setVerbatim] = useState(false);
   const [newCastName, setNewCastName] = useState("");
   const [newCastLock, setNewCastLock] = useState("");
 
@@ -249,6 +255,30 @@ export function StoryStudio() {
 
   const plan_ = useMemo(() => planStory(seconds), [seconds]);
 
+  // Does the typed text FIT the picked tier as spoken narration, AND can
+  // it actually be SLICED into that tier's shots? The review panel proved
+  // the band alone charges money for unpackable stories (three giant
+  // sentences fit sixty seconds by word count and still cannot fill nine
+  // shots) — so the packer runs here, before any debit, and the toggle
+  // explains which gate refused. EVERY HOOK ABOVE EVERY EARLY RETURN.
+  const verbatimFit = useMemo(() => {
+    const fit = verbatimFits(prompt, plan_.seconds);
+    if (!fit.fits) return fit;
+    if (packNarrations(prompt.trim(), plan_.shots.length) === null) {
+      return {
+        fits: false,
+        spokenSeconds: fit.spokenSeconds,
+        reason: `needs at least ${plan_.shots.length} sentences — one per shot`,
+      };
+    }
+    return fit;
+  }, [prompt, plan_]);
+  useEffect(() => {
+    // Text edits can un-fit an armed toggle; disarm rather than let the
+    // claim refuse later with a colder message.
+    if (verbatim && !verbatimFit.fits) setVerbatim(false);
+  }, [verbatim, verbatimFit.fits]);
+
   /**
    * The local read of whether this request can go. Advisory only — it exists so
    * the button can explain itself without a round trip. It now delegates to
@@ -290,6 +320,7 @@ export function StoryStudio() {
         // Sent only when chosen: an older database without the parameter keeps
         // answering the two-argument shape it knows.
         ...(grade === "movie" ? { _grade: "movie" } : {}),
+        ...(verbatim ? { _verbatim: true } : {}),
       });
       if (rpcError) {
         setError(rpcError.message);
@@ -346,7 +377,7 @@ export function StoryStudio() {
     } finally {
       setSubmitting(false);
     }
-  }, [plan_.seconds, plan_.shots.length, prompt, grade, cast, pickedCast]);
+  }, [plan_.seconds, plan_.shots.length, prompt, grade, verbatim, cast, pickedCast]);
 
   const blocked = refusal ?? localBlock;
   const canGenerate = !submitting && !loadingQuota && blocked === null && prompt.trim().length >= 8;
@@ -473,6 +504,46 @@ export function StoryStudio() {
           }
         >
           {grade === "movie" ? "on" : "off"}
+        </span>
+      </button>
+
+      {/* MY WORDS — verbatim mode (owner directive, 2026-08-14). The typed
+          text is a finished story, narrated exactly as written: the worker
+          slices it into shot narrations and Ting designs only the pictures.
+          Arms only when the text's spoken length fits the picked tier; the
+          claim re-checks the same band server-side, so this gate is honest
+          twice. */}
+      <button
+        type="button"
+        aria-pressed={verbatim}
+        disabled={!verbatimFit.fits}
+        onClick={() => setVerbatim((v) => !v)}
+        className={
+          "mt-2 flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left " +
+          (verbatim
+            ? "border-primary bg-primary/10"
+            : "border-border bg-card/50" + (verbatimFit.fits ? "" : " opacity-60"))
+        }
+      >
+        <span>
+          <span className="block text-xs font-semibold text-foreground">📜 My words</span>
+          <span className="mt-0.5 block text-[11px] text-muted-foreground">
+            {verbatimFit.fits
+              ? `Narrated exactly as written — no retelling. Reads as ~${Math.round(verbatimFit.spokenSeconds)}s of speech.`
+              : prompt.trim().length >= 8
+                ? `Needs a full story that fits ${plan_.seconds}s: yours ${verbatimFit.reason ?? "does not fit"}.`
+                : "Paste a full story and it will be narrated exactly as written."}
+          </span>
+        </span>
+        <span
+          className={
+            "ms-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " +
+            (verbatim
+              ? "bg-primary text-primary-foreground"
+              : "border border-border text-muted-foreground")
+          }
+        >
+          {verbatim ? "on" : "off"}
         </span>
       </button>
 

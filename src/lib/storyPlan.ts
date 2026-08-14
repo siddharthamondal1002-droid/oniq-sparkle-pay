@@ -160,7 +160,13 @@ export function planStory(requestedSeconds: number, limits: StoryLimits = {}): S
 }
 
 /** Why a Story was refused, in words a screen can show unchanged. */
-export type RefusalReason = "disabled" | "capacity" | "daily" | "exhausted" | "too-long";
+export type RefusalReason =
+  | "disabled"
+  | "capacity"
+  | "daily"
+  | "exhausted"
+  | "too-long"
+  | "verbatim-fit";
 
 export type QuotaRefusal = {
   reason: RefusalReason;
@@ -203,6 +209,8 @@ export function refusalMessage(reason: RefusalReason, n: RefusalNumbers): string
         : "You have used your Story time for today. More tomorrow.";
     case "too-long":
       return `That is ${n.wanted}s and you have ${n.remaining}s of free time left.`;
+    case "verbatim-fit":
+      return `Your story does not fit a ${n.wanted}s film when read aloud. Pick a length that matches it, or trim the text.`;
   }
 }
 
@@ -381,6 +389,11 @@ const REFUSAL_REASONS: ReadonlySet<string> = new Set([
   "daily",
   "exhausted",
   "too-long",
+  // Verbatim mode's fit band (owner directive, 2026-08-14): the server's
+  // copy of the check the toggle already ran. Reaching here means the two
+  // counted differently (or the RPC was called directly) — the message
+  // must render as product copy, not as the review panel's raw-error dump.
+  "verbatim-fit",
 ]);
 
 export function parseClaimResult(payload: unknown): StoryClaim {

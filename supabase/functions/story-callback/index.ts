@@ -57,7 +57,7 @@ Deno.serve(async (req) => {
     // the row to `generating` — one round trip, and no read credential.
     if (action === "claim") {
       const got = await fetch(
-        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status,cast_json,no_watermark,grade`,
+        `${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}&select=id,prompt,requested_seconds,shot_count,status,cast_json,no_watermark,grade,verbatim`,
         { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
       );
       if (!got.ok) return json({ error: "could not read the job" }, 502);
@@ -104,6 +104,9 @@ Deno.serve(async (req) => {
         // 'movie' means classic, so a row from before the column reads as the
         // grade it was: stills.
         grade: job.grade === "movie" ? "movie" : "classic",
+        // Verbatim mode (owner directive, 2026-08-14): the prompt IS the
+        // narration, sliced not retold. Absent or false = the normal path.
+        verbatim: job.verbatim === true,
       });
     }
 

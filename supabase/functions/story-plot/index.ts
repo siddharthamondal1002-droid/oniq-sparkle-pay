@@ -228,13 +228,91 @@ Deno.serve(async (req) => {
       return json({ error: "Bad shot count." }, 400);
     }
 
+    // VERBATIM MODE (owner directive, 2026-08-14): the worker supplies the
+    // narrations — the user's own text, pre-sliced — and Ting designs only
+    // what prose cannot carry: the frames, the locks, the sizes. The worker
+    // overwrites narration again after the reply, so this instruction is
+    // about QUALITY (frames that match the given words), not enforcement.
+    const narrations: string[] = Array.isArray(body?.narrations)
+      ? body.narrations.filter((n: unknown) => typeof n === "string" && n.trim().length > 0)
+      : [];
+    if (narrations.length > 0 && narrations.length !== shots) {
+      return json({ error: "Narration count must match the shot count." }, 400);
+    }
+    // The caps MAX_PROMPT exists to enforce, applied to the new field too:
+    // a chunk is bounded by the voice's own ceiling, and the total by the
+    // prompt cap it was sliced from — the review panel flagged the token
+    // spend this reopened when only the count was checked.
+    if (narrations.some((n) => n.length > 1200)) {
+      return json({ error: "A narration piece is too long." }, 400);
+    }
+    if (narrations.reduce((a, n) => a + n.length, 0) > MAX_PROMPT + 200) {
+      return json({ error: "The narrations are too long." }, 400);
+    }
+    // TING IS THE CONTENT FILTER, ALWAYS (owner directive, 2026-08-14).
+    //
+    // Verbatim mode was the one path where user words reached the narrator
+    // and a watermarked ONIQ video without passing Ting's content rules —
+    // in every other film Ting writes the narration and the rules bind by
+    // construction. The owner's ruling: keep Ting as the filter, keep the
+    // user's words for everything else. So the text is checked BEFORE any
+    // plan is written: one small call instead of a whole plan spent on a
+    // story that will be refused.
+    //
+    // IT FAILS CLOSED. A gate that cannot run must not wave the text
+    // through — the alternative is unchecked audio published under ONIQ's
+    // own mark, which is the exact thing this exists to prevent. A Claude
+    // outage therefore blocks verbatim films (and only verbatim films);
+    // the normal path, where Ting writes the words, is unaffected.
+    if (narrations.length > 0) {
+      if (!hasClaude) {
+        return json({ error: "The story check is unavailable right now — try again later." }, 503);
+      }
+      const gate = await callClaude({
+        system: CONTENT_GATE_SYSTEM,
+        messages: [
+          {
+            role: "user" as const,
+            content: `Check this story text:\n\n${narrations.join("\n\n")}`,
+          },
+        ],
+        maxTokens: 300,
+        timeoutMs: 20_000,
+      });
+      const verdict = gate.ok ? contentVerdict(textOf(gate.data)) : null;
+      if (!verdict) {
+        console.error("story-plot content gate did not answer", String(gate.ok ? "unparseable" : gate.reason));
+        return json({ error: "The story check is unavailable right now — try again later." }, 503);
+      }
+      if (verdict.blocked) {
+        console.log("story-plot content gate refused:", verdict.blocked);
+        return json(
+          {
+            error: `That story cannot be narrated as written: ${verdict.blocked}. Edit it, or switch “My words” off and let Ting retell it.`,
+            blocked: verdict.blocked,
+          },
+          422,
+        );
+      }
+    }
+
+    const verbatimBlock =
+      narrations.length > 0
+        ? `\n\nTHE NARRATION IS ALREADY WRITTEN, one piece per shot, in order — the` +
+          ` user's own words, which will be read aloud EXACTLY as given. Copy each` +
+          ` piece into its shot's \`narration\` unchanged. Design each \`still\` to` +
+          ` picture what its narration says. Do NOT include \`dialogue\` in any` +
+          ` shot: the narrator reads every word, quotes included, exactly once.\n\n` +
+          narrations.map((n, i) => `Shot ${i + 1} narration: ${n}`).join("\n")
+        : "";
+
     const opts = {
       system: SYSTEM + langInstruction(lang),
       messages: [
         {
           role: "user" as const,
           content:
-            `Write a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}${styleBlock}${paletteBlock}\n\n` +
+            `Write a ${shots}-shot film from this idea:\n\n${prompt}${verbatimBlock}${reuseBlock}${styleBlock}${paletteBlock}\n\n` +
             `Return exactly ${shots} shots.`,
         },
       ],
@@ -391,6 +469,11 @@ Deno.serve(async (req) => {
         // A const alias, because narrowing on a `let` does not survive into
         // the batch closures below.
         const sp = spine;
+        // VERBATIM: the user's narrations ARE the beats. The spine call
+        // above still earned its keep — title, setting, cast and locks are
+        // read out of the story — but the batches below expand the user's
+        // own sentences, not Ting's summary of them.
+        if (narrations.length === shots) sp.beats = narrations;
         const locks = lockText(sp);
 
         // Batches run AT THE SAME TIME. Six sequential expansions would be the
@@ -412,7 +495,14 @@ Deno.serve(async (req) => {
                     `${locks}${styleBlock}${paletteBlock}\n\nFILM: ${sp.title}\n\n` +
                     `Draw shots ${b.from + 1}–${b.from + b.beats.length} of ${shots}. ` +
                     `One shot per beat, in order:\n` +
-                    b.beats.map((t, i) => `${b.from + i + 1}. ${t}`).join("\n"),
+                    b.beats.map((t, i) => `${b.from + i + 1}. ${t}`).join("\n") +
+                    (narrations.length === shots
+                      ? `\n\nThe text after each number is that shot's FINISHED` +
+                        ` narration — the user's own words, read aloud exactly as` +
+                        ` given. Copy it into \`narration\` unchanged and design the` +
+                        ` still to picture it. Do NOT include \`dialogue\` in any` +
+                        ` shot: the narrator reads every word exactly once.`
+                      : ""),
                 },
               ],
               // A ceiling, not a spend — same reasoning as the other caps.
@@ -556,6 +646,57 @@ Deno.serve(async (req) => {
     return json({ error: "Something went sideways — try again" }, 500);
   }
 });
+
+/**
+ * The content gate's own prompt — the SAME non-negotiables the plan system
+ * prompt carries, asked as a yes/no about text somebody else wrote. Kept
+ * verbatim beside them rather than shared through a constant: the plan
+ * prompt tells Ting how to WRITE within the rules, this one tells Ting how
+ * to JUDGE against them, and collapsing the two would blunt both.
+ */
+const CONTENT_GATE_SYSTEM = [
+  "You are the content gate for ONIQ's Story films. A user supplied their own",
+  "story text to be read aloud, word for word, in a video published under",
+  "ONIQ's mark. Decide whether the text may be narrated as written.",
+  "",
+  "REFUSE text that contains any of:",
+  "- prophets, divine figures, or scripture;",
+  "- real living people (public figures included);",
+  "- named brands or copyrighted characters;",
+  "- violence DEPICTED rather than implied (gore, injury described in detail);",
+  "- anything sexual;",
+  "- slurs or hate directed at a group.",
+  "",
+  "Ordinary fiction — including horror, fear, death implied, conflict, grief —",
+  "is ALLOWED. Judge the text as written, not what a story like it might",
+  "become. Do not rewrite anything.",
+  "",
+  'Return ONLY JSON. Allowed: {"ok":true}. Refused: {"blocked":"<eight words',
+  'or fewer naming the reason>"}. No prose, no markdown fence.',
+].join("\n");
+
+/**
+ * The gate's verdict, or null when the reply cannot be read — null is
+ * treated as a refusal by the caller, because an unreadable gate is a gate
+ * that did not run.
+ */
+function contentVerdict(text: string): { blocked: string | null } | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start < 0 || end <= start) return null;
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text.slice(start, end + 1));
+  } catch {
+    return null;
+  }
+  const o = (raw ?? {}) as Record<string, unknown>;
+  if (typeof o.blocked === "string" && o.blocked.trim()) {
+    return { blocked: o.blocked.trim().slice(0, 80) };
+  }
+  if (o.ok === true) return { blocked: null };
+  return null;
+}
 
 /** The text blocks of an Anthropic-shaped reply, joined. Gemini answers arrive
  *  in this shape too — _shared/llm.ts translates them — so one reader serves
