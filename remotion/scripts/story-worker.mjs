@@ -71,6 +71,7 @@ import {
 } from '../../src/lib/parallaxPlanes.ts';
 import { vfxKindFor, vfxSeed } from '../../src/lib/particleField.ts';
 import { emotionFor } from '../../src/lib/expressionGrammar.ts';
+import { ambienceFor, ambienceGraph } from '../../src/lib/soundStage.ts';
 import {
   TWO_SHOT_MAX_FIGURE_HEIGHT,
   centerForFacing,
@@ -964,6 +965,31 @@ if (offline) {
       const durationFrames = Math.max(1, Math.round(seconds * FPS));
       const spans = speechSpans(envelope(ffmpeg, wav)).filter(([a]) => a < durationFrames);
 
+      // RUNG 8 — the sound stage, movie grade only. The shot's own words
+      // earn an ambient bed (or nothing), synthesized deterministically
+      // from lavfi noise at the measured shot length and mixed UNDER the
+      // narration by the composition. Applies to clip shots too: Veo's
+      // video is muted always, so the bed is the only air a clip has.
+      // A synth failure drops the bed, never the film.
+      let ambience = null;
+      if (cinematic) {
+        const kind = ambienceFor(`${shot.still} ${shot.narration}`);
+        if (kind) {
+          try {
+            const amb = path.join(assetRoot, `${stem}.amb.wav`);
+            execFileSync(ffmpeg, [
+              '-y', '-f', 'lavfi',
+              '-i', ambienceGraph(kind, vfxSeed(`amb:${i}:${shot.still}`)),
+              '-t', String(seconds), '-ar', '44100', '-ac', '1', amb,
+            ], { stdio: 'pipe' });
+            ambience = { src: `${assetDir}/${path.basename(amb)}`, kind };
+            console.log(`  air ${i + 1}: ${kind}`);
+          } catch (err) {
+            console.log(`  air ${i + 1}: synth failed (${String(err?.message ?? err).slice(0, 80)}) — silent`);
+          }
+        }
+      }
+
       // THE CLIP — movie grade only, and the reason the grade exists. Runs
       // AFTER the audio so the ask can match the measured shot length. Every
       // failure steps the shot down to the classic stills path rather than
@@ -1188,6 +1214,8 @@ if (offline) {
         travel: framing.travel,
         pan: framing.pan,
         figureHeight: framing.figureHeight,
+        // Rung 8's air — movie grade only, absent for wordless-quiet scenes.
+        ...(ambience ? { ambience } : {}),
         ...(nearPlane || midPlane
           ? {
               parallax: {

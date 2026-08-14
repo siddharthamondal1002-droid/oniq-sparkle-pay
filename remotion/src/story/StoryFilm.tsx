@@ -41,6 +41,7 @@ import {
   type RhubarbCue,
 } from "../../../src/lib/visemes";
 import { PARALLAX } from "../../../src/lib/parallaxPlanes";
+import { ambientVolumeAt } from "../../../src/lib/soundStage";
 import type { VfxKind } from "../../../src/lib/particleField";
 import type { PuppetPerformance } from "../../../src/lib/puppetPerformance";
 import type { Emotion } from "../../../src/lib/expressionGrammar";
@@ -192,6 +193,21 @@ export type StoryShotInput = {
     speech?: [number, number][];
     performance?: PuppetPerformance;
     expression?: Emotion;
+  };
+  /**
+   * Rung 8, movie grade only: the scene's ambient bed — wind, rain, surf,
+   * fire, cave air or night crickets, chosen from the shot's own words
+   * (ambienceFor) and synthesized deterministically by the worker. Plays
+   * UNDER the narration at AMBIENT_GAIN with faded edges; absent for
+   * scenes whose words earn no air, and for every classic film. Unlike
+   * the particle overlay this DOES ride under clips — Veo video is muted
+   * always, so the bed is the only sound a clip shot has.
+   */
+  ambience?: {
+    /** Path under remotion/public, same addressing as `still`. */
+    src: string;
+    /** Which bed, for logs and tests. */
+    kind: string;
   };
   /**
    * Rung 3, movie grade only: a procedural particle atmosphere over the
@@ -439,6 +455,16 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
           4:47 silent slideshow with every mp3 generated and none referenced,
           and no still-frame check would have caught it. */}
       {shot.audio ? <Audio src={src(shot.audio)} /> : null}
+      {/* Rung 8: the scene's air, UNDER the narration at a fixed gain with
+          faded edges — one constant and two fades, nothing cleverer, because
+          both ep3 audio bugs were mixing surprises. Plays under clips too:
+          Veo video is muted always, so this is the only sound a clip has. */}
+      {shot.ambience ? (
+        <Audio
+          src={src(shot.ambience.src)}
+          volume={(f) => ambientVolumeAt(f, durationInFrames, fps)}
+        />
+      ) : null}
     </AbsoluteFill>
   );
 };
