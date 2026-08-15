@@ -177,6 +177,53 @@ describe("the in-call filter", () => {
     ).toBeLessThan(draw.indexOf("ctx.drawImage"));
   });
 
+  /**
+   * THE CHIPS MUST NOT BE A FLOATING ROW AT A GUESSED HEIGHT.
+   *
+   * They were absolutely positioned at `bottom-9.5rem` with the same z-30 as
+   * the control tray. Two positioned siblings at equal z-index paint in DOM
+   * order and the tray is second, so the instant the tray grew past 152px it
+   * covered them outright. It grows for entirely ordinary reasons: the button
+   * row is `flex-wrap` and seven controls wrap to two rows on a narrow screen,
+   * and gesture-navigation safe-area padding adds more on top.
+   *
+   * Which is why this looked like a caller/callee bug and was not one. Same
+   * build, two phones: the wider screen showed the chips, the narrower one
+   * swallowed them, and the person on the narrow phone reported a Filter
+   * button that opened nothing.
+   *
+   * Nothing here can be caught by a unit test at runtime — there is no layout
+   * engine in this suite — so the STRUCTURE is pinned instead: the chips live
+   * inside the tray, where there is no stacking question left to lose.
+   */
+  it("keeps the filter chips inside the control tray", () => {
+    const trayAt = SRC.indexOf("WhatsApp-style control tray");
+    const chipsAt = SRC.indexOf("CALL_FILTERS.map(");
+    expect(trayAt, "the tray comment moved").toBeGreaterThan(-1);
+    expect(chipsAt, "the chip row moved").toBeGreaterThan(-1);
+    expect(
+      chipsAt,
+      "the chips render before the tray again — a taller tray will paint straight over them",
+    ).toBeGreaterThan(trayAt);
+  });
+
+  it("no longer positions the chips at a hardcoded height", () => {
+    expect(
+      /bottom-\[[\d.]+rem\][^\n]*z-30/.test(SRC),
+      "a guessed offset is back; it is only ever right for one tray height on one phone",
+    ).toBe(false);
+    expect(SRC).not.toContain("bottom-[9.5rem]");
+  });
+
+  it("does not re-gate the chips on trayHidden", () => {
+    // Inside the tray they ride its hide/show transform. A separate
+    // `!trayHidden` test would be a second source of truth for one thing.
+    const chipBlock = SRC.slice(SRC.indexOf("FILTER CHIPS LIVE INSIDE THE TRAY"));
+    const gate = chipBlock.slice(0, chipBlock.indexOf("CALL_FILTERS.map("));
+    expect(gate).toContain("filterOpen && status !== \"incoming\"");
+    expect(gate).not.toContain("!trayHidden");
+  });
+
   it("tears the pipeline down completely", () => {
     expect(SRC).toContain("v.remove()");
     // fxRef must be cleared BEFORE cancelling, or an in-flight callback can

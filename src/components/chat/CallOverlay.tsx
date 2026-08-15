@@ -2410,45 +2410,6 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         }}
       />
 
-      {/* Live filter chips — visible while the filter picker is open. */}
-      {filterOpen && !trayHidden && status !== "incoming" && callType === "video" && (
-        <div className="absolute bottom-[9.5rem] left-0 right-0 z-30 flex flex-col items-center gap-1.5 px-4">
-          {(faceLoading || faceUnavailable) && (
-            <div className="rounded-full bg-black/70 px-3 py-1 text-[11px] font-semibold text-white/90 backdrop-blur">
-              {faceLoading
-                ? "Loading face filters…"
-                : "Face filters aren't available on this phone"}
-            </div>
-          )}
-          <div className="flex max-w-full gap-1.5 overflow-x-auto rounded-full border border-white/10 bg-black/60 px-2 py-1.5 backdrop-blur">
-            {CALL_FILTERS.map((f) => (
-              <button
-                key={f.id}
-                type="button"
-                onClick={() => void applyCallFilter(f.id)}
-                disabled={isFaceFilter(f.id) && faceUnavailable}
-                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-40 ${
-                  callFilter === f.id ? "bg-white text-black" : "text-white/80"
-                }`}
-              >
-                {f.label}
-              </button>
-            ))}
-            {/* Once a photo is chosen the chip re-applies it; this is how you
-                choose a DIFFERENT one without ending the call. */}
-            {photoRef.current && (
-              <button
-                type="button"
-                onClick={() => photoInputRef.current?.click()}
-                className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold text-white/80"
-              >
-                Change 🔄
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* WhatsApp-style control tray: a rounded card, labeled circular
           buttons, End set apart in red. Labels matter — an unlabeled icon
           grid is exactly what "primitive" feedback points at.
@@ -2478,6 +2439,66 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               data-testid="call-tray-hide"
               className="mx-auto mb-2 block h-1.5 w-12 rounded-full bg-white/25"
             />
+          )}
+          {/* FILTER CHIPS LIVE INSIDE THE TRAY, and that is the fix, not a
+              tidy-up.
+
+              They used to be a separate absolutely-positioned row at
+              `bottom-9.5rem` with the same z-30 as this tray. Two positioned
+              siblings at the same z-index are painted in DOM order, and the
+              tray comes second — so the moment the tray grew past 152px it
+              covered the chips completely. It grows for ordinary reasons: the
+              button row below is `flex-wrap`, and seven controls (Mute,
+              Speaker, Camera, Share, Filter, Add, End) wrap to two rows on a
+              narrow screen, adding ~70px. Gesture-navigation safe-area padding
+              adds more.
+
+              So it was never about who called whom. It was about which PHONE:
+              the same build showed the chips on a wide screen and swallowed
+              them on a narrower one, and the person on the narrow phone
+              reported a Filter button that opened nothing. Reported
+              2026-08-15, callee side, as "getting overlayed".
+
+              Inside the tray there is no stacking question left to get wrong,
+              the row rides the hide/show animation for free, and the magic
+              152px constant — which was only ever a guess at this tray's
+              height — is gone. */}
+          {filterOpen && status !== "incoming" && callType === "video" && (
+            <div className="mb-3 flex flex-col items-center gap-1.5">
+              {(faceLoading || faceUnavailable) && (
+                <div className="rounded-full bg-black/70 px-3 py-1 text-[11px] font-semibold text-white/90">
+                  {faceLoading
+                    ? "Loading face filters…"
+                    : "Face filters aren't available on this phone"}
+                </div>
+              )}
+              <div className="flex w-full gap-1.5 overflow-x-auto rounded-full border border-white/10 bg-black/40 px-2 py-1.5">
+                {CALL_FILTERS.map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => void applyCallFilter(f.id)}
+                    disabled={isFaceFilter(f.id) && faceUnavailable}
+                    className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-40 ${
+                      callFilter === f.id ? "bg-white text-black" : "text-white/80"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+                {/* Once a photo is chosen the chip re-applies it; this is how
+                    you choose a DIFFERENT one without ending the call. */}
+                {photoRef.current && (
+                  <button
+                    type="button"
+                    onClick={() => photoInputRef.current?.click()}
+                    className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold text-white/80"
+                  >
+                    Change 🔄
+                  </button>
+                )}
+              </div>
+            </div>
           )}
           {status === "incoming" ? (
             <div className="flex items-center justify-around">
