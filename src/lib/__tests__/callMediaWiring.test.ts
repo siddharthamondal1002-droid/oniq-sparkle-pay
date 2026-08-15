@@ -112,6 +112,49 @@ describe("the in-call filter", () => {
     expect(SRC).toContain("} else if (localVideoRef.current) {");
   });
 
+  /**
+   * `ctx.filter` REFUSES A VALUE IT DOES NOT SUPPORT, SILENTLY.
+   *
+   * No throw, no warning: the assignment does nothing and every drawImage
+   * after it paints the frame untouched. The pipeline stays healthy, frames
+   * keep flowing, the peer keeps receiving video — and the picture is simply
+   * not filtered. There is no error anywhere to notice, which is why this is
+   * asked once at runtime rather than assumed from a version.
+   */
+  it("asks whether ctx.filter works instead of assuming it", () => {
+    expect(SRC).toContain("function canvasFilterSupported()");
+    // Set-and-read-back is the only honest probe.
+    expect(SRC).toContain('ctx.filter = "grayscale(1)"');
+    expect(SRC).toContain('ctx.filter !== "none"');
+    expect(
+      /navigator\.userAgent[\s\S]{0,80}filter/i.test(SRC),
+      "sniffing the UA models the engine instead of asking it",
+    ).toBe(false);
+  });
+
+  it("has a fallback for every filter it offers", () => {
+    // A filter with neither a working css path nor a fallback is the silent
+    // no-op restated, one engine down.
+    const block = SRC.slice(SRC.indexOf("const CALL_FILTERS"), SRC.indexOf("const FX_FPS"));
+    const ids = [...block.matchAll(/id: "(\w+)"/g)].map(([, id]) => id);
+    expect(ids, "the filter list moved or changed shape").toContain("alien");
+    const fallbacks = [...block.matchAll(/fallback: \[/g)].length;
+    // Every filter except "none" carries one.
+    expect(fallbacks).toBe(ids.length - 1);
+  });
+
+  it("resets the blend mode every frame", () => {
+    // The fallback leaves a composite mode on the context. Carried into the
+    // next frame it blends the new frame with the old one — a smearing,
+    // ghosting picture that reads as a broken camera, not a filter.
+    const draw = SRC.slice(SRC.indexOf("const draw = ()"), SRC.indexOf("const kick ="));
+    expect(draw).toContain('ctx.globalCompositeOperation = "source-over"');
+    expect(
+      draw.indexOf('ctx.globalCompositeOperation = "source-over"'),
+      "the reset must come before the frame is drawn, not only after",
+    ).toBeLessThan(draw.indexOf("ctx.drawImage"));
+  });
+
   it("tears the pipeline down completely", () => {
     expect(SRC).toContain("v.remove()");
     // fxRef must be cleared BEFORE cancelling, or an in-flight callback can

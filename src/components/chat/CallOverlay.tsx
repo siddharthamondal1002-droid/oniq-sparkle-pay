@@ -218,16 +218,95 @@ const genId = () => {
   }
 };
 
+/**
+ * `ctx.filter` FAILS BY DOING NOTHING, WHICH IS THE WORST WAY TO FAIL.
+ *
+ * Assigning an unsupported filter string to a 2D context does not throw and
+ * does not warn — the property simply refuses the value and every subsequent
+ * drawImage paints the frame untouched. The pipeline stays healthy, the
+ * canvas keeps producing frames, captureStream keeps sampling them, the peer
+ * keeps receiving video. The only symptom is that the picture is not filtered,
+ * which is indistinguishable from "the filter feature is broken".
+ *
+ * So it is asked, once, instead of assumed. Setting a value and reading it
+ * back is the only honest test: support cannot be inferred from a version
+ * string, and Android WebView is updated independently of the OS, so the
+ * range of engines running this code is wider than any UA check would model.
+ */
+let filterProbe: boolean | null = null;
+function canvasFilterSupported(): boolean {
+  if (filterProbe !== null) return filterProbe;
+  try {
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) return (filterProbe = false);
+    ctx.filter = "grayscale(1)";
+    // A context that does not implement it reports "none" straight back.
+    filterProbe = ctx.filter !== "none" && ctx.filter !== "";
+  } catch {
+    filterProbe = false;
+  }
+  return filterProbe;
+}
+
+/**
+ * The fallback, for engines with no `ctx.filter`.
+ *
+ * Composite blend modes are a different, older mechanism: fill the canvas with
+ * a colour through a blend mode and the pixels already there are transformed
+ * by the GPU. It cannot express an arbitrary filter chain — there is no
+ * contrast, no blur, no partial hue ROTATION (blending sets a hue rather than
+ * turning one) — so these are approximations chosen to keep each filter
+ * recognisable as itself rather than to match pixel for pixel.
+ *
+ * `difference` against white is the exception: that is exactly an inversion,
+ * not an approximation.
+ */
+type FxOp = { mode: GlobalCompositeOperation; color: string };
+
 // Live call filters — CSS filter chains drawn through a canvas so the PEER
 // sees them too (a CSS class on the local <video> would only fool yourself).
-const CALL_FILTERS = [
+// `fallback` is what runs when canvasFilterSupported() says no.
+const CALL_FILTERS: readonly {
+  id: string;
+  label: string;
+  css?: string;
+  fallback?: readonly FxOp[];
+}[] = [
   { id: "none", label: "None" },
-  { id: "alien", label: "Alien 👽", css: "hue-rotate(95deg) saturate(1.7) contrast(1.12)" },
-  { id: "thermal", label: "Thermal 🔥", css: "invert(0.85) hue-rotate(160deg) saturate(2.4)" },
-  { id: "noir", label: "Noir 🎞️", css: "grayscale(1) contrast(1.3)" },
-  { id: "neon", label: "Neon ⚡", css: "saturate(1.85) contrast(1.2) hue-rotate(8deg)" },
-  { id: "ghost", label: "Ghost 👻", css: "invert(1) brightness(1.15) blur(0.6px)" },
-] as const;
+  {
+    id: "alien",
+    label: "Alien 👽",
+    css: "hue-rotate(95deg) saturate(1.7) contrast(1.12)",
+    fallback: [{ mode: "hue", color: "hsl(95, 100%, 50%)" }],
+  },
+  {
+    id: "thermal",
+    label: "Thermal 🔥",
+    css: "invert(0.85) hue-rotate(160deg) saturate(2.4)",
+    fallback: [
+      { mode: "difference", color: "#ffffff" },
+      { mode: "hue", color: "hsl(160, 100%, 50%)" },
+    ],
+  },
+  {
+    id: "noir",
+    label: "Noir 🎞️",
+    css: "grayscale(1) contrast(1.3)",
+    fallback: [{ mode: "saturation", color: "hsl(0, 0%, 50%)" }],
+  },
+  {
+    id: "neon",
+    label: "Neon ⚡",
+    css: "saturate(1.85) contrast(1.2) hue-rotate(8deg)",
+    fallback: [{ mode: "saturation", color: "hsl(0, 100%, 50%)" }],
+  },
+  {
+    id: "ghost",
+    label: "Ghost 👻",
+    css: "invert(1) brightness(1.15) blur(0.6px)",
+    fallback: [{ mode: "difference", color: "#ffffff" }],
+  },
+];
 
 /**
  * How often the filter canvas is redrawn, and the rate captureStream samples
@@ -1870,13 +1949,28 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         }
       };
 
+      const canFilter = canvasFilterSupported();
+
       const draw = () => {
         const cur = fxRef.current;
         if (!cur || !ctx) return;
         const active = CALL_FILTERS.find((x) => x.id === callFilterRef.current);
-        ctx.filter = (active && "css" in active && active.css) || "none";
+        // Reset EVERY frame, both properties. The fallback leaves a blend mode
+        // behind, and a stale one turns the next frame into a composite of
+        // whatever was there before — a smearing, ghosting picture that looks
+        // like a broken camera rather than a filter left switched on.
+        ctx.filter = canFilter ? active?.css || "none" : "none";
+        ctx.globalCompositeOperation = "source-over";
         try {
           ctx.drawImage(cur.video, 0, 0, cur.canvas.width, cur.canvas.height);
+          if (!canFilter && active?.fallback) {
+            for (const op of active.fallback) {
+              ctx.globalCompositeOperation = op.mode;
+              ctx.fillStyle = op.color;
+              ctx.fillRect(0, 0, cur.canvas.width, cur.canvas.height);
+            }
+            ctx.globalCompositeOperation = "source-over";
+          }
         } catch {}
         cur.lastDrawAt = Date.now();
         schedule();
