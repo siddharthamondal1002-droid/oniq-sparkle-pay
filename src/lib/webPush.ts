@@ -104,20 +104,38 @@ function keyFromBrowser(sub: PushSubscription): string | null {
  * Which VAPID key WE recorded when we stored this subscription.
  *
  * The row is written by persist() below, so this answer exists on every
- * engine regardless of what `options` exposes. Null for rows written before
- * 2026-08-15, which is why the caller still falls back to the browser.
+ * engine regardless of what `options` exposes.
+ *
+ * THREE ANSWERS, NOT TWO. This returned `string | null` and folded three
+ * different situations into that null: no key recorded (a row written before
+ * 2026-08-15), no row at all, and THE READ FAILED. The first two mean "there
+ * is nothing here"; the third means "we do not know", and a caller that
+ * cannot tell them apart will happily overwrite a record it merely failed to
+ * read. postgrest-js resolves rather than throws on an error, so the `catch`
+ * around it was close to dead code and the failure arrived disguised as an
+ * empty answer — the quiet kind.
  */
-async function keyFromRow(endpoint: string): Promise<string | null> {
+type RecordedKey =
+  | { state: "recorded"; key: string }
+  /** Row read cleanly; there is no key on it. */
+  | { state: "absent" }
+  /** The read did not complete. Says nothing about what is stored. */
+  | { state: "unreadable" };
+
+async function keyFromRow(endpoint: string): Promise<RecordedKey> {
   try {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("device_tokens")
       .select("keys")
       .eq("token", endpoint)
       .maybeSingle();
-    const keys = (data as { keys?: { appServerKey?: string } } | null)?.keys;
-    return typeof keys?.appServerKey === "string" ? keys.appServerKey : null;
+    if (error) return { state: "unreadable" };
+    const keys = data?.keys as { appServerKey?: string } | null | undefined;
+    return typeof keys?.appServerKey === "string"
+      ? { state: "recorded", key: keys.appServerKey }
+      : { state: "absent" };
   } catch {
-    return null;
+    return { state: "unreadable" };
   }
 }
 
@@ -129,28 +147,29 @@ async function persist(sub: PushSubscription, appServerKey: string | null): Prom
 
   // The upsert REPLACES `keys` wholesale, so writing without an appServerKey
   // would erase one already recorded — turning a row we could reason about
-  // into one we cannot. Nothing new to say means keep what is there.
-  const recorded = appServerKey ?? (await keyFromRow(sub.endpoint));
+  // into one we cannot.
+  let recorded = appServerKey;
+  if (!recorded) {
+    const known = await keyFromRow(sub.endpoint);
+    if (known.state === "unreadable") {
+      // WE KNOW NOTHING NEW AND CANNOT SEE WHAT IS THERE, so we write nothing.
+      // The only thing this call would add is a fresher `updated_at`, and
+      // that is not worth risking the erasure of a binding record we merely
+      // failed to read. The subscription itself is untouched and the next app
+      // start tries again against a working connection.
+      // eslint-disable-next-line no-console
+      console.warn("web push: could not read the stored key, leaving the row alone");
+      return true;
+    }
+    if (known.state === "recorded") recorded = known.key;
+  }
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return false;
 
-  // WHY THE CAST. `device_tokens.keys` arrives with the 2026-08-14 web-push
-  // migration, and src/integrations/supabase/types.ts is GENERATED — it has
-  // not been regenerated, so the column is invisible to TypeScript and the
-  // literal gets matched against Array.prototype.keys instead. Narrowed to
-  // this one call, exactly as storyJobsClient.ts does for story_jobs, and to
-  // be deleted the moment the types catch up. If it outlives that, it is
-  // hiding a real name mismatch rather than a timing one.
-  const table = supabase.from("device_tokens") as unknown as {
-    upsert: (
-      row: Record<string, unknown>,
-      opts: { onConflict: string },
-    ) => Promise<{ error: { message: string } | null }>;
-  };
-  const { error } = await table.upsert(
+  const { error } = await supabase.from("device_tokens").upsert(
     {
       user_id: user.id,
       token: sub.endpoint,
@@ -223,7 +242,8 @@ export async function subscribeWebPush(): Promise<WebPushResult> {
       // unnoticed on those engines forever. The row we wrote ourselves has no
       // such variation. The browser stays as the fallback for rows written
       // before this was recorded.
-      const boundTo = (await keyFromRow(existing.endpoint)) ?? keyFromBrowser(existing);
+      const known = await keyFromRow(existing.endpoint);
+      const boundTo = known.state === "recorded" ? known.key : keyFromBrowser(existing);
       if (key && boundTo && boundTo !== key) {
         await existing.unsubscribe().catch(() => undefined);
         // Drop the stale row too. The new subscription gets a DIFFERENT

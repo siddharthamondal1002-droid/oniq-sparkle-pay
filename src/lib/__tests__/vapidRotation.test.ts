@@ -140,7 +140,34 @@ describe("the recorded subscribe key", () => {
   });
 
   it("is preferred over the browser's own memory", () => {
-    expect(WEBPUSH).toContain("(await keyFromRow(existing.endpoint)) ?? keyFromBrowser(existing)");
+    expect(WEBPUSH).toContain('known.state === "recorded" ? known.key : keyFromBrowser(existing)');
+  });
+
+  /**
+   * THREE ANSWERS, NOT TWO.
+   *
+   * keyFromRow returned `string | null` and folded three situations into that
+   * null: nothing recorded, no row, and THE READ FAILED. The first two mean
+   * "there is nothing here"; the third means "we do not know" — and a caller
+   * that cannot tell them apart will overwrite a record it merely failed to
+   * read. postgrest-js RESOLVES with an error rather than throwing, so the
+   * catch was close to dead code and a failed read arrived disguised as an
+   * empty answer.
+   */
+  it("distinguishes a failed read from an empty one", () => {
+    expect(WEBPUSH).toContain('{ state: "recorded"; key: string }');
+    expect(WEBPUSH).toContain('{ state: "absent" }');
+    expect(WEBPUSH).toContain('{ state: "unreadable" }');
+    // The error object is inspected, not just the thrown case.
+    expect(WEBPUSH).toContain('if (error) return { state: "unreadable" }');
+  });
+
+  it("writes nothing when it cannot see what is already there", () => {
+    // The only thing that call would add is a fresher updated_at, which is
+    // not worth risking the erasure of a binding record.
+    const block = WEBPUSH.slice(WEBPUSH.indexOf("let recorded = appServerKey"));
+    expect(block).toContain('if (known.state === "unreadable")');
+    expect(block.indexOf("return true;")).toBeLessThan(block.indexOf("supabase.auth.getUser()"));
   });
 
   /**
@@ -168,7 +195,25 @@ describe("the recorded subscribe key", () => {
   it("does not erase a recorded key when it has nothing new to say", () => {
     // The upsert replaces `keys` wholesale, so writing without an
     // appServerKey would drop one already there.
-    expect(WEBPUSH).toContain("const recorded = appServerKey ?? (await keyFromRow(sub.endpoint))");
+    expect(WEBPUSH).toContain("let recorded = appServerKey;");
+    expect(WEBPUSH).toContain('if (known.state === "recorded") recorded = known.key;');
+  });
+
+  /**
+   * The cast around this upsert was added on 2026-08-14 with its own expiry
+   * written into it: "to be deleted the moment the types catch up". They have
+   * — types.ts declares `keys: Json | null` on Row, Insert and Update — and
+   * keeping it typed the row as Record<string, unknown>, leaving user_id,
+   * token, platform and updated_at unchecked on the ONLY writer of this row.
+   * A cast that outlives its reason stops being a workaround and starts being
+   * a hole.
+   */
+  it("no longer casts away the type of the row it writes", () => {
+    expect(WEBPUSH).toContain('await supabase.from("device_tokens").upsert(');
+    expect(
+      /supabase\.from\("device_tokens"\) as unknown as/.test(WEBPUSH),
+      "the cast is back — the generated types cover this column now",
+    ).toBe(false);
   });
 
   it("stores only the PUBLIC half — push-key hands this to anyone", () => {
