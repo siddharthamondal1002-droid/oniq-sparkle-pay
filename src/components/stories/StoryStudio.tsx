@@ -143,9 +143,9 @@ type QuotaStatus = {
   /** Where that link goes. A config row, validated again in checkoutTarget. */
   checkoutUrl: string | null;
   /**
-   * The claim's owner branch. Today it also gates the movie-grade toggle:
-   * movie is admin-only until purchased seconds learn grades, and a toggle
-   * the server would refuse must not be drawn.
+   * The claim's owner branch — the account that rides free. It used to gate
+   * the movie-grade toggle as well; that toggle is gone with classic
+   * (2026-08-15), so this is about money now and nothing else.
    */
   admin: boolean;
 };
@@ -191,10 +191,11 @@ export function StoryStudio() {
   // The cast library: saved characters, and which of them ride into THIS film.
   const [cast, setCast] = useState<CastMember[]>(() => listCast());
   const [pickedCast, setPickedCast] = useState<Set<string>>(new Set());
-  // Movie grade: every shot's still handed to Veo for real motion, the ep3
-  // pipeline per user film. The toggle renders for admins only (see
-  // QuotaStatus.admin); the server refuses it for anyone else either way.
-  const [grade, setGrade] = useState<"classic" | "movie">("classic");
+  // NO GRADE STATE ANY MORE. Classic is withdrawn (owner directive,
+  // 2026-08-15: "make classic inactive totally"), so movie is not a choice —
+  // it is the only film ONIQ makes. The claim below sends it explicitly rather
+  // than leaning on the server default, so this build says what it wants even
+  // against a database that has not taken the migration yet.
   // Verbatim mode (owner directive, 2026-08-14): the prompt is a finished
   // story, narrated word for word — sliced by the worker, never retold by
   // Ting. The toggle only arms when the text's spoken length fits the
@@ -360,9 +361,11 @@ export function StoryStudio() {
       const { data, error: rpcError } = await supabase.rpc("claim_story_seconds", {
         _requested_seconds: plan_.seconds,
         _prompt: prompt.trim(),
-        // Sent only when chosen: an older database without the parameter keeps
-        // answering the two-argument shape it knows.
-        ...(grade === "movie" ? { _grade: "movie" } : {}),
+        // Always movie. Classic is withdrawn, and naming the grade is what
+        // makes an old database render the right thing too: its default is
+        // still 'classic', so omitting this would quietly build the withdrawn
+        // product.
+        _grade: "movie",
         ...(verbatim ? { _verbatim: true } : {}),
       });
       if (rpcError) {
@@ -420,7 +423,7 @@ export function StoryStudio() {
     } finally {
       setSubmitting(false);
     }
-  }, [plan_.seconds, plan_.shots.length, prompt, grade, verbatim, cast, pickedCast]);
+  }, [plan_.seconds, plan_.shots.length, prompt, verbatim, cast, pickedCast]);
 
   const blocked = refusal ?? localBlock;
   const canGenerate = !submitting && !loadingQuota && blocked === null && prompt.trim().length >= 8;
@@ -532,18 +535,12 @@ export function StoryStudio() {
         {plan_.seconds}s · {plan_.shots.length} shots
       </div>
 
-      {/* MOVIE GRADE — the in-house engine (owner launch, 2026-08-13): the
-          owned cinematography stack, rendered on ONIQ's own worker. Open to
-          everyone; the server accepts either grade. */}
-      <button
-        type="button"
-        aria-pressed={grade === "movie"}
-        onClick={() => setGrade((g) => (g === "movie" ? "classic" : "movie"))}
-        className={
-          "mt-3 flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left " +
-          (grade === "movie" ? "border-primary bg-primary/10" : "border-border bg-card/50")
-        }
-      >
+      {/* MOVIE GRADE — no longer a toggle (owner directive, 2026-08-15:
+          "make classic inactive totally"). It was a switch while there were
+          two products; with classic withdrawn there is one, so this states
+          what the film will be rather than asking. A control whose only
+          setting is "on" is a control that teaches people it does nothing. */}
+      <div className="mt-3 flex w-full items-center justify-between rounded-2xl border border-primary bg-primary/10 px-3 py-2.5">
         <span>
           <span className="block text-xs font-semibold text-foreground">🎬 Movie grade</span>
           <span className="mt-0.5 block text-[11px] text-muted-foreground">
@@ -551,17 +548,10 @@ export function StoryStudio() {
             the film look. Made end to end by ONIQ&apos;s own engine.
           </span>
         </span>
-        <span
-          className={
-            "ms-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold " +
-            (grade === "movie"
-              ? "bg-primary text-primary-foreground"
-              : "border border-border text-muted-foreground")
-          }
-        >
-          {grade === "movie" ? "on" : "off"}
+        <span className="ms-3 shrink-0 rounded-full bg-primary px-2.5 py-1 text-[11px] font-semibold text-primary-foreground">
+          every film
         </span>
-      </button>
+      </div>
 
       {/* MY WORDS — verbatim mode (owner directive, 2026-08-14). The typed
           text is a finished story, narrated exactly as written: the worker

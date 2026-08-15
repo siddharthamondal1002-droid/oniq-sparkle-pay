@@ -101,7 +101,12 @@ function PayStoryPage() {
           .from("story_price_tiers")
           .select("seconds,label,price_paise,currency")
           .eq("active", true)
-          .eq("grade" as never, "classic" as never)
+          // MOVIE, NOT CLASSIC. This asked for classic while classic was off
+          // sale, so it matched nothing and the page showed "Could not load
+          // the price list" — Story time had been unbuyable since the
+          // 2026-08-13 flip. Classic is now withdrawn outright (owner
+          // directive, 2026-08-15) and movie is the only grade there is.
+          .eq("grade" as never, "movie" as never)
           .order("sort_order"),
         supabase.from("story_purchase_config").select("enabled").limit(1).maybeSingle(),
       ]);
