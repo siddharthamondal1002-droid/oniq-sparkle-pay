@@ -36,25 +36,35 @@ const EVENT_TYPE = "story-job";
 const DISPATCH_BACKOFF_MS = 10 * 60 * 1000;
 
 /**
- * THE VOICE-BUDGET GATE. 2026-08-12's proof runs emptied Gemini TTS's daily
- * quota and the failure landed in the worst place: films dispatched, drew
- * every still — real image spend — and died at the voice stage. A job the
- * day's remaining voice budget cannot finish now WAITS in the queue instead
- * of dispatching; the ledger (public.api_budget, story-voice records into
- * it) rolls over at midnight Pacific and the same cron dispatches it then.
+ * THE VOICE-BUDGET GATE IS GONE (owner directive, 2026-08-15).
  *
- * The cap is TOTAL successful TTS calls a day, both models: ~100 flash
- * (measured — the bucket died just past it) plus pro-fallback headroom.
- * RAISE THIS when the Google AI key's billing tier goes up; it is the one
- * constant that says how many films a day the voices allow.
+ * It capped dispatch at 120 TTS calls a day and parked any film the day's
+ * remainder could not finish, "waiting for the Pacific-midnight reset". Two
+ * things were wrong with it by the time it was removed.
  *
- * The estimate is deliberately generous: a shot is ~7 seconds, and narration
- * plus a possible dialogue line is at most two calls a shot. Estimating high
- * means a film never starts on fumes; the cost of being wrong is a job
- * waiting a few extra hours, not a dead film.
+ * It could not do what it claimed. story-sweep fails any queued job older
+ * than thirty minutes, so the state this gate believed it was parking jobs
+ * into did not exist: a held film was reaped long before the reset it was
+ * waiting for, and the user was told "no renderer picked this up in time",
+ * which is not what happened. Measured on job eb0d052f, 2026-08-15 — a 5
+ * minute film needed ~86 calls of 56 remaining and died thirty minutes later.
+ *
+ * And it was guarding the wrong meter. The cap was sized to the Google AI
+ * key's daily TTS quota, but the owner's 2026-08-14 directive rerouted voices
+ * through the Lovable gateway — story-voice now spends CREDITS, and Google's
+ * per-day ceiling stopped governing anything.
+ *
+ * WHAT THIS COSTS, said plainly because removing a spend guard should never
+ * be quiet: the original 2026-08-12 failure is possible again. If the voice
+ * provider refuses mid-film, the job has already drawn every still — real
+ * image spend — and dies at the voice stage with that money gone. There is
+ * now no daily ceiling on how many films a day can be attempted. The owner
+ * accepted both, knowing the rate is ~1.47 credits per finished minute.
+ *
+ * story-voice still records every call into public.api_budget. Nothing reads
+ * it to make a decision any more; it is kept as the measurement that would
+ * let a future ceiling be set from evidence rather than guessed at again.
  */
-const VOICE_DAILY_CAP = 120;
-const voiceCallsNeeded = (seconds: number) => Math.ceil(seconds / 7) * 2;
 
 /**
  * Where the GitHub token might be, in the order it is looked for.
@@ -142,42 +152,6 @@ Deno.serve(async (req) => {
     const rows = (await res.json()) as { id: string; requested_seconds: number }[];
     if (!Array.isArray(rows) || rows.length === 0) {
       return json({ dispatched: false, reason: "nothing queued" }, 200);
-    }
-
-    // The voice-budget gate, FAIL OPEN. A broken ledger must degrade to
-    // yesterday's behaviour (dispatch and hope), never to a queue nothing
-    // can leave — so only a successful budget read that SAYS "not enough"
-    // holds a job back. The held job stays queued, untouched: this same
-    // cron re-offers it every minute and it dispatches the moment the
-    // Pacific day rolls over.
-    const need = voiceCallsNeeded(rows[0].requested_seconds ?? 0);
-    try {
-      const budgetRes = await fetch(`${supabaseUrl}/rest/v1/rpc/api_budget_left`, {
-        method: "POST",
-        headers: {
-          apikey: serviceKey,
-          Authorization: `Bearer ${serviceKey}`,
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({ _bucket: "tts", _cap: VOICE_DAILY_CAP }),
-      });
-      if (budgetRes.ok) {
-        const left = Number(await budgetRes.json());
-        if (Number.isFinite(left) && left < need) {
-          return json(
-            {
-              dispatched: false,
-              reason: `voice budget low: ${left} of ${VOICE_DAILY_CAP} calls left, film needs ~${need} — job waits for the Pacific-midnight reset`,
-              jobId: rows[0].id,
-            },
-            200,
-          );
-        }
-      } else {
-        console.warn("story-dispatch budget read failed", budgetRes.status);
-      }
-    } catch (e) {
-      console.warn("story-dispatch budget check skipped", e);
     }
 
     const jobId = rows[0].id;
