@@ -50,15 +50,26 @@ export function webPushSupported(): boolean {
  * the server holds. Hardcoding a copy here would create a second source of
  * truth that silently stops matching the day the key is rotated — and a
  * mismatch does not error, it just makes every push undeliverable.
+ *
+ * AND NOT MEMOISED, which is the whole point of the rotation guard below.
+ *
+ * This used to cache the answer in a module-scope variable with no expiry and
+ * no invalidation anywhere in the app. That is a second source of truth
+ * wearing a different hat: a tab open across a rotation kept serving the OLD
+ * key from memory, the guard compared old against old, concluded nothing had
+ * changed, and re-persisted a subscription that was already dead — reporting
+ * "granted". A pinned tab could stay broken indefinitely, and a
+ * sign-out/sign-in in that same tab would mint a fresh row that was never
+ * deliverable.
+ *
+ * One HTTP call per app start is not a cost worth defending against when the
+ * thing being protected is the check that catches a rotated key.
  */
-let cachedKey: string | null = null;
 async function vapidPublicKey(): Promise<string | null> {
-  if (cachedKey) return cachedKey;
   try {
     const { data, error } = await supabase.functions.invoke("push-key");
     const key = (data as { publicKey?: string } | null)?.publicKey;
     if (error || typeof key !== "string" || key.length < 80) return null;
-    cachedKey = key;
     return key;
   } catch {
     return null;

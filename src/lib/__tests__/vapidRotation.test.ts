@@ -58,6 +58,28 @@ describe("subscribeWebPush after a key rotation", () => {
     expect(WEBPUSH).toMatch(/if \(key && boundTo && boundTo !== key\)/);
   });
 
+  /**
+   * A CACHED PUBLIC KEY DEFEATS THE COMPARISON ENTIRELY.
+   *
+   * vapidPublicKey() memoised its answer in a module-scope variable with no
+   * expiry and nothing anywhere in the app that invalidated it. A tab open
+   * across a rotation kept serving the OLD key out of memory, so the guard
+   * above compared old against old, found them equal, and re-persisted a
+   * subscription that was already dead — returning "granted". A pinned tab
+   * stays broken indefinitely; a sign-out/sign-in in that tab mints a brand
+   * new row that was never deliverable.
+   *
+   * Found by audit after the guard shipped, which is the point worth keeping:
+   * the guard was correct and the thing it depended on was not.
+   */
+  it("does not memoise the key it is about to compare against", () => {
+    expect(
+      /let cachedKey/.test(WEBPUSH),
+      "the module-scope key cache is back — a long-open tab will never notice a rotation",
+    ).toBe(false);
+    expect(WEBPUSH).not.toContain("if (cachedKey) return cachedKey");
+  });
+
   it("fetches the key before deciding, not only when subscribing fresh", () => {
     const keyAt = WEBPUSH.indexOf("const key = await vapidPublicKey();");
     const existingAt = WEBPUSH.indexOf("const existing = await reg.pushManager.getSubscription();");
