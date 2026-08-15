@@ -141,10 +141,39 @@ export async function subscribeWebPush(): Promise<WebPushResult> {
     const reg = await readyRegistration();
     if (!reg) return "error";
 
-    const existing = await reg.pushManager.getSubscription();
-    if (existing) return (await persist(existing)) ? "granted" : "error";
-
     const key = await vapidPublicKey();
+    const existing = await reg.pushManager.getSubscription();
+
+    if (existing) {
+      // A SUBSCRIPTION OUTLIVES THE KEY IT WAS MINTED WITH, AND SAYS NOTHING.
+      //
+      // "Reuse whatever is there" was right while there was only ever one
+      // VAPID key. It is wrong the moment one is rotated: the browser still
+      // holds a subscription bound to the OLD public key, this re-saved it,
+      // returned "granted", and every push to that endpoint failed with 403
+      // VapidPkHashMismatch — which is not 404/410, so sendWebPush does not
+      // treat it as gone and the row is never cleaned up either. A dead
+      // address, re-confirmed as healthy on every app start, forever.
+      //
+      // Measured 2026-08-15, rotating the key after it leaked: two live web
+      // subscriptions would both have been silently undeliverable from then on.
+      const boundTo = bufToB64url(existing.options?.applicationServerKey ?? null);
+      if (key && boundTo && boundTo !== key) {
+        await existing.unsubscribe().catch(() => undefined);
+        // Drop the stale row too. The new subscription gets a DIFFERENT
+        // endpoint, so without this the old one lingers as a permanent
+        // failure in every send.
+        await supabase.from("device_tokens").delete().eq("token", existing.endpoint);
+        // fall through and subscribe fresh
+      } else {
+        // Either it matches, or we could not read one of the two values —
+        // and a subscription is not thrown away on a maybe. Losing a working
+        // address because the key fetch hit a dead network would be worse
+        // than the staleness this guards against.
+        return (await persist(existing)) ? "granted" : "error";
+      }
+    }
+
     if (!key) return "error";
 
     const sub = await reg.pushManager.subscribe({

@@ -124,6 +124,14 @@ self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
     (async () => {
       try {
+        // RE-SUBSCRIBES WITH THE KEY IT ALREADY HAD, which is the only key a
+        // service worker can reach without the app's Supabase credentials. If
+        // that key has since been rotated the new subscription is dead on
+        // arrival — but not permanently: subscribeWebPush() compares every
+        // existing subscription's applicationServerKey against the live one on
+        // the next app start and replaces it when they differ. This keeps push
+        // alive across an ordinary browser-initiated change; the page fixes the
+        // rotation case.
         const old = event.oldSubscription || (await self.registration.pushManager.getSubscription());
         const key = old && old.options && old.options.applicationServerKey;
         if (!key) return;
