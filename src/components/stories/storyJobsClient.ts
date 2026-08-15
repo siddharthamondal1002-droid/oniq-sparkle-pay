@@ -15,6 +15,7 @@
  * hiding a real name mismatch rather than a timing one.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { ensureParentDir } from "@/lib/ensureDir";
 import { forgetSavedVideo, rememberSavedVideo, type SavedVideo } from "@/lib/savedVideos";
 
 /** Every state a Story can be in that is not gone. */
@@ -232,12 +233,20 @@ export async function saveStoryToDevice(
   const { Filesystem, Directory } = await import("@capacitor/filesystem");
   const path = `videos/${fileName}`;
 
+  // `videos/` FIRST, BECAUSE downloadFile WILL NOT MAKE IT. The `recursive`
+  // below is read by nobody — see ensureDir.ts for the plugin source that
+  // proves it — and without this line the very next call throws
+  // "open failed: ENOENT". Measured on device after a clean reinstall, which
+  // is what took the directory an older install had left behind.
+  await ensureParentDir(path, Directory.Data);
+
   // downloadFile streams to disk — a 20 MB film never becomes a base64 string
   // in JS memory, which is what makes this survive on cheap phones.
   const dl = await Filesystem.downloadFile({
     url,
     path,
     directory: Directory.Data,
+    // Kept for the day the plugin honours it. It does not today.
     recursive: true,
   });
   if (!dl.path) throw new Error("The download did not complete.");

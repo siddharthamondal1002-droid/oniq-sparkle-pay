@@ -4,6 +4,7 @@
 // 2. navigator.share (mobile browsers).
 // 3. Caller-rendered inline fallback (shareTargets) for web/old installs.
 import { Capacitor } from "@capacitor/core";
+import { ensureParentDir } from "@/lib/ensureDir";
 
 export type SharePayload = { title: string; text?: string; url: string };
 
@@ -104,10 +105,17 @@ export async function shareMediaFile(
         if (ev.contentLength > 0) onProgress(Math.round((ev.bytes / ev.contentLength) * 100));
       });
     }
+    // `share/` FIRST. Identical trap to the save path: downloadFile does not
+    // create intermediate directories and ignores `recursive` (see
+    // ensureDir.ts). Both buttons broke together on the same clean reinstall,
+    // because both were relying on a directory neither of them made.
+    await ensureParentDir(path, Directory.Cache);
+
     const dl = await Filesystem.downloadFile({
       url: mediaUrl,
       path,
       directory: Directory.Cache,
+      // Kept for the day the plugin honours it. It does not today.
       recursive: true,
       progress: !!onProgress,
     });
