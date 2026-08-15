@@ -171,16 +171,32 @@ Deno.serve(async (req) => {
     const failures: string[] = [];
     for (const row of due) {
       if (row.storage_path) {
-        const del = await fetch(
-          `${supabaseUrl}/storage/v1/object/${BUCKET}/${row.storage_path}`,
-          { method: "DELETE", headers: svc },
-        );
-        // 404 means the object is already gone, which is the outcome we want.
-        if (!del.ok && del.status !== 404) {
-          failures.push(`${row.id}: storage ${del.status}`);
-          // has_bytes stays true, so the next pass tries again rather than
-          // recording a deletion that did not happen.
-          continue;
+        const del = await fetch(`${supabaseUrl}/storage/v1/object/${BUCKET}/${row.storage_path}`, {
+          method: "DELETE",
+          headers: svc,
+        });
+        // ALREADY GONE IS THE OUTCOME WE WANTED, however it is spelled.
+        //
+        // This used to test `del.status !== 404`, which is the right idea and
+        // the wrong code: Supabase Storage answers a missing object with HTTP
+        // 400 and puts the 404 in the BODY. So a file that had already been
+        // deleted failed forever — has_bytes never cleared, the row stayed
+        // due, and every sweep re-reported it. Measured 2026-08-15 on job
+        // fd48e8d3, whose object was long gone and which had been retrying
+        // every fifteen minutes since 2026-08-10.
+        //
+        // The cost was not the wasted call. It was that `failures` is the
+        // list someone reads to find a REAL problem, and one permanent entry
+        // is enough to stop anyone reading it.
+        if (!del.ok) {
+          const body = await del.text().catch(() => "");
+          const gone = del.status === 404 || /"statusCode"\s*:\s*"404"|not[_ ]?found/i.test(body);
+          if (!gone) {
+            failures.push(`${row.id}: storage ${del.status}`);
+            // has_bytes stays true, so the next pass tries again rather than
+            // recording a deletion that did not happen.
+            continue;
+          }
         }
       }
 
