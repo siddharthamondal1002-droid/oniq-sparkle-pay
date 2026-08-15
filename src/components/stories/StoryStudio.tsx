@@ -83,10 +83,15 @@ function verbatimGate(
   const fit = verbatimFits(prompt, plan.seconds);
   if (!fit.fits) return fit;
   if (packNarrations(prompt.trim(), plan.shots.length) === null) {
+    // The packer now CUTS long sentences to fill shots, so reaching here no
+    // longer means "too few sentences" — it means the text cannot be divided
+    // into this many pieces at all without shredding it into fragments too
+    // short to narrate. Say that, rather than asking for a sentence count
+    // the user would meet and still be refused.
     return {
       fits: false,
       spokenSeconds: fit.spokenSeconds,
-      reason: `needs at least ${plan.shots.length} sentences — one per shot`,
+      reason: `is too short to fill ${plan.shots.length} shots`,
     };
   }
   return fit;

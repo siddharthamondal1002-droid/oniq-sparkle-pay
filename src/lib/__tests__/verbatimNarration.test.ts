@@ -71,6 +71,58 @@ describe("the verbatim packer", () => {
     expect(chunks?.[0]).toBe("Rain. Rain. Rain.");
   });
 
+  /**
+   * THE PROMISE, MECHANISED. Verbatim mode says the user's words reach the
+   * narrator untouched. Since the packer may now CUT a sentence to fill a
+   * shot, that promise needs a test rather than a comment: whatever the
+   * shot count, the words that come out must be the words that went in, in
+   * the same order, with nothing added, dropped or reordered.
+   */
+  it("never loses, adds or reorders a word, however it slices", () => {
+    const words = (t: string) => t.split(/\s+/).filter(Boolean);
+    const texts = [
+      STORY,
+      "He walked, slowly, into the dark. She followed; the lamp guttered out.",
+      // No clause marks anywhere — forces the word-boundary fallback.
+      "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima mike november oscar papa quebec romeo sierra tango.",
+      // Long sentences, few of them — the shape that used to be refused.
+      Array.from(
+        { length: 6 },
+        (_, i) => Array.from({ length: 30 }, (_, j) => `w${i}x${j}`).join(" ") + ".",
+      ).join(" "),
+    ];
+    for (const text of texts) {
+      for (let shots = 1; shots <= 24; shots++) {
+        const chunks = packNarrations(text, shots);
+        if (!chunks) continue;
+        expect(chunks.length, `shot count ${shots}`).toBe(shots);
+        expect(
+          chunks.every((c) => c.trim().length > 0),
+          "an empty narration",
+        ).toBe(true);
+        expect(words(chunks.join(" ")), `words changed at ${shots} shots`).toEqual(words(text));
+      }
+    }
+  });
+
+  it("slices long sentences instead of refusing a story that fits", () => {
+    // Measured 2026-08-15: 600 words across 40 sentences reads as 240s of
+    // speech, sits inside the 300s band, and was refused because that tier
+    // plans 43 shots. Needing 43 sentences is an artifact of the shot count,
+    // not a fact about the story.
+    const forty = Array.from(
+      { length: 40 },
+      (_, i) => Array.from({ length: 15 }, (_, j) => `s${i}w${j}`).join(" ") + ".",
+    ).join(" ");
+    const chunks = packNarrations(forty, 43);
+    expect(chunks, "a story that fits the seconds bought is still refused").not.toBeNull();
+    expect(chunks?.length).toBe(43);
+    // A clause mark is preferred over a bare word boundary.
+    const clausey = "One, two, three, four, five, six, seven, eight, nine, ten.";
+    const two = packNarrations(clausey, 2);
+    expect(two?.[0].endsWith(",")).toBe(true);
+  });
+
   it("refuses what it cannot honestly slice", () => {
     expect(packNarrations("One sentence only.", 3)).toBeNull();
     expect(packNarrations("", 2)).toBeNull();
@@ -166,8 +218,13 @@ describe("the wiring pins", () => {
       PLOT_SRC.includes("A narration piece is too long."),
       "the narrations field lost its per-item cap",
     ).toBe(true);
+    // Pin the MECHANISM, not the wording. This used to assert the refusal
+    // copy ("needs at least …"), which broke the moment the copy was
+    // corrected — and a test that fails on a wording fix teaches people to
+    // edit the test instead of reading it. What must hold is that the packer
+    // actually runs in the studio's gate, before any debit.
     expect(
-      STUDIO_SRC.includes("needs at least"),
+      STUDIO_SRC.includes("packNarrations(prompt.trim(), plan.shots.length)"),
       "the studio no longer gates the toggle on packability before the debit",
     ).toBe(true);
     expect(PLOT_SRC).toContain("Narration count must match the shot count.");

@@ -139,6 +139,86 @@ export function sentencesOf(text: string): string[] {
 }
 
 /**
+ * The shortest piece the word-boundary fallback will cut.
+ *
+ * Clause splitting is always preferred; this floor only governs the last
+ * resort. Below it a "shot" would be two or three words, which is not a
+ * narration, and atomising a short sentence to satisfy an arithmetic quota is
+ * exactly the dishonesty the fit band exists to prevent. A piece this short
+ * is left whole and some other piece is split instead.
+ */
+const MIN_SPLIT_WORDS = 8;
+
+/**
+ * One piece into two, at the most natural break available.
+ *
+ * Clause marks first — a comma, semicolon, colon or dash is where a narrator
+ * would draw breath anyway, so the cut is inaudible. Failing that, the word
+ * boundary nearest the middle: a shot may carry a fragment, because the audio
+ * runs continuously across the cut and the listener hears the sentence whole.
+ * Returns null when the piece is too short to divide honestly.
+ *
+ * EVERY WORD SURVIVES, IN ORDER. Only the shot boundary moves — the left half
+ * keeps its punctuation, the right half starts at the next word, and joining
+ * the two with a single space reproduces the original.
+ */
+function splitPiece(piece: string): [string, string] | null {
+  const mid = piece.length / 2;
+  let best = -1;
+  let bestDist = Infinity;
+  const re = /[,;:—–]\s+/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(piece)) !== null) {
+    const cut = m.index + m[0].length;
+    const d = Math.abs(cut - mid);
+    if (d < bestDist) {
+      bestDist = d;
+      best = cut;
+    }
+  }
+  if (best > 0 && best < piece.length) {
+    const left = piece.slice(0, best).trimEnd();
+    const right = piece.slice(best).trimStart();
+    if (left && right) return [left, right];
+  }
+  const words = piece.split(/\s+/).filter(Boolean);
+  if (words.length < MIN_SPLIT_WORDS) return null;
+  const half = Math.ceil(words.length / 2);
+  return [words.slice(0, half).join(" "), words.slice(half).join(" ")];
+}
+
+/**
+ * Divide pieces until there are at least `n` of them.
+ *
+ * WHY THIS EXISTS. The packer used to refuse outright when a story had fewer
+ * sentences than the film had shots, and that rejected stories which fit the
+ * purchased seconds perfectly: measured 2026-08-15, a 600-word story of 40
+ * sentences reads as 240s of speech — comfortably inside the 300s band — and
+ * was refused because that tier plans 43 shots. Needing 43 is an artifact of
+ * the shot count, not a fact about the story. The longest piece is split
+ * first, which both evens out the shot lengths and picks the piece most
+ * likely to contain a clause mark.
+ */
+function divideToAtLeast(pieces: string[], n: number): string[] {
+  const out = pieces.slice();
+  while (out.length < n) {
+    const byLongest = out.map((_, i) => i).sort((a, b) => out[b].length - out[a].length);
+    let split = false;
+    for (const i of byLongest) {
+      const parts = splitPiece(out[i]);
+      if (parts) {
+        out.splice(i, 1, parts[0], parts[1]);
+        split = true;
+        break;
+      }
+    }
+    // Nothing left that can be divided honestly — the caller refuses.
+    if (!split) return out;
+  }
+  return out;
+}
+
+/**
  * The user's text as `shotCount` narration chunks: in order, verbatim,
  * every chunk non-empty, packed so spoken lengths come out roughly even
  * (greedy by estimated seconds — the same balancing a film editor does by
@@ -148,7 +228,11 @@ export function sentencesOf(text: string): string[] {
  */
 export function packNarrations(text: string, shotCount: number): string[] | null {
   if (!Number.isInteger(shotCount) || shotCount <= 0) return null;
-  const sentences = sentencesOf(text);
+  let sentences = sentencesOf(text);
+  if (sentences.length === 0) return null;
+  // Fewer sentences than shots is not a reason to refuse a story that fits
+  // the seconds bought — it is a reason to cut some sentences in two.
+  if (sentences.length < shotCount) sentences = divideToAtLeast(sentences, shotCount);
   if (sentences.length < shotCount) return null;
 
   const chunks: string[] = [];
