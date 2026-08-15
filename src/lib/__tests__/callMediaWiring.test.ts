@@ -1,0 +1,111 @@
+/**
+ * The three call-media faults reported 2026-08-14, pinned so they cannot
+ * quietly come back.
+ *
+ * All three share a failure signature: NOTHING THROWS. A flip that returns
+ * the same camera, a filter drawing from a video that never decoded, and a
+ * draw loop running three times faster than the frames it feeds all look like
+ * healthy code and a healthy call. There is no error to assert on at runtime,
+ * so the guards are structural — the same reason the story-plot wiring pins
+ * exist.
+ *
+ * Researched against the documented WebView behaviour rather than guessed:
+ * facingMode is unreliable inside an Android WebView, and `ideal` does not
+ * fail when it cannot satisfy a request — it returns the closest match, which
+ * is the camera already open.
+ */
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const SRC = readFileSync(
+  join(__dirname, "../../..", "src/components/chat/CallOverlay.tsx"),
+  "utf8",
+);
+
+describe("the back camera", () => {
+  it("picks a device by id rather than trusting facingMode", () => {
+    expect(SRC).toContain("cameraDeviceFor");
+    expect(SRC).toContain("enumerateDevices()");
+    expect(SRC, "the flip must ask for a specific camera").toContain(
+      "deviceId: { exact: targetId }",
+    );
+  });
+
+  it("verifies the camera actually changed before committing", () => {
+    // The silent no-op: `ideal` hands back the running camera, the swap
+    // succeeds, and the button reports success having changed nothing.
+    expect(SRC).toContain("const moved = (t: MediaStreamTrack)");
+    expect(SRC).toContain("s2.deviceId !== oldId");
+  });
+
+  it("releases the running camera and retries when the first ask fails", () => {
+    // Many Android devices hold exactly one camera open at a time, so the
+    // non-destructive attempt can never succeed there. This is the step the
+    // original code never took.
+    expect(SRC).toContain("released = true");
+    expect(
+      /oldTrack\.stop\(\);\s*\n\s*released = true;/.test(SRC),
+      "the old track is no longer released before the retry",
+    ).toBe(true);
+  });
+
+  it("restores video if the retry left the call blind", () => {
+    // Stopping the only working camera and then failing must not end with a
+    // caller who can no longer be seen.
+    expect(SRC).toContain("facingMode: { ideal: facingRef.current }");
+  });
+});
+
+describe("the in-call filter", () => {
+  it("keeps its source video in the document so it actually decodes", () => {
+    // A detached <video> can sit at readyState 0 forever in an Android
+    // WebView; drawImage then paints nothing and the far side sees black.
+    expect(SRC).toContain("document.body.appendChild(video)");
+    expect(SRC, "display:none suspends rendering — the bug, restated").not.toMatch(
+      /appendChild\(video\)[\s\S]{0,200}display:none/,
+    );
+  });
+
+  it("reaches peers that connect after the filter is chosen", () => {
+    // addTrack used to hand every new peer the raw camera, so the second
+    // person into a group call saw an unfiltered stream while the sender
+    // watched a filtered self-view and believed it worked.
+    expect(SRC).toContain('t.kind === "video" && fxRef.current ? fxRef.current.track : t');
+  });
+
+  it("tears the pipeline down completely", () => {
+    expect(SRC).toContain("v.remove()");
+    // fxRef must be cleared BEFORE cancelling, or an in-flight callback can
+    // resurrect a torn-down pipeline.
+    const teardown = SRC.slice(SRC.indexOf("const teardownFx"));
+    expect(teardown.indexOf("fxRef.current = null")).toBeLessThan(
+      teardown.indexOf("fx.track.stop()"),
+    );
+  });
+});
+
+describe("the draw loop", () => {
+  it("draws once per camera frame, not once per screen refresh", () => {
+    expect(SRC).toContain("requestVideoFrameCallback");
+    expect(SRC, "a timer at the capture rate is the fallback").toContain(
+      "window.setTimeout(draw, 1000 / FX_FPS)",
+    );
+    expect(
+      /cur\.raf = requestAnimationFrame\(draw\)/.test(SRC),
+      "the rAF draw loop is back — it redraws 3-6x per captured frame",
+    ).toBe(false);
+  });
+
+  it("captures at the same rate the camera produces", () => {
+    expect(SRC).toContain("const FX_FPS = 20");
+    expect(SRC).toContain("canvas.captureStream(FX_FPS)");
+    // The camera is constrained to the same number; a mismatch is exactly the
+    // waste this fixes.
+    expect(SRC).toContain("frameRate: { ideal: 20, max: 24 }");
+  });
+
+  it("does not ask the compositor to blend an opaque camera frame", () => {
+    expect(SRC).toContain('getContext("2d", { alpha: false })');
+  });
+});

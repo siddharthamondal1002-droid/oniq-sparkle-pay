@@ -229,6 +229,51 @@ const CALL_FILTERS = [
   { id: "ghost", label: "Ghost 👻", css: "invert(1) brightness(1.15) blur(0.6px)" },
 ] as const;
 
+/**
+ * How often the filter canvas is redrawn, and the rate captureStream samples
+ * it at. Matched to the camera's own `frameRate: { ideal: 20 }` on purpose —
+ * the draw loop used to run on requestAnimationFrame, i.e. 60–120 times a
+ * second, to feed a stream that only sampled 20 of them. Two thirds of every
+ * filtered frame was drawn, filtered and thrown away, on the phone's main
+ * thread, during a call. That is the lag.
+ */
+const FX_FPS = 20;
+
+/**
+ * The deviceId of the front or back camera.
+ *
+ * WHY NOT JUST facingMode. Inside an Android WebView the facingMode
+ * constraint is documented as unreliable — it can be dropped before it ever
+ * reaches the camera stack. What made that invisible here is the fallback:
+ * `{ exact: "environment" }` throws, we retried with `{ ideal }`, and `ideal`
+ * does not fail — it returns the best available match, which is the camera
+ * ALREADY OPEN. So the flip button captured a second front-camera track,
+ * swapped it in successfully, and reported no error. It looked alive and did
+ * nothing, which is exactly the report from the field.
+ *
+ * A deviceId is the one instruction the WebView cannot quietly reinterpret.
+ * Labels are populated only after permission is granted, which it always is
+ * by the time this button can be pressed.
+ */
+async function cameraDeviceFor(want: "user" | "environment"): Promise<string | null> {
+  try {
+    const cams = (await navigator.mediaDevices.enumerateDevices()).filter(
+      (d) => d.kind === "videoinput",
+    );
+    if (cams.length < 2) return null;
+    const rx = want === "environment" ? /back|rear|environment/i : /front|user|face/i;
+    const labelled = cams.find((d) => rx.test(d.label));
+    if (labelled) return labelled.deviceId;
+    // Unlabelled (some WebViews withhold labels even post-permission).
+    // Android enumerates front first and back second; with exactly two
+    // cameras that is unambiguous enough to act on, and the caller verifies
+    // the swap actually moved before committing to it either way.
+    return want === "environment" ? cams[cams.length - 1].deviceId : cams[0].deviceId;
+  } catch {
+    return null;
+  }
+}
+
 type PeerEntry = {
   peerId: string;
   peerName: string;
@@ -294,7 +339,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const [callFilter, setCallFilter] = useState("none");
   const callFilterRef = useRef("none");
   const fxRef = useRef<{
+    /** Handle for whichever scheduler is driving the draw loop. */
     raf: number;
+    /** True when `raf` is a requestVideoFrameCallback handle, not a timeout. */
+    usingRvfc: boolean;
     canvas: HTMLCanvasElement;
     video: HTMLVideoElement;
     track: MediaStreamTrack;
@@ -733,11 +781,19 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       }
     };
     // Add local tracks so negotiation kicks off (offerer side) or exists for answer (callee).
+    //
+    // A LIVE FILTER OWNS THE OUTGOING VIDEO. This used to add the raw camera
+    // track unconditionally, so anyone whose peer connection was built AFTER
+    // the filter was chosen — the second person into a group call, or any
+    // call still connecting when the user picked one — received the unfiltered
+    // camera while the sender watched a filtered self-view and believed it was
+    // working. applyCallFilter only rewrites senders that already exist; this
+    // is the other half of the same promise.
     const local = localStreamRef.current;
     if (local) {
       for (const t of local.getTracks()) {
         try {
-          pc.addTrack(t, local);
+          pc.addTrack(t.kind === "video" && fxRef.current ? fxRef.current.track : t, local);
         } catch {}
       }
     }
@@ -879,11 +935,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const handleIceUnavailable = (err: unknown) => {
     console.warn("[ice] unhealthy — refusing to start call", err);
     toast.error("calls are having a moment 📞 try again in a sec");
-    reportClientError(
-      "call-ice-unavailable",
-      err instanceof Error ? err.message : String(err),
-      { role: isCallerRef.current ? "caller" : "callee", callType: callTypeRef.current },
-    );
+    reportClientError("call-ice-unavailable", err instanceof Error ? err.message : String(err), {
+      role: isCallerRef.current ? "caller" : "callee",
+      callType: callTypeRef.current,
+    });
     if (isCallerRef.current && logIdRef.current) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (supabase as any)
@@ -1539,24 +1594,96 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         height: { ideal: 480 },
         frameRate: { ideal: 20, max: 24 },
       } as MediaTrackConstraints;
-      let fresh: MediaStream;
+      const targetId = await cameraDeviceFor(next);
+      const ask = () =>
+        navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: targetId
+            ? { ...baseVideo, deviceId: { exact: targetId } }
+            : { ...baseVideo, facingMode: { exact: next } },
+        });
+      // Did we ACTUALLY move? A constraint the WebView ignored hands back the
+      // camera already running, and swapping a front-camera track for another
+      // front-camera track is the silent no-op this whole rewrite exists to
+      // kill. Compare the device the tracks actually came from.
+      const oldId = oldTrack.getSettings().deviceId;
+      const moved = (t: MediaStreamTrack) => {
+        const s2 = t.getSettings();
+        if (targetId) return s2.deviceId === targetId;
+        if (oldId && s2.deviceId) return s2.deviceId !== oldId;
+        return s2.facingMode === next;
+      };
+
+      let fresh: MediaStream | null = null;
+      let released = false;
+      // Try WITHOUT releasing first: if the device can hold both cameras open,
+      // a failure here costs the user nothing and the call is never blind.
       try {
-        fresh = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: { ...baseVideo, facingMode: next === "environment" ? { exact: "environment" } : "user" },
-        });
+        const s2 = await ask();
+        if (moved(s2.getVideoTracks()[0])) fresh = s2;
+        else s2.getTracks().forEach((t) => t.stop());
       } catch {
-        fresh = await navigator.mediaDevices.getUserMedia({
-          audio: false,
-          video: { ...baseVideo, facingMode: { ideal: next } },
-        });
+        /* busy, or the constraint is unsatisfiable while the other lens runs */
       }
-      const newTrack = fresh.getVideoTracks()[0];
-      if (!newTrack) throw new Error("no track");
+
+      if (!fresh) {
+        // Plenty of Android devices open exactly ONE camera at a time, so the
+        // request above could never have succeeded while the front lens was
+        // live. Release, then ask — this is the step the old code never took.
+        oldTrack.stop();
+        released = true;
+        try {
+          fresh = await ask();
+        } catch {
+          fresh = await navigator.mediaDevices
+            .getUserMedia({ audio: false, video: { ...baseVideo, facingMode: { ideal: next } } })
+            .catch(() => null);
+        }
+      }
+
+      const newTrack = fresh?.getVideoTracks()[0];
+      if (!newTrack) {
+        // We may have just stopped the only working camera. Put the call back
+        // the way we found it rather than leaving the caller blind.
+        if (released) {
+          const back = await navigator.mediaDevices
+            .getUserMedia({
+              audio: false,
+              video: { ...baseVideo, facingMode: { ideal: facingRef.current } },
+            })
+            .catch(() => null);
+          const recovered = back?.getVideoTracks()[0];
+          if (recovered) {
+            recovered.enabled = oldTrack.enabled;
+            for (const entry of peerPoolRef.current.values()) {
+              for (const sender of entry.pc.getSenders()) {
+                if (sender.track?.kind === "video")
+                  await sender.replaceTrack(recovered).catch(() => {});
+              }
+            }
+            s.removeTrack(oldTrack);
+            s.addTrack(recovered);
+            if (fxRef.current) {
+              fxRef.current.video.srcObject = new MediaStream([recovered]);
+              void fxRef.current.video.play().catch(() => {});
+            } else if (localVideoRef.current) {
+              localVideoRef.current.srcObject = s;
+            }
+          }
+        }
+        throw new Error("no track");
+      }
       newTrack.enabled = oldTrack.enabled; // respect an active "Video off"
       if (fxRef.current) {
         // A filter pipeline owns the senders (they carry the canvas track);
-        // feed the new camera into the pipeline instead of the peers.
+        // feed the new camera into the pipeline instead of the peers. The
+        // canvas follows the new lens' geometry — the two cameras rarely
+        // report the same dimensions, and a stale canvas stretches the image.
+        const st = newTrack.getSettings();
+        if (st.width && st.height) {
+          fxRef.current.canvas.width = st.width;
+          fxRef.current.canvas.height = st.height;
+        }
         fxRef.current.video.srcObject = new MediaStream([newTrack]);
         void fxRef.current.video.play().catch(() => {});
       } else {
@@ -1602,11 +1729,25 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const teardownFx = () => {
     const fx = fxRef.current;
     if (!fx) return;
-    cancelAnimationFrame(fx.raf);
+    // Cleared FIRST: the draw loop reads fxRef every frame and stops on null,
+    // so an in-flight callback cannot resurrect a torn-down pipeline.
+    fxRef.current = null;
+    const v = fx.video as HTMLVideoElement & { cancelVideoFrameCallback?: (h: number) => void };
+    if (fx.usingRvfc && typeof v.cancelVideoFrameCallback === "function") {
+      v.cancelVideoFrameCallback(fx.raf);
+    } else {
+      clearTimeout(fx.raf);
+    }
     try {
       fx.track.stop();
     } catch {}
-    fxRef.current = null;
+    // The source <video> is a real DOM node (see applyCallFilter) and has to
+    // be removed, or every filter toggle leaks one more decoding element.
+    try {
+      v.pause();
+      v.srcObject = null;
+      v.remove();
+    } catch {}
   };
 
   const applyCallFilter = async (id: string) => {
@@ -1629,28 +1770,64 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       const video = document.createElement("video");
       video.muted = true;
       video.playsInline = true;
+      // IT MUST BE IN THE DOCUMENT. A detached <video> is not guaranteed to
+      // decode in an Android WebView — it can stay at readyState 0 forever,
+      // and drawImage of a video with no frames paints nothing. That is the
+      // filter that "doesn't work": a black or frozen rectangle sent to the
+      // other side. Off-screen and inert, but attached and therefore live.
+      // NOT `display:none`, which suspends rendering all over again.
+      video.setAttribute(
+        "style",
+        "position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none",
+      );
+      document.body.appendChild(video);
       video.srcObject = new MediaStream([camTrack]);
       await video.play().catch(() => {});
+
       const canvas = document.createElement("canvas");
       const st = camTrack.getSettings();
       canvas.width = st.width || 640;
       canvas.height = st.height || 480;
-      const stream = canvas.captureStream(20);
+      const stream = canvas.captureStream(FX_FPS);
       const track = stream.getVideoTracks()[0];
-      const ctx = canvas.getContext("2d");
-      const fx = { raf: 0, canvas, video, track, stream };
+      // alpha:false — the camera frame is opaque, and telling the compositor
+      // so removes a per-frame blend on every filtered frame.
+      const ctx = canvas.getContext("2d", { alpha: false });
+      const fx = { raf: 0, usingRvfc: false, canvas, video, track, stream };
       fxRef.current = fx;
+
+      /**
+       * Draw once per CAMERA frame, not once per display refresh.
+       *
+       * requestAnimationFrame fires at the screen's rate — 60Hz, 120Hz on
+       * newer phones — while the camera produces 20fps and captureStream
+       * samples 20fps. Two thirds or more of every drawImage+filter was
+       * computed and discarded, on the main thread, mid-call.
+       * requestVideoFrameCallback fires exactly once per decoded frame, so
+       * the work now matches the frames that actually exist. Where it is
+       * missing, a timer at the capture rate does the same job.
+       */
       const draw = () => {
         const cur = fxRef.current;
         if (!cur || !ctx) return;
         const active = CALL_FILTERS.find((x) => x.id === callFilterRef.current);
         ctx.filter = (active && "css" in active && active.css) || "none";
         try {
-          ctx.drawImage(cur.video, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(cur.video, 0, 0, cur.canvas.width, cur.canvas.height);
         } catch {}
-        cur.raf = requestAnimationFrame(draw);
+        const v = cur.video as HTMLVideoElement & {
+          requestVideoFrameCallback?: (cb: () => void) => number;
+        };
+        if (typeof v.requestVideoFrameCallback === "function") {
+          cur.usingRvfc = true;
+          cur.raf = v.requestVideoFrameCallback(draw);
+        } else {
+          cur.usingRvfc = false;
+          cur.raf = window.setTimeout(draw, 1000 / FX_FPS);
+        }
       };
       draw();
+
       for (const entry of peerPoolRef.current.values()) {
         for (const sender of entry.pc.getSenders()) {
           if (sender.track?.kind === "video") await sender.replaceTrack(track).catch(() => {});
@@ -2295,7 +2472,12 @@ function AddPeopleSheet({
 }) {
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<
-    { id: string; username: string | null; display_name: string | null; avatar_url: string | null }[]
+    {
+      id: string;
+      username: string | null;
+      display_name: string | null;
+      avatar_url: string | null;
+    }[]
   >([]);
   const [busy, setBusy] = useState(false);
 
