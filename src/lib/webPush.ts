@@ -135,10 +135,15 @@ async function persist(sub: PushSubscription): Promise<boolean> {
 /**
  * Subscribe this browser and store the result.
  *
- * Idempotent: an existing subscription is re-persisted rather than replaced,
- * so a returning user keeps the same endpoint and does not accumulate dead
- * rows. Permission is only REQUESTED when it has not already been decided —
- * asking again after a refusal is how a browser earns a permanent block.
+ * Idempotent WHERE THE KEY STILL MATCHES: an existing subscription is
+ * re-persisted rather than replaced, so a returning user keeps the same
+ * endpoint and does not accumulate dead rows. Where it does NOT match — the
+ * server's VAPID key has been rotated since this browser subscribed — the old
+ * subscription is dropped and replaced instead, because re-persisting it would
+ * be recording a dead address as healthy. See the comment at the comparison.
+ *
+ * Permission is only REQUESTED when it has not already been decided — asking
+ * again after a refusal is how a browser earns a permanent block.
  */
 export async function subscribeWebPush(): Promise<WebPushResult> {
   if (!webPushSupported()) return "unsupported";
