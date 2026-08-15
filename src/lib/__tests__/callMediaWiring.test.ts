@@ -74,6 +74,44 @@ describe("the in-call filter", () => {
     expect(SRC).toContain('t.kind === "video" && fxRef.current ? fxRef.current.track : t');
   });
 
+  /**
+   * NOTHING MAY PUT THE RAW CAMERA BACK IN THE SELF-VIEW WHILE A FILTER IS ON.
+   *
+   * The self-view sync effect runs on every `status` change and used to assign
+   * localStreamRef.current unconditionally. Pick a filter while the call is
+   * still `connecting`, and the `connecting` -> `connected` transition fired
+   * it, saw the canvas stream was "wrong", and restored the bare camera. The
+   * peer went on receiving the filtered track — the senders were already
+   * swapped — so the ONLY person who saw the filter die was the one who chose
+   * it. Reported 2026-08-15 as the filter not being active during calls.
+   *
+   * Choosing a filter after `connected` looked fine, because no further status
+   * change arrived to undo it. That intermittency is why this is pinned by the
+   * rule rather than by the symptom.
+   */
+  it("never lets a status change overwrite the filtered self-view", () => {
+    const effect = SRC.slice(
+      SRC.indexOf("// Sync local video srcObject"),
+      SRC.indexOf("// Native audio routing"),
+    );
+    expect(effect.length, "the self-view sync effect moved or was renamed").toBeGreaterThan(0);
+    expect(
+      effect,
+      "the self-view is assigned the raw camera again — a filter chosen before connect will be undone",
+    ).toContain("fxRef.current?.stream ?? localStreamRef.current");
+    expect(
+      /const stream = localStreamRef\.current;/.test(effect),
+      "back to the unconditional raw-camera assignment",
+    ).toBe(false);
+  });
+
+  it("guards every other self-view assignment the same way", () => {
+    // Two more places set srcObject while a filter can be running: the
+    // camera-recovery branch and the flip path. Both must defer to fx.
+    expect(SRC).toContain("if (localVideoRef.current && !fxRef.current) localVideoRef.current");
+    expect(SRC).toContain("} else if (localVideoRef.current) {");
+  });
+
   it("tears the pipeline down completely", () => {
     expect(SRC).toContain("v.remove()");
     // fxRef must be cleared BEFORE cancelling, or an in-flight callback can

@@ -397,10 +397,27 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   }, [status]);
   // Sync local video srcObject whenever the PiP <video> mounts or status/callType changes.
   // Guarantees the caller's self-preview attaches even if the stream existed before the element rendered.
+  //
+  // THE FILTERED STREAM WINS, AND THAT IS THE WHOLE FIX.
+  //
+  // This ran on every `status` change and always assigned the RAW camera. A
+  // filter chosen while the call was still `connecting` set the self-view to
+  // the canvas stream — and then `connecting` -> `connected` fired this, saw
+  // `el.srcObject !== localStreamRef.current`, and put the unfiltered camera
+  // straight back. The peer kept receiving the filtered track (the senders
+  // were already swapped), so the only person who could see the filter stop
+  // was the one who turned it on. From their seat the filter simply did not
+  // work, and picking one AFTER connecting appeared to work fine, because no
+  // further status change came to undo it.
+  //
+  // The same hazard is already guarded a few hundred lines down with
+  // `&& !fxRef.current`; it was missed here. Preferring the fx stream fixes
+  // both halves at once — nothing clobbers the filter, and a self-view element
+  // that mounts later comes up filtered instead of bare.
   useEffect(() => {
     if (callTypeRef.current !== "video") return;
     const el = localVideoRef.current;
-    const stream = localStreamRef.current;
+    const stream = fxRef.current?.stream ?? localStreamRef.current;
     if (el && stream && el.srcObject !== stream) {
       el.srcObject = stream;
     }
