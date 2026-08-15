@@ -44,6 +44,13 @@ import { ensureNotificationPermission, playRingback, stopAllCallSounds } from "@
 import { sendPush } from "@/lib/push";
 import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
 import { reportClientError } from "@/lib/errorReport";
+import {
+  FACE_FX,
+  geometryFrom,
+  isFaceFilter,
+  loadFaceLandmarker,
+  type Pt as FacePt,
+} from "@/lib/faceFx";
 
 // --- Native SpeakerRouter bridge (Capacitor Android plugin). No-op on web. ---
 type SpeakerRouterPlugin = {
@@ -306,7 +313,35 @@ const CALL_FILTERS: readonly {
     css: "invert(1) brightness(1.15) blur(0.6px)",
     fallback: [{ mode: "difference", color: "#ffffff" }],
   },
+  // Face-tracked. No css/fallback: these are drawn ON the frame from
+  // landmarks, so they colour nothing and work the same on every engine.
+  { id: "dog", label: "Dog 🐶" },
+  { id: "bigeyes", label: "Big eyes 👀" },
+  { id: "shades", label: "Shades 😎" },
+  // The gallery pick. Chosen photo is blended over the whole frame.
+  { id: "photo", label: "My photo 🖼️" },
 ];
+
+/**
+ * How strongly a chosen gallery photo is blended over the picture.
+ *
+ * A photo at full strength is not a filter, it is a replacement — the call
+ * becomes a still image with a voice, and the person on the other end cannot
+ * see who they are talking to. Low enough to read as a wash over a face that
+ * is still visibly there.
+ */
+const PHOTO_MIX = 0.38;
+
+/**
+ * Run the landmarker every Nth drawn frame, reusing the last result between.
+ *
+ * A face does not move far in 100ms, but inference is the most expensive thing
+ * in this loop by a wide margin, and it runs while WebRTC is encoding on the
+ * same phone. Detecting at half rate halves that cost for a difference nobody
+ * can see; drawing still happens on every frame, so the overlay never
+ * stutters even though the points beneath it update at 10Hz.
+ */
+const FX_DETECT_EVERY = 2;
 
 /**
  * How often the filter canvas is redrawn, and the rate captureStream samples
@@ -440,6 +475,19 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     stream: MediaStream;
   } | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
+  // The gallery photo, once picked, and the <input> that picks it.
+  const photoRef = useRef<HTMLImageElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  // Face landmarker + the last points it produced. Held in refs because the
+  // draw loop reads them every frame and must never re-render to do it.
+  const faceRef = useRef<{
+    lm: { detectForVideo(v: HTMLVideoElement, ts: number): { faceLandmarks: FacePt[][] } } | null;
+    pts: FacePt[] | null;
+    tick: number;
+  }>({ lm: null, pts: null, tick: 0 });
+  // Surfaced so a filter that cannot run says so instead of doing nothing.
+  const [faceUnavailable, setFaceUnavailable] = useState(false);
+  const [faceLoading, setFaceLoading] = useState(false);
   const attachCtx = useAttachmentContext();
   useEffect(() => {
     void detectNative().then(setIsNative);
@@ -1031,6 +1079,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     callFilterRef.current = "none";
     setCallFilter("none");
     setFilterOpen(false);
+    // The chosen photo goes with the call — it is somebody's private picture,
+    // and holding a decoded copy in memory after the call is over serves
+    // nothing. The landmarker deliberately STAYS: it is expensive to load and
+    // carries nothing personal, so the next call gets it instantly.
+    photoRef.current = null;
+    faceRef.current.pts = null;
     setShowAttach(false);
     setShowAddPeople(false);
     setTrayHidden(false);
@@ -1860,8 +1914,37 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   };
 
   const applyCallFilter = async (id: string) => {
+    // THE PICKER COMES FIRST, AND ONLY WHEN THERE IS NOTHING TO SHOW. Tapping
+    // "My photo" with a photo already chosen should re-apply it, not reopen
+    // the gallery — the chip is a filter, and a filter that reopens a file
+    // browser every time you return to it cannot be switched back on.
+    if (id === "photo" && !photoRef.current) {
+      photoInputRef.current?.click();
+      return;
+    }
+
     callFilterRef.current = id;
     setCallFilter(id);
+
+    // The landmarker is ~15 MB of runtime and model, so it is fetched the
+    // first time a face filter is chosen and never before. The draw loop
+    // reads faceRef every frame and simply paints nothing until this lands,
+    // which is why it is safe to let the filter switch on ahead of it.
+    if (isFaceFilter(id) && !faceRef.current.lm) {
+      setFaceLoading(true);
+      const lm = await loadFaceLandmarker();
+      setFaceLoading(false);
+      if (lm) {
+        faceRef.current.lm = lm;
+        setFaceUnavailable(false);
+      } else {
+        // Say so. A face filter that silently paints nothing is the exact
+        // failure this evening was spent removing.
+        setFaceUnavailable(true);
+        reportClientError("call-face-fx", "landmarker unavailable", { filter: id });
+      }
+    }
+
     const s = localStreamRef.current;
     const camTrack = s?.getVideoTracks()[0];
     if (!s || !camTrack) return;
@@ -1970,6 +2053,47 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               ctx.fillRect(0, 0, cur.canvas.width, cur.canvas.height);
             }
             ctx.globalCompositeOperation = "source-over";
+          }
+
+          // The gallery photo, washed over the whole frame. Drawn AFTER the
+          // colour filter so the photo is not itself hue-shifted, and with
+          // `cover` geometry so a portrait picture is not stretched across a
+          // landscape frame.
+          const photo = photoRef.current;
+          if (active?.id === "photo" && photo?.naturalWidth) {
+            const cw = cur.canvas.width;
+            const ch = cur.canvas.height;
+            const scale = Math.max(cw / photo.naturalWidth, ch / photo.naturalHeight);
+            const dw = photo.naturalWidth * scale;
+            const dh = photo.naturalHeight * scale;
+            ctx.filter = "none";
+            ctx.globalAlpha = PHOTO_MIX;
+            ctx.drawImage(photo, (cw - dw) / 2, (ch - dh) / 2, dw, dh);
+            ctx.globalAlpha = 1;
+          }
+
+          // Face-tracked art, painted on top of the finished frame.
+          if (active && isFaceFilter(active.id)) {
+            const face = faceRef.current;
+            face.tick += 1;
+            if (face.lm && face.tick % FX_DETECT_EVERY === 0) {
+              try {
+                // performance.now() is the clock detectForVideo wants; it
+                // refuses a timestamp that does not move forward.
+                const res = face.lm.detectForVideo(cur.video, performance.now());
+                face.pts = res?.faceLandmarks?.[0] ?? null;
+              } catch {
+                // One bad inference must not kill the loop — the next frame
+                // reuses the previous points and tries again.
+              }
+            }
+            if (face.pts) {
+              const g = geometryFrom(face.pts, cur.canvas.width, cur.canvas.height);
+              if (g) {
+                ctx.filter = "none";
+                FACE_FX[active.id]?.(ctx, g, cur.canvas);
+              }
+            }
           }
         } catch {}
         cur.lastDrawAt = Date.now();
@@ -2258,22 +2382,69 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         </button>
       )}
 
+      {/* The gallery picker for "My photo". Hidden: the chip is the control.
+          Kept mounted so the click handler always has an input to open. */}
+      <input
+        ref={photoInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        data-testid="call-filter-photo-input"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          // Reset the input value or picking the SAME photo twice fires no
+          // change event and the chip appears dead the second time.
+          e.target.value = "";
+          if (!file) return;
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          img.onload = () => {
+            photoRef.current = img;
+            void applyCallFilter("photo");
+            // The bitmap is decoded and held by the Image; the blob URL has
+            // done its job and would otherwise leak for the call's lifetime.
+            URL.revokeObjectURL(url);
+          };
+          img.onerror = () => URL.revokeObjectURL(url);
+          img.src = url;
+        }}
+      />
+
       {/* Live filter chips — visible while the filter picker is open. */}
       {filterOpen && !trayHidden && status !== "incoming" && callType === "video" && (
-        <div className="absolute bottom-[9.5rem] left-0 right-0 z-30 flex justify-center px-4">
+        <div className="absolute bottom-[9.5rem] left-0 right-0 z-30 flex flex-col items-center gap-1.5 px-4">
+          {(faceLoading || faceUnavailable) && (
+            <div className="rounded-full bg-black/70 px-3 py-1 text-[11px] font-semibold text-white/90 backdrop-blur">
+              {faceLoading
+                ? "Loading face filters…"
+                : "Face filters aren't available on this phone"}
+            </div>
+          )}
           <div className="flex max-w-full gap-1.5 overflow-x-auto rounded-full border border-white/10 bg-black/60 px-2 py-1.5 backdrop-blur">
             {CALL_FILTERS.map((f) => (
               <button
                 key={f.id}
                 type="button"
                 onClick={() => void applyCallFilter(f.id)}
-                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                disabled={isFaceFilter(f.id) && faceUnavailable}
+                className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-40 ${
                   callFilter === f.id ? "bg-white text-black" : "text-white/80"
                 }`}
               >
                 {f.label}
               </button>
             ))}
+            {/* Once a photo is chosen the chip re-applies it; this is how you
+                choose a DIFFERENT one without ending the call. */}
+            {photoRef.current && (
+              <button
+                type="button"
+                onClick={() => photoInputRef.current?.click()}
+                className="shrink-0 rounded-full px-3 py-1 text-xs font-semibold text-white/80"
+              >
+                Change 🔄
+              </button>
+            )}
           </div>
         </div>
       )}

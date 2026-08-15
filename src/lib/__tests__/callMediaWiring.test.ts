@@ -132,15 +132,37 @@ describe("the in-call filter", () => {
     ).toBe(false);
   });
 
-  it("has a fallback for every filter it offers", () => {
-    // A filter with neither a working css path nor a fallback is the silent
-    // no-op restated, one engine down.
-    const block = SRC.slice(SRC.indexOf("const CALL_FILTERS"), SRC.indexOf("const FX_FPS"));
-    const ids = [...block.matchAll(/id: "(\w+)"/g)].map(([, id]) => id);
-    expect(ids, "the filter list moved or changed shape").toContain("alien");
-    const fallbacks = [...block.matchAll(/fallback: \[/g)].length;
-    // Every filter except "none" carries one.
-    expect(fallbacks).toBe(ids.length - 1);
+  it("gives every ctx.filter-based filter a fallback", () => {
+    // The invariant is about DEPENDENCE, not about every entry in the list: a
+    // filter that leans on ctx.filter needs a path for engines without it.
+    // The face-tracked ones and the gallery photo lean on neither — they are
+    // painted onto the frame — so demanding a fallback from them would be
+    // demanding a fallback for a problem they do not have.
+    const block = SRC.slice(SRC.indexOf("const CALL_FILTERS"), SRC.indexOf("const PHOTO_MIX"));
+    expect(block, "the filter list moved or changed shape").toContain('id: "alien"');
+    // Split into per-entry chunks on the id line, then check each chunk.
+    const entries = block.split(/\{\s*\n?\s*id: "/).slice(1);
+    expect(entries.length).toBeGreaterThan(5);
+    for (const entry of entries) {
+      const id = entry.slice(0, entry.indexOf('"'));
+      if (!entry.includes("css:")) continue;
+      expect(entry, `${id} uses ctx.filter with no fallback`).toContain("fallback: [");
+    }
+  });
+
+  it("does not make the face filters depend on ctx.filter at all", () => {
+    // They draw shapes onto the finished frame, so they work identically on
+    // an engine that has no filter support — which is the point of listing
+    // them without a css chain.
+    const block = SRC.slice(SRC.indexOf("const CALL_FILTERS"), SRC.indexOf("const PHOTO_MIX"));
+    for (const id of ["dog", "bigeyes", "shades"]) {
+      const at = block.indexOf(`id: "${id}"`);
+      expect(at, `${id} is not in the filter list`).toBeGreaterThan(-1);
+      const entry = block.slice(at, block.indexOf("}", at));
+      expect(entry, `${id} gained a css chain — it would break where filter is unsupported`).not.toContain(
+        "css:",
+      );
+    }
   });
 
   it("resets the blend mode every frame", () => {
