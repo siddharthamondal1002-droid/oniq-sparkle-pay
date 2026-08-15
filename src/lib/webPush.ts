@@ -127,6 +127,11 @@ async function persist(sub: PushSubscription, appServerKey: string | null): Prom
   const auth = bufToB64url(sub.getKey("auth")) ?? json.keys?.auth;
   if (!sub.endpoint || !p256dh || !auth) return false;
 
+  // The upsert REPLACES `keys` wholesale, so writing without an appServerKey
+  // would erase one already recorded — turning a row we could reason about
+  // into one we cannot. Nothing new to say means keep what is there.
+  const recorded = appServerKey ?? (await keyFromRow(sub.endpoint));
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -155,7 +160,7 @@ async function persist(sub: PushSubscription, appServerKey: string | null): Prom
       // anyone who asks — so it is not key material and needs no protection
       // beyond the row's own RLS. Recorded here and nowhere else, because the
       // only moment we know it for certain is the moment we subscribe with it.
-      keys: appServerKey ? { p256dh, auth, appServerKey } : { p256dh, auth },
+      keys: recorded ? { p256dh, auth, appServerKey: recorded } : { p256dh, auth },
       updated_at: new Date().toISOString(),
     },
     { onConflict: "token" },
@@ -232,9 +237,20 @@ export async function subscribeWebPush(): Promise<WebPushResult> {
         // address because the key fetch hit a dead network would be worse
         // than the staleness this guards against.
         //
-        // `key` is passed through so a row that predates appServerKey gains
-        // one on the next start it survives, without waiting for a rotation.
-        return (await persist(existing, key ?? boundTo)) ? "granted" : "error";
+        // ONLY WHAT WE ACTUALLY KNOW. This passed `key ?? boundTo`, meaning
+        // that when the binding was UNKNOWN — no recorded row and an engine
+        // that reports options.applicationServerKey as null — it wrote the
+        // LIVE key as though the subscription had been minted with it. A
+        // fabricated record, and a self-sealing one: every later comparison
+        // reads it back, sees a match, and can never detect the rotation it
+        // was invented across. Precisely the engines this change exists to
+        // help would have been left worse off than before it.
+        //
+        // `boundTo` is null exactly when we do not know, and recording
+        // nothing is the honest answer to that. Where boundTo IS known this
+        // branch was reached because it equals `key`, so the legitimate
+        // backfill is untouched.
+        return (await persist(existing, boundTo)) ? "granted" : "error";
       }
     }
 

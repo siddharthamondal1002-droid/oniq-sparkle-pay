@@ -468,20 +468,33 @@ Deno.serve(async (req) => {
       // SEE THAT BEFORE SPENDING A REQUEST ON IT.
       //
       // The push service answers a VAPID mismatch with 403, which is not
-      // 404/410 — so `gone` never fires, the row is never wiped, and it fails
-      // on every send from now until someone opens the app on that browser.
-      // Comparing our own record against the key we are about to sign with
-      // turns that permanent silent failure into a known, countable one.
+      // 404/410 — so `gone` never fires and it fails on every send until
+      // someone opens the app on that browser. Comparing our own record
+      // against the key we are about to sign with turns a permanent silent
+      // failure into a known, countable one.
       //
-      // Wiped rather than skipped: an address that provably cannot receive is
-      // not an address. The browser re-subscribes and writes a fresh row on
-      // its next app start, so nothing is lost that was not already lost.
+      // SKIPPED, NOT DELETED, and that distinction is the whole safety of it.
+      //
+      // This function's idea of the "live" key is whatever VAPID_PRIVATE_KEY
+      // its isolate booted with, and isolates are reused — the module-scope
+      // token cache and rate-limit map above only work because they are. So
+      // in the window after a rotation, a warm isolate still signs with the
+      // OLD key while browsers that have reopened the app have correctly
+      // re-minted against the NEW one. This comparison then reads those
+      // HEALTHY rows as stale and the sick ones as fine: the judgement is
+      // exactly inverted, and a delete would make the loss outlive the window.
+      //
+      // The row's recorded key is also the evidence the CLIENT uses. Leave it
+      // and subscribeWebPush finds the mismatch on the next app start and does
+      // the correct unsubscribe → delete → re-subscribe, on every engine.
+      // Delete it and that evidence is gone, which is the one thing that
+      // cannot be undone from here.
       const livePublicKey = vapidPublicKey(jwk);
       const stale = webSubs.filter((s) => s.appServerKey && s.appServerKey !== livePublicKey);
       const deliverable = webSubs.filter((s) => !s.appServerKey || s.appServerKey === livePublicKey);
       if (stale.length > 0) {
         console.error(
-          `send-push: ${stale.length} web subscriber(s) hold a rotated VAPID key — wiping, they re-subscribe on next app start`,
+          `send-push: ${stale.length} web subscriber(s) recorded a different VAPID key — skipped, the app repairs them on next start`,
         );
         for (const s of stale) rotatedKeyEndpoints.push(s.endpoint);
       }
@@ -526,13 +539,11 @@ Deno.serve(async (req) => {
   // like a total transport failure and suppress the cleanup for the rows that
   // genuinely did die.
   const wipedWeb = webSent === 0 && deadEndpoints.length === webAttempted && webAttempted > 1;
-  const toDelete = [
-    ...(wipedFcm ? [] : staleTokens),
-    ...(wipedWeb ? [] : deadEndpoints),
-    // Never suppressed: these are not a failure pattern to be interpreted,
-    // they are rows we proved undeliverable before sending.
-    ...rotatedKeyEndpoints,
-  ];
+  // rotatedKeyEndpoints is DELIBERATELY ABSENT. Those rows are skipped, never
+  // deleted: this function cannot tell a genuinely stale row from a healthy
+  // one when its own isolate holds a rotated-out key, and deleting on that
+  // inference destroys the record the client needs to repair itself.
+  const toDelete = [...(wipedFcm ? [] : staleTokens), ...(wipedWeb ? [] : deadEndpoints)];
   if (wipedFcm || wipedWeb) {
     console.error("send-push: a whole transport failed identically — payload fault, no cleanup");
   }

@@ -135,7 +135,7 @@ describe("the recorded subscribe key", () => {
   it("is stored on the row at subscribe time", () => {
     expect(WEBPUSH).toContain("appServerKey");
     expect(WEBPUSH).toContain(
-      "keys: appServerKey ? { p256dh, auth, appServerKey } : { p256dh, auth }",
+      "keys: recorded ? { p256dh, auth, appServerKey: recorded } : { p256dh, auth }",
     );
   });
 
@@ -143,10 +143,32 @@ describe("the recorded subscribe key", () => {
     expect(WEBPUSH).toContain("(await keyFromRow(existing.endpoint)) ?? keyFromBrowser(existing)");
   });
 
-  it("backfills a row that predates it, without waiting for a rotation", () => {
-    // persist() is called with the live key on the match path too, so an old
-    // row gains its appServerKey on the next app start it survives.
-    expect(WEBPUSH).toContain("persist(existing, key ?? boundTo)");
+  /**
+   * NEVER RECORD A BINDING WE DID NOT OBSERVE.
+   *
+   * This briefly read `persist(existing, key ?? boundTo)`, which on an engine
+   * that reports options.applicationServerKey as null, for a row with nothing
+   * recorded, wrote the LIVE key as though the subscription had been minted
+   * with it. A fabrication, and a self-sealing one: every later comparison
+   * reads it back, matches, and can never detect the rotation it was invented
+   * across. It made exactly the engines this feature exists for WORSE off
+   * than before it — they had a detectable unknown, and were given an
+   * undetectable lie.
+   *
+   * Shipped at 18:45 and caught by review; live for eleven minutes.
+   */
+  it("records only a binding it actually observed", () => {
+    expect(WEBPUSH).toContain("persist(existing, boundTo)");
+    expect(
+      /persist\(existing, key \?\? boundTo\)/.test(WEBPUSH),
+      "the live key is being written as the recorded binding again — that is a fabricated record",
+    ).toBe(false);
+  });
+
+  it("does not erase a recorded key when it has nothing new to say", () => {
+    // The upsert replaces `keys` wholesale, so writing without an
+    // appServerKey would drop one already there.
+    expect(WEBPUSH).toContain("const recorded = appServerKey ?? (await keyFromRow(sub.endpoint))");
   });
 
   it("stores only the PUBLIC half — push-key hands this to anyone", () => {
@@ -168,20 +190,32 @@ describe("send-push refuses a row it can prove is undeliverable", () => {
   });
 
   /**
-   * The circuit-breaker suppresses cleanup when a whole transport fails
-   * identically, because that means a message-level fault. A rotated key is
-   * the one total, identical failure that is fully explained — so it must
-   * bypass that guard, or the first send after any rotation (when EVERY web
-   * row is stale) would refuse to clean up anything.
+   * IT MUST SKIP THEM, NOT DELETE THEM.
+   *
+   * This function's idea of the live key is whatever VAPID_PRIVATE_KEY its
+   * isolate booted with, and isolates are reused — the module-scope token
+   * cache and rate-limit map only work because they are. So in the window
+   * after a rotation a warm isolate signs with the OLD key while browsers
+   * that reopened the app have correctly re-minted against the NEW one. The
+   * comparison then reads those HEALTHY rows as stale and the sick ones as
+   * fine — the judgement is exactly inverted, and a delete makes the loss
+   * outlive the window.
+   *
+   * The recorded key is also the evidence the CLIENT repairs itself with.
+   * Leaving it means subscribeWebPush finds the mismatch on the next app
+   * start and does the right thing on every engine. Deleting it is the one
+   * step that cannot be undone from here.
    */
-  it("keeps rotated-key rows out of the circuit-breaker", () => {
-    expect(SEND).toContain("rotatedKeyEndpoints");
-    const breaker = SEND.slice(SEND.indexOf("const wipedWeb"));
-    expect(breaker).toContain("deadEndpoints.length === webAttempted");
+  it("never deletes a row on its own key inference", () => {
+    const toDelete = SEND.slice(
+      SEND.indexOf("const toDelete"),
+      SEND.indexOf("if (toDelete.length"),
+    );
     expect(
-      /wipedWeb \? \[\] : rotatedKeyEndpoints/.test(SEND),
-      "rotated-key rows are suppressed by the breaker — nothing would ever be cleaned after a rotation",
+      toDelete.includes("rotatedKeyEndpoints"),
+      "rotated-key rows are being deleted again — a warm isolate would wipe healthy subscriptions",
     ).toBe(false);
+    expect(SEND).toContain("rotatedKeyEndpoints is DELIBERATELY ABSENT");
   });
 
   it("counts the breaker against rows actually attempted", () => {
