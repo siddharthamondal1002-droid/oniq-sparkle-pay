@@ -2,7 +2,12 @@
 // Never logs tokens. Cleans up UNREGISTERED/404 tokens.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SignJWT, importPKCS8 } from "https://esm.sh/jose@5.9.6";
-import { parseVapidJwk, sendWebPush, type VapidJwk } from "../_shared/webpush.ts";
+import {
+  parseVapidJwk,
+  sendWebPush,
+  vapidPublicKey,
+  type VapidJwk,
+} from "../_shared/webpush.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -221,6 +226,11 @@ Deno.serve(async (req) => {
     .map((r) => ({
       endpoint: r.token,
       keys: { p256dh: r.keys!.p256dh, auth: r.keys!.auth },
+      // WHICH VAPID KEY THIS ROW WAS SUBSCRIBED WITH, recorded by the client
+      // at subscribe time. Absent on rows written before 2026-08-15, which
+      // reads as "unknown" and is sent to anyway — the row may be perfectly
+      // good and refusing it on a missing field would be inventing a fault.
+      appServerKey: typeof r.keys!.appServerKey === "string" ? r.keys!.appServerKey : null,
     }));
 
   if (fcmTokens.length === 0 && webSubs.length === 0) {
@@ -399,8 +409,22 @@ Deno.serve(async (req) => {
   // same field names and cannot drift apart.
   // -------------------------------------------------------------------------
   const deadEndpoints: string[] = [];
+  /**
+   * Rows we refused to send to because they hold a rotated VAPID key.
+   *
+   * KEPT APART FROM deadEndpoints ON PURPOSE. The circuit-breaker below
+   * suppresses cleanup when a whole transport fails identically, because that
+   * pattern means a message-level fault rather than N dead addresses. These
+   * are the one case where an identical, total failure is fully explained —
+   * we did not attempt them and we know exactly why — so they must not be
+   * caught by that guard. Folding them into deadEndpoints would do precisely
+   * that on the first send after any rotation, when every web row is stale.
+   */
+  const rotatedKeyEndpoints: string[] = [];
   let webSent = 0;
   let webFailed = 0;
+  /** How many rows were actually attempted — the circuit-breaker's denominator. */
+  let webAttempted = 0;
 
   if (webSubs.length > 0) {
     let jwk: VapidJwk | null = null;
@@ -440,8 +464,31 @@ Deno.serve(async (req) => {
       );
       const subject = Deno.env.get("VAPID_SUBJECT") ?? "https://oniqhub.com";
 
+      // A ROW SUBSCRIBED TO A DIFFERENT KEY CANNOT BE DELIVERED TO, AND WE CAN
+      // SEE THAT BEFORE SPENDING A REQUEST ON IT.
+      //
+      // The push service answers a VAPID mismatch with 403, which is not
+      // 404/410 — so `gone` never fires, the row is never wiped, and it fails
+      // on every send from now until someone opens the app on that browser.
+      // Comparing our own record against the key we are about to sign with
+      // turns that permanent silent failure into a known, countable one.
+      //
+      // Wiped rather than skipped: an address that provably cannot receive is
+      // not an address. The browser re-subscribes and writes a fresh row on
+      // its next app start, so nothing is lost that was not already lost.
+      const livePublicKey = vapidPublicKey(jwk);
+      const stale = webSubs.filter((s) => s.appServerKey && s.appServerKey !== livePublicKey);
+      const deliverable = webSubs.filter((s) => !s.appServerKey || s.appServerKey === livePublicKey);
+      if (stale.length > 0) {
+        console.error(
+          `send-push: ${stale.length} web subscriber(s) hold a rotated VAPID key — wiping, they re-subscribe on next app start`,
+        );
+        for (const s of stale) rotatedKeyEndpoints.push(s.endpoint);
+      }
+      webAttempted = deliverable.length;
+
       await Promise.all(
-        webSubs.map(async (sub) => {
+        deliverable.map(async (sub) => {
           const r = await sendWebPush(sub, webPayload, {
             jwk: jwk!,
             subject,
@@ -474,8 +521,18 @@ Deno.serve(async (req) => {
   // and folding them together would let one transport's bug wipe the other's
   // rows.
   const wipedFcm = sent === 0 && staleTokens.length === fcmTokens.length && fcmTokens.length > 1;
-  const wipedWeb = webSent === 0 && deadEndpoints.length === webSubs.length && webSubs.length > 1;
-  const toDelete = [...(wipedFcm ? [] : staleTokens), ...(wipedWeb ? [] : deadEndpoints)];
+  // ATTEMPTED, not addressed. Rows refused for a rotated key were never sent
+  // to, so counting them here would make an ordinary post-rotation send look
+  // like a total transport failure and suppress the cleanup for the rows that
+  // genuinely did die.
+  const wipedWeb = webSent === 0 && deadEndpoints.length === webAttempted && webAttempted > 1;
+  const toDelete = [
+    ...(wipedFcm ? [] : staleTokens),
+    ...(wipedWeb ? [] : deadEndpoints),
+    // Never suppressed: these are not a failure pattern to be interpreted,
+    // they are rows we proved undeliverable before sending.
+    ...rotatedKeyEndpoints,
+  ];
   if (wipedFcm || wipedWeb) {
     console.error("send-push: a whole transport failed identically — payload fault, no cleanup");
   }
@@ -489,7 +546,14 @@ Deno.serve(async (req) => {
       failed: failed + webFailed,
       cleaned: toDelete.length,
       fcm: { sent, failed, addressed: fcmTokens.length },
-      web: { sent: webSent, failed: webFailed, addressed: webSubs.length },
+      web: {
+        sent: webSent,
+        failed: webFailed,
+        addressed: webSubs.length,
+        // Reported rather than hidden inside `failed`: a rotated-key row is a
+        // known state with a known remedy, not an error to be investigated.
+        rotatedKey: rotatedKeyEndpoints.length,
+      },
     }),
     { headers: { ...corsHeaders, "content-type": "application/json" } },
   );

@@ -88,7 +88,40 @@ async function readyRegistration(): Promise<ServiceWorkerRegistration | null> {
   }
 }
 
-async function persist(sub: PushSubscription): Promise<boolean> {
+/**
+ * Which VAPID key this browser says it subscribed with.
+ *
+ * `options.applicationServerKey` is the browser's own record and the engines
+ * do not agree on it: some report null even when a key was supplied. That is
+ * the one gap left in the rotation guard — no readable value means no
+ * comparison, which means a rotated key is never noticed on that engine.
+ */
+function keyFromBrowser(sub: PushSubscription): string | null {
+  return bufToB64url(sub.options?.applicationServerKey ?? null);
+}
+
+/**
+ * Which VAPID key WE recorded when we stored this subscription.
+ *
+ * The row is written by persist() below, so this answer exists on every
+ * engine regardless of what `options` exposes. Null for rows written before
+ * 2026-08-15, which is why the caller still falls back to the browser.
+ */
+async function keyFromRow(endpoint: string): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from("device_tokens")
+      .select("keys")
+      .eq("token", endpoint)
+      .maybeSingle();
+    const keys = (data as { keys?: { appServerKey?: string } } | null)?.keys;
+    return typeof keys?.appServerKey === "string" ? keys.appServerKey : null;
+  } catch {
+    return null;
+  }
+}
+
+async function persist(sub: PushSubscription, appServerKey: string | null): Promise<boolean> {
   const json = sub.toJSON() as { endpoint?: string; keys?: Record<string, string> };
   const p256dh = bufToB64url(sub.getKey("p256dh")) ?? json.keys?.p256dh;
   const auth = bufToB64url(sub.getKey("auth")) ?? json.keys?.auth;
@@ -117,7 +150,12 @@ async function persist(sub: PushSubscription): Promise<boolean> {
       user_id: user.id,
       token: sub.endpoint,
       platform: "web",
-      keys: { p256dh, auth },
+      // appServerKey RIDES ALONG so the rotation check never has to ask the
+      // browser. It is the public half — the same value push-key hands to
+      // anyone who asks — so it is not key material and needs no protection
+      // beyond the row's own RLS. Recorded here and nowhere else, because the
+      // only moment we know it for certain is the moment we subscribe with it.
+      keys: appServerKey ? { p256dh, auth, appServerKey } : { p256dh, auth },
       updated_at: new Date().toISOString(),
     },
     { onConflict: "token" },
@@ -173,7 +211,14 @@ export async function subscribeWebPush(): Promise<WebPushResult> {
       //
       // Measured 2026-08-15, rotating the key after it leaked: two live web
       // subscriptions would both have been silently undeliverable from then on.
-      const boundTo = bufToB64url(existing.options?.applicationServerKey ?? null);
+      // OUR RECORD FIRST, THE BROWSER'S SECOND. `options.applicationServerKey`
+      // is the browser's memory of what it was handed, and engines disagree
+      // about whether to expose it — some return null even when a key was
+      // supplied, which left the comparison unable to run and the rotation
+      // unnoticed on those engines forever. The row we wrote ourselves has no
+      // such variation. The browser stays as the fallback for rows written
+      // before this was recorded.
+      const boundTo = (await keyFromRow(existing.endpoint)) ?? keyFromBrowser(existing);
       if (key && boundTo && boundTo !== key) {
         await existing.unsubscribe().catch(() => undefined);
         // Drop the stale row too. The new subscription gets a DIFFERENT
@@ -186,7 +231,10 @@ export async function subscribeWebPush(): Promise<WebPushResult> {
         // and a subscription is not thrown away on a maybe. Losing a working
         // address because the key fetch hit a dead network would be worse
         // than the staleness this guards against.
-        return (await persist(existing)) ? "granted" : "error";
+        //
+        // `key` is passed through so a row that predates appServerKey gains
+        // one on the next start it survives, without waiting for a rotation.
+        return (await persist(existing, key ?? boundTo)) ? "granted" : "error";
       }
     }
 
@@ -199,7 +247,9 @@ export async function subscribeWebPush(): Promise<WebPushResult> {
       userVisibleOnly: true,
       applicationServerKey: b64urlToUint8(key) as unknown as BufferSource,
     });
-    return (await persist(sub)) ? "granted" : "error";
+    // `key` is what we just subscribed with, so it is recorded as fact rather
+    // than read back from a browser that may not report it.
+    return (await persist(sub, key)) ? "granted" : "error";
   } catch {
     return "error";
   }

@@ -31,7 +31,10 @@ const SHARED = read("supabase/functions/_shared/webpush.ts");
 
 describe("subscribeWebPush after a key rotation", () => {
   it("compares the existing subscription against the live key", () => {
-    expect(WEBPUSH).toContain("existing.options?.applicationServerKey");
+    // The browser's own memory is still read — as the FALLBACK, inside
+    // keyFromBrowser. Our recorded row is preferred; see the recorded-key
+    // block at the bottom of this file.
+    expect(WEBPUSH).toContain("sub.options?.applicationServerKey");
     expect(WEBPUSH).toContain("boundTo !== key");
   });
 
@@ -112,5 +115,84 @@ describe("the service worker's own recovery path", () => {
     // and wrong after a rotation — which the page corrects on next start.
     expect(SW).toContain("pushsubscriptionchange");
     expect(SW).toContain("subscribeWebPush() compares");
+  });
+});
+
+/**
+ * THE COMPARISON NOW READS OUR OWN RECORD, NOT THE BROWSER'S MEMORY.
+ *
+ * `options.applicationServerKey` is what the browser remembers being handed,
+ * and engines disagree about exposing it — some report null even when a key
+ * was supplied. On those the comparison could not run at all, so a rotation
+ * went unnoticed forever: the one silent case the guard could not reach.
+ *
+ * The key is now written into `device_tokens.keys.appServerKey` at subscribe
+ * time, where we know it for certain. `keys` is already jsonb, so there is no
+ * migration and no new column. The browser stays as the fallback, for rows
+ * written before this existed.
+ */
+describe("the recorded subscribe key", () => {
+  it("is stored on the row at subscribe time", () => {
+    expect(WEBPUSH).toContain("appServerKey");
+    expect(WEBPUSH).toContain(
+      "keys: appServerKey ? { p256dh, auth, appServerKey } : { p256dh, auth }",
+    );
+  });
+
+  it("is preferred over the browser's own memory", () => {
+    expect(WEBPUSH).toContain("(await keyFromRow(existing.endpoint)) ?? keyFromBrowser(existing)");
+  });
+
+  it("backfills a row that predates it, without waiting for a rotation", () => {
+    // persist() is called with the live key on the match path too, so an old
+    // row gains its appServerKey on the next app start it survives.
+    expect(WEBPUSH).toContain("persist(existing, key ?? boundTo)");
+  });
+
+  it("stores only the PUBLIC half — push-key hands this to anyone", () => {
+    // A guard against someone later "improving" this into storing the JWK.
+    expect(WEBPUSH).not.toMatch(/keys:[^}]*\bd\b\s*:/);
+  });
+});
+
+describe("send-push refuses a row it can prove is undeliverable", () => {
+  it("compares the recorded key against the one it is about to sign with", () => {
+    expect(SEND).toContain("const livePublicKey = vapidPublicKey(jwk)");
+    expect(SEND).toContain("s.appServerKey && s.appServerKey !== livePublicKey");
+  });
+
+  it("treats a missing recorded key as deliverable, not as a fault", () => {
+    // Rows written before this existed have no appServerKey. Refusing them
+    // would invent a failure out of an absent field.
+    expect(SEND).toContain("!s.appServerKey || s.appServerKey === livePublicKey");
+  });
+
+  /**
+   * The circuit-breaker suppresses cleanup when a whole transport fails
+   * identically, because that means a message-level fault. A rotated key is
+   * the one total, identical failure that is fully explained — so it must
+   * bypass that guard, or the first send after any rotation (when EVERY web
+   * row is stale) would refuse to clean up anything.
+   */
+  it("keeps rotated-key rows out of the circuit-breaker", () => {
+    expect(SEND).toContain("rotatedKeyEndpoints");
+    const breaker = SEND.slice(SEND.indexOf("const wipedWeb"));
+    expect(breaker).toContain("deadEndpoints.length === webAttempted");
+    expect(
+      /wipedWeb \? \[\] : rotatedKeyEndpoints/.test(SEND),
+      "rotated-key rows are suppressed by the breaker — nothing would ever be cleaned after a rotation",
+    ).toBe(false);
+  });
+
+  it("counts the breaker against rows actually attempted", () => {
+    expect(SEND).toContain("webAttempted = deliverable.length");
+    expect(
+      /deadEndpoints\.length === webSubs\.length/.test(SEND),
+      "the breaker counts refused rows as attempted again",
+    ).toBe(false);
+  });
+
+  it("reports rotated-key rows separately from failures", () => {
+    expect(SEND).toContain("rotatedKey: rotatedKeyEndpoints.length");
   });
 });
