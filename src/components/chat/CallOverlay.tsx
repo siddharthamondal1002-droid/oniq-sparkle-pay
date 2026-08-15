@@ -240,6 +240,14 @@ const CALL_FILTERS = [
 const FX_FPS = 20;
 
 /**
+ * How long the canvas may go unpainted before the loop is presumed dead and
+ * restarted, and how often that is checked. ~16 frames at FX_FPS: past any
+ * ordinary jitter, well inside what a person on a call would notice.
+ */
+const FX_STALL_MS = 800;
+const FX_WATCHDOG_MS = 500;
+
+/**
  * The deviceId of the front or back camera.
  *
  * WHY NOT JUST facingMode. Inside an Android WebView the facingMode
@@ -343,6 +351,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     raf: number;
     /** True when `raf` is a requestVideoFrameCallback handle, not a timeout. */
     usingRvfc: boolean;
+    /** When the last frame was actually painted — the watchdog's evidence. */
+    lastDrawAt: number;
+    /** The watchdog interval that restarts a loop which stopped being called. */
+    watchdog: number;
     canvas: HTMLCanvasElement;
     video: HTMLVideoElement;
     track: MediaStreamTrack;
@@ -1732,6 +1744,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     // Cleared FIRST: the draw loop reads fxRef every frame and stops on null,
     // so an in-flight callback cannot resurrect a torn-down pipeline.
     fxRef.current = null;
+    clearInterval(fx.watchdog);
     const v = fx.video as HTMLVideoElement & { cancelVideoFrameCallback?: (h: number) => void };
     if (fx.usingRvfc && typeof v.cancelVideoFrameCallback === "function") {
       v.cancelVideoFrameCallback(fx.raf);
@@ -1793,7 +1806,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       // alpha:false — the camera frame is opaque, and telling the compositor
       // so removes a per-frame blend on every filtered frame.
       const ctx = canvas.getContext("2d", { alpha: false });
-      const fx = { raf: 0, usingRvfc: false, canvas, video, track, stream };
+      const fx = {
+        raf: 0,
+        usingRvfc: false,
+        lastDrawAt: Date.now(),
+        watchdog: 0,
+        canvas,
+        video,
+        track,
+        stream,
+      };
       fxRef.current = fx;
 
       /**
@@ -1804,17 +1826,21 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
        * samples 20fps. Two thirds or more of every drawImage+filter was
        * computed and discarded, on the main thread, mid-call.
        * requestVideoFrameCallback fires exactly once per decoded frame, so
-       * the work now matches the frames that actually exist. Where it is
-       * missing, a timer at the capture rate does the same job.
+       * the work matches the frames that actually exist.
+       *
+       * BUT rVFC IS NOT A TIMER. It is a promise to call back when the next
+       * frame is PRESENTED, and if no frame ever is — the WebView backgrounds
+       * the page and pauses the element, the camera stalls, the track is
+       * swapped out from under it — the callback never fires and the loop is
+       * gone for good. rAF at least kept ticking and repainting the last
+       * frame. Trading that away for efficiency without a liveness guard
+       * turns a stutter into a permanently frozen filter, and captureStream
+       * only samples a canvas that CHANGES, so the far side freezes with it.
+       * Hence the watchdog below: efficiency by default, recovery guaranteed.
        */
-      const draw = () => {
+      const schedule = () => {
         const cur = fxRef.current;
-        if (!cur || !ctx) return;
-        const active = CALL_FILTERS.find((x) => x.id === callFilterRef.current);
-        ctx.filter = (active && "css" in active && active.css) || "none";
-        try {
-          ctx.drawImage(cur.video, 0, 0, cur.canvas.width, cur.canvas.height);
-        } catch {}
+        if (!cur) return;
         const v = cur.video as HTMLVideoElement & {
           requestVideoFrameCallback?: (cb: () => void) => number;
         };
@@ -1826,7 +1852,51 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           cur.raf = window.setTimeout(draw, 1000 / FX_FPS);
         }
       };
+
+      const draw = () => {
+        const cur = fxRef.current;
+        if (!cur || !ctx) return;
+        const active = CALL_FILTERS.find((x) => x.id === callFilterRef.current);
+        ctx.filter = (active && "css" in active && active.css) || "none";
+        try {
+          ctx.drawImage(cur.video, 0, 0, cur.canvas.width, cur.canvas.height);
+        } catch {}
+        cur.lastDrawAt = Date.now();
+        schedule();
+      };
+
+      /** Cancel whatever is pending and start the loop again from scratch. */
+      const kick = () => {
+        const cur = fxRef.current;
+        if (!cur) return;
+        const v = cur.video as HTMLVideoElement & {
+          cancelVideoFrameCallback?: (h: number) => void;
+        };
+        if (cur.usingRvfc && typeof v.cancelVideoFrameCallback === "function") {
+          try {
+            v.cancelVideoFrameCallback(cur.raf);
+          } catch {
+            /* already fired */
+          }
+        } else {
+          clearTimeout(cur.raf);
+        }
+        // A paused element presents no frames, so nothing above would ever
+        // restart on its own — this is the half that actually revives it.
+        if (cur.video.paused) void cur.video.play().catch(() => {});
+        draw();
+      };
+
       draw();
+
+      // Cheap: one comparison twice a second. FX_STALL_MS is ~16 frames at
+      // FX_FPS, long enough that ordinary jitter never trips it and short
+      // enough that a real stall is invisible to the person on the call.
+      fx.watchdog = window.setInterval(() => {
+        const cur = fxRef.current;
+        if (!cur) return;
+        if (Date.now() - cur.lastDrawAt > FX_STALL_MS) kick();
+      }, FX_WATCHDOG_MS);
 
       for (const entry of peerPoolRef.current.values()) {
         for (const sender of entry.pc.getSenders()) {

@@ -108,4 +108,32 @@ describe("the draw loop", () => {
   it("does not ask the compositor to blend an opaque camera frame", () => {
     expect(SRC).toContain('getContext("2d", { alpha: false })');
   });
+
+  /**
+   * rVFC is not a timer, and that is the whole danger of it.
+   *
+   * It calls back when the next frame is PRESENTED. If none ever is — the
+   * WebView backgrounds the page and pauses the element, the camera stalls,
+   * the track is swapped — the callback never fires and the loop is gone for
+   * good, where rAF would have kept repainting. captureStream only samples a
+   * canvas that changes, so the far side freezes with it. Taking the
+   * efficiency without the recovery turns a stutter into a dead filter.
+   */
+  it("restarts a loop that stopped being called back", () => {
+    expect(SRC).toContain("const FX_STALL_MS");
+    expect(SRC, "no watchdog — one stall would freeze the filter forever").toContain(
+      "Date.now() - cur.lastDrawAt > FX_STALL_MS",
+    );
+    expect(SRC).toContain("cur.lastDrawAt = Date.now()");
+    // The restart must cancel what is pending first, or two loops run at once.
+    const kick = SRC.slice(SRC.indexOf("const kick ="));
+    expect(kick.indexOf("cancelVideoFrameCallback")).toBeLessThan(kick.indexOf("draw()"));
+    // A paused element presents no frames, so nothing self-restarts without
+    // this: it is the half that actually revives the pipeline.
+    expect(kick).toContain("if (cur.video.paused)");
+  });
+
+  it("stops the watchdog when the pipeline is torn down", () => {
+    expect(SRC).toContain("clearInterval(fx.watchdog)");
+  });
 });
