@@ -7,12 +7,20 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 8
-        versionName "1.6"
-        // 1.6 carries native work that a web publish cannot deliver:
-        // SpeakerRouter now takes audio focus and points the volume rocker at
-        // the call stream, and MediaSaver publishes saved videos into the
-        // device's Movies collection so they appear in the gallery.
+        versionCode 9
+        versionName "1.7"
+        // 1.7 carries native work that a web publish cannot deliver: the
+        // @capacitor/share and @capacitor/filesystem plugins, without which the
+        // Share and Save buttons under Lores were dead controls on an installed
+        // build — the web calls them, the shell had nothing to answer with.
+        //
+        // versionCode 9 because 8 WAS UPLOADED (1.6, 2026-08-11). Play rejects a
+        // duplicate code outright, and a build that cannot be uploaded is a build
+        // that did not happen. The code goes up on every AAB that leaves here,
+        // whether or not the version name changes.
+        //
+        // 1.6 shipped SpeakerRouter's audio focus and volume-rocker routing, and
+        // MediaSaver publishing into the device's Movies collection.
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
