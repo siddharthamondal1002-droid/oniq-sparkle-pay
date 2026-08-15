@@ -70,12 +70,16 @@ describe("planStory splits a duration into generatable shots", () => {
   });
 
   it("removes shots when pacing would push them under the floor", () => {
-    // 60 shots per minute over 20s is 20 shots of 1s, under a 5s floor. The cap
-    // must pull it back to 4.
-    const plan = planStory(20, { shotsPerMinute: 60, minShotSeconds: 5 });
+    // 60 shots per minute over 60s is 60 shots of 1s, well under a 15s floor.
+    // The cap must pull it back to 4. Expressed at 60s rather than the 20s
+    // this used to use, because MIN_STORY_SECONDS became 60 on 2026-08-15 and
+    // a shorter request now clamps up — which would have tested the clamp
+    // instead of the thinning. The ceiling is lifted alongside the floor so
+    // the two limits do not contradict each other.
+    const plan = planStory(60, { shotsPerMinute: 60, minShotSeconds: 15, maxShotSeconds: 20 });
     expect(plan.shots.length).toBeLessThanOrEqual(4);
-    for (const shot of plan.shots) expect(shot.seconds).toBeGreaterThanOrEqual(5);
-    expect(plan.shots.reduce((a, x) => a + x.seconds, 0)).toBe(20);
+    for (const shot of plan.shots) expect(shot.seconds).toBeGreaterThanOrEqual(15);
+    expect(plan.shots.reduce((a, x) => a + x.seconds, 0)).toBe(60);
   });
 
   it("clamps rather than throwing on a silly length", () => {

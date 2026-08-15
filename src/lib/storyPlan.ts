@@ -45,13 +45,20 @@ import { MAX_SHOT_SECONDS, MIN_SHOT_SECONDS, minimumShots } from "./shotAllocati
 export const DEFAULT_STORY_SECONDS = 60;
 
 /**
- * The shortest Story worth generating.
+ * The shortest Story on sale — one minute (owner directive, 2026-08-15).
  *
- * Below this the shot list collapses to one clip and the result is
- * indistinguishable from a single generation, which the product already offers
- * nowhere and does not need a planner for.
+ * It was 10s, then 30s was the shortest thing anyone could buy. THE REASON IT
+ * IS GONE IS ARITHMETIC, not taste: a flat ₹3 per-film infrastructure cost
+ * cannot be recovered by a per-minute price, so half a minute paid all of the
+ * flat cost while collecting half the rate and landed at ~21% against a 26%
+ * floor. Every other duration clears it. Rather than break the one-rate policy
+ * with a bent row — a row off the line is a tier again — the sub-minute
+ * option was withdrawn.
+ *
+ * Mirrored by story_config.min_story_seconds, which is what the claim clamps
+ * to and therefore the copy that actually binds.
  */
-export const MIN_STORY_SECONDS = 10;
+export const MIN_STORY_SECONDS = 60;
 
 /**
  * The longest a single Story may be.

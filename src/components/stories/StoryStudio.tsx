@@ -55,8 +55,12 @@ import {
 import { checkoutTarget } from "@/lib/storyPricing";
 import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient";
 
-/** Lengths offered as one tap. Anything between the bounds is still allowed. */
-const PRESETS = [30, 60, 120, 300] as const;
+/**
+ * Lengths offered as one tap. Anything between the bounds is still allowed.
+ * 30s was withdrawn 2026-08-15 — a flat per-film cost is not recoverable by a
+ * per-minute price, so it could not clear the 26% floor.
+ */
+const PRESETS = [60, 120, 300] as const;
 
 /** The tier chips' own wording, reused wherever a tier is named in prose. */
 function tierLabel(s: number): string {

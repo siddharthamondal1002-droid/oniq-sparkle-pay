@@ -13,6 +13,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { PER_MINUTE_PAISE, PRICE_TIERS, priceForSeconds } from "@/lib/storyPricing";
+import { MIN_STORY_SECONDS } from "@/lib/storyPlan";
 import {
   MARGIN_TARGET,
   MOVIE_TIERS,
@@ -23,7 +24,9 @@ import {
 
 const SQL = readFileSync(
   // The NEWEST pricing migration is the one canonical chart. Latest:
-  // 2026-08-15, tiers replaced by a single per-minute rate per grade.
+  // 2026-08-15, tiers replaced by a single per-minute rate per grade. The
+  // 30s rows it seeds are DELETED by 20260815060000_drop_thirty_seconds.sql
+  // — see the sub-minute test below, which pins that removal.
   join(process.cwd(), "supabase/migrations/20260815000000_per_minute_pricing.sql"),
   "utf8",
 );
@@ -32,6 +35,7 @@ type Row = { seconds: number; label: string; pricePaise: number; grade: string; 
 
 /** Every row of the canonical upsert, in sort order. */
 function chart(): Row[] {
+  // Rows the drop migration removes are not part of the published chart.
   const insert = SQL.match(
     /insert into public\.story_price_tiers \(seconds, label, price_paise, sort_order, grade, active\) values\s*([\s\S]*?)\s*on conflict/,
   );
@@ -42,6 +46,7 @@ function chart(): Row[] {
     ),
   ];
   expect(rows.length, "no rows parsed — the format changed").toBe(10);
+  // 10 seeded, 8 published: the two sub-minute rows are deleted downstream.
   return rows
     .map(([, seconds, label, pricePaise, sortOrder, grade, active]) => ({
       seconds: Number(seconds),
@@ -52,6 +57,7 @@ function chart(): Row[] {
       active,
     }))
     .sort((a, b) => a.sortOrder - b.sortOrder)
+    .filter((r) => r.seconds >= 60)
     .map(({ seconds, label, pricePaise, grade, active }) => ({
       seconds,
       label,
@@ -136,18 +142,39 @@ describe("the per-minute rate", () => {
     expect(MARGIN_TARGET).toBe(0.26);
   });
 
-  it("holds the 26% floor from one minute up, and admits where it does not", () => {
+  it("holds the 26% floor at every duration on sale", () => {
     for (const grade of ["classic", "movie"] as const) {
       for (const seconds of [60, 120, 180, 300]) {
         const m = oniqMarginAt(grade, seconds, priceForSeconds(grade, seconds));
         expect(m, `${grade} ${seconds}s fell under the mandate`).toBeGreaterThanOrEqual(0.26);
       }
-      // 30s cannot clear it: a flat per-film cost is not recoverable by a
-      // per-minute price. Pinned so the shortfall stays a known, visible
-      // decision instead of becoming a surprise on a margin review.
-      const short = oniqMarginAt(grade, 30, priceForSeconds(grade, 30));
-      expect(short).toBeLessThan(0.26);
-      expect(short).toBeGreaterThan(0.2);
     }
+  });
+
+  /**
+   * The sub-minute film is withdrawn, and this is why it had to be.
+   *
+   * The arithmetic that killed it is asserted rather than described: a flat
+   * per-film cost cannot be recovered by a per-minute price, so 30s would
+   * land under the floor at the published rate. If a future change ever makes
+   * a sub-minute film clear 26% honestly, this test fails and someone gets to
+   * reconsider — which is the point.
+   */
+  it("sells nothing under a minute, because nothing under a minute clears the floor", () => {
+    expect(MIN_STORY_SECONDS).toBe(60);
+    for (const t of PRICE_TIERS) expect(t.seconds).toBeGreaterThanOrEqual(60);
+    for (const t of MOVIE_TIERS) expect(t.seconds).toBeGreaterThanOrEqual(60);
+    for (const grade of ["classic", "movie"] as const) {
+      const would = oniqMarginAt(grade, 30, priceForSeconds(grade, 30));
+      expect(would, `${grade} 30s would now clear the floor — worth revisiting`).toBeLessThan(0.26);
+    }
+    // The migration that removes them, and the floor that stops a caller
+    // claiming one anyway past a checkout that no longer sells it.
+    const drop = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260815060000_drop_thirty_seconds.sql"),
+      "utf8",
+    );
+    expect(drop).toContain("delete from public.story_price_tiers where seconds < 60");
+    expect(drop).toContain("min_story_seconds = 60");
   });
 });

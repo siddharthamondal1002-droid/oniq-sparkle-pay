@@ -54,7 +54,6 @@ export function priceForSeconds(grade: "classic" | "movie", seconds: number): nu
  * `story_price_tiers`, in `sort_order`.
  */
 export const PRICE_TIERS: readonly StoryPriceTier[] = [
-  { seconds: 30, label: "30 seconds", pricePaise: 2450, currency: "INR" },
   { seconds: 60, label: "1 minute", pricePaise: 4900, currency: "INR" },
   { seconds: 120, label: "2 minutes", pricePaise: 9800, currency: "INR" },
   { seconds: 180, label: "3 minutes", pricePaise: 14700, currency: "INR" },

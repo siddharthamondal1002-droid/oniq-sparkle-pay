@@ -136,8 +136,21 @@ describe("the configured defaults are the numbers the arithmetic produced", () =
   });
 
   it("seeds the length bounds from storyPlan", () => {
-    expect(defaultOf("min_story_seconds")).toBe(MIN_STORY_SECONDS);
     expect(defaultOf("max_story_seconds")).toBe(MAX_STORY_SECONDS);
+    // The FLOOR moved 10 -> 60 on 2026-08-15 when the sub-minute film was
+    // withdrawn, so the seed migration is no longer the authority on it: a
+    // later migration alters both the live row and the column default. Assert
+    // the mover, not the seed — checking the seed would pin a number the
+    // database has deliberately stopped using.
+    const drop = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260815060000_drop_thirty_seconds.sql"),
+      "utf8",
+    );
+    expect(MIN_STORY_SECONDS).toBe(60);
+    expect(drop).toContain("min_story_seconds = 60");
+    expect(drop, "a fresh project would still seed the withdrawn floor").toContain(
+      "alter column min_story_seconds set default 60",
+    );
   });
 });
 

@@ -130,7 +130,6 @@ export const MOVIE_TIERS: readonly {
   currency: "INR";
 }[] = [
   // Every row is priceFor("movie", seconds) — ₹57/min, nothing hand-set.
-  { seconds: 30, label: "30 seconds — movie", pricePaise: 2850, currency: "INR" },
   { seconds: 60, label: "1 minute — movie", pricePaise: 5700, currency: "INR" },
   { seconds: 120, label: "2 minutes — movie", pricePaise: 11400, currency: "INR" },
   { seconds: 180, label: "3 minutes — movie", pricePaise: 17100, currency: "INR" },
