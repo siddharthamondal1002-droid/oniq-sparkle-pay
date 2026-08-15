@@ -26,17 +26,39 @@ export type StoryPriceTier = {
   currency: "INR";
 };
 
-/** Mirrors the `story_price_tiers` seed rows, in `sort_order`. */
-// Repriced 2026-08-11 to the mandated margin policy (28% short / 26% mid /
-// 21% long, infrastructure recovered) — see storyCostModel.priceFor(), which
-// DERIVES these numbers. Exact-formula prices, not retail-pretty ones: the
-// margin is the requirement, and ₹48 at 26.4% beats ₹49 at "about right".
+/**
+ * THE RATE, not a chart (owner directive, 2026-08-15).
+ *
+ * Tiers are gone: one per-minute price per grade, 26% margin, and every
+ * published amount is this rate times the minutes bought. Derived by
+ * storyCostModel.pricePaisePerMinute() from the owner's measured ₹31.50/min
+ * generation cost — these are its output, not hand-picked numbers.
+ */
+export const PER_MINUTE_PAISE: Readonly<Record<"classic" | "movie", number>> = {
+  classic: 4900,
+  movie: 5700,
+};
+
+/** What `seconds` of film costs at the published rate, paise. */
+export function priceForSeconds(grade: "classic" | "movie", seconds: number): number {
+  return Math.round((PER_MINUTE_PAISE[grade] * seconds) / 60);
+}
+
+/**
+ * The durations offered on the buy page, priced off the rate.
+ *
+ * STILL A LIST, NO LONGER A LADDER. The rows exist because a buyer picks a
+ * length and `create_story_purchase` looks one up; what changed is that no
+ * row carries a price of its own any more — every one is rate x minutes, so
+ * there is nothing here to drift out of policy. Mirrors the seed rows in
+ * `story_price_tiers`, in `sort_order`.
+ */
 export const PRICE_TIERS: readonly StoryPriceTier[] = [
-  { seconds: 30, label: "30 seconds", pricePaise: 2700, currency: "INR" },
-  { seconds: 60, label: "1 minute", pricePaise: 4800, currency: "INR" },
-  { seconds: 120, label: "2 minutes", pricePaise: 9200, currency: "INR" },
-  { seconds: 180, label: "3 minutes", pricePaise: 12600, currency: "INR" },
-  { seconds: 300, label: "5 minutes", pricePaise: 20800, currency: "INR" },
+  { seconds: 30, label: "30 seconds", pricePaise: 2450, currency: "INR" },
+  { seconds: 60, label: "1 minute", pricePaise: 4900, currency: "INR" },
+  { seconds: 120, label: "2 minutes", pricePaise: 9800, currency: "INR" },
+  { seconds: 180, label: "3 minutes", pricePaise: 14700, currency: "INR" },
+  { seconds: 300, label: "5 minutes", pricePaise: 24500, currency: "INR" },
 ];
 
 /**

@@ -12,14 +12,19 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { PRICE_TIERS } from "@/lib/storyPricing";
-import { MOVIE_TIERS } from "@/lib/storyCostModel";
+import { PER_MINUTE_PAISE, PRICE_TIERS, priceForSeconds } from "@/lib/storyPricing";
+import {
+  MARGIN_TARGET,
+  MOVIE_TIERS,
+  UNIT,
+  oniqMarginAt,
+  pricePaisePerMinute,
+} from "@/lib/storyCostModel";
 
 const SQL = readFileSync(
-  // The NEWEST pricing migration is the one canonical chart. 20260811180000,
-  // the measured-cost reprice, the in-house reprice, then the owner's launch
-  // flip (movie on sale, classic off) — all 2026-08-13.
-  join(process.cwd(), "supabase/migrations/20260813200000_movie_on_classic_off.sql"),
+  // The NEWEST pricing migration is the one canonical chart. Latest:
+  // 2026-08-15, tiers replaced by a single per-minute rate per grade.
+  join(process.cwd(), "supabase/migrations/20260815000000_per_minute_pricing.sql"),
   "utf8",
 );
 
@@ -97,5 +102,52 @@ describe("the canonical price chart matches the TypeScript mirrors", () => {
       ...MOVIE_TIERS.map((t) => t.currency),
     ]);
     expect(currencies).toEqual(new Set(["INR"]));
+  });
+});
+
+/**
+ * THE NO-TIERS INVARIANT (owner directive, 2026-08-15).
+ *
+ * The policy is not "these five prices"; it is "one rate, times minutes". A
+ * chart can satisfy a margin check row by row and still have quietly grown a
+ * tier — a row nudged for retail prettiness, a duration given its own
+ * discount. Linearity is the property that says the ladder is really gone, so
+ * it is asserted directly against the SQL rather than inferred from the
+ * TypeScript that is supposed to mirror it.
+ */
+describe("the per-minute rate", () => {
+  it("prices every published duration at exactly rate x minutes", () => {
+    for (const grade of ["classic", "movie"] as const) {
+      const rows = chart().filter((r) => r.grade === grade);
+      const rate = PER_MINUTE_PAISE[grade];
+      for (const r of rows) {
+        expect(r.pricePaise, `${grade} ${r.seconds}s is not on the ${rate}/min line`).toBe(
+          Math.round((rate * r.seconds) / 60),
+        );
+      }
+    }
+  });
+
+  it("derives that rate from the cost model rather than hand-setting it", () => {
+    expect(PER_MINUTE_PAISE.classic).toBe(pricePaisePerMinute("classic"));
+    expect(PER_MINUTE_PAISE.movie).toBe(pricePaisePerMinute("movie"));
+    // The owner's measured generation cost is the input everything hangs off.
+    expect(UNIT.genPaisePerMinute).toBe(3150);
+    expect(MARGIN_TARGET).toBe(0.26);
+  });
+
+  it("holds the 26% floor from one minute up, and admits where it does not", () => {
+    for (const grade of ["classic", "movie"] as const) {
+      for (const seconds of [60, 120, 180, 300]) {
+        const m = oniqMarginAt(grade, seconds, priceForSeconds(grade, seconds));
+        expect(m, `${grade} ${seconds}s fell under the mandate`).toBeGreaterThanOrEqual(0.26);
+      }
+      // 30s cannot clear it: a flat per-film cost is not recoverable by a
+      // per-minute price. Pinned so the shortfall stays a known, visible
+      // decision instead of becoming a surprise on a margin review.
+      const short = oniqMarginAt(grade, 30, priceForSeconds(grade, 30));
+      expect(short).toBeLessThan(0.26);
+      expect(short).toBeGreaterThan(0.2);
+    }
   });
 });

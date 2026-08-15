@@ -1,20 +1,24 @@
 /**
  * The arithmetic behind the Story price chart — "do the number" as code.
  *
- * PRICING POLICY (owner directive, 2026-08-11): every tier covers its
- * generation AND infrastructure cost, and ONIQ's margin is set BY DURATION —
- * 28% on the shortest films, 26% mid, 21% on the longest. Longer films
- * deliberately carry the thinnest margin: quality at affordable prices, and
- * the discount deepens as the commitment grows. Prices are DERIVED from that
- * policy, not hand-picked — `priceFor()` below is the formula, the published
- * charts are its output rounded up to the whole rupee, and the test holds
- * every published price within 1.5 points of its mandated margin.
+ * PRICING POLICY (owner directive, 2026-08-15): THERE ARE NO TIERS. One
+ * per-minute rate per grade, one margin — 26% — and every published price is
+ * that rate times the minutes bought. The old policy (2026-08-11) set the
+ * margin BY DURATION, 28/26/21, so five durations carried five different
+ * takes and a price could only be reasoned about one row at a time. A single
+ * rate is the thing the owner asked for and the thing a buyer can check.
+ *
+ * The rate ROUNDS UP to the whole rupee, so the realised margin sits at or
+ * above 26% everywhere and never below it.
  *
  * WHAT COUNTS AS COST:
- * - Generation (per finished minute): 8.7 shots measured on the Aladdin
- *   build; images at ~$0.039 (gemini-2.5-flash-image list), narration +
- *   worst-case dialogue TTS ~$0.032/min; movie grade adds 60 output-seconds
- *   of video per minute at Veo list $0.15/s. INR at 84/USD.
+ * - Generation (per finished minute): ₹31.50, OWNER-SUPPLIED AND MEASURED
+ *   (2026-08-15) — the real cost of one finished minute of stills and
+ *   voices through the Lovable gateway. This replaces the old derivation
+ *   from USD list prices (8.7 shots x $0.039 + $0.032 TTS = ₹31.19), which
+ *   was an estimate of a bill nobody had seen. A measured number outranks a
+ *   modelled one; the derivation is kept below only as the sanity check it
+ *   now is.
  * - Infrastructure (per purchase): Razorpay's fee — 2% + 18% GST on the fee
  *   = 2.36% OF PRICE — plus a flat ₹3 for storage, egress and database time
  *   per film. These are what "infrastructural cost is met" pays for.
@@ -28,6 +32,13 @@ export type StoryGrade = "classic" | "movie";
 
 /** Named unit costs. Exported so the test and any price review read ONE set. */
 export const UNIT = {
+  /**
+   * THE MEASURED GENERATION COST of one finished minute — stills and voices,
+   * paise. Owner-supplied 2026-08-15. Every price on the chart is built on
+   * this one number.
+   */
+  genPaisePerMinute: 3150,
+  /** The superseded derivation, retained purely to sanity-check the above. */
   shotsPerMinute: 8.7,
   usdPerImage: 0.039,
   usdTtsPerMinute: 0.032,
@@ -51,22 +62,42 @@ export const UNIT = {
 } as const;
 
 /**
- * ONIQ's mandated margin by duration: 28% short, 26% mid, 21% long.
- * The higher the duration, the lower the take.
+ * ONIQ's mandated margin — one number, every duration (owner, 2026-08-15).
+ * Kept as a function so the call sites read the same as before and so a
+ * future duration policy has somewhere to live again.
  */
-export function marginTargetFor(seconds: number): number {
-  if (seconds <= 30) return 0.28;
-  if (seconds <= 120) return 0.26;
-  return 0.21;
+export const MARGIN_TARGET = 0.26;
+export function marginTargetFor(_seconds?: number): number {
+  return MARGIN_TARGET;
 }
 
 /** Generation cost of one finished minute, in paise, for a pipeline grade. */
 export function costPaisePerMinute(grade: StoryGrade): number {
-  const stills = UNIT.shotsPerMinute * UNIT.usdPerImage;
-  const tts = UNIT.usdTtsPerMinute;
-  let usd = stills + tts;
-  if (grade === "movie") usd += UNIT.runnerMinutesPerFinishedMinute * UNIT.usdPerRunnerMinute;
-  return Math.round(usd * UNIT.inrPerUsd * 100);
+  // Stills and voices: the MEASURED figure. Render compute is ONIQ's own
+  // runner time, billed by GitHub rather than by the gateway, so it is still
+  // derived and still added only for the movie grade.
+  let paise = UNIT.genPaisePerMinute;
+  if (grade === "movie") {
+    paise += UNIT.runnerMinutesPerFinishedMinute * UNIT.usdPerRunnerMinute * UNIT.inrPerUsd * 100;
+  }
+  return Math.round(paise);
+}
+
+/**
+ * THE PUBLISHED RATE: what one minute of film costs a buyer, paise.
+ *
+ * The flat per-film infrastructure cost is recovered inside the rate rather
+ * than as a separate line, because the owner asked for a per-minute price and
+ * a two-part tariff is not one. The consequence is deliberate and worth
+ * naming: a five-minute film recovers that ₹3 five times over, so its
+ * realised margin lands ABOVE the 26% mandate rather than on it. The mandate
+ * is a floor.
+ */
+export function pricePaisePerMinute(grade: StoryGrade): number {
+  const raw =
+    (costPaisePerMinute(grade) + UNIT.fixedInfraPaise) /
+    (1 - MARGIN_TARGET - UNIT.paymentFeeOfPrice);
+  return Math.ceil(raw / 100) * 100;
 }
 
 /**
@@ -76,9 +107,9 @@ export function costPaisePerMinute(grade: StoryGrade): number {
  *   price = (generation + fixedInfra) / (1 - margin - paymentFee)
  */
 export function priceFor(grade: StoryGrade, seconds: number): number {
-  const gen = (costPaisePerMinute(grade) * seconds) / 60;
-  const raw = (gen + UNIT.fixedInfraPaise) / (1 - marginTargetFor(seconds) - UNIT.paymentFeeOfPrice);
-  return Math.ceil(raw / 100) * 100;
+  // Strictly linear in the rate — that IS the no-tiers policy. Nothing here
+  // may special-case a duration; if it ever does, tiers are back.
+  return Math.round((pricePaisePerMinute(grade) * seconds) / 60);
 }
 
 /** ONIQ's realised margin for a published price, 0..1 — what the test checks. */
@@ -89,9 +120,8 @@ export function oniqMarginAt(grade: StoryGrade, seconds: number, pricePaise: num
 }
 
 /**
- * The movie chart at the mandated margins — `priceFor("movie", s)` for each
- * duration, frozen here so the SQL mirror test has a hand-auditable copy.
- * Rows stay INACTIVE in the database until the clip stage ships.
+ * The movie durations at the published rate — `priceFor("movie", s)` for
+ * each, frozen here so the SQL mirror test has a hand-auditable copy.
  */
 export const MOVIE_TIERS: readonly {
   seconds: number;
@@ -99,12 +129,10 @@ export const MOVIE_TIERS: readonly {
   pricePaise: number;
   currency: "INR";
 }[] = [
-  // 30s publishes one rounding step BELOW the formula's ceil: ₹32 lands 2.1
-  // points over the 28% mandate purely from rounding a tiny price up, and
-  // ₹31 sits at 27.9% — the margin is the requirement, not the ceil.
-  { seconds: 30, label: "30 seconds — movie", pricePaise: 3100, currency: "INR" },
+  // Every row is priceFor("movie", seconds) — ₹57/min, nothing hand-set.
+  { seconds: 30, label: "30 seconds — movie", pricePaise: 2850, currency: "INR" },
   { seconds: 60, label: "1 minute — movie", pricePaise: 5700, currency: "INR" },
-  { seconds: 120, label: "2 minutes — movie", pricePaise: 10900, currency: "INR" },
-  { seconds: 180, label: "3 minutes — movie", pricePaise: 15000, currency: "INR" },
-  { seconds: 300, label: "5 minutes — movie", pricePaise: 24700, currency: "INR" },
+  { seconds: 120, label: "2 minutes — movie", pricePaise: 11400, currency: "INR" },
+  { seconds: 180, label: "3 minutes — movie", pricePaise: 17100, currency: "INR" },
+  { seconds: 300, label: "5 minutes — movie", pricePaise: 28500, currency: "INR" },
 ];
