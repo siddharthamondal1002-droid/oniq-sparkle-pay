@@ -1290,18 +1290,21 @@ export type Database = {
       }
       device_tokens: {
         Row: {
+          keys: Json | null
           platform: string
           token: string
           updated_at: string
           user_id: string
         }
         Insert: {
+          keys?: Json | null
           platform?: string
           token: string
           updated_at?: string
           user_id: string
         }
         Update: {
+          keys?: Json | null
           platform?: string
           token?: string
           updated_at?: string
