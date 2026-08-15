@@ -7,9 +7,25 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 9
-        versionName "1.7"
-        // 1.7 carries native work that a web publish cannot deliver: the
+        versionCode 10
+        versionName "1.7.1"
+        // 1.7.1 IS A REBUILD, NOT A RELEASE. Nothing native changed since 1.7:
+        // this shell loads https://oniqhub.com (capacitor.config.json server.url),
+        // so it bundles no web assets, and everything shipped on 2026-08-15 after
+        // the 1.7 build — classic withdrawn, the call filters, the gallery photo
+        // and face tracking, the Save/Share ENOENT fix, the filter-chip layout,
+        // the web-push key rotation — reached devices through the web publish and
+        // is already running inside the installed 1.7.
+        //
+        // The name says .1 rather than 1.8 for exactly that reason: a version
+        // name that promises new capability on a binary with none is a lie the
+        // next person has to unpick.
+        //
+        // The CODE still goes up, because 9 may already be uploaded and Play
+        // rejects a duplicate outright. A skipped code costs nothing; a repeated
+        // one costs an upload.
+        //
+        // 1.7 carried native work that a web publish cannot deliver: the
         // @capacitor/share and @capacitor/filesystem plugins, without which the
         // Share and Save buttons under Lores were dead controls on an installed
         // build — the web calls them, the shell had nothing to answer with.
