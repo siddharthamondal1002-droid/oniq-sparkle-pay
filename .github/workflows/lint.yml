@@ -52,5 +52,24 @@ jobs:
       - name: Types
         run: npx tsc --noEmit
 
+      # One test needs to encode a real mp4: the story dry-run's clip fixture,
+      # which has now been broken twice in ways that produced a finished film
+      # and a ledger of successful calls (an answer keyed `video` where the
+      # worker reads `data`, and an mp4 built with a filter the renderer's
+      # ffmpeg does not carry). It skips without a binary, so install one.
+      #
+      # This runner has no ffmpeg, and `npm ci` here installs the ROOT
+      # package only — remotion's own node_modules, where the compositor build
+      # lives, is never created. So there is nothing for the test to find.
+      #
+      # WHAT THIS DOES AND DOES NOT BUY. It makes the test assert that the
+      # fixture returns a playable mp4 under the key the worker reads. It does
+      # NOT check the filter surface: this is a FULL ffmpeg, so a clip builder
+      # that reached for lavfi again would encode happily here and still fail
+      # on the renderer's cut-down build. That case is covered by a separate
+      # static assertion which needs no binary and runs everywhere.
+      - name: ffmpeg (for the story dry-run clip fixture)
+        run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends ffmpeg
+
       - name: Tests
         run: npm test
