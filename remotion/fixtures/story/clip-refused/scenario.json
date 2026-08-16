@@ -1,0 +1,33 @@
+{
+  "name": "clip refused once — the sampling-flaky retry, then the poll loop",
+  "_why": "The clip stage was the only billable stage no scenario reached: happy-path is a classic grade, so it reported clip:0 and the fixture's clip branch was code that looked alive and never ran — which is exactly the defect (an answer keyed `video` where the worker reads `data`) that made this fixture's first version test nothing. A movie grade with STORY_MOVIE=on is the only route to it. Shot 1 is refused once because Veo's safety filter is sampling-flaky on prompts that pass a moment later, which is why that rung is one retry and not a step-down.",
+  "_run": "STORY_FIXTURES=fixtures/story/clip-refused STORY_MOVIE=on node scripts/story-worker.mjs",
+  "job": {
+    "id": "dry-1",
+    "prompt": "a brave mouse in a bakery",
+    "shotCount": 3,
+    "grade": "movie"
+  },
+  "plan": {
+    "title": "The Mouse Under the Bakery",
+    "setting": "a warm old bakery at night, flour dust in the lamplight",
+    "shots": [
+      {
+        "still": "A small brown mouse peers out from under a wooden floorboard.",
+        "narration": "Under the floorboards of an old bakery there lived a very small and very brave mouse."
+      },
+      {
+        "still": "Wide view of the dark bakery, moonlight on the counters.",
+        "narration": "Every night when the baker went home, the mouse came out to see what the world had left behind."
+      },
+      {
+        "still": "The mouse carries a crumb twice its size across the floor.",
+        "narration": "And every night she carried home one crumb, which to a mouse is a very great treasure indeed."
+      }
+    ]
+  },
+  "clip": [
+    { "fail": { "status": 422, "error": "That shot was refused (PROHIBITED_CONTENT)." } },
+    { "polls": 1 }
+  ]
+}

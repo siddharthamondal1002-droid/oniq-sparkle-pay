@@ -1,0 +1,36 @@
+{
+  "name": "voice quota dies — cloud gives up, Piper carries the film",
+  "_why": "2026-08-12: seven proof runs emptied the TTS quota and a fourteen-shot film died with every frame already paid for. Narration gets four attempts on a 502, then the worker switches to in-house Piper AND STAYS switched.",
+  "job": {
+    "id": "dry-1",
+    "prompt": "a brave mouse in a bakery",
+    "shotCount": 3,
+    "grade": "classic"
+  },
+  "plan": {
+    "title": "The Mouse Under the Bakery",
+    "setting": "a warm old bakery at night, flour dust in the lamplight",
+    "shots": [
+      {
+        "still": "A small brown mouse peers out from under a wooden floorboard.",
+        "narration": "Under the floorboards of an old bakery there lived a very small and very brave mouse."
+      },
+      {
+        "still": "Wide view of the dark bakery, moonlight on the counters.",
+        "narration": "Every night when the baker went home, the mouse came out to see what the world had left behind."
+      },
+      {
+        "still": "The mouse carries a crumb twice its size across the floor.",
+        "narration": "And every night she carried home one crumb, which to a mouse is a very great treasure indeed."
+      }
+    ]
+  },
+  "_slow": "The four retries wait 30/60/90s for real — expect ~3 minutes.",
+  "voice": [
+    { "fail": { "status": 502, "error": "Could not read that line. (upstream 429)" } },
+    { "fail": { "status": 502, "error": "Could not read that line. (upstream 429)" } },
+    { "fail": { "status": 502, "error": "Could not read that line. (upstream 429)" } },
+    { "fail": { "status": 502, "error": "Could not read that line. (upstream 429)" } },
+    {}
+  ]
+}

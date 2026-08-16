@@ -159,20 +159,68 @@ look, not as gospel.
 
 ---
 
-## 4. Not audited, and honestly so
+## 4. What has now been executed, and what still has not
 
-I did not execute the pipeline. No film was rendered, no API was called, no
-queue was drained. Everything above is source inspection. In particular these
-brief items are **unverified**, not passing:
+The first pass of this audit executed nothing, because running the pipeline
+spends real money on the owner's keys and that is not a decision I was given.
+The **dry-run mode** (§6.3, now built) removes that constraint for the paths it
+covers, so this section is split rather than deleted.
 
-- end-to-end story → scenes → media → mp4
+### Exercised against fixtures — no network, no spend
+
+Five scenarios under `remotion/fixtures/story/`, each run through the real
+worker, the real Remotion render and the real ffmpeg assembly:
+
+| Scenario           | Result                                                                                 |
+| ------------------ | -------------------------------------------------------------------------------------- |
+| `happy-path`       | Full film. 578 frames, h264 1080×1920, aac, 19.33s, 766 KB.                            |
+| `still-refused`    | 5 still calls for 3 shots: 422, 422, then the third rung lands. Film completes.        |
+| `voice-quota-dies` | 4× 502 on 30/60/90s backoff, then Piper — and **no fifth cloud call**. Film completes. |
+| `gateway-audio`    | `audio/wav` passes through unwrapped. Film completes.                                  |
+| `no-sample-rate`   | Job dies at `story-voice: no sample rate in "audio/L16;codec=pcm"`, refund issued.     |
+| `clip-refused`     | 4 starts for 3 shots: 422, retry, then 6.0s/8.0s/8.0s of real motion. Film completes.  |
+
+That covers **end-to-end story → scenes → media → mp4** and **what happens when
+one stage fails while earlier stages have already succeeded**, which were two of
+the five items previously listed as unverified.
+
+The `voice-quota-dies` result is the one worth reading twice. The scenario
+scripts a fifth voice answer that succeeds, and the worker **never asks for
+it** — proof that the Piper switch holds for the remaining shots instead of
+drifting back to the cloud. That is a property provable only from the absence
+of a call, which is why the run prints a call ledger rather than relying on
+assertions over stdout.
+
+### Still unverified
+
 - the ten synthetic test stories
 - behaviour at 100 and 1,000 scenes
 - concurrent multi-story behaviour
-- what happens when an image succeeds and video fails
+- **anything about the real providers**: whether a live 422 from `story-still`
+  actually reads the way the fixture says it does, whether Veo's poll shape is
+  what the clip fixture returns, whether the gateway really sends `audio/wav`.
+  The fixtures encode what past incidents recorded. A dry run proves the
+  worker handles that shape correctly; it cannot prove the shape is current.
+  Fixtures drift, and a drifted fixture is a green test over a broken path.
 
-Running any of them spends real money on the owner's keys, which is a decision
-I have not been given.
+### A defect the dry run found in itself
+
+Worth recording, because it is the second time the same shape of bug has
+appeared in this seam and the failure mode is what makes it dangerous.
+
+The clip fixture built its mp4 with `-f lavfi -i color=...`. That is a filter
+**source**, and the ffmpeg the worker finds is Remotion's compositor build —
+libx264 and the mp4 muxer, almost no filters (`findFfmpeg.mjs` documents the
+list). So every clip poll threw, the worker's step-down caught it, each shot
+"fell back" to its still, and the run printed a finished film plus a ledger of
+successful clip calls. Nothing said the word failure.
+
+That is the same class as the earlier `{video}`-vs-`{data}` defect: a fixture
+that cannot answer reads as coverage. The builder now loops one PNG through the
+image2 demuxer, using no filter at all, and its failure is worded so it can
+never be mistaken for a provider refusal. `storyDryRun.test.ts` encodes a real
+clip with the real binary, so the regression fails the build rather than
+printing a film.
 
 ---
 
@@ -202,8 +250,10 @@ These are blocked on a person, not on engineering. Each one moves a bill.
 1. Write provenance onto assets (migration + callback change). Cheap, and it
    is the prerequisite for ever diagnosing a bad batch.
 2. Answer the three questions in §5.
-3. A dry-run mode for the pipeline that exercises every stage against recorded
-   fixtures, so the end-to-end path can be tested without spending anything.
-   This is the single biggest gap: today there is **no way to test the engine
-   without paying for it**.
+3. ~~A dry-run mode for the pipeline that exercises every stage against
+   recorded fixtures.~~ **Built.** `STORY_FIXTURES=<dir> node
+scripts/story-worker.mjs` — see `remotion/README.md`. Five scenarios, each
+   encoding a run that cost real money to learn. Remaining work on it: a
+   movie-grade scenario so the clip stage is covered at all, and a way to keep
+   the fixtures honest against what the providers actually send today.
 4. Only then consider splitting `story-plot`.

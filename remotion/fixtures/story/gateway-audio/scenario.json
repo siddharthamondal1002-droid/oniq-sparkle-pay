@@ -1,0 +1,29 @@
+{
+  "name": "gateway audio — containered wav, not headerless PCM",
+  "_why": "The two providers answer differently and voiceBytesToFile branches on the mime. Google returns headerless PCM needing a RIFF header; the Lovable gateway returns a container already. Double-wrapping is corrupt audio ffprobe may still half-read — the worst kind of working.",
+  "job": {
+    "id": "dry-1",
+    "prompt": "a brave mouse in a bakery",
+    "shotCount": 3,
+    "grade": "classic"
+  },
+  "plan": {
+    "title": "The Mouse Under the Bakery",
+    "setting": "a warm old bakery at night, flour dust in the lamplight",
+    "shots": [
+      {
+        "still": "A small brown mouse peers out from under a wooden floorboard.",
+        "narration": "Under the floorboards of an old bakery there lived a very small and very brave mouse."
+      },
+      {
+        "still": "Wide view of the dark bakery, moonlight on the counters.",
+        "narration": "Every night when the baker went home, the mouse came out to see what the world had left behind."
+      },
+      {
+        "still": "The mouse carries a crumb twice its size across the floor.",
+        "narration": "And every night she carried home one crumb, which to a mouse is a very great treasure indeed."
+      }
+    ]
+  },
+  "voice": [{ "mime": "audio/wav" }]
+}

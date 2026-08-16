@@ -1,0 +1,29 @@
+{
+  "name": "voice mime has no sample rate — the film-killer with no ladder",
+  "_why": "rateOf() throws story-voice: no sample rate in ... which carries NO status number, so no retry ladder matches it and the whole job dies. The highest-value mime bug, and the first fixture format could not even express it.",
+  "job": {
+    "id": "dry-1",
+    "prompt": "a brave mouse in a bakery",
+    "shotCount": 3,
+    "grade": "classic"
+  },
+  "plan": {
+    "title": "The Mouse Under the Bakery",
+    "setting": "a warm old bakery at night, flour dust in the lamplight",
+    "shots": [
+      {
+        "still": "A small brown mouse peers out from under a wooden floorboard.",
+        "narration": "Under the floorboards of an old bakery there lived a very small and very brave mouse."
+      },
+      {
+        "still": "Wide view of the dark bakery, moonlight on the counters.",
+        "narration": "Every night when the baker went home, the mouse came out to see what the world had left behind."
+      },
+      {
+        "still": "The mouse carries a crumb twice its size across the floor.",
+        "narration": "And every night she carried home one crumb, which to a mouse is a very great treasure indeed."
+      }
+    ]
+  },
+  "voice": [{ "mime": "audio/L16;codec=pcm" }]
+}

@@ -104,10 +104,50 @@ const CONCURRENCY = Number(process.env.CONCURRENCY ?? 4);
 const FPS = 30;
 
 const offline = Boolean(PLAN_FILE);
-if (!offline && !SUPABASE_URL) {
+
+/**
+ * DRY RUN — STORY_FIXTURES names a directory of recorded answers.
+ *
+ * With it set, NOTHING leaves the machine: not the four generation calls
+ * (story-plot is a paid LLM call too), not the claim, not a status write, not
+ * the upload. Everything above that line — the retry ladders, the step-downs,
+ * the ffprobe measuring, the assembly, the Remotion render, the encode — runs
+ * exactly as it does in production, which is the point. Those are the parts
+ * that break, and until now they could only be tested by buying a film.
+ *
+ * THE GUARD IS A REFUSAL, NOT A WARNING, and the first version of it was
+ * WRONG in a way worth recording. It refused only dispatch mode, on the
+ * reasoning that PLAN= was the safe way to run fixtures. But PLAN= takes the
+ * `offline` branch below, which never calls edge() at all — so fixtures were
+ * unreachable that way, and the only route that DID reach them was polling
+ * mode with a service key, which claims a real queued row out of production
+ * and fills a paying user's film with synthetic stills and sine tones.
+ * The comment claimed safety the code did not provide, which is worse than
+ * no comment.
+ *
+ * So: a dry run has no credentials at all. If one is in the environment that
+ * is a mistake to stop for, not to work around.
+ */
+const FIXTURES_DIR = process.env.STORY_FIXTURES;
+let fixtureEdge = null;
+if (FIXTURES_DIR) {
+  const { createFixtureEdge, assertNoProductionCredentials } = await import('./storyFixtures.mjs');
+  assertNoProductionCredentials(process.env);
+  if (offline) {
+    throw new Error('STORY_FIXTURES and PLAN are different modes — PLAN renders a plan from disk and makes no generation calls at all.');
+  }
+  fixtureEdge = createFixtureEdge(FIXTURES_DIR, { ffmpeg: findBin('ffmpeg') });
+  console.log(`DRY RUN: ${fixtureEdge.scenarioName()} — nothing leaves this machine`);
+}
+
+// Preflight runs AFTER the fixture block on purpose. A dry run needs no
+// SUPABASE_URL and no credential, and putting this first made the guard above
+// unreachable — the first attempt died on "SUPABASE_URL is required" and never
+// reached the message that actually explains the mistake.
+if (!offline && !fixtureEdge && !SUPABASE_URL) {
   throw new Error('SUPABASE_URL is required');
 }
-if (!offline && !dispatched && !SERVICE_KEY) {
+if (!offline && !fixtureEdge && !dispatched && !SERVICE_KEY) {
   throw new Error(
     'no STORY_JOB_TOKEN (dispatch mode) and no SUPABASE_SERVICE_ROLE_KEY (polling mode); ' +
       'or set PLAN=<file> to render a plan offline',
@@ -125,6 +165,7 @@ if (!offline && !dispatched && !SERVICE_KEY) {
  * expects hides the case where something else replied.
  */
 async function callback(action, extra = {}) {
+  if (fixtureEdge) throw new Error(`[dry] callback(${action}) must not be reachable in a dry run`);
   const url = `${SUPABASE_URL}/functions/v1/story-callback`;
   const res = await fetch(url, {
     method: 'POST',
@@ -151,6 +192,12 @@ async function callback(action, extra = {}) {
 // No client library: this runs in CI where the dependency tree is the thing
 // most likely to break, and three REST calls do not justify one.
 async function db(pathname, init = {}) {
+  // DRY RUN: no database. Logged rather than silently dropped, so a run shows
+  // exactly which writes it would have made.
+  if (fixtureEdge) {
+    console.log(`  [dry] db ${init.method ?? 'GET'} ${pathname.split('?')[0]}`);
+    return [];
+  }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${pathname}`, {
     ...init,
     headers: {
@@ -165,6 +212,10 @@ async function db(pathname, init = {}) {
 }
 
 async function rpc(fn, args) {
+  if (fixtureEdge) {
+    console.log(`  [dry] rpc ${fn} ${JSON.stringify(args)}`);
+    return null;
+  }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, {
     method: 'POST',
     headers: {
@@ -179,6 +230,28 @@ async function rpc(fn, args) {
 }
 
 async function edge(fn, body) {
+  // DRY RUN. The one place money starts, and therefore the one place it can be
+  // taken out. `fixtureEdge` answers story-plot, story-still, story-voice and
+  // story-clip from disk; `null` means it has no opinion and the real call is
+  // made — which in a dry run cannot happen, because every OTHER route out of
+  // this process (claimJob, db, rpc, uploadFinished, callback) is stubbed at
+  // its own head and the mode refuses to start with a credential present.
+  //
+  // An earlier version intercepted only the three media calls and let the
+  // claim, the writes and the callback reach production, on the theory that
+  // faking them would be "testing nothing". That was backwards: with a service
+  // key in the environment it would claim a REAL QUEUED ROW and fill a paying
+  // user's film with synthetic PNGs. A dry run reaches nothing.
+  //
+  // The seam is here rather than inside each stage on purpose: one chokepoint
+  // means no stage can be added later that quietly bypasses it, and the
+  // worker's retry ladders, step-downs and assembly all run untouched above
+  // it. See remotion/scripts/storyFixtures.mjs.
+  if (fixtureEdge) {
+    const answered = await fixtureEdge(fn, body);
+    if (answered !== null) return answered;
+  }
+
   // In dispatch mode the job token IS the credential. The generation functions
   // accept it via x-story-job-token because a runner is not a user and
   // /auth/v1/user would reject anything it could present — including the
@@ -264,6 +337,9 @@ async function setStatus(id, status, extra = {}) {
  * is nothing to do, which is a normal exit and not a failure.
  */
 async function claimJob() {
+  // DRY RUN: the scenario supplies the job. Nothing is claimed, so no real
+  // queued row can be taken and no user's film can be filled with fixtures.
+  if (fixtureEdge) return fixtureEdge.job();
   if (dispatched) {
     try {
       const got = await callback('claim');
@@ -323,6 +399,16 @@ async function markAssembling(job) {
  * could overwrite somebody else's Story.
  */
 async function uploadFinished(job, file) {
+  // DRY RUN: keep the film where a human can watch it rather than uploading.
+  // This is the whole output of a dry run, so it must NOT land in assetRoot,
+  // which the finally block wipes.
+  if (fixtureEdge) {
+    const kept = path.resolve(__dirname, '../../.tmp', `dry-${String(job.id).replace(/[^a-zA-Z0-9-]/g, '')}.mp4`);
+    fs.mkdirSync(path.dirname(kept), { recursive: true });
+    fs.copyFileSync(file, kept);
+    console.log(`  [dry] film kept at ${kept}`);
+    return kept;
+  }
   const bytes = fs.readFileSync(file);
   if (dispatched) {
     const { uploadUrl, storagePath } = await callback('upload-url');
@@ -1420,4 +1506,17 @@ if (offline) {
 // at 08:36 and then sat as a wedged runner until it was cancelled by hand.
 // Everything that matters is awaited by this line; anything still holding the
 // event loop open is debris.
+// DRY RUN: the report. Asserting on stdout misses the branches that log
+// nothing — notably the dialogue-path TTS engine flip, which switches the
+// whole film's narrator with no log line of its own.
+if (fixtureEdge) {
+  const sum = fixtureEdge.summary();
+  console.log(`\n[dry] ${sum.scenario}`);
+  console.log(`[dry] calls: ${JSON.stringify(sum.counts)}`);
+  for (const e of sum.events) {
+    const how = e.spec?.fail ? `FAIL ${e.spec.fail.status}` : e.spec?.mime ? `mime ${e.spec.mime}` : 'ok';
+    console.log(`[dry]   ${e.fn} #${e.n} ${how}`);
+  }
+}
+
 process.exit(process.exitCode ?? 0);
