@@ -5005,6 +5005,7 @@ export type Database = {
         Returns: number
       }
       my_age_gate_status: { Args: never; Returns: Json }
+      my_call_cap: { Args: { _user: string }; Returns: number }
       my_partner_bookings: {
         Args: never
         Returns: {
