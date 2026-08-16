@@ -322,9 +322,20 @@ describe("what the free plan keeps", () => {
 
   it("never falls open when the entitlement cannot be read", () => {
     // A failed read is not an entitlement — falling open would hand the paid
-    // rack to anybody with a flaky connection.
+    // rack to anybody with a flaky connection. The BEHAVIOUR is executed in
+    // entitlements.test.ts, against a mocked client, including the two ways
+    // it actually leaked for users on 2026-08-16. What is pinned here is the
+    // pair of properties those failures turned on, because both are easy to
+    // undo while the code still reads fine.
     const ent = readFileSync(join(process.cwd(), "src/lib/entitlements.ts"), "utf8");
-    const catchBlock = ent.slice(ent.indexOf("} catch {"));
-    expect(catchBlock).toContain("return false");
+    // The answer belongs to an ACCOUNT. A cache keyed by entitlement alone
+    // let one sign-in unlock the rack for whoever used the phone next.
+    expect(ent, "the entitlement cache is not keyed by account").toContain("`${uid}:${key}`");
+    // And every read is BOUNDED. An unbounded read never resolves, the hook
+    // stays null, and null is what every caller draws as unlocked.
+    expect(ent).toContain("READ_TIMEOUT_MS");
+    expect(ent, "getUser is a network round trip; the session is local").not.toContain(
+      "auth.getUser()",
+    );
   });
 });
