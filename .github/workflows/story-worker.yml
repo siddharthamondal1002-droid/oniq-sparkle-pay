@@ -114,11 +114,33 @@ jobs:
       # and findChromium.mjs knows where it lands.
       - name: chromium
         working-directory: remotion
-        run: npx remotion browser ensure
+        run: |
+          # XDG_RUNTIME_DIR is set on the render step below and Chrome writes
+          # its singleton and crashpad state there. Pointing it at a directory
+          # that does not exist is worse than leaving it unset, so it is made
+          # here rather than assumed.
+          mkdir -p /tmp/oniq-runtime && chmod 700 /tmp/oniq-runtime
+          npx remotion browser ensure
 
       - name: render one job
         working-directory: remotion
         env:
+          # CHROME STOPS LOOKING FOR A MESSAGE BUS THAT IS NOT THERE.
+          #
+          # A GitHub runner has no D-Bus session, so every launch logs
+          #   Failed to connect to the bus: Could not parse server address:
+          #   Unknown address type
+          # twice before it gets anywhere. Usually that is noise — but it is
+          # what Chrome was doing in the 25 seconds it spent failing to print
+          # its WebSocket endpoint on 2026-08-13, which cost a fully rendered
+          # film at the last step. Pointing the address at /dev/null makes the
+          # attempt fail instantly instead of waiting on a socket nobody is
+          # listening to, and clears the log so a REAL launch error is legible
+          # next to it.
+          DBUS_SESSION_BUS_ADDRESS: /dev/null
+          # Chrome writes its singleton and crashpad state here. Unset, it
+          # falls back to guesses under /tmp that differ between runner images.
+          XDG_RUNTIME_DIR: /tmp/oniq-runtime
           # The project URL is not a secret — it is in the shipped client
           # bundle. Keeping it as a variable rather than a secret means a
           # dispatch run needs NOTHING configured here beyond this line, which

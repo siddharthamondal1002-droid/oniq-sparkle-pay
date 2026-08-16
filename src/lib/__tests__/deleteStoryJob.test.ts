@@ -13,17 +13,24 @@
  * has_bytes here would be the one mistake that matters — the sweep would skip
  * the row and the file would sit in the bucket forever, referenced by nothing.
  *
- * IN-FLIGHT JOBS ARE REFUSED, and that is a policy boundary rather than a
- * technical one: deleting a job mid-render raises whether its seconds come
- * back, and refunds are the owner's call (CLAUDE.md). Those age out on their
- * own inside the sweep's stale window and refund themselves.
+ * IN-FLIGHT JOBS ARE STOPPED AND REFUNDED (2026-08-16). They were refused at
+ * first, because deleting one raises whether its seconds come back and refunds
+ * are the owner's call. Asked for delete everywhere, the answer is the rule
+ * this system already ran: story-sweep fails any queued/generating/assembling
+ * job untouched for thirty minutes and refunds it. A job that makes no film
+ * returns its seconds; cancelling by hand makes no film. The only thing that
+ * changed is who starts the clock.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
-const SQL = read("supabase/migrations/20260815200000_delete_story_job.sql");
+// The NEWEST definition is the one the database runs. 20260815200000 created
+// this function refusing in-flight jobs; 20260816040000 replaced it to accept
+// them and refund. A test still parsing the first file would be pinning a
+// definition Postgres no longer has — the guard would go quiet, not fail.
+const SQL = read("supabase/migrations/20260816040000_delete_story_job_in_flight.sql");
 
 /**
  * The migration with its `--` comment lines removed.
@@ -61,9 +68,34 @@ describe("the delete RPC", () => {
     expect(SQL).toContain("where id = _job_id and user_id = me for update");
   });
 
-  it("refuses a job that is still being made", () => {
-    expect(SQL).toContain("if j.status not in ('ready', 'delivered', 'failed')");
-    expect(SQL).toContain("'still-working'");
+  /**
+   * IN-FLIGHT JOBS ARE STOPPED AND REFUNDED, not refused.
+   *
+   * The seconds coming back is not a new policy — it is the rule already
+   * running: story-sweep fails any queued/generating/assembling job untouched
+   * for thirty minutes and refunds it. A job that makes no film returns its
+   * seconds; cancelling by hand makes no film. The only change is who starts
+   * the clock.
+   */
+  it("stops an in-flight job the way the sweep would, and refunds it", () => {
+    expect(STATEMENTS).toContain(
+      "if j.status in ('queued', 'generating', 'assembling', 'delivering')",
+    );
+    expect(STATEMENTS).toContain("set status = 'failed'");
+    expect(STATEMENTS).toContain("perform public.refund_story_seconds(_job_id)");
+  });
+
+  it("marks failed BEFORE refunding", () => {
+    // Refunding first would leave a job a renderer could still pick up and be
+    // charged nothing for.
+    const body = STATEMENTS.slice(STATEMENTS.indexOf("if j.status in ('queued'"));
+    expect(body.indexOf("set status = 'failed'")).toBeLessThan(
+      body.indexOf("refund_story_seconds"),
+    );
+  });
+
+  it("no longer refuses anything but a missing row", () => {
+    expect(STATEMENTS).not.toContain("'still-working'");
   });
 
   it("is idempotent on an already-deleted row", () => {
@@ -101,17 +133,15 @@ describe("the client and the list", () => {
     expect(CLIENT).not.toContain('"purged"]');
   });
 
-  it("offers delete on finished AND failed rows", () => {
-    expect(UI).toContain(
-      'const deletable = r.status === "ready" || r.status === "delivered" || failed',
-    );
+  it("offers delete on every row, at every stage", () => {
+    expect(UI).toContain("const deletable = true;");
   });
 
-  it("does not offer it while a job is still rendering", () => {
-    // The button would only produce the RPC's own refusal.
-    const gate = UI.slice(UI.indexOf("const deletable"), UI.indexOf("const deletable") + 200);
-    expect(gate).not.toContain('"queued"');
-    expect(gate).not.toContain('"generating"');
+  it("says what a mid-render delete actually does", () => {
+    // "Delete" on something still being made is a different promise from
+    // "Delete" on a finished film, and the copy has to carry that.
+    expect(UI).toContain("Stop & delete");
+    expect(UI).toContain("The time it was going to use comes back to you.");
   });
 
   it("closes the player when the film being watched is deleted", () => {

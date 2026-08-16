@@ -390,22 +390,50 @@ async function renderPlan(plan, outFile) {
   // connecting to the browser" on a runner that had launched the identical
   // build an hour earlier. A launch timeout is transient runner weather, not
   // a verdict; a refusal-style no-retry rule does not apply to it.
+  // `chromiumOptions.args` WAS NEVER READ. Remotion's ChromiumOptions has no
+  // `args` key — it accepts gl, headless, enableMultiProcessOnLinux,
+  // ignoreCertificateErrors, disableWebSecurity, userAgent, darkMode — so
+  // ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] was dropped on
+  // the floor, silently, every launch. Checked against the installed
+  // 4.0.507 rather than assumed.
+  //
+  // Two of those three were redundant anyway: open-browser.js already passes
+  // --no-sandbox, --disable-setuid-sandbox and --disable-dev-shm-usage itself,
+  // and enableMultiProcessOnLinux already defaults true so --single-process is
+  // not in play. The one that mattered — turning the GPU off — was the one
+  // being thrown away.
+  //
+  // gl: 'angle' is the supported way to say it: Remotion turns it into
+  // --use-gl=angle --use-angle=swiftshader, a software rasteriser that behaves
+  // the same on every runner. Left unset, Chrome negotiates its own GL stack
+  // while --ignore-gpu-blocklist and --enable-unsafe-webgpu are already on,
+  // which on a GPU-less runner is exactly the kind of startup that can sit
+  // past the connect deadline.
+  //
+  // THE 25s DEADLINE IS NOT CONFIGURABLE. open-browser.js hardcodes
+  // `timeout: 25000` for the wait on Chrome's WebSocket endpoint, so it cannot
+  // be raised from here — only the odds of meeting it can be improved, and the
+  // retry below is what covers the rest.
   let browser;
   for (let a = 1; ; a++) {
     try {
       browser = await openBrowser('chrome', {
         browserExecutable: findChromium(),
-        chromiumOptions: { args: ['--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage'] },
+        chromiumOptions: { gl: 'angle' },
         chromeMode: 'chrome-for-testing',
       });
       break;
     } catch (err) {
-      if (a >= 3) throw err;
+      if (a >= 4) throw err;
+      // A fourth attempt, and longer gaps. Every one of these costs 25s of
+      // deadline plus the wait, which is cheap next to a fully-paid film —
+      // every still, every clip, every voice — thrown away at the last step.
+      const wait = a * 15_000;
       console.log(
-        `browser launch failed (attempt ${a}/3) — again in 20s: ` +
-          String(err?.message ?? err).slice(0, 120),
+        `browser launch failed (attempt ${a}/4) — again in ${wait / 1000}s: ` +
+          String(err?.message ?? err).slice(0, 160),
       );
-      await new Promise((r) => setTimeout(r, 20_000));
+      await new Promise((r) => setTimeout(r, wait));
     }
   }
   try {

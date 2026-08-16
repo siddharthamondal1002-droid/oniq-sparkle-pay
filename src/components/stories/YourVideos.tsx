@@ -450,10 +450,12 @@ export function YourVideos() {
           {rows.map((r) => {
             const watchable = isWatchable(r.status);
             const failed = r.status === "failed";
-            // Anything that has stopped moving. Mirrors the RPC's own guard —
-            // it refuses a job still in flight, so offering the button there
-            // would be offering an error.
-            const deletable = r.status === "ready" || r.status === "delivered" || failed;
+            // EVERY ROW. The RPC accepts any stage now: a job still rendering
+            // is failed and refunded first — the same treatment story-sweep
+            // gives one that never rendered — then purged. So there is no row
+            // in this list without a way out.
+            const deletable = true;
+            const inFlight = !SETTLED.has(r.status);
             return (
               <li key={r.id} className="rounded-2xl border border-border bg-card/70 p-3">
                 <div className="flex items-start gap-2">
@@ -523,9 +525,11 @@ export function YourVideos() {
                   confirmJob === r.id ? (
                     <div className="mt-2 rounded-xl border border-destructive/40 bg-destructive/10 p-2.5">
                       <p className="text-[11px] text-foreground">
-                        {failed
-                          ? "Remove this from your list? Nothing is lost — it never finished."
-                          : "Delete this film from ONIQ? It cannot be undone. A copy you saved to this phone stays."}
+                        {inFlight
+                          ? "Stop making this and delete it? The time it was going to use comes back to you."
+                          : failed
+                            ? "Remove this from your list? Nothing is lost — it never finished."
+                            : "Delete this film from ONIQ? It cannot be undone. A copy you saved to this phone stays."}
                       </p>
                       <div className="mt-2 flex gap-2">
                         <button
@@ -556,7 +560,7 @@ export function YourVideos() {
                       data-testid="story-job-delete"
                       className="mt-2 flex items-center gap-1.5 rounded-full border border-destructive/40 px-3 py-1 text-[11px] font-semibold text-destructive"
                     >
-                      <Trash2 className="h-3 w-3" /> Delete
+                      <Trash2 className="h-3 w-3" /> {inFlight ? "Stop & delete" : "Delete"}
                     </button>
                   )
                 ) : null}
