@@ -864,6 +864,23 @@ export const FACE_LENSES: readonly { id: string; label: string }[] = [
   { id: "makeup", label: "Makeup 💄" },
 ];
 
+/**
+ * THE LENSES THE FREE PLAN KEEPS.
+ *
+ * These three are the ENTIRE rack as it stood before ONIQ Plus existed
+ * (2026-08-16). Drawing the line here rather than picking three favourites
+ * means nobody loses a lens they already had: the twelve added for Plus are
+ * the twelve Plus is charging for, and every account keeps exactly what it
+ * woke up with. It also answers the grandfathering question without needing a
+ * migration to remember who joined when.
+ */
+export const FREE_LENS_IDS: ReadonlySet<string> = new Set(["dog", "bigeyes", "shades"]);
+
+/** Whether a lens is included with the free plan. */
+export function isFreeLens(id: string): boolean {
+  return FREE_LENS_IDS.has(id);
+}
+
 /** Whether an id needs the landmarker running at all. */
 export function isFaceFilter(id: string): boolean {
   return Object.prototype.hasOwnProperty.call(FACE_FX, id);

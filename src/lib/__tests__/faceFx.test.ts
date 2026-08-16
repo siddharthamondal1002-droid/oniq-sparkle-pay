@@ -24,7 +24,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { FACE_FX, FACE_LENSES, geometryFrom, isFaceFilter, type FaceGeometry } from "@/lib/faceFx";
+import {
+  FACE_FX,
+  FACE_LENSES,
+  FREE_LENS_IDS,
+  geometryFrom,
+  isFaceFilter,
+  isFreeLens,
+  type FaceGeometry,
+} from "@/lib/faceFx";
 
 /** A face at a plausible scale, matching the headless-render harness. */
 const GEO: FaceGeometry = {
@@ -277,5 +285,46 @@ describe("geometryFrom", () => {
     expect(near!.mouthOpen).toBeCloseTo(far!.mouthOpen, 6);
     // And the raw pixel gap really did differ, or the check above is vacuous.
     expect(near!.faceWidth).toBeGreaterThan(far!.faceWidth * 1.9);
+  });
+});
+
+describe("what the free plan keeps", () => {
+  it("keeps exactly the rack as it stood before Plus existed", () => {
+    // Not three favourites — the three that were the WHOLE rack before the
+    // twelve were added for Plus. Drawing the line here means nobody loses a
+    // lens they already had, which also settles the grandfathering question
+    // without a migration that has to remember who joined when.
+    expect([...FREE_LENS_IDS].sort()).toEqual(["bigeyes", "dog", "shades"]);
+    for (const id of FREE_LENS_IDS) {
+      expect(isFaceFilter(id), `${id} is free but has no painter`).toBe(true);
+    }
+    // And the paid ones really are the rest.
+    const paid = IDS.filter((id) => !isFreeLens(id));
+    expect(paid.length).toBe(IDS.length - 3);
+    expect(paid).toContain("crown");
+    expect(paid).toContain("hearts");
+  });
+
+  it("locks a paid lens only once the answer is known", () => {
+    // `useEntitlement` returns null while in flight. Locking on null would
+    // flash padlocks at a subscriber mid-call; both surfaces compare against
+    // false explicitly rather than treating null as "no".
+    for (const f of [
+      "src/components/chat/CallOverlay.tsx",
+      "src/components/photo/PhotoStudio.tsx",
+    ]) {
+      const src = readFileSync(join(process.cwd(), f), "utf8");
+      expect(src, `${f} does not gate lenses`).toContain("allLenses === false");
+      expect(src, `${f} treats unknown entitlement as locked`).not.toMatch(/!allLenses\b/);
+      expect(src).toContain("ONIQ Plus unlocks this lens");
+    }
+  });
+
+  it("never falls open when the entitlement cannot be read", () => {
+    // A failed read is not an entitlement — falling open would hand the paid
+    // rack to anybody with a flaky connection.
+    const ent = readFileSync(join(process.cwd(), "src/lib/entitlements.ts"), "utf8");
+    const catchBlock = ent.slice(ent.indexOf("} catch {"));
+    expect(catchBlock).toContain("return false");
   });
 });

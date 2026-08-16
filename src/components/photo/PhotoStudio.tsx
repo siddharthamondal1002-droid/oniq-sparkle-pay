@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { X, Check, RotateCw, Loader2, SlidersHorizontal, Wand2, RefreshCcw } from "lucide-react";
-import { FACE_FX, FACE_LENSES, faceGeometryOf } from "@/lib/faceFx";
+import { FACE_FX, FACE_LENSES, faceGeometryOf, isFreeLens } from "@/lib/faceFx";
+import { useEntitlement } from "@/lib/entitlements";
 
 /**
  * PhotoStudio — the single edit surface every photo passes through before
@@ -233,6 +234,9 @@ export function PhotoStudio({
   const [lensBusy, setLensBusy] = useState(false);
   const lensBlobRef = useRef<Blob | null>(null);
   const lensUrlRef = useRef<string | null>(null);
+  /** ONIQ Plus unlocks the full rack; the original three stay free. */
+  const allLenses = useEntitlement("all_lenses");
+  const lensLocked = (id: string) => !isFreeLens(id) && allLenses === false;
 
   /**
    * Take ownership of a new lens preview URL and free the one it replaces.
@@ -635,7 +639,15 @@ export function PhotoStudio({
               {FACE_LENSES.map((l) => (
                 <button
                   key={l.id}
-                  onClick={() => setLensId(l.id)}
+                  onClick={() => {
+                    if (lensLocked(l.id)) {
+                      toast("ONIQ Plus unlocks this lens", {
+                        description: "Dog, Big eyes and Shades stay free.",
+                      });
+                      return;
+                    }
+                    setLensId(l.id);
+                  }}
                   disabled={lensBusy}
                   className={`shrink-0 rounded-full border px-3 py-1.5 text-xs disabled:opacity-50 ${
                     lensId === l.id
@@ -643,7 +655,7 @@ export function PhotoStudio({
                       : "border-white/15 text-white/70"
                   }`}
                 >
-                  {l.label}
+                  {lensLocked(l.id) ? `${l.label} 🔒` : l.label}
                 </button>
               ))}
               {lensBusy && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-white/60" />}
