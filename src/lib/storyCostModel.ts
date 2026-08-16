@@ -8,8 +8,10 @@
  * takes and a price could only be reasoned about one row at a time. A single
  * rate is the thing the owner asked for and the thing a buyer can check.
  *
- * The rate ROUNDS UP to the whole rupee, so the realised margin sits at or
- * above 26% everywhere and never below it.
+ * The rate ROUNDS UP to the whole rupee, and since the 2026-08-16 reprice it
+ * solves for 26% NET OF GST rather than before it — so the realised margin,
+ * the one ONIQ actually banks, sits at or above 26% everywhere. The published
+ * rate is ₹75 against a ₹72 floor; the gap is deliberate headroom.
  *
  * WHAT COUNTS AS COST:
  * - Generation (per finished minute): ₹31.50, OWNER-SUPPLIED AND MEASURED
@@ -68,8 +70,8 @@ export const UNIT = {
    * sale attracts GST; and with distribution India-only there is no offshore
    * supplier argument to make.
    *
-   * Owner decision, 2026-08-16: THE PUBLISHED PRICE IS GST-INCLUSIVE. ₹57 is
-   * what the buyer pays, not ₹57 plus tax. So the tax is carved OUT of the
+   * Owner decision, 2026-08-16: THE PUBLISHED PRICE IS GST-INCLUSIVE. ₹75 is
+   * what the buyer pays, not ₹75 plus tax. So the tax is carved OUT of the
    * price rather than added to it, and the share of an inclusive price that
    * is tax is 18/118, not 18/100 — a distinction worth 2.7 points of margin
    * on its own.
@@ -123,9 +125,20 @@ export function costPaisePerMinute(grade: StoryGrade): number {
  * is a floor.
  */
 export function pricePaisePerMinute(grade: StoryGrade): number {
+  // GST IS IN THE DENOMINATOR NOW (owner, 2026-08-16, repricing to ₹75).
+  //
+  // It was not, and that was the bug the GST work exposed rather than fixed:
+  // the formula solved for 26% BEFORE tax, published ₹57, and the business
+  // banked 11%. Solving for the mandate net of GST is what makes the number
+  // this returns a floor anybody can stand on — ₹72 for movie grade.
+  //
+  // The PUBLISHED rate is ₹75, set by the owner above this floor. This
+  // function is the floor, not the price; PER_MINUTE_PAISE is the price, and
+  // a test holds one against the other so a cost rise that eats the gap
+  // fails CI instead of quietly eating the margin.
   const raw =
     (costPaisePerMinute(grade) + UNIT.fixedInfraPaise) /
-    (1 - MARGIN_TARGET - UNIT.paymentFeeOfPrice);
+    (1 - MARGIN_TARGET - UNIT.paymentFeeOfPrice - GST_OF_INCLUSIVE_PRICE);
   return Math.ceil(raw / 100) * 100;
 }
 
@@ -178,19 +191,18 @@ export function oniqMarginAt(grade: StoryGrade, seconds: number, pricePaise: num
 }
 
 /**
- * What the per-minute rate WOULD have to be for the mandate to hold net of
- * GST. Currently ₹72/min against a published ₹57.
+ * The per-minute rate the mandate requires net of GST: ₹72/min.
  *
- * NOT WIRED TO ANYTHING. No price is derived from this, and none should be
- * without an owner decision — it exists so that decision can be made against
- * an arithmetic answer rather than a guess, and so the size of the gap is
- * visible in the same file that hides it today.
+ * WIRED NOW. When this was written it was not — it computed the answer to a
+ * question nobody had acted on, against a published ₹57 that netted 11%. The
+ * owner acted on 2026-08-16, and pricePaisePerMinute solves this same
+ * equation; the published rate is ₹75, three rupees above the floor.
  */
 export function priceForMarginNetOfGst(grade: StoryGrade): number {
-  const raw =
-    (costPaisePerMinute(grade) + UNIT.fixedInfraPaise) /
-    (1 - MARGIN_TARGET - UNIT.paymentFeeOfPrice - GST_OF_INCLUSIVE_PRICE);
-  return Math.ceil(raw / 100) * 100;
+  // Kept as its own name because it is the question people ask ("what would
+  // the rate have to be?"), but it is no longer a road not taken — as of the
+  // 2026-08-16 reprice, pricePaisePerMinute solves exactly this.
+  return pricePaisePerMinute(grade);
 }
 
 /**
@@ -276,9 +288,9 @@ export const MOVIE_TIERS: readonly {
   pricePaise: number;
   currency: "INR";
 }[] = [
-  // Every row is priceFor("movie", seconds) — ₹57/min, nothing hand-set.
-  { seconds: 60, label: "1 minute — movie", pricePaise: 5700, currency: "INR" },
-  { seconds: 120, label: "2 minutes — movie", pricePaise: 11400, currency: "INR" },
-  { seconds: 180, label: "3 minutes — movie", pricePaise: 17100, currency: "INR" },
-  { seconds: 300, label: "5 minutes — movie", pricePaise: 28500, currency: "INR" },
+  // Every row is the published rate x minutes — ₹75/min, nothing hand-set.
+  { seconds: 60, label: "1 minute — movie", pricePaise: 7500, currency: "INR" },
+  { seconds: 120, label: "2 minutes — movie", pricePaise: 15000, currency: "INR" },
+  { seconds: 180, label: "3 minutes — movie", pricePaise: 22500, currency: "INR" },
+  { seconds: 300, label: "5 minutes — movie", pricePaise: 37500, currency: "INR" },
 ];

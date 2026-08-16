@@ -36,7 +36,12 @@ export type StoryPriceTier = {
  */
 export const PER_MINUTE_PAISE: Readonly<Record<"classic" | "movie", number>> = {
   classic: 4900,
-  movie: 5700,
+  // ₹75 a minute (owner directive, 2026-08-16). Was ₹57, which solved for 26%
+  // BEFORE tax and left the business banking 11% once GST came out of a
+  // tax-inclusive price. The floor that restores the mandate net of GST is
+  // ₹72 — pricePaisePerMinute("movie") — and ₹75 is the owner's round number
+  // above it.
+  movie: 7500,
 };
 
 /** What `seconds` of film costs at the published rate, paise. */

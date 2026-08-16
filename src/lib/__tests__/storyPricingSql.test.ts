@@ -1,13 +1,19 @@
 /**
- * The price chart exists twice — the CANONICAL upsert in the newest pricing
- * migration, and the TypeScript mirrors (PRICE_TIERS for classic,
- * MOVIE_TIERS in storyCostModel) — and this file is what keeps them from
- * drifting. Earlier migrations seeded earlier charts; the canonical-chart
- * convention says the NEWEST pricing migration lists every row of both
- * grades, and that is the statement parsed here. A text test: it proves the
- * two descriptions agree, not that the migration was applied — application
- * is verified against the live project per deploy (last: 2026-08-11, raw
- * psql output).
+ * The price chart exists in three places and this file keeps them agreeing:
+ * the SEED migration (which durations exist, per grade, and what is on sale),
+ * the REPRICE migration (what movie grade costs since 2026-08-16), and the
+ * TypeScript mirrors PRICE_TIERS and MOVIE_TIERS that the app reads.
+ *
+ * The seed stopped being the prices when movie was repriced to ₹75/min, so
+ * the checks split: shape and sale status come from the seed, amounts from
+ * the reprice and the mirrors. Conflating them is how a test ends up
+ * comparing a rate to itself and asserting nothing, which the first draft
+ * after the reprice did.
+ *
+ * A TEXT TEST. It proves the descriptions agree, not that a migration ran —
+ * application is verified against the live project per deploy (last:
+ * 2026-08-16, story_price_tiers read back at ₹75/min across all four movie
+ * durations).
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -25,11 +31,17 @@ import {
 } from "@/lib/storyCostModel";
 
 const SQL = readFileSync(
-  // The NEWEST pricing migration is the one canonical chart. Latest:
-  // 2026-08-15, tiers replaced by a single per-minute rate per grade. The
-  // 30s rows it seeds are DELETED by 20260815060000_drop_thirty_seconds.sql
-  // — see the sub-minute test below, which pins that removal.
+  // The seed chart. It is no longer the PRICES — 20260816090000 repriced movie
+  // to ₹75/min — but it is still the only file that lists every row of both
+  // grades, so it stays the structural mirror: which durations exist, which
+  // grade each belongs to, and what is on sale. The rate itself is checked
+  // against PER_MINUTE_PAISE below, and the reprice is pinned separately.
   join(process.cwd(), "supabase/migrations/20260815000000_per_minute_pricing.sql"),
+  "utf8",
+);
+/** The migration that actually sets today's movie prices. */
+const REPRICE = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260816090000_seventy_five_a_minute.sql"),
   "utf8",
 );
 
@@ -79,12 +91,20 @@ describe("the canonical price chart matches the TypeScript mirrors", () => {
     );
   });
 
-  it("movie rows equal MOVIE_TIERS, all ON SALE — the in-house engine's tier", () => {
+  it("movie rows equal MOVIE_TIERS in every respect but the repriced amount", () => {
     const rows = chart().filter((r) => r.grade === "movie");
     for (const r of rows) expect(r.active).toBe("true");
-    expect(rows.map(({ seconds, label, pricePaise }) => ({ seconds, label, pricePaise }))).toEqual(
-      MOVIE_TIERS.map(({ seconds, label, pricePaise }) => ({ seconds, label, pricePaise })),
+    // Durations and labels come from the seed; prices come from the reprice.
+    expect(rows.map(({ seconds, label }) => ({ seconds, label }))).toEqual(
+      MOVIE_TIERS.map(({ seconds, label }) => ({ seconds, label })),
     );
+    // And the reprice is a RATE applied to the whole grade, not a list of
+    // hand-set amounts — which is what keeps the no-tiers policy true.
+    expect(REPRICE).toContain("set price_paise = round(7500.0 * seconds / 60)");
+    expect(REPRICE).toContain("where grade = 'movie'");
+    for (const t of MOVIE_TIERS) {
+      expect(t.pricePaise).toBe(Math.round((7500 * t.seconds) / 60));
+    }
   });
 
   it("prices rise with length within each grade", () => {
@@ -125,20 +145,41 @@ describe("the canonical price chart matches the TypeScript mirrors", () => {
  */
 describe("the per-minute rate", () => {
   it("prices every published duration at exactly rate x minutes", () => {
+    // THREE PLACES, THREE NON-VACUOUS CHECKS. The first draft of this after
+    // the reprice compared rate x minutes to rate x minutes for the movie
+    // grade — true by construction and worth nothing.
+
+    // 1. The SEED is linear in its own rate, whatever that rate was. This is
+    //    the no-ladder property of the chart's shape, independent of price.
     for (const grade of ["classic", "movie"] as const) {
       const rows = chart().filter((r) => r.grade === grade);
-      const rate = PER_MINUTE_PAISE[grade];
-      for (const r of rows) {
-        expect(r.pricePaise, `${grade} ${r.seconds}s is not on the ${rate}/min line`).toBe(
-          Math.round((rate * r.seconds) / 60),
-        );
-      }
+      const implied = new Set(rows.map((r) => Math.round((r.pricePaise * 60) / r.seconds)));
+      expect(implied.size, `${grade} seed has ${implied.size} rates — that is a ladder`).toBe(1);
+    }
+
+    // 2. Classic is still ON the rate it was seeded at, because it was never
+    //    repriced. If that stops being true, something moved a withdrawn
+    //    product's prices without saying so.
+    for (const r of chart().filter((x) => x.grade === "classic")) {
+      expect(r.pricePaise).toBe(Math.round((PER_MINUTE_PAISE.classic * r.seconds) / 60));
+    }
+
+    // 3. Movie's PUBLISHED amounts — the mirror the app actually reads — sit
+    //    on the current rate, which the seed no longer does.
+    for (const t of MOVIE_TIERS) {
+      expect(t.pricePaise, `movie ${t.seconds}s is off the ₹75 line`).toBe(
+        Math.round((PER_MINUTE_PAISE.movie * t.seconds) / 60),
+      );
     }
   });
 
-  it("derives that rate from the cost model rather than hand-setting it", () => {
-    expect(PER_MINUTE_PAISE.classic).toBe(pricePaisePerMinute("classic"));
-    expect(PER_MINUTE_PAISE.movie).toBe(pricePaisePerMinute("movie"));
+  it("publishes at or above the floor the cost model derives", () => {
+    // Movie is ₹75 against a ₹72 floor — the owner's round number above what
+    // 26% net of GST requires. Classic is withdrawn and was never repriced,
+    // so it no longer sits on its own derived line and is not held to it.
+    expect(PER_MINUTE_PAISE.movie).toBeGreaterThanOrEqual(pricePaisePerMinute("movie"));
+    expect(PER_MINUTE_PAISE.movie).toBe(7500);
+    expect(pricePaisePerMinute("movie")).toBe(7200);
     // The owner's measured generation cost is the input everything hangs off.
     expect(UNIT.genPaisePerMinute).toBe(3150);
     expect(MARGIN_TARGET).toBe(0.26);
@@ -167,17 +208,18 @@ describe("the per-minute rate", () => {
    * bills: if someone edits the migration to a rate that changes this, the gap
    * moves here first.
    */
-  it("records what the chart actually nets after GST — below the mandate", () => {
+  it("clears the mandate NET OF GST at every duration on sale", () => {
+    // This is the assertion the ₹57 chart could not pass, and the reason the
+    // owner repriced. The shortest film is the worst case: at ₹75 it lands
+    // 28.3%, and every longer one lands higher as the flat ₹3 is spread.
     for (const seconds of [60, 120, 180, 300]) {
       const m = oniqMarginAt("movie", seconds, priceForSeconds("movie", seconds));
-      expect(m, `movie ${seconds}s: GST no longer costs what it costs`).toBeLessThan(MARGIN_TARGET);
-      expect(m).toBeGreaterThan(0.1);
+      expect(m, `movie ${seconds}s nets ${(m * 100).toFixed(1)}% after GST`).toBeGreaterThanOrEqual(
+        MARGIN_TARGET,
+      );
     }
-    // The rate that WOULD hold the mandate net of GST. Nothing derives a price
-    // from it — repricing is the owner's call — so this pins both the answer
-    // and the fact that it has not been acted on.
     expect(priceForMarginNetOfGst("movie")).toBe(7200);
-    expect(PER_MINUTE_PAISE.movie, "prices moved without an owner decision").toBe(5700);
+    expect(PER_MINUTE_PAISE.movie, "prices moved without an owner decision").toBe(7500);
   });
 
   /**
@@ -194,11 +236,12 @@ describe("the per-minute rate", () => {
     for (const t of PRICE_TIERS) expect(t.seconds).toBeGreaterThanOrEqual(60);
     for (const t of MOVIE_TIERS) expect(t.seconds).toBeGreaterThanOrEqual(60);
     for (const grade of ["classic", "movie"] as const) {
-      // Before tax, deliberately. Net of GST nothing clears 26% today, so the
-      // net-of-GST version of this check would pass for a reason that has
-      // nothing to do with sub-minute films — a tripwire that can no longer
-      // trip is worse than no tripwire.
-      const would = marginBeforeTaxAt(grade, 30, priceForSeconds(grade, 30));
+      // NET OF GST now, because that is what the mandate means since the
+      // 2026-08-16 reprice. Before tax, a 30s film at ₹75 clears 26%
+      // comfortably — so the before-tax version of this check would have
+      // started failing for a reason that has nothing to do with whether a
+      // sub-minute film is worth selling.
+      const would = oniqMarginAt(grade, 30, priceForSeconds(grade, 30));
       expect(would, `${grade} 30s would now clear the floor — worth revisiting`).toBeLessThan(0.26);
     }
     // The migration that removes them, and the floor that stops a caller
