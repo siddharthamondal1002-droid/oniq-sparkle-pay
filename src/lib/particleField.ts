@@ -41,6 +41,19 @@ export type Particle = {
   r: number;
   /** 0..1. The composition multiplies its own layer opacity on top. */
   opacity: number;
+  /**
+   * DRIFT velocity, frame-widths and frame-heights per SECOND. Positive vy
+   * falls. Carried out of the math so a streaked kind can draw a trail as
+   * long as the distance actually travelled in one frame, and lean it along
+   * its own motion, instead of guessing both from the radius.
+   *
+   * This is the drift term only — it excludes sway, so it is the exact
+   * instantaneous velocity for a kind with `sway: [0, 0]` and an
+   * approximation for one that sways. Rain is the only streaked kind and it
+   * does not sway, so the one consumer gets the exact number.
+   */
+  vx: number;
+  vy: number;
 };
 
 /**
@@ -242,7 +255,7 @@ export function particlesAt(kind: VfxKind, seed: number, frame: number, fps: num
     // Depth cue for free: smaller particles are fainter, reading as farther.
     opacity *= 0.55 + 0.45 * ((r - spec.r[0]) / Math.max(1e-9, spec.r[1] - spec.r[0]));
 
-    out[i] = { x, y, r, opacity };
+    out[i] = { x, y, r, opacity, vx, vy };
   }
   return out;
 }

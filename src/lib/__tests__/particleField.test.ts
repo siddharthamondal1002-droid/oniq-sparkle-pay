@@ -167,6 +167,79 @@ describe("particlesAt", () => {
     expect(film).toMatch(/\{!shot\.clip && shot\.vfx \? <ParticleOverlay/);
   });
 
+  /**
+   * THE RAIN STROBE, 2026-08-16 — reported by the owner watching their own
+   * films, and reproduced by rendering before it was believed.
+   *
+   * A streak IS motion blur, so its length has to be the distance travelled
+   * in one frame. The first version drew `height: d * 14` — a multiple of
+   * the DROP'S RADIUS, which knows nothing about how fast it falls. At the
+   * story composition's 1080x1920 at 30fps that gave a 43-75px streak while
+   * rain falls 58-90px per frame, so every drop cleared its own length
+   * between frames and left up to 44px of dark behind it. Rendering frame 0
+   * and frame 1 in different colours showed the pairs sitting apart with a
+   * gap between them: the layer played as dashes flickering in place.
+   *
+   * The check computes the streak exactly as ParticleOverlay does and
+   * asserts the drop cannot outrun it. Held at three frame rates, because
+   * the bug was a length that ignored fps and 30 alone would not have shown
+   * it.
+   */
+  it("draws rain streaks longer than one frame of fall — no strobe", () => {
+    const W = 1080;
+    const H = 1920; // the story composition, StoryRoot.tsx
+    const OVERLAP = 1.15; // ParticleOverlay.STREAK_OVERLAP
+    for (const fps of [24, 30, 60]) {
+      const a = particlesAt("rain", 12345, 0, fps);
+      const b = particlesAt("rain", 12345, 1, fps);
+      for (let i = 0; i < a.length; i++) {
+        const r = a[i].r * H;
+        const d = Math.max(1, r * 2);
+        const dx = (a[i].vx * W) / fps;
+        const dy = (a[i].vy * H) / fps;
+        const streak = Math.max(d, Math.hypot(dx, dy) * OVERLAP);
+        // Actual travel, taken from the positions rather than the velocity,
+        // so a drift term that stopped matching the motion would show here.
+        let travel = (b[i].y - a[i].y) * H;
+        if (travel < 0) travel += H; // recycled through the seam this frame
+        expect(travel, `rain ${fps}fps particle ${i} outran its streak`).toBeLessThanOrEqual(
+          streak,
+        );
+      }
+    }
+  });
+
+  it("carries the drift velocity so a streak can be drawn from it", () => {
+    // Rain is the only streaked kind: it falls (vy > 0) and the wind blows
+    // one way (vx > 0), which is what fixes the lean of every streak.
+    for (const p of particlesAt("rain", 7, 90, 30)) {
+      expect(p.vy).toBeGreaterThan(0);
+      expect(p.vx).toBeGreaterThan(0);
+    }
+    // Embers rise, so their vy is negative — the sign is the direction, not
+    // a magnitude with a separate flag.
+    for (const p of particlesAt("embers", 7, 90, 30)) expect(p.vy).toBeLessThan(0);
+    // Velocity is a property of the particle, not of the frame: it must not
+    // drift as the shot plays, or the streak would change length mid-fall.
+    const early = particlesAt("rain", 7, 5, 30);
+    const late = particlesAt("rain", 7, 300, 30);
+    expect(late.map((p) => p.vy)).toEqual(early.map((p) => p.vy));
+  });
+
+  it("derives the streak from the particle, not from a hand-set constant", () => {
+    // A hardcoded slant already got caught pointing every streak AGAINST its
+    // own motion once. Derived from (vx, vy) it cannot disagree with the
+    // physics again, so the absence of the constant is what is pinned.
+    const overlay = readFileSync(
+      join(process.cwd(), "remotion/src/story/ParticleOverlay.tsx"),
+      "utf8",
+    );
+    expect(overlay).not.toContain("RAIN_SLANT_DEG");
+    expect(overlay).toContain("Math.atan2(dx, dy)");
+    expect(overlay).toContain("Math.hypot(dx, dy) * STREAK_OVERLAP");
+    expect(overlay, "the streak is back to a multiple of the radius").not.toMatch(/d \* 14/);
+  });
+
   it("actually moves: embers rise between frames, rain falls fast", () => {
     const before = particlesAt("embers", 42, 30, 30);
     const after = particlesAt("embers", 42, 45, 30);

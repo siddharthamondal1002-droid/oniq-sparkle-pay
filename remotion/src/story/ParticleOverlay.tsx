@@ -24,14 +24,22 @@ const PAINT: Record<VfxKind, { color: string; glow: string; streak: boolean }> =
 };
 
 /**
- * Rain's fixed slant, degrees. NEGATIVE, because the math blows the wind
- * RIGHT (VFX.rain.vx is strictly positive) and a streak tracing down-right
- * travel leans top-left/bottom-right — which in CSS is a counter-clockwise
- * (negative) rotation. The review's math pass caught the first version
- * leaning every streak AGAINST its own motion. Magnitude derived from the
- * spec: atan(mean vx·width / mean vy·height) at 1080x1920 ≈ 2.5°.
+ * A STREAK IS MOTION BLUR, SO ITS LENGTH IS THE DISTANCE TRAVELLED IN ONE
+ * FRAME — not a multiple of the drop's radius.
+ *
+ * The first version drew the streak fourteen diameters tall, giving a 43–75px
+ * streak while rain falls 58–90px per frame at 30fps and 1080x1920. A length
+ * taken from the radius knows nothing about the fall speed. Every drop
+ * cleared its own length between frames and left a gap of up to 44px, so the
+ * layer played as a field of dashes flickering in place — visible noise
+ * rather than falling water. Rendering two consecutive frames in different
+ * colours shows the successive streaks sitting apart with dark between them.
+ *
+ * At exactly 1.0 the streaks abut and rounding can still open a hairline
+ * seam, so they are drawn slightly long: consecutive frames overlap by ~7%
+ * at each end and the fall reads continuous.
  */
-const RAIN_SLANT_DEG = -2.5;
+const STREAK_OVERLAP = 1.15;
 
 export const ParticleOverlay: React.FC<{ kind: VfxKind; seed: number }> = ({ kind, seed }) => {
   const frame = useCurrentFrame();
@@ -50,22 +58,35 @@ export const ParticleOverlay: React.FC<{ kind: VfxKind; seed: number }> = ({ kin
         /* translate(-50%,-50%): Particle.x/y are the CENTRE. Anchoring the
            div's top-left corner there instead shifts everything down-right
            by a radius and makes edge particles pop in whole. */
-        return paint.streak ? (
-          <div
-            key={i}
-            style={{
-              position: "absolute",
-              left: p.x * width,
-              top: p.y * height,
-              width: Math.max(1, r),
-              height: d * 14,
-              opacity: p.opacity,
-              backgroundColor: paint.color,
-              borderRadius: r,
-              transform: `translate(-50%, -50%) rotate(${RAIN_SLANT_DEG}deg)`,
-            }}
-          />
-        ) : (
+        if (paint.streak) {
+          /* One frame of travel, in pixels. The slant comes out of the same
+             two numbers rather than a hand-derived constant — atan2(dx, dy)
+             is the lean off vertical, NEGATED because CSS rotates clockwise
+             in a y-down space and a drop blown right must put its BOTTOM to
+             the right. The review's math pass caught a hardcoded slant
+             leaning every streak against its own motion; derived, it cannot
+             disagree with the physics again. */
+          const dx = (p.vx * width) / fps;
+          const dy = (p.vy * height) / fps;
+          const deg = (-Math.atan2(dx, dy) * 180) / Math.PI;
+          return (
+            <div
+              key={i}
+              style={{
+                position: "absolute",
+                left: p.x * width,
+                top: p.y * height,
+                width: Math.max(1, r),
+                height: Math.max(d, Math.hypot(dx, dy) * STREAK_OVERLAP),
+                opacity: p.opacity,
+                backgroundColor: paint.color,
+                borderRadius: r,
+                transform: `translate(-50%, -50%) rotate(${deg}deg)`,
+              }}
+            />
+          );
+        }
+        return (
           <div
             key={i}
             style={{
