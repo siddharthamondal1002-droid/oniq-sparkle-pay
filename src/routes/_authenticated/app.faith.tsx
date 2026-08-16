@@ -11,11 +11,18 @@ import {
   Calendar as CalIcon,
   ShoppingBag,
   ArrowLeft,
+  Play,
   Video,
 } from "lucide-react";
 import { resolveTileLabel } from "@/lib/i18n/tileLabel";
 import { itemsForFaith, type FaithId } from "@/data/faithContent";
-import { LINK_OUT_LABEL, WATCH_NOTICE, faithChannelsFor } from "@/data/watchDirectory";
+import { WATCH_NOTICE, faithChannelsFor, playableOfChannelId } from "@/data/watchDirectory";
+import {
+  FAITH_LS_KEY,
+  religionToFaithId as sharedReligionToFaithId,
+  type Religion,
+} from "@/lib/devotionalLoop";
+import { WatchPlayer } from "@/components/watch/WatchPlayer";
 import { openInApp } from "@/lib/miniapps";
 import { useT } from "@/lib/i18n/LanguageProvider";
 
@@ -23,7 +30,6 @@ export const Route = createFileRoute("/_authenticated/app/faith")({
   component: FaithPage,
 });
 
-type Religion = "hindu" | "islam" | "christian" | "sikh" | "buddhist" | "jain" | "jewish";
 const RELIGIONS: { key: Religion; label: string; labelHi: string; emoji: string }[] = [
   { key: "hindu", label: "Hindu", labelHi: "हिन्दू", emoji: "🕉" },
   { key: "islam", label: "Islam", labelHi: "इस्लाम", emoji: "☪️" },
@@ -34,7 +40,8 @@ const RELIGIONS: { key: Religion; label: string; labelHi: string; emoji: string 
   { key: "jewish", label: "Jewish", labelHi: "यहूदी", emoji: "✡️" },
 ];
 
-const LS_KEY = "oniq.faith.religion.v1";
+// The key Watch and Home read the user's faith from. Defined once, there.
+const LS_KEY = FAITH_LS_KEY;
 type Section = "read" | "listen" | "dates" | "shop" | "watch";
 
 function FaithPage() {
@@ -150,17 +157,28 @@ function FaithPage() {
 }
 
 // ============================================================
-// DEVOTIONAL — a DIRECTORY of channels and stations. Nothing plays here.
+// DEVOTIONAL — channels play here; radio stays a directory.
 // ============================================================
 //
-// NO LIVE CHANNELS loop, Phase 1. Both sections below used to play media
-// inside ONIQ: Watch embedded a YouTube iframe per video id, and Radio piped a
-// Radio Browser stream URL straight into `new Audio()`. Neither does now.
+// The two halves are NOT the same case, and the difference is the whole
+// reason only one of them changed on 2026-08-16.
 //
-// What survives, deliberately and unchanged: STRICT faith-ID equality. A
-// faith with no entries shows ITS OWN empty state and never another faith's
-// content — that was the Jain bleed bug, and the fix holds whether the
-// destination is an embed or a link. No default list, no index-based access.
+// CHANNELS play again, in YouTube's own embedded player. YouTube serves the
+// video, its ads, and its own geo and age rules; ONIQ resolves nothing and
+// sits outside the delivery path. That is a supported use of their player.
+//
+// RADIO does NOT come back and should not be restored by reflex. It piped
+// Radio Browser's `url_resolved` — a bare stream URL — straight into
+// `new Audio()`. There is no rights-holder player in that path at all: ONIQ
+// would be the one delivering the audio. The removal commit called it "a
+// stronger form of the thing this loop removes than the embeds were", and
+// that reading is correct. Stations stay links to their homepages.
+//
+// What survives across both, deliberately and unchanged: STRICT faith-ID
+// equality. A faith with no entries shows ITS OWN empty state and never
+// another faith's content — that was the Jain bleed bug, and the fix holds
+// whether the destination is an embed or a link. No default list, no
+// index-based access.
 //
 // Jain Read is a separate section and is untouched by any of this.
 
@@ -174,20 +192,11 @@ const FAITH_META: { id: FaithId; label: string }[] = [
   { id: "jewish", label: "✡️ Jewish" },
 ];
 
-function religionToFaithId(religion: Religion | null): FaithId | null {
-  if (!religion) return null;
-  if (religion === "islam") return "islamic";
-  if (
-    religion === "hindu" ||
-    religion === "sikh" ||
-    religion === "christian" ||
-    religion === "buddhist" ||
-    religion === "jain" ||
-    religion === "jewish"
-  )
-    return religion;
-  return null;
-}
+// ONE mapping, shared with Watch and Home. This screen WRITES the religion
+// key that those two read, so a second copy of the rule here is a bleed bug
+// waiting to happen — a user whose faith maps one way on this screen and
+// another way on Watch is shown someone else's tradition.
+const religionToFaithId = sharedReligionToFaithId;
 
 /** One tappable row that leaves ONIQ. Shared by channels and radio stations. */
 function DirectoryRow({
@@ -229,12 +238,38 @@ function DirectoryRow({
   );
 }
 
+/**
+ * Darshan, kirtan, bayan — playing in place again.
+ *
+ * The removal commit's list included "the faith iframe", and it comes back
+ * with the rest of Watch (owner note, 2026-08-16). It plays ON A TAP rather
+ * than autoplaying: this screen is also where someone reads scripture, and a
+ * page that starts chanting the moment it opens is a different thing from a
+ * loop somebody chose. The full loop, with its timer, lives on the Watch
+ * screen's Devotional tab and on Home.
+ *
+ * STRICT FAITH ISOLATION is unchanged and is the reason this section is
+ * separate from the generic directory: this faith's channels or this faith's
+ * own empty state, never a fallback and never an index-based lookup. That was
+ * the Jain bleed bug, and it holds whether the destination is a frame or a
+ * link.
+ */
 function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
   // Static, from the bundle. The `live-channels` edge function that used to
   // serve this roster is retired — with nothing to resolve, a network call
   // bought nothing.
   const only = religionToFaithId(religion);
   const items = faithChannelsFor(only);
+  const [playing, setPlaying] = useState<{ id: string; name: string } | null>(null);
+
+  // Switching faith must drop whatever was playing. Without this the frame
+  // outlives the selection and one faith's channel keeps playing under
+  // another's heading — the bleed bug in its live-est form.
+  useEffect(() => {
+    setPlaying(null);
+  }, [only]);
+
+  const item = playing ? playableOfChannelId(playing.id, playing.name) : null;
 
   return (
     <section className="mt-8">
@@ -249,18 +284,63 @@ function DevotionalLiveSection({ religion }: { religion: Religion | null }) {
           no {FAITH_META.find((f) => f.id === only)?.label ?? "devotional"} channels listed yet 🌙
         </div>
       ) : (
-        <ul className="space-y-2">
-          {items.map((c) => (
-            <DirectoryRow
-              key={c.channelId}
-              name={c.name}
-              description={c.description}
-              url={`https://www.youtube.com/channel/${c.channelId}`}
-              emoji="📺"
-              outLabel={LINK_OUT_LABEL}
-            />
-          ))}
-        </ul>
+        <>
+          {item && (
+            <div className="mb-3">
+              {/* Name and close ABOVE the frame — nothing may be drawn over
+                  the player, which is a condition of the embed grant. */}
+              <div className="mb-2 flex items-center gap-2">
+                <div className="min-w-0 flex-1 truncate text-sm font-semibold">{playing!.name}</div>
+                <button
+                  type="button"
+                  onClick={() => setPlaying(null)}
+                  aria-label="Close player"
+                  className="press rounded-full border border-border bg-card px-3 py-1 text-[11px] font-semibold"
+                >
+                  close
+                </button>
+              </div>
+              <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-border bg-black">
+                <WatchPlayer
+                  key={playing!.id}
+                  item={item}
+                  autoplay
+                  className="absolute inset-0 h-full w-full"
+                />
+              </div>
+            </div>
+          )}
+
+          <ul className="space-y-2">
+            {items.map((c) => (
+              <li key={c.channelId}>
+                <button
+                  type="button"
+                  data-testid="faith-play"
+                  onClick={() => setPlaying({ id: c.channelId, name: c.name })}
+                  aria-label={`Play ${c.name}`}
+                  aria-current={playing?.id === c.channelId}
+                  className={`press flex w-full items-start gap-3 rounded-2xl border bg-card p-3 text-start ${
+                    playing?.id === c.channelId ? "border-primary" : "border-border"
+                  }`}
+                >
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-surface-2 text-lg">
+                    📺
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold">{c.name}</div>
+                    <div className="line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+                      {c.description}
+                    </div>
+                    <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-primary">
+                      Watch here <Play className="size-3" />
+                    </div>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
 
       <p className="mt-2 text-[11px] leading-snug text-muted-foreground">{WATCH_NOTICE}</p>
@@ -329,7 +409,9 @@ function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
                       key={s.homepage}
                       name={s.name}
                       description={
-                        s.tags.length > 0 ? s.tags.slice(0, 3).join(" · ") : "Internet radio station"
+                        s.tags.length > 0
+                          ? s.tags.slice(0, 3).join(" · ")
+                          : "Internet radio station"
                       }
                       url={s.homepage}
                       emoji="📻"
@@ -344,14 +426,13 @@ function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
       )}
 
       <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
-        Station listings come from Radio Browser, a community directory. ONIQ does not host,
-        stream or play these stations — each link opens the station's own site, where it serves
-        its own audio under its own terms.
+        Station listings come from Radio Browser, a community directory. ONIQ does not host, stream
+        or play these stations — each link opens the station's own site, where it serves its own
+        audio under its own terms.
       </p>
     </section>
   );
 }
-
 
 function TabBtn({
   active,
@@ -1016,15 +1097,50 @@ type CalItem = {
 // "all" stays the default until the user picks their family's system.
 export const HINDU_CAL_SYSTEMS: { id: string; label: string; hint: string; era?: string }[] = [
   { id: "all", label: "All India (everything)", hint: "every region's festivals together" },
-  { id: "north", label: "North Indian — Vikram Samvat", hint: "UP · Bihar · MP · Rajasthan · Haryana · HP · Uttarakhand · Jharkhand · Chhattisgarh · J&K", era: "Vikram Samvat 2083 · new year 19 Mar 2026" },
-  { id: "marathi", label: "Marathi — Shalivahana Shaka", hint: "Maharashtra · Goa · Konkan", era: "Shaka Samvat 1948 · Gudi Padwa 19 Mar 2026" },
-  { id: "telugu-kannada", label: "Telugu / Kannada", hint: "Andhra · Telangana · Karnataka", era: "Shaka Samvat 1948 · Ugadi 19 Mar 2026" },
+  {
+    id: "north",
+    label: "North Indian — Vikram Samvat",
+    hint: "UP · Bihar · MP · Rajasthan · Haryana · HP · Uttarakhand · Jharkhand · Chhattisgarh · J&K",
+    era: "Vikram Samvat 2083 · new year 19 Mar 2026",
+  },
+  {
+    id: "marathi",
+    label: "Marathi — Shalivahana Shaka",
+    hint: "Maharashtra · Goa · Konkan",
+    era: "Shaka Samvat 1948 · Gudi Padwa 19 Mar 2026",
+  },
+  {
+    id: "telugu-kannada",
+    label: "Telugu / Kannada",
+    hint: "Andhra · Telangana · Karnataka",
+    era: "Shaka Samvat 1948 · Ugadi 19 Mar 2026",
+  },
   { id: "tamil", label: "Tamil (solar)", hint: "Tamil Nadu", era: "Puthandu 14 Apr 2026" },
-  { id: "bengali", label: "Bengali Panjika", hint: "West Bengal · Tripura", era: "Bangabda 1433 · Poila Boishakh 15 Apr 2026" },
-  { id: "gujarati", label: "Gujarati (Kartikadi)", hint: "Gujarat", era: "Vikram Samvat 2083 from Bestu Varas, 9 Nov 2026" },
-  { id: "malayalam", label: "Malayalam — Kollavarsham", hint: "Kerala", era: "Kollavarsham 1201–02 · Vishu 14 Apr · Chingam 1 on 17 Aug" },
+  {
+    id: "bengali",
+    label: "Bengali Panjika",
+    hint: "West Bengal · Tripura",
+    era: "Bangabda 1433 · Poila Boishakh 15 Apr 2026",
+  },
+  {
+    id: "gujarati",
+    label: "Gujarati (Kartikadi)",
+    hint: "Gujarat",
+    era: "Vikram Samvat 2083 from Bestu Varas, 9 Nov 2026",
+  },
+  {
+    id: "malayalam",
+    label: "Malayalam — Kollavarsham",
+    hint: "Kerala",
+    era: "Kollavarsham 1201–02 · Vishu 14 Apr · Chingam 1 on 17 Aug",
+  },
   { id: "odia", label: "Odia Panji", hint: "Odisha", era: "Pana Sankranti 14 Apr 2026" },
-  { id: "assamese", label: "Assamese", hint: "Assam", era: "Bhaskarabda 1432–33 · Bohag Bihu 14 Apr 2026" },
+  {
+    id: "assamese",
+    label: "Assamese",
+    hint: "Assam",
+    era: "Bhaskarabda 1432–33 · Bohag Bihu 14 Apr 2026",
+  },
   { id: "punjabi", label: "Punjabi", hint: "Punjab", era: "Nanakshahi 558 · Baisakhi 14 Apr 2026" },
 ];
 
@@ -1049,7 +1165,11 @@ function DatesSection({ religion }: { religion: Religion }) {
   });
   const pickSystem = (id: string) => {
     setCalSystem(id);
-    try { localStorage.setItem(HINDU_CAL_KEY, id); } catch { /* noop */ }
+    try {
+      localStorage.setItem(HINDU_CAL_KEY, id);
+    } catch {
+      /* noop */
+    }
   };
   const activeSystem = HINDU_CAL_SYSTEMS.find((c) => c.id === calSystem) ?? HINDU_CAL_SYSTEMS[0];
 
@@ -1076,7 +1196,9 @@ function DatesSection({ religion }: { religion: Religion }) {
             className="mt-2 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"
           >
             {HINDU_CAL_SYSTEMS.map((c) => (
-              <option key={c.id} value={c.id}>{c.label}</option>
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
             ))}
           </select>
           <p className="mt-1.5 text-[11px] text-muted-foreground">{activeSystem.hint}</p>
@@ -1085,7 +1207,9 @@ function DatesSection({ religion }: { religion: Religion }) {
           )}
         </div>
       )}
-      <div className="mb-2 text-[11px] text-muted-foreground">dates may vary by region &amp; tradition 🌙</div>
+      <div className="mb-2 text-[11px] text-muted-foreground">
+        dates may vary by region &amp; tradition 🌙
+      </div>
       <ul className="space-y-2">
         {items.map((it) => {
           const days = Math.round(
@@ -1108,7 +1232,11 @@ function DatesSection({ religion }: { religion: Religion }) {
                 <div className="text-[11px] text-muted-foreground">{it.date}</div>
                 {it.alt_date && (
                   <div className="text-[11px] text-primary/80">
-                    also observed {new Date(it.alt_date).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    also observed{" "}
+                    {new Date(it.alt_date).toLocaleDateString(undefined, {
+                      month: "short",
+                      day: "numeric",
+                    })}
                     {it.alt_note ? ` — ${it.alt_note}` : ""}
                   </div>
                 )}

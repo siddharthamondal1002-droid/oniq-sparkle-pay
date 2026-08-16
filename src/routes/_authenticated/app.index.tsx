@@ -41,11 +41,27 @@ import { recordSignal } from "@/lib/personalisation";
 import { LORE_COLLECTIONS } from "@/data/lores";
 import { WatchPlayer, type WatchPlayerHandle } from "@/components/watch/WatchPlayer";
 import {
+  faithChannelsFor,
   playableOf,
+  playableOfChannelId,
   uploadsPlaylistId,
   watchDirectoryFor,
   type Playable,
 } from "@/data/watchDirectory";
+import {
+  DEVOTIONAL_GENRE_ID,
+  clearLoop,
+  loopPhase,
+  readFaithPref,
+  readLoop,
+  writeLoop,
+  type LoopState,
+} from "@/lib/devotionalLoop";
+import {
+  DevotionalEnded,
+  DevotionalPicker,
+  DevotionalRunning,
+} from "@/components/watch/DevotionalLoop";
 import {
   MYTV_GENRE_ID,
   USER_GENRE_PREFIX,
@@ -1122,6 +1138,30 @@ function WatchPreview() {
     : null;
   const userChannelsQ = useUserChannels(userId, activeUserGenreId);
 
+  // THE DEVOTIONAL LOOP. This is the tile the removal commit named — "the
+  // second player behind the home Watch tile (with its devotional loop
+  // timer)". Anchored to real timestamps so backgrounding the app resumes the
+  // loop rather than restarting it; see src/lib/devotionalLoop.ts.
+  const faith = useMemo(() => readFaithPref(), []);
+  const [loop, setLoop] = useState<LoopState>(() => readLoop());
+  const [justBrowse, setJustBrowse] = useState(false);
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  const isDevotional = tab === DEVOTIONAL_GENRE_ID;
+  const phase = isDevotional ? loopPhase(loop, nowTs) : "none";
+  const loopActive = phase === "active";
+  const loopEnded = phase === "ended";
+  const showPicker = isDevotional && !loopActive && !loopEnded && !justBrowse;
+
+  useEffect(() => {
+    if (!isDevotional || !loop) return;
+    const t = window.setInterval(() => setNowTs(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [isDevotional, loop]);
+
+  useEffect(() => {
+    if (!isDevotional) setJustBrowse(false);
+  }, [isDevotional]);
+
   // Live feeds are excluded from the HOME loop deliberately: a live channel
   // never ends, so it cannot rotate, and a 24/7 news feed starting itself on
   // the home screen is a different thing from a playlist looping. The Watch
@@ -1135,6 +1175,13 @@ function WatchPreview() {
     if (tab === MYTV_GENRE_ID) {
       return (myTvQ.data ?? []).map(playableOfMyTv).filter(Boolean) as Playable[];
     }
+    if (isDevotional) {
+      // Strict faith isolation, same rule as everywhere else: this user's
+      // faith or nothing. Never a default list.
+      return faithChannelsFor(faith)
+        .map((e) => playableOfChannelId(e.channelId, e.name))
+        .filter(Boolean) as Playable[];
+    }
     if (activeUserGenreId) {
       return (userChannelsQ.data ?? []).map(playableOfUserChannel).filter(Boolean) as Playable[];
     }
@@ -1142,12 +1189,20 @@ function WatchPreview() {
       .filter((e) => tab === "all" || e.genre === tab)
       .map(playableOf)
       .filter(Boolean) as Playable[];
-  }, [tab, activeUserGenreId, directory, myTvQ.data, userChannelsQ.data]);
+  }, [tab, isDevotional, faith, activeUserGenreId, directory, myTvQ.data, userChannelsQ.data]);
 
   const current = loopable.length ? loopable[idx % loopable.length] : null;
 
+  // An elapsed devotional loop stops the rotation without cutting the current
+  // track off mid-recitation. Through a ref: the player's handlers bind once.
+  const stopAdvanceRef = useRef(false);
+  useEffect(() => {
+    stopAdvanceRef.current = loopEnded;
+  }, [loopEnded]);
+
   const advance = useCallback(
     (reason: "error" | "ended") => {
+      if (stopAdvanceRef.current && reason === "ended") return;
       const total = loopable.length;
       if (total === 0) return;
       if (reason === "error") failStreakRef.current += 1;
@@ -1159,6 +1214,48 @@ function WatchPreview() {
     },
     [loopable.length],
   );
+
+  /**
+   * THE 2-MINUTE AUTO-TOUR, also recovered from the removed tile.
+   *
+   * A home tile that sits on one channel until it happens to end is not a
+   * preview of anything, so it moves on every two minutes. Two conditions
+   * from the original are load-bearing:
+   *
+   *   - a HIDDEN document defers rather than advances. Without that, a phone
+   *     left in a pocket burns through the whole roster and comes back on a
+   *     channel the user never chose.
+   *   - a RUNNING devotional loop turns the tour OFF entirely. That is the
+   *     difference between a loop and a shuffle: each track plays out and the
+   *     ENDED event wraps, instead of a timer cutting it short.
+   */
+  const vLen = loopable.length;
+  useEffect(() => {
+    if (vLen < 2) return;
+    if (isDevotional && (loopActive || loopEnded || showPicker)) return;
+    let t: number | null = null;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) {
+        t = window.setTimeout(tick, 30_000);
+        return;
+      }
+      setIdx((i) => (i + 1) % vLen);
+    };
+    t = window.setTimeout(tick, 120_000);
+    return () => {
+      if (t) window.clearTimeout(t);
+    };
+  }, [idx, vLen, isDevotional, loopActive, loopEnded, showPicker]);
+
+  const startLoop = (sec: number) => {
+    const now = Date.now();
+    writeLoop(now, sec);
+    setLoop({ startedAt: now, durationSec: sec });
+    setJustBrowse(false);
+    setNowTs(now);
+    failStreakRef.current = 0;
+    setDead(false);
+  };
 
   const pickTab = (t: string) => {
     if (t === tab) return;
@@ -1235,6 +1332,17 @@ function WatchPreview() {
             {g.emoji}
           </HomeGenreChip>
         ))}
+        {/* Devotional, only once a faith has been chosen. No faith, no tab —
+            never a default tradition. */}
+        {faith && (
+          <HomeGenreChip
+            active={isDevotional}
+            label="Devotional"
+            onClick={() => pickTab(DEVOTIONAL_GENRE_ID)}
+          >
+            🙏
+          </HomeGenreChip>
+        )}
         {userId && (myTvQ.data?.length ?? 0) > 0 && (
           <HomeGenreChip
             active={tab === MYTV_GENRE_ID}
@@ -1270,12 +1378,42 @@ function WatchPreview() {
         )}
       </div>
 
+      {/* THE DEVOTIONAL LOOP CONTROLS — above the frame, never over it. */}
+      <div className="mt-3">
+        {showPicker && (
+          <DevotionalPicker compact onStart={startLoop} onSkip={() => setJustBrowse(true)} />
+        )}
+        {isDevotional && loopActive && (
+          <DevotionalRunning
+            loop={loop}
+            now={nowTs}
+            onStop={() => {
+              clearLoop();
+              setLoop(null);
+              setJustBrowse(true);
+            }}
+          />
+        )}
+        {isDevotional && loopEnded && (
+          <DevotionalEnded
+            onReplay={() => loop && startLoop(loop.durationSec)}
+            onBrowse={() => {
+              clearLoop();
+              setLoop(null);
+              setJustBrowse(true);
+            }}
+          />
+        )}
+      </div>
+
       {/* THE FRAME, AND NOTHING OVER IT. */}
-      <div className="relative mt-3 aspect-video w-full overflow-hidden rounded-xl border border-border/60 bg-black">
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl border border-border/60 bg-black">
         {dead || !current ? (
           <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs text-muted-foreground">
             {loopable.length === 0
-              ? "nothing in here yet 📺"
+              ? isDevotional
+                ? "no channels listed for your faith yet 🌙"
+                : "nothing in here yet 📺"
               : "streams are napping — try later 📺"}
           </div>
         ) : (

@@ -59,12 +59,29 @@ import {
   LINK_OUT_LABEL,
   WATCH_NOTICE,
   channelUrl,
+  channelUrlOf,
+  faithChannelsFor,
   isLiveChannel,
   playableOf,
+  playableOfChannelId,
   watchDirectoryFor,
   type Playable,
   type WatchGenre,
 } from "@/data/watchDirectory";
+import {
+  DEVOTIONAL_GENRE_ID,
+  clearLoop,
+  loopPhase,
+  readFaithPref,
+  readLoop,
+  writeLoop,
+  type LoopState,
+} from "@/lib/devotionalLoop";
+import {
+  DevotionalEnded,
+  DevotionalPicker,
+  DevotionalRunning,
+} from "@/components/watch/DevotionalLoop";
 import { WatchPlayer, type WatchPlayerHandle } from "@/components/watch/WatchPlayer";
 import {
   AddChannelSheet,
@@ -154,6 +171,32 @@ function WatchPage() {
   const userChannelsQ = useUserChannels(userId, activeUserGenre?.id ?? null);
   const userChannels = useMemo(() => userChannelsQ.data ?? [], [userChannelsQ.data]);
 
+  // DEVOTIONAL LOOP. Anchored to real timestamps in localStorage, so leaving
+  // the app and coming back resumes rather than restarts — see the reasoning
+  // in src/lib/devotionalLoop.ts.
+  const faith = useMemo(() => readFaithPref(), []);
+  const [loop, setLoop] = useState<LoopState>(() => readLoop());
+  const [justBrowse, setJustBrowse] = useState(false);
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  const isDevotional = tab === DEVOTIONAL_GENRE_ID;
+  const phase = isDevotional ? loopPhase(loop, nowTs) : "none";
+  const loopActive = phase === "active";
+  const loopEnded = phase === "ended";
+  const showPicker = isDevotional && !loopActive && !loopEnded && !justBrowse;
+
+  // Ticks once a second, and ONLY while a devotional loop is running, so the
+  // countdown is live without a timer burning on every other tab.
+  useEffect(() => {
+    if (!isDevotional || !loop) return;
+    const t = window.setInterval(() => setNowTs(Date.now()), 1000);
+    return () => window.clearInterval(t);
+  }, [isDevotional, loop]);
+
+  // Leaving devotional resets "just browse" so re-entering offers the picker.
+  useEffect(() => {
+    if (!isDevotional) setJustBrowse(false);
+  }, [isDevotional]);
+
   /**
    * The FULL verified roster, not the India slice.
    *
@@ -211,9 +254,29 @@ function WatchPage() {
     [userChannels],
   );
 
+  /**
+   * DEVOTIONAL. Strict faith isolation, carried over rather than inherited:
+   * the roster is whatever `faithChannelsFor` returns for THIS user's faith
+   * and nothing else. No default list, no index-based access, and a faith
+   * with no channels gets its own empty state — that was the Jain bleed bug.
+   */
+  const devotionalCards: Card[] = useMemo(
+    () =>
+      faithChannelsFor(faith)
+        .map((e) => {
+          const item = playableOfChannelId(e.channelId, e.name);
+          return item
+            ? { key: `faith:${e.channelId}`, name: e.name, sub: "devotional", emoji: "🙏", item }
+            : null;
+        })
+        .filter(Boolean) as Card[],
+    [faith],
+  );
+
   /** Whatever the active tab is showing. Search applies to the directory tabs. */
   const shown: Card[] = useMemo(() => {
     if (tab === MYTV_GENRE_ID) return myTvCards;
+    if (tab === DEVOTIONAL_GENRE_ID) return devotionalCards;
     if (tab.startsWith(USER_GENRE_PREFIX)) return userGenreCards;
     const needle = q.trim().toLowerCase();
     return playableDir.filter((c) => {
@@ -221,7 +284,7 @@ function WatchPage() {
       if (!needle) return true;
       return c.name.toLowerCase().includes(needle) || c.description.toLowerCase().includes(needle);
     });
-  }, [tab, q, playableDir, myTvCards, userGenreCards]);
+  }, [tab, q, playableDir, myTvCards, userGenreCards, devotionalCards]);
 
   /** Counts come from the unfiltered roster, so a tab never reads "0" mid-search. */
   const countFor = useMemo(() => {
@@ -269,8 +332,18 @@ function WatchPage() {
   // but errors are counted — once every channel in the tab has failed the
   // screen says so instead of spinning through them forever. Lifted from
   // advance() in the original component.
+  // An elapsed devotional loop stops the rotation WITHOUT cutting the current
+  // track off. Read through a ref because the player's event handlers are
+  // bound once and would otherwise close over a stale value.
+  const stopAdvanceRef = useRef(false);
+  useEffect(() => {
+    stopAdvanceRef.current = loopEnded;
+  }, [loopEnded]);
+
   const advance = useCallback(
     (reason: "error" | "ended") => {
+      // The loop's time is up: let this one finish, then stay put.
+      if (stopAdvanceRef.current && reason === "ended") return;
       const total = shown.length;
       if (total === 0) {
         setDead(true);
@@ -324,6 +397,26 @@ function WatchPage() {
     reset();
     setTab(t);
     setIdx(0);
+  };
+
+  const startLoop = (sec: number) => {
+    const now = Date.now();
+    writeLoop(now, sec);
+    setLoop({ startedAt: now, durationSec: sec });
+    setJustBrowse(false);
+    setNowTs(now);
+    reset();
+  };
+
+  const stopLoop = () => {
+    clearLoop();
+    setLoop(null);
+    setJustBrowse(true);
+  };
+
+  const replayLoop = () => {
+    if (!loop) return;
+    startLoop(loop.durationSec);
   };
 
   const toggleMute = () => {
@@ -408,10 +501,12 @@ function WatchPage() {
   }
 
   const isMine = tab === MYTV_GENRE_ID || tab.startsWith(USER_GENRE_PREFIX);
-  const url =
-    current && !isMine && current.item.kind !== "video"
-      ? channelUrl({ channelId: current.key })
-      : null;
+  /** Non-searchable tabs: a personal or devotional list is short by design. */
+  const isCurated = isMine || isDevotional;
+  // Derived from the Playable, not from `key` — keys are namespaced per source
+  // (`mytv:`, `faith:`, `uc:`) and reading one as a channel id built a broken
+  // link the moment a second source appeared.
+  const url = current ? channelUrlOf(current.item) : null;
 
   return (
     <div className="min-h-dvh bg-background pb-24 text-foreground">
@@ -429,6 +524,15 @@ function WatchPage() {
               {g.emoji} {g.label} {countFor.get(g.key) ?? 0}
             </Chip>
           ))}
+
+          {/* DEVOTIONAL. Only offered once a faith has been chosen — an
+              unchosen faith has no roster, and showing a tab that leads to
+              somebody else's tradition is the bleed bug, not a fallback. */}
+          {faith && (
+            <Chip active={tab === DEVOTIONAL_GENRE_ID} onClick={() => pickTab(DEVOTIONAL_GENRE_ID)}>
+              🙏 Devotional {devotionalCards.length}
+            </Chip>
+          )}
 
           {userId && (
             <Chip active={tab === MYTV_GENRE_ID} onClick={() => pickTab(MYTV_GENRE_ID)}>
@@ -482,6 +586,24 @@ function WatchPage() {
           )}
         </div>
 
+        {/* THE DEVOTIONAL LOOP — above the frame, never over it. The original
+            put the picker on an `absolute inset-0 z-30` sheet across the whole
+            tile, which voids the embed grant. */}
+        {showPicker && <DevotionalPicker onStart={startLoop} onSkip={() => setJustBrowse(true)} />}
+        {isDevotional && loopActive && (
+          <DevotionalRunning loop={loop} now={nowTs} onStop={stopLoop} />
+        )}
+        {isDevotional && loopEnded && (
+          <DevotionalEnded
+            onReplay={replayLoop}
+            onBrowse={() => {
+              clearLoop();
+              setLoop(null);
+              setJustBrowse(true);
+            }}
+          />
+        )}
+
         {/*
           LIVE, ABOVE THE FRAME AND NOT OVER IT. This badge used to sit
           `absolute top-2 left-2 z-10` on top of the player, which voids the
@@ -516,9 +638,13 @@ function WatchPage() {
           {dead || !current ? (
             <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted-foreground">
               {shown.length === 0
-                ? isMine
-                  ? "nothing here yet — add your first 📺"
-                  : "nothing here for that 🔍"
+                ? isDevotional
+                  ? // THIS FAITH'S OWN empty state. Never a fallback to
+                    // another faith's channels — that was the Jain bleed bug.
+                    "no channels listed for your faith yet 🌙"
+                  : isMine
+                    ? "nothing here yet — add your first 📺"
+                    : "nothing here for that 🔍"
                 : "streams are napping — try later 📺"}
             </div>
           ) : (
@@ -564,7 +690,7 @@ function WatchPage() {
         )}
 
         {/* SEARCH — directory tabs only; a user's own lists are short. */}
-        {!isMine && (
+        {!isCurated && (
           <div className="relative mt-4">
             <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -656,7 +782,7 @@ function WatchPage() {
 
         {/* Channels known only by @handle: no playlist can be derived from a
             handle, so they stay honest link-outs rather than a dead play button. */}
-        {!isMine && linkOnly.length > 0 && (
+        {!isCurated && linkOnly.length > 0 && (
           <div className="mt-6">
             <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
               also on YouTube

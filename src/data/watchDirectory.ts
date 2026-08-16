@@ -192,6 +192,25 @@ export function playableOfChannelId(channelId: string, name: string): Playable |
   return { kind: "playlist", list: `UU${channelId.slice(2)}`, name };
 }
 
+/**
+ * The "open this on YouTube" link for whatever is playing.
+ *
+ * Derived from the Playable rather than from a UI key. Cards are keyed per
+ * source (`mytv:`, `faith:`, `uc:`) so that two sources cannot collide, and
+ * reading one of those keys as a channel id builds a link to a channel that
+ * does not exist. Null for a single video, which has no channel to point at
+ * from what is stored.
+ */
+export function channelUrlOf(p: Playable): string | null {
+  if (p.kind === "live") return channelUrl({ channelId: p.channelId });
+  if (p.kind === "playlist" && p.list.startsWith("UU") && p.list.length === 24) {
+    return channelUrl({ channelId: `UC${p.list.slice(2)}` });
+  }
+  // A playlist the user pasted (PL…) is not a channel; link to the playlist.
+  if (p.kind === "playlist") return `https://www.youtube.com/playlist?list=${p.list}`;
+  return null;
+}
+
 export const WATCH_ENTRIES: WatchEntry[] = [
   // News — international broadcasters that publish freely on their own channel.
   {

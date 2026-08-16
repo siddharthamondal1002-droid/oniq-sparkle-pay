@@ -300,7 +300,7 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
     // thumbnail or artwork is loaded from Google anywhere, on any screen.
     host: "www.youtube-nocookie.com",
     triggeredBy:
-      "Opening Watch (src/routes/_authenticated/app.watch.tsx), or selecting the watch face of the Home banner toggle (src/routes/_authenticated/app.index.tsx). Both autoplay a muted playlist on load.",
+      "Opening Watch (src/routes/_authenticated/app.watch.tsx), or selecting the watch face of the Home banner toggle (src/routes/_authenticated/app.index.tsx) — both autoplay a muted playlist on load, including the devotional loop, which by design keeps playing for a duration the user picks. Also on tapping a channel in Faith → watch (src/routes/_authenticated/app.faith.tsx), which does NOT autoplay.",
     sends:
       "IP address and user-agent, plus the playlist id being watched. The -nocookie origin means no viewing history is written to a Google advertising profile unless playback starts.",
     purpose:

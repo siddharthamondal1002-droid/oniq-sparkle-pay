@@ -215,23 +215,44 @@ describe("every entry is a link that leaves the app", () => {
     expect(WATCH_NOTICE.toLowerCase()).toContain("youtube");
   });
 
-  it("the Watch surface is gone entirely — only the faith directory consumes this data", () => {
+  it("the old monolith stays deleted — Watch is routes and one shared player", () => {
+    // LiveNewsSection.tsx held the whole of Watch: player, genres, My TV, the
+    // devotional loop. All of it is recovered as of 2026-08-16, but into
+    // separate modules. The file coming back would mean somebody rebuilt the
+    // monolith rather than finding the pieces.
     let exists = true;
     try {
       statSync(join(ROOT, "src/components/landing/LiveNewsSection.tsx"));
     } catch {
       exists = false;
     }
-    expect(exists, "the Watch surface still exists").toBe(false);
+    expect(exists, "the old Watch monolith is back").toBe(false);
   });
 
-  it("the faith surface renders link rows, with no iframe and no audio element", () => {
+  it("the faith surface plays CHANNELS through the shared player, and still no audio", () => {
+    // REWRITTEN, because the version this replaces would now pass while
+    // saying nothing. It asserted the absence of a literal `<iframe`, and the
+    // faith player is <WatchPlayer> — the string never appears, so the test
+    // was green and blind. What is actually worth holding is the asymmetry:
+    //
+    //   channels  -> YouTube's own player, in a frame. Their bytes, their
+    //                player, their ads, their geo rules. Restored.
+    //   radio     -> was Radio Browser's `url_resolved` piped into
+    //                new Audio(). No rights-holder player anywhere in that
+    //                path; ONIQ would be the one delivering audio. Stays a
+    //                directory, and this is what keeps it one.
     const path = join(ROOT, "src/routes/_authenticated/app.faith.tsx");
-    expect(readFileSync(path, "utf8")).toMatch(/openInApp/);
-    // codeOf, not the raw file: the tombstone comment in that file says what
-    // it no longer does, and naming `new Audio()` in order to record its
-    // removal must not read as a use of it.
-    expect(codeOf(path)).not.toMatch(/<iframe|new Audio\(/);
+    const code = codeOf(path);
+    // codeOf, not the raw file: the tombstone comment in that file names
+    // `new Audio()` in order to record its removal, and that must not read
+    // as a use of it.
+    expect(code, "a raw audio player is back").not.toMatch(/new Audio\(/);
+    expect(code, "a resolved stream URL is back").not.toMatch(/url_resolved/);
+    // Radio rows still leave the app.
+    expect(code).toMatch(/openInApp/);
+    // Channels play in the shared component, not a hand-rolled frame.
+    expect(code, "the faith screen builds its own player").not.toMatch(/<iframe/);
+    expect(code).toContain("<WatchPlayer");
   });
 
   it("the public landing page does not advertise Watch", () => {
