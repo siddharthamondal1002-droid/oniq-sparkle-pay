@@ -1,12 +1,13 @@
 /**
  * Watch — the screen it was, restored.
  *
- * Owner directive, 2026-08-16 (evening): channels PLAY here, and the loop
- * player is back "like before with autoplay". The shape below — genre tabs
- * across the top, the LIVE/NEW badge ABOVE the frame, the player, the
- * transport row, then the channel strip — is the layout of the component this
- * replaces, src/components/landing/LiveNewsSection.tsx at d879305b^. It is
- * recovered rather than redesigned.
+ * Owner directive, 2026-08-16 (evening): channels PLAY here, the loop player
+ * is back "like before with autoplay", and the genre row carries My TV and the
+ * user's own genres again. The shape below — genre tabs across the top, the
+ * LIVE badge ABOVE the frame, the player, the transport row, then the channel
+ * strip — is the layout of the component this replaces,
+ * src/components/landing/LiveNewsSection.tsx at d879305b^. It is recovered
+ * rather than redesigned.
  *
  * THE ONE DISTINCTION THE WHOLE SCREEN RESTS ON. Playing means an iframe
  * holding YOUTUBE'S OWN player: YouTube serves the video, serves its ads,
@@ -18,33 +19,38 @@
  * What it must never become is the retired `live-channels` shape: resolving a
  * stream URL server-side — with a spoofed browser User-Agent and a consent
  * cookie, as that function did — and feeding it to a player of ONIQ's own.
- * That strips YouTube's ads, puts ONIQ in the delivery path, and breaks their
- * terms. watchDirectory.test.ts fails if a stream URL is ever fetched, stored
- * or played, which is the line worth guarding rather than "no player".
+ * watchDirectory.test.ts fails if a stream URL is ever fetched, stored or
+ * played, which is the line worth guarding rather than "no player".
  *
  * NOTHING IS DRAWN OVER THE FRAME. That is a condition of the embed grant and
  * it is the thing a later "improvement" breaks by accident, so the LIVE badge
  * sits above the player and the transport row sits below it — never on top.
- * The original carried this same note for the same reason.
  *
- * STILL NO THUMBNAILS FROM THE DESTINATION. An <img> on YouTube's thumbnail
- * host fires the moment the STRIP renders, for every channel, with no user
- * decision involved — further than the embed goes, which only loads once
- * somebody picks a channel. Hence the genre glyph on every card.
+ * STILL NO THUMBNAILS FROM THE DESTINATION, and this now covers the user's own
+ * channels too. The original built `i.ytimg.com/vi/<id>/hqdefault.jpg` for
+ * every My TV card, which fires a request to Google's thumbnail host the
+ * moment the STRIP renders, for every entry, with no user decision involved.
+ * The embed only loads once somebody picks a channel. Hence the glyph.
  *
  * INDIA-ONLY is enforced in src/data/countryRegistry.ts, not here, so the
- * Home tile and this route agree by construction.
+ * Home card and this route agree by construction.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   ExternalLink,
   Pause,
+  Pencil,
   Play,
+  Plus,
   Search,
+  Settings,
   SkipBack,
   SkipForward,
+  Trash2,
   Volume2,
   VolumeX,
   X,
@@ -53,13 +59,30 @@ import {
   LINK_OUT_LABEL,
   WATCH_NOTICE,
   channelUrl,
-  embedUrl,
   isLiveChannel,
+  playableOf,
   watchDirectoryFor,
-  type WatchEntry,
+  type Playable,
   type WatchGenre,
 } from "@/data/watchDirectory";
 import { WatchPlayer, type WatchPlayerHandle } from "@/components/watch/WatchPlayer";
+import {
+  AddChannelSheet,
+  AddGenreSheet,
+  MyTvManageSheet,
+} from "@/components/watch/UserWatchSheets";
+import {
+  MYTV_GENRE_ID,
+  USER_GENRE_PREFIX,
+  playableOfMyTv,
+  playableOfUserChannel,
+  useMyTv,
+  useSession,
+  useUserChannels,
+  useUserGenres,
+  type UserGenreRow,
+} from "@/lib/userWatch";
+import { supabase } from "@/integrations/supabase/client";
 import { openInApp } from "@/lib/miniapps";
 import { isAvailable } from "@/data/countryRegistry";
 import { useCountry } from "@/lib/country";
@@ -88,20 +111,21 @@ const EMOJI_BY_GENRE = new Map(GENRES.map((g) => [g.key, g.emoji]));
 const LAST_CHANNEL_KEY = "oniq.watch.last";
 const LAST_GENRE_KEY = "oniq.watch.lastGenre";
 
-function keyOf(e: WatchEntry): string {
-  return e.channelId ?? e.handle ?? e.name;
-}
+/** What the strip shows and the player plays, whatever the source. */
+type Card = { key: string; name: string; sub: string; emoji: string; item: Playable };
 
 function WatchPage() {
   const [home] = useCountry();
   const media = useMediaCoordinator();
-  const [genre, setGenre] = useState<WatchGenre | null>(() => {
-    if (typeof window === "undefined") return null;
+  const userId = useSession();
+  const queryClient = useQueryClient();
+
+  const [tab, setTab] = useState<string>(() => {
+    if (typeof window === "undefined") return "all";
     try {
-      const v = localStorage.getItem(LAST_GENRE_KEY);
-      return GENRES.some((g) => g.key === v) ? (v as WatchGenre) : null;
+      return localStorage.getItem(LAST_GENRE_KEY) || "all";
     } catch {
-      return null;
+      return "all";
     }
   });
   const [q, setQ] = useState("");
@@ -109,10 +133,26 @@ function WatchPage() {
   const [paused, setPaused] = useState(false);
   const [muted, setMuted] = useState(true);
   const [dead, setDead] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [addGenreOpen, setAddGenreOpen] = useState(false);
+  const [addChannelFor, setAddChannelFor] = useState<{ id: string; name: string } | null>(null);
   const playerRef = useRef<WatchPlayerHandle | null>(null);
   const failStreakRef = useRef(0);
   const advanceTimerRef = useRef<number | null>(null);
   const resumedRef = useRef(false);
+
+  const userGenresQ = useUserGenres(userId);
+  const myTvQ = useMyTv(userId);
+  const userGenres = useMemo(() => userGenresQ.data ?? [], [userGenresQ.data]);
+
+  const activeUserGenre: UserGenreRow | null = useMemo(() => {
+    if (!tab.startsWith(USER_GENRE_PREFIX)) return null;
+    const id = tab.slice(USER_GENRE_PREFIX.length);
+    return userGenres.find((g) => g.id === id) ?? null;
+  }, [tab, userGenres]);
+
+  const userChannelsQ = useUserChannels(userId, activeUserGenre?.id ?? null);
+  const userChannels = useMemo(() => userChannelsQ.data ?? [], [userChannelsQ.data]);
 
   /**
    * The FULL verified roster, not the India slice.
@@ -124,28 +164,74 @@ function WatchPage() {
    */
   const all = useMemo(() => watchDirectoryFor(null), []);
 
-  /** Only channels with something to play sit in the strip; the rest link out. */
-  const playable = useMemo(() => all.filter((e) => embedUrl(e) !== null), [all]);
-  const linkOnly = useMemo(() => all.filter((e) => embedUrl(e) === null), [all]);
+  /** Directory entries that can play; the rest are honest link-outs below. */
+  const playableDir = useMemo(
+    () =>
+      all
+        .map((e) => {
+          const item = playableOf(e);
+          return item
+            ? {
+                key: e.channelId as string,
+                name: e.name,
+                sub: isLiveChannel(e.channelId) ? "live feed" : "uploads",
+                emoji: EMOJI_BY_GENRE.get(e.genre) ?? "📺",
+                genre: e.genre,
+                description: e.description,
+                item,
+              }
+            : null;
+        })
+        .filter(Boolean) as (Card & { genre: WatchGenre; description: string })[],
+    [all],
+  );
+  const linkOnly = useMemo(() => all.filter((e) => playableOf(e) === null), [all]);
 
-  const shown = useMemo(() => {
+  const myTvCards: Card[] = useMemo(
+    () =>
+      (myTvQ.data ?? [])
+        .map((r) => {
+          const item = playableOfMyTv(r);
+          return item
+            ? { key: `mytv:${r.channel_id}`, name: r.name, sub: "yours", emoji: "📺", item }
+            : null;
+        })
+        .filter(Boolean) as Card[],
+    [myTvQ.data],
+  );
+
+  const userGenreCards: Card[] = useMemo(
+    () =>
+      userChannels
+        .map((r) => {
+          const item = playableOfUserChannel(r);
+          return item ? { key: `uc:${r.id}`, name: r.name, sub: "yours", emoji: "🎯", item } : null;
+        })
+        .filter(Boolean) as Card[],
+    [userChannels],
+  );
+
+  /** Whatever the active tab is showing. Search applies to the directory tabs. */
+  const shown: Card[] = useMemo(() => {
+    if (tab === MYTV_GENRE_ID) return myTvCards;
+    if (tab.startsWith(USER_GENRE_PREFIX)) return userGenreCards;
     const needle = q.trim().toLowerCase();
-    return playable.filter((e) => {
-      if (genre && e.genre !== genre) return false;
+    return playableDir.filter((c) => {
+      if (tab !== "all" && c.genre !== tab) return false;
       if (!needle) return true;
-      return e.name.toLowerCase().includes(needle) || e.description.toLowerCase().includes(needle);
+      return c.name.toLowerCase().includes(needle) || c.description.toLowerCase().includes(needle);
     });
-  }, [playable, genre, q]);
+  }, [tab, q, playableDir, myTvCards, userGenreCards]);
 
   /** Counts come from the unfiltered roster, so a tab never reads "0" mid-search. */
   const countFor = useMemo(() => {
-    const m = new Map<WatchGenre, number>();
-    for (const e of playable) m.set(e.genre, (m.get(e.genre) ?? 0) + 1);
+    const m = new Map<string, number>();
+    for (const c of playableDir) m.set(c.genre, (m.get(c.genre) ?? 0) + 1);
     return m;
-  }, [playable]);
+  }, [playableDir]);
 
   const current = shown.length ? shown[idx % shown.length] : null;
-  const live = isLiveChannel(current?.channelId);
+  const live = current?.item.kind === "live";
 
   // Resume the last channel watched, once, on the first non-empty list.
   useEffect(() => {
@@ -154,7 +240,7 @@ function WatchPage() {
     try {
       const last = localStorage.getItem(LAST_CHANNEL_KEY);
       if (last) {
-        const found = shown.findIndex((e) => keyOf(e) === last);
+        const found = shown.findIndex((c) => c.key === last);
         if (found >= 0) setIdx(found);
       }
     } catch {
@@ -162,16 +248,22 @@ function WatchPage() {
     }
   }, [shown]);
 
-  // Persist channel + genre so Home and this screen restore the same state.
+  // Persist channel + tab so Home and this screen restore the same state.
   useEffect(() => {
     try {
-      if (current) localStorage.setItem(LAST_CHANNEL_KEY, keyOf(current));
-      if (genre) localStorage.setItem(LAST_GENRE_KEY, genre);
-      else localStorage.removeItem(LAST_GENRE_KEY);
+      if (current) localStorage.setItem(LAST_CHANNEL_KEY, current.key);
+      localStorage.setItem(LAST_GENRE_KEY, tab);
     } catch {
       /* noop */
     }
-  }, [current, genre]);
+  }, [current, tab]);
+
+  // A tab whose genre was just deleted must not strand the screen on it.
+  useEffect(() => {
+    if (!tab.startsWith(USER_GENRE_PREFIX)) return;
+    if (userGenresQ.isLoading) return;
+    if (!activeUserGenre) setTab("all");
+  }, [tab, activeUserGenre, userGenresQ.isLoading]);
 
   // The loop. An ENDED playlist rolls to the next channel; an ERROR does too,
   // but errors are counted — once every channel in the tab has failed the
@@ -210,18 +302,27 @@ function WatchPage() {
     setMuted(true);
   }, []);
 
-  const pick = (i: number) => {
+  const invalidateUserWatch = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["user-watch-genres"] });
+    queryClient.invalidateQueries({ queryKey: ["user-watch-channels"] });
+    queryClient.invalidateQueries({ queryKey: ["my-tv-channels"] });
+  }, [queryClient]);
+
+  const reset = () => {
     failStreakRef.current = 0;
     setDead(false);
     setPaused(false);
+  };
+
+  const pick = (i: number) => {
+    reset();
     setIdx(i);
   };
 
-  const pickGenre = (g: WatchGenre | null) => {
-    failStreakRef.current = 0;
-    setDead(false);
-    setPaused(false);
-    setGenre(g);
+  const pickTab = (t: string) => {
+    if (t === tab) return;
+    reset();
+    setTab(t);
     setIdx(0);
   };
 
@@ -252,6 +353,44 @@ function WatchPage() {
     }
   };
 
+  const renameUserGenre = async (g: UserGenreRow) => {
+    const next = window.prompt("rename genre", g.name)?.trim();
+    if (!next || next === g.name) return;
+    const { error } = await supabase
+      .from("user_watch_genres")
+      .update({ name: next.slice(0, 40) })
+      .eq("id", g.id);
+    if (error) {
+      toast.error("couldn't rename");
+      return;
+    }
+    toast.success("renamed ✨");
+    invalidateUserWatch();
+  };
+
+  const deleteUserGenre = async (g: UserGenreRow) => {
+    if (!window.confirm(`delete "${g.name}" and its channels? this is forever fr`)) return;
+    const { error } = await supabase.from("user_watch_genres").delete().eq("id", g.id);
+    if (error) {
+      toast.error("couldn't delete");
+      return;
+    }
+    toast("genre deleted 🧹");
+    setTab("all");
+    invalidateUserWatch();
+  };
+
+  const deleteUserChannel = async (rowId: string, name: string) => {
+    if (!window.confirm(`remove "${name}"?`)) return;
+    const { error } = await supabase.from("user_watch_channels").delete().eq("id", rowId);
+    if (error) {
+      toast.error("couldn't remove");
+      return;
+    }
+    toast("removed 🧹");
+    invalidateUserWatch();
+  };
+
   // EVERY HOOK IS ABOVE THIS RETURN. rules-of-hooks is a release blocker in
   // this repo, and a country check is exactly the kind of early return that
   // tempts a hook underneath it.
@@ -268,27 +407,83 @@ function WatchPage() {
     );
   }
 
-  const url = current ? channelUrl(current) : null;
+  const isMine = tab === MYTV_GENRE_ID || tab.startsWith(USER_GENRE_PREFIX);
+  const url =
+    current && !isMine && current.item.kind !== "video"
+      ? channelUrl({ channelId: current.key })
+      : null;
 
   return (
     <div className="min-h-dvh bg-background pb-24 text-foreground">
       <Header />
 
       <div className="mx-auto max-w-2xl px-4">
-        {/* TABS */}
+        {/* TABS — built-ins, then My TV, then the user's own, then the buttons
+            that make more of them. Same order the original used. */}
         <div className="no-scrollbar mb-3 flex items-center gap-2 overflow-x-auto pb-1">
-          <Chip active={genre === null} onClick={() => pickGenre(null)}>
-            All {playable.length}
+          <Chip active={tab === "all"} onClick={() => pickTab("all")}>
+            All {playableDir.length}
           </Chip>
           {GENRES.map((g) => (
-            <Chip key={g.key} active={genre === g.key} onClick={() => pickGenre(g.key)}>
+            <Chip key={g.key} active={tab === g.key} onClick={() => pickTab(g.key)}>
               {g.emoji} {g.label} {countFor.get(g.key) ?? 0}
             </Chip>
           ))}
+
+          {userId && (
+            <Chip active={tab === MYTV_GENRE_ID} onClick={() => pickTab(MYTV_GENRE_ID)}>
+              📺 My TV {myTvCards.length}
+            </Chip>
+          )}
+
+          {userGenres.map((g) => {
+            const id = `${USER_GENRE_PREFIX}${g.id}`;
+            const active = tab === id;
+            return (
+              <div key={g.id} className="inline-flex shrink-0 items-center gap-0.5">
+                <Chip active={active} onClick={() => pickTab(id)}>
+                  🎯 {g.name}
+                </Chip>
+                {active && (
+                  <>
+                    <IconBtn label={`Rename ${g.name}`} onClick={() => renameUserGenre(g)}>
+                      <Pencil className="h-3 w-3" />
+                    </IconBtn>
+                    <IconBtn label={`Delete ${g.name}`} danger onClick={() => deleteUserGenre(g)}>
+                      <Trash2 className="h-3 w-3" />
+                    </IconBtn>
+                  </>
+                )}
+              </div>
+            );
+          })}
+
+          {userId && (
+            <button
+              type="button"
+              data-testid="user-genre-add"
+              onClick={() => setAddGenreOpen(true)}
+              aria-label="Add genre"
+              className="press inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            >
+              <Plus className="h-3 w-3" /> genre
+            </button>
+          )}
+          {userId && (
+            <button
+              type="button"
+              data-testid="mytv-manage"
+              onClick={() => setManageOpen(true)}
+              aria-label="Manage My TV"
+              className="press inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+            >
+              <Settings className="h-3 w-3" /> My TV
+            </button>
+          )}
         </div>
 
         {/*
-          LIVE/NEW, ABOVE THE FRAME AND NOT OVER IT. This badge used to sit
+          LIVE, ABOVE THE FRAME AND NOT OVER IT. This badge used to sit
           `absolute top-2 left-2 z-10` on top of the player, which voids the
           embed grant — YouTube forbids rendering anything in front of any
           part of the player, controls included. Enforced by
@@ -321,13 +516,15 @@ function WatchPage() {
           {dead || !current ? (
             <div className="absolute inset-0 grid place-items-center p-6 text-center text-sm text-muted-foreground">
               {shown.length === 0
-                ? "nothing here for that 🔍"
+                ? isMine
+                  ? "nothing here yet — add your first 📺"
+                  : "nothing here for that 🔍"
                 : "streams are napping — try later 📺"}
             </div>
           ) : (
             <WatchPlayer
-              key={keyOf(current)}
-              entry={current}
+              key={current.key}
+              item={current.item}
               autoplay
               onAdvance={advance}
               onReady={bindPlayer}
@@ -366,51 +563,66 @@ function WatchPage() {
           </div>
         )}
 
-        {/* SEARCH */}
-        <div className="relative mt-4">
-          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={q}
-            onChange={(e) => {
-              setQ(e.target.value);
-              setIdx(0);
-              failStreakRef.current = 0;
-              setDead(false);
-            }}
-            placeholder="Search channels"
-            aria-label="Search channels"
-            data-testid="watch-search"
-            className="w-full rounded-full border border-border bg-card py-2.5 ps-9 pe-9 text-sm outline-none focus:border-primary"
-          />
-          {q && (
-            <button
-              type="button"
-              onClick={() => setQ("")}
-              aria-label="Clear search"
-              className="absolute end-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground"
-            >
-              <X className="size-4" />
-            </button>
-          )}
-        </div>
+        {/* SEARCH — directory tabs only; a user's own lists are short. */}
+        {!isMine && (
+          <div className="relative mt-4">
+            <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={q}
+              onChange={(e) => {
+                setQ(e.target.value);
+                setIdx(0);
+                reset();
+              }}
+              placeholder="Search channels"
+              aria-label="Search channels"
+              data-testid="watch-search"
+              className="w-full rounded-full border border-border bg-card py-2.5 ps-9 pe-9 text-sm outline-none focus:border-primary"
+            />
+            {q && (
+              <button
+                type="button"
+                onClick={() => setQ("")}
+                aria-label="Clear search"
+                className="absolute end-2 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* THE STRIP */}
-        {shown.length > 0 && (
-          <div
-            className="no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-1"
-            data-testid="watch-list"
-          >
-            {shown.map((e, i) => {
-              const active = current ? keyOf(current) === keyOf(e) : false;
-              return (
+        <div className="no-scrollbar mt-3 flex gap-3 overflow-x-auto pb-1" data-testid="watch-list">
+          {activeUserGenre && (
+            <button
+              type="button"
+              data-testid="user-channel-add"
+              onClick={() =>
+                setAddChannelFor({ id: activeUserGenre.id, name: activeUserGenre.name })
+              }
+              aria-label="Add channel"
+              className="press w-40 shrink-0 text-left"
+            >
+              <div className="grid aspect-video place-items-center rounded-lg border border-dashed border-border bg-surface-2">
+                <Plus className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div className="mt-1.5 text-xs font-medium leading-snug">add channel</div>
+              <div className="mt-0.5 truncate text-[10px] text-muted-foreground">youtube link</div>
+            </button>
+          )}
+          {shown.map((c, i) => {
+            const active = current?.key === c.key;
+            const removable = c.key.startsWith("uc:");
+            return (
+              <div key={c.key} className="relative w-40 shrink-0">
                 <button
-                  key={keyOf(e)}
                   type="button"
                   data-testid="watch-play"
                   onClick={() => pick(i)}
-                  aria-label={`Play ${e.name}`}
+                  aria-label={`Play ${c.name}`}
                   aria-current={active}
-                  className={`press w-40 shrink-0 text-left ${active ? "opacity-100" : "opacity-80 hover:opacity-100"}`}
+                  className={`press w-full text-left ${active ? "opacity-100" : "opacity-80 hover:opacity-100"}`}
                 >
                   {/* A GLYPH, NOT ARTWORK — see the file header for why the
                       destination's own thumbnail host must never appear here. */}
@@ -419,23 +631,32 @@ function WatchPage() {
                       active ? "border-primary" : "border-border"
                     }`}
                   >
-                    {EMOJI_BY_GENRE.get(e.genre) ?? "📺"}
+                    {c.emoji}
                   </div>
                   <div className="mt-1.5 line-clamp-2 text-xs font-medium leading-snug">
-                    {e.name}
+                    {c.name}
                   </div>
-                  <div className="mt-0.5 truncate text-[10px] text-muted-foreground">
-                    {isLiveChannel(e.channelId) ? "live feed" : "uploads"}
-                  </div>
+                  <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{c.sub}</div>
                 </button>
-              );
-            })}
-          </div>
-        )}
+                {removable && (
+                  <div className="absolute end-1 top-1">
+                    <IconBtn
+                      label={`Remove ${c.name}`}
+                      danger
+                      onClick={() => deleteUserChannel(c.key.slice(3), c.name)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </IconBtn>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
 
         {/* Channels known only by @handle: no playlist can be derived from a
             handle, so they stay honest link-outs rather than a dead play button. */}
-        {linkOnly.length > 0 && (
+        {!isMine && linkOnly.length > 0 && (
           <div className="mt-6">
             <div className="mb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
               also on YouTube
@@ -445,7 +666,7 @@ function WatchPage() {
                 const link = channelUrl(e);
                 if (!link) return null;
                 return (
-                  <li key={keyOf(e)}>
+                  <li key={e.channelId ?? e.handle ?? e.name}>
                     <button
                       type="button"
                       data-testid="watch-link"
@@ -465,6 +686,31 @@ function WatchPage() {
 
         <p className="mt-4 text-[11px] leading-snug text-muted-foreground">{WATCH_NOTICE}</p>
       </div>
+
+      {manageOpen && userId && (
+        <MyTvManageSheet userId={userId} onClose={() => setManageOpen(false)} />
+      )}
+      {addGenreOpen && userId && (
+        <AddGenreSheet
+          userId={userId}
+          existingCount={userGenres.length}
+          onClose={() => setAddGenreOpen(false)}
+          onCreated={(row) => {
+            invalidateUserWatch();
+            setTab(`${USER_GENRE_PREFIX}${row.id}`);
+            setIdx(0);
+          }}
+        />
+      )}
+      {addChannelFor && userId && (
+        <AddChannelSheet
+          userId={userId}
+          genre={addChannelFor}
+          existingCount={userChannels.length}
+          onClose={() => setAddChannelFor(null)}
+          onAdded={invalidateUserWatch}
+        />
+      )}
     </div>
   );
 }
@@ -502,6 +748,31 @@ function Chip({
         active
           ? "border-primary bg-primary text-primary-foreground shadow-[0_0_16px_-4px_var(--primary)]"
           : "border-border bg-card text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function IconBtn({
+  label,
+  onClick,
+  danger,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      className={`press grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border bg-card text-muted-foreground ${
+        danger ? "hover:text-red-400" : "hover:text-foreground"
       }`}
     >
       {children}

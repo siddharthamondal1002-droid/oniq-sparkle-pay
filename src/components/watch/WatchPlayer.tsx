@@ -21,19 +21,24 @@
  * content, its ads, and its own geo and age restrictions, exactly as before.
  * src/data/__tests__/watchDirectory.test.ts fails if that ever changes.
  *
- * TWO PATHS, because the roster has two kinds of channel:
- *   - a live broadcaster (src/data/watchChannels.ts) gets a raw frame on
- *     youtube.com/embed/live_stream, with the API attached to it afterwards
+ * THREE PATHS, one per Playable kind (see src/data/watchDirectory.ts):
+ *   - `live` — a broadcaster from src/data/watchChannels.ts gets a raw frame
+ *     on youtube.com/embed/live_stream, with the API attached to it afterwards
  *     purely to hear onError. It is NOT autoplayed: a 24/7 news feed starting
  *     itself is a different thing from a playlist looping, and liveEmbedUrl
  *     has never carried autoplay=1.
- *   - everything else gets its uploads playlist through YT.Player, which is
- *     what loops, and which autoplays MUTED — the only kind of autoplay a
- *     browser will honour.
+ *   - `playlist` — a channel's uploads, or a playlist the user pasted, through
+ *     YT.Player. This is what loops.
+ *   - `video` — a single video the user pasted into a genre of their own.
+ *     Same player, same events; the caller's rotation moves it along.
+ * The last two autoplay MUTED, the only kind of autoplay a browser honours.
+ *
+ * The player is deliberately blind to WHERE a Playable came from — directory,
+ * My TV, or a user's own genre all arrive in the same shape.
  */
 import { useEffect, useId, useRef } from "react";
 import { liveEmbedUrl } from "@/data/watchChannels";
-import { isLiveChannel, uploadsPlaylistId, type WatchEntry } from "@/data/watchDirectory";
+import type { Playable } from "@/data/watchDirectory";
 
 const YT_API_SRC = "https://www.youtube.com/iframe_api";
 
@@ -87,14 +92,14 @@ export type WatchPlayerHandle = {
 };
 
 export function WatchPlayer({
-  entry,
+  item,
   autoplay = true,
   controls = true,
   onAdvance,
   onReady,
   className = "h-full w-full",
 }: {
-  entry: WatchEntry;
+  item: Playable;
   /** Muted autoplay. Ignored for a live feed, which never starts itself. */
   autoplay?: boolean;
   /** YouTube's own controls. Off only for the Home tile, which has its own. */
@@ -117,14 +122,17 @@ export function WatchPlayer({
   }, [onAdvance, onReady]);
 
   const hostId = `yt-${useId().replace(/[:]/g, "")}`;
-  const channelId = entry.channelId;
-  const live = isLiveChannel(channelId);
-  const list = uploadsPlaylistId(entry);
+  const kind = item.kind;
+  const name = item.name;
+  // Flattened out of the union so the effect's dep array is primitives, not a
+  // fresh object literal every render — which would rebuild the player each
+  // time the parent re-rendered and restart the video mid-play.
+  const ref =
+    item.kind === "live" ? item.channelId : item.kind === "playlist" ? item.list : item.videoId;
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
-    if (!channelId) return;
     let cancelled = false;
 
     const teardown = () => {
@@ -141,10 +149,10 @@ export function WatchPlayer({
 
     // LIVE PATH. A raw frame first so the stream shows even if the API never
     // loads, then the API attached to that same frame just to hear onError.
-    if (live) {
+    if (kind === "live") {
       const frame = document.createElement("iframe");
-      frame.src = liveEmbedUrl(channelId, window.location.origin);
-      frame.title = entry.name;
+      frame.src = liveEmbedUrl(ref, window.location.origin);
+      frame.title = name;
       frame.allow = "encrypted-media; picture-in-picture; fullscreen";
       frame.allowFullscreen = true;
       frame.referrerPolicy = "strict-origin-when-cross-origin";
@@ -170,8 +178,8 @@ export function WatchPlayer({
       return teardown;
     }
 
-    // PLAYLIST PATH. This is the loop.
-    if (!list) return;
+    // PLAYLIST / VIDEO PATH. The playlist case is what loops; a single video
+    // ends and the caller's rotation moves it on. Same player either way.
     const div = document.createElement("div");
     div.id = hostId;
     div.style.cssText = "position:absolute;inset:0;width:100%;height:100%";
@@ -185,9 +193,9 @@ export function WatchPlayer({
           width: "100%",
           height: "100%",
           host: "https://www.youtube-nocookie.com",
+          ...(kind === "video" ? { videoId: ref } : {}),
           playerVars: {
-            list,
-            listType: "playlist",
+            ...(kind === "playlist" ? { list: ref, listType: "playlist" } : {}),
             autoplay: autoplay ? 1 : 0,
             // MUTED, always. An unmuted autoplay is refused by every browser
             // and by the Android WebView, so this is what autoplay means —
@@ -203,7 +211,7 @@ export function WatchPlayer({
           events: {
             onReady: (e: any) => {
               try {
-                e.target.getIframe?.()?.setAttribute("title", entry.name);
+                e.target.getIframe?.()?.setAttribute("title", name);
                 e.target.mute();
                 if (autoplay) e.target.playVideo();
               } catch {
@@ -223,10 +231,10 @@ export function WatchPlayer({
     });
 
     return teardown;
-    // hostId is stable for the component's life; entry.name only labels the
-    // frame. Re-creating the player on either would restart playback.
+    // hostId is stable for the component's life; `name` only labels the frame.
+    // Re-creating the player on either would restart playback.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channelId, live, list, autoplay, controls]);
+  }, [kind, ref, autoplay, controls]);
 
   return <div ref={hostRef} className={className} data-testid="watch-embed" />;
 }

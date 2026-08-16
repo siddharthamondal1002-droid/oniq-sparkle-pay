@@ -156,6 +156,42 @@ export function uploadsPlaylistId(e: { channelId?: string }): string | null {
   return `UU${e.channelId.slice(2)}`;
 }
 
+/**
+ * ONE SHAPE THE PLAYER UNDERSTANDS.
+ *
+ * Watch has four sources of something to play — a live broadcaster, a
+ * directory channel's uploads, a My TV channel the user added, and a raw
+ * YouTube link the user pasted into a genre of their own — and only three
+ * ways YouTube can be asked to play them. Collapsing the four sources onto
+ * the three shapes HERE means the player never learns where a thing came
+ * from, and a fifth source later needs no player change.
+ */
+export type Playable =
+  | { kind: "live"; channelId: string; name: string }
+  | { kind: "playlist"; list: string; name: string }
+  | { kind: "video"; videoId: string; name: string };
+
+/** A directory entry as something to play, or null if it is link-only. */
+export function playableOf(e: WatchEntry): Playable | null {
+  if (!e.channelId || !e.channelId.startsWith("UC")) return null;
+  if (isLiveChannel(e.channelId)) {
+    return { kind: "live", channelId: e.channelId, name: e.name };
+  }
+  return { kind: "playlist", list: `UU${e.channelId.slice(2)}`, name: e.name };
+}
+
+/**
+ * A My TV channel as something to play.
+ *
+ * `user_channels` stores a bare `UC…` id, so the uploads playlist is derived
+ * the same way a directory channel's is — no lookup, no network, no scrape.
+ */
+export function playableOfChannelId(channelId: string, name: string): Playable | null {
+  if (!channelId.startsWith("UC") || channelId.length !== 24) return null;
+  if (isLiveChannel(channelId)) return { kind: "live", channelId, name };
+  return { kind: "playlist", list: `UU${channelId.slice(2)}`, name };
+}
+
 export const WATCH_ENTRIES: WatchEntry[] = [
   // News — international broadcasters that publish freely on their own channel.
   {

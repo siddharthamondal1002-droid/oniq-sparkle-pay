@@ -15,6 +15,7 @@ import {
   VolumeX,
   ArrowRight,
   ChevronRight,
+  Plus,
   SkipBack,
   SkipForward,
   Tv,
@@ -39,7 +40,22 @@ import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
 import { recordSignal } from "@/lib/personalisation";
 import { LORE_COLLECTIONS } from "@/data/lores";
 import { WatchPlayer, type WatchPlayerHandle } from "@/components/watch/WatchPlayer";
-import { uploadsPlaylistId, watchDirectoryFor } from "@/data/watchDirectory";
+import {
+  playableOf,
+  uploadsPlaylistId,
+  watchDirectoryFor,
+  type Playable,
+} from "@/data/watchDirectory";
+import {
+  MYTV_GENRE_ID,
+  USER_GENRE_PREFIX,
+  playableOfMyTv,
+  playableOfUserChannel,
+  useMyTv,
+  useSession,
+  useUserChannels,
+  useUserGenres,
+} from "@/lib/userWatch";
 import { AiOutputReport } from "@/components/safety/AiOutputReport";
 
 export const Route = createFileRoute("/_authenticated/app/")({
@@ -165,8 +181,9 @@ function HomeScreen() {
                   { key: "pulse", to: "/app/news" },
                   { key: "faith", to: "/app/faith" },
                   // India-only by the feature registry, same as upi above —
-                  // owner directive 2026-08-16. A directory of links, never a
-                  // player; see src/routes/_authenticated/app.watch.tsx.
+                  // owner directive 2026-08-16. Channels PLAY there, in
+                  // YouTube's own player, and the personal genres live there
+                  // too; see src/routes/_authenticated/app.watch.tsx.
                   { key: "watch", to: "/app/watch" },
                   { key: "vitals", to: "/app/vitals", color: vitalsColor },
                   { key: "wander", to: "/app/travel" },
@@ -1057,24 +1074,76 @@ const HOME_ORIGINALS = LORE_COLLECTIONS.flatMap((c) => c.videos).filter((v) => !
  * autoplay is refused outright; the speaker button under the frame is the
  * user gesture that turns sound on, and taking it registers with the
  * single-audio-source coordinator so nothing else on Home keeps playing.
+ *
+ * THE GENRE SELECTOR, added 2026-08-16 on the owner's note that it was
+ * missing here. The original home tile carried an emoji-only genre row inside
+ * its control overlay; this card has no overlay to put it in (see above), so
+ * the row sits under the header where it is always visible rather than behind
+ * a tap. My TV and the user's own genres appear in it exactly as they do on
+ * the Watch screen — the whole point of a personal genre is that it follows
+ * you to where you actually look.
  */
+const HOME_GENRES: { key: string; emoji: string; label: string }[] = [
+  { key: "all", emoji: "🌐", label: "All" },
+  { key: "news", emoji: "📰", label: "News" },
+  { key: "sports", emoji: "🏏", label: "Sports" },
+  { key: "entertainment", emoji: "🎬", label: "Entertainment" },
+  { key: "finance", emoji: "📈", label: "Finance" },
+  { key: "influencer", emoji: "✨", label: "Creators" },
+  { key: "lifestyle", emoji: "🌿", label: "Lifestyle" },
+];
+
 function WatchPreview() {
   const navigate = useNavigate();
   const media = useMediaCoordinator();
+  const userId = useSession();
   const playerRef = useRef<WatchPlayerHandle | null>(null);
   const [idx, setIdx] = useState(0);
   const [muted, setMuted] = useState(true);
   const [dead, setDead] = useState(false);
   const failStreakRef = useRef(0);
 
+  // Shared with the Watch screen, so picking a genre in one and opening the
+  // other lands you where you left off.
+  const [tab, setTab] = useState<string>(() => {
+    if (typeof window === "undefined") return "all";
+    try {
+      return localStorage.getItem("oniq.watch.lastGenre") || "all";
+    } catch {
+      return "all";
+    }
+  });
+
+  const userGenresQ = useUserGenres(userId);
+  const myTvQ = useMyTv(userId);
+  const userGenres = useMemo(() => userGenresQ.data ?? [], [userGenresQ.data]);
+  const activeUserGenreId = tab.startsWith(USER_GENRE_PREFIX)
+    ? tab.slice(USER_GENRE_PREFIX.length)
+    : null;
+  const userChannelsQ = useUserChannels(userId, activeUserGenreId);
+
   // Live feeds are excluded from the HOME loop deliberately: a live channel
   // never ends, so it cannot rotate, and a 24/7 news feed starting itself on
   // the home screen is a different thing from a playlist looping. The Watch
   // screen carries them; this carries the loops.
-  const loopable = useMemo(
+  const directory = useMemo(
     () => watchDirectoryFor(null).filter((e) => uploadsPlaylistId(e) !== null),
     [],
   );
+
+  const loopable: Playable[] = useMemo(() => {
+    if (tab === MYTV_GENRE_ID) {
+      return (myTvQ.data ?? []).map(playableOfMyTv).filter(Boolean) as Playable[];
+    }
+    if (activeUserGenreId) {
+      return (userChannelsQ.data ?? []).map(playableOfUserChannel).filter(Boolean) as Playable[];
+    }
+    return directory
+      .filter((e) => tab === "all" || e.genre === tab)
+      .map(playableOf)
+      .filter(Boolean) as Playable[];
+  }, [tab, activeUserGenreId, directory, myTvQ.data, userChannelsQ.data]);
+
   const current = loopable.length ? loopable[idx % loopable.length] : null;
 
   const advance = useCallback(
@@ -1090,6 +1159,19 @@ function WatchPreview() {
     },
     [loopable.length],
   );
+
+  const pickTab = (t: string) => {
+    if (t === tab) return;
+    failStreakRef.current = 0;
+    setDead(false);
+    setTab(t);
+    setIdx(0);
+    try {
+      localStorage.setItem("oniq.watch.lastGenre", t);
+    } catch {
+      /* noop */
+    }
+  };
 
   const bindPlayer = useCallback((h: WatchPlayerHandle | null) => {
     playerRef.current = h;
@@ -1137,16 +1219,69 @@ function WatchPreview() {
         </button>
       </div>
 
+      {/* THE GENRE SELECTOR. Emoji-forward so seven of them fit a phone. */}
+      <div
+        className="no-scrollbar mt-3 flex items-center gap-1 overflow-x-auto"
+        role="tablist"
+        aria-label="Watch genre"
+      >
+        {HOME_GENRES.map((g) => (
+          <HomeGenreChip
+            key={g.key}
+            active={tab === g.key}
+            label={g.label}
+            onClick={() => pickTab(g.key)}
+          >
+            {g.emoji}
+          </HomeGenreChip>
+        ))}
+        {userId && (myTvQ.data?.length ?? 0) > 0 && (
+          <HomeGenreChip
+            active={tab === MYTV_GENRE_ID}
+            label="My TV"
+            onClick={() => pickTab(MYTV_GENRE_ID)}
+          >
+            📺
+          </HomeGenreChip>
+        )}
+        {userGenres.map((g) => (
+          <HomeGenreChip
+            key={g.id}
+            active={tab === `${USER_GENRE_PREFIX}${g.id}`}
+            label={g.name}
+            onClick={() => pickTab(`${USER_GENRE_PREFIX}${g.id}`)}
+          >
+            🎯
+          </HomeGenreChip>
+        ))}
+        {/* Making genres is a full-screen job — the sheets need room and the
+            keyboard covers a card this size. The chip routes to where they
+            live rather than duplicating the editor here. */}
+        {userId && (
+          <button
+            type="button"
+            data-testid="home-watch-manage"
+            onClick={() => navigate({ to: "/app/watch" })}
+            aria-label="Add a genre or manage My TV"
+            className="press inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-border px-2 py-1 text-[11px] font-semibold text-muted-foreground"
+          >
+            <Plus className="h-3 w-3" /> genre
+          </button>
+        )}
+      </div>
+
       {/* THE FRAME, AND NOTHING OVER IT. */}
       <div className="relative mt-3 aspect-video w-full overflow-hidden rounded-xl border border-border/60 bg-black">
         {dead || !current ? (
           <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs text-muted-foreground">
-            streams are napping — try later 📺
+            {loopable.length === 0
+              ? "nothing in here yet 📺"
+              : "streams are napping — try later 📺"}
           </div>
         ) : (
           <WatchPlayer
-            key={current.channelId}
-            entry={current}
+            key={`${current.kind}:${tab}:${idx}`}
+            item={current}
             autoplay
             onAdvance={advance}
             onReady={bindPlayer}
@@ -1188,6 +1323,34 @@ function WatchPreview() {
         </div>
       </div>
     </div>
+  );
+}
+
+function HomeGenreChip({
+  active,
+  label,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      aria-label={label}
+      title={label}
+      onClick={onClick}
+      className={`press shrink-0 whitespace-nowrap rounded-full border px-2 py-1 text-xs transition-colors ${
+        active ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card/60"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 

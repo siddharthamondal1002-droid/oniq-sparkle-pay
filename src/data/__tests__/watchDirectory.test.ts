@@ -278,7 +278,7 @@ describe("every entry is a link that leaves the app", () => {
     // out of the strip and rendered as honest link-outs instead of a play
     // button that would open an empty player.
     expect(src).toMatch(/linkOnly/);
-    expect(src).toMatch(/embedUrl\(e\) === null/);
+    expect(src).toMatch(/playableOf\(e\) === null/);
     // The gate lives in the registry so the tile and the route cannot drift.
     expect(src).toContain('isAvailable("watch", home)');
     // And the notice the whole posture rests on is actually shown.
