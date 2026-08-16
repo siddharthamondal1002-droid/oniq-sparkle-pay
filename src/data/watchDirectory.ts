@@ -82,6 +82,41 @@ export function channelUrl(e: { channelId?: string; handle?: string }): string |
   return null;
 }
 
+/**
+ * THE IN-APP PLAYER — owner directive, 2026-08-16 (evening), reversing the
+ * link-only posture set earlier the same day.
+ *
+ * WHAT THIS IS: YouTube's OWN embeddable player, in an iframe, on the
+ * privacy-enhanced `youtube-nocookie.com` origin. YouTube serves the video,
+ * serves its own ads, applies its own geo-restrictions and age gates, and the
+ * channel owner decides whether their channel may be embedded at all.
+ *
+ * WHAT THIS IS NOT, and must never become: resolving a stream URL and playing
+ * it in a player of ONIQ's own. The retired `live-channels` edge function did
+ * that, reaching YouTube with a spoofed browser User-Agent and a consent
+ * cookie. That strips YouTube's ads, puts ONIQ in the delivery path, and is a
+ * plain breach of their terms. The embed gets the same result with none of it,
+ * which is why the tests forbid a stream URL ever being fetched or stored.
+ *
+ * WHY THE UPLOADS PLAYLIST rather than `live_stream?channel=`. The live URL
+ * plays only while a channel is actually broadcasting and shows an error the
+ * rest of the time — and two thirds of this directory are not live channels.
+ * Every channel has an uploads playlist, its id is the channel id with the
+ * `UC` prefix swapped for `UU`, and live broadcasts appear in it too. One
+ * URL shape that always has something behind it beats two that half-work.
+ *
+ * Returns null for an entry known only by @handle: the playlist id cannot be
+ * derived from a handle, so those stay link-out and the UI says so.
+ */
+export function embedUrl(e: { channelId?: string }): string | null {
+  if (!e.channelId || !e.channelId.startsWith("UC")) return null;
+  const uploads = `UU${e.channelId.slice(2)}`;
+  // `rel=0` keeps the end-screen suggestions inside the same channel. No
+  // autoplay: a directory that starts making noise on open is a bug, and
+  // muted-autoplay to dodge that is worse.
+  return `https://www.youtube-nocookie.com/embed/videoseries?list=${uploads}&rel=0`;
+}
+
 export const WATCH_ENTRIES: WatchEntry[] = [
   // News — international broadcasters that publish freely on their own channel.
   {
@@ -757,7 +792,14 @@ export function faithChannelsFor(faith: FaithId | null): FaithEntry[] {
   return FAITH_ENTRIES.filter((e) => e.verified && e.faith === faith);
 }
 
+/**
+ * Rewritten 2026-08-16 (evening) when the player came back. The old wording
+ * said "ONIQ does not play or host any of this", which stops being true the
+ * moment an embed renders — and a notice that is no longer true is worse than
+ * no notice. Hosting is still not ONIQ's: the player is YouTube's own and the
+ * bytes come from them.
+ */
 export const WATCH_NOTICE =
-  "ONIQ does not play or host any of this. Every entry opens the channel on its own platform, where that platform decides what is available to you.";
+  "ONIQ hosts none of this. Channels play in YouTube's own player, and YouTube decides what is available where you are.";
 
 export const LINK_OUT_LABEL = "Opens in YouTube";

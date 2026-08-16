@@ -278,14 +278,30 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
       "Renders the badge. Hotlinked deliberately — dmca.com serves it against the protection ID so it cannot be faked or outlive a lapsed subscription.",
     avoidable: true,
   },
-  // Two entries used to sit here and both are deliberately gone.
-  //
-  // YouTube: Watch embedded the IFrame player, so every viewer's IP and
-  // user-agent reached Google the moment a stream opened, with no user
-  // decision involved — a declarable automatic request. Watch is now a list of
-  // links: nothing contacts YouTube until the user taps a row and leaves the
-  // app, and a destination the user chooses to visit is not a request ONIQ
-  // makes. See src/data/watchDirectory.ts.
+  {
+    // BACK, because the player is back (owner directive, 2026-08-16 evening).
+    //
+    // This entry was removed earlier the same day when Watch became a list of
+    // links, on the reasoning that a destination the user taps is not a
+    // request ONIQ makes. That reasoning still holds for the LIST — no row
+    // contacts Google until it is tapped — but stops holding the moment a
+    // frame renders, so the declaration comes back with it.
+    //
+    // Narrower than the version that was removed, and the difference is worth
+    // keeping: the old embed was on a screen that could autoplay into it, so
+    // the request was effectively automatic. This one fires only after a
+    // deliberate tap on a named channel, and the directory itself still loads
+    // no thumbnails, no artwork and no scripts from Google.
+    host: "www.youtube-nocookie.com",
+    triggeredBy:
+      "Tapping a channel in Watch (src/routes/_authenticated/app.watch.tsx). Never on load — the directory list itself contacts nothing.",
+    sends:
+      "IP address and user-agent, plus the playlist id being watched. The -nocookie origin means no viewing history is written to a Google advertising profile unless playback starts.",
+    purpose:
+      "Plays the channel in YouTube's own player. ONIQ resolves no stream URL and proxies no video; YouTube serves the content, its ads, and its own geo and age restrictions.",
+    avoidable: true,
+  },
+  // One entry that used to sit here is deliberately still gone.
   //
   // date.nager.at and api.frankfurter.dev: both were Glance's, and Glance was
   // removed from the app. Nothing calls either host now.

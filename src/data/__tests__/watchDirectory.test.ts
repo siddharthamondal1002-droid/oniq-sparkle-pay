@@ -77,19 +77,53 @@ describe("nothing streams, embeds, proxies or resolves — anywhere", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("no YouTube embed or IFrame player survives", () => {
+  /**
+   * THE LINE MOVED, 2026-08-16 (evening). It did not disappear.
+   *
+   * The owner brought the player back, so an embed is no longer the thing to
+   * forbid — this suite used to ban `/embed/` outright and that ban is gone.
+   * What replaces it is the distinction the embed rests on: YouTube's OWN
+   * player, framed, versus ONIQ resolving a stream and serving it itself.
+   * The first is a supported use of their player. The second is what the
+   * retired `live-channels` function did, with a spoofed User-Agent and a
+   * consent cookie, and it is still forbidden.
+   */
+  it("drives no player of its own — the IFrame Player API stays out", () => {
+    // The API is how a page controls playback programmatically. Nothing here
+    // needs to, and loading it would widen what ONIQ can do with somebody
+    // else's video from "show it" to "operate it".
     const offenders: string[] = [];
     for (const p of sourceFiles) {
       const code = codeOf(p);
-      if (
-        /youtube[^"'`\s]*\/embed\/|live_stream\?|iframe_api|YT\.Player|onYouTubeIframeAPIReady/.test(
-          code,
-        )
-      ) {
+      if (/iframe_api|YT\.Player|onYouTubeIframeAPIReady/.test(code)) {
         offenders.push(p.slice(ROOT.length + 1));
       }
     }
     expect(offenders).toEqual([]);
+  });
+
+  it("resolves, stores and proxies no stream URL", () => {
+    // The actual risk, and the reason live-channels was retired. A googlevideo
+    // host or a manifest is what you get from scraping the watch page; none of
+    // it should exist anywhere in the source.
+    const offenders: string[] = [];
+    for (const p of sourceFiles) {
+      const code = codeOf(p);
+      if (/googlevideo\.com|get_video_info|player_response|hlsManifestUrl|\.m3u8/.test(code)) {
+        offenders.push(p.slice(ROOT.length + 1));
+      }
+    }
+    expect(offenders, "a stream URL is being resolved or stored").toEqual([]);
+  });
+
+  it("embeds only from the privacy-enhanced origin, and only one shape of URL", () => {
+    const dir = codeOf(join(ROOT, "src/data/watchDirectory.ts"));
+    expect(dir).toContain("youtube-nocookie.com/embed/videoseries");
+    // The uploads playlist is derived, never a stored per-video id, so there
+    // is nothing to go stale and nothing that pins a specific broadcast.
+    expect(dir).toMatch(/UU\$\{.*channelId\.slice\(2\)\}/);
+    // No autoplay: a directory that starts making noise on open is a bug.
+    expect(dir).not.toMatch(/autoplay=1/);
   });
 
   it("no thumbnail is taken from the destination", () => {
@@ -97,8 +131,12 @@ describe("nothing streams, embeds, proxies or resolves — anywhere", () => {
     expect(offenders.map((p) => p.slice(ROOT.length + 1))).toEqual([]);
   });
 
-  it("the CSP no longer permits a YouTube frame or script", () => {
-    // Belt and braces: even if a component tried, the browser would refuse.
+  it("the CSP permits the FRAME and still refuses the SCRIPT", () => {
+    // The asymmetry is the point and it is easy to lose. frame-src has to
+    // allow the embed or the browser refuses to render it. script-src must
+    // stay closed: those hosts serve the IFrame Player API, and leaving them
+    // out means an attempt to drive playback fails loudly rather than
+    // quietly widening what the app does with somebody else's video.
     const headers = readFileSync(join(ROOT, "public/_headers"), "utf8")
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("#"))
@@ -107,8 +145,8 @@ describe("nothing streams, embeds, proxies or resolves — anywhere", () => {
     expect(csp, "no CSP found").not.toBe("");
     const frameSrc = csp.match(/frame-src([^;]*)/)?.[1] ?? "";
     const scriptSrc = csp.match(/script-src([^;]*)/)?.[1] ?? "";
-    expect(frameSrc).not.toMatch(/youtube/i);
-    expect(scriptSrc).not.toMatch(/youtube|ytimg/i);
+    expect(frameSrc, "the embed origin is not framed").toContain("youtube-nocookie.com");
+    expect(scriptSrc, "the IFrame Player API is loadable again").not.toMatch(/youtube|ytimg/i);
   });
 
   it("the retired live-channels edge function is gone, not just unused", () => {
@@ -152,9 +190,15 @@ describe("every entry is a link that leaves the app", () => {
     }
   });
 
-  it("labels the link-out so nothing implies in-app playback", () => {
+  it("says what is true now — hosting, not playing, is what ONIQ disclaims", () => {
+    // The notice used to say "ONIQ does not play or host any of this", which
+    // stopped being true the moment an embed rendered. A notice that is no
+    // longer true is worse than no notice, so the claim narrowed to the one
+    // that still holds: the bytes are YouTube's, and so is the player.
     expect(LINK_OUT_LABEL.toLowerCase()).toContain("opens in");
-    expect(WATCH_NOTICE.toLowerCase()).toContain("does not play");
+    expect(WATCH_NOTICE.toLowerCase()).not.toContain("does not play");
+    expect(WATCH_NOTICE.toLowerCase()).toContain("hosts none of this");
+    expect(WATCH_NOTICE.toLowerCase()).toContain("youtube");
   });
 
   it("the Watch surface is gone entirely — only the faith directory consumes this data", () => {
@@ -201,17 +245,36 @@ describe("every entry is a link that leaves the app", () => {
     }
   });
 
-  it("the Watch screen is a directory: link-out only, and India-gated", () => {
-    const page = join(ROOT, "src/routes/_authenticated/app.watch.tsx");
-    const src = readFileSync(page, "utf8");
-    // Every row hands off to the OS/browser. openInApp leaves the app; an
-    // iframe, a <video>, or a player SDK would not.
-    expect(src).toContain("openInApp(url)");
-    expect(src).not.toMatch(/<iframe|<video|YT\.Player|embed\/|videoseries/);
+  it("the Watch screen plays in YouTube's frame, on a tap, and stays India-gated", () => {
+    const src = codeOf(join(ROOT, "src/routes/_authenticated/app.watch.tsx"));
+    // The player is an iframe whose src comes from the shared helper — not a
+    // URL assembled here, where it could quietly grow a different shape.
+    expect(src).toContain("<iframe");
+    expect(src).toContain("embedUrl(entry)");
+    expect(src, "the screen builds its own YouTube URL").not.toMatch(/https:\/\/[^"'`]*youtube/);
+    // No <video> of ONIQ's own: that is the shape that needs a resolved
+    // stream, which is the thing that must never come back.
+    expect(src, "a native video element implies a resolved stream").not.toMatch(/<video/);
+    // Nothing is drawn over the frame — a condition of using the embed, and
+    // exactly what a later "improvement" breaks by accident.
+    expect(src).not.toMatch(/absolute[^"'`]*z-\d+[^"'`]*"\s*\/>\s*<\/div>\s*<\/div>\s*<iframe/);
+    // Handle-only entries cannot have a playlist derived, so they stay links.
+    expect(src).toContain("canPlay");
     // The gate lives in the registry so the tile and the route cannot drift.
     expect(src).toContain('isAvailable("watch", home)');
     // And the notice the whole posture rests on is actually shown.
     expect(src).toContain("WATCH_NOTICE");
+  });
+
+  it("declares the embed as an automatic request again", () => {
+    // The declaration was REMOVED when Watch became links, on the reasoning
+    // that a tapped destination is not a request ONIQ makes. That reasoning
+    // stops holding the moment a frame renders in-app, so the entry comes
+    // back with the player. A feature that reaches Google undeclared is the
+    // Play problem this file exists to prevent.
+    const compliance = readFileSync(join(ROOT, "src/config/playCompliance.ts"), "utf8");
+    expect(compliance).toContain('host: "www.youtube-nocookie.com"');
+    expect(compliance).toMatch(/triggeredBy:[\s\S]{0,120}Tapping a channel in Watch/);
   });
 
   it("Watch is registered India-only, so it cannot leak onto every Home", () => {

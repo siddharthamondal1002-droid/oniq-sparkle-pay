@@ -1,12 +1,18 @@
-# youtube.com and s.ytimg.com were removed from script-src, and youtube.com /
-# *.youtube-nocookie.com from frame-src, when Watch stopped embedding the
-# IFrame player (NO LIVE CHANNELS loop, Phase 1). Keeping them would have left
-# the door open for an embed to be re-added silently; now the browser refuses
-# to load one. Do not add them back — see src/data/watchDirectory.ts.
+# frame-src carries the YouTube embed origins again — owner directive,
+# 2026-08-16 (evening), reversing the link-only posture set earlier that day.
+# Watch plays channels in YouTube's OWN player and the browser has to be
+# allowed to frame it.
+#
+# WHAT IS DELIBERATELY STILL ABSENT: youtube.com and s.ytimg.com in
+# SCRIPT-SRC. The embed needs a frame, not a script — the IFrame Player API
+# (which is what those hosts are for) would let ONIQ drive playback, and
+# nothing here needs to. Leaving script-src closed means an attempt to load
+# the player API fails loudly instead of quietly widening what the app can do
+# with somebody else's video. See src/data/watchDirectory.ts.
 # accounts.google.com stays in frame-src for OAuth.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(self), camera=(self), microphone=(self), payment=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com; frame-src https://accounts.google.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com; frame-src https://accounts.google.com https://www.youtube-nocookie.com https://www.youtube.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'

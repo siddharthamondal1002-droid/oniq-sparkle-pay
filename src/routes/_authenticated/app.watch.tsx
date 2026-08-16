@@ -1,38 +1,39 @@
 /**
- * Watch — the channel DIRECTORY. Resurfaced 2026-08-16 (owner directive),
- * India-only, and still not a player.
+ * Watch — channels PLAY here now. Owner directive, 2026-08-16 (evening),
+ * reversing the link-only posture set earlier the same day. India-only.
  *
- * WHAT THIS SCREEN MAY NOT DO, and why it is worth saying in the file rather
- * than only in the data module it reads:
+ * THE ONE DISTINCTION THE WHOLE SCREEN RESTS ON. Playing means an iframe
+ * holding YOUTUBE'S OWN player: YouTube serves the video, serves its ads,
+ * enforces its own geo-restrictions and age gates, and the channel owner
+ * decides whether embedding is allowed at all. That is a supported use of
+ * their player and it leaves ONIQ out of the delivery path entirely.
  *
- *   - IT MUST NOT PLAY, EMBED OR PROXY ANYTHING. Streaming rights are
- *     territorial, so serving a stream is infringement by ONIQ rather than by
- *     the platform, and an embed re-imposes YouTube's player terms on top.
- *     The whole of Watch is a list of names, descriptions and https links;
- *     the tests in src/data/__tests__/watchDirectory.test.ts assert the
- *     ABSENCE of a player rather than the correctness of one.
+ * What it must never become is the retired `live-channels` shape: resolving a
+ * stream URL server-side — with a spoofed browser User-Agent and a consent
+ * cookie, as that function did — and feeding it to a player of ONIQ's own.
+ * That strips YouTube's ads, puts ONIQ in the delivery path, and breaks their
+ * terms. watchDirectory.test.ts fails if a stream URL is ever fetched, stored
+ * or played, which is the line worth guarding rather than "no player".
  *
- *   - IT MUST NOT LOAD YOUTUBE THUMBNAILS. This one is easy to add by reflex
- *     and it would undo a Play data-safety decision: an <img> pointed at
- *     i.ytimg.com fires the moment the list renders, sending every viewer's
- *     IP and user-agent to Google with no user decision involved — exactly
- *     the "automatic request" entry that was REMOVED from
- *     src/config/playCompliance.ts when the embed went. A destination the
- *     user taps is not a request ONIQ makes; an image the list fetches is.
- *     Hence the genre glyph instead of artwork.
+ * STILL NO THUMBNAILS FROM THE DESTINATION. Easy to add by reflex and it
+ * would go further than the embed does: an <img> on the destination's
+ * thumbnail host fires the moment the LIST renders, for every row, with no
+ * user decision involved. The embed only loads once somebody taps a channel.
+ * Both are declared in playCompliance.ts, and the difference between "the
+ * user chose this" and "the list did it" is the whole of that declaration.
+ * Hence the genre glyph.
  *
  * INDIA-ONLY is enforced in src/data/countryRegistry.ts, not here, so the
- * Home tile and this route agree by construction. The gate is a product
- * decision, not a rights control — nothing here is territorially licensed
- * precisely because nothing plays.
+ * Home tile and this route agree by construction.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, ExternalLink, Search, X } from "lucide-react";
+import { ArrowLeft, ExternalLink, Play, Search, X } from "lucide-react";
 import {
   LINK_OUT_LABEL,
   WATCH_NOTICE,
   channelUrl,
+  embedUrl,
   watchDirectoryFor,
   type WatchEntry,
   type WatchGenre,
@@ -64,6 +65,8 @@ function WatchPage() {
   const [home] = useCountry();
   const [genre, setGenre] = useState<WatchGenre | null>(null);
   const [q, setQ] = useState("");
+  /** The channel currently open in the player, or null for the list. */
+  const [playing, setPlaying] = useState<WatchEntry | null>(null);
 
   /**
    * The FULL verified roster, not the India slice.
@@ -113,6 +116,8 @@ function WatchPage() {
     <div className="min-h-dvh bg-background pb-24 text-foreground">
       <Header />
 
+      {playing && <Player entry={playing} onClose={() => setPlaying(null)} />}
+
       <div className="mx-auto max-w-2xl px-4">
         {/* Search */}
         <div className="relative">
@@ -156,7 +161,11 @@ function WatchPage() {
         ) : (
           <ul className="mt-4 space-y-2" data-testid="watch-list">
             {shown.map((e) => (
-              <Row key={e.channelId ?? e.handle ?? e.name} entry={e} />
+              <Row
+                key={e.channelId ?? e.handle ?? e.name}
+                entry={e}
+                onPlay={() => setPlaying(e)}
+              />
             ))}
           </ul>
         )}
@@ -205,19 +214,23 @@ function Chip({
   );
 }
 
-function Row({ entry }: { entry: WatchEntry }) {
+function Row({ entry, onPlay }: { entry: WatchEntry; onPlay: () => void }) {
   // channelUrl returns null for an entry with neither an id nor a handle.
   // Those are unlinkable, so they are not rendered at all rather than shown
   // as a row that does nothing when tapped.
   const url = channelUrl(entry);
+  // An entry known only by @handle cannot have its uploads playlist derived,
+  // so it stays link-out and the row says so instead of offering a play
+  // button that would open an empty player.
+  const canPlay = embedUrl(entry) !== null;
   if (!url) return null;
   return (
     <li>
       <button
         type="button"
-        data-testid="watch-link"
-        onClick={() => openInApp(url)}
-        aria-label={`${entry.name} — ${LINK_OUT_LABEL}`}
+        data-testid={canPlay ? "watch-play" : "watch-link"}
+        onClick={() => (canPlay ? onPlay() : openInApp(url))}
+        aria-label={canPlay ? `Play ${entry.name}` : `${entry.name} — ${LINK_OUT_LABEL}`}
         className="press flex w-full items-start gap-3 rounded-2xl border border-border bg-card p-3 text-left"
       >
         {/* A GLYPH, NOT ARTWORK — see the file header for why the
@@ -231,10 +244,98 @@ function Row({ entry }: { entry: WatchEntry }) {
             {entry.description}
           </div>
           <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-primary">
-            {LINK_OUT_LABEL} <ExternalLink className="size-3" />
+            {canPlay ? (
+              <>
+                Watch here <Play className="size-3" />
+              </>
+            ) : (
+              <>
+                {LINK_OUT_LABEL} <ExternalLink className="size-3" />
+              </>
+            )}
           </div>
         </div>
       </button>
     </li>
+  );
+}
+
+/**
+ * YouTube's own player, in a frame, and nothing else.
+ *
+ * NOTHING HERE TOUCHES THE VIDEO. No stream URL is resolved, stored or
+ * proxied; ONIQ hands YouTube a playlist id and gets out of the way. The
+ * player's own controls stay intact and nothing is drawn over it — both are
+ * conditions of using the embed, and both are the kind of thing a later
+ * "improvement" breaks by accident, so they are stated here.
+ *
+ * `allow` deliberately omits `autoplay`: a directory that starts making noise
+ * when you tap it is a bug, and muted-autoplay to dodge that is worse.
+ */
+function Player({ entry, onClose }: { entry: WatchEntry; onClose: () => void }) {
+  const src = embedUrl(entry);
+  const url = channelUrl(entry);
+
+  // Escape closes it, and the page behind must not scroll while it is open.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  if (!src) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${entry.name} — now playing`}
+    >
+      <div className="flex items-center gap-2 px-4 pt-4 pb-2">
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close player"
+          className="rounded-full bg-white/10 p-2 text-white"
+        >
+          <X className="size-5" />
+        </button>
+        <div className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
+          {entry.name}
+        </div>
+        {url && (
+          <button
+            type="button"
+            onClick={() => openInApp(url)}
+            className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-[11px] font-semibold text-white"
+          >
+            YouTube <ExternalLink className="size-3" />
+          </button>
+        )}
+      </div>
+
+      {/* 16:9, and NOTHING layered on top of the frame. */}
+      <div className="mx-auto w-full max-w-3xl px-4">
+        <div className="relative w-full overflow-hidden rounded-2xl bg-black pt-[56.25%]">
+          <iframe
+            data-testid="watch-embed"
+            src={src}
+            title={entry.name}
+            className="absolute inset-0 h-full w-full"
+            allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+        <p className="mt-3 text-[11px] leading-snug text-white/60">{WATCH_NOTICE}</p>
+      </div>
+    </div>
   );
 }
