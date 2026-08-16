@@ -1,4 +1,11 @@
-// Mesh WebRTC group calls, no participant cap. 1:1 is the N=1 case of the same code path.
+// Mesh WebRTC group calls. 1:1 is the N=1 case of the same code path.
+//
+// ROOM SIZE IS CAPPED — free 4, Plus 8 (owner directive, 2026-08-16). This
+// file used to say "no participant cap", which on a MESH is not a feature:
+// every participant opens a connection to every other participant and sends a
+// separate copy of its camera down each one, so at the bitrate caps below
+// each extra person costs EVERY phone another ~464 kbps in both directions.
+// Eight is the top of what a phone on good wifi holds. See callCapacity.ts.
 //
 // Signaling: all payloads on channel `call:{conversationId}` carry
 // `{ from: meId, to: peerId | null, callId }`. Room events (to=null): ring, end, hello.
@@ -44,7 +51,12 @@ import { ensureNotificationPermission, playRingback, stopAllCallSounds } from "@
 import { sendPush } from "@/lib/push";
 import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
 import { reportClientError } from "@/lib/errorReport";
-import { useEntitlement } from "@/lib/entitlements";
+import { useCallCap, useEntitlement } from "@/lib/entitlements";
+import {
+  FREE_CALL_PARTICIPANTS,
+  PLUS_CALL_PARTICIPANTS,
+  sayCallCap,
+} from "@/lib/callCapacity";
 import {
   FACE_FX,
   FACE_LENSES,
@@ -512,6 +524,45 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
    * and then asks — and the drawing itself costs nothing either way.
    */
   const lensLocked = (id: string) => isFaceFilter(id) && !isFreeLens(id) && allLenses === false;
+  /**
+   * HOW MANY PEOPLE FIT — free 4, Plus 8 (owner directive, 2026-08-16). Same
+   * rules-of-hooks placement rule as above: this sits with the other reads,
+   * before any early return.
+   *
+   * Held at the FREE room until the read lands, which is the opposite of the
+   * lens rack's posture and deliberately so. A lens drawn a moment early
+   * costs nothing; a peer connection opened a moment early costs the phone
+   * bandwidth and battery it may not have, and ONIQ a TURN relay bill.
+   */
+  const callCapRead = useCallCap();
+  const callCap = callCapRead ?? FREE_CALL_PARTICIPANTS;
+  /**
+   * People rung who have not joined the mesh yet. They hold a seat, because
+   * the alternative is six quick taps on Add filling a four-person room while
+   * every invite is still ringing. Released when they join, decline, or the
+   * 30-second ring gives up.
+   */
+  const pendingInvitesRef = useRef<Set<string>>(new Set());
+  /**
+   * The same number as `pendingInvitesRef.size`, in state.
+   *
+   * The ref is the source of truth because the guard runs inside callbacks
+   * that must not read a stale closure; the state exists so the Add button
+   * can go grey the moment the last seat is reserved rather than one render
+   * later. Kept in step by holdSeat/releaseSeat and nowhere else.
+   */
+  const [pendingCount, setPendingCount] = useState(0);
+  const holdSeat = (id: string) => {
+    pendingInvitesRef.current.add(id);
+    setPendingCount(pendingInvitesRef.current.size);
+  };
+  const releaseSeat = (id: string) => {
+    if (pendingInvitesRef.current.delete(id)) setPendingCount(pendingInvitesRef.current.size);
+  };
+  /** Seats taken: me, everyone connected, everyone still ringing. */
+  const roomUsed = () => 1 + peerPoolRef.current.size + pendingInvitesRef.current.size;
+  /** The render-time view of the same thing — `tiles` mirrors the pool. */
+  const roomFull = 1 + tiles.length + pendingCount >= callCap;
   // The gallery photo, once picked, and the <input> that picks it.
   const photoRef = useRef<HTMLImageElement | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
@@ -810,9 +861,34 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     return (meId ?? "") < peerId;
   };
 
-  const createPeerEntry = (peerId: string, hintedName?: string, forceRelay = false): PeerEntry => {
+  const createPeerEntry = (peerId: string, hintedName?: string, forceRelay = false): PeerEntry | null => {
     const existing = peerPoolRef.current.get(peerId);
     if (existing) return existing;
+    // THE BACKSTOP, and the only place the cap is actually load-bearing.
+    //
+    // ringUser refuses to invite past the cap, but an invite is not the only
+    // way a peer arrives — someone else in the mesh may add a person, or a
+    // client may simply not be running this build. This is the line that
+    // decides whether THIS phone opens another peer connection, and it is
+    // where the mesh cost is actually incurred, so it is checked here rather
+    // than trusted upstream.
+    //
+    // Refusing is asymmetric: they connect to everyone under their own cap
+    // and simply never see me. That is worse than a clean block at the invite
+    // and better than a phone trying to hold connections it cannot afford —
+    // which is why the invite guard exists to make this unreachable in
+    // ordinary use, and why reaching it is worth reporting.
+    if (peerPoolRef.current.size + 1 >= callCap) {
+      console.warn(`[mesh] refusing ${peerId}: room holds ${callCap}`);
+      reportClientError("call-room-full", `refused a peer past the ${callCap}-person cap`, {
+        cap: callCap,
+        capRead: callCapRead,
+        poolSize: peerPoolRef.current.size,
+        pending: pendingInvitesRef.current.size,
+      });
+      return null;
+    }
+    releaseSeat(peerId);
     const pc = new RTCPeerConnection(getIceConfig(forceRelay));
     if (hintedName) peerNamesRef.current.set(peerId, hintedName);
     const entry: PeerEntry = {
@@ -862,6 +938,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       teardownPeer(peerId, true, { rebuilding: true });
       // Recreate our side now (relay-only). Offerer triggers new offer via
       // onnegotiationneeded; callee waits for our fresh offer.
+      // Cannot hit the room cap: teardownPeer above just freed this peer's
+      // own seat, so the pool has room for the rebuild by construction. The
+      // ordering is load-bearing — recreating BEFORE the teardown would be
+      // refused at the cap and leave the call stuck on "Connecting…".
       const fresh = createPeerEntry(peerId, entry.peerName, true);
       // Nudge remote to rebuild its PC (its `hello` handler recreates it).
       sendSig("hello", null, { fromName: meName });
@@ -1587,7 +1667,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
           else endEveryone(false);
           return;
         }
-        createPeerEntry(p.from, p.fromName);
+        // null when the room is full. Deliberately not an error here: the
+        // hello keeps arriving on a timer, so a seat freed by someone leaving
+        // lets them in on the next one without any extra machinery.
+        if (!createPeerEntry(p.from, p.fromName)) return;
       }
       // Reply with a TARGETED hello so the sender also creates its PeerEntry.
       // Only reply to room-scoped hellos to avoid an infinite echo.
@@ -1612,11 +1695,15 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         else endEveryone(false);
         return;
       }
-      let entry = peerPoolRef.current.get(p.from);
+      let entry = peerPoolRef.current.get(p.from) ?? null;
       if (!entry) {
         if (!localStreamRef.current) await waitForLocalMedia();
         entry = createPeerEntry(p.from);
       }
+      // The room was full, so no connection was built. Dropping the offer on
+      // the floor is the honest answer: an answer would promise a peer this
+      // phone has decided not to carry.
+      if (!entry) return;
       try {
         await entry.pc.setRemoteDescription(new RTCSessionDescription(p.sdp));
         entry.hasRemoteDesc = true;
@@ -2352,7 +2439,20 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   const ringUser = (userId: string, name?: string) => {
     if (!callIdRef.current || !activeRef.current) return;
     if (userId === meId || peerPoolRef.current.has(userId)) return;
+    // THE ROOM IS FULL. Counted against people already RUNG as well as people
+    // already here, or six quick taps on Add would put seven people in a
+    // four-person room while they were all still ringing.
+    if (roomUsed() >= callCap) {
+      toast(`This call is full — ${sayCallCap(callCap)}`, {
+        description:
+          callCap < PLUS_CALL_PARTICIPANTS
+            ? `ONIQ Plus fits ${PLUS_CALL_PARTICIPANTS}.`
+            : undefined,
+      });
+      return;
+    }
     if (name) peerNamesRef.current.set(userId, name);
+    holdSeat(userId);
     if (!peerIdsRef.current.includes(userId)) peerIdsRef.current.push(userId);
     const uch = supabase.channel(`user-calls:${userId}`, {
       config: { broadcast: { self: false } },
@@ -2372,11 +2472,18 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     const iv = window.setInterval(() => {
       if (!activeRef.current || peerPoolRef.current.has(userId)) {
         window.clearInterval(iv);
+        // They are in the pool now (or the call is over); the seat they were
+        // holding is either taken or released. Either way it stops being a
+        // reservation, or a declined invite would hold a seat forever.
+        releaseSeat(userId);
         return;
       }
       void uch.send({ type: "broadcast", event: "ring", payload: payload() });
     }, 2000);
-    window.setTimeout(() => window.clearInterval(iv), 30000);
+    window.setTimeout(() => {
+      window.clearInterval(iv);
+      releaseSeat(userId);
+    }, 30000);
     userRingChannelsRef.current.push(uch);
     toast(`Ringing ${name || "them"}… 📞`);
   };
@@ -2749,9 +2856,27 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               )}
               {(status === "connected" || status === "connecting") && (
                 <CallAction
-                  label="Add"
-                  onClick={() => setShowAddPeople(true)}
-                  ariaLabel="Add someone to this call"
+                  label={roomFull ? "Full" : "Add"}
+                  onClick={() => {
+                    // A full room SAYS SO rather than opening a picker whose
+                    // every tap would be refused. The upsell only appears
+                    // when there is actually a bigger room to buy.
+                    if (roomFull) {
+                      toast(`This call is full — ${sayCallCap(callCap)}`, {
+                        description:
+                          callCap < PLUS_CALL_PARTICIPANTS
+                            ? `ONIQ Plus fits ${PLUS_CALL_PARTICIPANTS}.`
+                            : undefined,
+                      });
+                      return;
+                    }
+                    setShowAddPeople(true);
+                  }}
+                  ariaLabel={
+                    roomFull
+                      ? `This call is full — ${sayCallCap(callCap)}`
+                      : "Add someone to this call"
+                  }
                   testId="call-add-person"
                 >
                   <UserPlus className="h-5 w-5" />

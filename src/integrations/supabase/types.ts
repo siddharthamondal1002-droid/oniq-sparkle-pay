@@ -4006,6 +4006,7 @@ export type Database = {
           key: string
           kind: string
           label: string
+          max_call_participants: number
           price_paise: number
           sort_order: number
         }
@@ -4017,6 +4018,7 @@ export type Database = {
           key: string
           kind: string
           label: string
+          max_call_participants?: number
           price_paise?: number
           sort_order?: number
         }
@@ -4028,6 +4030,7 @@ export type Database = {
           key?: string
           kind?: string
           label?: string
+          max_call_participants?: number
           price_paise?: number
           sort_order?: number
         }

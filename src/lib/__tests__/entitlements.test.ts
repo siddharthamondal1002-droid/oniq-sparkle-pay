@@ -28,7 +28,14 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 vi.mock("@/lib/errorReport", () => ({ reportClientError: vi.fn() }));
 
-import { forgetEntitlements, hasEntitlement } from "@/lib/entitlements";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { callParticipantCap, forgetEntitlements, hasEntitlement } from "@/lib/entitlements";
+import {
+  FREE_CALL_PARTICIPANTS,
+  MAX_CALL_PARTICIPANTS,
+  PLUS_CALL_PARTICIPANTS,
+} from "@/lib/callCapacity";
 import { reportClientError } from "@/lib/errorReport";
 
 const sessionFor = (id: string | null) => async () => ({
@@ -137,5 +144,72 @@ describe("hasEntitlement", () => {
     getSession.mockImplementation(sessionFor(null));
     await expect(hasEntitlement("all_lenses")).resolves.toBe(false);
     expect(rpc, "asked the server about nobody").not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * THE ROOM SIZE — free 4, Plus 8 (owner directive, 2026-08-16).
+ *
+ * Every one of these is about the DIRECTION of the failure. The cap is not a
+ * permission, it is a load limit on a mesh: guessing high means a phone opens
+ * peer connections it cannot carry and ONIQ pays to relay them.
+ */
+describe("callParticipantCap", () => {
+  it("reads the plan's room", async () => {
+    getSession.mockImplementation(sessionFor("subscriber"));
+    rpc.mockResolvedValue({ data: 8, error: null });
+    await expect(callParticipantCap()).resolves.toBe(PLUS_CALL_PARTICIPANTS);
+  });
+
+  it("falls back to the FREE room, never the Plus one", async () => {
+    getSession.mockImplementation(sessionFor("unlucky"));
+    rpc.mockResolvedValue({ data: null, error: { message: "network" } });
+    await expect(callParticipantCap()).resolves.toBe(FREE_CALL_PARTICIPANTS);
+  });
+
+  it("treats a nonsense cap as unconfirmed rather than obeying it", async () => {
+    // A plan row edited to 400 must not become a phone's problem. Anything
+    // outside the sane band reads as "could not determine" and gets free.
+    getSession.mockImplementation(sessionFor("someone"));
+    for (const bad of [400, 0, -3, Number.NaN, "lots"]) {
+      forgetEntitlements();
+      rpc.mockResolvedValue({ data: bad, error: null });
+      await expect(callParticipantCap(), `cap ${String(bad)} was obeyed`).resolves.toBe(
+        FREE_CALL_PARTICIPANTS,
+      );
+    }
+  });
+
+  it("resolves — not never — when the read hangs", async () => {
+    vi.useFakeTimers();
+    getSession.mockImplementation(sessionFor("stuck"));
+    rpc.mockImplementation(() => new Promise(() => {}));
+    let settled: number | "pending" = "pending";
+    const p = callParticipantCap().then((v) => (settled = v));
+    await vi.advanceTimersByTimeAsync(6000);
+    await p;
+    expect(settled).toBe(FREE_CALL_PARTICIPANTS);
+  });
+
+  it("does not let one account inherit another's room", async () => {
+    getSession.mockImplementation(sessionFor("the-admin"));
+    rpc.mockResolvedValue({ data: 8, error: null });
+    await expect(callParticipantCap()).resolves.toBe(8);
+    getSession.mockImplementation(sessionFor("a-free-user"));
+    rpc.mockResolvedValue({ data: 4, error: null });
+    await expect(callParticipantCap()).resolves.toBe(4);
+  });
+
+  it("keeps the sane band tied to what the plans may actually sell", () => {
+    // MAX is what the migration's check constraint allows, so the client's
+    // rejection band and the database's cannot drift apart silently.
+    expect(MAX_CALL_PARTICIPANTS).toBe(PLUS_CALL_PARTICIPANTS);
+    expect(FREE_CALL_PARTICIPANTS).toBeLessThan(PLUS_CALL_PARTICIPANTS);
+    const sql = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260816100000_call_participant_cap.sql"),
+      "utf8",
+    );
+    expect(sql).toContain(`between 2 and ${MAX_CALL_PARTICIPANTS}`);
+    expect(sql).toContain(`max_call_participants = ${FREE_CALL_PARTICIPANTS} where key in ('free'`);
   });
 });

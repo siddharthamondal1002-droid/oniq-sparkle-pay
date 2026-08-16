@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { reportClientError } from "@/lib/errorReport";
+import { FREE_CALL_PARTICIPANTS, MAX_CALL_PARTICIPANTS } from "@/lib/callCapacity";
 
 /**
  * "Does this account have X?" — asked once per account, per key.
@@ -48,22 +49,10 @@ import { reportClientError } from "@/lib/errorReport";
 const READ_TIMEOUT_MS = 6000;
 
 /** Answered reads only, keyed `uid:key`. An unconfirmed read is not stored. */
-const cache = new Map<string, Promise<boolean>>();
+const cache = new Map<string, Promise<unknown>>();
 
 /** Reported once per surface per session — this is a signal, not a firehose. */
 let reportedUnconfirmed = false;
-
-/**
- * `null` means COULD NOT DETERMINE — not signed in yet, RPC error, or the
- * read ran out of time. Kept distinct from `false` so the caller can decline
- * to cache it, which is what stops one bad moment from locking a paying
- * subscriber out of what they bought for the rest of the session.
- */
-async function read(key: string, uid: string): Promise<boolean | null> {
-  const { data, error } = await supabase.rpc("has_entitlement", { _user: uid, _key: key });
-  if (error) return null;
-  return data === true;
-}
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
   return new Promise<T | null>((resolve) => {
@@ -81,21 +70,36 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
   });
 }
 
-export async function hasEntitlement(key: string): Promise<boolean> {
+/**
+ * One plan read, cached per account, bounded, and failing to `fallback`.
+ *
+ * `run` returns `null` for COULD NOT DETERMINE — not signed in, RPC error, or
+ * out of time. That is kept distinct from a real answer so an unconfirmed
+ * read is never cached, which is what stops one bad moment from pinning a
+ * paying subscriber to the free experience for the rest of the session.
+ *
+ * `fallback` must always be the LEAST generous answer. Every caller of this
+ * is deciding whether to hand out something that costs money.
+ */
+async function planRead<T>(
+  key: string,
+  run: (uid: string) => Promise<T | null>,
+  fallback: T,
+): Promise<T> {
   // getSession reads the stored session; getUser would be a network call, and
   // the uid has to be resolved BEFORE the cache is consulted anyway, because
   // the uid is half the cache key.
   const sess = await withTimeout(supabase.auth.getSession(), READ_TIMEOUT_MS);
   const uid = sess?.data.session?.user?.id;
-  // No session yet is not "no entitlement" forever — it is not cached, and
-  // the hook re-asks on the auth change that brings the session in.
-  if (!uid) return false;
+  // No session yet is not a real answer — it is not cached, and the hook
+  // re-asks on the auth change that brings the session in.
+  if (!uid) return fallback;
 
   const cacheKey = `${uid}:${key}`;
-  const hit = cache.get(cacheKey);
+  const hit = cache.get(cacheKey) as Promise<T> | undefined;
   if (hit) return hit;
 
-  const settled = withTimeout(read(key, uid), READ_TIMEOUT_MS).then((v) => {
+  const settled = withTimeout(run(uid), READ_TIMEOUT_MS).then((v) => {
     if (v === null) {
       // Do NOT keep an unconfirmed read. The next mount asks again.
       cache.delete(cacheKey);
@@ -106,14 +110,49 @@ export async function hasEntitlement(key: string): Promise<boolean> {
           timeoutMs: READ_TIMEOUT_MS,
         });
       }
-      // A read we could not confirm is NOT an entitlement. Falling open would
-      // hand out the paid rack to anybody with a flaky connection.
-      return false;
+      return fallback;
     }
     return v;
   });
   cache.set(cacheKey, settled);
   return settled;
+}
+
+export function hasEntitlement(key: string): Promise<boolean> {
+  return planRead(
+    key,
+    async (uid) => {
+      const { data, error } = await supabase.rpc("has_entitlement", { _user: uid, _key: key });
+      if (error) return null;
+      return data === true;
+    },
+    // A read we could not confirm is NOT an entitlement. Falling open would
+    // hand out the paid rack to anybody with a flaky connection.
+    false,
+  );
+}
+
+/**
+ * How many people fit in this account's call, counting them.
+ *
+ * Falls back to the FREE room, never to the Plus one — the failure mode of
+ * guessing high is a phone trying to hold seven peer connections it cannot
+ * afford, on somebody who did not pay for them.
+ */
+export function callParticipantCap(): Promise<number> {
+  return planRead(
+    "call_cap",
+    async (uid) => {
+      const { data, error } = await supabase.rpc("my_call_cap" as never, { _user: uid } as never);
+      if (error) return null;
+      const n = Number(data);
+      // A plan row edited to something absurd must not become a phone's
+      // problem; anything outside the sane band reads as unconfirmed.
+      if (!Number.isFinite(n) || n < 2 || n > MAX_CALL_PARTICIPANTS) return null;
+      return n;
+    },
+    FREE_CALL_PARTICIPANTS,
+  );
 }
 
 /**
@@ -140,11 +179,26 @@ export function forgetEntitlements(): void {
  * caller treats `null` as unlocked.
  */
 export function useEntitlement(key: string): boolean | null {
-  const [on, setOn] = useState<boolean | null>(null);
+  return usePlanValue<boolean>(key, () => hasEntitlement(key));
+}
+
+/**
+ * How many people fit in this account's call. `null` until the read lands.
+ *
+ * Callers must NOT treat null as "no limit" — see CallOverlay, which holds
+ * the Add button at the free room until this settles. The whole reason the
+ * cap exists is that guessing high costs a phone and a relay bill.
+ */
+export function useCallCap(): number | null {
+  return usePlanValue<number>("call_cap", callParticipantCap);
+}
+
+function usePlanValue<T>(key: string, get: () => Promise<T>): T | null {
+  const [on, setOn] = useState<T | null>(null);
   useEffect(() => {
     let alive = true;
     const ask = () => {
-      void hasEntitlement(key).then((v) => {
+      void get().then((v) => {
         if (alive) setOn(v);
       });
     };

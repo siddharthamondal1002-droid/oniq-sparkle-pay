@@ -265,7 +265,7 @@ describe("what the plan screen says", () => {
     expect(sayAllowance(0)).toBe("No film included");
   });
 
-  it("keeps group calls free for everyone, on every plan", () => {
+  it("keeps group CALLING on every plan — what differs is the room", () => {
     // Withdrawn from the paid-only set on 2026-08-16 (owner). It stays on
     // every plan row rather than moving to the free one, because
     // has_entitlement resolves against the CURRENT plan — moving it would
@@ -273,28 +273,52 @@ describe("what the plan screen says", () => {
     const free = read("supabase/migrations/20260816080000_group_calls_free.sql");
     expect(free).toContain("group_calls");
     expect(free).toContain("where key in ('free', 'plus_monthly', 'plus_25', 'plus_60')");
-    // And the sheet must not then pad the paid cards with it.
-    const ui = readFileSync(join(process.cwd(), "src/components/stories/PlanSheet.tsx"), "utf8");
-    expect(ui).toContain("Everything in Free, plus");
-    expect(ui).toContain("p.entitlements.filter((e) => !freeGives.has(e))");
+
+    // TRIMMED, NOT REVERSED, later the same day (owner): the FEATURE is still
+    // on free — nobody lost the ability to make a group call — but the number
+    // of people in it became the reason to upgrade. Free 4, Plus 8.
+    const cap = read("supabase/migrations/20260816100000_call_participant_cap.sql");
+    expect(cap).toContain("max_call_participants = 4 where key in ('free', 'topup')");
+    expect(cap).toContain("max_call_participants = 8");
+    expect(cap).toContain("where key in ('plus_monthly', 'plus_25', 'plus_60')");
+    // A floor, so no plan can be sold a phone that cannot ring anyone.
+    expect(cap).toContain("check (max_call_participants between 2 and 8)");
+    // The owner rides free (2026-08-12) and gets the largest room going.
+    expect(cap).toContain("when is_admin(_user) then");
   });
 
-  it("never asks whether the caller is ENTITLED to a group call", () => {
-    // The entitlement exists so PlanSheet has something to name on the Free
-    // card. It is deliberately NOT a gate: the call path reads no plan, and
-    // "Add someone to this call" is offered on call STATUS alone.
-    //
-    // This became load-bearing on 2026-08-16, when the entitlement read was
-    // made to fail CLOSED — an unconfirmed read now resolves false rather
-    // than hanging. Gating group calls on it would take them away from
-    // anyone on a bad connection, which is the opposite of a feature that
-    // costs ONIQ nothing per use and is meant to be unconditional.
+  it("spells the room from the plan's own number, not from a boolean", () => {
+    // group_calls is on EVERY plan, so as a bullet it says nothing and
+    // freeGives would drop it from the paid cards entirely — hiding the one
+    // thing that actually differs. The size is rendered from the row instead.
+    const ui = readFileSync(join(process.cwd(), "src/components/stories/PlanSheet.tsx"), "utf8");
+    expect(ui).toContain("Everything in Free, plus");
+    expect(ui).toContain("sayCallCap(p.max_call_participants)");
+    expect(ui, "group_calls is still listed as a bullet as well").toMatch(
+      /filter\(\(e\) => e !== "group_calls"\)/,
+    );
+  });
+
+  it("holds the call at the FREE room until the plan read lands", () => {
+    // The direction of the fallback is the whole point, and it is the
+    // opposite of the lens rack's. A lens drawn a moment early costs
+    // nothing; a peer connection opened a moment early costs the phone
+    // bandwidth and battery it may not have, and ONIQ a TURN relay bill. So
+    // an unknown cap reads as FOUR, never as eight.
     const call = readFileSync(join(process.cwd(), "src/components/chat/CallOverlay.tsx"), "utf8");
-    expect(call, "the call path now consults a plan").not.toContain("group_calls");
-    expect(call, "group calls grew a paywall").not.toMatch(/useEntitlement\(\s*["']group_calls["']/);
-    // Offered whenever there is a call to add to, and on nothing else.
-    expect(call).toContain('ariaLabel="Add someone to this call"');
-    expect(call).toMatch(/\{\(status === "connected" \|\| status === "connecting"\) && \(/);
+    expect(call).toContain("const callCap = callCapRead ?? FREE_CALL_PARTICIPANTS");
+    expect(call, "an unknown cap must never open the Plus room").not.toMatch(
+      /callCapRead \?\? PLUS_CALL_PARTICIPANTS/,
+    );
+    // Seats are counted against people still RINGING as well as people
+    // already here, or repeated taps would overfill the room mid-invite.
+    expect(call).toContain(
+      "const roomUsed = () => 1 + peerPoolRef.current.size + pendingInvitesRef.current.size",
+    );
+    // And the cap is enforced where the cost is actually incurred, not only
+    // at the invite — a peer can arrive without this phone inviting it.
+    expect(call).toMatch(/if \(peerPoolRef\.current\.size \+ 1 >= callCap\) \{/);
+    expect(call).toContain('reportClientError("call-room-full"');
   });
 
   it("gives the owner a way to see the buy screens without being charged", () => {

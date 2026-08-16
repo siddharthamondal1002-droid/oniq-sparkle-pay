@@ -3,6 +3,7 @@ import { Check, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { formatPaise } from "@/lib/storyPricing";
+import { sayCallCap } from "@/lib/callCapacity";
 
 /**
  * See your plan, and choose one.
@@ -29,6 +30,7 @@ type Plan = {
   price_paise: number;
   included_seconds: number;
   entitlements: string[];
+  max_call_participants: number;
   sort_order: number;
 };
 
@@ -43,6 +45,9 @@ type Plan = {
 const BENEFIT_COPY: Record<string, string> = {
   no_watermark: "No ONIQ watermark on anything you make",
   all_lenses: "Every AR lens in calls and photos",
+  // The ROOM SIZE is spelled from the plan's own number, not from here —
+  // see roomLine below. Left as a fallback for a plan row that somehow
+  // carries the entitlement without a sane cap.
   group_calls: "Group audio and video calls",
 };
 const sayBenefit = (key: string) => BENEFIT_COPY[key] ?? key.replace(/_/g, " ");
@@ -99,7 +104,9 @@ export function PlanSheet({
     void (async () => {
       const { data, error } = await supabase
         .from("subscription_plans")
-        .select("key,label,kind,price_paise,included_seconds,entitlements,sort_order")
+        .select(
+          "key,label,kind,price_paise,included_seconds,entitlements,max_call_participants,sort_order",
+        )
         .eq("active", true)
         .order("sort_order");
       if (cancelled) return;
@@ -220,9 +227,27 @@ export function PlanSheet({
                   // free does not already give.
                   const isFree = p.kind === "free";
                   const shown = isFree
-                    ? p.entitlements
-                    : p.entitlements.filter((e) => !freeGives.has(e));
-                  if (shown.length === 0) return null;
+                    ? p.entitlements.filter((e) => e !== "group_calls")
+                    : p.entitlements.filter((e) => !freeGives.has(e) && e !== "group_calls");
+                  /**
+                   * GROUP CALLS ARE ON EVERY PLAN, SO THE BOOLEAN SAYS
+                   * NOTHING — the ROOM SIZE is what differs, and it is what
+                   * somebody is deciding between (owner directive,
+                   * 2026-08-16: free 4, Plus 8).
+                   *
+                   * Filtered out of the entitlement list above and rendered
+                   * from the plan's own number instead, so the paid card
+                   * shows "up to 8 people" as a real upgrade rather than
+                   * dropping the line entirely the way `freeGives` would.
+                   */
+                  const freeRoom = (plans ?? []).find((x) => x.kind === "free")
+                    ?.max_call_participants;
+                  const roomLine =
+                    p.entitlements.includes("group_calls") &&
+                    (isFree || p.max_call_participants !== freeRoom)
+                      ? sayCallCap(p.max_call_participants)
+                      : null;
+                  if (shown.length === 0 && !roomLine) return null;
                   return (
                     <>
                       {!isFree && freeGives.size > 0 ? (
@@ -233,6 +258,12 @@ export function PlanSheet({
                       <ul
                         className={`${!isFree && freeGives.size > 0 ? "mt-1.5" : "mt-3"} flex flex-col gap-1.5`}
                       >
+                        {roomLine ? (
+                          <li className="flex items-start gap-2 text-xs">
+                            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                            <span className="first-letter:uppercase">{roomLine}</span>
+                          </li>
+                        ) : null}
                         {shown.map((e) => (
                           <li key={e} className="flex items-start gap-2 text-xs">
                             <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
