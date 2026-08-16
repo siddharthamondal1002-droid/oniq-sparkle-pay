@@ -39,8 +39,27 @@ const corsHeaders = {
  * different schedules.
  */
 const CLIP_MODEL = "veo-3.1-fast-generate-preview";
-/** If the preview id has moved on, one retry on the GA fast model. */
-const CLIP_MODEL_FALLBACK = "veo-3.0-fast-generate-001";
+/*
+ * THE FALLBACK IS GONE, and its absence is the honest state.
+ *
+ * It was `veo-3.0-fast-generate-001`, retried whenever the primary answered
+ * 404 — "if the preview id has moved on, one retry on the GA fast model".
+ * Google deprecated that id on 2026-06-15 and switched it off on 2026-06-30,
+ * so from July onward the ladder could only ever spend a second round-trip
+ * and arrive at the same 502 it would have returned without one. A fallback
+ * that cannot succeed is worse than none: it reads like resilience.
+ *
+ * Removing it changes no price and no provider — a branch that always fails
+ * costs nothing to delete. CHOOSING A LIVE REPLACEMENT is a different matter:
+ * the surviving alternatives sit at a different $/second, and
+ * storyCostModel.UNIT.usdPerVideoSecond is derived from this tier, so a new
+ * fallback moves the price chart. That is an owner decision and it is written
+ * up in ENGINE_AUDIT.md rather than guessed at here.
+ *
+ * The dead id stays in _shared/modelRegistry.ts as a tombstone so the next
+ * reader learns what happened, and src/lib/__tests__/modelRegistry.test.ts
+ * fails the build if any model is still wired past its shutdown date.
+ */
 
 const API = "https://generativelanguage.googleapis.com/v1beta";
 
@@ -130,7 +149,8 @@ async function start(key: string, body: Record<string, unknown>): Promise<Respon
       }),
     });
 
-  let model = CLIP_MODEL;
+  // Const since the fallback went: nothing reassigns this now.
+  const model = CLIP_MODEL;
   let params: Record<string, unknown> = {
     aspectRatio: ASPECT,
     durationSeconds,
@@ -138,8 +158,11 @@ async function start(key: string, body: Record<string, unknown>): Promise<Respon
   };
   let res = await submit(model, params);
   if (res.status === 404) {
-    model = CLIP_MODEL_FALLBACK;
-    res = await submit(model, params);
+    // The id itself is gone or renamed. There is no live fallback to try (see
+    // the note beside CLIP_MODEL), and retrying the same id is pointless, so
+    // say so plainly instead of burning the clock.
+    console.error("story-clip start: model id 404", model);
+    return json({ error: "The video model is unavailable." }, 502);
   }
   if (res.status === 400) {
     const reason = await res.clone().text().catch(() => "");
