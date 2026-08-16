@@ -51,7 +51,7 @@ import { ensureNotificationPermission, playRingback, stopAllCallSounds } from "@
 import { sendPush } from "@/lib/push";
 import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
 import { reportClientError } from "@/lib/errorReport";
-import { useCallCap, useEntitlement } from "@/lib/entitlements";
+import { useCallCap } from "@/lib/entitlements";
 import {
   FREE_CALL_PARTICIPANTS,
   PLUS_CALL_PARTICIPANTS,
@@ -63,7 +63,6 @@ import {
   geometryFrom,
   faceDelegate,
   isFaceFilter,
-  isFreeLens,
   loadFaceLandmarker,
   type Pt as FacePt,
 } from "@/lib/faceFx";
@@ -510,20 +509,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   } | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
   /**
-   * ONIQ Plus unlocks the full lens rack (owner, 2026-08-16). null while the
-   * answer is still in flight, so the chips render neither locked nor open
-   * until it settles — a flash of padlocks at a subscriber is as wrong as a
-   * flash of the paid rack at everybody else. HOOK IS ABOVE EVERY EARLY
-   * RETURN; rules-of-hooks is a release blocker in this repo.
+   * EVERY LENS IS FREE (owner directive, 2026-08-16 evening). The rack spent
+   * one day split three-free / twelve-Plus and the split is gone: there is no
+   * entitlement read here, no lock state, and nothing to flash shut mid-call.
+   * A chip's only gate is whether face tracking works on the phone at all.
    */
-  const allLenses = useEntitlement("all_lenses");
-  /**
-   * A lens is locked when it is a PAID one and this account has no
-   * entitlement. Unknown (null) counts as unlocked so nothing flashes shut on
-   * a subscriber mid-call; the worst case is a chip that works for a moment
-   * and then asks — and the drawing itself costs nothing either way.
-   */
-  const lensLocked = (id: string) => isFaceFilter(id) && !isFreeLens(id) && allLenses === false;
   /**
    * HOW MANY PEOPLE FIT — free 4, Plus 8 (owner directive, 2026-08-16). Same
    * rules-of-hooks placement rule as above: this sits with the other reads,
@@ -2737,23 +2727,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
                   <button
                     key={f.id}
                     type="button"
-                    onClick={() => {
-                      // Locked chips say why rather than doing nothing. A
-                      // chip that swallows a tap reads as a broken button.
-                      if (lensLocked(f.id)) {
-                        toast("ONIQ Plus unlocks this lens", {
-                          description: "Dog, Big eyes and Shades stay free.",
-                        });
-                        return;
-                      }
-                      void applyCallFilter(f.id);
-                    }}
+                    onClick={() => void applyCallFilter(f.id)}
+                    // The ONLY gate left is whether this phone can track a
+                    // face at all — no plan is consulted (owner directive,
+                    // 2026-08-16 evening: every lens is free).
                     disabled={isFaceFilter(f.id) && faceUnavailable}
                     className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold disabled:opacity-40 ${
                       callFilter === f.id ? "bg-white text-black" : "text-white/80"
                     }`}
                   >
-                    {lensLocked(f.id) ? `${f.label} 🔒` : f.label}
+                    {f.label}
                   </button>
                 ))}
                 {/* Once a photo is chosen the chip re-applies it; this is how

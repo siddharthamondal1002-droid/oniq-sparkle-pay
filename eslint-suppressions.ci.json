@@ -9,11 +9,6 @@
       "count": 1
     }
   },
-  "src/components/photo/PhotoStudio.tsx": {
-    "unused-imports/no-unused-imports": {
-      "count": 1
-    }
-  },
   "src/routes/_authenticated/app.chat.index.tsx": {
     "unused-imports/no-unused-imports": {
       "count": 1

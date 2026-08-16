@@ -894,21 +894,22 @@ export const FACE_LENSES: readonly { id: string; label: string }[] = [
 ];
 
 /**
- * THE LENSES THE FREE PLAN KEEPS.
+ * EVERY LENS IS FREE — owner directive, 2026-08-16 (evening).
  *
- * These three are the ENTIRE rack as it stood before ONIQ Plus existed
- * (2026-08-16). Drawing the line here rather than picking three favourites
- * means nobody loses a lens they already had: the twelve added for Plus are
- * the twelve Plus is charging for, and every account keeps exactly what it
- * woke up with. It also answers the grandfathering question without needing a
- * migration to remember who joined when.
+ * Twelve of these fifteen spent one day behind ONIQ Plus, and the split is
+ * gone: no lens is gated, on any plan, and there is deliberately no
+ * `isFreeLens` or `FREE_LENS_IDS` left for a caller to reach for. A helper
+ * that still answered "is this one free?" would invite the gate back one call
+ * site at a time; the honest shape of a rack with no paywall is no predicate
+ * at all.
+ *
+ * The `all_lenses` entitlement still exists and now sits on EVERY plan,
+ * including free — the same treatment group_calls got. That keeps
+ * has_entitlement truthful for the plan sheet to read, and it is data rather
+ * than code, so re-gating later would be an owner's decision applied to a
+ * table, not a change to this file. faceFx.test.ts fails if the gate comes
+ * back to the surfaces.
  */
-export const FREE_LENS_IDS: ReadonlySet<string> = new Set(["dog", "bigeyes", "shades"]);
-
-/** Whether a lens is included with the free plan. */
-export function isFreeLens(id: string): boolean {
-  return FREE_LENS_IDS.has(id);
-}
 
 /** Whether an id needs the landmarker running at all. */
 export function isFaceFilter(id: string): boolean {

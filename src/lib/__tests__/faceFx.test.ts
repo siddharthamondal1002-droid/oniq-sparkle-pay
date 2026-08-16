@@ -27,10 +27,8 @@ import { describe, expect, it } from "vitest";
 import {
   FACE_FX,
   FACE_LENSES,
-  FREE_LENS_IDS,
   geometryFrom,
   isFaceFilter,
-  isFreeLens,
   type FaceGeometry,
 } from "@/lib/faceFx";
 
@@ -132,6 +130,21 @@ function fakeCtx(): { ctx: CanvasRenderingContext2D; rec: Rec } {
 const CANVAS = { width: 240, height: 340 } as HTMLCanvasElement;
 
 const IDS = Object.keys(FACE_FX);
+
+/**
+ * Code lines only. A comment explaining that a predicate is GONE must not
+ * read as the predicate still being there — that false positive has now
+ * bitten three separate checks in this codebase in one day.
+ */
+function codeOnly(path: string): string {
+  return readFileSync(join(process.cwd(), path), "utf8")
+    .split("\n")
+    .filter((l) => {
+      const t = l.trimStart();
+      return !t.startsWith("//") && !t.startsWith("*") && !t.startsWith("/*");
+    })
+    .join("\n");
+}
 
 describe("the face lens rack", () => {
   it("labels exactly the lenses it can paint, and paints exactly the ones it labels", () => {
@@ -288,51 +301,64 @@ describe("geometryFrom", () => {
   });
 });
 
-describe("what the free plan keeps", () => {
-  it("keeps exactly the rack as it stood before Plus existed", () => {
-    // Not three favourites — the three that were the WHOLE rack before the
-    // twelve were added for Plus. Drawing the line here means nobody loses a
-    // lens they already had, which also settles the grandfathering question
-    // without a migration that has to remember who joined when.
-    expect([...FREE_LENS_IDS].sort()).toEqual(["bigeyes", "dog", "shades"]);
-    for (const id of FREE_LENS_IDS) {
-      expect(isFaceFilter(id), `${id} is free but has no painter`).toBe(true);
+describe("the lens rack is free, all of it", () => {
+  /**
+   * OWNER DIRECTIVE, 2026-08-16 (evening). Twelve of the fifteen spent one
+   * day behind ONIQ Plus and the split is gone.
+   *
+   * The tests that guarded the paywall are REWRITTEN to guard its absence
+   * rather than deleted, because the failure mode has flipped: what used to
+   * be "a paid lens leaked out" is now "a gate crept back in". Both are worth
+   * catching, and the history of the reversal is worth keeping legible.
+   */
+  it("offers every lens, with no free/paid split left in the module", () => {
+    // Every lens in the rack has a painter and nothing marks any of them out.
+    for (const id of IDS) {
+      expect(isFaceFilter(id), `${id} is offered but has no painter`).toBe(true);
     }
-    // And the paid ones really are the rest.
-    const paid = IDS.filter((id) => !isFreeLens(id));
-    expect(paid.length).toBe(IDS.length - 3);
-    expect(paid).toContain("crown");
-    expect(paid).toContain("hearts");
+    expect(IDS.length).toBe(15);
+    const fx = codeOnly("src/lib/faceFx.ts");
+    // No predicate survives for a caller to reach for. A helper that still
+    // answered "is this one free?" would invite the gate back one call site
+    // at a time.
+    expect(fx, "a free/paid predicate is back in faceFx").not.toMatch(
+      /FREE_LENS_IDS|isFreeLens/,
+    );
   });
 
-  it("locks a paid lens only once the answer is known", () => {
-    // `useEntitlement` returns null while in flight. Locking on null would
-    // flash padlocks at a subscriber mid-call; both surfaces compare against
-    // false explicitly rather than treating null as "no".
+  it("has no lock, no padlock and no upsell on either surface", () => {
     for (const f of [
       "src/components/chat/CallOverlay.tsx",
       "src/components/photo/PhotoStudio.tsx",
     ]) {
-      const src = readFileSync(join(process.cwd(), f), "utf8");
-      expect(src, `${f} does not gate lenses`).toContain("allLenses === false");
-      expect(src, `${f} treats unknown entitlement as locked`).not.toMatch(/!allLenses\b/);
-      expect(src).toContain("ONIQ Plus unlocks this lens");
+      const src = codeOnly(f);
+      expect(src, `${f} still gates lenses on a plan`).not.toMatch(/lensLocked|allLenses/);
+      expect(src, `${f} still upsells a lens`).not.toContain("ONIQ Plus unlocks this lens");
+      expect(src, `${f} still reads the lens entitlement`).not.toMatch(
+        /useEntitlement\(\s*["']all_lenses["']/,
+      );
     }
   });
 
-  it("never falls open when the entitlement cannot be read", () => {
-    // A failed read is not an entitlement — falling open would hand the paid
-    // rack to anybody with a flaky connection. The BEHAVIOUR is executed in
-    // entitlements.test.ts, against a mocked client, including the two ways
-    // it actually leaked for users on 2026-08-16. What is pinned here is the
-    // pair of properties those failures turned on, because both are easy to
-    // undo while the code still reads fine.
+  it("keeps the entitlement on EVERY plan, so nobody's answer is false", () => {
+    // It is no longer a gate, but it is still read by the plan sheet, and
+    // has_entitlement resolves against the CURRENT plan — so moving it to the
+    // free row alone would answer FALSE for a paying subscriber. Present on
+    // all four means everybody holds it. Same shape as group_calls.
+    const sql = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260816120000_every_lens_is_free.sql"),
+      "utf8",
+    );
+    expect(sql).toContain("all_lenses");
+    expect(sql).toContain("where key in ('free', 'plus_monthly', 'plus_25', 'plus_60')");
+  });
+
+  it("still reads entitlements safely, for the ones that ARE still gates", () => {
+    // all_lenses stopped being a gate; no_watermark did not. The properties
+    // that stopped the 2026-08-16 leak are asserted here because they now
+    // protect what is left rather than the lens rack.
     const ent = readFileSync(join(process.cwd(), "src/lib/entitlements.ts"), "utf8");
-    // The answer belongs to an ACCOUNT. A cache keyed by entitlement alone
-    // let one sign-in unlock the rack for whoever used the phone next.
     expect(ent, "the entitlement cache is not keyed by account").toContain("`${uid}:${key}`");
-    // And every read is BOUNDED. An unbounded read never resolves, the hook
-    // stays null, and null is what every caller draws as unlocked.
     expect(ent).toContain("READ_TIMEOUT_MS");
     expect(ent, "getUser is a network round trip; the session is local").not.toContain(
       "auth.getUser()",
