@@ -36,6 +36,7 @@ import {
   SETTLED,
   type StoryJobRow,
   deleteSavedVideo,
+  deleteStoryJob,
   isWatchable,
   listStories,
   openStory,
@@ -72,6 +73,11 @@ export function YourVideos() {
   const [onDevice, setOnDevice] = useState<SavedVideo[]>([]);
   const [playing, setPlaying] = useState<SavedVideo | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  // Server-side rows being deleted. Separate from `confirmDelete` (which
+  // belongs to the on-phone list) because the two lists can both be open and a
+  // shared id would arm the wrong confirmation.
+  const [confirmJob, setConfirmJob] = useState<string | null>(null);
+  const [deletingJob, setDeletingJob] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -92,6 +98,45 @@ export function YourVideos() {
     sync();
     return onSavedVideosChanged(sync);
   }, []);
+
+  /**
+   * Delete a film, or a failed job, from ONIQ's side.
+   *
+   * OPTIMISTIC, because the row is gone the moment the RPC returns ok — it is
+   * marked `purged` and listStories does not list purged. Waiting for a
+   * refresh to make it disappear would leave a deleted film on screen for a
+   * round trip, which reads as a delete that did not work.
+   *
+   * The film being watched is closed if it was the one deleted; leaving a
+   * player open on bytes that are being removed is the one state worse than
+   * a stale list.
+   */
+  const removeJob = useCallback(
+    async (r: StoryJobRow) => {
+      setDeletingJob(r.id);
+      setError(null);
+      try {
+        const res = await deleteStoryJob(r.id);
+        if (!res.ok) {
+          setError(
+            res.reason === "still-working"
+              ? "That one is still being made — it can be deleted once it finishes."
+              : "Could not delete that. Try again.",
+          );
+          return;
+        }
+        setRows((cur) => (cur ?? []).filter((x) => x.id !== r.id));
+        setConfirmJob(null);
+        if (openId === r.id) {
+          setOpenId(null);
+          setFilmUrl(null);
+        }
+      } finally {
+        setDeletingJob(null);
+      }
+    },
+    [openId],
+  );
 
   const removeFromDevice = useCallback(async (v: SavedVideo) => {
     await deleteSavedVideo(v);
@@ -194,7 +239,6 @@ export function YourVideos() {
       setSharePct(null);
     }
   }, [openId, filmUrl]);
-
 
   /**
    * Save a copy onto the phone. The film STAYS in Your videos afterwards —
@@ -406,6 +450,10 @@ export function YourVideos() {
           {rows.map((r) => {
             const watchable = isWatchable(r.status);
             const failed = r.status === "failed";
+            // Anything that has stopped moving. Mirrors the RPC's own guard —
+            // it refuses a job still in flight, so offering the button there
+            // would be offering an error.
+            const deletable = r.status === "ready" || r.status === "delivered" || failed;
             return (
               <li key={r.id} className="rounded-2xl border border-border bg-card/70 p-3">
                 <div className="flex items-start gap-2">
@@ -461,6 +509,56 @@ export function YourVideos() {
                     <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     <span>{r.error || "That one could not be made. Your time was returned."}</span>
                   </div>
+                ) : null}
+
+                {/* DELETE, on anything that has stopped moving.
+                    Offered for finished films AND failed ones: a failure
+                    notice you cannot dismiss is clutter that outlives its own
+                    usefulness, and a film you cannot remove is a thirty-day
+                    wait wearing the word "delete".
+                    Withheld while a job is still rendering — deleting one
+                    then raises whether the seconds come back, and that is a
+                    refund policy, not a button. Those age out by themselves. */}
+                {deletable ? (
+                  confirmJob === r.id ? (
+                    <div className="mt-2 rounded-xl border border-destructive/40 bg-destructive/10 p-2.5">
+                      <p className="text-[11px] text-foreground">
+                        {failed
+                          ? "Remove this from your list? Nothing is lost — it never finished."
+                          : "Delete this film from ONIQ? It cannot be undone. A copy you saved to this phone stays."}
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void removeJob(r)}
+                          disabled={deletingJob === r.id}
+                          className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-destructive px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-50"
+                        >
+                          {deletingJob === r.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : null}
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmJob(null)}
+                          className="flex-1 rounded-lg border border-border px-3 py-1.5 text-[11px] font-semibold"
+                        >
+                          Keep
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmJob(r.id)}
+                      aria-label={`Delete ${r.prompt?.trim() || "this story"}`}
+                      data-testid="story-job-delete"
+                      className="mt-2 flex items-center gap-1.5 rounded-full border border-destructive/40 px-3 py-1 text-[11px] font-semibold text-destructive"
+                    >
+                      <Trash2 className="h-3 w-3" /> Delete
+                    </button>
+                  )
                 ) : null}
               </li>
             );

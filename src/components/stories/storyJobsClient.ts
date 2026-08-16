@@ -170,6 +170,41 @@ export async function releaseStory(jobId: string): Promise<void> {
   await deliver("cancel", jobId).catch(() => undefined);
 }
 
+export type DeleteStoryResult =
+  /** Gone from the list. `bytesPending` — the file goes on the sweep's next pass. */
+  | { ok: true; bytesPending: boolean }
+  /** Still rendering. Deleting one raises a refund question the owner has not answered. */
+  | { ok: false; reason: "still-working" }
+  | { ok: false; reason: "not-found" | "failed" };
+
+/**
+ * Delete one Story — the row and, shortly after, the bytes.
+ *
+ * THROUGH AN RPC, because story_jobs has exactly one policy and it is SELECT.
+ * Every write to that table goes through a SECURITY DEFINER function; a client
+ * that could DELETE rows there could delete the record of what it was charged.
+ *
+ * The RPC marks the row `purged` and deliberately does NOT clear has_bytes:
+ * story-sweep asks about bytes, so a purged row that still holds them is
+ * exactly the case it retries. The row leaves this list at once — listStories
+ * filters purged — and the file is removed on the sweep's next pass.
+ */
+export async function deleteStoryJob(jobId: string): Promise<DeleteStoryResult> {
+  const { data, error } = await supabase.rpc(
+    "delete_story_job" as never,
+    {
+      _job_id: jobId,
+    } as never,
+  );
+  if (error) return { ok: false, reason: "failed" };
+  const r = (data ?? {}) as { ok?: boolean; reason?: string; bytesPending?: boolean };
+  if (r.ok) return { ok: true, bytesPending: r.bytesPending === true };
+  return {
+    ok: false,
+    reason: r.reason === "still-working" ? "still-working" : "not-found",
+  };
+}
+
 /**
  * Save a Story to the device — and KEEP ours.
  *
