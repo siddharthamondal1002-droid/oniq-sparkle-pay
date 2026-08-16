@@ -3265,6 +3265,8 @@ export type Database = {
           daily_used_seconds: number
           free_seconds: number | null
           paid_seconds: number
+          period_start: string | null
+          period_used_seconds: number
           updated_at: string
           used_seconds: number
           user_id: string
@@ -3274,6 +3276,8 @@ export type Database = {
           daily_used_seconds?: number
           free_seconds?: number | null
           paid_seconds?: number
+          period_start?: string | null
+          period_used_seconds?: number
           updated_at?: string
           used_seconds?: number
           user_id: string
@@ -3283,6 +3287,8 @@ export type Database = {
           daily_used_seconds?: number
           free_seconds?: number | null
           paid_seconds?: number
+          period_start?: string | null
+          period_used_seconds?: number
           updated_at?: string
           used_seconds?: number
           user_id?: string
@@ -3529,81 +3535,6 @@ export type Database = {
         }
         Relationships: []
       }
-      subscription_plans: {
-        Row: {
-          active: boolean
-          billing_period: string | null
-          entitlements: string[]
-          included_seconds: number
-          key: string
-          kind: string
-          label: string
-          price_paise: number
-          sort_order: number
-        }
-        Insert: {
-          active?: boolean
-          billing_period?: string | null
-          entitlements?: string[]
-          included_seconds?: number
-          key: string
-          kind: string
-          label: string
-          price_paise?: number
-          sort_order?: number
-        }
-        Update: {
-          active?: boolean
-          billing_period?: string | null
-          entitlements?: string[]
-          included_seconds?: number
-          key?: string
-          kind?: string
-          label?: string
-          price_paise?: number
-          sort_order?: number
-        }
-        Relationships: []
-      }
-      subscriptions: {
-        Row: {
-          cancel_at_period_end: boolean
-          created_at: string
-          period_end: string
-          period_start: string
-          plan_key: string
-          provider: string | null
-          provider_sub_id: string | null
-          status: string
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          cancel_at_period_end?: boolean
-          created_at?: string
-          period_end: string
-          period_start: string
-          plan_key: string
-          provider?: string | null
-          provider_sub_id?: string | null
-          status: string
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          cancel_at_period_end?: boolean
-          created_at?: string
-          period_end?: string
-          period_start?: string
-          plan_key?: string
-          provider?: string | null
-          provider_sub_id?: string | null
-          status?: string
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       study_chapters_debug: {
         Row: {
           blocks_snippet: string | null
@@ -3773,6 +3704,89 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "learner_profiles"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscription_plans: {
+        Row: {
+          active: boolean
+          billing_period: string | null
+          entitlements: string[]
+          included_seconds: number
+          key: string
+          kind: string
+          label: string
+          price_paise: number
+          sort_order: number
+        }
+        Insert: {
+          active?: boolean
+          billing_period?: string | null
+          entitlements?: string[]
+          included_seconds?: number
+          key: string
+          kind: string
+          label: string
+          price_paise?: number
+          sort_order?: number
+        }
+        Update: {
+          active?: boolean
+          billing_period?: string | null
+          entitlements?: string[]
+          included_seconds?: number
+          key?: string
+          kind?: string
+          label?: string
+          price_paise?: number
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      subscriptions: {
+        Row: {
+          cancel_at_period_end: boolean
+          created_at: string
+          period_end: string
+          period_start: string
+          plan_key: string
+          provider: string | null
+          provider_sub_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          period_end: string
+          period_start: string
+          plan_key: string
+          provider?: string | null
+          provider_sub_id?: string | null
+          status: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancel_at_period_end?: boolean
+          created_at?: string
+          period_end?: string
+          period_start?: string
+          plan_key?: string
+          provider?: string | null
+          provider_sub_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["key"]
           },
         ]
       }
@@ -4284,6 +4298,7 @@ export type Database = {
         Args: { _content_id: string; _content_type: string; _reason?: string }
         Returns: undefined
       }
+      allowance_period_start: { Args: { _user: string }; Returns: string }
       api_budget_day: { Args: never; Returns: string }
       api_budget_left: {
         Args: { _bucket: string; _cap: number }
@@ -4336,6 +4351,7 @@ export type Database = {
         Returns: undefined
       }
       can_read_message: { Args: { _message_id: string }; Returns: boolean }
+      cancel_my_subscription: { Args: never; Returns: Json }
       channel_monetize_status: { Args: { _channel_id: string }; Returns: Json }
       channel_views_series: {
         Args: { _channel_id: string; _days?: number }
@@ -4433,10 +4449,6 @@ export type Database = {
       }
       delete_my_account: { Args: never; Returns: undefined }
       delete_story_job: { Args: { _job_id: string }; Returns: Json }
-      cancel_my_subscription: { Args: never; Returns: Json }
-      has_entitlement: { Args: { _key: string; _user: string }; Returns: boolean }
-      my_plan_key: { Args: { _user: string }; Returns: string }
-      allowance_period_start: { Args: { _user: string }; Returns: string }
       dsr_hard_purge_due: { Args: never; Returns: number }
       dsr_promote_due_erasures: { Args: never; Returns: number }
       email_queue_dispatch: { Args: never; Returns: undefined }
@@ -4506,8 +4518,22 @@ export type Database = {
           provider_count: number
         }[]
       }
+      grant_subscription: {
+        Args: {
+          _months?: number
+          _plan_key: string
+          _provider?: string
+          _provider_sub_id?: string
+          _user: string
+        }
+        Returns: Json
+      }
       grant_watermark_removal: { Args: { _job_id: string }; Returns: Json }
       has_active_legal_hold: { Args: { _user_id: string }; Returns: boolean }
+      has_entitlement: {
+        Args: { _key: string; _user: string }
+        Returns: boolean
+      }
       health_data_allowed: { Args: { _user_id: string }; Returns: boolean }
       health_request_region_ok: { Args: never; Returns: boolean }
       is_admin: { Args: { _uid: string }; Returns: boolean }
@@ -4621,6 +4647,7 @@ export type Database = {
           time_slot: string
         }[]
       }
+      my_plan_key: { Args: { _user: string }; Returns: string }
       my_profile_qr_token: { Args: never; Returns: string }
       my_service_bookings: {
         Args: never
