@@ -143,7 +143,7 @@ export function callParticipantCap(): Promise<number> {
   return planRead(
     "call_cap",
     async (uid) => {
-      const { data, error } = await supabase.rpc("my_call_cap" as never, { _user: uid } as never);
+      const { data, error } = await supabase.rpc("my_call_cap", { _user: uid });
       if (error) return null;
       const n = Number(data);
       // A plan row edited to something absurd must not become a phone's
