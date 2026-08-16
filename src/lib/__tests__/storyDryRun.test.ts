@@ -314,13 +314,63 @@ describe("every shipped scenario is loadable", () => {
     expect(s.plan.shots.length).toBeGreaterThan(0);
   });
 
+  /** The raw file, including the `_`-prefixed keys loadScenario drops. */
+  function rawScenario(name: string) {
+    return JSON.parse(readFileSync(join(FIXTURES_ROOT, name, "scenario.json"), "utf8")) as {
+      _why?: string;
+      _expect?: {
+        exit?: number;
+        calls?: Record<string, number>;
+        log?: string[];
+        absent?: string[];
+        film?: boolean;
+        same_film_as?: string;
+      };
+    };
+  }
+
   it.each(dirs)("%s explains which incident it reproduces", (name) => {
     // A scenario without a _why is a fixture nobody can decide whether to
     // delete. Each of these encodes a run that cost real money to learn.
-    const raw = JSON.parse(readFileSync(join(FIXTURES_ROOT, name, "scenario.json"), "utf8")) as {
-      _why?: string;
-    };
-    expect(raw._why ?? "").not.toHaveLength(0);
+    expect(rawScenario(name)._why ?? "").not.toHaveLength(0);
+  });
+
+  it.each(dirs)("%s declares what a run of it must prove", (name) => {
+    /**
+     * `scripts/dry_run_all.py` enforces this block; without it the scenario is
+     * checked by eye, which is how the clip stage stayed broken through two
+     * different defects while printing a finished film both times.
+     *
+     * `calls` and `film` are required because they are the two things every
+     * scenario has an answer for. `absent` is optional but carries the most
+     * weight where it appears — voice-quota-dies proves its whole point with
+     * one forbidden string, since the property is a call that must not happen
+     * and no log line exists for that.
+     */
+    const expected = rawScenario(name)._expect;
+    expect(expected, `${name}/scenario.json has no _expect block`).toBeTruthy();
+    expect(typeof expected?.exit).toBe("number");
+    expect(typeof expected?.film).toBe("boolean");
+    expect(Object.keys(expected?.calls ?? {}).sort()).toEqual(["clip", "plot", "still", "voice"]);
+  });
+
+  it.each(dirs)("%s asserts a call count for every billable stage", (name) => {
+    // Zero is a real assertion, not a blank: happy-path claims `clip: 0`
+    // because a classic grade must never reach the video model. Leaving a
+    // stage out would let a scenario silently start spending.
+    const calls = rawScenario(name)._expect?.calls ?? {};
+    for (const stage of ["still", "voice", "clip", "plot"]) {
+      expect(typeof calls[stage], `${name} does not say how many ${stage} calls it makes`).toBe(
+        "number",
+      );
+    }
+  });
+
+  it("a scenario compared against another names one that exists", () => {
+    for (const name of dirs) {
+      const twin = rawScenario(name)._expect?.same_film_as;
+      if (twin) expect(dirs).toContain(twin);
+    }
   });
 
   it("rejects a scenario with no plan — story-plot is a paid call", () => {

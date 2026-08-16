@@ -26,8 +26,31 @@
     ]
   },
   "still": [
-    { "fail": { "status": 422, "error": "That frame was refused (PROHIBITED_CONTENT)." } },
-    { "fail": { "status": 422, "error": "That frame was refused (PROHIBITED_CONTENT)." } },
+    {
+      "fail": {
+        "status": 422,
+        "error": "That frame was refused (PROHIBITED_CONTENT)."
+      }
+    },
+    {
+      "fail": {
+        "status": 422,
+        "error": "That frame was refused (PROHIBITED_CONTENT)."
+      }
+    },
     {}
-  ]
+  ],
+  "_expect": {
+    "exit": 0,
+    "calls": {
+      "still": 5,
+      "voice": 3,
+      "clip": 0,
+      "plot": 1
+    },
+    "log": ["story-still #1 FAIL 422", "story-still #2 FAIL 422", "story-still #3 ok"],
+    "absent": ["story-still #6"],
+    "film": true,
+    "_note": "5 still calls for 3 shots: the first shot costs three asks, the other two cost one each."
+  }
 }

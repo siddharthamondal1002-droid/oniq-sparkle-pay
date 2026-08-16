@@ -50,11 +50,51 @@ STORY_FIXTURES=fixtures/story/clip-refused STORY_MOVIE=on node scripts/story-wor
 and `clip-refused` polls on a real 10s interval. The rest are about a minute
 each, nearly all of it Remotion rendering.
 
-Read the run's closing call ledger, not just its last line. Several of the
-properties worth having are provable only from a call that **did not happen** —
-`voice-quota-dies` scripts a fifth voice answer that succeeds, and the worker
-never asks for it, which is how you know the Piper switch held for the
-remaining shots rather than drifting back to the cloud.
+### Running them all, and checking what they proved
+
+```bash
+cd remotion
+python3 scripts/dry_run_all.py               # all six, then check
+python3 scripts/dry_run_all.py happy-path    # just one
+python3 scripts/dry_run_all.py --check-only  # re-check the last run's logs
+```
+
+Sequential, because every scenario uses job id `dry-1` and they would clobber
+each other's output — and Remotion already saturates the cores. Films and logs
+land in `.tmp/dry-runs/`. About nine minutes for all six.
+
+**The runs are not the check.** Each of these finishes with an exit code and, in
+five cases, a playable film — which is not the same claim as "the ladder fired".
+A dry run whose still step-down never triggered, or whose clip fixture threw and
+quietly fell back to a still, prints an almost identical success. The clip stage
+has been broken twice in exactly that way. So every scenario carries an
+`_expect` block next to its `_why`, and the script enforces it:
+
+```json
+"_expect": {
+  "exit": 0,
+  "calls": { "still": 3, "voice": 4, "clip": 0, "plot": 1 },
+  "log": ["voice retry in 30s", "piper carries the film"],
+  "absent": ["story-voice #5"],
+  "film": true
+}
+```
+
+Adding a scenario means writing down what it proves, not editing the checker —
+and `storyDryRun.test.ts` fails the build on a scenario that declares nothing.
+
+**`absent` is the important half.** Several properties worth having are
+observable only as a call that _did not happen_. `voice-quota-dies` scripts a
+fifth voice answer that succeeds, and the worker must never ask for it: asking
+would mean the Piper switch stopped holding and the remaining shots went back to
+the metered cloud. There is no log line for that — only the absence of one.
+
+`gateway-audio` gets the sharpest assertion available, `same_film_as`: its film
+must be **byte-identical** to `happy-path`'s, since the only difference between
+them is which branch of `voiceBytesToFile` runs. A double-wrapped wav still
+plays — the outer header is valid — so "it rendered" proves nothing. The 44
+header bytes decoded as samples are an audible click and a different encode, and
+equality is the only assertion that catches it.
 
 Selection is **by call ordinal, not by content**, which is what makes a ladder
 scriptable — a retry of the same shot consumes the next entry. A list shorter

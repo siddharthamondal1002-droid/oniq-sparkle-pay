@@ -27,10 +27,49 @@
   },
   "_slow": "The four retries wait 30/60/90s for real — expect ~3 minutes.",
   "voice": [
-    { "fail": { "status": 502, "error": "Could not read that line. (upstream 429)" } },
-    { "fail": { "status": 502, "error": "Could not read that line. (upstream 429)" } },
-    { "fail": { "status": 502, "error": "Could not read that line. (upstream 429)" } },
-    { "fail": { "status": 502, "error": "Could not read that line. (upstream 429)" } },
+    {
+      "fail": {
+        "status": 502,
+        "error": "Could not read that line. (upstream 429)"
+      }
+    },
+    {
+      "fail": {
+        "status": 502,
+        "error": "Could not read that line. (upstream 429)"
+      }
+    },
+    {
+      "fail": {
+        "status": 502,
+        "error": "Could not read that line. (upstream 429)"
+      }
+    },
+    {
+      "fail": {
+        "status": 502,
+        "error": "Could not read that line. (upstream 429)"
+      }
+    },
     {}
-  ]
+  ],
+  "_expect": {
+    "exit": 0,
+    "calls": {
+      "still": 3,
+      "voice": 4,
+      "clip": 0,
+      "plot": 1
+    },
+    "log": [
+      "story-voice #4 FAIL 502",
+      "voice retry in 30s",
+      "voice retry in 60s",
+      "voice retry in 90s",
+      "piper carries the film"
+    ],
+    "absent": ["story-voice #5"],
+    "film": true,
+    "_note": "THE ASSERTION THAT MATTERS IS THE ABSENT ONE. This scenario scripts a fifth voice answer that SUCCEEDS. If the worker ever asks for it, the Piper switch did not hold and shots 2 and 3 drifted back to the metered cloud — the 2026-08-12 incident, silently back. Provable only from a call that did not happen."
+  }
 }

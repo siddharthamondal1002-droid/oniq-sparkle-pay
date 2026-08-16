@@ -27,7 +27,27 @@
     ]
   },
   "clip": [
-    { "fail": { "status": 422, "error": "That shot was refused (PROHIBITED_CONTENT)." } },
-    { "polls": 1 }
-  ]
+    {
+      "fail": {
+        "status": 422,
+        "error": "That shot was refused (PROHIBITED_CONTENT)."
+      }
+    },
+    {
+      "polls": 1
+    }
+  ],
+  "_expect": {
+    "exit": 0,
+    "calls": {
+      "still": 3,
+      "voice": 3,
+      "clip": 4,
+      "plot": 1
+    },
+    "log": ["story-clip:start #1 FAIL 422", "story-clip:start #2 ok", "of motion"],
+    "absent": ["still carries the shot"],
+    "film": true,
+    "_note": "`still carries the shot` is forbidden because that is what a BROKEN clip fixture prints: the poll throws, the worker steps down, and the run still reports a finished film and a ledger of successful clip calls. It is the exact failure this scenario was added to catch."
+  }
 }

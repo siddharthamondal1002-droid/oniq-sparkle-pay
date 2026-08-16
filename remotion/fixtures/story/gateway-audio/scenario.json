@@ -25,5 +25,23 @@
       }
     ]
   },
-  "voice": [{ "mime": "audio/wav" }]
+  "voice": [
+    {
+      "mime": "audio/wav"
+    }
+  ],
+  "_expect": {
+    "exit": 0,
+    "calls": {
+      "still": 3,
+      "voice": 3,
+      "clip": 0,
+      "plot": 1
+    },
+    "log": ["story-voice #1 mime audio/wav", "story-voice #3 mime audio/wav"],
+    "absent": ["FAIL"],
+    "film": true,
+    "same_film_as": "happy-path",
+    "_note": "The film must come out BYTE-IDENTICAL to happy-path's. Same speech, same shots — the only difference is that voiceBytesToFile takes the container branch instead of wrapping headerless PCM. A double-wrap still produces a playable file (the outer RIFF header is valid), so 'it rendered' proves nothing; the 44 header bytes decoded as samples are an audible click and a different encode. Equality is the only assertion that catches it."
+  }
 }

@@ -25,5 +25,22 @@
       }
     ]
   },
-  "voice": [{ "mime": "audio/L16;codec=pcm" }]
+  "voice": [
+    {
+      "mime": "audio/L16;codec=pcm"
+    }
+  ],
+  "_expect": {
+    "exit": 1,
+    "calls": {
+      "still": 1,
+      "voice": 1,
+      "clip": 0,
+      "plot": 1
+    },
+    "log": ["story-voice: no sample rate in \"audio/L16;codec=pcm\"", "rpc refund_story_seconds"],
+    "absent": ["ready at"],
+    "film": false,
+    "_note": "The only scenario that exits non-zero, and that is the point: a dead job must fail the process or a CI run goes green over a broken film. One still is already paid for when it dies, so a refund must be issued."
+  }
 }

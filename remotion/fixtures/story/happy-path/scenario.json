@@ -24,5 +24,17 @@
         "narration": "And every night she carried home one crumb, which to a mouse is a very great treasure indeed."
       }
     ]
+  },
+  "_expect": {
+    "exit": 0,
+    "calls": {
+      "still": 3,
+      "voice": 3,
+      "clip": 0,
+      "plot": 1
+    },
+    "log": ["story-plot #1 ok", "story-still #3 ok", "story-voice #3 ok"],
+    "absent": ["FAIL"],
+    "film": true
   }
 }
