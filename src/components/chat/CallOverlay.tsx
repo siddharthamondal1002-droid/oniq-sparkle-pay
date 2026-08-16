@@ -46,6 +46,7 @@ import { AttachmentSheet, useAttachmentContext } from "@/components/attach/Attac
 import { reportClientError } from "@/lib/errorReport";
 import {
   FACE_FX,
+  FACE_LENSES,
   geometryFrom,
   isFaceFilter,
   loadFaceLandmarker,
@@ -314,10 +315,15 @@ const CALL_FILTERS: readonly {
     fallback: [{ mode: "difference", color: "#ffffff" }],
   },
   // Face-tracked. No css/fallback: these are drawn ON the frame from
-  // landmarks, so they colour nothing and work the same on every engine.
-  { id: "dog", label: "Dog 🐶" },
-  { id: "bigeyes", label: "Big eyes 👀" },
-  { id: "shades", label: "Shades 😎" },
+  // landmarks, so they colour nothing and work the same on every engine —
+  // which is also why the rack could grow this far without a second code
+  // path. Every one is canvas 2D over MediaPipe points, on-device: nothing
+  // here calls a model, leaves the phone, or costs a paisa to run (owner
+  // decision, 2026-08-16 — lenses stay on-device).
+  //
+  // Spread from faceFx rather than listed again, so the photo editor and this
+  // overlay cannot drift into offering different sets under the same names.
+  ...FACE_LENSES,
   // The gallery pick. Chosen photo is blended over the whole frame.
   { id: "photo", label: "My photo 🖼️" },
 ];
@@ -1661,7 +1667,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     const onAcceptEvent = (e: Event) => {
       const detail = (e as CustomEvent).detail as
-        { callId?: string; callType?: CallType; conversationId?: string } | undefined;
+        | { callId?: string; callType?: CallType; conversationId?: string }
+        | undefined;
       if (!detail?.callId) return;
       if (detail.conversationId && detail.conversationId !== conversationId) return;
       autoAcceptTriedRef.current = false;
@@ -2091,7 +2098,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               const g = geometryFrom(face.pts, cur.canvas.width, cur.canvas.height);
               if (g) {
                 ctx.filter = "none";
-                FACE_FX[active.id]?.(ctx, g, cur.canvas);
+                // The clock is passed in, not read inside the lens, so the
+                // animated ones (hearts beating, tears falling) stay a pure
+                // function of their inputs and can be tested frame by frame.
+                FACE_FX[active.id]?.(ctx, g, cur.canvas, performance.now());
               }
             }
           }
@@ -2472,7 +2482,11 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
                     : "Face filters aren't available on this phone"}
                 </div>
               )}
-              <div className="flex w-full gap-1.5 overflow-x-auto rounded-full border border-white/10 bg-black/40 px-2 py-1.5">
+              {/* The rack is 22 chips now, so this scrolls rather than
+                  wraps — a wrapping row would grow the tray upward and eat
+                  the picture it is a filter for. scrollbar-none matches the
+                  other horizontal strips in the app. */}
+              <div className="flex w-full gap-1.5 overflow-x-auto rounded-full border border-white/10 bg-black/40 px-2 py-1.5 scrollbar-none">
                 {CALL_FILTERS.map((f) => (
                   <button
                     key={f.id}

@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { X, Check, RotateCw, Loader2, SlidersHorizontal, Wand2, RefreshCcw } from "lucide-react";
+import { FACE_FX, FACE_LENSES, faceGeometryOf } from "@/lib/faceFx";
 
 /**
  * PhotoStudio — the single edit surface every photo passes through before
@@ -226,6 +227,35 @@ export function PhotoStudio({
     });
   };
   const [exporting, setExporting] = useState(false);
+  // Face lenses: the chosen id, the baked result, and whether it is baking.
+  const [lensId, setLensId] = useState<string | null>(null);
+  const [lensUrl, setLensUrl] = useState<string | null>(null);
+  const [lensBusy, setLensBusy] = useState(false);
+  const lensBlobRef = useRef<Blob | null>(null);
+  const lensUrlRef = useRef<string | null>(null);
+
+  /**
+   * Take ownership of a new lens preview URL and free the one it replaces.
+   *
+   * Revoking in the effect's CLEANUP is the obvious version and it is wrong:
+   * cleanup runs the moment the lens changes, while the old URL is still the
+   * one in the <img> — the preview would go to a broken image for as long as
+   * the new lens takes to bake, which on a large photo is the whole time
+   * anybody is looking. Freeing on REPLACEMENT means the old bitmap survives
+   * exactly until something else is ready to be shown.
+   */
+  const swapLensUrl = useCallback((next: string | null) => {
+    if (lensUrlRef.current) URL.revokeObjectURL(lensUrlRef.current);
+    lensUrlRef.current = next;
+    return next;
+  }, []);
+  // The last one still has to be freed, and nothing replaces it.
+  useEffect(
+    () => () => {
+      swapLensUrl(null);
+    },
+    [swapLensUrl],
+  );
 
   // rAF-coalesced filter string so slider drags never outpace the frame rate.
   const [filterStr, setFilterStr] = useState("");
@@ -269,10 +299,84 @@ export function PhotoStudio({
 
   useEffect(() => () => URL.revokeObjectURL(srcUrl), [srcUrl]);
 
+  /**
+   * FACE LENSES ARE BAKED INTO A NEW SOURCE IMAGE, not layered over the
+   * preview.
+   *
+   * The obvious build — draw the lens on top of the <img> in a positioned
+   * canvas — has to map every landmark through the rotate, the crop aspect
+   * and the drag-pan to know where the ears go, and then do the same
+   * arithmetic a second time, differently, in the export path. Two
+   * implementations of one fiddly transform is a guaranteed drift, and the
+   * failure is subtle: ears that sit right in the preview and wrong in the
+   * file that gets sent.
+   *
+   * Compositing the lens onto the ORIGINAL bitmap first removes the problem
+   * rather than solving it twice. Landmarks are already in original-image
+   * coordinates, so nothing has to be mapped at all, and every stage after
+   * this one — filter, rotate, crop, pan, export — runs on the lensed image
+   * completely unchanged and unaware.
+   *
+   * Cost is one detection per photo, not one per frame: the effect is keyed
+   * on the lens and the file, so dragging the intensity slider re-renders
+   * nothing here.
+   */
+  useEffect(() => {
+    if (!lensId) {
+      setLensUrl(swapLensUrl(null));
+      lensBlobRef.current = null;
+      return;
+    }
+    let cancelled = false;
+    setLensBusy(true);
+    (async () => {
+      try {
+        const bmp = await createImageBitmap(file);
+        const g = await faceGeometryOf(bmp, bmp.width, bmp.height);
+        if (!g) {
+          bmp.close();
+          if (!cancelled) {
+            setLensId(null);
+            toast.error("No face found in this photo");
+          }
+          return;
+        }
+        const c = document.createElement("canvas");
+        c.width = bmp.width;
+        c.height = bmp.height;
+        const cx = c.getContext("2d");
+        if (!cx) throw new Error("no canvas");
+        cx.drawImage(bmp, 0, 0);
+        bmp.close();
+        // A still has no clock, so the animated lenses are frozen at a chosen
+        // moment rather than at 0 — hearts at t=0 are at the bottom of their
+        // beat and tears at t=0 have not fallen yet, which reads as the lens
+        // having failed.
+        FACE_FX[lensId]?.(cx, g, c, 400);
+        const blob = await new Promise<Blob | null>((res) => c.toBlob(res, "image/webp", 0.92));
+        if (cancelled || !blob) return;
+        lensBlobRef.current = blob;
+        setLensUrl(swapLensUrl(URL.createObjectURL(blob)));
+      } catch {
+        if (!cancelled) {
+          setLensId(null);
+          toast.error("Could not apply that lens");
+        }
+      } finally {
+        if (!cancelled) setLensBusy(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lensId, file, swapLensUrl]);
+
   async function exportImage() {
     setExporting(true);
     try {
-      const bmp = await createImageBitmap(file);
+      // The lensed copy when there is one — it is the same picture with the
+      // art already burned in, so everything downstream is untouched.
+      const bmp = await createImageBitmap(lensBlobRef.current ?? file);
       const rot = ((rotate % 360) + 360) % 360;
       const rotated = rot === 90 || rot === 270;
       let w = rotated ? bmp.height : bmp.width;
@@ -471,7 +575,7 @@ export function PhotoStudio({
           onMouseUp={() => (dragRef.current = null)}
         >
           <img
-            src={srcUrl}
+            src={lensUrl ?? srcUrl}
             alt=""
             className="max-h-[52vh] w-auto max-w-full select-none object-cover"
             style={{
@@ -509,6 +613,41 @@ export function PhotoStudio({
       <div className="shrink-0 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         {tab === "filters" ? (
           <>
+            {/* Lenses first, and on their own row: they are a different KIND
+                of edit from the colour presets — one changes the picture's
+                mood, the other puts ears on somebody — and mixing them into
+                one strip made both harder to find. They also compose: a lens
+                and a colour filter can be on at once. */}
+            <div className="flex items-center gap-2 overflow-x-auto px-3 pt-2 scrollbar-none">
+              <span className="shrink-0 text-[10px] uppercase tracking-wide text-white/40">
+                lens
+              </span>
+              <button
+                onClick={() => setLensId(null)}
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${
+                  lensId === null
+                    ? "border-primary bg-primary/15 font-semibold text-primary"
+                    : "border-white/15 text-white/70"
+                }`}
+              >
+                None
+              </button>
+              {FACE_LENSES.map((l) => (
+                <button
+                  key={l.id}
+                  onClick={() => setLensId(l.id)}
+                  disabled={lensBusy}
+                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs disabled:opacity-50 ${
+                    lensId === l.id
+                      ? "border-primary bg-primary/15 font-semibold text-primary"
+                      : "border-white/15 text-white/70"
+                  }`}
+                >
+                  {l.label}
+                </button>
+              ))}
+              {lensBusy && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-white/60" />}
+            </div>
             <div className="flex gap-2 overflow-x-auto px-3 py-2 scrollbar-none">
               {PRESETS.map((p) => (
                 <button

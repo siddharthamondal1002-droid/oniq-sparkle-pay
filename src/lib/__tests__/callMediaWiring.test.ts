@@ -152,17 +152,25 @@ describe("the in-call filter", () => {
 
   it("does not make the face filters depend on ctx.filter at all", () => {
     // They draw shapes onto the finished frame, so they work identically on
-    // an engine that has no filter support — which is the point of listing
-    // them without a css chain.
+    // an engine that has no filter support — which is the point of carrying
+    // no css chain.
+    //
+    // This used to check three ids spelled out in CALL_FILTERS. The rack grew
+    // to fifteen and moved to FACE_LENSES in faceFx, which is a STRONGER
+    // guarantee than the one asserted here: an entry in that list is
+    // { id, label } and has nowhere to put a css chain even by accident. So
+    // the check is now that the lenses still arrive by that route.
     const block = SRC.slice(SRC.indexOf("const CALL_FILTERS"), SRC.indexOf("const PHOTO_MIX"));
-    for (const id of ["dog", "bigeyes", "shades"]) {
-      const at = block.indexOf(`id: "${id}"`);
-      expect(at, `${id} is not in the filter list`).toBeGreaterThan(-1);
-      const entry = block.slice(at, block.indexOf("}", at));
-      expect(entry, `${id} gained a css chain — it would break where filter is unsupported`).not.toContain(
-        "css:",
-      );
-    }
+    expect(block, "face lenses no longer come from the typed lens list").toContain(
+      "...FACE_LENSES",
+    );
+    const lensList = readFileSync(join(process.cwd(), "src/lib/faceFx.ts"), "utf8");
+    const decl = lensList.slice(
+      lensList.indexOf("export const FACE_LENSES"),
+      lensList.indexOf("export function isFaceFilter"),
+    );
+    expect(decl, "the lens list gained a css chain").not.toContain("css:");
+    expect(decl).toContain("readonly { id: string; label: string }[]");
   });
 
   it("resets the blend mode every frame", () => {
@@ -220,7 +228,7 @@ describe("the in-call filter", () => {
     // `!trayHidden` test would be a second source of truth for one thing.
     const chipBlock = SRC.slice(SRC.indexOf("FILTER CHIPS LIVE INSIDE THE TRAY"));
     const gate = chipBlock.slice(0, chipBlock.indexOf("CALL_FILTERS.map("));
-    expect(gate).toContain("filterOpen && status !== \"incoming\"");
+    expect(gate).toContain('filterOpen && status !== "incoming"');
     expect(gate).not.toContain("!trayHidden");
   });
 
