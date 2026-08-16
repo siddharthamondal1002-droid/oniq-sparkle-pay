@@ -80,6 +80,7 @@ Deno.serve(async (req) => {
     let row = foodHit.row;
     let isStory = false;
     let isWatermark = false;
+    let isPlan = false;
     if (!row) {
       const storyHit = await findIn("story_purchases", "user_id,seconds,status");
       if ("failed" in storyHit) return json({ error: "could not read that payment" }, 502);
@@ -91,6 +92,16 @@ Deno.serve(async (req) => {
       if ("failed" in wmHit) return json({ error: "could not read that payment" }, 502);
       row = wmHit.row;
       isWatermark = !!row;
+    }
+    if (!row) {
+      // Monthly plans. Last in the chain because it is the newest product, not
+      // because it matters least — the order of these lookups is only a search
+      // for which table holds this provider order id, and the ids are unique
+      // across all four.
+      const planHit = await findIn("plan_purchases", "user_id,plan_key,status");
+      if ("failed" in planHit) return json({ error: "could not read that payment" }, 502);
+      row = planHit.row;
+      isPlan = !!row;
     }
 
     // THE SIGNATURE PROVES A PAYMENT HAPPENED, NOT WHOSE IT WAS. A valid
@@ -107,7 +118,9 @@ Deno.serve(async (req) => {
       ? "credit_story_purchase"
       : isWatermark
         ? "settle_watermark_purchase"
-        : "mark_order_paid";
+        : isPlan
+          ? "credit_plan_purchase"
+          : "mark_order_paid";
     const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
       method: "POST",
       headers: { ...svc, "content-type": "application/json" },
@@ -125,7 +138,13 @@ Deno.serve(async (req) => {
     const result = await marked.json();
     return json({
       ok: true,
-      kind: isStory ? "story_seconds" : isWatermark ? "watermark_removal" : "order",
+      kind: isStory
+        ? "story_seconds"
+        : isWatermark
+          ? "watermark_removal"
+          : isPlan
+            ? "plan_month"
+            : "order",
       ...result,
     });
   } catch (e) {

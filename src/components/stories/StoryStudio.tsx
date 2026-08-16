@@ -39,6 +39,7 @@ import {
 import { Link } from "@tanstack/react-router";
 import { Capacitor } from "@capacitor/core";
 import { Clapperboard, Clock, Loader2, ShieldAlert, Sparkles, Users2, X } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 import { openInApp } from "@/lib/miniapps";
@@ -53,6 +54,7 @@ import {
   type QuotaRefusal,
 } from "@/lib/storyPlan";
 import { checkoutTarget } from "@/lib/storyPricing";
+import { payForPlan } from "@/lib/razorpay";
 import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient";
 import { PlanSheet, sayLeft } from "./PlanSheet";
 
@@ -869,18 +871,35 @@ export function StoryStudio() {
         renewsOn={quota?.renewsOn ?? null}
         cancelAtPeriodEnd={quota?.cancelAtPeriodEnd ?? false}
         /**
-         * NO CHECKOUT YET, AND THEREFORE NO BUTTON.
-         *
-         * Plus needs a purchase path of its own — the top-up checkout sells
-         * seconds, not months, and pointing "Get ONIQ Plus" at it would be the
-         * deceptive purchase experience Play's own policy names. Passing null
-         * renders a sentence saying so instead of a button that lies or a
-         * greyed-out one that reads as a bug.
-         *
-         * The rail underneath has also never carried a completed transaction,
-         * which is the reason this is the next piece rather than this one.
+         * THE SAME POLICY LINE THE TOP-UP BUTTON OBEYS. Web collects in page;
+         * the native build links out to the website and never collects; a
+         * build that may not link out offers nothing at all. `checkoutTarget`
+         * already decided which of those this is — reusing it means the plan
+         * CTA cannot drift from the seconds CTA on the one question Play
+         * actually cares about.
          */
-        onChoose={null}
+        onChoose={
+          buyTarget.kind === "none"
+            ? null
+            : (p) => {
+                if (buyTarget.kind === "link-out") {
+                  void openInApp(buyTarget.url);
+                  return;
+                }
+                setPlanOpen(false);
+                void (async () => {
+                  const r = await payForPlan({ planKey: p.key });
+                  if (r.status === "paid") {
+                    toast.success(`${p.label} is active`);
+                  } else if (r.status === "failed") {
+                    toast.error(r.message);
+                  }
+                  // Dismissed says nothing — the sheet just closed.
+                  const { data, error: e } = await supabase.rpc("story_quota_status");
+                  if (!e) setQuota(readQuota(data));
+                })();
+              }
+        }
       />
     </div>
   );

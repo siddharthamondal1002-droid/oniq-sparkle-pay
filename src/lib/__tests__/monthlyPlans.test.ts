@@ -20,6 +20,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  PAID_PLAN_KEYS,
   PLAN_INCLUDED_SECONDS,
   PLAN_PRICE_PAISE,
   SUBSCRIPTION_RETAINED,
@@ -41,23 +42,32 @@ const PLANS_SQL = bare(PLANS);
 const CLAIM_SQL = bare(CLAIM);
 
 describe("the plan pays for the minutes it includes", () => {
-  it("includes fewer minutes than ₹499 can carry", () => {
-    const cap = maxIncludedSecondsFor(PLAN_PRICE_PAISE.plus_monthly);
-    expect(
-      PLAN_INCLUDED_SECONDS.plus_monthly,
-      `₹${PLAN_PRICE_PAISE.plus_monthly / 100} can carry ${cap}s; the plan promises ${PLAN_INCLUDED_SECONDS.plus_monthly}s`,
-    ).toBeLessThanOrEqual(cap);
-    // And not by a hair: a plan sitting a few seconds under break-even is one
-    // rounding change away from being over it.
-    expect(PLAN_INCLUDED_SECONDS.plus_monthly).toBeLessThanOrEqual(cap * 0.85);
+  it("includes fewer minutes than its price can carry — EVERY paid plan", () => {
+    // Swept rather than spot-checked: 25-minute and 1-hour tiers were added on
+    // 2026-08-16 and a guard that names only plus_monthly would have waved
+    // both of them through.
+    for (const key of PAID_PLAN_KEYS) {
+      const price = PLAN_PRICE_PAISE[key];
+      const included = PLAN_INCLUDED_SECONDS[key];
+      const cap = maxIncludedSecondsFor(price);
+      expect(
+        included,
+        `${key}: ₹${price / 100} can carry ${cap}s; the plan promises ${included}s`,
+      ).toBeLessThanOrEqual(cap);
+      // And not by a hair: a plan a few seconds under break-even is one
+      // rounding change away from being over it.
+      expect(included, `${key} has no headroom above break-even`).toBeLessThanOrEqual(cap * 0.85);
+    }
   });
 
   it("still makes money on a subscriber who uses every included second", () => {
-    const m = planMarginAt(PLAN_PRICE_PAISE.plus_monthly, PLAN_INCLUDED_SECONDS.plus_monthly);
-    expect(m, "a fully-using subscriber costs more than they pay").toBeGreaterThan(0);
-    // The realistic band. If this drifts, the plan changed and nobody said so.
-    expect(m).toBeGreaterThan(0.15);
-    expect(m).toBeLessThan(0.3);
+    for (const key of PAID_PLAN_KEYS) {
+      const m = planMarginAt(PLAN_PRICE_PAISE[key], PLAN_INCLUDED_SECONDS[key]);
+      expect(m, `${key}: a fully-using subscriber costs more than they pay`).toBeGreaterThan(0);
+      // The realistic band. If this drifts, a plan changed and nobody said so.
+      expect(m, `${key} margin fell out of band`).toBeGreaterThan(0.15);
+      expect(m, `${key} margin fell out of band`).toBeLessThan(0.35);
+    }
   });
 
   it("makes more from a subscriber who uses less, and never less from one who uses none", () => {
@@ -85,6 +95,9 @@ describe("the plan pays for the minutes it includes", () => {
     expect(PLANS_SQL).toContain("'plus_monthly', 'ONIQ Plus', 'auto_renew', 'P1M', 49900, 480");
     expect(PLANS_SQL).toContain("'free', 'Free', 'free', null, 0, 60");
     expect(PLANS_SQL).toContain("'topup', 'Top up', 'prepaid'");
+    const tiers = read("supabase/migrations/20260816070000_plan_checkout.sql");
+    expect(tiers).toContain("'plus_25', 'ONIQ Plus 25', 'auto_renew', 'P1M', 149900, 1500");
+    expect(tiers).toContain("'plus_60', 'ONIQ Plus 60', 'auto_renew', 'P1M', 349900, 3600");
   });
 });
 
@@ -269,9 +282,11 @@ describe("what the plan screen says", () => {
       join(process.cwd(), "src/components/stories/StoryStudio.tsx"),
       "utf8",
     );
-    expect(studio, "the Plus CTA points somewhere before a plan checkout exists").toContain(
-      "onChoose={null}",
-    );
+    // The CTA now exists, and obeys the SAME policy line as the top-up
+    // button: web collects in page, native links out, a build that may not
+    // link out offers nothing.
+    expect(studio).toContain('buyTarget.kind === "none"');
+    expect(studio).toContain("payForPlan({ planKey: p.key })");
   });
 
   it("tells the truth about cancelling", () => {

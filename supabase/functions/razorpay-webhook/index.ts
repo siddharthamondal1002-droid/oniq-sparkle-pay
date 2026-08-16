@@ -102,6 +102,10 @@ Deno.serve(async (req) => {
     const kindNote = String(notes.kind ?? "");
     const isStory = kindNote === "story_seconds";
     const isWatermark = kindNote === "watermark_removal";
+    // Monthly plans. The note is written when the order is created, so an
+    // event carrying it is one we made — the RPC still re-reads the row by
+    // provider order id and never trusts this string for anything but routing.
+    const isPlan = kindNote === "plan_month";
 
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
 
@@ -110,7 +114,9 @@ Deno.serve(async (req) => {
         ? "credit_story_purchase"
         : isWatermark
           ? "settle_watermark_purchase"
-          : "mark_order_paid";
+          : isPlan
+            ? "credit_plan_purchase"
+            : "mark_order_paid";
       const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
         method: "POST",
         headers: { ...svc, "content-type": "application/json" },
@@ -131,7 +137,13 @@ Deno.serve(async (req) => {
       return json(
         {
           ok: true,
-          kind: isStory ? "story_seconds" : isWatermark ? "watermark_removal" : "order",
+          kind: isStory
+            ? "story_seconds"
+            : isWatermark
+              ? "watermark_removal"
+              : isPlan
+                ? "plan_month"
+                : "order",
           ...(await marked.json()),
         },
         200,
@@ -143,7 +155,9 @@ Deno.serve(async (req) => {
         ? "fail_story_purchase"
         : isWatermark
           ? "fail_watermark_purchase"
-          : "mark_payment_failed";
+          : isPlan
+            ? "fail_plan_purchase"
+            : "mark_payment_failed";
       await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
         method: "POST",
         headers: { ...svc, "content-type": "application/json" },

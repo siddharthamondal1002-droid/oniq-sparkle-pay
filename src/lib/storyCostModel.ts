@@ -208,8 +208,21 @@ export function priceForMarginNetOfGst(grade: StoryGrade): number {
  * maxIncludedSecondsFor() below, and the test that holds the shipped plan
  * against it.
  */
-export const PLAN_INCLUDED_SECONDS = { free: 60, plus_monthly: 480 } as const;
-export const PLAN_PRICE_PAISE = { free: 0, plus_monthly: 49900 } as const;
+export const PLAN_INCLUDED_SECONDS = {
+  free: 60,
+  plus_monthly: 480,
+  plus_25: 1500,
+  plus_60: 3600,
+} as const;
+export const PLAN_PRICE_PAISE = {
+  free: 0,
+  plus_monthly: 49900,
+  plus_25: 149900,
+  plus_60: 349900,
+} as const;
+
+/** Every paid plan, so a guard can sweep them rather than naming one. */
+export const PAID_PLAN_KEYS = ["plus_monthly", "plus_25", "plus_60"] as const;
 
 /**
  * What is left of a subscription rupee before any film is made.

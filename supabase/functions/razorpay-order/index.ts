@@ -176,13 +176,17 @@ Deno.serve(async (req) => {
     const wantsOrder = body?.orderId !== undefined && body?.orderId !== null;
     const wantsStory = body?.seconds !== undefined && body?.seconds !== null;
     const wantsWatermark = body?.watermarkJobId !== undefined && body?.watermarkJobId !== null;
+    const wantsPlan = body?.planKey !== undefined && body?.planKey !== null;
 
     // EXACTLY ONE PRODUCT PER REQUEST. Several together, or none, is refused
     // rather than resolved by precedence — a request that names a food order
     // AND a Story length is a client bug, and picking one of them silently is
     // how the wrong thing gets charged for.
-    if ([wantsOrder, wantsStory, wantsWatermark].filter(Boolean).length !== 1) {
-      return json({ error: "name exactly one of orderId, seconds, or watermarkJobId" }, 400);
+    if ([wantsOrder, wantsStory, wantsWatermark, wantsPlan].filter(Boolean).length !== 1) {
+      return json(
+        { error: "name exactly one of orderId, seconds, watermarkJobId, or planKey" },
+        400,
+      );
     }
 
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
@@ -306,6 +310,117 @@ Deno.serve(async (req) => {
     }
 
     // -----------------------------------------------------------------------
+    // A MONTHLY PLAN. Same discipline as Story seconds, and for the same
+    // reasons: the row exists before the Razorpay order so a payment can
+    // always be attributed, the PRICE COMES OFF subscription_plans rather
+    // than off the request, and settlement happens by provider order id.
+    //
+    // The one thing this branch must never do is grant the plan. It creates
+    // an intent to buy; `credit_plan_purchase` — reachable only by the
+    // service role, from verify and from the webhook — is what calls
+    // grant_subscription once money has actually moved.
+    // -----------------------------------------------------------------------
+    if (wantsPlan) {
+      const planKey = String(body.planKey ?? "");
+      // Keys are ours, so a strict shape is free. Anything else never reaches
+      // the database.
+      if (!/^[a-z0-9_]{2,32}$/.test(planKey)) return json({ error: "bad plan" }, 400);
+      const origin = body?.origin === "native-handoff" ? "native-handoff" : "web";
+
+      const startRes = await fetch(`${supabaseUrl}/rest/v1/rpc/create_plan_purchase`, {
+        method: "POST",
+        headers: {
+          ...svc,
+          "content-type": "application/json",
+          // The caller's identity, not the service role's — the RPC reads
+          // auth.uid() to decide whose purchase this is.
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({ _plan_key: planKey, _origin: origin }),
+      });
+      if (!startRes.ok) {
+        const detail = await startRes.text().catch(() => "");
+        console.error("razorpay-order plan create", startRes.status, detail.slice(0, 200));
+        return json({ error: "Could not start that payment." }, 502);
+      }
+      const start = (await startRes.json()) as {
+        ok?: boolean;
+        reason?: string;
+        purchaseId?: string;
+        planKey?: string;
+        label?: string;
+        amountMinor?: number;
+        currency?: string;
+      };
+      if (!start?.ok || !start.purchaseId) {
+        // The RPC's own refusals, passed through by name so the client can say
+        // something true rather than "something went wrong".
+        const reason = start?.reason ?? "unavailable";
+        const message =
+          reason === "disabled"
+            ? "Plans are not on sale right now."
+            : reason === "no-such-plan" || reason === "not-subscribable"
+              ? "That plan is not available."
+              : "Could not start that payment.";
+        return json({ error: message, reason }, 409);
+      }
+
+      const amountMinor = Number(start.amountMinor ?? 0);
+      // The rail's own bounds, checked again here. The price came from a table
+      // rather than the request, but a table can be edited too.
+      if (
+        !Number.isFinite(amountMinor) ||
+        amountMinor <= 0 ||
+        amountMinor < Number(cfg.min_amount_minor) ||
+        amountMinor > Number(cfg.max_amount_minor)
+      ) {
+        console.error("razorpay-order plan outside bounds", planKey, amountMinor);
+        return json({ error: "That plan is not for sale." }, 409);
+      }
+
+      const createdPlan = await createRazorpayOrder(
+        creds,
+        amountMinor,
+        String(start.currency ?? "INR"),
+        String(start.purchaseId),
+        { kind: "plan_month", purchase_id: String(start.purchaseId) },
+      );
+      if ("error" in createdPlan) {
+        console.error("razorpay-order plan razorpay", createdPlan.error);
+        return json({ error: "Could not start that payment." }, 502);
+      }
+
+      const attach = await fetch(`${supabaseUrl}/rest/v1/rpc/attach_plan_purchase_order`, {
+        method: "POST",
+        headers: { ...svc, "content-type": "application/json" },
+        body: JSON.stringify({
+          _purchase_id: start.purchaseId,
+          _provider_order_id: createdPlan.id,
+        }),
+      });
+      if (!attach.ok) {
+        // A Razorpay order whose id we cannot record is a payment no webhook
+        // will ever find. Refusing is honest: nothing has been charged yet,
+        // because Checkout has not opened.
+        const detail = await attach.text().catch(() => "");
+        console.error("razorpay-order plan attach", attach.status, detail.slice(0, 200));
+        return json({ error: "Could not start that payment." }, 502);
+      }
+
+      return json({
+        configured: true,
+        kind: "plan_month",
+        keyId: creds.keyId,
+        providerOrderId: createdPlan.id,
+        purchaseId: start.purchaseId,
+        planKey: start.planKey,
+        label: start.label,
+        amountMinor,
+        currency: start.currency ?? "INR",
+      });
+    }
+
+    // -----------------------------------------------------------------------
     // WATERMARK REMOVAL. Flat-priced addon on a Story the user already owns.
     // Same discipline as Story seconds: the row exists before the Razorpay
     // order, the price comes from story_addons, the webhook settles by
@@ -379,17 +494,14 @@ Deno.serve(async (req) => {
         return json({ error: "Could not start that payment." }, 502);
       }
 
-      const attachWm = await fetch(
-        `${supabaseUrl}/rest/v1/rpc/attach_watermark_purchase_order`,
-        {
-          method: "POST",
-          headers: { ...svc, "content-type": "application/json" },
-          body: JSON.stringify({
-            _purchase_id: start.purchaseId,
-            _provider_order_id: createdWm.id,
-          }),
-        },
-      );
+      const attachWm = await fetch(`${supabaseUrl}/rest/v1/rpc/attach_watermark_purchase_order`, {
+        method: "POST",
+        headers: { ...svc, "content-type": "application/json" },
+        body: JSON.stringify({
+          _purchase_id: start.purchaseId,
+          _provider_order_id: createdWm.id,
+        }),
+      });
       if (!attachWm.ok) {
         const detail = await attachWm.text().catch(() => "");
         console.error("razorpay-order watermark attach", attachWm.status, detail.slice(0, 200));

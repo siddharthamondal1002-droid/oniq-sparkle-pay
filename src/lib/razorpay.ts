@@ -97,12 +97,19 @@ type OrderStart = {
   amountMinor?: number;
   currency?: string;
   seconds?: number;
+  planKey?: string;
   label?: string;
   error?: string;
 };
 
 /** What `razorpay-verify` settles to, after the signature check. */
-type VerifyPayload = { ok?: boolean; error?: string; seconds?: number };
+type VerifyPayload = {
+  ok?: boolean;
+  error?: string;
+  seconds?: number;
+  planKey?: string;
+  alreadyPaid?: boolean;
+};
 
 type CollectOutcome =
   | { status: "verified"; payload: VerifyPayload }
@@ -292,8 +299,55 @@ export async function payForStorySeconds(opts: StoryPayOptions): Promise<StoryPa
   return out;
 }
 
+export type PlanPayResult =
+  | { status: "paid"; planKey: string }
+  | { status: "dismissed" }
+  | { status: "failed"; message: string };
+
+/**
+ * Buy a monthly plan. WEB PAGES ONLY, exactly like Story seconds — the native
+ * build links out rather than collecting, and `checkoutTarget` is where that
+ * decision lives.
+ *
+ * THE PRICE IS NOT SENT. Only the plan key goes up; `create_plan_purchase`
+ * reads the amount off `subscription_plans`. A body carrying an amount is a
+ * body that could carry Rs 1.
+ *
+ * On "paid", the plan comes back from the verify response rather than being
+ * echoed from the request, so what is reported is what the server granted.
+ */
+export async function payForPlan(opts: {
+  planKey: string;
+  origin?: "web" | "native-handoff";
+  prefill?: PayOptions["prefill"];
+}): Promise<PlanPayResult> {
+  const { data, error } = await supabase.functions.invoke("razorpay-order", {
+    body: { planKey: opts.planKey, origin: opts.origin ?? "web" },
+  });
+  const start = (data ?? {}) as OrderStart;
+  const problem = startProblem(error, start);
+  if (problem) return { status: "failed", message: problem };
+
+  const out = await collectPayment(
+    start as { keyId: string; providerOrderId: string; amountMinor?: number; currency?: string },
+    { description: start.label ?? "ONIQ Plus", prefill: opts.prefill },
+  );
+  if (out.status === "verified") {
+    return {
+      status: "paid",
+      planKey:
+        typeof out.payload.planKey === "string" && out.payload.planKey
+          ? out.payload.planKey
+          : opts.planKey,
+    };
+  }
+  return out;
+}
+
 export type WatermarkPayResult =
-  { status: "paid" } | { status: "dismissed" } | { status: "failed"; message: string };
+  | { status: "paid" }
+  | { status: "dismissed" }
+  | { status: "failed"; message: string };
 
 /**
  * The flat watermark-removal addon. Same rails as Story seconds: the server
