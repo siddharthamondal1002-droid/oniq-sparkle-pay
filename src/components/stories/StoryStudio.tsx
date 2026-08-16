@@ -54,6 +54,7 @@ import {
 } from "@/lib/storyPlan";
 import { checkoutTarget } from "@/lib/storyPricing";
 import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient";
+import { PlanSheet, sayLeft } from "./PlanSheet";
 
 /**
  * Lengths offered as one tap. Anything between the bounds is still allowed.
@@ -148,6 +149,20 @@ type QuotaStatus = {
    * (2026-08-15), so this is about money now and nothing else.
    */
   admin: boolean;
+  /**
+   * THE PLAN HALF (owner directive, 2026-08-16 — monthly, not per-second).
+   *
+   * All optional-with-defaults on purpose. This bundle can be newer than the
+   * migration or older than it, and a studio that renders "undefined minutes
+   * left" because the server has not caught up is worse than one that quietly
+   * falls back to the free plan's shape.
+   */
+  plan: string;
+  planLabel: string;
+  includedSeconds: number;
+  renewsOn: string | null;
+  cancelAtPeriodEnd: boolean;
+  noWatermark: boolean;
 };
 
 function readQuota(payload: unknown): QuotaStatus | null {
@@ -170,6 +185,12 @@ function readQuota(payload: unknown): QuotaStatus | null {
     nativeLinkOut: p.nativeLinkOut === true,
     checkoutUrl: typeof p.checkoutUrl === "string" ? p.checkoutUrl : null,
     admin: p.admin === true,
+    plan: typeof p.plan === "string" ? p.plan : "free",
+    planLabel: typeof p.planLabel === "string" ? p.planLabel : "Free",
+    includedSeconds: num("includedSeconds", num("freeSeconds", 0)),
+    renewsOn: typeof p.renewsOn === "string" ? p.renewsOn : null,
+    cancelAtPeriodEnd: p.cancelAtPeriodEnd === true,
+    noWatermark: p.noWatermark === true,
   };
 }
 
@@ -182,6 +203,7 @@ export function StoryStudio() {
   const [seconds, setSeconds] = useState<number>(DEFAULT_STORY_SECONDS);
   const [quota, setQuota] = useState<QuotaStatus | null>(null);
   const [loadingQuota, setLoadingQuota] = useState(true);
+  const [planOpen, setPlanOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [refusal, setRefusal] = useState<QuotaRefusal | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -803,12 +825,63 @@ export function StoryStudio() {
         <p className="mt-2 text-center text-[11px] text-destructive">{jobError}</p>
       ) : null}
 
+      {/* THE PLAN STRIP. This line used to read "60s of free Story time left ·
+          120s today", which is the whole pricing model expressed as two raw
+          second counts and no way to act on either. It now names the plan,
+          says what is left of the month in minutes, and opens the sheet — so
+          the answer to "what am I on and what else is there" is one tap from
+          the place people hit the limit. */}
       {quota && !loadingQuota ? (
-        <p className="mt-3 text-center text-[11px] text-muted-foreground">
-          {quota.remaining}s of free Story time left · {quota.dailyLeft}s today
-          {quota.paidSeconds > 0 ? ` · ${quota.paidSeconds}s purchased` : null}
-        </p>
+        <button
+          type="button"
+          onClick={() => setPlanOpen(true)}
+          className="mt-3 flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card/60 px-3.5 py-2.5 text-left"
+        >
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold">
+              {quota.admin ? "Owner — everything included" : quota.planLabel}
+            </span>
+            <span className="block truncate text-[11px] text-muted-foreground">
+              {quota.admin
+                ? "You ride free"
+                : `${sayLeft(quota.remaining)} left this month${
+                    quota.paidSeconds > 0 ? ` · ${sayLeft(quota.paidSeconds)} topped up` : ""
+                  }`}
+            </span>
+          </span>
+          <span className="shrink-0 text-[11px] font-semibold text-primary">
+            {quota.plan === "free" ? "See plans" : "Manage"}
+          </span>
+        </button>
       ) : null}
+
+      <PlanSheet
+        open={planOpen}
+        onClose={() => {
+          setPlanOpen(false);
+          // The plan may have changed under it — a cancel, or a return from
+          // checkout. Re-read rather than trusting what was rendered.
+          void supabase.rpc("story_quota_status").then(({ data, error: e }) => {
+            if (!e) setQuota(readQuota(data));
+          });
+        }}
+        currentPlan={quota?.plan ?? "free"}
+        renewsOn={quota?.renewsOn ?? null}
+        cancelAtPeriodEnd={quota?.cancelAtPeriodEnd ?? false}
+        /**
+         * NO CHECKOUT YET, AND THEREFORE NO BUTTON.
+         *
+         * Plus needs a purchase path of its own — the top-up checkout sells
+         * seconds, not months, and pointing "Get ONIQ Plus" at it would be the
+         * deceptive purchase experience Play's own policy names. Passing null
+         * renders a sentence saying so instead of a button that lies or a
+         * greyed-out one that reads as a bug.
+         *
+         * The rail underneath has also never carried a completed transaction,
+         * which is the reason this is the next piece rather than this one.
+         */
+        onChoose={null}
+      />
     </div>
   );
 }

@@ -26,6 +26,7 @@ import {
   maxIncludedSecondsFor,
   planMarginAt,
 } from "@/lib/storyCostModel";
+import { sayAllowance, sayLeft } from "@/components/stories/PlanSheet";
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 const PLANS = read("supabase/migrations/20260816060000_monthly_plans.sql");
@@ -229,5 +230,55 @@ describe("the claim, on a monthly allowance", () => {
     ]) {
       expect(CLAIM_SQL, `${k} disappeared from the status payload`).toContain(k);
     }
+  });
+});
+
+describe("what the plan screen says", () => {
+  it("says balances as film, not as database seconds", () => {
+    // "480s" is what the row holds and nobody thinks in. Seconds survive under
+    // a minute because "0.5 min" is worse than "30s".
+    expect(sayLeft(480)).toBe("8 min");
+    expect(sayLeft(60)).toBe("1 min");
+    expect(sayLeft(90)).toBe("1 min 30s");
+    expect(sayLeft(30)).toBe("30s");
+    expect(sayLeft(0)).toBe("Nothing");
+    expect(sayLeft(-5), "a negative balance must not render as film").toBe("Nothing");
+  });
+
+  it("describes an allowance in the plan's own terms", () => {
+    expect(sayAllowance(480)).toBe("8 minutes of film a month");
+    expect(sayAllowance(60)).toBe("1 minute of film a month");
+    expect(sayAllowance(90)).toBe("90s of film a month");
+    expect(sayAllowance(0)).toBe("No film included");
+  });
+
+  it("reads the plans from the database rather than listing them again", () => {
+    // A second copy of the price in TypeScript is a second copy to drift, and
+    // the one in the database is the one that bills.
+    const ui = readFileSync(join(process.cwd(), "src/components/stories/PlanSheet.tsx"), "utf8");
+    expect(ui).toContain('.from("subscription_plans")');
+    expect(ui, "a hardcoded price would drift from the row that bills").not.toMatch(/49900|₹499/);
+  });
+
+  it("never offers to sell what it cannot sell", () => {
+    const ui = readFileSync(join(process.cwd(), "src/components/stories/PlanSheet.tsx"), "utf8");
+    // With no checkout wired, a sentence — not a dead or greyed-out button,
+    // which reads as a bug in the app rather than a fact about the world.
+    expect(ui).toContain("Not on sale in this app yet.");
+    const studio = readFileSync(
+      join(process.cwd(), "src/components/stories/StoryStudio.tsx"),
+      "utf8",
+    );
+    expect(studio, "the Plus CTA points somewhere before a plan checkout exists").toContain(
+      "onChoose={null}",
+    );
+  });
+
+  it("tells the truth about cancelling", () => {
+    // Cancelling does not take the paid month away, and the copy has to carry
+    // that or the button reads as "lose access now".
+    const ui = readFileSync(join(process.cwd(), "src/components/stories/PlanSheet.tsx"), "utf8");
+    expect(ui).toContain("you keep it until then");
+    expect(ui).toContain("You keep Plus until");
   });
 });
