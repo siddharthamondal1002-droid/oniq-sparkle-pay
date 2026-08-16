@@ -31,6 +31,7 @@
  * (storyPricing, modelRegistry). `storyFixtures.mjs` has no side effects and
  * IS imported, so the fixture half is tested for real.
  */
+import { spawnSync } from "node:child_process";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -58,6 +59,30 @@ const WORKER = readFileSync(join(ROOT, WORKER_PATH), "utf8");
 function codeOnly(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 }
+
+/**
+ * An ffmpeg this machine can actually encode with, or null.
+ *
+ * `findBin` looks inside remotion's own node_modules for the compositor build.
+ * The lint workflow runs `npm ci` at the repo root only, so on CI that path
+ * does not exist and findBin throws — which is how the clip test took the
+ * whole suite down after passing locally, where those deps are installed.
+ *
+ * So: prefer the binary the worker itself would find (that is the one whose
+ * cut-down filter surface the fixture has to respect), fall back to a system
+ * ffmpeg, and report null when there is neither. A machine with no ffmpeg at
+ * all cannot run a dry run either, so there is nothing there to protect.
+ */
+function resolveFfmpeg(): string | null {
+  try {
+    return findBin("ffmpeg");
+  } catch {
+    // remotion's dependencies are not installed here.
+  }
+  const probe = spawnSync("ffmpeg", ["-version"], { stdio: "ignore" });
+  return probe.status === 0 ? "ffmpeg" : null;
+}
+const FFMPEG = resolveFfmpeg();
 
 /** Every `async function name(...) { ... }` body, by brace matching. */
 function functionBodies(src: string): Map<string, string> {
@@ -198,43 +223,71 @@ describe("fixture answers match the keys the worker reads", () => {
     expect(payload(got).length).toBeGreaterThan(0);
   });
 
-  it("story-clip answers a poll with `data`, base64 of a playable mp4", async () => {
-    /**
-     * The most-bitten assertion in this file, and the only one that shells out.
-     *
-     * It has failed twice for two different reasons, both silent. First the
-     * fixture answered with `video` where the worker reads `data`, so the
-     * happy path was dead code. Then it built the mp4 with a lavfi filter
-     * source the compositor's cut-down ffmpeg does not have, so every poll
-     * threw and every shot "fell back" to its still while the ledger printed
-     * successful clip calls. Both times the run finished and looked fine.
-     *
-     * So this encodes for real, with the same binary the worker finds.
-     */
-    const clipDir = join(FIXTURES_ROOT, "clip-refused");
-    const edge = createFixtureEdge(clipDir, { ffmpeg: findBin("ffmpeg") });
-    await expect(edge("story-clip", { action: "start", seconds: 4 })).rejects.toThrow(/422/);
-    const started = await edge("story-clip", { action: "start", seconds: 4 });
-    expect(started?.operation).toBeTruthy();
-
-    // `polls: 1` — one pending answer before the real one.
-    const pending = await edge("story-clip", {
-      action: "poll",
-      operation: started?.operation,
-    });
-    expect(pending?.done).toBe(false);
-
-    const done = await edge("story-clip", { action: "poll", operation: started?.operation });
-    expect(done?.done).toBe(true);
-    expect(done?.mime).toBe("video/mp4");
-    // An mp4's first box is `ftyp`, at offset 4. Cheaper than a probe and it
-    // fails on the empty buffer a broken encode would leave behind.
-    expect(
-      payload(done as FixtureAnswer)
-        .subarray(4, 8)
-        .toString("latin1"),
-    ).toBe("ftyp");
+  /**
+   * The clip builder must stay inside the compositor ffmpeg's tiny surface,
+   * and this assertion runs EVERYWHERE — including on a bare CI runner with no
+   * ffmpeg at all, where the encode test below cannot.
+   *
+   * That distinction is the whole reason this exists as a separate test. The
+   * encoding version depends on a binary that only appears once remotion's own
+   * dependencies are installed, which the lint workflow does not do; relying on
+   * it alone meant the regression it guards was unguarded in CI. A static
+   * assertion cannot prove the mp4 is playable, but it does catch the exact
+   * mistake that was made — reaching for a filter this build does not carry.
+   */
+  it("the clip builder uses no ffmpeg filter, on any machine", () => {
+    const src = codeOnly(readFileSync(join(ROOT, "remotion/scripts/storyFixtures.mjs"), "utf8"));
+    // findFfmpeg.mjs documents the build: libx264, the mp4/wav muxers, crop,
+    // scale, trim, silencedetect. No filter SOURCE, so lavfi cannot generate.
+    expect(src).not.toMatch(/lavfi/);
+    expect(src).not.toMatch(/filter_complex/);
+    // The route that needs no filter: loop one PNG through the image2 demuxer.
+    expect(src).toMatch(/'-loop'/);
   });
+
+  it.skipIf(!FFMPEG)(
+    "story-clip answers a poll with `data`, base64 of a playable mp4",
+    async () => {
+      /**
+       * The most-bitten assertion in this file, and the only one that shells out.
+       *
+       * It has failed twice for two different reasons, both silent. First the
+       * fixture answered with `video` where the worker reads `data`, so the
+       * happy path was dead code. Then it built the mp4 with a lavfi filter
+       * source the compositor's cut-down ffmpeg does not have, so every poll
+       * threw and every shot "fell back" to its still while the ledger printed
+       * successful clip calls. Both times the run finished and looked fine.
+       *
+       * So this encodes for real, with the same binary the worker finds — and
+       * skips only where there is no ffmpeg to find, which is also a machine
+       * where no dry run could run either. The filter-surface test above still
+       * runs there.
+       */
+      const clipDir = join(FIXTURES_ROOT, "clip-refused");
+      const edge = createFixtureEdge(clipDir, { ffmpeg: FFMPEG });
+      await expect(edge("story-clip", { action: "start", seconds: 4 })).rejects.toThrow(/422/);
+      const started = await edge("story-clip", { action: "start", seconds: 4 });
+      expect(started?.operation).toBeTruthy();
+
+      // `polls: 1` — one pending answer before the real one.
+      const pending = await edge("story-clip", {
+        action: "poll",
+        operation: started?.operation,
+      });
+      expect(pending?.done).toBe(false);
+
+      const done = await edge("story-clip", { action: "poll", operation: started?.operation });
+      expect(done?.done).toBe(true);
+      expect(done?.mime).toBe("video/mp4");
+      // An mp4's first box is `ftyp`, at offset 4. Cheaper than a probe and it
+      // fails on the empty buffer a broken encode would leave behind.
+      expect(
+        payload(done as FixtureAnswer)
+          .subarray(4, 8)
+          .toString("latin1"),
+      ).toBe("ftyp");
+    },
+  );
 
   it("an unhandled function returns null so the seam stays honest", async () => {
     // `null` means "no opinion" and lets the real call through. Nothing in a
