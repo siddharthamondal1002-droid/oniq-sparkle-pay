@@ -4357,6 +4357,7 @@ export type Database = {
         Returns: boolean
       }
       delete_my_account: { Args: never; Returns: undefined }
+      delete_story_job: { Args: { _job_id: string }; Returns: Json }
       dsr_hard_purge_due: { Args: never; Returns: number }
       dsr_promote_due_erasures: { Args: never; Returns: number }
       email_queue_dispatch: { Args: never; Returns: undefined }
