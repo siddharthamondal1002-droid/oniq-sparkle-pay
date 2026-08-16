@@ -26,6 +26,11 @@ public class OniqMessagingService extends FirebaseMessagingService {
     private static final String CALL_CHANNEL_ID = "oniq_calls";
     private static final String MSG_CHANNEL_ID = "oniq_messages";
     private static final int CALL_NOTIFICATION_ID = 4242;
+    /** Group key + summary id for stacked conversation notifications. */
+    private static final String MSG_GROUP = "oniq_messages_group";
+    private static final int MSG_SUMMARY_ID = 4243;
+    /** ONIQ teal. Tints the notification on the surfaces that honour it. */
+    private static final int BRAND_TEAL = 0xFF00D4B8;
 
     @Override
     public void onNewToken(String token) {
@@ -201,7 +206,7 @@ public class OniqMessagingService extends FirebaseMessagingService {
         // message, forever; per-conversation ids collapse a chat into a single
         // entry that each new message replaces.
         String convKey = safe(data.get("conversation_id"), url);
-        int convId = 0x20000000 | (convKey.hashCode() & 0x0fffffff);
+        int convId = conversationNotificationId(convKey);
         Intent tap = new Intent(ctx, MainActivity.class);
         tap.setAction(Intent.ACTION_VIEW);
         tap.setData(Uri.parse("oniq://push/" + Uri.encode(convKey)));
@@ -213,14 +218,133 @@ public class OniqMessagingService extends FirebaseMessagingService {
         }
         PendingIntent pi = PendingIntent.getActivity(ctx, convId, tap, piFlags);
 
+        /*
+         * MessagingStyle, not a plain title+text.
+         *
+         * This is the template Android publishes FOR real-time conversation,
+         * and using it is not decoration. Three things fall out of it that the
+         * old two-line notification could not do:
+         *
+         *   - the sender becomes a Person rather than a string, so the system
+         *     can rank the notification against starred contacts and show it
+         *     as a conversation;
+         *   - several messages from one chat stack INSIDE one entry instead of
+         *     each replacing the last. The previous build kept one tray entry
+         *     per conversation, which was right, but the cost was that message
+         *     four silently erased messages one to three — you saw the newest
+         *     line and had no idea what you had missed;
+         *   - history survives this service being killed between pushes,
+         *     because it is read back off the live notification rather than
+         *     held in memory here.
+         */
+        String sender = safe(title, "New message");
+        androidx.core.app.Person person =
+            new androidx.core.app.Person.Builder().setName(sender).setKey(convKey).build();
+
+        NotificationCompat.MessagingStyle style = null;
+        Notification existing = findActive(nm, convId);
+        if (existing != null) {
+            style = NotificationCompat.MessagingStyle
+                .extractMessagingStyleFromNotification(existing);
+        }
+        if (style == null) {
+            // "You" is the local user, and it is never shown for a one-to-one
+            // chat — it only labels the display name of the conversation.
+            style = new NotificationCompat.MessagingStyle(
+                new androidx.core.app.Person.Builder().setName("You").build());
+        }
+        style.addMessage(safe(body, ""), System.currentTimeMillis(), person);
+
         Notification n = new NotificationCompat.Builder(ctx, MSG_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_oniq)
-            .setContentTitle(safe(title, "New message"))
-            .setContentText(safe(body, ""))
+            .setStyle(style)
+            // Ranking and filtering hint. The call path has always set its
+            // category; this one never did, so Android had nothing to go on.
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            // EXPLICIT, though it matches the effective default. A private
+            // message must not put its text on a locked screen, and leaving
+            // that to a default nobody has written down is how it changes by
+            // accident later.
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setColor(BRAND_TEAL)
+            .setGroup(MSG_GROUP)
             .setAutoCancel(true)
             .setContentIntent(pi)
             .build();
         nm.notify(convId, n);
+        postGroupSummary(ctx, nm);
+    }
+
+    /**
+     * The parent entry that several conversations collapse under.
+     *
+     * Without it, three people messaging at once is three separate rows with
+     * three identical ONIQ headers. Android only honours the group once there
+     * is a summary to hang it on, which is why this posts alongside rather
+     * than being implied by setGroup.
+     */
+    private void postGroupSummary(Context ctx, NotificationManager nm) {
+        Notification summary = new NotificationCompat.Builder(ctx, MSG_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_oniq)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setColor(BRAND_TEAL)
+            .setGroup(MSG_GROUP)
+            .setGroupSummary(true)
+            .setAutoCancel(true)
+            .build();
+        nm.notify(MSG_SUMMARY_ID, summary);
+    }
+
+    /** The live notification with this id, or null. Used to read back history. */
+    private static Notification findActive(NotificationManager nm, int id) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return null;
+        try {
+            for (android.service.notification.StatusBarNotification sbn :
+                    nm.getActiveNotifications()) {
+                if (sbn.getId() == id) return sbn.getNotification();
+            }
+        } catch (Throwable ignored) {
+            // getActiveNotifications throws on some OEM builds; a missing
+            // history means the next message starts a fresh thread, which is
+            // the old behaviour rather than a failure.
+        }
+        return null;
+    }
+
+    /**
+     * Drop the group summary once no conversation is left under it.
+     *
+     * Android is meant to remove a summary with its last child and on most
+     * builds does. On the ones that do not, cancelling the only chat leaves an
+     * empty ONIQ header behind, which reads as a notification you cannot open.
+     */
+    static void cancelSummaryIfEmpty(Context ctx, NotificationManager nm) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return;
+        try {
+            for (android.service.notification.StatusBarNotification sbn :
+                    nm.getActiveNotifications()) {
+                if (sbn.getId() != MSG_SUMMARY_ID
+                    && MSG_GROUP.equals(sbn.getNotification().getGroup())) {
+                    return; // a child is still there
+                }
+            }
+            nm.cancel(MSG_SUMMARY_ID);
+        } catch (Throwable ignored) {
+            /* leave it rather than risk cancelling something else */
+        }
+    }
+
+    /**
+     * ONE notification id per conversation — the single copy of this rule.
+     *
+     * NotificationTrayPlugin cancels by conversation id and has to arrive at
+     * exactly the same number, so it calls this rather than re-deriving it.
+     * Two implementations of a hash that must agree is a bug waiting for the
+     * day someone "tidies" one of them.
+     */
+    static int conversationNotificationId(String conversationKey) {
+        return 0x20000000 | (conversationKey.hashCode() & 0x0fffffff);
     }
 
     private static String safe(String v, String fallback) {

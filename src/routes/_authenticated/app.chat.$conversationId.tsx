@@ -40,6 +40,7 @@ import {
   Image as ImageIcon,
   Languages,
 } from "lucide-react";
+import { clearConversationNotification } from "@/lib/notificationTray";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
 import { ChannelSubBar } from "@/components/chat/ChannelSubBar";
 import { doodleSurfaceStyle } from "@/lib/chatWallpaper";
@@ -299,6 +300,12 @@ function ChatThread() {
     // A different conversation starts at the bottom again. Without this the
     // window stays as wide as whatever the last thread was expanded to.
     setWindowSize(WINDOW_STEP);
+  }, [conversationId]);
+  // Opening the thread makes any tray entry for it stale — the whole point of
+  // the notification was to get you here. Nothing used to clear it, so a chat
+  // you had already read kept a notification until you swiped it away.
+  useEffect(() => {
+    void clearConversationNotification(conversationId);
   }, [conversationId]);
   const [deleteConfirm, setDeleteConfirm] = useState<Message | null>(null);
   const [infoFor, setInfoFor] = useState<Message | null>(null);

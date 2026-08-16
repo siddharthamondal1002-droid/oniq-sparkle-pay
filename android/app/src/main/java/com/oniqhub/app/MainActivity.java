@@ -44,6 +44,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CallSettingsPlugin.class);
         registerPlugin(MediaSaverPlugin.class);
         registerPlugin(SystemBarsPlugin.class);
+        registerPlugin(NotificationTrayPlugin.class);
 
         super.onCreate(savedInstanceState);
         applyCallWindowFlags(getIntent());
