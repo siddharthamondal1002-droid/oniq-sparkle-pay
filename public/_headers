@@ -1,18 +1,25 @@
-# frame-src carries the YouTube embed origins again — owner directive,
-# 2026-08-16 (evening), reversing the link-only posture set earlier that day.
-# Watch plays channels in YouTube's OWN player and the browser has to be
-# allowed to frame it.
+# YouTube is allowed in BOTH frame-src and script-src — owner directive,
+# 2026-08-16 (evening): "loop player in home screen toggle like before with
+# autoplay". Watch and the Home loop play channels in YouTube's OWN player.
 #
-# WHAT IS DELIBERATELY STILL ABSENT: youtube.com and s.ytimg.com in
-# SCRIPT-SRC. The embed needs a frame, not a script — the IFrame Player API
-# (which is what those hosts are for) would let ONIQ drive playback, and
-# nothing here needs to. Leaving script-src closed means an attempt to load
-# the player API fails loudly instead of quietly widening what the app can do
-# with somebody else's video. See src/data/watchDirectory.ts.
+# frame-src: the browser has to be allowed to frame the embed at all.
+#
+# script-src: www.youtube.com and s.ytimg.com serve the IFrame Player API.
+# Earlier the same day this line deliberately excluded them, on the reasoning
+# that a frame needs no script. That reasoning does not survive a LOOP: a plain
+# frame cannot tell the page that a video ENDED or ERRORED, and those two
+# events are the whole of a loop. Autoplay needs playVideo() on ready for the
+# same reason — the URL parameter alone is unreliable inside a WebView.
+#
+# WHAT THE API DOES NOT WIDEN, which is the line actually worth guarding: it
+# OPERATES YouTube's player, it does not hand ONIQ the video. No stream URL is
+# resolved, stored or proxied anywhere in the app, and
+# src/data/__tests__/watchDirectory.test.ts fails if one ever is.
+#
 # accounts.google.com stays in frame-src for OAuth.
 /*
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(self), camera=(self), microphone=(self), payment=()
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com; frame-src https://accounts.google.com https://www.youtube-nocookie.com https://www.youtube.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://www.youtube.com https://s.ytimg.com; frame-src https://accounts.google.com https://www.youtube-nocookie.com https://www.youtube.com; img-src 'self' data: blob: https:; media-src 'self' blob: https:; connect-src 'self' https: wss:; style-src 'self' 'unsafe-inline'; font-src 'self' data: https:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'

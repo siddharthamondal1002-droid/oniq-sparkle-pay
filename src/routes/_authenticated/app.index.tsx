@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +15,9 @@ import {
   VolumeX,
   ArrowRight,
   ChevronRight,
+  SkipBack,
+  SkipForward,
+  Tv,
 } from "lucide-react";
 import { useVitalsTileColor } from "@/components/vitals/useVitalsTileColor";
 
@@ -35,6 +38,8 @@ import { tileName, type TileKey } from "@/lib/i18n/tileLabel";
 import { AnticipatoryCard } from "@/components/home/AnticipatoryCard";
 import { recordSignal } from "@/lib/personalisation";
 import { LORE_COLLECTIONS } from "@/data/lores";
+import { WatchPlayer, type WatchPlayerHandle } from "@/components/watch/WatchPlayer";
+import { uploadsPlaylistId, watchDirectoryFor } from "@/data/watchDirectory";
 import { AiOutputReport } from "@/components/safety/AiOutputReport";
 
 export const Route = createFileRoute("/_authenticated/app/")({
@@ -771,10 +776,14 @@ function AlsoInOniqRow({
 
 // ---------- Home media banner: Study / Moments / Mast ----------
 
-type BannerMode = "study" | "moments" | "mast";
+type BannerMode = "study" | "moments" | "mast" | "watch";
 const BANNER_MODE_KEY = "oniq.home.banner.mode";
 
-const BANNER_MODES: BannerMode[] = ["study", "moments", "mast"];
+const BANNER_MODES: BannerMode[] = ["study", "moments", "mast", "watch"];
+
+function isBannerMode(v: unknown): v is BannerMode {
+  return typeof v === "string" && (BANNER_MODES as string[]).includes(v);
+}
 
 function HomeMediaBanner() {
   const [hidden] = useHiddenTiles();
@@ -786,7 +795,7 @@ function HomeMediaBanner() {
     if (typeof window === "undefined") return "study";
     try {
       const v = localStorage.getItem(BANNER_MODE_KEY);
-      if (v === "study" || v === "moments" || v === "mast") return v;
+      if (isBannerMode(v)) return v;
     } catch {
       /* noop */
     }
@@ -801,21 +810,27 @@ function HomeMediaBanner() {
   }, [mode]);
 
   const [home] = useCountry();
+  // Watch is registered India-only in the country registry, and this is where
+  // the Home surface honours that. `isAvailable` answers TRUE for anything
+  // unregistered, so the gate has to be read here rather than assumed.
+  const watchAvailable = isAvailable("watch", home);
 
-  // If the current tab is hidden (persisted or just toggled), fall back to
-  // the first tab that's still visible.
+  // If the current tab is hidden (persisted, just toggled, or unavailable in
+  // this country), fall back to the first tab that's still visible.
+  const offered = BANNER_MODES.filter((m) => m !== "watch" || watchAvailable);
   useEffect(() => {
-    if (hidden.has(mode)) {
-      const first = BANNER_MODES.find((m) => !hidden.has(m));
+    if (hidden.has(mode) || !offered.includes(mode)) {
+      const first = offered.find((m) => !hidden.has(m));
       if (first) setMode(first);
     }
-  }, [mode, hidden]);
+    // `offered` is rebuilt every render; its CONTENT is what matters here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, hidden, watchAvailable]);
 
-  const tabs: { id: BannerMode; label: string }[] = [
-    { id: "study", label: tileName(lang, "study", home) },
-    { id: "moments", label: tileName(lang, "moments", home) },
-    { id: "mast", label: tileName(lang, "mast", home) },
-  ];
+  const tabs: { id: BannerMode; label: string }[] = offered.map((id) => ({
+    id,
+    label: tileName(lang, id, home),
+  }));
   const visibleTabs = tabs.filter((tb) => !hidden.has(tb.id));
 
   if (visibleTabs.length === 0) {
@@ -852,6 +867,7 @@ function HomeMediaBanner() {
       {mode === "study" && !hidden.has("study") && <StudyHero />}
       {mode === "moments" && !hidden.has("moments") && <MomentsPreview />}
       {mode === "mast" && !hidden.has("mast") && <MastPreview />}
+      {mode === "watch" && watchAvailable && !hidden.has("watch") && <WatchPreview />}
     </div>
   );
 }
@@ -1018,6 +1034,162 @@ type ClipPreview = {
 
 // Originals with a playable file, flattened once — the home loop's playlist.
 const HOME_ORIGINALS = LORE_COLLECTIONS.flatMap((c) => c.videos).filter((v) => !!v.url);
+
+/**
+ * The Home Watch loop — back under the banner toggle, autoplaying, muted.
+ *
+ * Owner directive, 2026-08-16 (evening): "loop player in home screen toggle
+ * like before with autoplay". This is the tile that was removed with the rest
+ * of Watch at d879305b, rebuilt on the same toggle the other home loops use
+ * rather than as a tile of its own — one card, one player, one place a user
+ * looks for it.
+ *
+ * TWO THINGS THAT LOOK LIKE OMISSIONS AND ARE NOT.
+ *
+ * Nothing is layered on the frame. The mast and originals faces put a mute
+ * button, a gradient and a dot row on top of their <video>; those are ONIQ's
+ * own files and it may. YouTube's embed terms forbid rendering anything in
+ * front of any part of their player, so every control here sits above or
+ * below the frame, and the mute button drives the player through the API
+ * instead of covering it.
+ *
+ * And it starts MUTED, which is what autoplay means in a browser. Unmuted
+ * autoplay is refused outright; the speaker button under the frame is the
+ * user gesture that turns sound on, and taking it registers with the
+ * single-audio-source coordinator so nothing else on Home keeps playing.
+ */
+function WatchPreview() {
+  const navigate = useNavigate();
+  const media = useMediaCoordinator();
+  const playerRef = useRef<WatchPlayerHandle | null>(null);
+  const [idx, setIdx] = useState(0);
+  const [muted, setMuted] = useState(true);
+  const [dead, setDead] = useState(false);
+  const failStreakRef = useRef(0);
+
+  // Live feeds are excluded from the HOME loop deliberately: a live channel
+  // never ends, so it cannot rotate, and a 24/7 news feed starting itself on
+  // the home screen is a different thing from a playlist looping. The Watch
+  // screen carries them; this carries the loops.
+  const loopable = useMemo(
+    () => watchDirectoryFor(null).filter((e) => uploadsPlaylistId(e) !== null),
+    [],
+  );
+  const current = loopable.length ? loopable[idx % loopable.length] : null;
+
+  const advance = useCallback(
+    (reason: "error" | "ended") => {
+      const total = loopable.length;
+      if (total === 0) return;
+      if (reason === "error") failStreakRef.current += 1;
+      if (failStreakRef.current >= total) {
+        setDead(true);
+        return;
+      }
+      setIdx((i) => (i + 1) % total);
+    },
+    [loopable.length],
+  );
+
+  const bindPlayer = useCallback((h: WatchPlayerHandle | null) => {
+    playerRef.current = h;
+    setMuted(true);
+  }, []);
+
+  const toggleMute = () => {
+    const p = playerRef.current;
+    if (!p) return;
+    if (p.isMuted()) {
+      media.register({ pause: () => p.pause(), mute: () => p.mute() });
+      p.unMute();
+      setMuted(false);
+    } else {
+      p.mute();
+      setMuted(true);
+    }
+  };
+
+  const step = (delta: number) => {
+    if (loopable.length === 0) return;
+    failStreakRef.current = 0;
+    setDead(false);
+    setIdx((i) => (i + delta + loopable.length) % loopable.length);
+  };
+
+  return (
+    <div
+      className="fade-up relative overflow-hidden rounded-3xl border border-border p-4"
+      style={{
+        background:
+          "radial-gradient(120% 90% at 0% 0%, #00D4B840 0%, #00D4B810 40%, transparent 70%), radial-gradient(120% 90% at 100% 100%, #00A8E833 0%, #00A8E80d 45%, transparent 75%), hsl(var(--card))",
+      }}
+    >
+      <div className="flex items-center justify-between">
+        <div className="inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-foreground">
+          <Tv className="h-3 w-3" /> watch 📺
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate({ to: "/app/watch" })}
+          className="press inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"
+        >
+          Open all <ChevronRight className="h-3 w-3" />
+        </button>
+      </div>
+
+      {/* THE FRAME, AND NOTHING OVER IT. */}
+      <div className="relative mt-3 aspect-video w-full overflow-hidden rounded-xl border border-border/60 bg-black">
+        {dead || !current ? (
+          <div className="absolute inset-0 grid place-items-center p-4 text-center text-xs text-muted-foreground">
+            streams are napping — try later 📺
+          </div>
+        ) : (
+          <WatchPlayer
+            key={current.channelId}
+            entry={current}
+            autoplay
+            onAdvance={advance}
+            onReady={bindPlayer}
+            className="absolute inset-0 h-full w-full"
+          />
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <div className="flex items-center gap-1 rounded-full border border-border bg-card/70 p-1">
+          <button
+            type="button"
+            onClick={() => step(-1)}
+            aria-label="Previous channel"
+            className="press grid h-7 w-7 place-items-center rounded-full text-foreground"
+          >
+            <SkipBack className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => step(1)}
+            aria-label="Next channel"
+            className="press grid h-7 w-7 place-items-center rounded-full text-foreground"
+          >
+            <SkipForward className="h-3.5 w-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={toggleMute}
+            aria-label={muted ? "Unmute" : "Mute"}
+            aria-pressed={muted}
+            className="press grid h-7 w-7 place-items-center rounded-full text-foreground"
+          >
+            {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
+          </button>
+        </div>
+        <div className="min-w-0 flex-1 truncate text-xs text-foreground">
+          {current ? current.name : "—"}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function MastPreview() {
   const navigate = useNavigate();

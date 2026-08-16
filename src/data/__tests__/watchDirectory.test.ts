@@ -88,10 +88,16 @@ describe("nothing streams, embeds, proxies or resolves — anywhere", () => {
    * retired `live-channels` function did, with a spoofed User-Agent and a
    * consent cookie, and it is still forbidden.
    */
-  it("drives no player of its own — the IFrame Player API stays out", () => {
-    // The API is how a page controls playback programmatically. Nothing here
-    // needs to, and loading it would widen what ONIQ can do with somebody
-    // else's video from "show it" to "operate it".
+  it("operates the player from exactly one file, and nowhere else", () => {
+    // REVERSED, deliberately. This test used to assert the IFrame Player API
+    // was absent everywhere, on the reasoning that a frame needs no script.
+    // The owner restored the loop player with autoplay on 2026-08-16 evening,
+    // and a loop cannot exist without the API: a plain frame cannot report
+    // that a video ENDED or ERRORED, and those two events ARE the loop.
+    //
+    // What the test still guards is the thing that actually matters — the API
+    // lives in ONE reviewable place. Scattered YT.Player calls are how a
+    // second, subtly different player grows in a file nobody looks at.
     const offenders: string[] = [];
     for (const p of sourceFiles) {
       const code = codeOf(p);
@@ -99,7 +105,7 @@ describe("nothing streams, embeds, proxies or resolves — anywhere", () => {
         offenders.push(p.slice(ROOT.length + 1));
       }
     }
-    expect(offenders).toEqual([]);
+    expect(offenders).toEqual(["src/components/watch/WatchPlayer.tsx"]);
   });
 
   it("resolves, stores and proxies no stream URL", () => {
@@ -127,16 +133,23 @@ describe("nothing streams, embeds, proxies or resolves — anywhere", () => {
   });
 
   it("no thumbnail is taken from the destination", () => {
-    const offenders = sourceFiles.filter((p) => /ytimg\.com/.test(codeOf(p)));
+    // The THUMBNAIL host specifically. `s.ytimg.com` is a different thing —
+    // it serves the IFrame Player API's own assets, is named in the CSP and
+    // in the Play data declaration, and does not fetch anybody's artwork. A
+    // bare /ytimg/ sweep flagged the declaration that exists to disclose it.
+    const offenders = sourceFiles.filter((p) =>
+      /\b(i|img)\d*\.ytimg\.com|ytimg\.com\/vi\//.test(codeOf(p)),
+    );
     expect(offenders.map((p) => p.slice(ROOT.length + 1))).toEqual([]);
   });
 
-  it("the CSP permits the FRAME and still refuses the SCRIPT", () => {
-    // The asymmetry is the point and it is easy to lose. frame-src has to
-    // allow the embed or the browser refuses to render it. script-src must
-    // stay closed: those hosts serve the IFrame Player API, and leaving them
-    // out means an attempt to drive playback fails loudly rather than
-    // quietly widening what the app does with somebody else's video.
+  it("the CSP permits the frame AND the player API, and still refuses images", () => {
+    // script-src carries the YouTube hosts again — the loop player needs the
+    // IFrame Player API, and a CSP that blocks it turns the loop into a
+    // single video that stops. What the CSP cannot express is the thumbnail
+    // rule (img-src is `https:` for user avatars and uploads), so that one is
+    // held by the ytimg test above instead. Both are asserted; neither is
+    // assumed.
     const headers = readFileSync(join(ROOT, "public/_headers"), "utf8")
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("#"))
@@ -146,7 +159,8 @@ describe("nothing streams, embeds, proxies or resolves — anywhere", () => {
     const frameSrc = csp.match(/frame-src([^;]*)/)?.[1] ?? "";
     const scriptSrc = csp.match(/script-src([^;]*)/)?.[1] ?? "";
     expect(frameSrc, "the embed origin is not framed").toContain("youtube-nocookie.com");
-    expect(scriptSrc, "the IFrame Player API is loadable again").not.toMatch(/youtube|ytimg/i);
+    expect(scriptSrc, "the IFrame Player API cannot load").toContain("https://www.youtube.com");
+    expect(scriptSrc, "the player API's asset host cannot load").toContain("https://s.ytimg.com");
   });
 
   it("the retired live-channels edge function is gone, not just unused", () => {
@@ -229,37 +243,42 @@ describe("every entry is a link that leaves the app", () => {
     expect(landing, "landing page still mentions Watch").not.toMatch(/\bWatch\b/);
   });
 
-  it("the home screen has no stream preview, and its Watch tile only links", () => {
-    // THE TILE CAME BACK, THE PLAYER DID NOT (owner directive, 2026-08-16).
+  it("the home loop borrows the shared player and is India-gated", () => {
+    // THE LOOP CAME BACK (owner directive, 2026-08-16 evening: "loop player in
+    // home screen toggle like before with autoplay").
     //
-    // This used to forbid the string "watch" on Home outright, as a proxy for
-    // "no Watch surface exists". The owner resurfaced the directory, so the
-    // proxy is retired and the real property is asserted directly: Home may
-    // point AT Watch, and must still carry no player machinery of its own.
-    const src = readFileSync(join(ROOT, "src/routes/_authenticated/app.index.tsx"), "utf8");
-    expect(src).not.toMatch(/livePreview|loadYouTubeApi|useLiveGenres/);
-    // If the tile is there at all it goes to the directory route, not to an
+    // Two earlier versions of this test are now both retired: one forbade the
+    // string "watch" on Home outright, the other forbade any player machinery.
+    // What is worth asserting is narrower and survives both reversals — Home
+    // must not grow a SECOND player. It uses the one component, and it honours
+    // the India gate rather than rendering a YouTube frame in every country.
+    const src = codeOf(join(ROOT, "src/routes/_authenticated/app.index.tsx"));
+    expect(src, "Home revived the retired live-channels client").not.toMatch(
+      /livePreview|useLiveGenres|loadYouTubeApi|YT\.Player/,
+    );
+    expect(src, "Home does not use the shared player").toContain("<WatchPlayer");
+    expect(src, "the Home loop is not India-gated").toMatch(/isAvailable\("watch", home\)/);
+    // If the tile is there at all it goes to the Watch route, not to an
     // embed, a channel id, or a stream.
     if (/\{ key: "watch"/.test(src)) {
       expect(src).toMatch(/\{ key: "watch", to: "\/app\/watch" \}/);
     }
   });
 
-  it("the Watch screen plays in YouTube's frame, on a tap, and stays India-gated", () => {
+  it("the Watch screen plays in YouTube's frame and stays India-gated", () => {
     const src = codeOf(join(ROOT, "src/routes/_authenticated/app.watch.tsx"));
-    // The player is an iframe whose src comes from the shared helper — not a
-    // URL assembled here, where it could quietly grow a different shape.
-    expect(src).toContain("<iframe");
-    expect(src).toContain("embedUrl(entry)");
+    // The frame is the shared component's, not one assembled here where it
+    // could quietly grow a different shape.
+    expect(src).toContain("<WatchPlayer");
     expect(src, "the screen builds its own YouTube URL").not.toMatch(/https:\/\/[^"'`]*youtube/);
     // No <video> of ONIQ's own: that is the shape that needs a resolved
     // stream, which is the thing that must never come back.
     expect(src, "a native video element implies a resolved stream").not.toMatch(/<video/);
-    // Nothing is drawn over the frame — a condition of using the embed, and
-    // exactly what a later "improvement" breaks by accident.
-    expect(src).not.toMatch(/absolute[^"'`]*z-\d+[^"'`]*"\s*\/>\s*<\/div>\s*<\/div>\s*<iframe/);
-    // Handle-only entries cannot have a playlist derived, so they stay links.
-    expect(src).toContain("canPlay");
+    // Handle-only entries cannot have a playlist derived, so they are split
+    // out of the strip and rendered as honest link-outs instead of a play
+    // button that would open an empty player.
+    expect(src).toMatch(/linkOnly/);
+    expect(src).toMatch(/embedUrl\(e\) === null/);
     // The gate lives in the registry so the tile and the route cannot drift.
     expect(src).toContain('isAvailable("watch", home)');
     // And the notice the whole posture rests on is actually shown.
@@ -274,7 +293,12 @@ describe("every entry is a link that leaves the app", () => {
     // Play problem this file exists to prevent.
     const compliance = readFileSync(join(ROOT, "src/config/playCompliance.ts"), "utf8");
     expect(compliance).toContain('host: "www.youtube-nocookie.com"');
-    expect(compliance).toMatch(/triggeredBy:[\s\S]{0,120}Tapping a channel in Watch/);
+    // AUTOPLAY MAKES IT AUTOMATIC. The declaration used to say the frame
+    // loaded only on a tap; the loop player starts on load, so the entry has
+    // to say "autoplay" or it is a declaration that is nearly true.
+    expect(compliance).toMatch(/triggeredBy:[\s\S]{0,240}Opening Watch[\s\S]{0,240}autoplay/);
+    // And the API is its own host and its own automatic request.
+    expect(compliance).toContain('host: "www.youtube.com"');
   });
 
   it("Watch is registered India-only, so it cannot leak onto every Home", () => {

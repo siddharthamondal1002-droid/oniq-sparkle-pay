@@ -1,28 +1,32 @@
-// ONIQ — NO LIVE CHANNELS loop, Phase 1: Watch is a directory, not a player.
+// ONIQ — Watch: the channel roster, and the two URL shapes it plays through.
 //
-// THE DECISION
+// THE DECISION, AND ITS HISTORY, BECAUSE BOTH MATTER
 //
-// ONIQ does not stream, embed, proxy, resolve or channel live TV in any
-// country. Not with the YouTube IFrame player, not via the Data API, not from
-// a curated channel list, not for faith channels, not for news, not for
-// anything. This file is the whole of what Watch now is: a list of names,
-// descriptions and https links.
+// This file was written on 2026-08-05 to make Watch a directory of LINKS and
+// nothing else — no player anywhere, in any country. The owner reversed that
+// on 2026-08-16: channels play in-app again (evening directive), and the loop
+// player with autoplay came back with them. The original reasoning is kept
+// below rather than deleted, because it names exactly what the reversal costs.
 //
-// This is stricter than the law requires, and that is the point. What it buys:
+// WHAT THE LINK-ONLY POSTURE BOUGHT, and what is therefore back in play:
 //
-//   - Territorial licensing exposure goes to zero. Streaming rights are
-//     territorial, so serving a stream outside its licensed territory is
-//     infringement by ONIQ. A link is not a performance, so there is no
-//     territory to get wrong.
-//   - The YouTube ToS question disappears. No embed, no embed terms — no
-//     minimum player size, no overlay rule, no stream-URL handling rule.
-//   - Region gating stops being a legal control (see watchDirectoryFor).
+//   - Territorial licensing. Streaming rights are territorial, so SERVING a
+//     stream outside its licensed territory is infringement by ONIQ. A link is
+//     not a performance. An EMBED is not a performance by ONIQ either — the
+//     rights-holder's own player serves it, and YouTube applies its own geo
+//     restrictions — which is the whole reason the embed is the shape chosen
+//     rather than a player of ONIQ's own.
+//   - The YouTube ToS conditions come back with the embed: minimum player
+//     size, nothing rendered in front of the player, no stream-URL handling.
+//     They are held by src/data/__tests__/watchChannels.test.ts and
+//     watchDirectory.test.ts rather than by memory.
+//   - Region gating stopped being a legal control and stays that way (see
+//     watchDirectoryFor). It is relevance only.
 //
-// There is no residual risk to manage here because there is no residual
-// streaming. If a future change re-introduces an embed, every one of those
-// three protections is lost at once — which is why the tests in
-// src/data/__tests__/watchDirectory.test.ts assert the absence of a player
-// rather than the correctness of one.
+// The line that has NOT moved, in either direction, is the one worth guarding:
+// ONIQ resolves, stores and proxies no stream URL. The tests assert that, not
+// "no player" — the absence of a player was a proxy for it, and the proxy is
+// what the owner retired.
 //
 // WHAT REPLACED WHAT
 //
@@ -49,7 +53,12 @@ export function isLiveChannel(channelId?: string): boolean {
 }
 
 export type WatchGenre =
-  "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle";
+  | "news"
+  | "sports"
+  | "entertainment"
+  | "finance"
+  | "influencer"
+  | "lifestyle";
 
 export type WatchEntry = {
   /** YouTube channel id (UC...) where known — used only to build the link. */
@@ -107,14 +116,16 @@ export function channelUrl(e: { channelId?: string; handle?: string }): string |
  * plain breach of their terms. The embed gets the same result with none of it,
  * which is why the tests forbid a stream URL ever being fetched or stored.
  *
- * WHY THE UPLOADS PLAYLIST rather than `live_stream?channel=`. The live URL
- * plays only while a channel is actually broadcasting and shows an error the
- * rest of the time — and two thirds of this directory are not live channels.
- * Every channel has an uploads playlist, its id is the channel id with the
- * `UC` prefix swapped for `UU`, and live broadcasts appear in it too. One
- * URL shape that always has something behind it beats two that half-work.
+ * TWO URL SHAPES, BECAUSE THERE ARE TWO KINDS OF CHANNEL. An earlier version
+ * of this function put every channel on an uploads playlist and argued that
+ * one shape beat two. That was wrong and was corrected: eight broadcasters in
+ * this roster carry a 24/7 LIVE feed and are listed as such in
+ * src/data/watchChannels.ts, restored verbatim from the commit that deleted
+ * it. Those get `live_stream?channel=`, which is what the original used and
+ * what a live feed actually is. Everything else has no live feed to point at,
+ * so it gets its uploads playlist — the channel id with `UC` swapped for `UU`.
  *
- * Returns null for an entry known only by @handle: the playlist id cannot be
+ * Returns null for an entry known only by @handle: neither shape can be
  * derived from a handle, so those stay link-out and the UI says so.
  */
 export function embedUrl(e: { channelId?: string }): string | null {
@@ -130,6 +141,19 @@ export function embedUrl(e: { channelId?: string }): string | null {
   // autoplay: a directory that starts making noise on open is a bug, and
   // muted-autoplay to dodge that is worse.
   return `https://www.youtube-nocookie.com/embed/videoseries?list=${uploads}&rel=0`;
+}
+
+/**
+ * The uploads playlist id on its own, for the IFrame Player API.
+ *
+ * `embedUrl` builds a src for a plain frame; the loop player passes `list` as
+ * a playerVar instead, so it needs the bare id. Null for a live channel (it
+ * plays its live feed, not a playlist) and null for a handle-only entry.
+ */
+export function uploadsPlaylistId(e: { channelId?: string }): string | null {
+  if (!e.channelId || !e.channelId.startsWith("UC")) return null;
+  if (isLiveChannel(e.channelId)) return null;
+  return `UU${e.channelId.slice(2)}`;
 }
 
 export const WATCH_ENTRIES: WatchEntry[] = [

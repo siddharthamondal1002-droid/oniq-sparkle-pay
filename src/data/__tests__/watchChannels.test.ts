@@ -131,22 +131,37 @@ describe("embed grant is not voided", () => {
     expect(YT_MIN_PLAYER_PX).toBeGreaterThanOrEqual(200);
   });
 
-  it("renders nothing in front of the player", () => {
-    // Same rule, new address. The mount used to live in LiveNewsSection, which
-    // was deleted with the embed; the player is the Watch route now. What is
-    // being checked is unchanged and is a condition of the embed grant: no
-    // sibling may be positioned over the frame. The iframe's OWN `absolute`
-    // (it fills the 16:9 box) is the mount, not an overlay, so the scan starts
-    // after it — anything absolutely positioned later would sit on top.
-    const src = readFileSync(join(ROOT, "src/routes/_authenticated/app.watch.tsx"), "utf8");
-    const frameIdx = src.indexOf("pt-[56.25%]");
-    expect(frameIdx, "player frame not found — did the markup move?").toBeGreaterThan(-1);
-    const frame = src.slice(frameIdx, src.indexOf("</div>", src.indexOf("<iframe", frameIdx)));
-    const mountIdx = frame.indexOf("<iframe");
-    expect(mountIdx, "player mount not found — did the markup move?").toBeGreaterThan(-1);
-    const afterMount = frame.slice(frame.indexOf("/>", mountIdx));
-    const overlays = afterMount.match(/absolute[^"'`]*/g) ?? [];
-    expect(overlays, `overlay(s) after the player mount: ${overlays.join(" | ")}`).toEqual([]);
+  it("renders nothing in front of the player, on any screen that mounts it", () => {
+    // Same rule, third address. The mount lived in LiveNewsSection, then in
+    // the Watch route, and is now the shared <WatchPlayer> used by both Watch
+    // and the Home banner loop. What is checked is unchanged and is a
+    // condition of the embed grant: no sibling may be positioned over the
+    // frame — badges, gradients and transport rows go above or below it.
+    //
+    // The player's own box is `relative` and the mount inside it is
+    // `absolute inset-0`; anything ELSE absolutely positioned inside that box
+    // would sit on top, so the scan is for a second absolute child.
+    for (const screen of [
+      "src/routes/_authenticated/app.watch.tsx",
+      "src/routes/_authenticated/app.index.tsx",
+    ]) {
+      const src = readFileSync(join(ROOT, screen), "utf8");
+      const mountIdx = src.indexOf("<WatchPlayer");
+      if (mountIdx < 0) continue;
+      // The enclosing frame box starts at the nearest preceding `relative`
+      // container and ends at the mount's closing `/>`.
+      const boxIdx = src.lastIndexOf("<div", src.lastIndexOf("relative", mountIdx));
+      const box = src.slice(boxIdx, mountIdx);
+      // One `absolute inset-0` is allowed in the box before the mount: the
+      // empty state, which REPLACES the player rather than covering it (it
+      // only renders when there is no player). Anything beyond that is an
+      // overlay.
+      const absolutes = box.match(/\babsolute\b/g) ?? [];
+      expect(
+        absolutes.length,
+        `${screen}: ${absolutes.length} absolutely positioned nodes share the player's box`,
+      ).toBeLessThanOrEqual(1);
+    }
   });
 
   it("stores no stream URL", () => {

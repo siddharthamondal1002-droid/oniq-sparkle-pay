@@ -287,18 +287,37 @@ export const THIRD_PARTY_REQUESTS: ThirdPartyRequest[] = [
     // contacts Google until it is tapped — but stops holding the moment a
     // frame renders, so the declaration comes back with it.
     //
-    // Narrower than the version that was removed, and the difference is worth
-    // keeping: the old embed was on a screen that could autoplay into it, so
-    // the request was effectively automatic. This one fires only after a
-    // deliberate tap on a named channel, and the directory itself still loads
-    // no thumbnails, no artwork and no scripts from Google.
+    // AUTOMATIC, and declared as such. An earlier version of this entry said
+    // the request fired "only after a deliberate tap". That stopped being true
+    // on 2026-08-16 evening, when the owner restored the Home loop player with
+    // autoplay: opening Watch, or selecting the watch face of the Home banner
+    // toggle, starts a muted playlist without any further tap. The narrower
+    // wording is not kept, because a declaration that is nearly true is the
+    // Play problem this file exists to prevent.
+    //
+    // What is still true: the Home banner defaults to `study`, so a user who
+    // never selects the watch face never reaches Google from Home; and no
+    // thumbnail or artwork is loaded from Google anywhere, on any screen.
     host: "www.youtube-nocookie.com",
     triggeredBy:
-      "Tapping a channel in Watch (src/routes/_authenticated/app.watch.tsx). Never on load — the directory list itself contacts nothing.",
+      "Opening Watch (src/routes/_authenticated/app.watch.tsx), or selecting the watch face of the Home banner toggle (src/routes/_authenticated/app.index.tsx). Both autoplay a muted playlist on load.",
     sends:
       "IP address and user-agent, plus the playlist id being watched. The -nocookie origin means no viewing history is written to a Google advertising profile unless playback starts.",
     purpose:
       "Plays the channel in YouTube's own player. ONIQ resolves no stream URL and proxies no video; YouTube serves the content, its ads, and its own geo and age restrictions.",
+    avoidable: true,
+  },
+  {
+    // The IFrame Player API itself, which is a SCRIPT from a Google host and
+    // therefore its own automatic request — distinct from the frame above and
+    // easy to leave undeclared because it is loaded by a helper rather than
+    // written into any screen's markup.
+    host: "www.youtube.com",
+    triggeredBy:
+      "Loading the IFrame Player API (src/components/watch/WatchPlayer.tsx), on the first Watch screen or Home watch face of a session.",
+    sends: "IP address and user-agent, to www.youtube.com and s.ytimg.com.",
+    purpose:
+      "Operates YouTube's own player — play, pause, mute, and the ended/error events the channel loop rotates on. It does not deliver video to ONIQ.",
     avoidable: true,
   },
   // One entry that used to sit here is deliberately still gone.
