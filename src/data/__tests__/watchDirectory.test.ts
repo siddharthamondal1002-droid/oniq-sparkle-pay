@@ -185,10 +185,41 @@ describe("every entry is a link that leaves the app", () => {
     expect(landing, "landing page still mentions Watch").not.toMatch(/\bWatch\b/);
   });
 
-  it("the home screen has no Watch tile or stream preview at all", () => {
+  it("the home screen has no stream preview, and its Watch tile only links", () => {
+    // THE TILE CAME BACK, THE PLAYER DID NOT (owner directive, 2026-08-16).
+    //
+    // This used to forbid the string "watch" on Home outright, as a proxy for
+    // "no Watch surface exists". The owner resurfaced the directory, so the
+    // proxy is retired and the real property is asserted directly: Home may
+    // point AT Watch, and must still carry no player machinery of its own.
     const src = readFileSync(join(ROOT, "src/routes/_authenticated/app.index.tsx"), "utf8");
     expect(src).not.toMatch(/livePreview|loadYouTubeApi|useLiveGenres/);
-    expect(src).not.toMatch(/"watch"/);
+    // If the tile is there at all it goes to the directory route, not to an
+    // embed, a channel id, or a stream.
+    if (/\{ key: "watch"/.test(src)) {
+      expect(src).toMatch(/\{ key: "watch", to: "\/app\/watch" \}/);
+    }
+  });
+
+  it("the Watch screen is a directory: link-out only, and India-gated", () => {
+    const page = join(ROOT, "src/routes/_authenticated/app.watch.tsx");
+    const src = readFileSync(page, "utf8");
+    // Every row hands off to the OS/browser. openInApp leaves the app; an
+    // iframe, a <video>, or a player SDK would not.
+    expect(src).toContain("openInApp(url)");
+    expect(src).not.toMatch(/<iframe|<video|YT\.Player|embed\/|videoseries/);
+    // The gate lives in the registry so the tile and the route cannot drift.
+    expect(src).toContain('isAvailable("watch", home)');
+    // And the notice the whole posture rests on is actually shown.
+    expect(src).toContain("WATCH_NOTICE");
+  });
+
+  it("Watch is registered India-only, so it cannot leak onto every Home", () => {
+    // isAvailable() answers TRUE for an unregistered id, so an unregistered
+    // "watch" would render everywhere the moment it reached Home — the exact
+    // trap the `upi` entry was added to avoid.
+    const reg = readFileSync(join(ROOT, "src/data/countryRegistry.ts"), "utf8");
+    expect(reg).toMatch(/\{ id: "watch", supportedCountries: \["IN"\] \}/);
   });
 });
 

@@ -226,6 +226,17 @@ export const FEATURES: Feature[] = [
   // here because isAvailable() answers TRUE for unknown ids, so an unregistered
   // "upi" tile would render for every country the moment it reached Home.
   { id: "upi", supportedCountries: ["IN"] },
+  // WATCH IS INDIA-ONLY BY OWNER DIRECTIVE (2026-08-16), and the gate is here
+  // rather than in the screen for the same reason `upi` is: isAvailable()
+  // answers TRUE for an unregistered id, so a "watch" tile left off this list
+  // would quietly render on every Home the moment it reached one.
+  //
+  // NOTE WHAT THIS GATE IS NOT. Watch is a list of links, so nothing about it
+  // is territorially licensed and no rights depend on who sees it — see the
+  // header of src/data/watchDirectory.ts. This is a product decision about
+  // where ONIQ wants the surface, and it can be widened without any legal
+  // review. That would stop being true the moment anything played in-app.
+  { id: "watch", supportedCountries: ["IN"] },
 ];
 
 const FEATURE_BY_ID = new Map(FEATURES.map((f) => [f.id, f]));

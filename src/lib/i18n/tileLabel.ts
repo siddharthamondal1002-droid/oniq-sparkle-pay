@@ -33,6 +33,7 @@ export type TileKey =
   | "jobs"
   | "jobsApps"
   | "lores"
+  | "watch"
   | "cv";
 
 
@@ -58,6 +59,7 @@ export const TILE_LABELS: Record<TileKey, string> = {
   jobs: "Jobs",
   jobsApps: "Job apps",
   lores: "Lores 🎬",
+  watch: "Watch 📺",
   cv: "CV",
 };
 
@@ -95,6 +97,7 @@ export const TILE_LABELS_HI: Record<TileKey, string> = {
   jobs: "नौकरी",
   jobsApps: "नौकरी ऐप्स",
   lores: "किस्से 🎬",
+  watch: "देखो 📺",
   cv: "सीवी",
 };
 

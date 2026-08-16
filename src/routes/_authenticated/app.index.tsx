@@ -159,6 +159,10 @@ function HomeScreen() {
                   { key: "official", to: "/app/official" },
                   { key: "pulse", to: "/app/news" },
                   { key: "faith", to: "/app/faith" },
+                  // India-only by the feature registry, same as upi above —
+                  // owner directive 2026-08-16. A directory of links, never a
+                  // player; see src/routes/_authenticated/app.watch.tsx.
+                  { key: "watch", to: "/app/watch" },
                   { key: "vitals", to: "/app/vitals", color: vitalsColor },
                   { key: "wander", to: "/app/travel" },
                   { key: "earn", to: "/app/earn" },
