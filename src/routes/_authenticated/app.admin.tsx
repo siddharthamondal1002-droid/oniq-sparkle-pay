@@ -30,7 +30,7 @@ type ReporterMap = Record<string, { username: string | null; display_name: strin
 function AdminInbox() {
   const qc = useQueryClient();
   const [section, setSection] = useState<
-    "reports" | "kyc" | "takedowns" | "proofs" | "payouts" | "errors"
+    "reports" | "kyc" | "takedowns" | "proofs" | "payouts" | "errors" | "billing"
   >("reports");
   const [statusFilter, setStatusFilter] = useState<"open" | "resolved" | "dismissed" | "all">(
     "open",
@@ -176,6 +176,7 @@ function AdminInbox() {
             ["proofs", "proofs ✅"],
             ["payouts", "payouts 💸"],
             ["errors", "errors 🐞"],
+            ["billing", "billing 🧾"],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -197,6 +198,8 @@ function AdminInbox() {
       {section === "payouts" && <PayoutsPanel />}
 
       {section === "errors" && <ErrorReportsPanel />}
+
+      {section === "billing" && <BillingPreviewPanel />}
 
       {section === "reports" && (
         <>
@@ -690,6 +693,135 @@ function TakedownPanel() {
    The other half of "pretty message for users": the RAW detail lands here,
    admin-eyes only. Users saw one kind sentence; this panel shows what
    actually broke, newest first. */
+/**
+ * THE OWNER RIDES FREE, WHICH MADE THE CHECKOUT UNTESTABLE BY THE ONE PERSON
+ * WHO NEEDS TO TEST IT.
+ *
+ * `story_quota_status` returns purchaseEnabled false for an admin, so every
+ * buy surface — Story top-ups, the watermark addon, the plan sheet — is hidden
+ * on this account. That is right by default: an owner should not be sold to,
+ * and a screen-share or a screenshot should never show ONIQ quoting its owner
+ * a price.
+ *
+ * This toggle turns those surfaces back on WITHOUT changing what anything
+ * costs: claim_story_seconds still debits nothing, and the free ride is
+ * untouched. It exists so the owner can walk the real checkout — open
+ * Razorpay, see the real amount, and if they choose, pay themselves and watch
+ * the plan land.
+ *
+ * The switch itself is server-side and admin-checked
+ * (`set_show_purchase_surfaces` raises for anybody else), so this UI is a
+ * convenience rather than the control.
+ */
+function BillingPreviewPanel() {
+  const [on, setOn] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [plans, setPlans] = useState<
+    { key: string; label: string; price_paise: number; included_seconds: number; kind: string }[]
+  >([]);
+
+  useEffect(() => {
+    void (async () => {
+      const { data: u } = await supabase.auth.getUser();
+      const uid = u.user?.id;
+      if (uid) {
+        const { data } = await supabase
+          .from("admin_prefs")
+          .select("show_purchase_surfaces")
+          .eq("user_id", uid)
+          .maybeSingle();
+        setOn(data?.show_purchase_surfaces === true);
+      } else {
+        setOn(false);
+      }
+      const { data: p } = await supabase
+        .from("subscription_plans")
+        .select("key,label,price_paise,included_seconds,kind")
+        .eq("active", true)
+        .order("sort_order");
+      setPlans(p ?? []);
+    })();
+  }, []);
+
+  async function flip(next: boolean) {
+    setSaving(true);
+    const { error } = await supabase.rpc("set_show_purchase_surfaces", { _on: next });
+    setSaving(false);
+    if (error) {
+      toast.error("Could not change that");
+      return;
+    }
+    setOn(next);
+    toast.success(next ? "Prices are visible on your account" : "Prices hidden again");
+  }
+
+  return (
+    <div className="mt-4 flex flex-col gap-3">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">Show me the buy screens</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Your account rides free, so prices are hidden everywhere. Turn this on to walk the
+              real checkout. It does not start charging you for Story time — only the buy buttons
+              come back.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={on === true}
+            aria-label="Show purchase surfaces on my account"
+            disabled={on === null || saving}
+            onClick={() => void flip(!on)}
+            className={`mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+              on ? "bg-primary" : "bg-muted"
+            }`}
+          >
+            {/* margin-inline-start, not translate-x: the knob has to travel
+                toward the END of the switch, and in an RTL locale that is the
+                other way. `ms-` flips with the writing direction; translate-x
+                does not, which is what the RTL fence is for. */}
+            <span
+              className={`block h-6 w-6 rounded-full bg-white transition-[margin] ${
+                on ? "ms-[1.375rem]" : "ms-0.5"
+              }`}
+            />
+          </button>
+        </div>
+        {on ? (
+          <p className="mt-3 rounded-xl bg-amber-500/10 px-3 py-2 text-[11px] text-amber-300">
+            Prices are showing on your account. Anything you buy is a real payment on the live
+            Razorpay account — this is not a sandbox.
+          </p>
+        ) : null}
+      </div>
+
+      {/* What is on sale, read from the rows that bill rather than retyped. */}
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <p className="text-sm font-semibold">What is on sale</p>
+        <div className="mt-2 flex flex-col gap-1.5">
+          {plans.map((p) => (
+            <div key={p.key} className="flex items-baseline justify-between gap-3 text-xs">
+              <span className="truncate">
+                {p.label}
+                <span className="ms-1.5 text-[10px] text-muted-foreground">{p.kind}</span>
+              </span>
+              <span className="shrink-0 font-mono tabular-nums">
+                {p.price_paise > 0 ? `${formatPaise(p.price_paise)}/mo` : "—"}
+                {p.included_seconds > 0 ? ` · ${Math.round(p.included_seconds / 60)} min` : ""}
+              </span>
+            </div>
+          ))}
+          {plans.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No active plans.</p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ErrorReportsPanel() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const sb = supabase as any;

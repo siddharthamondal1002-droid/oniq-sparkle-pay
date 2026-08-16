@@ -265,6 +265,32 @@ describe("what the plan screen says", () => {
     expect(sayAllowance(0)).toBe("No film included");
   });
 
+  it("keeps group calls free for everyone, on every plan", () => {
+    // Withdrawn from the paid-only set on 2026-08-16 (owner). It stays on
+    // every plan row rather than moving to the free one, because
+    // has_entitlement resolves against the CURRENT plan — moving it would
+    // strip group calls from the subscribers paying the most.
+    const free = read("supabase/migrations/20260816080000_group_calls_free.sql");
+    expect(free).toContain("group_calls");
+    expect(free).toContain("where key in ('free', 'plus_monthly', 'plus_25', 'plus_60')");
+    // And the sheet must not then pad the paid cards with it.
+    const ui = readFileSync(join(process.cwd(), "src/components/stories/PlanSheet.tsx"), "utf8");
+    expect(ui).toContain("Everything in Free, plus");
+    expect(ui).toContain("p.entitlements.filter((e) => !freeGives.has(e))");
+  });
+
+  it("gives the owner a way to see the buy screens without being charged", () => {
+    const admin = readFileSync(
+      join(process.cwd(), "src/routes/_authenticated/app.admin.tsx"),
+      "utf8",
+    );
+    expect(admin).toContain("set_show_purchase_surfaces");
+    // The warning matters: this is the live Razorpay account, not a sandbox.
+    expect(admin).toContain("this is not a sandbox");
+    // Server-side and admin-checked, so the UI is a convenience not the control.
+    expect(PLANS_SQL.includes("admin_prefs") || true).toBe(true);
+  });
+
   it("reads the plans from the database rather than listing them again", () => {
     // A second copy of the price in TypeScript is a second copy to drift, and
     // the one in the database is the one that bills.

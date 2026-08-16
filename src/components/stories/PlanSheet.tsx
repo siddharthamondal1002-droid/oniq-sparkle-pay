@@ -126,6 +126,21 @@ export function PlanSheet({
     [plans],
   );
 
+  /**
+   * What the FREE plan already gives, so a paid card can show only the extra.
+   *
+   * Group calls went free for everyone on 2026-08-16 and stayed on every plan
+   * row — has_entitlement reads the current plan only, so stripping it from
+   * Plus while adding it to Free would have taken group calls away from the
+   * people paying most. The consequence is that "Group audio and video calls"
+   * would otherwise appear on every card, padding the paid ones with something
+   * nobody is paying for. A plan chooser should list what the money buys.
+   */
+  const freeGives = useMemo(
+    () => new Set((plans ?? []).find((p) => p.kind === "free")?.entitlements ?? []),
+    [plans],
+  );
+
   async function cancel() {
     setCanceling(true);
     const { data, error } = await supabase.rpc("cancel_my_subscription");
@@ -200,16 +215,34 @@ export function PlanSheet({
                   {sayAllowance(p.included_seconds)}
                 </p>
 
-                {p.entitlements.length > 0 ? (
-                  <ul className="mt-3 flex flex-col gap-1.5">
-                    {p.entitlements.map((e) => (
-                      <li key={e} className="flex items-start gap-2 text-xs">
-                        <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-                        <span>{sayBenefit(e)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
+                {(() => {
+                  // Free lists everything it has; a paid plan lists only what
+                  // free does not already give.
+                  const isFree = p.kind === "free";
+                  const shown = isFree
+                    ? p.entitlements
+                    : p.entitlements.filter((e) => !freeGives.has(e));
+                  if (shown.length === 0) return null;
+                  return (
+                    <>
+                      {!isFree && freeGives.size > 0 ? (
+                        <p className="mt-3 text-[11px] font-semibold text-muted-foreground">
+                          Everything in Free, plus
+                        </p>
+                      ) : null}
+                      <ul
+                        className={`${!isFree && freeGives.size > 0 ? "mt-1.5" : "mt-3"} flex flex-col gap-1.5`}
+                      >
+                        {shown.map((e) => (
+                          <li key={e} className="flex items-start gap-2 text-xs">
+                            <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                            <span>{sayBenefit(e)}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  );
+                })()}
 
                 {mine ? (
                   <div className="mt-3 border-t border-border pt-3 text-[11px] text-muted-foreground">
