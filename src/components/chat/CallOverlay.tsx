@@ -49,6 +49,7 @@ import {
   FACE_FX,
   FACE_LENSES,
   geometryFrom,
+  faceDelegate,
   isFaceFilter,
   isFreeLens,
   loadFaceLandmarker,
@@ -507,7 +508,24 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     lm: { detectForVideo(v: HTMLVideoElement, ts: number): { faceLandmarks: FacePt[][] } } | null;
     pts: FacePt[] | null;
     tick: number;
-  }>({ lm: null, pts: null, tick: 0 });
+    /**
+     * WHY THESE COUNTERS EXIST. The draw loop swallowed every inference error
+     * — one bad frame must not kill a live call — which meant a landmarker
+     * that threw on EVERY frame, or one that ran fine and never found a face,
+     * both presented as "the filter does nothing" with nothing logged
+     * anywhere. That is precisely the report that came back on 2026-08-16 and
+     * precisely the report I could not act on.
+     *
+     * So the silence is now instrumented: consecutive failures and
+     * consecutive faceless frames are counted, and each reports ONCE per call
+     * with the numbers that tell the two apart. Once, not per frame — an
+     * error path that fires twenty times a second is its own outage.
+     */
+    fails: number;
+    dry: number;
+    said: string | null;
+    lastErr: string;
+  }>({ lm: null, pts: null, tick: 0, fails: 0, dry: 0, said: null, lastErr: "" });
   // Surfaced so a filter that cannot run says so instead of doing nothing.
   const [faceUnavailable, setFaceUnavailable] = useState(false);
   const [faceLoading, setFaceLoading] = useState(false);
@@ -1949,6 +1967,12 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
 
     callFilterRef.current = id;
     setCallFilter(id);
+    // Switching filters is a fresh attempt, so it gets a fresh diagnosis —
+    // otherwise the first lens to fail silences the report for every lens
+    // tried afterwards.
+    faceRef.current.fails = 0;
+    faceRef.current.dry = 0;
+    faceRef.current.said = null;
 
     // The landmarker is ~15 MB of runtime and model, so it is fetched the
     // first time a face filter is chosen and never before. The draw loop
@@ -2105,10 +2129,42 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
                 // performance.now() is the clock detectForVideo wants; it
                 // refuses a timestamp that does not move forward.
                 const res = face.lm.detectForVideo(cur.video, performance.now());
-                face.pts = res?.faceLandmarks?.[0] ?? null;
-              } catch {
+                const found = res?.faceLandmarks?.[0] ?? null;
+                face.pts = found;
+                face.fails = 0;
+                // Ran clean but found nobody. Counted separately from an
+                // error, because "point the camera at a face" and "the
+                // runtime is broken" are different answers.
+                face.dry = found ? 0 : face.dry + 1;
+              } catch (e) {
                 // One bad inference must not kill the loop — the next frame
-                // reuses the previous points and tries again.
+                // reuses the previous points and tries again. A HUNDRED bad
+                // ones in a row is not one bad frame, and is worth saying.
+                face.fails += 1;
+                face.lastErr = e instanceof Error ? e.message : String(e);
+              }
+              // ~5s of detections at FX_DETECT_EVERY. Reported once per call.
+              if (face.fails >= 50 && face.said !== "throw") {
+                face.said = "throw";
+                reportClientError("call-face-fx", "detect keeps throwing", {
+                  filter: active.id,
+                  fails: face.fails,
+                  err: face.lastErr.slice(0, 200),
+                  delegate: faceDelegate(),
+                  vw: cur.video.videoWidth,
+                  vh: cur.video.videoHeight,
+                  ready: cur.video.readyState,
+                });
+              } else if (face.dry >= 50 && face.said !== "dry") {
+                face.said = "dry";
+                reportClientError("call-face-fx", "landmarker runs but finds no face", {
+                  filter: active.id,
+                  dry: face.dry,
+                  delegate: faceDelegate(),
+                  vw: cur.video.videoWidth,
+                  vh: cur.video.videoHeight,
+                  ready: cur.video.readyState,
+                });
               }
             }
             if (face.pts) {

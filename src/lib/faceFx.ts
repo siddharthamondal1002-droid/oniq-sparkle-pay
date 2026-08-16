@@ -128,26 +128,55 @@ async function visionFileset() {
 export async function loadFaceLandmarker(): Promise<Landmarker | null> {
   if (landmarkerPromise) return landmarkerPromise;
   landmarkerPromise = (async () => {
-    try {
-      const { vision, fileset } = await visionFileset();
-      const lm = await vision.FaceLandmarker.createFromOptions(
-        fileset as Parameters<typeof vision.FaceLandmarker.createFromOptions>[0],
-        {
-          baseOptions: { modelAssetPath: "/face_landmarker.task", delegate: "GPU" },
-          runningMode: "VIDEO",
-          numFaces: 1,
-          // The iris points cost accuracy we do not need — the eye CORNERS are
-          // what size and place these effects, and they are in the base mesh.
-          outputFaceBlendshapes: false,
-        },
-      );
-      return lm as unknown as Landmarker;
-    } catch (e) {
-      console.warn("[faceFx] landmarker unavailable", e);
-      return null;
+    const { vision, fileset } = await visionFileset().catch((e) => {
+      console.warn("[faceFx] fileset unavailable", e);
+      return { vision: null, fileset: null } as never;
+    });
+    if (!vision) return null;
+
+    /**
+     * GPU FIRST, THEN CPU. The delegate is not a preference, it is a guess
+     * about the device.
+     *
+     * MediaPipe's GPU path wants WebGL2 with the extensions its shaders use,
+     * and an Android System WebView can advertise a context that then fails
+     * — sometimes at construction, sometimes only once inference runs. Asking
+     * for GPU and giving up when it is refused is how face filters end up
+     * "not working" on exactly the devices this app mostly runs on, with
+     * nothing in the log to say why.
+     *
+     * CPU inference on one face at 10fps is well within a phone's budget, so
+     * the fallback is a real product rather than a degraded one.
+     */
+    for (const delegate of ["GPU", "CPU"] as const) {
+      try {
+        const lm = await vision.FaceLandmarker.createFromOptions(
+          fileset as Parameters<typeof vision.FaceLandmarker.createFromOptions>[0],
+          {
+            baseOptions: { modelAssetPath: "/face_landmarker.task", delegate },
+            runningMode: "VIDEO",
+            numFaces: 1,
+            // The iris points cost accuracy we do not need — the eye CORNERS
+            // are what size and place these effects, and they are in the
+            // base mesh.
+            outputFaceBlendshapes: false,
+          },
+        );
+        loadedDelegate = delegate;
+        return lm as unknown as Landmarker;
+      } catch (e) {
+        console.warn(`[faceFx] ${delegate} delegate unavailable`, e);
+      }
     }
+    return null;
   })();
   return landmarkerPromise;
+}
+
+/** Which delegate actually took, for the diagnostic report. */
+let loadedDelegate: "GPU" | "CPU" | null = null;
+export function faceDelegate(): string {
+  return loadedDelegate ?? "none";
 }
 
 /**
