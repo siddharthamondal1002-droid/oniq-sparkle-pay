@@ -52,6 +52,24 @@ export type Database = {
           },
         ]
       }
+      admin_prefs: {
+        Row: {
+          show_purchase_surfaces: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          show_purchase_surfaces?: boolean
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          show_purchase_surfaces?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       ai_chats: {
         Row: {
           created_at: string | null
@@ -2764,6 +2782,68 @@ export type Database = {
           },
         ]
       }
+      plan_purchases: {
+        Row: {
+          created_at: string
+          currency: string
+          error: string | null
+          id: string
+          months: number
+          origin: string
+          paid_at: string | null
+          plan_key: string
+          price_paise: number
+          provider: string
+          provider_order_id: string | null
+          provider_payment_id: string | null
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          error?: string | null
+          id?: string
+          months?: number
+          origin?: string
+          paid_at?: string | null
+          plan_key: string
+          price_paise: number
+          provider?: string
+          provider_order_id?: string | null
+          provider_payment_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          error?: string | null
+          id?: string
+          months?: number
+          origin?: string
+          paid_at?: string | null
+          plan_key?: string
+          price_paise?: number
+          provider?: string
+          provider_order_id?: string | null
+          provider_payment_id?: string | null
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_purchases_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       post_views: {
         Row: {
           first_viewed_at: string
@@ -4314,6 +4394,10 @@ export type Database = {
         Returns: string
       }
       approve_parental_consent: { Args: { _code: string }; Returns: Json }
+      attach_plan_purchase_order: {
+        Args: { _provider_order_id: string; _purchase_id: string }
+        Returns: Json
+      }
       attach_story_purchase_order: {
         Args: { _provider_order_id: string; _purchase_id: string }
         Returns: Json
@@ -4429,11 +4513,23 @@ export type Database = {
         Args: { _member_ids: string[]; _name: string }
         Returns: string
       }
+      create_plan_purchase: {
+        Args: { _origin?: string; _plan_key: string }
+        Returns: Json
+      }
       create_story_purchase: {
         Args: { _grade?: string; _origin?: string; _seconds: number }
         Returns: Json
       }
       create_watermark_purchase: { Args: { _job_id: string }; Returns: Json }
+      credit_plan_purchase: {
+        Args: {
+          _confirmed_by?: string
+          _provider_order_id: string
+          _provider_payment_id?: string
+        }
+        Returns: Json
+      }
       credit_story_purchase: {
         Args: {
           _confirmed_by?: string
@@ -4457,6 +4553,10 @@ export type Database = {
         Returns: number
       }
       export_my_data: { Args: never; Returns: Json }
+      fail_plan_purchase: {
+        Args: { _error?: string; _provider_order_id: string }
+        Returns: Json
+      }
       fail_story_purchase: {
         Args: { _error: string; _provider_order_id: string }
         Returns: Json
@@ -4802,6 +4902,7 @@ export type Database = {
       run_creator_payouts: { Args: { _pool_paise?: number }; Returns: Json }
       send_friend_request: { Args: { _to: string }; Returns: undefined }
       set_payout_vpa: { Args: { _vpa: string }; Returns: Json }
+      set_show_purchase_surfaces: { Args: { _on: boolean }; Returns: Json }
       set_signup_profile: {
         Args: {
           _dob: string
