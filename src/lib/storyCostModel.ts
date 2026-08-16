@@ -194,6 +194,66 @@ export function priceForMarginNetOfGst(grade: StoryGrade): number {
 }
 
 /**
+ * THE MONTHLY PLAN, AND THE ARITHMETIC THAT BOUNDS IT (owner, 2026-08-16).
+ *
+ * Moving from per-second selling to a per-month plan changes what the danger
+ * is. Selling a minute at a time, the risk was a thin margin. Selling a month
+ * at a time, the risk is UNBOUNDED USE: the price is fixed and the cost is
+ * not, so a plan is only safe while the minutes it includes cost less than
+ * what is left of the price after tax and fees.
+ *
+ * That makes `included_seconds` the most dangerous number in the schema. It
+ * looks like a generosity dial and is actually a solvency one, and it sits in
+ * a database row where it can be nudged without anyone doing the sum. Hence
+ * maxIncludedSecondsFor() below, and the test that holds the shipped plan
+ * against it.
+ */
+export const PLAN_INCLUDED_SECONDS = { free: 60, plus_monthly: 480 } as const;
+export const PLAN_PRICE_PAISE = { free: 0, plus_monthly: 49900 } as const;
+
+/**
+ * What is left of a subscription rupee before any film is made.
+ *
+ * GST comes out of an inclusive price and the payment fee comes off the top;
+ * neither depends on usage. Everything below this line is generation.
+ */
+export const SUBSCRIPTION_RETAINED = 1 - GST_OF_INCLUSIVE_PRICE - UNIT.paymentFeeOfPrice;
+
+/**
+ * The most seconds a plan at this price can include before a subscriber who
+ * uses all of them costs more than they paid.
+ *
+ * Films are assumed at one per two minutes, so the flat per-film cost is
+ * charged at half rate per minute. That is the observed shape — people buy a
+ * minute or two at a time — and erring the other way would make the cap look
+ * safer than it is.
+ */
+export function maxIncludedSecondsFor(pricePaise: number, grade: StoryGrade = "movie"): number {
+  const perMinute = costPaisePerMinute(grade) + UNIT.fixedInfraPaise / 2;
+  return Math.floor(((pricePaise * SUBSCRIPTION_RETAINED) / perMinute) * 60);
+}
+
+/**
+ * What ONIQ actually keeps from one subscriber over one period, as a fraction
+ * of the price, if they use `usedSeconds` of their allowance.
+ *
+ * Pass the full allowance to see the worst case — which is the only case
+ * worth designing to, because the subscribers who use everything are the ones
+ * who renew.
+ */
+export function planMarginAt(
+  pricePaise: number,
+  usedSeconds: number,
+  grade: StoryGrade = "movie",
+): number {
+  if (pricePaise <= 0) return 0;
+  const minutes = usedSeconds / 60;
+  const gen = costPaisePerMinute(grade) * minutes;
+  const infra = Math.ceil(minutes / 2) * UNIT.fixedInfraPaise;
+  return (pricePaise * SUBSCRIPTION_RETAINED - gen - infra) / pricePaise;
+}
+
+/**
  * The movie durations at the published rate — `priceFor("movie", s)` for
  * each, frozen here so the SQL mirror test has a hand-auditable copy.
  */
