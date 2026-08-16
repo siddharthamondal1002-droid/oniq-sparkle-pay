@@ -18,7 +18,9 @@ import {
   MARGIN_TARGET,
   MOVIE_TIERS,
   UNIT,
+  marginBeforeTaxAt,
   oniqMarginAt,
+  priceForMarginNetOfGst,
   pricePaisePerMinute,
 } from "@/lib/storyCostModel";
 
@@ -142,13 +144,40 @@ describe("the per-minute rate", () => {
     expect(MARGIN_TARGET).toBe(0.26);
   });
 
-  it("holds the 26% floor at every duration on sale", () => {
+  it("holds the 26% floor at every duration on sale, before tax", () => {
+    // BEFORE TAX is the question the chart was built to answer: the rate is
+    // solved from cost, payment fee and a 26% margin, and every published row
+    // is that rate times minutes. GST does not enter the formula, so it must
+    // not enter the check on the formula either — see the test below for what
+    // it does to the number ONIQ actually banks.
     for (const grade of ["classic", "movie"] as const) {
       for (const seconds of [60, 120, 180, 300]) {
-        const m = oniqMarginAt(grade, seconds, priceForSeconds(grade, seconds));
+        const m = marginBeforeTaxAt(grade, seconds, priceForSeconds(grade, seconds));
         expect(m, `${grade} ${seconds}s fell under the mandate`).toBeGreaterThanOrEqual(0.26);
       }
     }
+  });
+
+  /**
+   * AND WHAT IS LEFT AFTER GST, which is not 26% and is not pretended to be.
+   *
+   * The published price is GST-inclusive (owner, 2026-08-16), so 18/118 of
+   * every rupee taken is tax passing through. Recorded against the SQL chart
+   * rather than only against the TypeScript model, because it is the SQL that
+   * bills: if someone edits the migration to a rate that changes this, the gap
+   * moves here first.
+   */
+  it("records what the chart actually nets after GST — below the mandate", () => {
+    for (const seconds of [60, 120, 180, 300]) {
+      const m = oniqMarginAt("movie", seconds, priceForSeconds("movie", seconds));
+      expect(m, `movie ${seconds}s: GST no longer costs what it costs`).toBeLessThan(MARGIN_TARGET);
+      expect(m).toBeGreaterThan(0.1);
+    }
+    // The rate that WOULD hold the mandate net of GST. Nothing derives a price
+    // from it — repricing is the owner's call — so this pins both the answer
+    // and the fact that it has not been acted on.
+    expect(priceForMarginNetOfGst("movie")).toBe(7200);
+    expect(PER_MINUTE_PAISE.movie, "prices moved without an owner decision").toBe(5700);
   });
 
   /**
@@ -165,7 +194,11 @@ describe("the per-minute rate", () => {
     for (const t of PRICE_TIERS) expect(t.seconds).toBeGreaterThanOrEqual(60);
     for (const t of MOVIE_TIERS) expect(t.seconds).toBeGreaterThanOrEqual(60);
     for (const grade of ["classic", "movie"] as const) {
-      const would = oniqMarginAt(grade, 30, priceForSeconds(grade, 30));
+      // Before tax, deliberately. Net of GST nothing clears 26% today, so the
+      // net-of-GST version of this check would pass for a reason that has
+      // nothing to do with sub-minute films — a tripwire that can no longer
+      // trip is worse than no tripwire.
+      const would = marginBeforeTaxAt(grade, 30, priceForSeconds(grade, 30));
       expect(would, `${grade} 30s would now clear the floor — worth revisiting`).toBeLessThan(0.26);
     }
     // The migration that removes them, and the floor that stops a caller

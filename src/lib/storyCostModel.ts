@@ -59,7 +59,36 @@ export const UNIT = {
   paymentFeeOfPrice: 0.0236,
   /** Storage + egress + db time per film, paise. */
   fixedInfraPaise: 300,
+  /**
+   * GST ON THE SALE ITSELF — the line this model did not have.
+   *
+   * Until 2026-08-16 the only tax modelled here was the 18% charged on
+   * Razorpay's FEE, which is a rounding error next to the 18% on the sale.
+   * Story time is a digital service supplied to consumers in India, so the
+   * sale attracts GST; and with distribution India-only there is no offshore
+   * supplier argument to make.
+   *
+   * Owner decision, 2026-08-16: THE PUBLISHED PRICE IS GST-INCLUSIVE. ₹57 is
+   * what the buyer pays, not ₹57 plus tax. So the tax is carved OUT of the
+   * price rather than added to it, and the share of an inclusive price that
+   * is tax is 18/118, not 18/100 — a distinction worth 2.7 points of margin
+   * on its own.
+   */
+  gstRate: 0.18,
 } as const;
+
+/**
+ * The fraction of a GST-INCLUSIVE price that is tax: 0.18 / 1.18 = 15.2542%.
+ *
+ * Derived rather than written down, because writing 0.1525 invites someone to
+ * "correct" it to 0.18 and lose 2.7 points of margin in a one-character diff.
+ */
+export const GST_OF_INCLUSIVE_PRICE = UNIT.gstRate / (1 + UNIT.gstRate);
+
+/** The tax inside a published price, paise. */
+export function gstPaiseOn(pricePaise: number): number {
+  return Math.round(pricePaise * GST_OF_INCLUSIVE_PRICE);
+}
 
 /**
  * ONIQ's mandated margin — one number, every duration (owner, 2026-08-15).
@@ -112,11 +141,56 @@ export function priceFor(grade: StoryGrade, seconds: number): number {
   return Math.round((pricePaisePerMinute(grade) * seconds) / 60);
 }
 
-/** ONIQ's realised margin for a published price, 0..1 — what the test checks. */
-export function oniqMarginAt(grade: StoryGrade, seconds: number, pricePaise: number): number {
+/**
+ * The margin the PRICING FORMULA aims at — before tax.
+ *
+ * This is what `pricePaisePerMinute` solves for, and it is the number the
+ * 2026-08-15 chart was built to hit. Kept under its own name because it is
+ * still the right question to ask OF THE FORMULA; it is simply no longer the
+ * right question to ask about the business.
+ */
+export function marginBeforeTaxAt(grade: StoryGrade, seconds: number, pricePaise: number): number {
   const gen = (costPaisePerMinute(grade) * seconds) / 60;
   const fee = pricePaise * UNIT.paymentFeeOfPrice;
   return (pricePaise - gen - UNIT.fixedInfraPaise - fee) / pricePaise;
+}
+
+/**
+ * ONIQ'S REALISED MARGIN — what is actually left, tax included.
+ *
+ * GST is not a cost ONIQ chooses to bear, but on a GST-INCLUSIVE price it is
+ * money that arrives and leaves again, so a margin computed without it is a
+ * margin nobody ever banks. This function is the honest one and the tests
+ * check it; marginBeforeTaxAt above answers the narrower question about the
+ * formula.
+ *
+ * AT THE CURRENT CHART THIS IS BELOW THE 26% MANDATE — about 11% at one
+ * minute, rising to 15% at five as the flat per-film cost is spread. That
+ * shortfall is REPORTED, NOT SILENTLY REPRICED: what the chart should be is
+ * the owner's call, and priceForMarginNetOfGst() below computes the answer
+ * for whenever that call is made.
+ */
+export function oniqMarginAt(grade: StoryGrade, seconds: number, pricePaise: number): number {
+  const gen = (costPaisePerMinute(grade) * seconds) / 60;
+  const fee = pricePaise * UNIT.paymentFeeOfPrice;
+  const gst = pricePaise * GST_OF_INCLUSIVE_PRICE;
+  return (pricePaise - gen - UNIT.fixedInfraPaise - fee - gst) / pricePaise;
+}
+
+/**
+ * What the per-minute rate WOULD have to be for the mandate to hold net of
+ * GST. Currently ₹72/min against a published ₹57.
+ *
+ * NOT WIRED TO ANYTHING. No price is derived from this, and none should be
+ * without an owner decision — it exists so that decision can be made against
+ * an arithmetic answer rather than a guess, and so the size of the gap is
+ * visible in the same file that hides it today.
+ */
+export function priceForMarginNetOfGst(grade: StoryGrade): number {
+  const raw =
+    (costPaisePerMinute(grade) + UNIT.fixedInfraPaise) /
+    (1 - MARGIN_TARGET - UNIT.paymentFeeOfPrice - GST_OF_INCLUSIVE_PRICE);
+  return Math.ceil(raw / 100) * 100;
 }
 
 /**
