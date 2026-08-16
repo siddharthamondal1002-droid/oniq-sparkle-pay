@@ -13,6 +13,19 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+
+        <!--
+          EDGE-TO-EDGE, declared in the theme as well as in code.
+
+          MainActivity makes the bars transparent at runtime; setting them here
+          too closes the gap before onCreate runs, which is what shows up as a
+          coloured flash on a cold start.
+
+          The display-cutout mode is API 27 and this project is minSdk 24, so
+          it lives in values-v27/styles.xml rather than here.
+        -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>
 
 

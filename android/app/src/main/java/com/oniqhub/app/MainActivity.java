@@ -22,6 +22,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.getcapacitor.BridgeActivity;
@@ -42,6 +43,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ContactsBridgePlugin.class);
         registerPlugin(CallSettingsPlugin.class);
         registerPlugin(MediaSaverPlugin.class);
+        registerPlugin(SystemBarsPlugin.class);
 
         super.onCreate(savedInstanceState);
         applyCallWindowFlags(getIntent());
@@ -198,22 +200,70 @@ public class MainActivity extends BridgeActivity {
      * The keyboard (IME) inset is kept so inputs still lift above it. No-op on
      * older Android where the window already fits system bars (insets are 0).
      */
+    /**
+     * TRUE edge-to-edge — the window draws behind the system bars and the WEB
+     * layer places content clear of them.
+     *
+     * WHAT THIS REPLACES, AND WHY IT WAS BACKWARDS. The previous version
+     * padded the content view by the top/left/right insets and returned
+     * WindowInsetsCompat.CONSUMED. Two consequences, both invisible until you
+     * go looking:
+     *
+     *   1. CONSUMED stops the insets reaching the WebView, so every
+     *      `env(safe-area-inset-*)` in the CSS read ZERO — all 54 of them,
+     *      across 20-odd files. The web layer already asks for edge-to-edge
+     *      (`viewport-fit=cover` is set in __root.tsx) and already writes
+     *      `max(3rem, env(safe-area-inset-top))` everywhere; none of it did
+     *      anything. It only looked right because every call site was written
+     *      defensively with a max() fallback.
+     *   2. Padding the top means the app is NOT edge-to-edge there. The strip
+     *      above the content showed an opaque system bar plus a hardcoded
+     *      #1a1230 purple that matches neither ONIQ theme (#0e0f13 dark,
+     *      #faf9f7 light) — a leftover from an older palette. That is exactly
+     *      the "don't have opaque system bars" case in the Android guidance.
+     *
+     * WHY THIS IS SAFE TO FLIP. The top/left/right inset does not disappear —
+     * it MOVES, from here to a single rule on the app shell
+     * (src/routes/_authenticated/app.tsx), which wraps all 45 screens through
+     * one <main>. Doing it there rather than here is what makes it possible at
+     * all: 28 of those 45 screens have no top-inset handling of their own and
+     * would slide straight under the status bar if each had to fend for
+     * itself.
+     *
+     * The bottom is deliberately still edge-to-edge, as it already was: only
+     * the IME is padded, so content runs under the transparent gesture bar and
+     * the web layer holds the bottom inset off its own bars.
+     */
     private void applyEdgeToEdgeInsets() {
         View content = findViewById(android.R.id.content);
         if (content == null) return;
-        content.setBackgroundColor(Color.parseColor("#1a1230"));
-        // Transparent, non-contrasted nav bar so page content shows through
-        // behind the gesture area instead of a scrim/wallpaper strip.
+
+        // Let the window extend behind the bars. Without this the system
+        // reserves their space and nothing below has anything to draw into.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
+        // The app's own canvas shows through the bars, so it must not be a
+        // colour of its own. Was #1a1230; see the note above.
+        content.setBackgroundColor(Color.TRANSPARENT);
+
+        getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Both scrims off: the guidance asks for a transparent gesture bar
+            // outright, and ONIQ's own bottom nav already sits above the
+            // three-button bar rather than scrolling under it.
             getWindow().setNavigationBarContrastEnforced(false);
+            getWindow().setStatusBarContrastEnforced(false);
         }
+
         ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
-            Insets bars = insets.getInsets(
-                WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            // The KEYBOARD still moves the view, because the WebView cannot
+            // resize itself around an IME it does not own. Everything else is
+            // handed onward untouched.
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
-            v.setPadding(bars.left, bars.top, bars.right, ime.bottom);
-            return WindowInsetsCompat.CONSUMED;
+            v.setPadding(0, 0, 0, ime.bottom);
+            // NOT CONSUMED — the WebView needs these to populate env().
+            return insets;
         });
     }
 

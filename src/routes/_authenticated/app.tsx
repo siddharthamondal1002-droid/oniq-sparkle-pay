@@ -15,6 +15,7 @@ import { MessageNotifier } from "@/components/chat/MessageNotifier";
 import { usePresenceTracker } from "@/hooks/usePresence";
 import { useEffect } from "react";
 import { initPush } from "@/lib/push";
+import { syncSystemBarsOnBoot } from "@/lib/theme";
 import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
 import { FullScreenIntentPrompt } from "@/components/onboarding/FullScreenIntentPrompt";
 import { CallReminderWatcher } from "@/components/chat/CallReminderWatcher";
@@ -56,6 +57,14 @@ function AppShell() {
   useEffect(() => {
     if (me?.id) void initPush();
   }, [me?.id]);
+  // The status/nav bar icons are transparent-over-app-content now, so Android
+  // needs telling which way to paint them. The pre-paint script in <head>
+  // applies the theme CLASS before this module exists and knows nothing about
+  // native, so the boot sync belongs here — once, in the shell every screen
+  // mounts through.
+  useEffect(() => {
+    syncSystemBarsOnBoot();
+  }, []);
   // Native push taps land here as a soft navigation. MainActivity dispatches
   // this event instead of WebView.loadUrl when the SPA is already running —
   // a full page load tore down every live object, including the WebRTC call
@@ -149,7 +158,37 @@ function AppShell() {
             </div>
           )}
 
-          <main className="relative z-10 flex-1">
+          {/*
+            THE SAFE AREA, HELD IN ONE PLACE.
+
+            Android's shell used to pad its content view by the top/left/right
+            insets and swallow them. That is gone (MainActivity.applyEdgeToEdgeInsets):
+            the window is edge-to-edge now, the bars are transparent, and the
+            insets reach the WebView so `env(safe-area-inset-*)` is real for
+            the first time — the CSS has asked for this all along via
+            `viewport-fit=cover`, and got zeroes.
+
+            It lands HERE rather than on each screen because 28 of the 45
+            screens under this Outlet carry no top-inset handling of their own
+            and would slide under the status bar. One <main> covers them all,
+            and the arithmetic is deliberately unchanged for the 17 that DO
+            handle it: they use `max(3rem, env(...))`, which still resolves to
+            3rem on top of this padding, exactly as it did when the shell
+            supplied the inset natively.
+
+            LEFT AND RIGHT ARE NEW. Nothing in the web layer has ever read
+            safe-area-inset-left/right — the native padding was quietly
+            covering display cutouts in landscape. Dropping that padding
+            without this would have put a notch through the call UI.
+          */}
+          <main
+            className="relative z-10 flex-1"
+            style={{
+              paddingTop: "env(safe-area-inset-top)",
+              paddingInlineStart: "env(safe-area-inset-left)",
+              paddingInlineEnd: "env(safe-area-inset-right)",
+            }}
+          >
             <Outlet />
           </main>
 

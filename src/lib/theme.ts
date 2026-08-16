@@ -22,12 +22,43 @@ export function getThemeMode(): ThemeMode {
   }
 }
 
+/**
+ * Tell Android which way to paint the status/navigation bar icons.
+ *
+ * The app went edge-to-edge on 2026-08-16, so those bars are transparent and
+ * their icons sit directly on whatever this theme paints underneath. Android
+ * cannot work that out for itself: the choice lives in localStorage here and
+ * can differ from the system setting, because ONIQ ships its own toggle.
+ *
+ * Light theme => a near-white canvas => the icons must be DARK. Get it the
+ * wrong way round and the clock and battery are simply invisible, which is
+ * why this is wired into the same function that flips the class rather than
+ * left as a step somebody has to remember.
+ *
+ * Web-only builds have no such plugin; the dynamic import resolves to nothing
+ * and this is a silent no-op there.
+ */
+async function syncSystemBarIcons(mode: ThemeMode) {
+  try {
+    const cap = (globalThis as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
+    if (!cap?.isNativePlatform?.()) return;
+    const { registerPlugin } = await import(/* @vite-ignore */ "@capacitor/core");
+    const SystemBars = registerPlugin<{ setIconStyle(o: { dark: boolean }): Promise<void> }>(
+      "SystemBars",
+    );
+    await SystemBars.setIconStyle({ dark: mode === "light" });
+  } catch {
+    /* no plugin, no native shell, or an OEM that refuses — keep the default */
+  }
+}
+
 export function applyThemeMode(mode: ThemeMode) {
   try {
     document.documentElement.classList.toggle("light", mode === "light");
   } catch {
     /* SSR */
   }
+  void syncSystemBarIcons(mode);
 }
 
 export function setThemeMode(mode: ThemeMode) {
@@ -42,6 +73,20 @@ export function setThemeMode(mode: ThemeMode) {
   } catch {
     /* non-browser */
   }
+}
+
+/**
+ * Sync the system bar icons to the persisted theme, once, on boot.
+ *
+ * NOT covered by applyThemeMode: that only runs when the user TOGGLES. On a
+ * cold start the `light` class comes from THEME_BOOT_SCRIPT in the document
+ * head, which runs before any of this module exists and knows nothing about
+ * Android. Without this call, a light-mode user relaunching the app would get
+ * light icons on a light canvas — an invisible clock and battery until they
+ * happened to toggle the theme twice.
+ */
+export function syncSystemBarsOnBoot() {
+  void syncSystemBarIcons(getThemeMode());
 }
 
 /**
