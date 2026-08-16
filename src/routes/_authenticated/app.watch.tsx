@@ -34,6 +34,7 @@ import {
   WATCH_NOTICE,
   channelUrl,
   embedUrl,
+  isLiveChannel,
   watchDirectoryFor,
   type WatchEntry,
   type WatchGenre,
@@ -223,6 +224,9 @@ function Row({ entry, onPlay }: { entry: WatchEntry; onPlay: () => void }) {
   // so it stays link-out and the row says so instead of offering a play
   // button that would open an empty player.
   const canPlay = embedUrl(entry) !== null;
+  // Live feed vs uploads, straight from the restored roster — not a guess made
+  // here. See src/data/watchChannels.ts.
+  const live = isLiveChannel(entry.channelId);
   if (!url) return null;
   return (
     <li>
@@ -246,7 +250,7 @@ function Row({ entry, onPlay }: { entry: WatchEntry; onPlay: () => void }) {
           <div className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium text-primary">
             {canPlay ? (
               <>
-                Watch here <Play className="size-3" />
+                {live ? "Watch live" : "Watch here"} <Play className="size-3" />
               </>
             ) : (
               <>

@@ -38,6 +38,15 @@
 
 import type { Country } from "@/data/appRegistry";
 import type { FaithId } from "@/data/faithContent";
+import { WATCH_CHANNELS, liveEmbedUrl } from "@/data/watchChannels";
+
+/** Channel ids that carry a 24/7 live feed, from the original roster. */
+const LIVE_IDS = new Set(WATCH_CHANNELS.filter((c) => c.verified).map((c) => c.channelId));
+
+/** Whether this channel has a live feed to play, rather than uploads. */
+export function isLiveChannel(channelId?: string): boolean {
+  return !!channelId && LIVE_IDS.has(channelId);
+}
 
 export type WatchGenre =
   "news" | "sports" | "entertainment" | "finance" | "influencer" | "lifestyle";
@@ -110,6 +119,12 @@ export function channelUrl(e: { channelId?: string; handle?: string }): string |
  */
 export function embedUrl(e: { channelId?: string }): string | null {
   if (!e.channelId || !e.channelId.startsWith("UC")) return null;
+  // A CHANNEL THAT CARRIES A LIVE FEED PLAYS ITS LIVE FEED. That split is not
+  // new and was not invented here: src/data/watchChannels.ts is the original
+  // roster of broadcasters with a 24/7 stream, restored from the commit that
+  // removed it, and liveEmbedUrl is its original endpoint. Everything else
+  // has no live feed to point at, so it gets the uploads playlist instead.
+  if (isLiveChannel(e.channelId)) return liveEmbedUrl(e.channelId);
   const uploads = `UU${e.channelId.slice(2)}`;
   // `rel=0` keeps the end-screen suggestions inside the same channel. No
   // autoplay: a directory that starts making noise on open is a bug, and
