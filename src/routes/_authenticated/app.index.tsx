@@ -1434,7 +1434,7 @@ function WatchPreview() {
             type="button"
             onClick={() => step(-1)}
             aria-label="Previous channel"
-            className="press grid h-7 w-7 place-items-center rounded-full text-foreground"
+            className="tap press grid h-7 w-7 place-items-center rounded-full text-foreground"
           >
             <SkipBack className="h-3.5 w-3.5" />
           </button>
@@ -1442,7 +1442,7 @@ function WatchPreview() {
             type="button"
             onClick={() => step(1)}
             aria-label="Next channel"
-            className="press grid h-7 w-7 place-items-center rounded-full text-foreground"
+            className="tap press grid h-7 w-7 place-items-center rounded-full text-foreground"
           >
             <SkipForward className="h-3.5 w-3.5" />
           </button>
@@ -1451,7 +1451,7 @@ function WatchPreview() {
             onClick={toggleMute}
             aria-label={muted ? "Unmute" : "Mute"}
             aria-pressed={muted}
-            className="press grid h-7 w-7 place-items-center rounded-full text-foreground"
+            className="tap press grid h-7 w-7 place-items-center rounded-full text-foreground"
           >
             {muted ? <VolumeX className="h-3.5 w-3.5" /> : <Volume2 className="h-3.5 w-3.5" />}
           </button>

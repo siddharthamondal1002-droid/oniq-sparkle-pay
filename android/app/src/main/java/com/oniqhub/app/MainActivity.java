@@ -48,6 +48,59 @@ public class MainActivity extends BridgeActivity {
         applyEdgeToEdgeInsets();
         requestBestRefreshRate();
         ensureNotificationChannels();
+        applySystemFontScale();
+    }
+
+    /**
+     * Make the system font-size setting actually do something.
+     *
+     * THE BUG THIS FIXES IS TOTAL, NOT COSMETIC. Android WebView does not
+     * inherit the OS font scale: WebSettings.getTextZoom() is 100 and stays
+     * 100 no matter what Settings > Display > Font size says. ONIQ is a
+     * Capacitor shell around a web app, so until now a user who set their
+     * phone to the largest font got EXACTLY NO CHANGE anywhere in the app.
+     * Not smaller-than-ideal text — the accessibility control simply did
+     * nothing, which is the kind of failure that never shows up in a design
+     * review because the designer never turns the setting on.
+     *
+     * textZoom scales every text node including CSS px, which is what makes
+     * this the right lever for a WebView: it reaches the app's existing
+     * fixed-size type without 500 edits.
+     *
+     * CLAMPED AT 130%. Android offers up to 200% (2.0) and a few OEM skins go
+     * further. This app has dense fixed-height rows — chip strips, the call
+     * control bar, the chat composer — and past roughly 1.3 they overlap
+     * rather than reflow. Honouring 130% of the request beats honouring none
+     * of it, and the ceiling is stated here rather than discovered later. The
+     * real fix is min-height instead of height across those rows; until that
+     * lands, this is the honest limit.
+     */
+    private void applySystemFontScale() {
+        try {
+            if (bridge == null || bridge.getWebView() == null) return;
+            float scale = getResources().getConfiguration().fontScale;
+            if (!(scale > 0f)) return;
+            if (scale > 1.3f) scale = 1.3f;
+            bridge.getWebView().getSettings().setTextZoom(Math.round(scale * 100f));
+        } catch (Throwable ignored) {
+            // A WebView that refuses this is not a reason to fail startup.
+        }
+    }
+
+    /**
+     * Belt and braces for a font-scale change while the app is open.
+     *
+     * As the manifest stands today `fontScale` is NOT in android:configChanges,
+     * so Android recreates the activity when the user drags that slider and
+     * onCreate re-applies the zoom on its own. This override matters only if
+     * someone later adds fontScale to that list — a one-word manifest edit
+     * that would otherwise silently strip the setting back out again. It is
+     * idempotent, so firing on the configChanges we DO declare costs nothing.
+     */
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        applySystemFontScale();
     }
 
     /**

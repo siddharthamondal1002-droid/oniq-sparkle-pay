@@ -33,7 +33,7 @@ export function DevotionalPicker({
       data-testid="devotional-picker"
       className="mb-3 rounded-2xl border border-primary/30 bg-primary/5 p-3"
     >
-      <div className="text-[10px] uppercase tracking-wider text-primary/90">devotional 🙏</div>
+      <div className="text-[11px] uppercase tracking-wider text-primary/90">devotional 🙏</div>
       <div className="mt-0.5 text-xs font-semibold">loop for how long?</div>
       <div className="no-scrollbar mt-2 flex flex-wrap items-center gap-1">
         {DEVOTIONAL_DURATIONS.map((d) => (
@@ -56,7 +56,7 @@ export function DevotionalPicker({
         </button>
       </div>
       {!compact && (
-        <p className="mt-2 text-[10px] leading-snug text-muted-foreground">
+        <p className="mt-2 text-[11px] leading-snug text-muted-foreground">
           Keeps playing for the time you pick, even if you leave and come back. Nothing is cut off
           mid-track when it ends.
         </p>
@@ -78,7 +78,7 @@ export function DevotionalRunning({
   return (
     <div
       data-testid="devotional-running"
-      className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-2.5 py-1 text-[10px] font-semibold text-primary"
+      className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/15 px-2.5 py-1 text-[11px] font-semibold text-primary"
     >
       <span className="relative flex h-1.5 w-1.5">
         <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-70" />
@@ -106,7 +106,7 @@ export function DevotionalEnded({
   return (
     <div
       data-testid="devotional-ended"
-      className="mb-2 inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[10px]"
+      className="mb-2 inline-flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-[11px]"
     >
       <span className="text-muted-foreground">loop ended</span>
       <button

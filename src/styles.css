@@ -44,6 +44,9 @@
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
+  /* `border-border-strong` in Tailwind. For controls whose outline is the
+     only thing identifying them — see the note beside --border-strong. */
+  --color-border-strong: var(--border-strong);
   --color-input: var(--input);
   --color-ring: var(--ring);
 
@@ -101,7 +104,25 @@
   --destructive: #f87171;
   --destructive-foreground: #0e0f13;
 
-  --border: rgba(255, 255, 255, 0.14);
+  /*
+   * TWO BORDERS, and the split is a judgement call worth stating.
+   *
+   * WCAG 1.4.11 asks 3:1 for "visual information required to identify user
+   * interface components and states". On this palette that needs white at
+   * alpha 0.34, measured — a hard, drawn line around every card in the app.
+   *
+   * A card's edge is NOT required to identify anything: the content inside
+   * does that, and painting 0.34 everywhere would repaint the product to
+   * satisfy a rule it does not actually fall under. An INPUT's edge is a
+   * different matter — it is the only thing saying "you can type here" — and
+   * so is the outline of an unfilled control whose border carries its state.
+   *
+   * So: --border is nudged from 0.14 (1.52:1) to 0.20 (1.88:1), better
+   * without being loud, and --border-strong exists at 0.34 (3.13:1 on card,
+   * 3.09:1 on background) for the cases that genuinely need it.
+   */
+  --border: rgba(255, 255, 255, 0.2);
+  --border-strong: rgba(255, 255, 255, 0.34);
   --input: #1b1e26;
   --ring: #00d4b8;
 
@@ -164,14 +185,28 @@
   --popover: #ffffff;
   --popover-foreground: #171a21;
 
-  --primary: #008f7a;
+  /*
+   * DARKENED FOR CONTRAST, 2026-08-16. Measured, not eyeballed.
+   *
+   * #008f7a scored 3.83:1 on the canvas and 4.03:1 on a card — both under
+   * the 4.5:1 that body text needs — and white on it was 4.03:1, so every
+   * filled primary button in light mode failed too. Teal on white is a
+   * genuinely hard case: the hue is bright, and the ramp only clears 4.5:1
+   * around L=30%.
+   *
+   * #007a6a is the SHALLOWEST darkening that passes all three: 5.00:1 on
+   * the canvas, 5.26:1 on a card, 5.26:1 for white on the fill. Same hue,
+   * same saturation — the brand mark is unchanged, this is the light-mode
+   * variant only, and dark mode's #00d4b8 (10.13:1) was already fine.
+   */
+  --primary: #007a6a;
   --primary-foreground: #ffffff;
 
-  --accent: #008f7a;
+  --accent: #007a6a;
   --accent-foreground: #ffffff;
 
-  --magenta: #008f7a;
-  --neon: #008f7a;
+  --magenta: #007a6a;
+  --neon: #007a6a;
   --amber: #b45309;
   --success: #047857;
 
@@ -184,9 +219,12 @@
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
-  --border: rgba(17, 24, 39, 0.12);
+  /* Same split as dark; see the note there. 0.18 => 1.47:1 for a card edge,
+     0.48 => 3.20:1 for a control whose border IS its identity. */
+  --border: rgba(17, 24, 39, 0.18);
+  --border-strong: rgba(17, 24, 39, 0.48);
   --input: #eef0f4;
-  --ring: #008f7a;
+  --ring: #007a6a;
 
   --gradient-primary: linear-gradient(135deg, #008f7a 0%, #0077b6 100%);
   --gradient-accent: linear-gradient(135deg, #008f7a 0%, #0077b6 100%);
@@ -464,6 +502,74 @@ textarea:focus-visible,
 select:focus-visible,
 [contenteditable="true"]:focus-visible {
   outline: none;
+}
+
+/*
+ * A 48dp TOUCH TARGET WITHOUT RESIZING ANYTHING.
+ *
+ * Material asks for 48dp, "even if this extends past the UI element visual"
+ * — and that last clause is the whole trick. A 32px icon button is fine to
+ * LOOK at; it is the hit area that fails somebody with a tremor, or anyone
+ * using Switch Access. Growing the button instead would push every dense row
+ * in the app apart, which is why this has been skipped before.
+ *
+ * So the visual stays exactly as designed and an invisible pseudo-element
+ * pads the target out to 48×48 from the centre. `position: relative` is set
+ * here rather than assumed, because most of these buttons are grid items
+ * with no positioning of their own.
+ *
+ * Measured before: 39 buttons at 32px, 16 at 36px, 13 at 28px, 2 at 24px.
+ */
+@utility tap {
+  position: relative;
+}
+/*
+ * `inset: calc(50% - 24px)` on all four sides, and NO transform.
+ *
+ * Percentage insets resolve against the containing block, so left+right each
+ * become 50%W - 24px and the box lands at exactly 48px wide, centred; the
+ * same arithmetic gives 48px tall. It needs no translate and no direction
+ * handling, which is the point: the first version used
+ * `inset-inline-start: 50%` with `translate(-50%,-50%)` plus a
+ * `[dir="rtl"]` override, and the build dropped the attribute selector — the
+ * RTL rule compiled to a bare `.tap::after` and shifted EVERY hit area 48px
+ * sideways in both directions. Symmetric geometry cannot fail that way.
+ */
+.tap::after {
+  content: "";
+  position: absolute;
+  inset: calc(50% - 24px);
+  /* Never paints — only pointer hit-testing. */
+  pointer-events: auto;
+}
+
+/*
+ * MOTION IS A SETTING, NOT A STYLE.
+ *
+ * WCAG 2.3.3, and a real symptom rather than a preference: vestibular
+ * disorders make looping and parallax motion nauseating. ONIQ had NO
+ * handling for this — the pinging LIVE dot, the Pulse ticker, the floating
+ * hero, every fade-up, all ran regardless.
+ *
+ * Animations are reduced to a single frame rather than removed, so anything
+ * that ENDS in its final state (fade-up) still lands there instead of being
+ * stuck invisible. Infinite loops stop; transitions become instant.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* The ticker and the float are decorative and loop forever — the reduced
+     state is simply "still", which is what they'd look like paused. */
+  .oniq-pulse-ticker,
+  .animate-float-slow {
+    animation: none !important;
+  }
 }
 
 /* No sideways rubber-banding; keep native pull-to-refresh vertical only. */

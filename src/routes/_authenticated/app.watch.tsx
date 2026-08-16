@@ -613,7 +613,7 @@ function WatchPage() {
         */}
         {current && (
           <span
-            className={`mb-2 inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+            className={`mb-2 inline-flex w-fit items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-bold ${
               live
                 ? "border-red-500/50 bg-red-500/20 text-red-300"
                 : "border-primary/50 bg-primary/20 text-primary"
@@ -734,7 +734,7 @@ function WatchPage() {
                 <Plus className="h-6 w-6 text-muted-foreground" />
               </div>
               <div className="mt-1.5 text-xs font-medium leading-snug">add channel</div>
-              <div className="mt-0.5 truncate text-[10px] text-muted-foreground">youtube link</div>
+              <div className="mt-0.5 truncate text-[11px] text-muted-foreground">youtube link</div>
             </button>
           )}
           {shown.map((c, i) => {
@@ -762,7 +762,7 @@ function WatchPage() {
                   <div className="mt-1.5 line-clamp-2 text-xs font-medium leading-snug">
                     {c.name}
                   </div>
-                  <div className="mt-0.5 truncate text-[10px] text-muted-foreground">{c.sub}</div>
+                  <div className="mt-0.5 truncate text-[11px] text-muted-foreground">{c.sub}</div>
                 </button>
                 {removable && (
                   <div className="absolute end-1 top-1">
@@ -897,7 +897,7 @@ function IconBtn({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`press grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border bg-card text-muted-foreground ${
+      className={`tap press grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border bg-card text-muted-foreground ${
         danger ? "hover:text-red-400" : "hover:text-foreground"
       }`}
     >
@@ -923,7 +923,7 @@ function Ctrl({
       onClick={onClick}
       aria-label={label}
       aria-pressed={pressed}
-      className="press grid size-8 place-items-center rounded-full text-foreground"
+      className="tap press grid size-8 place-items-center rounded-full text-foreground"
     >
       {children}
     </button>
