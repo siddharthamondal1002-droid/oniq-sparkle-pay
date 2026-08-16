@@ -3618,6 +3618,42 @@ export type Database = {
         }
         Relationships: []
       }
+      story_dispatch_health: {
+        Row: {
+          consecutive_failures: number
+          id: boolean
+          last_detail: string | null
+          last_fail_at: string | null
+          last_ok_at: string | null
+          last_reported_at: string | null
+          last_status: number | null
+          request_id: number | null
+          sent_at: string | null
+        }
+        Insert: {
+          consecutive_failures?: number
+          id?: boolean
+          last_detail?: string | null
+          last_fail_at?: string | null
+          last_ok_at?: string | null
+          last_reported_at?: string | null
+          last_status?: number | null
+          request_id?: number | null
+          sent_at?: string | null
+        }
+        Update: {
+          consecutive_failures?: number
+          id?: boolean
+          last_detail?: string | null
+          last_fail_at?: string | null
+          last_ok_at?: string | null
+          last_reported_at?: string | null
+          last_status?: number | null
+          request_id?: number | null
+          sent_at?: string | null
+        }
+        Relationships: []
+      }
       story_global_usage: {
         Row: {
           day: string
