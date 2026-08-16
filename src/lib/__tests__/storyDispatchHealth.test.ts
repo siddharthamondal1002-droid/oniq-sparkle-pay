@@ -101,7 +101,7 @@ describe("story_dispatch_tick", () => {
     );
   });
 
-  it("is reachable by nobody but the cron", () => {
+  it("is reachable by nobody but the cron, but readable by the sweep", () => {
     expect(SQL).toContain(
       "revoke all on function public.story_dispatch_tick() from public, anon, authenticated",
     );
@@ -109,5 +109,58 @@ describe("story_dispatch_tick", () => {
       "revoke all on table public.story_dispatch_health from public, anon, authenticated",
     );
     expect(SQL).toContain("alter table public.story_dispatch_health enable row level security");
+    // Revoked from public/anon/authenticated only — service_role keeps its
+    // grant and bypasses RLS, which is how story-sweep reads it below.
+    expect(SQL).not.toMatch(/revoke .* from .*service_role/);
+  });
+});
+
+/**
+ * AND THE USER IS TOLD WHICH FAILURE IT WAS.
+ *
+ * Every expired job used to read "no renderer picked this up in time" — one
+ * guess presented as fact. The Story that died on 2026-08-15 had never been
+ * OFFERED to a runner at all, and that sentence pointed the diagnosis at a
+ * busy queue instead of at the broken dispatcher it actually was.
+ */
+describe("story-sweep's expiry message", () => {
+  const SWEEP = readFileSync(
+    join(process.cwd(), "supabase/functions/story-sweep/index.ts"),
+    "utf8",
+  );
+
+  it("tells the three failures apart, and all three still say time came back", () => {
+    // Asserted as WHOLE sentences, not as fragments: the fragments also occur
+    // in the comment above the code, so a fragment match would pass on prose
+    // alone. (The first draft of this test did exactly that.)
+    for (const sentence of [
+      "a renderer took this one and never finished — your time has been returned",
+      "we couldn't reach the renderer — your time has been returned",
+      "no renderer picked this up in time — your time has been returned",
+    ]) {
+      expect(SWEEP, `missing or reworded: ${sentence}`).toContain(sentence);
+    }
+  });
+
+  it("reads dispatched_at per job, not just the global health", () => {
+    // The per-job column answers most of it on its own: null means nothing
+    // ever reached a runner, a value means one took it and vanished.
+    expect(SWEEP).toContain("select=id,dispatched_at");
+    expect(SWEEP).toMatch(/row\.dispatched_at\s*$/m);
+  });
+
+  it("only blames the dispatcher when it is failing NOW", () => {
+    // A successful reconcile zeroes the counter. The recency check matters
+    // too: with an empty queue nothing is attempted, so a counter can sit
+    // stale for days and would otherwise mislabel every later timeout.
+    expect(SWEEP).toContain("h.consecutive_failures > 0");
+    expect(SWEEP).toMatch(/now - Date\.parse\(h\.last_fail_at\) < STALE_TTL_MS/);
+  });
+
+  it("does not let a failed health read break the sweep", () => {
+    // The message is a nicety; refunding people is not. A dispatcher-health
+    // read that 500s must leave the expiry loop running.
+    expect(SWEEP).toMatch(/\.catch\(\(\) => null\)/);
+    expect(SWEEP).toContain("let dispatcherDown = false;");
   });
 });

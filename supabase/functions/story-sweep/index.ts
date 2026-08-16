@@ -119,20 +119,58 @@ Deno.serve(async (req) => {
     const dead = await fetch(
       `${supabaseUrl}/rest/v1/story_jobs` +
         `?status=in.(queued,generating,assembling)&has_bytes=is.false` +
-        `&updated_at=lt.${deadBefore}&select=id&limit=${BATCH}`,
+        `&updated_at=lt.${deadBefore}&select=id,dispatched_at&limit=${BATCH}`,
       { headers: svc },
     );
+
+    // AND IT SHOULD SAY WHICH FAILURE IT WAS.
+    //
+    // Every one of these used to read "no renderer picked this up in time",
+    // which is one guess presented as fact. On 2026-08-15 a Story died here
+    // having never been OFFERED to a runner at all — the dispatcher was
+    // failing silently — and that sentence sent the diagnosis in exactly the
+    // wrong direction, toward a busy queue rather than a broken dispatcher.
+    //
+    // `dispatched_at` already tells most of the story per job, so it is read
+    // first: null means nothing ever reached a runner, a value means one took
+    // it and never came back. story_dispatch_health separates the first case
+    // further — a dispatcher that is currently failing is a different thing
+    // from a queue nobody happened to claim, and it is the case where the
+    // user should be told plainly that this was ours, not theirs.
+    let dispatcherDown = false;
+    const health = await fetch(
+      `${supabaseUrl}/rest/v1/story_dispatch_health` +
+        `?select=consecutive_failures,last_fail_at&limit=1`,
+      { headers: svc },
+    ).catch(() => null);
+    if (health?.ok) {
+      const [h] = (await health.json()) as {
+        consecutive_failures: number;
+        last_fail_at: string | null;
+      }[];
+      // A successful reconcile zeroes the counter, so a non-zero one means it
+      // is failing NOW. The recency check is belt and braces: with an empty
+      // queue nothing is attempted, so a counter can sit stale for days.
+      dispatcherDown =
+        !!h &&
+        h.consecutive_failures > 0 &&
+        !!h.last_fail_at &&
+        now - Date.parse(h.last_fail_at) < STALE_TTL_MS;
+    }
+
     let expired = 0;
     if (dead.ok) {
-      const deadRows = (await dead.json()) as { id: string }[];
+      const deadRows = (await dead.json()) as { id: string; dispatched_at: string | null }[];
       for (const row of Array.isArray(deadRows) ? deadRows : []) {
+        const why = row.dispatched_at
+          ? "a renderer took this one and never finished — your time has been returned"
+          : dispatcherDown
+            ? "we couldn't reach the renderer — your time has been returned"
+            : "no renderer picked this up in time — your time has been returned";
         const marked = await fetch(`${supabaseUrl}/rest/v1/story_jobs?id=eq.${row.id}`, {
           method: "PATCH",
           headers: { ...svc, "content-type": "application/json", Prefer: "return=minimal" },
-          body: JSON.stringify({
-            status: "failed",
-            error: "no renderer picked this up in time — your time has been returned",
-          }),
+          body: JSON.stringify({ status: "failed", error: why }),
         });
         if (!marked.ok) {
           console.error("story-sweep expire", row.id, marked.status);
