@@ -279,6 +279,24 @@ describe("what the plan screen says", () => {
     expect(ui).toContain("p.entitlements.filter((e) => !freeGives.has(e))");
   });
 
+  it("never asks whether the caller is ENTITLED to a group call", () => {
+    // The entitlement exists so PlanSheet has something to name on the Free
+    // card. It is deliberately NOT a gate: the call path reads no plan, and
+    // "Add someone to this call" is offered on call STATUS alone.
+    //
+    // This became load-bearing on 2026-08-16, when the entitlement read was
+    // made to fail CLOSED — an unconfirmed read now resolves false rather
+    // than hanging. Gating group calls on it would take them away from
+    // anyone on a bad connection, which is the opposite of a feature that
+    // costs ONIQ nothing per use and is meant to be unconditional.
+    const call = readFileSync(join(process.cwd(), "src/components/chat/CallOverlay.tsx"), "utf8");
+    expect(call, "the call path now consults a plan").not.toContain("group_calls");
+    expect(call, "group calls grew a paywall").not.toMatch(/useEntitlement\(\s*["']group_calls["']/);
+    // Offered whenever there is a call to add to, and on nothing else.
+    expect(call).toContain('ariaLabel="Add someone to this call"');
+    expect(call).toMatch(/\{\(status === "connected" \|\| status === "connecting"\) && \(/);
+  });
+
   it("gives the owner a way to see the buy screens without being charged", () => {
     const admin = readFileSync(
       join(process.cwd(), "src/routes/_authenticated/app.admin.tsx"),
