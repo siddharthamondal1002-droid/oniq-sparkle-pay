@@ -295,3 +295,64 @@ describe("the draw loop", () => {
     expect(SRC).toContain("clearInterval(fx.watchdog)");
   });
 });
+
+/**
+ * THE OFFER IS THE ONE MESSAGE THAT COULD NOT BE LOST, AND IT WAS.
+ *
+ * Diagnosed 2026-08-16 from two logged failures with the same signature:
+ * role=callee, iceConnectionState "new" after the full 20s deadline, one peer
+ * in the pool. ICE "new" means the connection never began — not that it tried
+ * and failed. For that pair the offerer is fixed by uuid comparison
+ * (74caf65b < d3b58345), so the callee was always the one waiting, and glare
+ * is ruled out: it never offers in that direction.
+ *
+ * Signalling rides Supabase Realtime broadcast, which is fire-and-forget.
+ * `hello` was already re-broadcast on a timer. The offer was sent once. One
+ * lost message and the call is dead until the watchdog.
+ */
+describe("the offer survives a lost broadcast", () => {
+  it("re-sends until an answer comes back", () => {
+    expect(SRC).toContain("const sendOfferNow = (");
+    expect(SRC, "the offer is still sent bare, with no retry").not.toMatch(
+      /sendSig\("offer", peerId, \{ sdp: offer \}\)/,
+    );
+    expect(SRC).toContain("entry.offerRetryTimer = window.setTimeout(");
+  });
+
+  it("stops the moment a remote description exists", () => {
+    // Re-sending after the answer landed would renegotiate a working call.
+    const fn = SRC.slice(
+      SRC.indexOf("const sendOfferNow = ("),
+      SRC.indexOf("const teardownPeer = ("),
+    );
+    expect(fn).toContain("if (cur.pc.remoteDescription || cur.reachedConnected) return;");
+  });
+
+  it("gives up before the connect deadline rather than racing it", () => {
+    // Four tries at 2.5s is ~10s, well inside the 20s watchdog, so a
+    // recovered call still beats the timeout instead of arriving after the
+    // user has already been told it failed.
+    const fn = SRC.slice(
+      SRC.indexOf("const sendOfferNow = ("),
+      SRC.indexOf("const teardownPeer = ("),
+    );
+    expect(fn).toContain("if (entry.offersSent >= 4) return;");
+    expect(fn).toContain("}, 2500);");
+  });
+
+  it("is cancelled when the peer is torn down", () => {
+    // A timer outliving its peer would resend an offer into a dead call.
+    const fn = SRC.slice(SRC.indexOf("const teardownPeer = ("));
+    expect(fn.slice(0, 900)).toContain("clearTimeout(entry.offerRetryTimer)");
+  });
+
+  it("records enough at the timeout to tell the two silences apart", () => {
+    // "No offer was ever made" and "the answer never came back" both present
+    // as ICE new. Without these fields the report is a dead end — which is
+    // what the first two occurrences were.
+    const block = SRC.slice(SRC.indexOf('"call-connect-timeout"'));
+    for (const field of ["sig:", "haveLocal:", "haveRemote:", "amOfferer:", "offersSent:"]) {
+      expect(block.slice(0, 1400), `${field} missing from the report`).toContain(field);
+    }
+  });
+});

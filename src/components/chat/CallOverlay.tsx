@@ -419,6 +419,19 @@ type PeerEntry = {
   forceRelay: boolean;
   disconnectedSince: number | null;
   disconnectedTimer: number | null;
+  /**
+   * THE OFFER HAS NO DELIVERY GUARANTEE, so it needs a retry and a count.
+   *
+   * Signalling rides Supabase Realtime broadcast, which is fire-and-forget.
+   * `hello` was already re-broadcast on a timer; the OFFER was sent exactly
+   * once. One dropped frame on that single message and the callee waits at
+   * iceConnectionState "new" until the 20s watchdog kills the call — which is
+   * the signature logged on 2026-08-15 18:11 and again on 2026-08-16 06:22,
+   * both times with this pair, both times with the callee waiting on an offer
+   * that never came.
+   */
+  offersSent: number;
+  offerRetryTimer: number | null;
 };
 
 // UI-visible peer tile info (subset of PeerEntry).
@@ -677,6 +690,19 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         `no peer reached connected in 20s (${peers.length} peer(s))`,
         {
           role: isCallerRef.current ? "caller" : "callee",
+          // WHICH OF THE TWO SILENCES WAS IT. An ICE state of "new" after 20
+          // seconds says the connection never began, but not why: either no
+          // offer was ever made, or one was made and its answer never came
+          // back. signalingState and the two descriptions tell those apart at
+          // a glance, and without them the report is a dead end — which is
+          // exactly what the first two occurrences were.
+          detail: peers.map((p) => ({
+            sig: p.pc.signalingState,
+            haveLocal: p.pc.localDescription?.type ?? null,
+            haveRemote: p.pc.remoteDescription?.type ?? null,
+            amOfferer: isOffererFor(p.peerId),
+            offersSent: p.offersSent ?? 0,
+          })),
           callType: callTypeRef.current,
           peers: peers.map((p) => ({
             ice: p.pc.iceConnectionState,
@@ -803,6 +829,8 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       forceRelay,
       disconnectedSince: null,
       disconnectedTimer: null,
+      offersSent: 0,
+      offerRetryTimer: null,
     };
     peerPoolRef.current.set(peerId, entry);
 
@@ -972,7 +1000,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       try {
         const offer = withMungedSdp(await pc.createOffer());
         await pc.setLocalDescription(offer);
-        sendSig("offer", peerId, { sdp: offer });
+        sendOfferNow(peerId, offer);
       } catch (err) {
         console.warn("[mesh] createOffer failed for", peerId, err);
       }
@@ -1012,6 +1040,40 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     entry.pendingIce = [];
   };
 
+  /**
+   * Send an offer, and keep sending it until an answer comes back.
+   *
+   * WHY A RETRY AND NOT A BIGGER TIMEOUT. The offer is one broadcast on a
+   * fire-and-forget channel. Losing it is not a slow network, it is a missing
+   * message, and no amount of waiting produces a second copy — which is why
+   * both logged failures sat at iceConnectionState "new" for the full twenty
+   * seconds and then died. `hello` already had this treatment; the offer did
+   * not, and the offer is the one that matters.
+   *
+   * Re-sending is safe: the callee's handler sets the remote description from
+   * whatever offer arrives, and an identical SDP applied twice is a no-op.
+   * The retry stops the moment a remote description exists.
+   */
+  const sendOfferNow = (peerId: string, sdp: RTCSessionDescriptionInit) => {
+    const entry = peerPoolRef.current.get(peerId);
+    if (!entry) return;
+    entry.offersSent += 1;
+    sendSig("offer", peerId, { sdp });
+    if (entry.offerRetryTimer) clearTimeout(entry.offerRetryTimer);
+    // Four tries over ~10s, comfortably inside the 20s connect deadline so a
+    // recovered call still beats the watchdog rather than racing it.
+    if (entry.offersSent >= 4) return;
+    entry.offerRetryTimer = window.setTimeout(() => {
+      const cur = peerPoolRef.current.get(peerId);
+      if (!cur) return;
+      // An answer landed, or the peer is already up. Nothing to resend.
+      if (cur.pc.remoteDescription || cur.reachedConnected) return;
+      // eslint-disable-next-line no-console
+      console.warn(`[mesh] no answer from ${peerId}, resending offer #${cur.offersSent + 1}`);
+      sendOfferNow(peerId, sdp);
+    }, 2500);
+  };
+
   const teardownPeer = (peerId: string, sendBye: boolean, opts?: { rebuilding?: boolean }) => {
     const entry = peerPoolRef.current.get(peerId);
     if (!entry) return;
@@ -1022,6 +1084,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     if (entry.disconnectedTimer) {
       clearTimeout(entry.disconnectedTimer);
       entry.disconnectedTimer = null;
+    }
+    if (entry.offerRetryTimer) {
+      clearTimeout(entry.offerRetryTimer);
+      entry.offerRetryTimer = null;
     }
     if (sendBye) sendSig("bye", peerId, opts?.rebuilding ? { rebuilding: true } : undefined);
     try {
