@@ -543,11 +543,26 @@ type PeerEntry = {
  * neither.
  */
 function tileGridStyle(count: number): React.CSSProperties {
-  const min = count <= 1 ? "100%" : count <= 4 ? "45%" : count <= 9 ? "30%" : "22%";
+  // COLUMNS AND ROWS ARE BOTH NAMED, rather than letting auto-fit choose.
+  //
+  // The first version of this used `repeat(auto-fit, minmax(45%, 1fr))`, which
+  // packs as many columns as fit — and for TWO people on a portrait phone that
+  // is two columns, giving a pair of tall slivers roughly 4:19. A phone camera
+  // sends a portrait frame, so cover then throws away well over half the width
+  // of each. Stacking the two is the shape that wastes least, and it is what
+  // WhatsApp does at this count too.
+  //
+  // Above two, tiles want to be roughly square, so the grid grows in both
+  // directions instead of one: 3-4 people fill a 2x2, 5-6 a 2x3, 7-9 a 3x3,
+  // and beyond that it stays three wide and adds rows.
+  const cols = count <= 2 ? 1 : count <= 4 ? 2 : count <= 6 ? 2 : 3;
+  const rows = Math.max(1, Math.ceil(count / cols));
   return {
-    gridTemplateColumns: `repeat(auto-fit, minmax(${min}, 1fr))`,
-    // Every row the same height, and allowed to shrink to nothing.
-    gridAutoRows: "minmax(0, 1fr)",
+    // minmax(0, …) on BOTH axes. A track's default minimum is its content's
+    // intrinsic size, and a <video> has one, so plain `1fr` refuses to shrink
+    // below the camera's own frame and the grid overflows its container.
+    gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+    gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
   };
 }
 

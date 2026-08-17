@@ -23,6 +23,21 @@ const SRC = readFileSync(
   "utf8",
 );
 
+/**
+ * The same file with comment lines removed.
+ *
+ * Needed because several of these guards forbid a PATTERN, and the comments
+ * explaining why quote that very pattern as history. Asserting against raw
+ * text would then fail on the explanation rather than on the code — which it
+ * did, the first time the tile grid guard was written.
+ */
+const CODE = SRC.split("\n")
+  .filter((l) => {
+    const t = l.trimStart();
+    return !t.startsWith("//") && !t.startsWith("*") && !t.startsWith("/*");
+  })
+  .join("\n");
+
 describe("the back camera", () => {
   it("picks a device by id rather than trusting facingMode", () => {
     expect(SRC).toContain("cameraDeviceFor");
@@ -178,15 +193,21 @@ describe("the in-call filter", () => {
    */
   it("sizes the tile grid from the participant count, and lets it shrink", () => {
     expect(SRC).toContain("function tileGridStyle(");
-    // minmax(0, …) on the rows: a plain 1fr floors at the content's intrinsic
+    // minmax(0, …) on BOTH axes: a plain 1fr floors at the content's intrinsic
     // size, and a <video> HAS one, so the grid would overflow instead of
     // dividing its space.
-    expect(SRC, "rows can refuse to shrink below the video's own height").toContain(
-      'gridAutoRows: "minmax(0, 1fr)"',
+    expect(SRC).toContain("gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`");
+    expect(SRC).toContain("gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`");
+    // auto-fit packed as many columns as would FIT, which for two people on a
+    // portrait phone is two slivers roughly 4:19 — a portrait camera cropped
+    // to nothing. Columns are named now, not discovered.
+    expect(
+      CODE,
+      "auto-fit is back, and it turns a two-person call into two slivers",
+    ).not.toContain("repeat(auto-fit, minmax(");
+    expect(SRC, "two people must share the screen top and bottom").toContain(
+      "const cols = count <= 2 ? 1",
     );
-    // auto-fit against the CONTAINER rather than a viewport breakpoint, so
-    // the same expression works in portrait, in landscape and in the pill.
-    expect(SRC).toContain("repeat(auto-fit, minmax(");
     // And the flex child must be allowed to shrink at all.
     expect(SRC, "the grid is not allowed to shrink into its flex parent").toContain(
       'className="grid min-h-0 flex-1 gap-1 p-1"',
