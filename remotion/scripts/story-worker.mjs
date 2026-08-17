@@ -352,6 +352,7 @@ async function claimJob() {
         noWatermark: got.noWatermark === true,
         grade: got.grade === 'movie' ? 'movie' : 'classic',
         verbatim: got.verbatim === true,
+        platePath: got.platePath ?? null,
       };
     } catch (e) {
       // 409 means another runner won the race, or Supabase re-dispatched a job
@@ -367,7 +368,7 @@ async function claimJob() {
   }
 
   const queued = await db(
-    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json,no_watermark,grade,verbatim',
+    'story_jobs?status=eq.queued&order=created_at.asc&limit=1&select=id,user_id,prompt,requested_seconds,shot_count,cast_json,no_watermark,grade,verbatim,plate_path',
   );
   if (!queued || queued.length === 0) return null;
   const row = queued[0];
@@ -382,6 +383,7 @@ async function claimJob() {
     noWatermark: row.no_watermark === true,
     grade: row.grade === 'movie' ? 'movie' : 'classic',
     verbatim: row.verbatim === true,
+    platePath: row.plate_path ?? null,
   };
 }
 
@@ -727,6 +729,57 @@ function localTts() {
  * shot steps down to the stills path. A timeout or any other failure is real
  * and throws straight through to the same step-down.
  */
+/**
+ * The user's own opening frame, fetched and made into a still the rest of the
+ * pipeline cannot tell apart from a drawn one.
+ *
+ * NORMALISED TO 1080x1920 PNG, and both halves of that matter. The
+ * composition is portrait 1080x1920 and every downstream step reads
+ * `shotNNN.png`; generateClip even declares `imageMime: 'image/png'` to Veo.
+ * A 4000x3000 JPEG straight off a phone would satisfy none of that. So it is
+ * scaled to COVER and centre-cropped — cover rather than fit, because
+ * letterbox bars baked into the opening frame would then be animated by the
+ * video model as though they were part of the scene.
+ *
+ * Read with the service key: the bucket is private and its RLS answers to the
+ * owner, which the worker is not.
+ */
+async function fetchPlate(objectName) {
+  // THE DRY RUN REACHES NOTHING, and this guard is here because the check in
+  // src/lib/__tests__/storyDryRun.test.ts caught its absence — it enumerates
+  // every function in this file that calls fetch() and fails unless the
+  // fixture guard comes first. Fixtures carry no plates, so throwing drops
+  // shot 1 onto the drawing ladder, which is what a film without a plate does
+  // anyway.
+  if (fixtureEdge) throw new Error('plate: fixtures have none');
+  if (!SUPABASE_URL || !SERVICE_KEY) throw new Error('no storage credentials');
+  const url = `${SUPABASE_URL}/storage/v1/object/story-plates/${objectName
+    .split('/')
+    .map(encodeURIComponent)
+    .join('/')}`;
+  const res = await fetch(url, {
+    headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}` },
+  });
+  if (!res.ok) throw new Error(`plate: ${res.status}`);
+  const bytes = Buffer.from(await res.arrayBuffer());
+  if (bytes.length === 0) throw new Error('plate: empty');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'oniq-plate-'));
+  const src = path.join(dir, 'in');
+  const out = path.join(dir, 'out.png');
+  fs.writeFileSync(src, bytes);
+  try {
+    execFileSync(findBin('ffmpeg'), [
+      '-v', 'error', '-y', '-i', src,
+      '-vf', 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920',
+      '-frames:v', '1', out,
+    ]);
+    return fs.readFileSync(out);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 const CLIP_POLL_MS = 10_000;
 const CLIP_WAIT_MS = 6 * 60_000;
 async function generateClip(shot, stillFile, shotSeconds) {
@@ -1015,7 +1068,26 @@ if (offline) {
           `${plan.setting}. Soft warm light, wide view.`.slice(0, 1900),
       ];
       let still;
-      outer: for (let a = 0; a < asks.length; a++) {
+      // THE USER'S OWN OPENING FRAME, when they gave one.
+      //
+      // Shot 1 only, and only when plate_path is set. This REPLACES the
+      // story-still call rather than adding anything — one fewer image
+      // generated per film, the clip stage downstream unchanged, because it
+      // was always handed a still and never cared who drew it.
+      //
+      // A plate that cannot be fetched or converted does NOT fail the job. It
+      // falls through to the ladder below and the film opens on a drawn frame,
+      // which is the same outcome as never having attached one. Losing a whole
+      // paid render because a photo would not decode is not a trade worth
+      // making, and the client already warns that this can happen.
+      if (i === 0 && job.platePath) {
+        try {
+          still = { data: (await fetchPlate(job.platePath)).toString('base64'), fromPlate: true };
+        } catch (err) {
+          console.log(`  still 1: plate unusable (${String(err?.message ?? err).slice(0, 120)}) — drawing one instead`);
+        }
+      }
+      outer: for (let a = 0; a < asks.length && !still; a++) {
         // NO_IMAGE is an EMPTY reply, not a verdict — run 66 saw it clear on
         // the next identical call while run 69 lost a film to it on the
         // scenery rung, whose content cannot be the problem. One same-ask
@@ -1045,7 +1117,7 @@ if (offline) {
       const stem = `shot${String(i).padStart(3, '0')}`;
       const stillFile = path.join(assetRoot, `${stem}.png`);
       fs.writeFileSync(stillFile, Buffer.from(still.data, 'base64'));
-      console.log(`  still ${i + 1}/${plan.shots.length}`);
+      console.log(`  still ${i + 1}/${plan.shots.length}${still.fromPlate ? ' (your photo)' : ''}`);
 
       // The camera comes from what the SHOT IS, read off Ting's own size word,
       // not from the shot's position in the film. Only SLIDES advance the

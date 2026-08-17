@@ -26,7 +26,7 @@
  * monthly grant, so the feature stays off until a real per-Story cost is
  * measured. The screen is complete; the switch is a config row.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   MAX_CAST_PER_FILM,
   MAX_LOCK,
@@ -38,7 +38,16 @@ import {
 } from "@/lib/castLibrary";
 import { Link } from "@tanstack/react-router";
 import { Capacitor } from "@capacitor/core";
-import { Clapperboard, Clock, Loader2, ShieldAlert, Sparkles, Users2, X } from "lucide-react";
+import {
+  Clapperboard,
+  Clock,
+  ImagePlus,
+  Loader2,
+  ShieldAlert,
+  Sparkles,
+  Users2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
@@ -54,6 +63,7 @@ import {
   type QuotaRefusal,
 } from "@/lib/storyPlan";
 import { checkoutTarget } from "@/lib/storyPricing";
+import { PLATE_TYPES, checkPlate, uploadPlate } from "@/lib/storyPlate";
 import { payForPlan } from "@/lib/razorpay";
 import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient";
 import { PlanSheet, sayLeft } from "./PlanSheet";
@@ -227,6 +237,26 @@ export function StoryStudio() {
   const [verbatim, setVerbatim] = useState(false);
   const [newCastName, setNewCastName] = useState("");
   const [newCastLock, setNewCastLock] = useState("");
+  // THE PLATE — one image the film opens on, in place of the still the
+  // pipeline would have drawn for shot 1. Held as the File until the job
+  // exists, because there is nothing to attach it to until then and an upload
+  // for a film the user abandons is bytes nobody asked for.
+  const [plate, setPlate] = useState<File | null>(null);
+  const [platePreview, setPlatePreview] = useState<string | null>(null);
+  const [plateError, setPlateError] = useState<string | null>(null);
+  const plateInputRef = useRef<HTMLInputElement | null>(null);
+
+  // An object URL is a live handle, not a string — dropped without revoking,
+  // every picked image stays in memory for the tab's life.
+  useEffect(() => {
+    if (!plate) {
+      setPlatePreview(null);
+      return;
+    }
+    const url = URL.createObjectURL(plate);
+    setPlatePreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [plate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -414,6 +444,31 @@ export function StoryStudio() {
             )
             .then(() => {});
         }
+        // THE PLATE, uploaded only now. Before the claim there is no job to
+        // attach it to, and a film the user abandons at the quota refusal
+        // would have left an orphan image behind.
+        //
+        // NOT fire-and-forget, unlike the cast: the upload is a round trip
+        // over mobile data, so awaiting it is what stops the dispatch cron
+        // claiming the job first and rendering a film whose opening shot the
+        // user watched themselves choose. A failure here is reported and the
+        // film still runs — a story that opens on a drawn still is a story,
+        // and refusing to render one over a failed upload would be worse.
+        if (plate) {
+          const up = await uploadPlate(plate);
+          if (!up.ok) {
+            setPlateError(`Your photo did not upload (${up.message}) — the film opens on a drawn frame instead.`);
+          } else {
+            const { data: setRes } = await supabase.rpc(
+              "set_story_plate" as never,
+              { _job_id: claim.jobId, _path: up.path } as never,
+            );
+            const res = setRes as { ok?: boolean } | null;
+            if (!res?.ok) {
+              setPlateError("Your photo did not reach this film in time — it opens on a drawn frame.");
+            }
+          }
+        }
         setJobId(claim.jobId);
         // Named immediately rather than waiting for the first poll: a tap that
         // produces nothing visible for six seconds gets tapped again.
@@ -535,6 +590,76 @@ export function StoryStudio() {
           was cut. Only the text above gets narrated.
         </p>
       ) : null}
+
+      {/* THE PLATE. Sits under the prompt because it answers the same
+          question — what the film opens on — and because that is where it was
+          looked for and not found (2026-08-17).
+
+          The input accepts IMAGES ONLY, and the copy says why rather than
+          leaving "images only" to read as a limitation of the picker. Veo is
+          image-to-video; there is no video-in path in the engine at all, so a
+          video here could be stored and never used, which is the kind of
+          control this codebase treats as a bug. checkPlate() still catches a
+          video, because `accept` is a hint a file manager may ignore. */}
+      <div className="mt-3">
+        <div className="text-xs font-semibold text-foreground">Open on your own photo?</div>
+        <input
+          ref={plateInputRef}
+          type="file"
+          accept={PLATE_TYPES.join(",")}
+          className="sr-only"
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            // Clear the input's own value so picking the SAME file twice after
+            // a rejection still fires a change event.
+            e.target.value = "";
+            if (!f) return;
+            const verdict = checkPlate(f);
+            if (!verdict.ok) {
+              setPlate(null);
+              setPlateError(verdict.message);
+              return;
+            }
+            setPlateError(null);
+            setPlate(f);
+          }}
+        />
+        {plate && platePreview ? (
+          <div className="mt-1.5 flex items-center gap-2 rounded-2xl border border-border bg-card/70 p-2">
+            <img
+              src={platePreview}
+              alt="The frame your film will open on"
+              className="h-14 w-20 rounded-lg object-cover"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-xs text-foreground">{plate.name}</div>
+              <div className="text-[11px] text-muted-foreground">
+                the first shot starts here, then the film moves on
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPlate(null);
+                setPlateError(null);
+              }}
+              aria-label="Remove the opening photo"
+              className="press grid h-7 w-7 shrink-0 place-items-center rounded-full border border-border text-muted-foreground"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => plateInputRef.current?.click()}
+            className="press mt-1.5 inline-flex items-center gap-1.5 rounded-full border border-dashed border-border bg-card/60 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground"
+          >
+            <ImagePlus className="h-3.5 w-3.5" /> add a photo
+          </button>
+        )}
+        {plateError ? <p className="mt-1 text-[11px] text-amber-300">{plateError}</p> : null}
+      </div>
 
       <div className="mt-3 text-xs font-semibold text-foreground">How long?</div>
       <div className="mt-1.5 flex flex-wrap gap-2">
