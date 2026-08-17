@@ -65,6 +65,48 @@
   --shadow-glow: var(--shadow-glow);
   --shadow-magenta: var(--shadow-magenta);
   --shadow-card: var(--shadow-card);
+
+  /* ---------------------------------------------------------------------
+   * MATERIAL 3 METRICS — mirrored from src/design/material.ts.
+   *
+   * These are NOT a restyle. The palette, the fonts and the brand are
+   * untouched; what is adopted is Material's system of measurement —
+   * shape ramp, elevation levels, type ramp, layout grid — so that two
+   * screens built a month apart measure the same.
+   *
+   * src/lib/__tests__/material.test.ts parses this file and fails if any
+   * number here stops matching the TypeScript mirror. Change one, change
+   * both, or the build says so.
+   * ------------------------------------------------------------------- */
+
+  /* Shape. --radius is already 1rem, which IS Material's `lg`, so nothing
+     existing moves by adopting the ramp. */
+  --radius-m3-none: 0px;
+  --radius-m3-xs: 4px;
+  --radius-m3-sm: 8px;
+  --radius-m3-md: 12px;
+  --radius-m3-lg: 16px;
+  --radius-m3-xl: 28px;
+  --radius-m3-full: 9999px;
+
+  /* Elevation shadows, levels 0-5. The TINT half lives in the utilities
+     below, because a shadow alone is invisible on a #0e0f13 ground and an
+     elevation system that cannot be seen in the dark is not one. */
+  --shadow-m3-0: none;
+  --shadow-m3-1: 0 1px 2px 0 rgb(0 0 0 / 0.30), 0 1px 3px 1px rgb(0 0 0 / 0.15);
+  --shadow-m3-2: 0 1px 2px 0 rgb(0 0 0 / 0.30), 0 2px 6px 2px rgb(0 0 0 / 0.15);
+  --shadow-m3-3: 0 4px 8px 3px rgb(0 0 0 / 0.15), 0 1px 3px 0 rgb(0 0 0 / 0.30);
+  --shadow-m3-4: 0 6px 10px 4px rgb(0 0 0 / 0.15), 0 2px 3px 0 rgb(0 0 0 / 0.30);
+  --shadow-m3-5: 0 8px 12px 6px rgb(0 0 0 / 0.15), 0 4px 4px 0 rgb(0 0 0 / 0.30);
+
+  /* Layout grid: window size classes, margins and gutters. */
+  --m3-margin-compact: 16px;
+  --m3-margin-medium: 24px;
+  --m3-gutter-compact: 16px;
+  --m3-gutter-medium: 24px;
+
+  /* The accessibility floor, not a matter of taste. */
+  --m3-touch-min: 48px;
 }
 
 :root {
@@ -378,6 +420,71 @@
   [dir="rtl"] body {
     overflow-x: hidden;
   }
+}
+
+/* ---------------------------------------------------------------------------
+ * MATERIAL 3 ELEVATION — a shadow AND a surface tint, together.
+ *
+ * The half people leave out is the tint, and on this app it is the half that
+ * does the work: ONIQ's ground is #0e0f13, and a black shadow on a near-black
+ * surface is invisible. What makes an M3 surface read as raised in a dark
+ * theme is that it is tinted toward the primary colour by an amount that
+ * grows with the level. Ship only the shadows and you get a flat app that
+ * technically has an elevation system.
+ *
+ * The tint is painted as a background-image over whatever background-color
+ * the element already has, so `bg-card m3-elev-1` keeps the card colour and
+ * gains the tint rather than replacing it.
+ *
+ * Levels have jobs. Naming them is what stops "level 3 because it looked
+ * nice": 1 cards at rest, 2 raised/pressed, 3 dialogs and sheets, 4 the nav
+ * drawer, 5 something dragged above everything.
+ * ------------------------------------------------------------------------- */
+@utility m3-elev-0 {
+  box-shadow: var(--shadow-m3-0);
+}
+@utility m3-elev-1 {
+  box-shadow: var(--shadow-m3-1);
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--primary) 5%, transparent),
+    color-mix(in srgb, var(--primary) 5%, transparent)
+  );
+}
+@utility m3-elev-2 {
+  box-shadow: var(--shadow-m3-2);
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--primary) 8%, transparent),
+    color-mix(in srgb, var(--primary) 8%, transparent)
+  );
+}
+@utility m3-elev-3 {
+  box-shadow: var(--shadow-m3-3);
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--primary) 11%, transparent),
+    color-mix(in srgb, var(--primary) 11%, transparent)
+  );
+}
+@utility m3-elev-4 {
+  box-shadow: var(--shadow-m3-4);
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--primary) 12%, transparent),
+    color-mix(in srgb, var(--primary) 12%, transparent)
+  );
+}
+@utility m3-elev-5 {
+  box-shadow: var(--shadow-m3-5);
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--primary) 14%, transparent),
+    color-mix(in srgb, var(--primary) 14%, transparent)
+  );
+}
+
+/* The 48dp touch floor, as a utility so a control can ask for it by name.
+ * Material's number and, near enough, WCAG 2.5.8's. A 32px icon button is not
+ * "compact" — it is a control some people cannot reliably hit. */
+@utility m3-touch {
+  min-width: var(--m3-touch-min);
+  min-height: var(--m3-touch-min);
 }
 
 @utility text-gradient-primary {
