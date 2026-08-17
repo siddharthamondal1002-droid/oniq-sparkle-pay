@@ -7,9 +7,32 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 10
-        versionName "1.7.1"
-        // 1.7.1 IS A REBUILD, NOT A RELEASE. Nothing native changed since 1.7:
+        versionCode 11
+        versionName "1.8"
+        // 1.8 IS A REAL RELEASE — three things that a web publish CANNOT
+        // deliver, all of them native and all shipped since 1.7.1:
+        //
+        //   6a7a9d3e  the system font scale is honoured. An Android WebView
+        //             ignores it unless setTextZoom() is called, so every
+        //             accessibility text-size setting on the device did
+        //             nothing to this app. Installed 1.7.1 still ignores it.
+        //   2ec5ab3a  real edge-to-edge. The shell stopped consuming window
+        //             insets before the WebView could see them, so
+        //             env(safe-area-inset-*) read 0 and the bars are now
+        //             transparent with the cutout handled in values-v27.
+        //   e16e8a83  MessagingStyle notifications, grouping, and clearing a
+        //             conversation once it is read — NotificationTrayPlugin
+        //             and OniqMessagingService are new native classes.
+        //
+        // Everything ELSE from the last day is web and is already on devices
+        // through the publish, needing no build at all: the Story dry-run
+        // work, and group calls going free with no participant cap (owner
+        // directive 2026-08-16). This shell loads https://oniqhub.com and
+        // bundles no web assets, so naming those here would be taking credit
+        // in a binary that does not contain them.
+        //
+        // ----- previous -----
+        // 1.7.1 WAS A REBUILD, NOT A RELEASE. Nothing native changed since 1.7:
         // this shell loads https://oniqhub.com (capacitor.config.json server.url),
         // so it bundles no web assets, and everything shipped on 2026-08-15 after
         // the 1.7 build — classic withdrawn, the call filters, the gallery photo
