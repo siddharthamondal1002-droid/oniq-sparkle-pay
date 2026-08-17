@@ -648,6 +648,25 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
    * the 30-second ring gives up.
    */
   const pendingInvitesRef = useRef<Set<string>>(new Set());
+  /**
+   * THE TWO NUMBERS THAT TELL A SIGNALLING FAILURE FROM A CEILING.
+   *
+   * `callee_ids` already records who was rung. Nothing recorded how many
+   * arrived, so four working peers and eight working peers wrote identical
+   * rows — which is why the last five group calls could be read in full and
+   * still not answer "is it restricted to 4".
+   *
+   * everConnected is a SET, not a counter: a peer that drops and recovers
+   * through restartIce reaches `connected` more than once, and counting each
+   * arrival would report more peers than the call ever had.
+   *
+   * peak is sampled on every arrival because it is the discriminating one. If
+   * eight ever connected but only four were up at once, people were being
+   * pushed out as others joined, and that is a capacity ceiling rather than a
+   * refusal. A running total alone cannot tell those apart.
+   */
+  const everConnectedRef = useRef<Set<string>>(new Set());
+  const peakConnectedRef = useRef(0);
   // No `pendingCount` state and no `roomUsed()` any more. Both existed to
   // decide whether the room was FULL — the count drove the Add button's grey
   // state and the tally drove the invite guard. With no cap there is nothing
@@ -1166,12 +1185,49 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               (supabase as any)
                 .from("call_logs")
-                .update({ duration_s: secs })
+                .update({
+                  duration_s: secs,
+                  // Written on the same beat as the duration rather than only
+                  // at teardown: a call that dies with the app — the exact
+                  // case worth diagnosing — never reaches a teardown write.
+                  peers_connected: everConnectedRef.current.size,
+                  peers_peak: peakConnectedRef.current,
+                })
                 .eq("id", logIdRef.current)
                 .then(() => {});
             }
           }, 500);
         }
+        // Arrivals, counted where the call already notices one.
+        everConnectedRef.current.add(peerId);
+        {
+          let live = 0;
+          for (const e of peerPoolRef.current.values()) {
+            // `connected` only. tsc pointed out that connState is a narrowed
+            // union with no "completed" member — that branch was dead the
+            // moment it was written, and would have silently undercounted the
+            // peak on any engine reporting the completed state.
+            if (e.reachedConnected && e.connState === "connected") live += 1;
+          }
+          if (live > peakConnectedRef.current) peakConnectedRef.current = live;
+        }
+        // WRITTEN ON EVERY ARRIVAL, because the periodic duration update only
+        // fires for the caller once 15 seconds have passed. Four of the five
+        // group calls read this evening were shorter than that — 8s, 18s,
+        // 25s, 34s — so leaning on that beat alone would have recorded
+        // nothing for precisely the calls worth explaining.
+        if (isCallerRef.current && logIdRef.current) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("call_logs")
+            .update({
+              peers_connected: everConnectedRef.current.size,
+              peers_peak: peakConnectedRef.current,
+            })
+            .eq("id", logIdRef.current)
+            .then(() => {});
+        }
+
         // Call log: first successful connect → mark answered.
         if (isCallerRef.current && logIdRef.current && logStatusRef.current !== "answered") {
           logStatusRef.current = "answered";
@@ -1378,6 +1434,10 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     setCamOff(false);
     setElapsed(0);
     setTiles([]);
+    // Per-call, like the tiles. Carried over, a second call would inherit the
+    // first one's arrivals and report a mesh that never existed.
+    everConnectedRef.current.clear();
+    peakConnectedRef.current = 0;
     // Filter pipeline + in-call sheets die with the call.
     teardownFx();
     callFilterRef.current = "none";
