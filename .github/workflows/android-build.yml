@@ -345,6 +345,46 @@ jobs:
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
 
+      # Diagnostics for the symbol gate below. Prints only, never fails: when
+      # the gate trips, this is what says WHY without costing another 7-minute
+      # build to find out. Run 29 is the reason it exists — the gate reported
+      # zero symbols while every task involved claimed success, and separating
+      # "AGP produced nothing" from "AGP produced something that never reached
+      # the bundle" needed a look at the intermediates and the ELF itself.
+      - name: Where the native debug symbols did or did not come from
+        if: always()
+        continue-on-error: true
+        working-directory: android
+        run: |
+          echo "=== every BUNDLE-METADATA entry in the .aab ==="
+          unzip -l app/build/outputs/bundle/release/app-release.aab 2>/dev/null \
+            | awk '$4 ~ /^BUNDLE-METADATA/ { printf "  %10s  %s\n", $1, $4 }'
+
+          echo "=== AGP intermediates mentioning native debug metadata ==="
+          find app/build/intermediates -ipath '*native_debug_metadata*' \
+            -printf '  %10s  %p\n' 2>/dev/null | head -40
+
+          echo "=== the library itself: does it carry anything to extract? ==="
+          # Every copy, not just one: the merged (as-published) library and the
+          # stripped one live under different intermediate directories, and
+          # only the merged copy answers the question. Picking a single match
+          # would risk reading the stripped copy and concluding the library
+          # never had symbols when in fact AGP had just removed them.
+          find app/build/intermediates -name 'libdatastore_shared_counter.so' \
+            -path '*arm64-v8a*' 2>/dev/null > /tmp/libs.txt
+          if [ ! -s /tmp/libs.txt ]; then
+            echo "  (no copy of the library found under intermediates)"
+          fi
+          while read -r LIB; do
+            echo "  --- $LIB ($(stat -c%s "$LIB") bytes)"
+            # .debug_* is what FULL copies out; .symtab is what SYMBOL_TABLE
+            # needs. A library published stripped has neither, and no NDK can
+            # invent them. .dynsym is always present and is NOT enough.
+            SECS=$(readelf -S "$LIB" 2>/dev/null \
+                     | grep -oE '\.(debug[a-z_]*|symtab|dynsym)' | sort -u | tr '\n' ' ')
+            echo "        sections: ${SECS:-<none of .debug*/.symtab/.dynsym>}"
+          done < /tmp/libs.txt
+
       # THE SYMBOLS ARE ACTUALLY IN THE BUNDLE — opened and checked.
       #
       # Play warned on version code 12 that the bundle carries native code
