@@ -29,11 +29,17 @@ on:
         required: true
         default: oniq-release-aab
       upload_url:
-        description: "Presigned PUT URL to relay it to"
-        required: true
+        description: "Presigned PUT URL to relay it to (optional)"
+        required: false
+        default: ""
+      park_branch:
+        description: "Disposable orphan branch to push the artifact to (optional)"
+        required: false
+        default: ""
       meta_user_id:
         description: "x-goog-meta-user_id — must match the presigned signature"
-        required: true
+        required: false
+        default: ""
 
 jobs:
   relay:
@@ -46,8 +52,12 @@ jobs:
     # this the download 403s before any relay is attempted.
     permissions:
       actions: read
-      contents: read
+      contents: write
     steps:
+      # Needed by the park step: it runs git, and download-artifact does not
+      # clone anything, so without this there is no repository to commit into.
+      - uses: actions/checkout@v5
+
       - name: Download the artifact from the other run
         uses: actions/download-artifact@v7
         with:
@@ -64,7 +74,38 @@ jobs:
           # never the filename.
           find relay -type f -exec sha256sum {} \;
 
+      # THE ROUTE THAT ACTUALLY REACHES THE DEV CONTAINER.
+      #
+      # The presigned Google Storage URL above is signed for PUT only, so the
+      # bytes land somewhere the uploader cannot read back — it delivers to
+      # Lovable, not to whoever asked for the file. git is the one channel
+      # proven to work in both directions from the container, so the artifact
+      # is pushed to a DISPOSABLE ORPHAN BRANCH and fetched from there.
+      #
+      # Orphan, so it carries no history and shares no ancestor with main: the
+      # binary can never be merged into the real tree by accident, and deleting
+      # the branch reclaims it completely. Delete it once collected.
+      - name: Park the artifact on a disposable branch
+        if: inputs.park_branch != ''
+        env:
+          BRANCH: ${{ inputs.park_branch }}
+        run: |
+          F=$(find relay -type f | head -1)
+          NAME=$(basename "$F")
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan "$BRANCH"
+          git rm -rf --cached . >/dev/null 2>&1 || true
+          find . -maxdepth 1 ! -name . ! -name .git ! -name relay -exec rm -rf {} +
+          mv "$F" "./$NAME"
+          rm -rf relay
+          git add "$NAME"
+          git commit -q -m "artifact: $NAME ($(stat -c%s "$NAME") bytes)"
+          git push -f origin "$BRANCH"
+          echo "parked $NAME on $BRANCH"
+
       - name: Relay to the presigned URL
+        if: inputs.upload_url != ''
         env:
           UPLOAD_URL: ${{ inputs.upload_url }}
         run: |
