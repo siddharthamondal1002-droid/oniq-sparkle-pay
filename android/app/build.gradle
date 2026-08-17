@@ -3,6 +3,20 @@ apply plugin: 'com.android.application'
 android {
     namespace = "com.oniqhub.app"
     compileSdk = rootProject.ext.compileSdkVersion
+
+    // NOT for compiling anything — this project has no native sources. AGP
+    // needs an NDK on hand only to run llvm-strip/objcopy over the .so files
+    // that arrive inside dependency AARs, which is how debugSymbolLevel below
+    // gets anything to package. AGP looks for its own default NDK version and
+    // gives up quietly when that exact version is absent, so CI tells us which
+    // one it actually installed instead. Unset locally: a developer build has
+    // no reason to care, and demanding a specific NDK to compile a Java-only
+    // shell would be a gratuitous setup step.
+    def ndkFromCi = System.getenv("ONIQ_NDK_VERSION")
+    if (ndkFromCi) {
+        ndkVersion = ndkFromCi
+    }
+
     defaultConfig {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion

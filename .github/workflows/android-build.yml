@@ -43,6 +43,57 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
+      # AN NDK, PURELY SO SYMBOLS CAN BE EXTRACTED.
+      #
+      # This app compiles no native code, so an NDK looks unnecessary — and it
+      # was, until Play asked for debug symbols. Both of the AGP tasks that
+      # handle native libraries (stripReleaseDebugSymbols and
+      # extractReleaseNativeDebugMetadata) shell out to llvm-strip/objcopy from
+      # an INSTALLED NDK whose version matches AGP's default. Run 28 had none,
+      # and the two tasks failed in very different ways:
+      #
+      #   stripReleaseDebugSymbols   -> "Unable to strip the following
+      #                                 libraries, packaging them as they are"
+      #   extractReleaseNativeDebug… -> ran, emitted nothing, said nothing
+      #
+      # The silent one is the trap. The build went green, the bundle shipped
+      # with no symbols, and the only thing that noticed was the check at the
+      # end of this workflow. Hence pinning nothing and guessing nothing here:
+      # use whatever NDK the runner image already has, install the newest the
+      # SDK offers if it has none, and fail outright rather than proceed
+      # toolless — because proceeding toolless is exactly what produced a
+      # symbol-less bundle last time.
+      - name: Provide an NDK so debug symbols can be extracted
+        run: |
+          newest_installed() {
+            ls -1d "${ANDROID_SDK_ROOT:-$ANDROID_HOME}"/ndk/*/ 2>/dev/null \
+              | sed 's:/*$::' | xargs -r -n1 basename | sort -V | tail -1
+          }
+
+          V=$(newest_installed)
+          if [ -n "$V" ]; then
+            echo "Runner already provides NDK $V"
+          else
+            echo "No NDK on this image — asking sdkmanager for the newest one."
+            AVAIL=$(sdkmanager --list 2>/dev/null | sed -n 's/.*ndk;\([0-9][0-9.]*\).*/\1/p' | sort -u -V | tail -1)
+            if [ -z "$AVAIL" ]; then
+              echo "::error::sdkmanager listed no NDK packages, so native debug symbols cannot be extracted."
+              exit 1
+            fi
+            yes | sdkmanager --install "ndk;$AVAIL" >/dev/null || {
+              echo "::error::failed to install ndk;$AVAIL"; exit 1; }
+            V=$(newest_installed)
+          fi
+
+          if [ -z "$V" ]; then
+            echo "::error::still no usable NDK after install; symbol extraction would silently produce nothing."
+            exit 1
+          fi
+          # app/build.gradle reads this; without it AGP looks for its own
+          # default version and finds nothing.
+          echo "ONIQ_NDK_VERSION=$V" >> "$GITHUB_ENV"
+          echo "Using NDK $V for symbol extraction."
+
       - name: Install dependencies
         run: npm ci --no-audit --no-fund || npm install --no-audit --no-fund
 
