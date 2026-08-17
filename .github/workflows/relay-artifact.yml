@@ -39,6 +39,14 @@ jobs:
   relay:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # `actions: read` is the one that matters and is NOT in the default grant —
+    # the first run failed with "Resource not accessible by integration"
+    # because the token had Contents/Metadata/Packages read and nothing else.
+    # Reading ANOTHER run's artifacts goes through the Actions API, so without
+    # this the download 403s before any relay is attempted.
+    permissions:
+      actions: read
+      contents: read
     steps:
       - name: Download the artifact from the other run
         uses: actions/download-artifact@v7
