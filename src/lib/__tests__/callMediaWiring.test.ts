@@ -219,6 +219,61 @@ describe("the in-call filter", () => {
     ).not.toContain('tileCount === 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2"');
   });
 
+  /**
+   * NO PARTICIPANT CAP, AND IT HAS TO STAY THAT WAY.
+   *
+   * Group calls went free and uncapped on 2026-08-16, which removed three
+   * separate things: a `max_call_participants` column, a `my_call_cap()` RPC,
+   * and a client-side refusal inside createPeerEntry. A cap is easy to
+   * reintroduce by accident — it reads as prudence — and it fails in the
+   * quietest possible way, since the fifth person simply never appears and
+   * nobody in the call is told why.
+   *
+   * Reported 2026-08-17 as "group call is getting restricted to 4". Nothing in
+   * this file caps anything today, so these guards exist to keep that true and
+   * to make the next such report answerable by running the suite rather than
+   * by re-reading two thousand lines.
+   */
+  it("refuses nobody a place in the mesh", () => {
+    // createPeerEntry is where the refusal used to live, and the only place it
+    // could live: every route into the pool goes through it.
+    const fn = SRC.slice(SRC.indexOf("const createPeerEntry ="));
+    const body = fn.slice(0, fn.indexOf("\n  };"));
+    expect(body, "createPeerEntry lost its no-refusal note").toMatch(/NOBODY IS REFUSED/i);
+    // A cap would have to compare the pool's size against something.
+    expect(
+      CODE.slice(CODE.indexOf("const createPeerEntry =")).slice(0, 2000),
+      "createPeerEntry compares the pool size against a limit again",
+    ).not.toMatch(/peerPoolRef\.current\.size\s*[<>]=?\s*\d/);
+  });
+
+  it("names no cap and reads no plan for one", () => {
+    // The RPC and the column are dropped; naming either would be reading
+    // something that no longer exists, which fails as an empty result rather
+    // than an error.
+    expect(CODE).not.toContain("my_call_cap");
+    expect(CODE).not.toContain("max_call_participants");
+    // The pending-invite set is a TALLY, not a seat allocation. If a
+    // comparison ever appears against it, seats are back.
+    expect(
+      CODE,
+      "pendingInvitesRef is being compared against a limit — seats are back",
+    ).not.toMatch(/pendingInvitesRef\.current\.size\s*[<>]=?\s*\d/);
+  });
+
+  it("rings whoever the conversation holds, with no slice", () => {
+    // Both member queries feed peerIdsRef. A .limit() or .slice() on either is
+    // a cap wearing a different hat, and would look like "only four people
+    // ever get rung".
+    const queries = CODE.split('from("conversation_members")').slice(1);
+    expect(queries.length, "the member queries moved").toBeGreaterThanOrEqual(2);
+    for (const q of queries) {
+      const head = q.slice(0, 400);
+      expect(head, "a member query is limited").not.toMatch(/\.limit\(\s*\d+/);
+      expect(head, "a member list is sliced").not.toMatch(/\.slice\(\s*0\s*,\s*\d+/);
+    }
+  });
+
   it("gives every ctx.filter-based filter a fallback", () => {
     // The invariant is about DEPENDENCE, not about every entry in the list: a
     // filter that leans on ctx.filter needs a path for engines without it.
