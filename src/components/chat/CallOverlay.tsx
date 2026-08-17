@@ -261,15 +261,75 @@ let filterProbe: boolean | null = null;
 function canvasFilterSupported(): boolean {
   if (filterProbe !== null) return filterProbe;
   try {
-    const ctx = document.createElement("canvas").getContext("2d");
-    if (!ctx) return (filterProbe = false);
+    const src = document.createElement("canvas");
+    src.width = src.height = 2;
+    const sctx = src.getContext("2d");
+    const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+    if (!sctx || !ctx) return (filterProbe = false);
+
+    // A KNOWN COLOUR THROUGH A FILTER THAT MUST CHANGE IT.
+    //
+    // The previous version of this probe set ctx.filter and read the property
+    // back, which tests only that the engine ACCEPTS the string. That is the
+    // one thing that still succeeds on an engine which then paints the frame
+    // untouched — precisely the "fails by doing nothing" case described above,
+    // so the probe passed exactly when it mattered and the fallback below
+    // never ran. Reported 2026-08-17: the five colour filters dead on web
+    // while every face lens, which paints by other means, worked.
+    sctx.fillStyle = "#ff0000";
+    sctx.fillRect(0, 0, 2, 2);
+    (ctx.canvas as HTMLCanvasElement).width = 2;
+    (ctx.canvas as HTMLCanvasElement).height = 2;
     ctx.filter = "grayscale(1)";
-    // A context that does not implement it reports "none" straight back.
-    filterProbe = ctx.filter !== "none" && ctx.filter !== "";
+    ctx.drawImage(src, 0, 0);
+    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
+    // Pure red greyscaled has r === g === b. Untouched red does not.
+    filterProbe = r === g && g === b;
   } catch {
+    // getImageData can throw on a tainted or zero-sized canvas. Unknown means
+    // no: the fallback is an approximation, and an approximation beats a
+    // filter that silently does nothing.
     filterProbe = false;
   }
   return filterProbe;
+}
+
+/**
+ * AND AGAIN, ON THE VIDEO ITSELF — because they are different paths.
+ *
+ * The probe above proves the engine filters a CANVAS source. A hardware
+ * decoded video frame can take an entirely different compositing route, and
+ * that route is allowed to ignore ctx.filter while the canvas one honours it.
+ * That asymmetry is the most likely reason these filters work inside the
+ * Android WebView and not in a desktop browser, since both are Chromium and
+ * only the video path differs.
+ *
+ * Returns null for INCONCLUSIVE rather than guessing: if the pixel sampled
+ * happens to be grey already, greyscale changes nothing and proves nothing.
+ * The caller retries on a later frame.
+ */
+let videoFilterProbe: boolean | null = null;
+function probeVideoFilter(video: HTMLVideoElement): boolean | null {
+  try {
+    if (!video.videoWidth || !video.videoHeight) return null;
+    const c = document.createElement("canvas");
+    c.width = c.height = 8;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.filter = "grayscale(1)";
+    ctx.drawImage(video, 0, 0, 8, 8);
+    const px = ctx.getImageData(0, 0, 8, 8).data;
+    // Any pixel with unequal channels proves greyscale did NOT land. A frame
+    // that is entirely grey proves nothing either way.
+    let sawColour = false;
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i] !== px[i + 1] || px[i + 1] !== px[i + 2]) return false;
+      if (px[i] > 8 && px[i] < 248) sawColour = true;
+    }
+    return sawColour ? true : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -2241,11 +2301,24 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         // behind, and a stale one turns the next frame into a composite of
         // whatever was there before — a smearing, ghosting picture that looks
         // like a broken camera rather than a filter left switched on.
-        ctx.filter = canFilter ? active?.css || "none" : "none";
+        // The video path is asked once, on a real frame, and only while a
+        // css filter is actually selected — there is nothing to verify while
+        // the rack sits on None or on a face lens, and probing every frame
+        // would cost a getImageData per frame for an answer that cannot
+        // change. Null is inconclusive and simply tries again next frame.
+        if (canFilter && videoFilterProbe === null && active?.css) {
+          videoFilterProbe = probeVideoFilter(cur.video);
+        }
+        const useCss = canFilter && videoFilterProbe !== false;
+        ctx.filter = useCss ? active?.css || "none" : "none";
         ctx.globalCompositeOperation = "source-over";
         try {
           ctx.drawImage(cur.video, 0, 0, cur.canvas.width, cur.canvas.height);
-          if (!canFilter && active?.fallback) {
+          // `useCss`, NOT `canFilter`. When the video probe says the frame
+          // path ignores filters, the css assignment above is skipped — and
+          // keying this off canFilter would then skip the fallback too and
+          // paint nothing at all, which is worse than either branch alone.
+          if (!useCss && active?.fallback) {
             for (const op of active.fallback) {
               ctx.globalCompositeOperation = op.mode;
               ctx.fillStyle = op.color;

@@ -120,16 +120,48 @@ describe("the in-call filter", () => {
    * keep flowing, the peer keeps receiving video — and the picture is simply
    * not filtered. There is no error anywhere to notice, which is why this is
    * asked once at runtime rather than assumed from a version.
+   *
+   * THIS TEST USED TO ASSERT THE BUG. It required `ctx.filter !== "none"` —
+   * set-and-read-back — which tests only that the engine ACCEPTS the string.
+   * That is the one check that still passes on an engine which then paints
+   * the frame untouched, so the probe returned true exactly when it mattered
+   * and the fallback never ran. Reported 2026-08-17: the five colour filters
+   * dead in the browser while every face lens worked, because the lenses
+   * paint by other means. A probe must measure PIXELS.
    */
-  it("asks whether ctx.filter works instead of assuming it", () => {
+  it("proves ctx.filter changes pixels rather than that it accepts a string", () => {
     expect(SRC).toContain("function canvasFilterSupported()");
-    // Set-and-read-back is the only honest probe.
     expect(SRC).toContain('ctx.filter = "grayscale(1)"');
-    expect(SRC).toContain('ctx.filter !== "none"');
+    // The evidence: draw through the filter and read the result back.
+    expect(SRC, "the probe does not read any pixels back").toContain("getImageData");
+    expect(
+      SRC,
+      "reflection-only probe is back — it passes on the engines that fail",
+    ).not.toContain('ctx.filter !== "none"');
     expect(
       /navigator\.userAgent[\s\S]{0,80}filter/i.test(SRC),
       "sniffing the UA models the engine instead of asking it",
     ).toBe(false);
+  });
+
+  /**
+   * The canvas path and the video path are different, and only one of them is
+   * what a call actually draws.
+   */
+  it("re-proves the filter on a real video frame, not just a canvas", () => {
+    expect(SRC).toContain("function probeVideoFilter(");
+    // Inconclusive must stay inconclusive: an already-grey frame proves
+    // nothing, and treating it as a failure would drop every engine to the
+    // approximate fallback on a dark scene.
+    expect(SRC, "the video probe cannot report inconclusive").toContain("return null");
+    // The decision the draw loop acts on must be the combined one. Keying the
+    // fallback off canFilter while the css is keyed off useCss paints neither.
+    expect(SRC).toContain("const useCss = canFilter && videoFilterProbe !== false;");
+    expect(SRC).toContain("if (!useCss && active?.fallback) {");
+    expect(
+      SRC,
+      "the fallback still keys off canFilter, so a failed video probe paints nothing",
+    ).not.toContain("if (!canFilter && active?.fallback) {");
   });
 
   it("gives every ctx.filter-based filter a fallback", () => {
