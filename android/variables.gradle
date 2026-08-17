@@ -2,6 +2,8 @@ ext {
     minSdkVersion = 24
     compileSdkVersion = 36
     targetSdkVersion = 36
+    // Also carries EdgeToEdge (added in activity 1.8.0), which MainActivity
+    // uses instead of the window setters Play flagged as deprecated.
     androidxActivityVersion = '1.11.0'
     androidxAppCompatVersion = '1.7.1'
     androidxCoordinatorLayoutVersion = '1.3.0'

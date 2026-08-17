@@ -17,12 +17,12 @@ import android.webkit.GeolocationPermissions;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 
+import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.getcapacitor.BridgeActivity;
@@ -239,23 +239,31 @@ public class MainActivity extends BridgeActivity {
         View content = findViewById(android.R.id.content);
         if (content == null) return;
 
-        // Let the window extend behind the bars. Without this the system
-        // reserves their space and nothing below has anything to draw into.
-        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        // EdgeToEdge.enable REPLACES FOUR DEPRECATED CALLS, and the reason is
+        // not tidiness — Play flagged them on release 11 (1.8), under both
+        // "uses deprecated APIs or parameters for edge-to-edge" and
+        // "edge-to-edge may not display for all users".
+        //
+        // What was here: setDecorFitsSystemWindows(false), setStatusBarColor,
+        // setNavigationBarColor, and the two ContrastEnforced setters. All
+        // four window setters are deprecated in API 35 and are NO-OPS from
+        // API 36 — which is exactly this app's targetSdk, so on a current
+        // device they were already doing nothing. They were not merely
+        // untidy; they were the whole transparency mechanism on paper and
+        // dead code in practice.
+        //
+        // Deleting them outright would have been wrong in the other
+        // direction: minSdk is 24, and below API 35 those setters ARE what
+        // makes the bars transparent. EdgeToEdge.enable is the API that gets
+        // both halves right — it applies the modern path where it exists and
+        // the legacy setters where they are still needed, so one call covers
+        // 24 through 36 without a version ladder to keep in step.
+        EdgeToEdge.enable(this);
 
         // The app's own canvas shows through the bars, so it must not be a
-        // colour of its own. Was #1a1230; see the note above.
+        // colour of its own. Was #1a1230; see the note above. Still ours to
+        // set — EdgeToEdge governs the bars, not the content background.
         content.setBackgroundColor(Color.TRANSPARENT);
-
-        getWindow().setStatusBarColor(Color.TRANSPARENT);
-        getWindow().setNavigationBarColor(Color.TRANSPARENT);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            // Both scrims off: the guidance asks for a transparent gesture bar
-            // outright, and ONIQ's own bottom nav already sits above the
-            // three-button bar rather than scrolling under it.
-            getWindow().setNavigationBarContrastEnforced(false);
-            getWindow().setStatusBarContrastEnforced(false);
-        }
 
         ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
             // The KEYBOARD still moves the view, because the WebView cannot

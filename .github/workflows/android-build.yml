@@ -233,6 +233,60 @@ jobs:
           chmod +x ./gradlew
           ./gradlew bundleRelease
 
+      # R8 DID NOT EAT THE PLUGINS — checked, not assumed.
+      #
+      # Everything Capacitor does across the JS/native boundary is reflective:
+      # plugins are found by annotation, methods invoked by name from
+      # JavaScript. R8 sees no call site for any of it, so without the keep
+      # rules in proguard-rules.pro it would delete the lot — and the build
+      # would still succeed. The failure would surface as a dead button on a
+      # user's phone after an auto-update, which is the worst place to find it.
+      #
+      # So this reads R8's own usage.txt (the list of what it REMOVED) and
+      # fails the build if any of this app's native classes are on it. Keep
+      # rules that are merely present prove nothing; this is the evidence.
+      - name: Verify R8 kept the Capacitor plugin surface
+        working-directory: android
+        run: |
+          U=$(find app/build/outputs/mapping/release -name usage.txt | head -1)
+          if [ -z "$U" ]; then
+            echo "::error::no R8 usage report — is minifyEnabled still on?"
+            exit 1
+          fi
+          echo "usage report: $U ($(wc -l < "$U") lines removed)"
+
+          fail=0
+          for c in SpeakerRouterPlugin ContactsBridgePlugin CallSettingsPlugin \
+                   MediaSaverPlugin SystemBarsPlugin NotificationTrayPlugin \
+                   OniqMessagingService MainActivity; do
+            # A bare class line in usage.txt means the whole class went. A
+            # nested "    method" line under it means members went.
+            if grep -qE "^com\.oniqhub\.app\.$c$" "$U"; then
+              echo "::error::R8 removed the class com.oniqhub.app.$c"
+              fail=1
+            fi
+          done
+
+          # And prove the classes are actually present in the mapping, rather
+          # than passing because R8 never ran over them at all.
+          M=$(find app/build/outputs/mapping/release -name mapping.txt | head -1)
+          for c in SpeakerRouterPlugin NotificationTrayPlugin OniqMessagingService; do
+            grep -q "com.oniqhub.app.$c" "$M" || {
+              echo "::error::com.oniqhub.app.$c is absent from mapping.txt"; fail=1; }
+          done
+
+          echo "--- anything of ours R8 touched ---"
+          grep -n "com\.oniqhub\.app" "$U" | head -30 || echo "  (nothing removed from com.oniqhub.app)"
+          exit $fail
+
+      - name: Upload R8 reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: r8-reports
+          path: android/app/build/outputs/mapping/release/
+          retention-days: 30
+
       - name: Upload release AAB
         uses: actions/upload-artifact@v7
         with:

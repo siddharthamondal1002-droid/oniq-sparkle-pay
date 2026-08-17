@@ -7,8 +7,21 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 11
-        versionName "1.8"
+        versionCode 12
+        versionName "1.8.1"
+        // 1.8.1 answers the three things Play flagged on release 11 (1.8):
+        //   - "uses deprecated APIs or parameters for edge-to-edge" and
+        //     "edge-to-edge may not display for all users" — MainActivity was
+        //     calling four window setters that are deprecated in API 35 and
+        //     NO-OPS at this app's targetSdk of 36. Replaced with
+        //     EdgeToEdge.enable(), which also covers minSdk 24 where those
+        //     setters were still doing real work.
+        //   - "improve memory and performance with R8" — the release build
+        //     shipped unminified. R8 and resource shrinking are on, with keep
+        //     rules for the reflective Capacitor surface and a CI check that
+        //     reads R8's usage report to prove they held.
+        //
+        // ----- 1.8 -----
         // 1.8 IS A REAL RELEASE — three things that a web publish CANNOT
         // deliver, all of them native and all shipped since 1.7.1:
         //
@@ -80,8 +93,19 @@ android {
     }
     buildTypes {
         release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // R8 ON — Play flagged release 11 (1.8) for shipping unminified.
+            // shrinkResources needs minifyEnabled and is where most of the
+            // size actually goes on a shell app like this one, whose Java is
+            // small and whose bundled resources are not.
+            //
+            // See proguard-rules.pro for why the keep rules are shaped the way
+            // they are, and android-build.yml for the check that reads R8's
+            // own usage report and fails the build if the Capacitor plugin
+            // surface was stripped. Rules that are merely present prove
+            // nothing; the report is the evidence.
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             if (System.getenv("ORG_GRADLE_PROJECT_ONIQ_KEYSTORE")) {
                 signingConfig signingConfigs.release
             }
@@ -98,6 +122,11 @@ repositories {
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    // EXPLICIT, not transitive. EdgeToEdge lives here, and it arrives via
+    // appcompat today only by accident of that library's own dependencies —
+    // an appcompat bump could drop it and break the build for a reason with
+    // no obvious connection to the change that caused it.
+    implementation "androidx.activity:activity:$androidxActivityVersion"
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
