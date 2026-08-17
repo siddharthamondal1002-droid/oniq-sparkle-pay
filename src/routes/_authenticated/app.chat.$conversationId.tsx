@@ -887,12 +887,29 @@ function ChatThread() {
    * Publish --kb: how many pixels of the layout viewport the on-screen
    * keyboard is covering, and re-pin the scroller while the IME animates in.
    *
-   * Resolves to 0 wherever the platform already shrinks the layout viewport
-   * (Android with interactive-widget=resizes-content), so it never
-   * double-counts. Both listeners are required: iOS often moves offsetTop and
-   * fires `scroll` without ever firing `resize`. scrollTop is assigned
-   * directly rather than via scrollIntoView because a smooth scroll gets
-   * interrupted by the viewport animation and lands short.
+   * ALSO PUBLISHES --vvh, WHICH IS WHAT THE COLUMN IS ACTUALLY SIZED BY.
+   *
+   * --kb used to be subtracted from 100dvh to get the column height, on the
+   * reasoning that it "resolves to 0 wherever the platform already shrinks
+   * the layout viewport (Android with interactive-widget=resizes-content)".
+   * That reasoning holds in Chrome and NOT in the Android WebView, which does
+   * not implement interactive-widget — there window.innerHeight stays at full
+   * height while visualViewport.height shrinks, so --kb becomes the keyboard's
+   * full height. Meanwhile MainActivity is padding the WebView by the same IME
+   * inset, so 100dvh had ALREADY lost the keyboard. Subtracting again left the
+   * chat about (screen - 2x keyboard) tall: reported 2026-08-17 as a thread
+   * squeezed into a strip at the top with a dead band beneath the composer,
+   * which is exactly that arithmetic made visible.
+   *
+   * visualViewport.height needs no such reasoning. It is the space genuinely
+   * visible right now, whoever shrank it and however many of them did, so it
+   * cannot double-count by construction. --kb stays because the composer's
+   * safe-area padding still has to know whether the keyboard is up.
+   *
+   * Both listeners are required: iOS often moves offsetTop and fires `scroll`
+   * without ever firing `resize`. scrollTop is assigned directly rather than
+   * via scrollIntoView because a smooth scroll gets interrupted by the
+   * viewport animation and lands short.
    */
   useEffect(() => {
     const vv = window.visualViewport;
@@ -906,6 +923,10 @@ function ChatThread() {
       const zoomed = vv.scale > 1.01;
       const inset = zoomed ? 0 : Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
       document.documentElement.style.setProperty("--kb", `${inset}px`);
+      // Zoomed, vv.height is the magnified window and says nothing about the
+      // layout, so the column falls back to the CSS default of 100dvh.
+      if (zoomed) document.documentElement.style.removeProperty("--vvh");
+      else document.documentElement.style.setProperty("--vvh", `${vv.height}px`);
       const el = scrollRef.current;
       if (el && !zoomed && nearBottomRef.current) el.scrollTop = el.scrollHeight;
     };
@@ -932,6 +953,7 @@ function ChatThread() {
       cancelAnimationFrame(raf);
       if (ro) ro.disconnect();
       document.documentElement.style.removeProperty("--kb");
+      document.documentElement.style.removeProperty("--vvh");
       document.documentElement.style.removeProperty("--composer-h");
     };
   }, []);
@@ -1784,7 +1806,7 @@ function ChatThread() {
   };
 
   return (
-    <div className="relative flex flex-col" style={{ height: "calc(100dvh - var(--kb, 0px))" }}>
+    <div className="relative flex flex-col" style={{ height: "var(--vvh, 100dvh)" }}>
       {/* relative z-40: backdrop-blur makes the header its own stacking
           context at z-auto, which let animated message bubbles paint OVER the
           three-dot dropdown. Lifting the header keeps the menu above the
