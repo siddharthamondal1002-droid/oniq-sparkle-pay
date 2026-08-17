@@ -43,27 +43,26 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v4
 
-      # AN NDK, PURELY SO SYMBOLS CAN BE EXTRACTED.
+      # AN NDK, SO AGP CAN RUN llvm-strip AND objcopy.
       #
-      # This app compiles no native code, so an NDK looks unnecessary — and it
-      # was, until Play asked for debug symbols. Both of the AGP tasks that
-      # handle native libraries (stripReleaseDebugSymbols and
-      # extractReleaseNativeDebugMetadata) shell out to llvm-strip/objcopy from
-      # an INSTALLED NDK whose version matches AGP's default. Run 28 had none,
-      # and the two tasks failed in very different ways:
+      # This app compiles no native code, but the .so files that arrive inside
+      # dependency AARs are handled by two AGP tasks that shell out to an
+      # INSTALLED NDK matching AGP's default version. Run 28 had none and
+      # stripReleaseDebugSymbols said so: "Unable to strip the following
+      # libraries, packaging them as they are".
       #
-      #   stripReleaseDebugSymbols   -> "Unable to strip the following
-      #                                 libraries, packaging them as they are"
-      #   extractReleaseNativeDebug… -> ran, emitted nothing, said nothing
+      # HONEST ABOUT WHAT THIS BOUGHT. I added this expecting it to fix the
+      # missing debug symbols. It did not — run 30 showed the libraries are
+      # published stripped, so both builds produced byte-identical output. All
+      # it actually fixes is the strip warning, and it would matter only if a
+      # future dependency ships an unstripped .so.
       #
-      # The silent one is the trap. The build went green, the bundle shipped
-      # with no symbols, and the only thing that noticed was the check at the
-      # end of this workflow. Hence pinning nothing and guessing nothing here:
-      # use whatever NDK the runner image already has, install the newest the
-      # SDK offers if it has none, and fail outright rather than proceed
-      # toolless — because proceeding toolless is exactly what produced a
-      # symbol-less bundle last time.
-      - name: Provide an NDK so debug symbols can be extracted
+      # Which is exactly why it warns rather than fails. Turning "no NDK on
+      # this image" into a hard build failure would trade a working release
+      # pipeline for a cosmetic warning, and the check at the end of this
+      # workflow is what actually guards the symbols.
+      - name: Provide an NDK so AGP can strip and extract
+        continue-on-error: true
         run: |
           newest_installed() {
             ls -1d "${ANDROID_SDK_ROOT:-$ANDROID_HOME}"/ndk/*/ 2>/dev/null \
@@ -77,17 +76,17 @@ jobs:
             echo "No NDK on this image — asking sdkmanager for the newest one."
             AVAIL=$(sdkmanager --list 2>/dev/null | sed -n 's/.*ndk;\([0-9][0-9.]*\).*/\1/p' | sort -u -V | tail -1)
             if [ -z "$AVAIL" ]; then
-              echo "::error::sdkmanager listed no NDK packages, so native debug symbols cannot be extracted."
-              exit 1
+              echo "::warning::sdkmanager listed no NDK packages; AGP will package native libraries unstripped."
+              exit 0
             fi
             yes | sdkmanager --install "ndk;$AVAIL" >/dev/null || {
-              echo "::error::failed to install ndk;$AVAIL"; exit 1; }
+              echo "::warning::failed to install ndk;$AVAIL; continuing without one."; exit 0; }
             V=$(newest_installed)
           fi
 
           if [ -z "$V" ]; then
-            echo "::error::still no usable NDK after install; symbol extraction would silently produce nothing."
-            exit 1
+            echo "::warning::still no usable NDK; AGP will package native libraries unstripped."
+            exit 0
           fi
           # app/build.gradle reads this; without it AGP looks for its own
           # default version and finds nothing.
@@ -345,86 +344,80 @@ jobs:
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
 
-      # Diagnostics for the symbol gate below. Prints only, never fails: when
-      # the gate trips, this is what says WHY without costing another 7-minute
-      # build to find out. Run 29 is the reason it exists — the gate reported
-      # zero symbols while every task involved claimed success, and separating
-      # "AGP produced nothing" from "AGP produced something that never reached
-      # the bundle" needed a look at the intermediates and the ELF itself.
-      - name: Where the native debug symbols did or did not come from
-        if: always()
-        continue-on-error: true
-        working-directory: android
-        run: |
-          echo "=== every BUNDLE-METADATA entry in the .aab ==="
-          unzip -l app/build/outputs/bundle/release/app-release.aab 2>/dev/null \
-            | awk '$4 ~ /^BUNDLE-METADATA/ { printf "  %10s  %s\n", $1, $4 }'
-
-          echo "=== AGP intermediates mentioning native debug metadata ==="
-          find app/build/intermediates -ipath '*native_debug_metadata*' \
-            -printf '  %10s  %p\n' 2>/dev/null | head -40
-
-          echo "=== the library itself: does it carry anything to extract? ==="
-          # Every copy, not just one: the merged (as-published) library and the
-          # stripped one live under different intermediate directories, and
-          # only the merged copy answers the question. Picking a single match
-          # would risk reading the stripped copy and concluding the library
-          # never had symbols when in fact AGP had just removed them.
-          find app/build/intermediates -name 'libdatastore_shared_counter.so' \
-            -path '*arm64-v8a*' 2>/dev/null > /tmp/libs.txt
-          if [ ! -s /tmp/libs.txt ]; then
-            echo "  (no copy of the library found under intermediates)"
-          fi
-          while read -r LIB; do
-            echo "  --- $LIB ($(stat -c%s "$LIB") bytes)"
-            # .debug_* is what FULL copies out; .symtab is what SYMBOL_TABLE
-            # needs. A library published stripped has neither, and no NDK can
-            # invent them. .dynsym is always present and is NOT enough.
-            SECS=$(readelf -S "$LIB" 2>/dev/null \
-                     | grep -oE '\.(debug[a-z_]*|symtab|dynsym)' | sort -u | tr '\n' ' ')
-            echo "        sections: ${SECS:-<none of .debug*/.symtab/.dynsym>}"
-          done < /tmp/libs.txt
-
-      # THE SYMBOLS ARE ACTUALLY IN THE BUNDLE — opened and checked.
+      # DID EVERY LIBRARY THAT COULD YIELD SYMBOLS ACTUALLY YIELD THEM?
       #
       # Play warned on version code 12 that the bundle carries native code
-      # with no debug symbols. build.gradle now sets debugSymbolLevel FULL,
-      # but that setting is a request, not a guarantee: AGP can only extract
-      # symbols a dependency's .so still has, and it merely WARNS when one has
-      # already been stripped. A build where every native library came in
-      # stripped would succeed, ship no symbols, and draw the identical Play
-      # warning on the next upload — after the upload, which is the expensive
-      # place to learn it.
+      # with no debug symbols, and build.gradle answers that with
+      # debugSymbolLevel FULL. But the setting is a request, not a guarantee,
+      # and the two ways it can come up empty need opposite responses:
       #
-      # So this opens the finished .aab and compares two counts. Deliberately
-      # placed AFTER the upload step: if the check fails I want the bundle
-      # downloadable so the offending libraries can be identified, not thrown
-      # away with the failed job.
-      - name: Verify the bundle carries native debug symbols
+      #   a) the toolchain is missing, so AGP extracts nothing from libraries
+      #      that DO have symbols. A real regression. Runs 28-30 proved this
+      #      fails silently — extractReleaseNativeDebugMetadata ran, wrote an
+      #      empty directory, and said nothing at all.
+      #   b) every library arrived already stripped by whoever published it.
+      #      Nothing is wrong and nothing can be done; failing forever on this
+      #      would only train people to ignore the check.
+      #
+      # So this does not ask "are there symbols". It asks whether every
+      # library that HAD something to extract got extracted, by reading the
+      # section table of the merged (pre-strip) inputs. .debug_* is what FULL
+      # copies out and .symtab is what SYMBOL_TABLE needs; .dynsym is always
+      # present and means nothing here.
+      #
+      # Deliberately placed AFTER the upload step: if it fails, the bundle
+      # stays downloadable so the offending libraries can be examined rather
+      # than discarded with the job.
+      - name: Verify every library that could yield debug symbols did
         working-directory: android
         run: |
           Z=app/build/outputs/bundle/release/app-release.aab
 
           echo "--- native libraries in the bundle ---"
-          unzip -l "$Z" | awk '$4 ~ /\.so$/ { printf "  %10s  %s\n", $1, $4 }' | sort -k2 || true
+          unzip -l "$Z" | awk '$4 ~ /\.so$/ { printf "  %10s  %s\n", $1, $4 }' | sort -k2
           echo "--- debug symbols in BUNDLE-METADATA ---"
           unzip -l "$Z" \
-            | awk '$4 ~ /^BUNDLE-METADATA\/com\.android\.tools\.build\.debugsymbols\// { printf "  %10s  %s\n", $1, $4 }' \
-            || true
+            | awk '$4 ~ /^BUNDLE-METADATA\/com\.android\.tools\.build\.debugsymbols\// { printf "  %10s  %s\n", $1, $4 }'
 
           SO=$(unzip -l "$Z" | awk '$4 ~ /\.so$/' | wc -l)
           SYM=$(unzip -l "$Z" | awk '$4 ~ /^BUNDLE-METADATA\/com\.android\.tools\.build\.debugsymbols\/.+/' | wc -l)
-          echo "$SO native libraries, $SYM symbol files"
+          echo "$SO native libraries in the bundle, $SYM symbol files"
 
           if [ "$SO" -eq 0 ]; then
-            echo "No native libraries in this bundle — nothing for Play to ask symbols for."
+            echo "No native libraries — nothing for Play to ask symbols for."
             exit 0
           fi
-          if [ "$SYM" -eq 0 ]; then
-            echo "::error::The bundle has $SO native libraries and no debug symbols. debugSymbolLevel is set, so the libraries reached AGP already stripped — check the build log for 'Unable to extract native debug metadata'."
+
+          # The merged copy is the as-published one. Reading the stripped copy
+          # instead would report every library as symbol-less and make this
+          # check unable to ever fail.
+          echo "--- what the inputs actually carried ---"
+          find app/build/intermediates/merged_native_libs -name '*.so' 2>/dev/null | sort > /tmp/merged.txt
+          if [ ! -s /tmp/merged.txt ]; then
+            echo "::error::no merged native libraries found, so this check cannot tell (a) from (b). The intermediates path likely moved in a new AGP."
             exit 1
           fi
-          echo "Native debug symbols are present; Play's warning on version code 12 is answered."
+
+          RICH=0
+          while read -r L; do
+            if readelf -S "$L" 2>/dev/null | grep -qE '\.symtab|\.debug_'; then
+              RICH=$((RICH + 1))
+              echo "  has symbols to extract : $L"
+            else
+              echo "  stripped by publisher  : $L"
+            fi
+          done < /tmp/merged.txt
+          echo "$RICH of $(wc -l < /tmp/merged.txt) merged libraries carry extractable symbols"
+
+          if [ "$RICH" -gt 0 ] && [ "$SYM" -eq 0 ]; then
+            echo "::error::$RICH native libraries carry symbols but none reached the bundle — extraction is broken (missing NDK, or debugSymbolLevel got turned off)."
+            exit 1
+          fi
+          if [ "$RICH" -eq 0 ]; then
+            echo "::warning::Every native library in this bundle was published stripped, so no debug symbols exist to ship. Play will repeat its 'no debug symbols' recommendation; it is not a release blocker and nothing in this repo can satisfy it while these dependencies ship stripped."
+            exit 0
+          fi
+          echo "Native debug symbols are present for every library that had any."
 
       - name: Build signed APK
         working-directory: android

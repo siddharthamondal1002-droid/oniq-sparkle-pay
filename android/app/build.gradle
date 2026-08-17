@@ -148,10 +148,28 @@ android {
             // bigger. SYMBOL_TABLE (function names only, no line numbers) is
             // the smaller option if that upload ever becomes a problem.
             //
-            // AGP only warns when a dependency's .so is already stripped, so
-            // "the setting is present" does not mean symbols shipped.
-            // android-build.yml opens the finished .aab and fails if it finds
-            // native libraries with no symbols beside them.
+            // MEASURED, AND IT CHANGES NOTHING TODAY. Runs 28-30 read the ELF
+            // section tables of the merged inputs: every copy of
+            // libdatastore_shared_counter.so — the only native library in this
+            // bundle, arriving via androidx.datastore under Firebase Messaging
+            // — carries .dynsym and nothing else. No .symtab, no .debug_*.
+            // androidx publishes it stripped, the pre-strip and post-strip
+            // copies are byte-identical, and AGP's extract task writes an
+            // empty directory without complaint.
+            //
+            // So Play's recommendation on version code 12 CANNOT be satisfied
+            // from this repository. It is a recommendation, not a release
+            // blocker, and the honest options are to live with it or to drop
+            // the library from the bundle with a packaging exclude — which
+            // would risk UnsatisfiedLinkError inside a dependency to save
+            // ~23 KB, and is the owner's call, not an engineering one.
+            //
+            // The setting stays because it is correct and costs nothing: the
+            // day any dependency ships an unstripped .so, symbols get packaged
+            // with no further work. android-build.yml checks the finished .aab
+            // and fails only when a library that HAD symbols shipped without
+            // them — the regression worth catching — rather than failing
+            // forever on libraries nobody can fix.
             ndk {
                 debugSymbolLevel = 'FULL'
             }
