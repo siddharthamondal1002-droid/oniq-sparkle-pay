@@ -21,8 +21,15 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 14
+        versionCode 15
         versionName "1.8.2"
+        // versionCode 15, SAME NAME. 14 was uploaded to Play and a version
+        // code cannot be reused, so a fresh bundle needs a fresh code even
+        // when not one line of app code has moved. The name stays 1.8.2
+        // because nothing a user can see differs between 14 and 15 — they are
+        // the same build of the same commit.
+        //
+        // ----- 1.8.2 -----
         // 1.8.2 EXISTS TO START. 1.8.1 (code 12) crashes on open — "ONIQ keeps
         // stopping", immediately, reported 2026-08-17. Codes 12 and 13 must
         // not be rolled out.
