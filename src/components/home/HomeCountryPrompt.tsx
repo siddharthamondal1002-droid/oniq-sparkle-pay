@@ -13,6 +13,44 @@ import type { CountryCode } from "@/lib/miniapps";
 
 const DISMISS_KEY = "oniq.country.confirm.dismissed";
 
+/**
+ * A DISMISSAL EXPIRES, because of what it silently costs.
+ *
+ * Measured on production 2026-08-17, after "watch is not visible to old
+ * users": 96 of 107 accounts have no country_code, 91 of them older than a
+ * week. isAvailable() answers false for any feature whose list does not
+ * contain the user's country, and null is in no list — so those accounts
+ * cannot see study, earn, upi OR watch. Four whole features, invisible to
+ * nine users in ten.
+ *
+ * The old flag was permanent: dismiss once and the app never asks again, and
+ * nothing anywhere tells you that four features are hidden or that a country
+ * picker in Profile would return them. A one-tap dismissal that quietly
+ * removes a quarter of the app is not a preference, it is a trap.
+ *
+ * So it lapses. Fourteen days is long enough not to nag somebody who has a
+ * reason to decline and short enough that nobody stays locked out for a
+ * month. A LEGACY "1" — every account that dismissed under the old rule — is
+ * treated as expired on sight, which is precisely the 91 accounts this was
+ * found by.
+ */
+const DISMISS_DAYS = 14;
+
+function dismissedRecently(): boolean {
+  try {
+    const raw = localStorage.getItem(DISMISS_KEY);
+    if (!raw) return false;
+    // The old permanent flag. Anyone holding it is someone the prompt owes
+    // another ask, so it does NOT count as a recent dismissal.
+    if (raw === "1") return false;
+    const at = Number(raw);
+    if (!Number.isFinite(at)) return false;
+    return Date.now() - at < DISMISS_DAYS * 24 * 60 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
 export function HomeCountryPrompt() {
   const [show, setShow] = useState(false);
   const [choice, setChoice] = useState<"" | CountryCode>("");
@@ -21,7 +59,7 @@ export function HomeCountryPrompt() {
     let cancelled = false;
     void (async () => {
       try {
-        if (localStorage.getItem(DISMISS_KEY) === "1") return;
+        if (dismissedRecently()) return;
       } catch {
         /* noop */
       }
@@ -44,7 +82,7 @@ export function HomeCountryPrompt() {
   const dismiss = () => {
     // Dismissal writes NOTHING to the profile — the value stays null.
     try {
-      localStorage.setItem(DISMISS_KEY, "1");
+      localStorage.setItem(DISMISS_KEY, String(Date.now()));
     } catch {
       /* noop */
     }
@@ -55,7 +93,7 @@ export function HomeCountryPrompt() {
     if (!choice) return;
     setCountry(choice);
     try {
-      localStorage.setItem(DISMISS_KEY, "1");
+      localStorage.setItem(DISMISS_KEY, String(Date.now()));
     } catch {
       /* noop */
     }
