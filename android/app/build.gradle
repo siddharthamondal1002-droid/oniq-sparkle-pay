@@ -21,8 +21,18 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 13
-        versionName "1.8.1"
+        versionCode 14
+        versionName "1.8.2"
+        // 1.8.2 EXISTS TO START. 1.8.1 (code 12) crashes on open — "ONIQ keeps
+        // stopping", immediately, reported 2026-08-17. Codes 12 and 13 must
+        // not be rolled out.
+        //
+        // The name moves this time, unlike 13, because something a user can
+        // feel HAS changed: on 12 the app does not open and on this one it
+        // does. See buildTypes.release (R8 off) and MainActivity's guarded
+        // EdgeToEdge call for the two suspects and what was ruled out.
+        //
+        // ----- 1.8.1 -----
         // versionCode 13, STILL NAMED 1.8.1. Code 12 was uploaded, so it is
         // burned and Play would reject a repeat. The NAME does not move
         // because nothing a user can see or feel changed: the only difference
@@ -115,18 +125,40 @@ android {
     }
     buildTypes {
         release {
-            // R8 ON — Play flagged release 11 (1.8) for shipping unminified.
-            // shrinkResources needs minifyEnabled and is where most of the
-            // size actually goes on a shell app like this one, whose Java is
-            // small and whose bundled resources are not.
+            // R8 IS OFF, AND STAYS OFF UNTIL SOMEBODY CAN TEST IT ON A PHONE.
             //
-            // See proguard-rules.pro for why the keep rules are shaped the way
-            // they are, and android-build.yml for the check that reads R8's
-            // own usage report and fails the build if the Capacitor plugin
-            // surface was stripped. Rules that are merely present prove
-            // nothing; the report is the evidence.
-            minifyEnabled true
-            shrinkResources true
+            // 1.8.1 (version code 12) was the first minified build. It does
+            // not start: "ONIQ keeps stopping", immediately on open, reported
+            // 2026-08-17. 1.8 (version code 11), which differs from it in
+            // exactly two things — this block and EdgeToEdge below — starts
+            // fine, so one of those two is the cause.
+            //
+            // WHAT WAS RULED OUT, so nobody re-runs it. The shipped APK was
+            // pulled apart and its dex parsed: all six @capacitor plugins are
+            // present under their exact names, all of com.oniqhub.app is
+            // present, and — the decisive one — the dex has ZERO class types
+            // that are referenced but not defined. There is no
+            // NoClassDefFoundError to find. The keep rules held. Whatever
+            // breaks is subtler: a method reached by name, an optimisation, or
+            // a shrunk resource, and none of those can be identified from a
+            // build server with no device attached.
+            //
+            // SO THIS IS NOT A FIX FOR THE CRASH — it is a return to the
+            // configuration that is known to work. R8 was turned on for a Play
+            // Console RECOMMENDATION ("improve your app's memory and
+            // performance with R8"), which is advice, not a requirement to
+            // publish. Trading a working app for it is a bad deal, and
+            // debugging a whole-program transform by uploading builds to
+            // strangers is a worse one.
+            //
+            // TO TURN IT BACK ON: set both flags, install the resulting APK on
+            // a real device, open it, and read `adb logcat` — one run with a
+            // stack trace settles in a minute what three builds could not.
+            // Try `-dontobfuscate` first: renaming is the half most likely to
+            // break Capacitor's reflective bridge, and shrinking without it
+            // still gets most of the size.
+            minifyEnabled false
+            shrinkResources false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 
             // NATIVE DEBUG SYMBOLS — Play warned on version code 12: "This App

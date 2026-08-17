@@ -298,9 +298,25 @@ jobs:
       - name: Verify R8 kept the Capacitor plugin surface
         working-directory: android
         run: |
+          # NO REPORT MEANS R8 DID NOT RUN, WHICH IS CURRENTLY CORRECT.
+          # minifyEnabled is false (see app/build.gradle: 1.8.1 would not
+          # start), so there is nothing to verify and this must not fail the
+          # build. It reads the gradle file rather than just shrugging at a
+          # missing file, so that R8 running and producing NO report — a real
+          # failure — is still caught.
+          if grep -qE '^\s*minifyEnabled\s+true' app/build.gradle; then
+            MINIFY=on
+          else
+            MINIFY=off
+          fi
           U=$(find app/build/outputs/mapping/release -name usage.txt | head -1)
+          if [ "$MINIFY" = "off" ]; then
+            echo "minifyEnabled is false — R8 did not run, so there is no plugin surface to verify."
+            [ -n "$U" ] && echo "::warning::minifyEnabled is false but R8 still produced $U"
+            exit 0
+          fi
           if [ -z "$U" ]; then
-            echo "::error::no R8 usage report — is minifyEnabled still on?"
+            echo "::error::minifyEnabled is true but R8 produced no usage report"
             exit 1
           fi
           echo "usage report: $U ($(wc -l < "$U") lines removed)"

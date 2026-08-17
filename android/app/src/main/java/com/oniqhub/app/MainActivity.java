@@ -258,7 +258,30 @@ public class MainActivity extends BridgeActivity {
         // both halves right — it applies the modern path where it exists and
         // the legacy setters where they are still needed, so one call covers
         // 24 through 36 without a version ladder to keep in step.
-        EdgeToEdge.enable(this);
+        // GUARDED, LIKE EVERY OTHER DECORATIVE CALL IN THIS FILE.
+        //
+        // applySystemFontScale and requestBestRefreshRate both swallow their
+        // failures for a stated reason: nothing cosmetic may stop the app
+        // starting. This call was the one exception, and it was added in the
+        // same release that started crashing on open (1.8.1, version code 12,
+        // reported 2026-08-17) — the other suspect being R8, now off above.
+        //
+        // I cannot tell from here which of the two it was: the shipped dex has
+        // no dangling class reference, so EdgeToEdge was PRESENT and this is
+        // not a NoClassDefFoundError. It is guarded anyway, because the honest
+        // position is that one of two changes broke startup, and the cost of
+        // being wrong about which is a user whose app will not open. Bars that
+        // are not transparent on some OEM skin is a visual regression; an app
+        // that will not start is not a regression, it is an outage.
+        //
+        // If this ever does catch, the app runs without edge-to-edge rather
+        // than not at all, and Play's two deprecation notes come back — which
+        // is the right way round.
+        try {
+            EdgeToEdge.enable(this);
+        } catch (Throwable t) {
+            // Deliberately swallowed. See above.
+        }
 
         // The app's own canvas shows through the bars, so it must not be a
         // colour of its own. Was #1a1230; see the note above. Still ours to
