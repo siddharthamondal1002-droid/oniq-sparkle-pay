@@ -164,6 +164,40 @@ describe("the in-call filter", () => {
     ).not.toContain("if (!canFilter && active?.fallback) {");
   });
 
+  /**
+   * THE GRID HAS TO FIT WHATEVER NUMBER OF PEOPLE TURN UP.
+   *
+   * Reported 2026-08-17: tiles not fitting the frame. The old rule was three
+   * cases — 1, 2, and "everything else is two columns" — written while a call
+   * still had a participant cap. That cap was removed on 2026-08-16, so
+   * "everything else" became unbounded: nine people meant two columns and five
+   * rows, with no height rule, growing straight past the container.
+   *
+   * All three assertions below are about the same failure — a track or a box
+   * that refuses to shrink — because that is what "does not fit" always is.
+   */
+  it("sizes the tile grid from the participant count, and lets it shrink", () => {
+    expect(SRC).toContain("function tileGridStyle(");
+    // minmax(0, …) on the rows: a plain 1fr floors at the content's intrinsic
+    // size, and a <video> HAS one, so the grid would overflow instead of
+    // dividing its space.
+    expect(SRC, "rows can refuse to shrink below the video's own height").toContain(
+      'gridAutoRows: "minmax(0, 1fr)"',
+    );
+    // auto-fit against the CONTAINER rather than a viewport breakpoint, so
+    // the same expression works in portrait, in landscape and in the pill.
+    expect(SRC).toContain("repeat(auto-fit, minmax(");
+    // And the flex child must be allowed to shrink at all.
+    expect(SRC, "the grid is not allowed to shrink into its flex parent").toContain(
+      'className="grid min-h-0 flex-1 gap-1 p-1"',
+    );
+    // The fixed two-column rule is what broke on an uncapped call.
+    expect(
+      SRC,
+      "the capped-era grid rule is back and cannot fit more than four",
+    ).not.toContain('tileCount === 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2"');
+  });
+
   it("gives every ctx.filter-based filter a fallback", () => {
     // The invariant is about DEPENDENCE, not about every entry in the list: a
     // filter that leans on ctx.filter needs a path for engines without it.

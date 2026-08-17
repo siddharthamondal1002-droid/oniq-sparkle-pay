@@ -507,6 +507,50 @@ type PeerEntry = {
   offerRetryTimer: number | null;
 };
 
+/**
+ * THE TILE GRID, sized by how many people are actually on the call.
+ *
+ * WHAT WAS WRONG. The old rule was three cases — 1, 2, and "everything else
+ * is two columns" — written when a call had a participant cap. The cap was
+ * removed on 2026-08-16 (group calls are free, no limit), so "everything
+ * else" now has no upper bound: nine people meant two columns and FIVE rows
+ * of slivers, and the rows had no height rule at all, so they grew past the
+ * container instead of sharing it. Tiles ran off the bottom of the frame.
+ *
+ * TWO CSS DETAILS DO THE ACTUAL FITTING, and both are the kind that look
+ * decorative and are not:
+ *
+ *   `minmax(0, 1fr)` on the rows, not plain `1fr`. A grid track's default
+ *   minimum is its content's size, and a <video> reports an intrinsic size —
+ *   so `1fr` rows refuse to shrink below the camera's own height and the grid
+ *   overflows. Zero as the floor is what lets tracks actually divide the
+ *   space they are given.
+ *
+ *   `auto-fit` with a PERCENTAGE minimum, rather than a breakpoint. The
+ *   column count then follows the CONTAINER, not the viewport: the same
+ *   expression gives two columns on a phone in landscape and one in portrait,
+ *   with no `sm:` guessing at which is which, and it keeps working inside the
+ *   minimised pill and on a tablet.
+ *
+ * The percentages are chosen so the row count stays sane as people join: two
+ * columns up to four, three up to nine, four beyond that.
+ *
+ * THE THIRD PIECE IS AT THE CALL SITE: `min-h-0` on the grid element. A flex
+ * child's default min-height is `auto` — "never smaller than my content" — so
+ * without it the grid refuses to shrink into the space `flex-1` gave it and
+ * the last row hangs off the bottom of the call, which is the same class of
+ * mistake as the `1fr` rows above and has to be fixed in both places or
+ * neither.
+ */
+function tileGridStyle(count: number): React.CSSProperties {
+  const min = count <= 1 ? "100%" : count <= 4 ? "45%" : count <= 9 ? "30%" : "22%";
+  return {
+    gridTemplateColumns: `repeat(auto-fit, minmax(${min}, 1fr))`,
+    // Every row the same height, and allowed to shrink to nothing.
+    gridAutoRows: "minmax(0, 1fr)",
+  };
+}
+
 // UI-visible peer tile info (subset of PeerEntry).
 type PeerTile = {
   peerId: string;
@@ -2573,10 +2617,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     status === "incoming" ? incomingFromName : isGroup ? groupTitle || "Group" : peerName;
   const monogram = (displayName || "?").charAt(0).toUpperCase();
 
-  // Grid: 1=fullscreen, 2=split, 3-4=2x2
   const tileCount = tiles.length;
-  const gridCls =
-    tileCount <= 1 ? "grid-cols-1" : tileCount === 2 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2";
 
   // Minimized: floating pill instead of fullscreen. PC/tracks keep running.
   if (minimized) {
@@ -2614,7 +2655,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       {status !== "incoming" &&
       (status === "connected" || status === "connecting") &&
       tileCount > 0 ? (
-        <div className={`grid ${gridCls} gap-1 flex-1 p-1`}>
+        <div className="grid min-h-0 flex-1 gap-1 p-1" style={tileGridStyle(tileCount)}>
           {tiles.map((t) => (
             <RemoteTile key={t.peerId} tile={t} showVideo={callType === "video"} />
           ))}
