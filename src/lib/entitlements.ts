@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { reportClientError } from "@/lib/errorReport";
-import { FREE_CALL_PARTICIPANTS, MAX_CALL_PARTICIPANTS } from "@/lib/callCapacity";
 
 /**
  * "Does this account have X?" — asked once per account, per key.
@@ -132,28 +131,15 @@ export function hasEntitlement(key: string): Promise<boolean> {
   );
 }
 
-/**
- * How many people fit in this account's call, counting them.
- *
- * Falls back to the FREE room, never to the Plus one — the failure mode of
- * guessing high is a phone trying to hold seven peer connections it cannot
- * afford, on somebody who did not pay for them.
- */
-export function callParticipantCap(): Promise<number> {
-  return planRead(
-    "call_cap",
-    async (uid) => {
-      const { data, error } = await supabase.rpc("my_call_cap", { _user: uid });
-      if (error) return null;
-      const n = Number(data);
-      // A plan row edited to something absurd must not become a phone's
-      // problem; anything outside the sane band reads as unconfirmed.
-      if (!Number.isFinite(n) || n < 2 || n > MAX_CALL_PARTICIPANTS) return null;
-      return n;
-    },
-    FREE_CALL_PARTICIPANTS,
-  );
-}
+// NO callParticipantCap HERE, AND THAT IS THE POINT — owner directive,
+// 2026-08-16: group calls are free with no participant cap. There is no
+// `my_call_cap` to read any more (the migration drops it) and no plan value
+// that decides who may join a call, because no plan decides that.
+//
+// This is the file where such a gate would naturally be re-added. If a room
+// size ever becomes a plan feature again it needs a new owner directive,
+// which is the sort of decision CLAUDE.md reserves — not a helper quietly
+// reappearing next to the entitlement reads.
 
 /**
  * Forget everything — call after a plan changes, and on any auth change, so
@@ -180,17 +166,6 @@ export function forgetEntitlements(): void {
  */
 export function useEntitlement(key: string): boolean | null {
   return usePlanValue<boolean>(key, () => hasEntitlement(key));
-}
-
-/**
- * How many people fit in this account's call. `null` until the read lands.
- *
- * Callers must NOT treat null as "no limit" — see CallOverlay, which holds
- * the Add button at the free room until this settles. The whole reason the
- * cap exists is that guessing high costs a phone and a relay bill.
- */
-export function useCallCap(): number | null {
-  return usePlanValue<number>("call_cap", callParticipantCap);
 }
 
 function usePlanValue<T>(key: string, get: () => Promise<T>): T | null {

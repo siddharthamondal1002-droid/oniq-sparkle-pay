@@ -30,11 +30,13 @@ vi.mock("@/lib/errorReport", () => ({ reportClientError: vi.fn() }));
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { callParticipantCap, forgetEntitlements, hasEntitlement } from "@/lib/entitlements";
+import { forgetEntitlements, hasEntitlement } from "@/lib/entitlements";
 import {
-  FREE_CALL_PARTICIPANTS,
-  MAX_CALL_PARTICIPANTS,
-  PLUS_CALL_PARTICIPANTS,
+  AUDIO_BPS,
+  MAX_VIDEO_BPS,
+  MIN_VIDEO_BPS,
+  VIDEO_UPLOAD_BUDGET_BPS,
+  videoBitrateFor,
 } from "@/lib/callCapacity";
 import { reportClientError } from "@/lib/errorReport";
 
@@ -148,68 +150,113 @@ describe("hasEntitlement", () => {
 });
 
 /**
- * THE ROOM SIZE — free 4, Plus 8 (owner directive, 2026-08-16).
+ * NO ROOM SIZE AT ALL — owner directive, 2026-08-16: group calls are free
+ * with no participant cap, replacing the "free 4, Plus 8" directive of
+ * earlier the same day.
  *
- * Every one of these is about the DIRECTION of the failure. The cap is not a
- * permission, it is a load limit on a mesh: guessing high means a phone opens
- * peer connections it cannot carry and ONIQ pays to relay them.
+ * These tests changed direction rather than being deleted, and the direction
+ * is the point. The old ones existed to prove the cap was never guessed HIGH,
+ * because guessing high opened peer connections a phone could not carry. The
+ * cap is gone, so what has to be proved now is the opposite pair: that no gate
+ * survives anywhere, and that the thing which replaced it — a per-stream
+ * bitrate that shrinks as the room grows — actually bounds the load the cap
+ * used to bound.
  */
-describe("callParticipantCap", () => {
-  it("reads the plan's room", async () => {
-    getSession.mockImplementation(sessionFor("subscriber"));
-    rpc.mockResolvedValue({ data: 8, error: null });
-    await expect(callParticipantCap()).resolves.toBe(PLUS_CALL_PARTICIPANTS);
+describe("group calls are uncapped", () => {
+  it("exposes no way to read a per-account room size", async () => {
+    // The entitlement module must not have grown a cap read back. This is the
+    // file where one would naturally reappear.
+    const mod = (await import("@/lib/entitlements")) as Record<string, unknown>;
+    expect(Object.keys(mod)).not.toContain("callParticipantCap");
+    expect(Object.keys(mod)).not.toContain("useCallCap");
   });
 
-  it("falls back to the FREE room, never the Plus one", async () => {
-    getSession.mockImplementation(sessionFor("unlucky"));
-    rpc.mockResolvedValue({ data: null, error: { message: "network" } });
-    await expect(callParticipantCap()).resolves.toBe(FREE_CALL_PARTICIPANTS);
+  it("asks the database for no such thing", () => {
+    const src = readFileSync(join(process.cwd(), "src/lib/entitlements.ts"), "utf8");
+    expect(src.replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "")).not.toContain("my_call_cap");
   });
 
-  it("treats a nonsense cap as unconfirmed rather than obeying it", async () => {
-    // A plan row edited to 400 must not become a phone's problem. Anything
-    // outside the sane band reads as "could not determine" and gets free.
-    getSession.mockImplementation(sessionFor("someone"));
-    for (const bad of [400, 0, -3, Number.NaN, "lots"]) {
-      forgetEntitlements();
-      rpc.mockResolvedValue({ data: bad, error: null });
-      await expect(callParticipantCap(), `cap ${String(bad)} was obeyed`).resolves.toBe(
-        FREE_CALL_PARTICIPANTS,
-      );
+  it("drops the cap from the schema rather than raising it", () => {
+    const sql = readFileSync(
+      join(process.cwd(), "supabase/migrations/20260816200000_group_calls_uncapped.sql"),
+      "utf8",
+    );
+    // All three, and in a single migration: a column without its check, or a
+    // function reading a column that is gone, is a broken half-state.
+    expect(sql).toContain("drop constraint if exists subscription_plans_call_cap_sane");
+    expect(sql).toContain("drop function if exists public.my_call_cap(uuid)");
+    expect(sql).toContain("drop column if exists max_call_participants");
+  });
+
+  it("leaves no client code reading the dropped column or function", () => {
+    for (const f of [
+      "src/components/stories/PlanSheet.tsx",
+      "src/components/chat/CallOverlay.tsx",
+      "src/integrations/supabase/types.ts",
+    ]) {
+      const src = readFileSync(join(process.cwd(), f), "utf8");
+      expect(src, `${f} still names the dropped column`).not.toContain("max_call_participants");
+      expect(src, `${f} still names the dropped function`).not.toContain("my_call_cap");
+    }
+  });
+});
+
+/**
+ * WHAT REPLACED THE CAP.
+ *
+ * A mesh costs every phone one upload per other participant, so the load the
+ * cap used to bound is still real. The answer is to spend less per stream as
+ * the room grows. These pin that the arithmetic actually bounds anything —
+ * a "budget" that is never enforced would be a comment, not a guard.
+ */
+describe("videoBitrateFor", () => {
+  it("gives small rooms exactly what shipped before the cap was lifted", () => {
+    // 1:1 through 4-person calls are bit-for-bit unchanged. Lifting a cap
+    // must not quietly downgrade the calls people already make.
+    for (const peers of [1, 2, 3]) expect(videoBitrateFor(peers)).toBe(MAX_VIDEO_BPS);
+  });
+
+  it("shrinks as the room grows", () => {
+    const rates = [4, 8, 12, 20].map(videoBitrateFor);
+    for (let i = 1; i < rates.length; i++) {
+      expect(rates[i], `rate did not fall from ${rates[i - 1]}`).toBeLessThan(rates[i - 1]);
     }
   });
 
-  it("resolves — not never — when the read hangs", async () => {
-    vi.useFakeTimers();
-    getSession.mockImplementation(sessionFor("stuck"));
-    rpc.mockImplementation(() => new Promise(() => {}));
-    let settled: number | "pending" = "pending";
-    const p = callParticipantCap().then((v) => (settled = v));
-    await vi.advanceTimersByTimeAsync(6000);
-    await p;
-    expect(settled).toBe(FREE_CALL_PARTICIPANTS);
+  it("keeps total video upload inside the budget until the floor bites", () => {
+    // THE ACTUAL GUARANTEE. Without this the function could return anything
+    // decreasing and still let a twenty-person room melt a phone.
+    for (let peers = 1; peers <= 40; peers++) {
+      const total = peers * videoBitrateFor(peers);
+      const flooredAt = VIDEO_UPLOAD_BUDGET_BPS / MIN_VIDEO_BPS;
+      if (peers <= flooredAt) {
+        expect(total, `${peers} peers exceeded the budget`).toBeLessThanOrEqual(
+          VIDEO_UPLOAD_BUDGET_BPS + peers, // rounding slack, 1 bps per stream
+        );
+      }
+    }
   });
 
-  it("does not let one account inherit another's room", async () => {
-    getSession.mockImplementation(sessionFor("the-admin"));
-    rpc.mockResolvedValue({ data: 8, error: null });
-    await expect(callParticipantCap()).resolves.toBe(8);
-    getSession.mockImplementation(sessionFor("a-free-user"));
-    rpc.mockResolvedValue({ data: 4, error: null });
-    await expect(callParticipantCap()).resolves.toBe(4);
+  it("never sends worse than the floor, however large the room", () => {
+    for (const peers of [50, 500, 5000]) {
+      expect(videoBitrateFor(peers)).toBe(MIN_VIDEO_BPS);
+    }
   });
 
-  it("keeps the sane band tied to what the plans may actually sell", () => {
-    // MAX is what the migration's check constraint allows, so the client's
-    // rejection band and the database's cannot drift apart silently.
-    expect(MAX_CALL_PARTICIPANTS).toBe(PLUS_CALL_PARTICIPANTS);
-    expect(FREE_CALL_PARTICIPANTS).toBeLessThan(PLUS_CALL_PARTICIPANTS);
-    const sql = readFileSync(
-      join(process.cwd(), "supabase/migrations/20260816100000_call_participant_cap.sql"),
-      "utf8",
+  it("survives nonsense rather than returning NaN into setParameters", () => {
+    for (const bad of [0, -3, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const n = videoBitrateFor(bad);
+      expect(Number.isFinite(n), `videoBitrateFor(${String(bad)}) was not finite`).toBe(true);
+      expect(n).toBeGreaterThanOrEqual(MIN_VIDEO_BPS);
+      expect(n).toBeLessThanOrEqual(MAX_VIDEO_BPS);
+    }
+  });
+
+  it("never scales audio down — voice is what a call is for", () => {
+    expect(AUDIO_BPS).toBe(64_000);
+    const src = readFileSync(join(process.cwd(), "src/lib/callCapacity.ts"), "utf8");
+    expect(src, "AUDIO_BPS became a function of room size").not.toMatch(
+      /audioBitrateFor|AUDIO_BPS\s*\/|AUDIO_BPS\s*\*/,
     );
-    expect(sql).toContain(`between 2 and ${MAX_CALL_PARTICIPANTS}`);
-    expect(sql).toContain(`max_call_participants = ${FREE_CALL_PARTICIPANTS} where key in ('free'`);
   });
 });

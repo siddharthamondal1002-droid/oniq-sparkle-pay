@@ -1,11 +1,18 @@
 // Mesh WebRTC group calls. 1:1 is the N=1 case of the same code path.
 //
-// ROOM SIZE IS CAPPED — free 4, Plus 8 (owner directive, 2026-08-16). This
-// file used to say "no participant cap", which on a MESH is not a feature:
-// every participant opens a connection to every other participant and sends a
-// separate copy of its camera down each one, so at the bitrate caps below
-// each extra person costs EVERY phone another ~464 kbps in both directions.
-// Eight is the top of what a phone on good wifi holds. See callCapacity.ts.
+// NO PARTICIPANT CAP, AND GROUP CALLS ARE FREE — owner directive, 2026-08-16,
+// replacing the "free 4, Plus 8" directive of earlier the same day. Nobody is
+// refused a seat, no plan is consulted, and there is no "this call is full".
+//
+// The mesh cost that motivated the old cap is real and has not gone anywhere:
+// every participant opens a connection to every other participant and uploads
+// a separate copy of its camera down each one. The answer here is to SPEND
+// LESS PER STREAM as the room grows rather than to turn anyone away —
+// `videoBitrateFor` holds each phone's total video upload inside a budget, so
+// a big call gets softer instead of collapsing. Rooms of four or fewer are
+// bit-for-bit what shipped before. See callCapacity.ts for the arithmetic and
+// for the honest ceiling (past ~a dozen the binding constraint is CPU, and
+// genuinely unbounded rooms need an SFU, which is an owner decision).
 //
 // Signaling: all payloads on channel `call:{conversationId}` carry
 // `{ from: meId, to: peerId | null, callId }`. Room events (to=null): ring, end, hello.
@@ -51,12 +58,7 @@ import { ensureNotificationPermission, playRingback, stopAllCallSounds } from "@
 import { sendPush } from "@/lib/push";
 import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
 import { reportClientError } from "@/lib/errorReport";
-import { useCallCap } from "@/lib/entitlements";
-import {
-  FREE_CALL_PARTICIPANTS,
-  PLUS_CALL_PARTICIPANTS,
-  sayCallCap,
-} from "@/lib/callCapacity";
+import { AUDIO_BPS, videoBitrateFor } from "@/lib/callCapacity";
 import {
   FACE_FX,
   FACE_LENSES,
@@ -514,45 +516,31 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
    * entitlement read here, no lock state, and nothing to flash shut mid-call.
    * A chip's only gate is whether face tracking works on the phone at all.
    */
+  // NO CAP READ HERE — owner directive, 2026-08-16: group calls are free with
+  // no participant cap, so there is no entitlement to consult and no room
+  // size to hold the Add button at. The plan read that used to live on this
+  // line is gone along with the RPC behind it.
   /**
-   * HOW MANY PEOPLE FIT — free 4, Plus 8 (owner directive, 2026-08-16). Same
-   * rules-of-hooks placement rule as above: this sits with the other reads,
-   * before any early return.
+   * People rung who have not joined the mesh yet.
    *
-   * Held at the FREE room until the read lands, which is the opposite of the
-   * lens rack's posture and deliberately so. A lens drawn a moment early
-   * costs nothing; a peer connection opened a moment early costs the phone
-   * bandwidth and battery it may not have, and ONIQ a TURN relay bill.
-   */
-  const callCapRead = useCallCap();
-  const callCap = callCapRead ?? FREE_CALL_PARTICIPANTS;
-  /**
-   * People rung who have not joined the mesh yet. They hold a seat, because
-   * the alternative is six quick taps on Add filling a four-person room while
-   * every invite is still ringing. Released when they join, decline, or the
-   * 30-second ring gives up.
+   * They no longer hold a SEAT, because there are no seats — this is now only
+   * a tally, so the roster can show "ringing…" and so a double-tap on Add
+   * does not ring the same person twice. Released when they join, decline, or
+   * the 30-second ring gives up.
    */
   const pendingInvitesRef = useRef<Set<string>>(new Set());
-  /**
-   * The same number as `pendingInvitesRef.size`, in state.
-   *
-   * The ref is the source of truth because the guard runs inside callbacks
-   * that must not read a stale closure; the state exists so the Add button
-   * can go grey the moment the last seat is reserved rather than one render
-   * later. Kept in step by holdSeat/releaseSeat and nowhere else.
-   */
-  const [pendingCount, setPendingCount] = useState(0);
+  // No `pendingCount` state and no `roomUsed()` any more. Both existed to
+  // decide whether the room was FULL — the count drove the Add button's grey
+  // state and the tally drove the invite guard. With no cap there is nothing
+  // to compare a count against, and a number that is computed, stored and
+  // never read is worse than absent: it reads as though something still
+  // depends on it.
   const holdSeat = (id: string) => {
     pendingInvitesRef.current.add(id);
-    setPendingCount(pendingInvitesRef.current.size);
   };
   const releaseSeat = (id: string) => {
-    if (pendingInvitesRef.current.delete(id)) setPendingCount(pendingInvitesRef.current.size);
+    pendingInvitesRef.current.delete(id);
   };
-  /** Seats taken: me, everyone connected, everyone still ringing. */
-  const roomUsed = () => 1 + peerPoolRef.current.size + pendingInvitesRef.current.size;
-  /** The render-time view of the same thing — `tiles` mirrors the pool. */
-  const roomFull = 1 + tiles.length + pendingCount >= callCap;
   // The gallery photo, once picked, and the <input> that picks it.
   const photoRef = useRef<HTMLImageElement | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
@@ -778,20 +766,45 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     userRingChannelsRef.current = [];
   };
 
+  /**
+   * Set this connection's send bitrates for the room as it stands NOW.
+   *
+   * The video rate is a function of how many peers this phone is sending to,
+   * which is what replaced the participant cap: instead of refusing the
+   * eleventh person, everybody's stream gets smaller so the total upload
+   * stays inside a budget. Audio is never scaled — see callCapacity.ts.
+   */
   const applyBitrateCaps = async (pc: RTCPeerConnection) => {
+    // At least one, because a connection being tuned is a peer by definition
+    // even in the instant before the pool has it.
+    const peers = Math.max(1, peerPoolRef.current.size);
+    const video = videoBitrateFor(peers);
     for (const sender of pc.getSenders()) {
       const kind = sender.track?.kind;
       if (!kind) continue;
       try {
         const params = sender.getParameters();
         if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
-        if (kind === "video") params.encodings[0].maxBitrate = 400_000;
-        else if (kind === "audio") params.encodings[0].maxBitrate = 64_000;
+        if (kind === "video") params.encodings[0].maxBitrate = video;
+        else if (kind === "audio") params.encodings[0].maxBitrate = AUDIO_BPS;
         await sender.setParameters(params);
       } catch {
         /* some browsers reject mid-negotiation */
       }
     }
+  };
+
+  /**
+   * Re-tune EVERY open connection, because the right rate changed.
+   *
+   * Without this the adaptive rate would only ever apply to the newest peer:
+   * the first three people in a room would keep sending 400 kbps apiece to
+   * each other while the tenth arrival politely sent 240, and the phones that
+   * needed relief most would be the ones that never got it. Called whenever
+   * the pool changes size.
+   */
+  const retuneAllBitrates = () => {
+    for (const entry of peerPoolRef.current.values()) void applyBitrateCaps(entry.pc);
   };
 
   // ---- media ----
@@ -851,33 +864,22 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     return (meId ?? "") < peerId;
   };
 
-  const createPeerEntry = (peerId: string, hintedName?: string, forceRelay = false): PeerEntry | null => {
+  const createPeerEntry = (
+    peerId: string,
+    hintedName?: string,
+    forceRelay = false,
+  ): PeerEntry | null => {
     const existing = peerPoolRef.current.get(peerId);
     if (existing) return existing;
-    // THE BACKSTOP, and the only place the cap is actually load-bearing.
+    // NOBODY IS REFUSED HERE ANY MORE — owner directive, 2026-08-16. This was
+    // the backstop that turned a peer away once the room hit its cap, and it
+    // was the only place the cap was load-bearing. There is no cap, so every
+    // peer that reaches this line gets a connection.
     //
-    // ringUser refuses to invite past the cap, but an invite is not the only
-    // way a peer arrives — someone else in the mesh may add a person, or a
-    // client may simply not be running this build. This is the line that
-    // decides whether THIS phone opens another peer connection, and it is
-    // where the mesh cost is actually incurred, so it is checked here rather
-    // than trusted upstream.
-    //
-    // Refusing is asymmetric: they connect to everyone under their own cap
-    // and simply never see me. That is worse than a clean block at the invite
-    // and better than a phone trying to hold connections it cannot afford —
-    // which is why the invite guard exists to make this unreachable in
-    // ordinary use, and why reaching it is worth reporting.
-    if (peerPoolRef.current.size + 1 >= callCap) {
-      console.warn(`[mesh] refusing ${peerId}: room holds ${callCap}`);
-      reportClientError("call-room-full", `refused a peer past the ${callCap}-person cap`, {
-        cap: callCap,
-        capRead: callCapRead,
-        poolSize: peerPoolRef.current.size,
-        pending: pendingInvitesRef.current.size,
-      });
-      return null;
-    }
+    // What replaces it is not another gate but a re-tune: one more peer means
+    // every stream this phone sends should get smaller, so the total upload
+    // stays inside its budget. That happens after the entry joins the pool,
+    // below, because the new size is what the rate is computed from.
     releaseSeat(peerId);
     const pc = new RTCPeerConnection(getIceConfig(forceRelay));
     if (hintedName) peerNamesRef.current.set(peerId, hintedName);
@@ -899,6 +901,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       offerRetryTimer: null,
     };
     peerPoolRef.current.set(peerId, entry);
+    // The room just grew, so every stream this phone sends should shrink.
+    // After the set, because the new size is what the rate is computed from.
+    retuneAllBitrates();
 
     pc.onicecandidate = (e) => {
       if (e.candidate) sendSig("ice", peerId, { candidate: e.candidate.toJSON() });
@@ -1164,6 +1169,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
       entry.pc.close();
     } catch {}
     peerPoolRef.current.delete(peerId);
+    // The room shrank — give the quality back to whoever is left, rather than
+    // leaving a five-person call sending at the rate a ten-person one needed.
+    retuneAllBitrates();
     // eslint-disable-next-line no-console
     console.log(`[mesh] PeerPool size: ${peerPoolRef.current.size} (removed ${peerId})`);
     publishTiles();
@@ -2428,19 +2436,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
    */
   const ringUser = (userId: string, name?: string) => {
     if (!callIdRef.current || !activeRef.current) return;
-    if (userId === meId || peerPoolRef.current.has(userId)) return;
-    // THE ROOM IS FULL. Counted against people already RUNG as well as people
-    // already here, or six quick taps on Add would put seven people in a
-    // four-person room while they were all still ringing.
-    if (roomUsed() >= callCap) {
-      toast(`This call is full — ${sayCallCap(callCap)}`, {
-        description:
-          callCap < PLUS_CALL_PARTICIPANTS
-            ? `ONIQ Plus fits ${PLUS_CALL_PARTICIPANTS}.`
-            : undefined,
-      });
-      return;
-    }
+    // NO FULL CHECK — owner directive, 2026-08-16. Anyone may be added to any
+    // call, so the only guard left is against ringing the SAME person twice,
+    // which is a bug rather than a policy.
+    //
+    // It has to consult the pending set as well as the pool. The room tally
+    // used to do that job as a side effect of counting seats; with the tally
+    // gone, checking only the pool would let two quick taps on Add ring
+    // somebody twice while their first invite was still in the air.
+    if (userId === meId) return;
+    if (peerPoolRef.current.has(userId) || pendingInvitesRef.current.has(userId)) return;
     if (name) peerNamesRef.current.set(userId, name);
     holdSeat(userId);
     if (!peerIdsRef.current.includes(userId)) peerIdsRef.current.push(userId);
@@ -2837,29 +2842,14 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
                   <Wand2 className="h-5 w-5" />
                 </CallAction>
               )}
+              {/* Always "Add", never "Full", and never an upsell — owner
+                  directive, 2026-08-16. There is no room size to reach and
+                  nothing bigger to sell, so the button has one state. */}
               {(status === "connected" || status === "connecting") && (
                 <CallAction
-                  label={roomFull ? "Full" : "Add"}
-                  onClick={() => {
-                    // A full room SAYS SO rather than opening a picker whose
-                    // every tap would be refused. The upsell only appears
-                    // when there is actually a bigger room to buy.
-                    if (roomFull) {
-                      toast(`This call is full — ${sayCallCap(callCap)}`, {
-                        description:
-                          callCap < PLUS_CALL_PARTICIPANTS
-                            ? `ONIQ Plus fits ${PLUS_CALL_PARTICIPANTS}.`
-                            : undefined,
-                      });
-                      return;
-                    }
-                    setShowAddPeople(true);
-                  }}
-                  ariaLabel={
-                    roomFull
-                      ? `This call is full — ${sayCallCap(callCap)}`
-                      : "Add someone to this call"
-                  }
+                  label="Add"
+                  onClick={() => setShowAddPeople(true)}
+                  ariaLabel="Add someone to this call"
                   testId="call-add-person"
                 >
                   <UserPlus className="h-5 w-5" />

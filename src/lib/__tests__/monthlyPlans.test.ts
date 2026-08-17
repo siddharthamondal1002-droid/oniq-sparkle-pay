@@ -265,7 +265,7 @@ describe("what the plan screen says", () => {
     expect(sayAllowance(0)).toBe("No film included");
   });
 
-  it("keeps group CALLING on every plan — what differs is the room", () => {
+  it("keeps group CALLING free for everyone, and now uncapped", () => {
     // Withdrawn from the paid-only set on 2026-08-16 (owner). It stays on
     // every plan row rather than moving to the free one, because
     // has_entitlement resolves against the CURRENT plan — moving it would
@@ -274,51 +274,74 @@ describe("what the plan screen says", () => {
     expect(free).toContain("group_calls");
     expect(free).toContain("where key in ('free', 'plus_monthly', 'plus_25', 'plus_60')");
 
-    // TRIMMED, NOT REVERSED, later the same day (owner): the FEATURE is still
-    // on free — nobody lost the ability to make a group call — but the number
-    // of people in it became the reason to upgrade. Free 4, Plus 8.
-    const cap = read("supabase/migrations/20260816100000_call_participant_cap.sql");
-    expect(cap).toContain("max_call_participants = 4 where key in ('free', 'topup')");
-    expect(cap).toContain("max_call_participants = 8");
-    expect(cap).toContain("where key in ('plus_monthly', 'plus_25', 'plus_60')");
-    // A floor, so no plan can be sold a phone that cannot ring anyone.
-    expect(cap).toContain("check (max_call_participants between 2 and 8)");
-    // The owner rides free (2026-08-12) and gets the largest room going.
-    expect(cap).toContain("when is_admin(_user) then");
+    // Trimmed to "free 4, Plus 8" later the same day, then REVERSED again by
+    // the owner: free with no cap at all. The trim migration is left in place
+    // — it is applied history — and the reversal drops what it added, so the
+    // end state is no column, no function, no check.
+    const off = read("supabase/migrations/20260816200000_group_calls_uncapped.sql");
+    expect(off).toContain("drop column if exists max_call_participants");
+    expect(off).toContain("drop function if exists public.my_call_cap(uuid)");
+    expect(off).toContain("drop constraint if exists subscription_plans_call_cap_sane");
+    // Ordering matters: the check forbids values outside 2..8, so it has to
+    // go before the column it constrains.
+    expect(off.indexOf("drop constraint")).toBeLessThan(off.indexOf("drop column"));
   });
 
-  it("spells the room from the plan's own number, not from a boolean", () => {
-    // group_calls is on EVERY plan, so as a bullet it says nothing and
-    // freeGives would drop it from the paid cards entirely — hiding the one
-    // thing that actually differs. The size is rendered from the row instead.
+  it("sells no room size, because there is none to sell", () => {
+    // group_calls is on EVERY plan, so as a bullet it says nothing — and now
+    // that the room is uncapped there is no number to show instead. The line
+    // survives only on the FREE card; a paid card quoting a room size would
+    // be selling something that is not for sale.
     const ui = readFileSync(join(process.cwd(), "src/components/stories/PlanSheet.tsx"), "utf8");
     expect(ui).toContain("Everything in Free, plus");
-    expect(ui).toContain("sayCallCap(p.max_call_participants)");
+    expect(ui).toContain("GROUP_CALLS_BLURB");
+    expect(ui, "the plan sheet still quotes a per-plan room size").not.toContain(
+      "max_call_participants",
+    );
     expect(ui, "group_calls is still listed as a bullet as well").toMatch(
       /filter\(\(e\) => e !== "group_calls"\)/,
     );
   });
 
-  it("holds the call at the FREE room until the plan read lands", () => {
-    // The direction of the fallback is the whole point, and it is the
-    // opposite of the lens rack's. A lens drawn a moment early costs
-    // nothing; a peer connection opened a moment early costs the phone
-    // bandwidth and battery it may not have, and ONIQ a TURN relay bill. So
-    // an unknown cap reads as FOUR, never as eight.
+  it("refuses nobody a seat, and re-tunes the mesh instead", () => {
+    /**
+     * The reversal, asserted where it is load-bearing. The old test pinned
+     * that an unknown cap read as FOUR and that a peer past the cap was
+     * turned away at createPeerEntry. Both are gone by owner directive, so
+     * what is pinned now is that they STAY gone — a "room full" path is
+     * exactly the sort of thing that creeps back as a safety measure.
+     */
     const call = readFileSync(join(process.cwd(), "src/components/chat/CallOverlay.tsx"), "utf8");
-    expect(call).toContain("const callCap = callCapRead ?? FREE_CALL_PARTICIPANTS");
-    expect(call, "an unknown cap must never open the Plus room").not.toMatch(
-      /callCapRead \?\? PLUS_CALL_PARTICIPANTS/,
+    const code = call.replace(/\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "");
+    // Word-bounded on purpose: `callCapacity` is the MODULE this file now
+    // imports its bitrate maths from, and a bare /callCap/ matches inside it.
+    expect(code, "a participant cap came back").not.toMatch(
+      /\bcallCap\b|\broomFull\b|CALL_PARTICIPANTS/,
     );
-    // Seats are counted against people still RINGING as well as people
-    // already here, or repeated taps would overfill the room mid-invite.
-    expect(call).toContain(
-      "const roomUsed = () => 1 + peerPoolRef.current.size + pendingInvitesRef.current.size",
+    expect(code, "a peer is being refused again").not.toContain("call-room-full");
+    expect(code, "the call can be full again").not.toContain("This call is full");
+
+    // The seat bookkeeping that only existed to answer "is it full?" went
+    // with it — a count that is stored and never read reads as though
+    // something still depends on it.
+    expect(code, "a room tally survived with nothing to compare it to").not.toMatch(
+      /\broomUsed\b|\bpendingCount\b/,
     );
-    // And the cap is enforced where the cost is actually incurred, not only
-    // at the invite — a peer can arrive without this phone inviting it.
-    expect(call).toMatch(/if \(peerPoolRef\.current\.size \+ 1 >= callCap\) \{/);
-    expect(call).toContain('reportClientError("call-room-full"');
+    // But ringing the SAME person twice is still a bug, and the pool alone
+    // cannot see an invite that is still in the air.
+    expect(code).toContain(
+      "peerPoolRef.current.has(userId) || pendingInvitesRef.current.has(userId)",
+    );
+
+    // What replaced the cap: every open connection is re-tuned whenever the
+    // pool changes size.
+    expect(code).toContain("const video = videoBitrateFor(peers)");
+    // Both directions. Re-tuning only on join would leave a call that
+    // emptied out stuck at the bitrate its busiest moment needed.
+    const joins = code.indexOf("peerPoolRef.current.set(peerId, entry)");
+    const leaves = code.indexOf("peerPoolRef.current.delete(peerId)");
+    expect(code.slice(joins, joins + 200)).toContain("retuneAllBitrates()");
+    expect(code.slice(leaves, leaves + 200)).toContain("retuneAllBitrates()");
   });
 
   it("gives the owner a way to see the buy screens without being charged", () => {

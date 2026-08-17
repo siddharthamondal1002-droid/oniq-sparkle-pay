@@ -1,47 +1,96 @@
 /**
- * HOW MANY PEOPLE FIT IN ONE CALL — owner directive, 2026-08-16.
+ * GROUP CALLS ARE FREE, WITH NO PARTICIPANT CAP — owner directive, 2026-08-16.
  *
- * Free 4, Plus 8, and the room size is the reason to upgrade. This TRIMS the
- * 2026-08-16 "group calls stay free for everyone" directive rather than
- * replacing it: group calling is still on the free plan and nobody loses it,
- * but past four people it is a Plus feature. Asked and answered with that
- * reversal named out loud before any of it was written.
+ * This REPLACES the earlier 2026-08-16 "free 4, Plus 8" directive (491f521c),
+ * which had itself trimmed a "group calls stay free for everyone" directive
+ * from the same day. The owner's decision, latest and in force: group calling
+ * is free for every account, and the size of the room is not a plan feature,
+ * not an upsell, and not gated on anything. Nobody is refused a seat.
  *
- * WHY THERE IS A CEILING AT ALL. The call path is a MESH — every participant
- * opens a peer connection to every other participant and sends a separate
- * copy of its own camera down each one. At CallOverlay's own bitrate caps
- * (400 kbps video + 64 kbps audio) every extra person costs EVERY phone in
- * the call another 464 kbps in both directions:
+ * So there is no cap here to read, no `my_call_cap` to ask, and no "this call
+ * is full" anywhere in the app. Whether calls cost money and who may use them
+ * is the owner's call and it has been made.
  *
- *     4 people  ->  3 connections per phone, ~1.4 Mbps each way
- *     8 people  ->  7 connections per phone, ~3.3 Mbps each way
+ * ────────────────────────────────────────────────────────────────────────────
+ * WHAT DOES NOT GO AWAY, BECAUSE IT IS PHYSICS RATHER THAN POLICY
  *
- * Eight is the top of what a phone on good wifi or 5G holds. The header on
- * CallOverlay.tsx used to say "no participant cap", which on a mesh is not a
- * feature — it is an unbounded device load and an unbounded TURN relay bill.
+ * The call path is a MESH. Every participant opens a peer connection to every
+ * other participant and uploads a SEPARATE copy of its own camera down each
+ * one. Removing a policy cap does not change that; it just means the mesh is
+ * now allowed to reach sizes where it is the binding constraint.
  *
- * THESE NUMBERS MIRROR subscription_plans.max_call_participants. The database
- * is the authority (`my_call_cap`); these exist so the UI has something to
- * say before the read lands, and so a plan row edited to something absurd
- * fails a test rather than a phone.
+ * At a fixed 400 kbps per stream — what the app sent when the cap existed —
+ * every phone's upload grows linearly with the room:
  *
- * NO IMPORTS ON PURPOSE — entitlements.ts leans on FREE_CALL_PARTICIPANTS as
- * its fallback, and a cycle through this file would be a hard one to see.
+ *     4 people  ->  3 streams  ->  ~1.4 Mbps up
+ *     8 people  ->  7 streams  ->  ~3.3 Mbps up
+ *    12 people  -> 11 streams  ->  ~5.1 Mbps up
+ *    20 people  -> 19 streams  ->  ~8.8 Mbps up      (most phones fail here)
+ *
+ * A cap was one answer to that. It is not the only one, and it is no longer
+ * the one in force — so instead of REFUSING the eleventh person, the app now
+ * SPENDS LESS ON EACH of them. `videoBitrateFor` below holds total video
+ * upload inside a budget by shrinking the per-stream rate as the room grows,
+ * which turns "the call collapses at twelve" into "the call gets softer as it
+ * gets bigger". That is engineering inside the owner's decision, not a cap
+ * wearing a different hat: nobody is ever turned away, and no number in this
+ * file can stop a call from starting.
+ *
+ * AUDIO IS NEVER SCALED DOWN. Voice is the thing a call is for, and 64 kbps
+ * of Opus is cheap next to any video stream. A twenty-person room spends
+ * ~1.2 Mbps on audio and that is the correct place for the money to go.
+ *
+ * HONEST LIMIT, STATED PLAINLY: a mesh has a ceiling that no bitrate maths
+ * removes, because the CPU cost of encoding N separate streams and decoding N
+ * more is not something a phone can be talked out of. Somewhere past a dozen
+ * or so this stops being pleasant however few bits each stream carries.
+ * Genuinely unbounded rooms need an SFU — one upload per phone, the server
+ * fans it out — which means a paid media service and therefore an owner
+ * decision about whose money it spends. It is written up in the migration
+ * alongside this, and is deliberately NOT assumed here.
  */
-
-/** The free plan's room, counting the caller. */
-export const FREE_CALL_PARTICIPANTS = 4;
-
-/** Every paid tier's room, counting the caller. */
-export const PLUS_CALL_PARTICIPANTS = 8;
 
 /**
- * The most any plan may sell. Past this the mesh stops being a call and
- * starts being a way to overheat a phone, whatever anyone has paid.
+ * Total video upload one phone should aim to stay inside, in bits per second.
+ *
+ * Chosen as roughly what the 8-person room cost under the old fixed rate
+ * (7 x 400 kbps = 2.8 Mbps), rounded down. Past that size the room keeps
+ * growing and the per-stream share keeps shrinking instead of the call
+ * breaking.
  */
-export const MAX_CALL_PARTICIPANTS = PLUS_CALL_PARTICIPANTS;
+export const VIDEO_UPLOAD_BUDGET_BPS = 2_400_000;
 
-/** "up to 4 people" — one phrasing, so the plan sheet and the toast agree. */
-export function sayCallCap(n: number): string {
-  return n <= 2 ? "one-to-one calls" : `group calls up to ${n} people`;
+/** Never send worse than this — below it video is not worth the battery. */
+export const MIN_VIDEO_BPS = 120_000;
+
+/** Never send better than this, however small the call. The old fixed rate. */
+export const MAX_VIDEO_BPS = 400_000;
+
+/** Opus, per stream, never scaled — see the header. */
+export const AUDIO_BPS = 64_000;
+
+/**
+ * Bits per second for ONE outgoing video stream, given how many peers this
+ * phone is sending to.
+ *
+ * `peers` is the number of OTHER people — the count of peer connections, not
+ * the room size — because that is what this phone actually pays for.
+ *
+ * A 1:1 call and a 4-person call both land on the ceiling, so the common case
+ * is bit-for-bit what shipped before the cap was lifted; only rooms larger
+ * than the old cap see any change at all.
+ */
+export function videoBitrateFor(peers: number): number {
+  if (!Number.isFinite(peers) || peers <= 1) return MAX_VIDEO_BPS;
+  const share = VIDEO_UPLOAD_BUDGET_BPS / peers;
+  return Math.max(MIN_VIDEO_BPS, Math.min(MAX_VIDEO_BPS, Math.round(share)));
 }
+
+/**
+ * How the app describes group calling wherever it is mentioned.
+ *
+ * One phrasing so the plan sheet and any in-call copy agree, and no number in
+ * it — because there is no number, and a plan sheet that quotes one would be
+ * re-inventing the cap in marketing copy.
+ */
+export const GROUP_CALLS_BLURB = "Group calls, free for everyone";
