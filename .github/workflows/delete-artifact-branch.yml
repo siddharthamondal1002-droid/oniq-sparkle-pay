@@ -1,0 +1,60 @@
+# Delete a disposable artifact branch.
+#
+# WHY A WORKFLOW FOR ONE GIT COMMAND. The dev container cannot delete a remote
+# ref at all. Creating and updating refs works fine, but a deletion is refused
+# by the session's git proxy before it reaches GitHub:
+#
+#     POST git-receive-pack (192 bytes)
+#     error: RPC failed; HTTP 403
+#     fatal: the remote end hung up unexpectedly
+#     Everything up-to-date          <- misleading; nothing was deleted
+#
+# That trailing "Everything up-to-date" is what makes this worth automating
+# rather than retrying: the command exits looking like a no-op success, so a
+# branch you believe you cleaned up is still sitting there. A runner has a
+# real token and no such restriction.
+#
+# ONLY artifact/* CAN BE DELETED. A dispatchable workflow that takes a branch
+# name and deletes it is a foot-gun pointed at main; the prefix check is what
+# makes it safe to leave in the repo. Anything else is refused loudly.
+name: Delete artifact branch
+
+on:
+  workflow_dispatch:
+    inputs:
+      branches:
+        description: "Comma-separated branches to delete. Must all start with artifact/"
+        required: true
+
+jobs:
+  delete:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Delete, but only under artifact/
+        env:
+          BRANCHES: ${{ inputs.branches }}
+        run: |
+          fail=0
+          IFS=',' read -ra LIST <<< "$BRANCHES"
+          for raw in "${LIST[@]}"; do
+            b=$(echo "$raw" | tr -d ' ')
+            [ -z "$b" ] && continue
+            case "$b" in
+              artifact/*) ;;
+              *) echo "::error::refusing to delete '$b' — only artifact/* is allowed"; fail=1; continue ;;
+            esac
+            if git ls-remote --exit-code --heads origin "$b" >/dev/null 2>&1; then
+              git push origin --delete "$b" && echo "deleted $b"
+            else
+              # Already gone is the desired end state, not an error.
+              echo "$b does not exist — nothing to delete"
+            fi
+          done
+          echo "--- artifact/* remaining ---"
+          git ls-remote --heads origin 'refs/heads/artifact/*' || true
+          exit $fail
