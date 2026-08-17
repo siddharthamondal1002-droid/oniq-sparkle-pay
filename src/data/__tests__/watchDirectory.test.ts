@@ -347,6 +347,53 @@ describe("every entry is a link that leaves the app", () => {
  * These assert the invariant rather than the old symptom, so they keep holding
  * if the directory or the genre row changes shape later.
  */
+/**
+ * A CHANNEL ID IS 24 CHARACTERS OR IT IS A GUESS.
+ *
+ * Every UC… id in this file was read off the channel's own page; none was
+ * recalled or invented, and the header says so. That rule has nothing to
+ * enforce it except this, and the failure it guards is silent — a plausible
+ * id builds a player and a link that both work perfectly, pointing at
+ * somebody else's channel. Length and alphabet will not catch a wrong id, but
+ * they catch a mistyped, truncated or half-remembered one, which is what a
+ * fabricated id usually looks like.
+ */
+describe("channel ids are the shape YouTube issues", () => {
+  const ID = /^UC[A-Za-z0-9_-]{22}$/;
+
+  it("every directory entry's channel id is well formed", () => {
+    for (const e of WATCH_ENTRIES) {
+      if (!e.channelId) continue;
+      expect(e.channelId, `${e.name} has a malformed channel id`).toMatch(ID);
+    }
+  });
+
+  it("every faith entry's channel id is well formed", () => {
+    for (const e of FAITH_ENTRIES) {
+      expect(e.channelId, `${e.name} has a malformed channel id`).toMatch(ID);
+    }
+  });
+
+  it("no two entries claim the same channel", () => {
+    const seen = new Map<string, string>();
+    for (const e of WATCH_ENTRIES) {
+      if (!e.channelId) continue;
+      const prev = seen.get(e.channelId);
+      expect(prev, `${e.name} and ${prev} share a channel id`).toBeUndefined();
+      seen.set(e.channelId, e.name);
+    }
+  });
+
+  it("the creators resolved on 2026-08-17 still play rather than link out", () => {
+    // Ten handle-only entries got their real id that day and moved from
+    // "Also on YouTube" into the strip. If an id is ever dropped they fall
+    // silently back to link-outs, which looks like nothing being wrong.
+    const influencers = watchDirectoryFor(null).filter((e) => e.genre === "influencer");
+    const playable = influencers.filter((e) => playableOf(e) !== null);
+    expect(playable.length, "the influencer genre lost playable channels").toBeGreaterThanOrEqual(11);
+  });
+});
+
 describe("every genre on offer has something to play", () => {
   it("each genre in the directory yields at least one playable entry", () => {
     const byGenre = new Map<string, number>();

@@ -42,15 +42,39 @@ function javaCode(src: string): string {
 describe("the window really is edge-to-edge", () => {
   const code = javaCode(MAIN_ACTIVITY);
 
-  it("asks the decor to stop fitting system windows", () => {
-    expect(code).toMatch(/WindowCompat\.setDecorFitsSystemWindows\(\s*getWindow\(\),\s*false\s*\)/);
+  // THESE TWO USED TO ASSERT THE OPPOSITE, and were red from 66d4cad5 until
+  // 2026-08-17 because nothing in CI or the Android workflow runs vitest over
+  // a Java file's shape. They demanded WindowCompat.setDecorFitsSystemWindows
+  // plus the four window setters — the exact calls Play flagged on release 11
+  // as deprecated, and which are NO-OPS at this app's targetSdk of 36. A test
+  // pinning a deprecated API in place is worse than no test: it argues against
+  // the fix.
+  it("hands the bars to EdgeToEdge rather than the deprecated setters", () => {
+    expect(code, "EdgeToEdge.enable is gone").toMatch(/EdgeToEdge\.enable\(\s*this\s*\)/);
+    expect(code).toMatch(/import androidx\.activity\.EdgeToEdge;/);
   });
 
-  it("paints neither bar, and enforces no scrim behind them", () => {
-    expect(code).toMatch(/setStatusBarColor\(Color\.TRANSPARENT\)/);
-    expect(code).toMatch(/setNavigationBarColor\(Color\.TRANSPARENT\)/);
-    expect(code).toMatch(/setNavigationBarContrastEnforced\(false\)/);
-    expect(code).toMatch(/setStatusBarContrastEnforced\(false\)/);
+  it("keeps the deprecated window setters out", () => {
+    // Deprecated in API 35, no-ops at targetSdk 36. EdgeToEdge.enable covers
+    // minSdk 24 upward, applying the legacy path only where it still works.
+    for (const dead of [
+      /WindowCompat\.setDecorFitsSystemWindows/,
+      /setStatusBarColor\(/,
+      /setNavigationBarColor\(/,
+      /setNavigationBarContrastEnforced\(/,
+      /setStatusBarContrastEnforced\(/,
+    ]) {
+      expect(code, `a deprecated bar setter is back: ${dead}`).not.toMatch(dead);
+    }
+  });
+
+  it("cannot let edge-to-edge stop the app starting", () => {
+    // 1.8.1 crashed on open and EdgeToEdge was one of only two suspects, so
+    // the call is guarded like applySystemFontScale and requestBestRefreshRate
+    // already are. Nothing decorative may take startup down with it.
+    expect(code, "EdgeToEdge.enable is no longer inside a try").toMatch(
+      /try\s*\{\s*EdgeToEdge\.enable\(\s*this\s*\);\s*\}\s*catch/,
+    );
   });
 
   it("no longer paints the content view a colour of its own", () => {

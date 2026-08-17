@@ -462,11 +462,22 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     verified: true,
   },
 
-  // Influencer. These were handle-only in the retired edge function, which
-  // skipped them because resolving a handle to an id needs the Data API or a
-  // scrape. A LINK needs neither — @handle URLs resolve on YouTube's side — so
-  // they come back here.
+  // Influencer. These were handle-only, and so link-out only: an uploads
+  // playlist is derived from a channel id, and a handle is not one.
+  //
+  // The ids below were RESOLVED ONCE, BY HAND, on 2026-08-17 — read off each
+  // channel's own page and checked against the page title in the same output,
+  // so an id can only be wrong if YouTube's own page was. They are static data
+  // from then on. Nothing in the app resolves a handle at runtime; that is the
+  // scrape this codebase exists to keep out, and it stays out.
+  //
+  // Mrwhosetheboss is deliberately still handle-only. Its page returned no id
+  // in that pass, and the rule here is older than this entry: an unconfirmed id
+  // points the player at the wrong channel, which is worse than a link that
+  // works. It renders under "Also on YouTube" until somebody reads the real one
+  // off the channel.
   {
+    channelId: "UCAiLfjNXkNv24uhpzUgPa6A",
     handle: "MrBeast",
     name: "MrBeast",
     description: "Large-scale stunts and giveaways.",
@@ -475,6 +486,7 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     verified: true,
   },
   {
+    channelId: "UCd09ztChTkJ9dlY6RLawSog",
     handle: "IShowSpeed",
     name: "IShowSpeed",
     description: "Gaming and live variety.",
@@ -483,6 +495,7 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     verified: true,
   },
   {
+    channelId: "UCJrWyyCRROi8NlQ6Xd9dx5Q",
     handle: "DudePerfect",
     name: "Dude Perfect",
     description: "Trick shots and sports comedy.",
@@ -491,6 +504,7 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     verified: true,
   },
   {
+    channelId: "UCQ4zIVlfhsmvds7WuKeL2Bw",
     handle: "PewDiePie",
     name: "PewDiePie",
     description: "Commentary and vlogs.",
@@ -499,6 +513,7 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     verified: true,
   },
   {
+    channelId: "UCVtFOytbRpEvzLjvqGG5gxQ",
     handle: "ksi",
     name: "KSI",
     description: "Music, boxing and comedy.",
@@ -507,6 +522,7 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     verified: true,
   },
   {
+    channelId: "UCh5mLn90vUaB1PbRRx_AiaA",
     handle: "Sidemen",
     name: "Sidemen",
     description: "British group challenges and sketches.",
@@ -523,6 +539,7 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     verified: true,
   },
   {
+    channelId: "UC0IWRLai-BAwci_e9MylNGw",
     handle: "CarryMinati",
     name: "CarryMinati",
     description: "Indian comedy and gaming.",
@@ -531,6 +548,7 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     verified: true,
   },
   {
+    channelId: "UCGpSJk0zi-wDrCIzjrxrk0w",
     handle: "TotalGaming093",
     name: "Total Gaming",
     description: "Indian mobile gaming.",
@@ -539,6 +557,7 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     verified: true,
   },
   {
+    channelId: "UCl_vAxZpvbO-PFXdDu7EdHw",
     handle: "TechnoGamerzOfficial",
     name: "Techno Gamerz",
     description: "Indian gaming playthroughs.",
@@ -555,6 +574,7 @@ export const WATCH_ENTRIES: WatchEntry[] = [
     verified: true,
   },
   {
+    channelId: "UCX1xppLvuj03ubLio8jslyA",
     handle: "HikakinTV",
     name: "HikakinTV",
     description: "Japanese variety and challenges.",
