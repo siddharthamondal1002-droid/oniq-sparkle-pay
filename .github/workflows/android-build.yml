@@ -294,6 +294,47 @@ jobs:
           path: android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 30
 
+      # THE SYMBOLS ARE ACTUALLY IN THE BUNDLE — opened and checked.
+      #
+      # Play warned on version code 12 that the bundle carries native code
+      # with no debug symbols. build.gradle now sets debugSymbolLevel FULL,
+      # but that setting is a request, not a guarantee: AGP can only extract
+      # symbols a dependency's .so still has, and it merely WARNS when one has
+      # already been stripped. A build where every native library came in
+      # stripped would succeed, ship no symbols, and draw the identical Play
+      # warning on the next upload — after the upload, which is the expensive
+      # place to learn it.
+      #
+      # So this opens the finished .aab and compares two counts. Deliberately
+      # placed AFTER the upload step: if the check fails I want the bundle
+      # downloadable so the offending libraries can be identified, not thrown
+      # away with the failed job.
+      - name: Verify the bundle carries native debug symbols
+        working-directory: android
+        run: |
+          Z=app/build/outputs/bundle/release/app-release.aab
+
+          echo "--- native libraries in the bundle ---"
+          unzip -l "$Z" | awk '$4 ~ /\.so$/ { printf "  %10s  %s\n", $1, $4 }' | sort -k2 || true
+          echo "--- debug symbols in BUNDLE-METADATA ---"
+          unzip -l "$Z" \
+            | awk '$4 ~ /^BUNDLE-METADATA\/com\.android\.tools\.build\.debugsymbols\// { printf "  %10s  %s\n", $1, $4 }' \
+            || true
+
+          SO=$(unzip -l "$Z" | awk '$4 ~ /\.so$/' | wc -l)
+          SYM=$(unzip -l "$Z" | awk '$4 ~ /^BUNDLE-METADATA\/com\.android\.tools\.build\.debugsymbols\/.+/' | wc -l)
+          echo "$SO native libraries, $SYM symbol files"
+
+          if [ "$SO" -eq 0 ]; then
+            echo "No native libraries in this bundle — nothing for Play to ask symbols for."
+            exit 0
+          fi
+          if [ "$SYM" -eq 0 ]; then
+            echo "::error::The bundle has $SO native libraries and no debug symbols. debugSymbolLevel is set, so the libraries reached AGP already stripped — check the build log for 'Unable to extract native debug metadata'."
+            exit 1
+          fi
+          echo "Native debug symbols are present; Play's warning on version code 12 is answered."
+
       - name: Build signed APK
         working-directory: android
         env:

@@ -7,8 +7,16 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 12
+        versionCode 13
         versionName "1.8.1"
+        // versionCode 13, STILL NAMED 1.8.1. Code 12 was uploaded, so it is
+        // burned and Play would reject a repeat. The NAME does not move
+        // because nothing a user can see or feel changed: the only difference
+        // between 12 and 13 is native debug symbols in the bundle's metadata,
+        // which is stripped out before anything is delivered to a device. See
+        // buildTypes.release below for why 12 needed replacing at all.
+        //
+        // ----- 1.8.1 -----
         // 1.8.1 answers the three things Play flagged on release 11 (1.8):
         //   - "uses deprecated APIs or parameters for edge-to-edge" and
         //     "edge-to-edge may not display for all users" — MainActivity was
@@ -106,6 +114,33 @@ android {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
+            // NATIVE DEBUG SYMBOLS — Play warned on version code 12: "This App
+            // Bundle contains native code, and you've not uploaded debug
+            // symbols."
+            //
+            // This app writes no NDK code of its own; there is no jniLibs
+            // directory and no CMake. The .so files arrive inside dependency
+            // AARs, which is why the bundle reports four ABIs for a shell that
+            // is almost entirely Java. Symbols we did not author are exactly
+            // the ones worth keeping: a crash inside a library binary is
+            // unreadable without them, and unlike our Java there is no source
+            // to fall back on.
+            //
+            // FULL rather than SYMBOL_TABLE because the cost is not paid by
+            // users. Symbols land in BUNDLE-METADATA/, which Play strips when
+            // it generates the split APKs — the metadata never reaches a
+            // device, so install size is untouched and only the upload is
+            // bigger. SYMBOL_TABLE (function names only, no line numbers) is
+            // the smaller option if that upload ever becomes a problem.
+            //
+            // AGP only warns when a dependency's .so is already stripped, so
+            // "the setting is present" does not mean symbols shipped.
+            // android-build.yml opens the finished .aab and fails if it finds
+            // native libraries with no symbols beside them.
+            ndk {
+                debugSymbolLevel = 'FULL'
+            }
             if (System.getenv("ORG_GRADLE_PROJECT_ONIQ_KEYSTORE")) {
                 signingConfig signingConfigs.release
             }
