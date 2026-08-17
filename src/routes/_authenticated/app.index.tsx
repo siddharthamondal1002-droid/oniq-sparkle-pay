@@ -44,7 +44,6 @@ import {
   faithChannelsFor,
   playableOf,
   playableOfChannelId,
-  uploadsPlaylistId,
   watchDirectoryFor,
   type Playable,
 } from "@/data/watchDirectory";
@@ -1162,14 +1161,51 @@ function WatchPreview() {
     if (!isDevotional) setJustBrowse(false);
   }, [isDevotional]);
 
-  // Live feeds are excluded from the HOME loop deliberately: a live channel
-  // never ends, so it cannot rotate, and a 24/7 news feed starting itself on
-  // the home screen is a different thing from a playlist looping. The Watch
-  // screen carries them; this carries the loops.
-  const directory = useMemo(
-    () => watchDirectoryFor(null).filter((e) => uploadsPlaylistId(e) !== null),
-    [],
-  );
+  // LIVE FEEDS BELONG HERE, and excluding them is what broke News.
+  //
+  // This list used to be filtered to entries with an uploads playlist, on the
+  // reasoning that a live channel never ends so it cannot rotate. The
+  // reasoning was sound and the effect was not: every one of the eight news
+  // entries in the directory IS a live broadcaster — they are exactly the
+  // roster in src/data/watchChannels.ts — so the filter emptied the 📰 genre
+  // completely and the card fell through to "nothing in here yet". Measured,
+  // not guessed: news 8 entries, 8 live, 0 surviving that filter, while every
+  // other genre kept all of its own.
+  //
+  // Worse than a dead chip, it could strand a user who never tapped one. The
+  // selected genre is stored under oniq.watch.lastGenre and SHARED with the
+  // Watch screen, where News works — so choosing News there and coming back to
+  // Home opened the card already empty.
+  //
+  // Rotation survives. A live feed cannot fire ENDED, but the 2-minute
+  // auto-tour below moves the card along regardless, and onError still steps
+  // past a broadcaster that is off air. What a live item still does NOT do is
+  // start itself: WatchPlayer's live path has never carried autoplay and that
+  // is unchanged here, so News shows YouTube's own player waiting on a tap
+  // rather than a 24/7 news channel talking at an unattended home screen.
+  const directory = useMemo(() => watchDirectoryFor(null), []);
+
+  // NO CHIP FOR A GENRE WITH NOTHING IN IT. HOME_GENRES is a fixed list and
+  // the directory is not; the two silently drifting apart is precisely what
+  // produced an empty News chip that looked like a loading failure. Deriving
+  // the row from what is actually in the directory means a genre can only be
+  // offered when tapping it does something.
+  const genreChips = useMemo(() => {
+    const present = new Set<string>(directory.map((e) => e.genre));
+    return HOME_GENRES.filter((g) => g.key === "all" || present.has(g.key));
+  }, [directory]);
+
+  // And a stored genre that is no longer offered must not strand the card on
+  // an empty frame with no chip lit. The key arrives from the Watch screen, so
+  // it can hold anything that screen ever offered.
+  const tabIsOffered =
+    tab === MYTV_GENRE_ID ||
+    tab === DEVOTIONAL_GENRE_ID ||
+    tab.startsWith(USER_GENRE_PREFIX) ||
+    genreChips.some((g) => g.key === tab);
+  useEffect(() => {
+    if (!tabIsOffered) setTab("all");
+  }, [tabIsOffered]);
 
   const loopable: Playable[] = useMemo(() => {
     if (tab === MYTV_GENRE_ID) {
@@ -1322,7 +1358,7 @@ function WatchPreview() {
         role="tablist"
         aria-label="Watch genre"
       >
-        {HOME_GENRES.map((g) => (
+        {genreChips.map((g) => (
           <HomeGenreChip
             key={g.key}
             active={tab === g.key}

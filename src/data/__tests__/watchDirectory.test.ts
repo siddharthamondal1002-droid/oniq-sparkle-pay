@@ -23,6 +23,8 @@ import {
   WATCH_NOTICE,
   channelUrl,
   faithChannelsFor,
+  playableOf,
+  uploadsPlaylistId,
   watchDirectoryFor,
 } from "@/data/watchDirectory";
 import type { FaithId } from "@/data/faithContent";
@@ -328,6 +330,69 @@ describe("every entry is a link that leaves the app", () => {
     // trap the `upi` entry was added to avoid.
     const reg = readFileSync(join(ROOT, "src/data/countryRegistry.ts"), "utf8");
     expect(reg).toMatch(/\{ id: "watch", supportedCountries: \["IN"\] \}/);
+  });
+});
+
+/**
+ * A GENRE THAT CANNOT PLAY ANYTHING MUST NOT BE OFFERED.
+ *
+ * Reported 2026-08-17 as "news not loading" on Home. Nothing was loading and
+ * nothing had failed: the Home card filtered the directory to entries with an
+ * uploads playlist, and all eight news entries are LIVE broadcasters — they
+ * are the roster in watchChannels.ts — so the genre was empty by construction
+ * and the card showed its empty state. The Watch screen, which applies no such
+ * filter, played the same channels perfectly, which is what made it read as a
+ * loading bug rather than a missing list.
+ *
+ * These assert the invariant rather than the old symptom, so they keep holding
+ * if the directory or the genre row changes shape later.
+ */
+describe("every genre on offer has something to play", () => {
+  it("each genre in the directory yields at least one playable entry", () => {
+    const byGenre = new Map<string, number>();
+    for (const e of watchDirectoryFor(null)) {
+      if (playableOf(e) === null) continue;
+      byGenre.set(e.genre, (byGenre.get(e.genre) ?? 0) + 1);
+    }
+    for (const e of watchDirectoryFor(null)) {
+      expect(byGenre.get(e.genre) ?? 0, `genre "${e.genre}" is listed but nothing in it plays`)
+        .toBeGreaterThan(0);
+    }
+  });
+
+  it("news plays, even though every news channel is live-only", () => {
+    // The precise shape of the bug: news survives `playableOf` (as live) and
+    // is wiped out by `uploadsPlaylistId`. If a non-live news channel is ever
+    // added the second assertion stops being true, and that is fine — the
+    // first one is the one that matters.
+    const news = watchDirectoryFor(null).filter((e) => e.genre === "news");
+    expect(news.length, "no news entries at all").toBeGreaterThan(0);
+    expect(news.every((e) => playableOf(e) !== null)).toBe(true);
+    expect(
+      news.some((e) => uploadsPlaylistId(e) !== null),
+      "news now has an uploads channel — drop the second half of this test",
+    ).toBe(false);
+  });
+
+  it("the Home card does not filter its loop down to uploads-only", () => {
+    // The regression itself, pinned at the call site. Home may filter the
+    // directory for other reasons; it may not filter on having an uploads
+    // playlist, because that is exactly the predicate that means "not live"
+    // and news is entirely live.
+    const src = codeOf(join(ROOT, "src/routes/_authenticated/app.index.tsx"));
+    expect(src, "Home is excluding live channels from its loop again").not.toMatch(
+      /uploadsPlaylistId\([^)]*\)\s*!==\s*null/,
+    );
+  });
+
+  it("the Home genre row is derived from the directory, not hardcoded alongside it", () => {
+    // A fixed chip list and a moving directory is how the empty chip happened.
+    // The row must be computed from what is actually there.
+    const src = codeOf(join(ROOT, "src/routes/_authenticated/app.index.tsx"));
+    expect(src, "the genre row went back to rendering the fixed list").not.toMatch(
+      /HOME_GENRES\.map\(/,
+    );
+    expect(src, "no derived genre row").toMatch(/genreChips/);
   });
 });
 
