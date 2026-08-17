@@ -58,28 +58,34 @@ describe("every live card maps to a surface that exists", () => {
     }
   });
 
-  it("shows Scan & Pay and Receive, and points them somewhere real", () => {
-    // Both were "soon" while the in-app entry point was withdrawn. Payments
-    // were resurfaced, so they are live — and a live card with no route is the
-    // exact thing the deck exists to prevent, hence the route assertion.
+  it("advertises no Scan & Pay or Receive card at all", () => {
+    // Owner directive, 2026-08-17: every pay-by-QR entry point is hidden.
+    //
+    // ABSENT rather than "soon". A deferred card still tells a reader the
+    // feature is coming, and WORLDS_LIVE counts from this array — so a card
+    // left behind in any status keeps advertising a surface the app now offers
+    // no way into. The route still resolves for deep links; that is not
+    // something to put on a marketing deck.
     for (const title of ["Scan & Pay", "Receive"]) {
-      const card = FEATURE_CARDS.find((c) => c.title === title);
-      expect(card, `${title} is missing from the deck`).toBeTruthy();
-      expect(card?.status, `${title} is not live`).toBe("live");
-      expect(card?.route, `${title} is live with no route`).toBeTruthy();
+      expect(
+        FEATURE_CARDS.find((c) => c.title === title),
+        `${title} is back on the deck — check appRegistry oniq-upi agrees`,
+      ).toBeFalsy();
     }
   });
 
   it("keeps the site and the app agreeing about payments", () => {
-    // THE SYMMETRY IS THE POINT, not the direction. The live Play listing once
-    // shipped a screenshot of a payment tile the app would not open; this test
-    // is what stops that recurring. It used to read "site defers, so the app
-    // must hide". Payments were resurfaced, so it now reads the other way — if
-    // the site offers Scan & Pay, the app must not hide oniq-upi.
+    // THE SYMMETRY IS THE POINT, not the direction — which is why this test
+    // needed no edit when the direction flipped back on 2026-08-17 and the
+    // pay-by-QR entry points were hidden again. It asserts both halves of the
+    // disagreement, so it holds whichever way round the pair is set.
+    //
+    // The live Play listing once shipped a screenshot of a payment tile the
+    // app would not open; this is what stops that recurring. The flag has now
+    // moved three times, and each move has to carry the site with it.
     const registry = readFileSync(join(ROOT, "src/data/appRegistry.ts"), "utf8");
     const entry = registry.slice(registry.indexOf('id: "oniq-upi"')).slice(0, 400);
-    const siteOffers =
-      FEATURE_CARDS.find((c) => c.title === "Scan & Pay")?.status === "live";
+    const siteOffers = FEATURE_CARDS.find((c) => c.title === "Scan & Pay")?.status === "live";
     const appHides = /hidden:\s*true/.test(entry);
     expect(
       siteOffers && appHides,

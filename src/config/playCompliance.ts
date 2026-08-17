@@ -31,14 +31,18 @@ export const NATIVE_CAPABILITIES = [
   "CV builder with anti-fabrication validation against the user's own declared facts.",
   "Country-aware exam-paper generation with vector PDF export.",
   "Real-time chat with WebRTC voice and video.",
-  // RESURFACED. `oniq-upi` is visible in the registry again and the site lists
-  // Scan & Pay as live, so a reviewer can reach it — which is what this entry
-  // needed before it could be cited without qualification.
+  // NO UPI ENTRY HERE — owner directive, 2026-08-17: Scan & Pay and every
+  // pay-by-QR tab and button are hidden.
   //
-  // One functional caveat, recorded because a reviewer may hit it: PhonePe and
-  // GPay refuse third-party P2P intents, so paying a PERSON can be declined by
-  // the receiving app. Scanning a merchant QR is unaffected.
-  "UPI scan-and-pay through the user's own payment apps.",
+  // Removed together WITH the UI in the same commit, deliberately. This list
+  // is what the app tells Play it can do, and a reviewer who cannot find a
+  // declared capability is the exact mismatch that draws questions. The route
+  // still resolves for deep links, but nothing in the app points at it, so it
+  // is no longer something a reviewer can be expected to reach — and a
+  // capability nobody can navigate to is not one worth claiming.
+  //
+  // If the surfaces come back, this line comes back with them:
+  //   "UPI scan-and-pay through the user's own payment apps."
   // Card and netbanking checkout for FOOD ORDERS, via Razorpay. Physical goods
   // and services only — Play permits a third-party processor for those and
   // requires Play Billing for digital content, so this is deliberately wired

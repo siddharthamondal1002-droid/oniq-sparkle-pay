@@ -190,9 +190,9 @@ function HomeScreen() {
                   { key: "learn", to: "/app/learn" },
                   { key: "rides", to: "/app/rides" },
                   { key: "miniapps", to: "/app/miniapps" },
-                  // India-only by the feature registry — the row's isAvailable
-                  // filter is what keeps the NPCI rail off every other Home.
-                  { key: "upi", to: "/app/upi" },
+                  // NO UPI TILE — owner directive, 2026-08-17: Scan & Pay and
+                  // every pay-by-QR entry point is hidden. The route still
+                  // resolves for deep links; nothing on Home points at it.
                   { key: "official", to: "/app/official" },
                   { key: "pulse", to: "/app/news" },
                   { key: "faith", to: "/app/faith" },

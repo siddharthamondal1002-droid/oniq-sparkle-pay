@@ -101,7 +101,9 @@ function SuperAppGuide() {
 
       <article className="mx-auto max-w-3xl px-6 py-12">
         <nav aria-label="Breadcrumb" className="mb-6 text-xs text-muted-foreground">
-          <Link to="/" className="hover:text-primary">Home</Link>
+          <Link to="/" className="hover:text-primary">
+            Home
+          </Link>
           <span className="mx-2">/</span>
           <span>Blog</span>
           <span className="mx-2">/</span>
@@ -114,20 +116,18 @@ function SuperAppGuide() {
         <h1 className="font-display text-4xl font-bold leading-tight sm:text-5xl">
           What is a Super App? The Future of Unified Digital Living
         </h1>
-        <p className="mt-5 text-lg text-muted-foreground">
-          {DESCRIPTION}
-        </p>
+        <p className="mt-5 text-lg text-muted-foreground">{DESCRIPTION}</p>
 
         <div className="prose prose-invert mt-10 max-w-none space-y-6 text-base leading-relaxed">
           <section>
             <h2 className="font-display text-2xl font-bold">Super app, defined</h2>
             <p>
               A <strong>super app</strong> is a single mobile application that combines many
-              independently useful services — messaging, payments, commerce, transport, entertainment,
-              and third-party <em>mini apps</em> — behind one account, one wallet, and one identity.
-              The term was popularized by BlackBerry founder Mike Lazaridis in 2010 to describe
-              WeChat, but the pattern has since spread across Asia, Latin America, Africa, and now
-              global markets.
+              independently useful services — messaging, payments, commerce, transport,
+              entertainment, and third-party <em>mini apps</em> — behind one account, one wallet,
+              and one identity. The term was popularized by BlackBerry founder Mike Lazaridis in
+              2010 to describe WeChat, but the pattern has since spread across Asia, Latin America,
+              Africa, and now global markets.
             </p>
             <p>
               Where a traditional app does one job well (a chat app chats, a bank app banks), a
@@ -160,18 +160,34 @@ function SuperAppGuide() {
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-bold">Examples of super apps around the world</h2>
+            <h2 className="font-display text-2xl font-bold">
+              Examples of super apps around the world
+            </h2>
             <p>
               The category is no longer WeChat-only. Each region has produced a dominant super app,
               usually anchored on either messaging or payments:
             </p>
             <ul className="list-disc space-y-2 pl-6">
-              <li><strong>China:</strong> WeChat and Alipay — over a million mini programs each.</li>
-              <li><strong>Southeast Asia:</strong> Grab and Gojek — ride-hailing that grew into wallets, food, and financial services.</li>
-              <li><strong>India:</strong> Paytm and PhonePe, powered by UPI rails.</li>
-              <li><strong>Korea:</strong> KakaoTalk — chat, taxis, banking, gifting.</li>
-              <li><strong>Latin America:</strong> Rappi and Mercado Pago.</li>
-              <li><strong>Global:</strong> X (formerly Twitter) and Revolut are pursuing the model from the social and finance sides.</li>
+              <li>
+                <strong>China:</strong> WeChat and Alipay — over a million mini programs each.
+              </li>
+              <li>
+                <strong>Southeast Asia:</strong> Grab and Gojek — ride-hailing that grew into
+                wallets, food, and financial services.
+              </li>
+              <li>
+                <strong>India:</strong> Paytm and PhonePe, powered by UPI rails.
+              </li>
+              <li>
+                <strong>Korea:</strong> KakaoTalk — chat, taxis, banking, gifting.
+              </li>
+              <li>
+                <strong>Latin America:</strong> Rappi and Mercado Pago.
+              </li>
+              <li>
+                <strong>Global:</strong> X (formerly Twitter) and Revolut are pursuing the model
+                from the social and finance sides.
+              </li>
             </ul>
           </section>
 
@@ -182,9 +198,16 @@ function SuperAppGuide() {
               apps for three reasons:
             </p>
             <ul className="list-disc space-y-2 pl-6">
-              <li><strong>Less friction.</strong> One login, one wallet, no repeated KYC.</li>
-              <li><strong>Less storage.</strong> Mini apps live inside the shell; phones stay light.</li>
-              <li><strong>Context that follows you.</strong> A chat can become a payment, a payment can trigger a delivery, a delivery can rate a driver — without ever leaving the app.</li>
+              <li>
+                <strong>Less friction.</strong> One login, one wallet, no repeated KYC.
+              </li>
+              <li>
+                <strong>Less storage.</strong> Mini apps live inside the shell; phones stay light.
+              </li>
+              <li>
+                <strong>Context that follows you.</strong> A chat can become a payment, a payment
+                can trigger a delivery, a delivery can rate a driver — without ever leaving the app.
+              </li>
             </ul>
           </section>
 
@@ -195,9 +218,25 @@ function SuperAppGuide() {
               pillars on day one:
             </p>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <Pillar icon={<MessageCircle className="h-5 w-5" />} title="Chat" body="Real-time messaging with voice and video calls." />
-              <Pillar icon={<QrCode className="h-5 w-5" />} title="UPI tools" body="UPI links, My QR, and scan-to-pay that open your own payment apps — ONIQ never holds funds." />
-              <Pillar icon={<Sparkles className="h-5 w-5" />} title="AI + mini apps" body="An AI assistant plus a hub of partner mini apps for rides, food, travel, and a channel directory." />
+              <Pillar
+                icon={<MessageCircle className="h-5 w-5" />}
+                title="Chat"
+                body="Real-time messaging with voice and video calls."
+              />
+              {/* No "My QR" or "scan-to-pay" here — owner directive 2026-08-17
+                  hid every pay-by-QR entry point, and a public page is the
+                  slowest place a removed feature gets noticed. Same reason the
+                  Play capability list dropped its UPI line in this commit. */}
+              <Pillar
+                icon={<QrCode className="h-5 w-5" />}
+                title="UPI tools"
+                body="UPI payment links that open your own payment apps — ONIQ never holds funds."
+              />
+              <Pillar
+                icon={<Sparkles className="h-5 w-5" />}
+                title="AI + mini apps"
+                body="An AI assistant plus a hub of partner mini apps for rides, food, travel, and a channel directory."
+              />
             </div>
             <p className="mt-4">
               The same account also unlocks food ordering, rides via Uber and Ola deep links, live
@@ -218,28 +257,41 @@ function SuperAppGuide() {
             <div className="mt-4 flex items-start gap-3 rounded-2xl border border-border/60 bg-card/50 p-4">
               <ShieldCheck className="mt-1 h-5 w-5 text-primary" />
               <p className="text-sm text-muted-foreground">
-                ONIQ never holds your money — payments run through your own UPI apps, and every
-                data write is checked server-side.
+                ONIQ never holds your money — payments run through your own UPI apps, and every data
+                write is checked server-side.
               </p>
             </div>
           </section>
 
           <section>
-            <h2 className="font-display text-2xl font-bold">The future of unified digital living</h2>
+            <h2 className="font-display text-2xl font-bold">
+              The future of unified digital living
+            </h2>
             <p>
-              As phones become the primary computer for billions of people, the super app model
-              is spreading beyond its Asian roots. Expect the next generation — ONIQ included — to
-              add AI copilots, on-device agents, and cross-border payments to the four classic
-              pillars. One app really can cover every world.
+              As phones become the primary computer for billions of people, the super app model is
+              spreading beyond its Asian roots. Expect the next generation — ONIQ included — to add
+              AI copilots, on-device agents, and cross-border payments to the four classic pillars.
+              One app really can cover every world.
             </p>
           </section>
 
           <section aria-labelledby="faq">
-            <h2 id="faq" className="font-display text-2xl font-bold">FAQ</h2>
+            <h2 id="faq" className="font-display text-2xl font-bold">
+              FAQ
+            </h2>
             <dl className="mt-4 space-y-4">
-              <Faq q="What is a super app in simple terms?" a="An app that bundles chat, payments, and everyday services — food, rides, ticketing, mini apps — behind one login and one wallet." />
-              <Faq q="Is WhatsApp a super app?" a="Not yet. WhatsApp has added payments and business tools in some markets, but it lacks the mini apps platform and broad service catalog that define a true super app." />
-              <Faq q="Is ONIQ free to use?" a="Yes. Sign up with email and try chat, UPI tools, food, rides, and mini apps at no cost." />
+              <Faq
+                q="What is a super app in simple terms?"
+                a="An app that bundles chat, payments, and everyday services — food, rides, ticketing, mini apps — behind one login and one wallet."
+              />
+              <Faq
+                q="Is WhatsApp a super app?"
+                a="Not yet. WhatsApp has added payments and business tools in some markets, but it lacks the mini apps platform and broad service catalog that define a true super app."
+              />
+              <Faq
+                q="Is ONIQ free to use?"
+                a="Yes. Sign up with email and try chat, UPI tools, food, rides, and mini apps at no cost."
+              />
             </dl>
           </section>
 
@@ -247,7 +299,9 @@ function SuperAppGuide() {
             <Globe2 className="h-6 w-6 text-primary" />
             <div className="flex-1">
               <p className="font-display text-lg font-bold">Ready to try a super app?</p>
-              <p className="text-sm text-muted-foreground">One app. Every world. Set up in seconds.</p>
+              <p className="text-sm text-muted-foreground">
+                One app. Every world. Set up in seconds.
+              </p>
             </div>
             <Link
               to="/auth"
@@ -265,7 +319,10 @@ function SuperAppGuide() {
 function Pillar({ icon, title, body }: { icon: React.ReactNode; title: string; body: string }) {
   return (
     <div className="rounded-2xl border border-border/60 bg-card/50 p-4">
-      <div className="flex items-center gap-2 text-primary">{icon}<span className="font-semibold text-foreground">{title}</span></div>
+      <div className="flex items-center gap-2 text-primary">
+        {icon}
+        <span className="font-semibold text-foreground">{title}</span>
+      </div>
       <p className="mt-1 text-sm text-muted-foreground">{body}</p>
     </div>
   );

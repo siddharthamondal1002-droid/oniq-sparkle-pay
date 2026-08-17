@@ -504,18 +504,26 @@ export const APP_REGISTRY: AppEntry[] = [
     emoji: "🧺",
   },
   // ---------- Payments ----------
-  // ONIQ's own UPI hand-off. VISIBLE AGAIN as of the Razorpay work, by product
-  // decision: ONIQ now takes payments for real-world orders, so a payments
-  // surface that is present but unreachable no longer matches what the app
-  // does.
+  // ONIQ's own UPI hand-off. HIDDEN AGAIN — owner directive, 2026-08-17: hide
+  // Scan & Pay and every pay-by-QR tab and button.
   //
-  // ONE CAVEAT SURVIVES THE UNHIDING, and it is functional rather than
-  // regulatory: PhonePe and GPay block third-party P2P intents, so paying a
-  // PERSON from here can be refused by the app that receives the intent.
-  // Scanning a merchant QR is unaffected, which is the majority of what this
-  // screen is for. Re-hiding is one line if that trade stops being worth it.
+  // Hidden, not deleted, which is what "hide the entry points" means here:
+  // /app/upi and /app/scan still resolve, so a deep link, a chat attachment
+  // or a saved shortcut keeps working with its anti-fraud UX intact. Nothing
+  // in the app points at them any more.
+  //
+  // This flag is the single switch the miniapps grid reads
+  // (SHOW_UPI_SHORTCUT), so flipping it back is one line — the same one line
+  // the previous comment promised when payments were resurfaced for the
+  // Razorpay work.
+  //
+  // The functional caveat that outlived the last unhiding, recorded because it
+  // will matter if this is ever reversed: PhonePe and GPay block third-party
+  // P2P intents, so paying a PERSON from here can be refused by the receiving
+  // app. Scanning a merchant QR was unaffected.
   {
     id: "oniq-upi",
+    hidden: true,
     name: "Pay via UPI",
     tagline: "GPay · PhonePe · Paytm",
     category: "payments",

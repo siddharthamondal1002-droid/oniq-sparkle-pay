@@ -25,51 +25,55 @@ export const Route = createFileRoute("/_authenticated/app/upi")({
     am: typeof search.am === "string" ? search.am : undefined,
     tn: typeof search.tn === "string" ? search.tn : undefined,
     tab: typeof search.tab === "string" ? search.tab : undefined,
-    raw: typeof search.raw === "string" && /^upi:\/\/pay\?/i.test(search.raw) ? search.raw : undefined,
+    raw:
+      typeof search.raw === "string" && /^upi:\/\/pay\?/i.test(search.raw) ? search.raw : undefined,
   }),
   component: UpiScreen,
 });
 
 function UpiScreen() {
   const prefill = Route.useSearch();
-  const [tab, setTab] = useState<"pay" | "receive">(prefill.tab === "receive" ? "receive" : "pay");
+  // Not state any more: with the tab strip gone there is nothing to change it,
+  // and a setter nobody calls reads as though the view is still switchable.
+  // The ?tab= param is the only input, which is exactly how the deep links
+  // that still reach this screen already addressed it.
+  const tab: "pay" | "receive" = prefill.tab === "receive" ? "receive" : "pay";
 
   return (
     <div className="px-5 pt-12 pb-6">
       <div className="flex items-center gap-3">
-        <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
+        <Link
+          to="/app"
+          className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h1 className="font-display text-2xl font-bold">UPI</h1>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-2 rounded-2xl border border-border bg-card p-1 text-sm font-semibold">
-        <button
-          data-testid="upi-tab-pay"
-          onClick={() => setTab("pay")}
-          className={`flex items-center justify-center gap-2 rounded-xl py-2.5 transition ${
-            tab === "pay" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-          }`}
-        >
-          <ScanLine className="h-4 w-4" /> Scan &amp; Pay
-        </button>
-        <button
-          data-testid="upi-tab-receive"
-          onClick={() => setTab("receive")}
-          className={`flex items-center justify-center gap-2 rounded-xl py-2.5 transition ${
-            tab === "receive" ? "bg-primary text-primary-foreground" : "text-muted-foreground"
-          }`}
-        >
-          <QrCode className="h-4 w-4" /> My QR
-        </button>
-      </div>
+      {/* NO TAB STRIP — owner directive, 2026-08-17: hide Scan & Pay and every
+          pay-by-QR tab and button.
+
+          The switcher is what is gone, not the screen. This route still
+          resolves so a deep link, a chat attachment or a UPI intent handed in
+          by another app still lands somewhere that works and still carries the
+          anti-fraud note below. `tab` is now decided entirely by the ?tab=
+          search param, which is how those deep links already arrived — a
+          person navigating the app has no way to reach either view. */}
 
       {/* Standing, low-key anti-fraud note — visible on both tabs. */}
       <p className="mt-3 text-center text-[11px] text-muted-foreground">
         Suspect fraud? Call{" "}
-        <a href="tel:1930" className="font-semibold text-foreground underline">1930</a>{" "}
+        <a href="tel:1930" className="font-semibold text-foreground underline">
+          1930
+        </a>{" "}
         or report at{" "}
-        <a href="https://cybercrime.gov.in" target="_blank" rel="noreferrer" className="font-semibold text-foreground underline">
+        <a
+          href="https://cybercrime.gov.in"
+          target="_blank"
+          rel="noreferrer"
+          className="font-semibold text-foreground underline"
+        >
           cybercrime.gov.in
         </a>
         .
@@ -136,7 +140,6 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
     void launchUpiIntent(rawIntact ? prefill.raw! : upiPayeeLink(params));
   }
 
-
   async function copyLink() {
     if (!validate()) return;
     try {
@@ -163,7 +166,8 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
   return (
     <>
       <p className="mt-4 text-sm text-muted-foreground">
-        Real money moves through your own UPI apps. ONIQ never touches the bag — your bank handles everything, no cap.
+        Real money moves through your own UPI apps. ONIQ never touches the bag — your bank handles
+        everything, no cap.
       </p>
 
       <Link
@@ -186,7 +190,9 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
           />
         </div>
 
-        <label className="mt-4 block text-xs text-muted-foreground">Recipient name (optional)</label>
+        <label className="mt-4 block text-xs text-muted-foreground">
+          Recipient name (optional)
+        </label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -194,7 +200,9 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
           className="mt-1 w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm focus:border-primary focus:outline-none"
         />
 
-        <label className="mt-4 block text-xs text-muted-foreground">Amount ₹ (optional — can enter in the app)</label>
+        <label className="mt-4 block text-xs text-muted-foreground">
+          Amount ₹ (optional — can enter in the app)
+        </label>
         <div className="relative mt-1">
           <IndianRupee className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
@@ -226,9 +234,7 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
           {params.amount ? `₹${params.amount.toFixed(2)}` : "an amount you'll enter in the app"}
         </span>
         <span className="text-muted-foreground"> to </span>
-        <span className="font-bold text-foreground">
-          {params.name || vpa.trim() || "—"}
-        </span>
+        <span className="font-bold text-foreground">{params.name || vpa.trim() || "—"}</span>
       </div>
 
       <button
@@ -242,10 +248,12 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
         Pay via UPI
       </button>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        UPI PIN is never needed to receive money. Never enter your PIN for a "refund", "cashback", or "₹1 verification" request.
+        UPI PIN is never needed to receive money. Never enter your PIN for a "refund", "cashback",
+        or "₹1 verification" request.
       </p>
       <p className="mt-2 text-center text-xs text-muted-foreground">
-        Android shows a chooser of every UPI app you have — GPay, PhonePe, Paytm, BHIM, your bank's app, whatever's installed.
+        Android shows a chooser of every UPI app you have — GPay, PhonePe, Paytm, BHIM, your bank's
+        app, whatever's installed.
       </p>
 
       {launched && (
@@ -253,15 +261,22 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
           data-testid="upi-declined-help"
           className="mt-4 rounded-2xl border border-amber-500/40 bg-card p-4 text-xs text-muted-foreground"
         >
-          <p className="text-sm font-semibold text-foreground">declined "for security reasons"? 🛡️</p>
+          <p className="text-sm font-semibold text-foreground">
+            declined "for security reasons"? 🛡️
+          </p>
           <p className="mt-1.5">
-            GPay &amp; PhonePe block person-to-person payments started from other
-            apps — an anti-fraud rule on their side, not a problem with your bank
-            or this payee. This way always works:
+            GPay &amp; PhonePe block person-to-person payments started from other apps — an
+            anti-fraud rule on their side, not a problem with your bank or this payee. This way
+            always works:
           </p>
           <ol className="mt-2 list-decimal space-y-1 pl-4">
-            <li>tap <span className="font-semibold text-foreground">Copy UPI ID</span> below</li>
-            <li>open GPay / PhonePe yourself → <span className="font-semibold text-foreground">"Pay to UPI ID"</span></li>
+            <li>
+              tap <span className="font-semibold text-foreground">Copy UPI ID</span> below
+            </li>
+            <li>
+              open GPay / PhonePe yourself →{" "}
+              <span className="font-semibold text-foreground">"Pay to UPI ID"</span>
+            </li>
             <li>paste, enter the amount, pay ✅</li>
           </ol>
           <button
@@ -272,8 +287,8 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
             <AtSign className="h-3.5 w-3.5" /> Copy UPI ID
           </button>
           <p className="mt-2 text-[11px]">
-            Shop QRs scanned with ONIQ and your own receive QR are unaffected —
-            this only hits person-to-person sends handed to another app.
+            Shop QRs scanned with ONIQ and your own receive QR are unaffected — this only hits
+            person-to-person sends handed to another app.
           </p>
         </div>
       )}
@@ -294,7 +309,8 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
         </button>
       </div>
       <p className="mt-2 text-center text-[11px] text-muted-foreground">
-        Payment declined "for security reasons"? Copy the UPI ID and pay directly inside your UPI app.
+        Payment declined "for security reasons"? Copy the UPI ID and pay directly inside your UPI
+        app.
       </p>
 
       <p className="mt-6 text-center text-xs text-muted-foreground">
@@ -323,7 +339,10 @@ function PayTab({ prefill }: { prefill: UpiSearch }) {
             </div>
             <ul className="mt-3 space-y-1.5 text-xs text-muted-foreground">
               {!rawIntact && params.amount && (
-                <li>• your UPI app will ask you to type the amount — enter ₹{params.amount.toFixed(2)} there</li>
+                <li>
+                  • your UPI app will ask you to type the amount — enter ₹{params.amount.toFixed(2)}{" "}
+                  there
+                </li>
               )}
               {!rawIntact && (
                 <li>
@@ -544,7 +563,12 @@ function ReceiveTab() {
         const file = new File([blob], fileName, { type: "image/png" });
         const nav = navigator as Navigator & {
           canShare?: (data: { files?: File[] }) => boolean;
-          share?: (data: { files?: File[]; title?: string; text?: string; url?: string }) => Promise<void>;
+          share?: (data: {
+            files?: File[];
+            title?: string;
+            text?: string;
+            url?: string;
+          }) => Promise<void>;
         };
         if (nav.canShare?.({ files: [file] }) && nav.share) {
           await nav.share({
@@ -556,7 +580,11 @@ function ReceiveTab() {
         }
       }
       if ((navigator as Navigator & { share?: (d: unknown) => Promise<void> }).share) {
-        await (navigator as Navigator & { share: (d: { title: string; text: string; url: string }) => Promise<void> }).share({
+        await (
+          navigator as Navigator & {
+            share: (d: { title: string; text: string; url: string }) => Promise<void>;
+          }
+        ).share({
           title: "Pay me on UPI",
           text: `Scan to pay ${profile?.display_name || profile?.upi_vpa} on UPI`,
           url: receiveLink,
@@ -608,7 +636,8 @@ function ReceiveTab() {
         </div>
         <h3 className="mt-4 font-display text-lg font-semibold">set up your receive QR ✨</h3>
         <p className="mt-2 text-sm text-muted-foreground">
-          Enter your UPI ID once — ONIQ turns it into a scannable QR. Money lands straight in your bank; ONIQ never touches it.
+          Enter your UPI ID once — ONIQ turns it into a scannable QR. Money lands straight in your
+          bank; ONIQ never touches it.
         </p>
         <div className="relative mt-4 text-left">
           <AtSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -677,8 +706,8 @@ function ReceiveTab() {
           scannable by any UPI app — GPay, PhonePe, Paytm &amp; more
         </p>
         <p className="mt-2 text-xs text-muted-foreground">
-          receiving money never needs your UPI PIN — anyone who asks for it to
-          "receive" a payment is scamming you 🚩
+          receiving money never needs your UPI PIN — anyone who asks for it to "receive" a payment
+          is scamming you 🚩
         </p>
       </div>
 

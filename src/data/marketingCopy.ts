@@ -168,18 +168,11 @@ export const FEATURE_CARDS: FeatureCard[] = [
   // These must LOOK different — dimmed, badged, not clickable. A card that
   // looks live and isn't is worse than no card, and worst of all for payments.
   //
-  {
-    title: "Scan & Pay",
-    copy: "Scan any UPI QR — payments run through your own UPI apps.",
-    status: "live",
-    route: "/app/upi",
-  },
-  {
-    title: "Receive",
-    copy: "Show your own QR and get paid.",
-    status: "live",
-    route: "/app/upi",
-  },
+  // NO Scan & Pay OR Receive CARD — owner directive, 2026-08-17: every
+  // pay-by-QR tab and button is hidden. The cards are removed rather than
+  // flipped to a non-live status, because WORLDS_LIVE counts from this array
+  // and a dimmed card still advertises a surface the app no longer offers a
+  // way into.
 ];
 
 /** Counted from the cards, so the stat can never outlive the feature. */
@@ -263,7 +256,7 @@ ONIQ is not affiliated with, endorsed by, or sponsored by any third-party app, b
   screenshotChecklist: [
     "No Watch player or channel grid — the surface is gone.",
     "No Glance card — the surface is gone.",
-    "Scan & Pay, Receive and the payment tile MAY now be shown — oniq-upi is visible and /app/upi is reachable. The old rule was the reverse; it changed when payments were resurfaced, and the screenshot must match whichever is true on the day.",
+    "No Scan & Pay, Receive or payment tile — owner directive 2026-08-17 hid every pay-by-QR entry point, so a screenshot showing one advertises a surface a reviewer cannot navigate to. This rule has now flipped twice; check src/data/appRegistry.ts (oniq-upi hidden) for what is actually true on the day.",
     "Any checkout screenshot showing a card or netbanking payment is Razorpay against a real-world order. Do not screenshot a payment for anything digital — Play requires Play Billing for that.",
     "No live-TV or streaming wording in any caption or feature graphic.",
     "Category is not Entertainment or Video Players & Editors.",

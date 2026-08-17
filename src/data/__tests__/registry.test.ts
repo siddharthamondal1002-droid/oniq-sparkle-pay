@@ -65,13 +65,18 @@ describe("app registry integrity", () => {
       true,
     );
     expect(APP_REGISTRY.some((a) => a.id === "blusmart" && a.status === "shutdown")).toBe(true);
-    // oniq-upi WAS asserted hidden here. It is visible again as of the Razorpay
-    // work, so the assertion now guards what still matters about it rather than
-    // a flag that has flipped: it is India-only, and it is webOnly because the
-    // hand-off is a upi:// intent rather than a packaged app.
+    // oniq-upi is HIDDEN AGAIN — owner directive, 2026-08-17, hiding Scan &
+    // Pay and every pay-by-QR entry point. This flag has now flipped three
+    // times (hidden → visible for the Razorpay work → hidden), and each flip
+    // has to be made in step with marketingCopy or the site advertises a
+    // surface the app will not open. That pairing is asserted in
+    // marketingCopy.test.ts; this half just pins the flag.
+    //
+    // Hidden, not removed: the entry still carries the country and launch
+    // shape, so bringing it back is one flag rather than a rewrite.
     const upi = APP_REGISTRY.find((a) => a.id === "oniq-upi");
     expect(upi, "oniq-upi is missing from the registry").toBeTruthy();
-    expect(upi?.hidden ?? false, "oniq-upi is hidden again — update marketingCopy too").toBe(false);
+    expect(upi?.hidden ?? false, "oniq-upi is visible again — update marketingCopy too").toBe(true);
     expect(upi?.countries).toEqual(["IN"]);
     expect(upi?.launchType).toBe("webOnly");
   });
