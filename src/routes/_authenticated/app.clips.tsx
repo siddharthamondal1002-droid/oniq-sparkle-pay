@@ -82,8 +82,18 @@ function ClipsScreen() {
 
   return (
     <div
-      className="relative h-screen w-full overflow-hidden bg-black text-white"
-      style={{ height: "100dvh" }}
+      className="relative w-full overflow-hidden bg-black text-white"
+      // FULL BLEED, WHICH MEANS CANCELLING THE SHELL'S STATUS-BAR PADDING.
+      // The shell pads <main> by env(safe-area-inset-top) so ordinary screens
+      // clear the status bar; a video surface must go UNDER it, and the
+      // overlays here already reserve the inset themselves
+      // (pt-[max(1rem,env(safe-area-inset-top))] on the row below). Without
+      // the negative margin this screen is a black box with a background-
+      // coloured band above it AND 100dvh of content in 100dvh-minus-inset of
+      // room, so it scrolls a status bar's worth for no reason.
+      // Only the top is cancelled: left/right insets are zero in portrait,
+      // which is the only orientation this screen is used in.
+      style={{ height: "100dvh", marginTop: "calc(-1 * env(safe-area-inset-top))" }}
     >
       <div className="pointer-events-none absolute inset-x-0 top-0 z-30 flex items-center justify-between px-5 pt-[max(1rem,env(safe-area-inset-top))]">
         <Link

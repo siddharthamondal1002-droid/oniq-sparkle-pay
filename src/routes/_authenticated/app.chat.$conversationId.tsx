@@ -1806,7 +1806,15 @@ function ChatThread() {
   };
 
   return (
-    <div className="relative flex flex-col" style={{ height: "var(--vvh, 100dvh)" }}>
+    <div
+      className="relative flex flex-col"
+      // MINUS THE STATUS BAR, because this column lives inside the shell's
+      // <main>, which is padded by exactly that. --vvh is visualViewport
+      // height — the whole WebView, status bar included — so using it raw made
+      // the thread one status bar taller than the room it had and pushed the
+      // composer below the fold, with the page scrolling to compensate.
+      style={{ height: "calc(var(--vvh, 100dvh) - env(safe-area-inset-top))" }}
+    >
       {/* relative z-40: backdrop-blur makes the header its own stacking
           context at z-auto, which let animated message bubbles paint OVER the
           three-dot dropdown. Lifting the header keeps the menu above the

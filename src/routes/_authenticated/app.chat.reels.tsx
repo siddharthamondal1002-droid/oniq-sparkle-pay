@@ -91,7 +91,13 @@ function ReelsTab() {
   }
 
   return (
-    <div className="relative -mx-0 h-screen w-full overflow-hidden bg-black text-white" style={{ height: "100dvh" }}>
+    <div
+      className="relative w-full overflow-hidden bg-black text-white"
+      // Full bleed under the status bar — same reasoning as app.clips.tsx: the
+      // shell pads <main> by the top inset for ordinary screens, and a video
+      // surface is not one. The overlays below reserve the inset themselves.
+      style={{ height: "100dvh", marginTop: "calc(-1 * env(safe-area-inset-top))" }}
+    >
       <button
         type="button"
         onClick={() => setMuted((m) => !m)}

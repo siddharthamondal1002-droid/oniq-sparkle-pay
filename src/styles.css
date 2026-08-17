@@ -685,6 +685,43 @@ body {
   overscroll-behavior-x: none;
 }
 
+/* ---------------------------------------------------------------------------
+ * "THE APP SCREEN MOVES IN THE BORDERS" — reported 2026-08-17.
+ *
+ * A screen inside the app shell is NOT the viewport. The shell reserves
+ * env(safe-area-inset-top) for the status bar and 0–7rem at the bottom for the
+ * nav bar, so a child that sizes itself to 100vh is taller than the space it
+ * was given by the sum of the two — call it 150px on a typical phone. The page
+ * then scrolls when there is nothing to scroll: sticky headers ride up, the
+ * whole layout drags under the finger and springs back, and every screen feels
+ * loose. 38 files size themselves that way, so this is not one screen's bug.
+ *
+ * --app-vh is that available height, published once by the shell
+ * (src/routes/_authenticated/app.tsx) because only the shell knows how much
+ * chrome is on screen right now. These two rules point Tailwind's existing
+ * `min-h-screen` / `h-screen` at it, which is what makes the fix reach all 38
+ * without touching them.
+ *
+ * DELIBERATELY OUTSIDE @layer. Tailwind's utilities live in a cascade layer,
+ * and unlayered rules beat layered ones outright — no !important, and no
+ * specificity race to lose the next time the utility is regenerated.
+ *
+ * SCOPED TO [data-app-shell], which matters in both directions: public routes
+ * (auth, legal, blog) are the real viewport and keep meaning it, and the
+ * fallback keeps 100dvh if --app-vh is ever missing, so the worst case is
+ * today's behaviour rather than a zero-height screen.
+ *
+ * Not covered on purpose: elements that set height inline, and anything
+ * `position: fixed`. A fixed overlay is positioned against the viewport, not
+ * against the shell, so 100dvh is correct there and must stay.
+ * ------------------------------------------------------------------------ */
+[data-app-shell] .min-h-screen {
+  min-height: var(--app-vh, 100dvh);
+}
+[data-app-shell] .h-screen {
+  height: var(--app-vh, 100dvh);
+}
+
 /* Brand text selection. */
 ::selection {
   background: color-mix(in oklab, var(--primary) 30%, transparent);

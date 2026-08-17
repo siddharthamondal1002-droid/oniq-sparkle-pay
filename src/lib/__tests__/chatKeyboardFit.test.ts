@@ -45,9 +45,16 @@ const CODE = CHAT.split("\n")
   .join("\n");
 
 describe("the chat column is sized by what is actually visible", () => {
-  it("takes its height from the visual viewport", () => {
+  it("takes its height from the visual viewport, less the status bar", () => {
+    // The inset term joined this later the same day, and it is a different
+    // correction from the one above: --vvh measures the WHOLE WebView, status
+    // bar included, while this column sits inside the shell's <main>, which is
+    // padded by exactly that inset. Without the subtraction the thread was one
+    // status bar taller than the room it had and the composer fell below the
+    // fold. Not a second helping of the keyboard bug — the keyboard is still
+    // subtracted exactly once, by visualViewport, as the next test checks.
     expect(CODE, "the column is no longer sized by --vvh").toContain(
-      'height: "var(--vvh, 100dvh)"',
+      'height: "calc(var(--vvh, 100dvh) - env(safe-area-inset-top))"',
     );
     expect(CODE, "--vvh is never published").toContain(
       'style.setProperty("--vvh"',

@@ -13,7 +13,7 @@ import { SafeMount } from "@/components/SafeMount";
 import { MiniAppReturnWatcher } from "@/components/miniapps/MiniAppReturnWatcher";
 import { MessageNotifier } from "@/components/chat/MessageNotifier";
 import { usePresenceTracker } from "@/hooks/usePresence";
-import { useEffect } from "react";
+import { useEffect, type CSSProperties } from "react";
 import { initPush } from "@/lib/push";
 import { syncSystemBarsOnBoot } from "@/lib/theme";
 import { PermissionsOnboarding } from "@/components/onboarding/PermissionsOnboarding";
@@ -111,6 +111,10 @@ function AppShell() {
   // Resolved from the HOME country's CountryConfig.dir (AE => rtl) and mirrored
   // onto <html dir>; portal roots take it from useDir() themselves.
   const dir = useDocumentDirection();
+  // How much of the viewport the shell itself occupies below the content. Kept
+  // as a value rather than only a class because --app-vh has to subtract the
+  // SAME number the padding adds; see the comment on the container below.
+  const chromeBottom = showNav ? "7rem" : isChatThread ? "0px" : "1rem";
 
   return (
     <LanguageProvider>
@@ -124,7 +128,42 @@ function AppShell() {
               "radial-gradient(ellipse at 20% 0%, color-mix(in oklab, var(--primary) 12%, transparent) 0%, transparent 55%), radial-gradient(ellipse at 80% 100%, color-mix(in oklab, var(--primary) 8%, transparent) 0%, transparent 60%), var(--background)",
           }}
         />
+        {/*
+          --app-vh IS THE HEIGHT A SCREEN ACTUALLY GETS, and publishing it is
+          what stops the whole app sliding around inside its own frame.
+
+          Reported 2026-08-17 as "app screen moves in the borders". Every
+          screen under this Outlet claims the full viewport — 38 files use
+          `min-h-screen`/`h-screen`/`100dvh` — while the shell wraps them in
+          chrome that ALSO takes height: `env(safe-area-inset-top)` on <main>
+          below, and 7rem/1rem of bottom padding here for the nav bar. A child
+          asking for 100vh inside 100dvh of frame makes the page taller than
+          the window by the sum of the two, so a screen with nothing to scroll
+          scrolls anyway — roughly 150px of dead travel that drags every
+          sticky header up out of place and rubber-bands back. Nothing is
+          scrollable in the useful sense; the app just moves.
+
+          The inset half of that arithmetic is new: until the edge-to-edge
+          flip earlier today the Android shell padded the CONTENT VIEW and the
+          WebView was short by the status bar, so 100vh meant "the WebView",
+          which was already clear of it. Now the WebView is the whole screen
+          and the padding is CSS, so 100vh overshoots by exactly one status
+          bar — on top of a bottom-padding overshoot that has been there
+          longer and was merely smaller.
+
+          Fixing it at 38 call sites would be 38 chances to get it wrong, and
+          the next screen written would be the 39th. So the shell states the
+          number once, and two rules in styles.css teach `min-h-screen` and
+          `h-screen` to mean it — scoped to [data-app-shell], so public routes
+          and fixed overlays are untouched.
+        */}
         <div
+          data-app-shell
+          style={
+            {
+              "--app-vh": `calc(100dvh - env(safe-area-inset-top) - ${chromeBottom})`,
+            } as CSSProperties
+          }
           className={`relative mx-auto flex min-h-[100dvh] max-w-md md:max-w-lg lg:max-w-xl flex-col bg-background ${showNav ? "pb-28" : isChatThread ? "pb-0" : "pb-4"}`}
         >
           {wallpaper && (
