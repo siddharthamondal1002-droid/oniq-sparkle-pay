@@ -27,6 +27,17 @@ import teaPickerSheet from "@/assets/story-style/tea-picker-sheet.png.asset.json
 import patagonianShepherd from "@/assets/story-style/patagonian-shepherd.png.asset.json";
 import andeanSkyTemple from "@/assets/story-style/andean-sky-temple.png.asset.json";
 import thaiLongtail from "@/assets/story-style/thai-longtail.png.asset.json";
+// Second batch, uploaded 2026-08-18.
+import mongolianHerder from "@/assets/story-style/mongolian-herder.png.asset.json";
+import tibetanMonkSheet from "@/assets/story-style/tibetan-monk-sheet.png.asset.json";
+import koreanPotterSheet from "@/assets/story-style/korean-potter-sheet.png.asset.json";
+import balineseDancer from "@/assets/story-style/balinese-dancer.png.asset.json";
+import ethiopianCoffee from "@/assets/story-style/ethiopian-coffee.png.asset.json";
+import nileFeluccaSailor from "@/assets/story-style/nile-felucca-sailor.png.asset.json";
+import dinerCookNight from "@/assets/story-style/diner-cook-night.png.asset.json";
+import oaxacanWeaverSheet from "@/assets/story-style/oaxacan-weaver-sheet.png.asset.json";
+import caribbeanFishMarket from "@/assets/story-style/caribbean-fish-market.png.asset.json";
+import himalayanClimber from "@/assets/story-style/himalayan-climber.png.asset.json";
 
 export type StoryStyleRef = {
   id: string;
@@ -125,6 +136,86 @@ export const STORY_STYLE_REFS: StoryStyleRef[] = [
     title: "Thai longtail boatman",
     note: "Saturated tropical palette, water handling, rain curtain in the distance.",
     url: thaiLongtail.url,
+    attachable: false,
+  },
+  {
+    id: "mongolian-herder",
+    kind: "scene",
+    title: "Mongolian herder outside his ger",
+    note: "Wide 16:9 steppe staging: low horizon, ochre grass, figure centred at mid-distance.",
+    url: mongolianHerder.url,
+    attachable: false,
+  },
+  {
+    id: "tibetan-monk-sheet",
+    kind: "sheet",
+    title: "Tibetan monk (annotated sheet)",
+    note: "2D character sheet — expressions, 3/4 back and side profile. Direction only, never attached.",
+    url: tibetanMonkSheet.url,
+    attachable: false,
+  },
+  {
+    id: "korean-potter-sheet",
+    kind: "sheet",
+    title: "Korean master potter (annotated sheet)",
+    note: "2D character sheet — kiln-lit workshop, expression row, hand detail. Direction only.",
+    url: koreanPotterSheet.url,
+    attachable: false,
+  },
+  {
+    id: "balinese-dancer",
+    kind: "scene",
+    title: "Balinese legong dancer at the temple gate",
+    note: "Portrait framing: gold-on-magenta costume detail, torchlight against night rain.",
+    url: balineseDancer.url,
+    attachable: false,
+  },
+  {
+    id: "ethiopian-coffee",
+    kind: "scene",
+    title: "Ethiopian coffee ceremony at Lalibela",
+    note: "Daylight portrait: white shamma with woven border, warm stone, calm direct gaze.",
+    url: ethiopianCoffee.url,
+    attachable: false,
+  },
+  {
+    id: "nile-felucca-sailor",
+    kind: "scene",
+    title: "Felucca sailor on the Nile at sunset",
+    note: "Backlit silhouette work, sun-through-sail, near-monochrome amber palette.",
+    url: nileFeluccaSailor.url,
+    attachable: false,
+  },
+  {
+    id: "diner-cook-night",
+    kind: "scene",
+    title: "Night-shift diner cook",
+    note: "Contemporary setting reference: neon-teal vs tungsten, motion pose, legible sign lettering.",
+    url: dinerCookNight.url,
+    attachable: false,
+  },
+  {
+    id: "oaxacan-weaver-sheet",
+    kind: "sheet",
+    title: "Oaxacan weaver (annotated sheet)",
+    note: "2D character sheet with palette swatches and loom detail. Direction only.",
+    url: oaxacanWeaverSheet.url,
+    attachable: false,
+  },
+  {
+    id: "caribbean-fish-market",
+    kind: "scene",
+    title: "Caribbean beach fish market",
+    note: "Crowd staging: many background figures kept simple, saturated pastel buildings, midday sun.",
+    url: caribbeanFishMarket.url,
+    attachable: false,
+  },
+  {
+    id: "himalayan-climber",
+    kind: "scene",
+    title: "Himalayan climber on the ridge",
+    note: "Cold high-altitude palette, snow particles, prayer flags for scale and colour accent.",
+    url: himalayanClimber.url,
     attachable: false,
   },
 ];
