@@ -73,7 +73,18 @@ type Board =
   | "ap_board"
   | "telangana_board";
 type ClassLevel =
-  "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg" | "drop" | "aspirant";
+  | "5"
+  | "6"
+  | "7"
+  | "8"
+  | "9"
+  | "10"
+  | "11"
+  | "12"
+  | "ug"
+  | "pg"
+  | "drop"
+  | "aspirant";
 
 type LearnerProfile = {
   id: string;
@@ -3630,7 +3641,8 @@ function PaperModal({
     // wrong-looking paper, it produces .notdef for every glyph — a page of
     // empty boxes, which is worse than the HTML fallback those languages had
     // before. Study offers all of those languages, so this is not theoretical.
-    const SHAPED_OK = /^[\u0000-\u024F\u2000-\u206F\u20A0-\u20BF\u2190-\u22FF\u0900-\u097F\u200C\u200D\s]*$/;
+    const SHAPED_OK =
+      /^[\u0000-\u024F\u2000-\u206F\u20A0-\u20BF\u2190-\u22FF\u0900-\u097F\u200C\u200D\s]*$/;
     const textOf = (qq: (typeof qs)[number]) =>
       qq.question + (qq.type === "mcq" ? qq.options.join(" ") : "");
     const allText = qs.map(textOf).join(" ");
@@ -3687,7 +3699,6 @@ function PaperModal({
       );
       setDownloadSheet(false);
       toast.success(`saved ${filename} 📄`);
-
     } catch (e) {
       if (e instanceof Error && /cancel|abort|dismiss/i.test(e.message)) {
         // user closed the share sheet — not an error

@@ -215,4 +215,3 @@ describe("the HTML fallback is scoped to scripts the font cannot draw", () => {
     expect(download).toMatch(/exportPaperHtml/);
   });
 });
-
