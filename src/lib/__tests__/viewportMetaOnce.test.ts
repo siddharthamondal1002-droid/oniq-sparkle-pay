@@ -81,60 +81,50 @@ describe("only one layer resizes for the keyboard", () => {
     );
   });
 
-  it("native still pays the IME inset, since it is now the only one paying", () => {
-    // If this padding is ever removed, the flag has to come back for native or
-    // the keyboard will cover the composer there instead.
-    expect(
-      mainActivity,
-      "MainActivity stopped padding for the IME, so nothing handles the keyboard on native",
-    ).toContain("ime.bottom");
-  });
-
-  it("native pays it ONCE — never on top of a window the system already resized", () => {
+  it("MainActivity is OUT of the keyboard business — no IME padding, in any form", () => {
     /*
-     * THE ACTUAL CAUSE, PINNED FROM THE DEVICE ON 2026-08-18.
+     * THE FINAL SHAPE, and the timeline that forced it (2026-08-18, after
+     * versionCode 17 AND 18 both shipped remainder arithmetic that changed
+     * nothing on the device):
      *
-     * `v.setPadding(0, 0, 0, ime.bottom)` pushed the content view off the
-     * bottom of a window that had already shrunk by one keyboard, because no
-     * windowSoftInputMode is declared and the system resolves it to
-     * adjustResize. Probe, with no interactive-widget in the page at all:
-     * screenH 832, innerH 211, vvH 0 — the WebView a quarter of the screen,
-     * half an hour after the publish that removed the flag.
+     *   Jul 29 – Aug 17   MainActivity padded by ime.bottom AND returned
+     *                     WindowInsetsCompat.CONSUMED. The WebView never saw
+     *                     an IME inset, so the padding was the ONLY
+     *                     subtraction. The chat worked the whole time.
      *
-     * Four web-side fixes chased this first and none could reach it. The
-     * padding must subtract only the part the window has not taken.
+     *   Aug 17            198a3f2d stopped consuming — correctly, so env()
+     *                     stopped reading zero. Side effect: the WebView now
+     *                     receives the IME inset, and modern Chromium resizes
+     *                     its own viewport for it. Two subtractions. Reported
+     *                     broken THAT DAY.
+     *
+     * The probe's numbers admit only that story: view = 832 − 310 (padding)
+     * = 522 CSS, innerHeight 211 = 522 − 311 — the WebView took a second
+     * keyboard off its OWN height. The window never resized, which is why
+     * vc17/vc18's decor-height measurements both computed zero.
+     *
+     * So native pads NOTHING for the keyboard, ever. Chromium is the one
+     * mechanism, by construction. If a keyboard ever covers the composer on
+     * some device, the fix is in the WEB layer — never a padding here.
      */
     expect(
       activity,
-      "MainActivity pads by the raw IME inset again — double-subtracted wherever the window resizes",
-    ).not.toMatch(/setPadding\(\s*0\s*,\s*0\s*,\s*0\s*,\s*ime\.bottom\s*\)/);
-    expect(activity, "the padding no longer measures what the window already lost").toContain(
-      "alreadyTaken",
+      "MainActivity reads the IME inset again — the padding is coming back",
+    ).not.toContain("Type.ime()");
+    expect(activity, "a keyboard-derived padding is back in some disguise").not.toMatch(
+      /setPadding\([^)]*ime/,
     );
-    expect(activity).toContain("getRootView().getHeight()");
+    // The one padding write left is the stale-state reset to zero.
+    expect(activity).toMatch(/setPadding\(0,\s*0,\s*0,\s*0\)/);
   });
 
-  it("measures AFTER layout, against the window's own keyboard-less height", () => {
-    /*
-     * versionCode 17 shipped the subtraction and changed nothing, because the
-     * measurement ran inside the insets callback — which is dispatched BEFORE
-     * the layout pass that applies the window's new size. rootView.getHeight()
-     * there returns the PRE-keyboard height, alreadyTaken computes 0, and the
-     * full inset gets paid again. Screenshot at 17:02, 2026-08-18: identical
-     * 200px app / keyboard-tall band / keyboard split, on the fixed build.
-     *
-     * So the measurement must be deferred past the traversal (v.post) and the
-     * baseline must be the window's own no-keyboard height, not
-     * DisplayMetrics — which excludes system decorations on some devices and
-     * would leak a navbar of error into the comparison.
-     */
-    expect(
-      activity,
-      "the padding is measured during dispatch again — pre-layout, so it reads the old height",
-    ).toContain("v.post(");
-    expect(activity, "the keyboard-less baseline is gone").toContain("noImeWindowHeight");
-    expect(activity, "the baseline stopped refreshing when the keyboard is down").toMatch(
-      /imeBottom <= 0[\s\S]{0,200}?noImeWindowHeight = rootH/,
+  it("the insets still reach the WebView unconsumed — env() AND the keyboard depend on it", () => {
+    // CONSUMED is what made all 54 env(safe-area-inset-*) reads zero before
+    // 2026-08-17, and it would ALSO blind Chromium to the keyboard — which is
+    // now the only thing handling it. Consuming again breaks both at once.
+    expect(activity, "the inset listener is swallowing insets again").not.toMatch(
+      /return\s+WindowInsetsCompat\.CONSUMED/,
     );
+    expect(activity).toContain("return insets;");
   });
 });

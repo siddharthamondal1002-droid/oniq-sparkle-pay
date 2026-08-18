@@ -21,8 +21,21 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 18
+        versionCode 19
         versionName "1.8.3"
+        // ----- code 19 -----
+        // THE KEYBOARD FIX THAT NEEDS NO MEASUREMENT. 17 and 18 both tried to
+        // compute "how much of the keyboard the platform already took" and
+        // both computed zero, because they measured the WINDOW — and the
+        // window never resizes. The second subtractor is the WebView itself:
+        // since 198a3f2d (2026-08-17) stopped consuming insets so env() would
+        // work, Chromium receives the IME inset and resizes its own viewport.
+        // That is also exactly when the owner reported the chat broken.
+        //
+        // So 19 deletes the native IME padding outright. One mechanism, by
+        // construction — nothing left to measure at the wrong moment.
+        // NEVER UPLOAD 18; it is 17 with the same defect in a new disguise.
+        //
         // ----- code 18 -----
         // THE 17 FIX, TAKEN AT THE RIGHT MOMENT. 17's remainder arithmetic
         // was correct and its measurement was not: insets dispatch BEFORE the

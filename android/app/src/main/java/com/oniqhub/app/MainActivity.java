@@ -21,7 +21,6 @@ import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
-import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
@@ -37,14 +36,6 @@ public class MainActivity extends BridgeActivity {
     private static final int REQ_AV = 4201;
     private static final int REQ_GEO = 4202;
 
-    /**
-     * The window's height with NO keyboard up, measured after layout. The IME
-     * padding in applyEdgeToEdgeInsets pays only the difference between this
-     * and the current height — see the long note there for why the comparison
-     * must be against the window's own baseline, post-layout, and not against
-     * DisplayMetrics inside the insets callback.
-     */
-    private int noImeWindowHeight = 0;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -297,84 +288,51 @@ public class MainActivity extends BridgeActivity {
         // set — EdgeToEdge governs the bars, not the content background.
         content.setBackgroundColor(Color.TRANSPARENT);
 
+        /*
+         * NO IME PADDING. NONE. THE WEBVIEW HANDLES THE KEYBOARD ITSELF.
+         *
+         * The timeline that proves it, assembled 2026-08-18 after two shipped
+         * builds (versionCode 17 and 18) measured the window and fixed
+         * nothing:
+         *
+         *   Jul 29 – Aug 17   This listener padded by ime.bottom AND returned
+         *                     WindowInsetsCompat.CONSUMED. The WebView never
+         *                     saw an IME inset, so the padding was the ONLY
+         *                     subtraction. The chat worked the whole time.
+         *
+         *   Aug 17            198a3f2d stopped consuming, correctly, so that
+         *                     env(safe-area-inset-*) stopped reading zero.
+         *                     Side effect nobody priced: the WebView now
+         *                     RECEIVES the IME inset, and modern Chromium
+         *                     responds by resizing its own viewport for the
+         *                     keyboard. Two subtractions from that moment.
+         *                     The owner reported the chat broken THAT DAY.
+         *
+         *   The probe agrees: view = screen 832 − padding 310 = 522 CSS, and
+         *   innerHeight = 522 − 311 = 211 — the WebView took a second
+         *   keyboard off its OWN height. The window never resized at all,
+         *   which is why vc17/vc18's decor-height measurements both computed
+         *   an "alreadyTaken" of zero and left the bug intact.
+         *
+         * So the padding is deleted rather than computed. The WebView,
+         * demonstrably, resizes for the keyboard by itself now that the
+         * insets reach it — and the insets MUST keep reaching it, or all 54
+         * env() reads go back to zero. One mechanism, by construction: there
+         * is no measurement here to take at the wrong moment.
+         *
+         * If a keyboard ever covers the composer on some device, the fix is
+         * in the WEB layer (the viewport meta), never a padding here — this
+         * file must stay out of the keyboard business permanently.
+         */
         ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
-            /*
-             * PAD ONLY THE PART OF THE KEYBOARD THE WINDOW HAS NOT ALREADY
-             * TAKEN.
-             *
-             * This line read `v.setPadding(0, 0, 0, ime.bottom)`, and on
-             * 2026-08-18 that was measured subtracting the keyboard a SECOND
-             * time. The chat probe, from the device, with no
-             * interactive-widget anywhere in the page:
-             *
-             *     screenH 832   innerH 211   vvH 0   docH 200
-             *
-             * and the screenshot behind it divides as app 196 + a dead grey
-             * band 327 + keyboard 310 = 833. The band is where this padding
-             * pushed the content view off the bottom of a window that had
-             * ALREADY shrunk by one keyboard: the window is 523, this made
-             * the content 196.
-             *
-             * No manifest windowSoftInputMode is declared, so the system
-             * resolves it to adjustResize and the window resizes itself. The
-             * IME inset is still reported at full height regardless — that is
-             * what it is for — so padding by it unconditionally double-counts
-             * wherever the window resizes, and padding by nothing would leave
-             * the composer under the keyboard wherever it does not.
-             *
-             * So measure. Whatever height the window has lost against the
-             * display is keyboard the platform has already handled; this pads
-             * the remainder and nothing more. Correct in both worlds, and it
-             * needs no assumption about which one this device is in.
-             *
-             * Four fixes on the web side chased this before the probe pinned
-             * it here. None of them could have worked: by the time any CSS
-             * runs, the WebView is already the wrong height, and no
-             * expression can recover a viewport it was handed short.
-             *
-             * AND THE FIRST VERSION OF THE MEASUREMENT WAS TAKEN AT THE WRONG
-             * MOMENT, which is why 1.8.3 (versionCode 17) shipped this
-             * arithmetic and changed nothing on the device. Two mistakes:
-             *
-             *   1. Insets are dispatched BEFORE the layout pass that applies
-             *      the window's new size. Reading getRootView().getHeight()
-             *      inside this callback returns the PRE-keyboard height, so
-             *      "alreadyTaken" computed 0 and the padding fell back to the
-             *      full inset — the exact double subtraction, preserved. The
-             *      measurement now runs in v.post(), after the traversal this
-             *      dispatch belongs to has finished laying out.
-             *
-             *   2. DisplayMetrics.heightPixels historically excludes system
-             *      decorations on some devices, which would leak a navbar of
-             *      error into the comparison. The baseline is now the
-             *      window's OWN height measured while no keyboard is up —
-             *      self-referential, so device quirks cancel out. It refreshes
-             *      on every keyboard-less dispatch, which also keeps it right
-             *      across rotation.
-             */
-            Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
-            final int imeBottom = ime.bottom;
-            v.post(() -> {
-                int rootH = v.getRootView().getHeight();
-                int pad = 0;
-                if (imeBottom <= 0) {
-                    // No keyboard: this IS the baseline the next open compares
-                    // against, and the padding must be gone.
-                    noImeWindowHeight = rootH;
-                } else {
-                    // Whatever height the window lost since the baseline is
-                    // keyboard the system already handled; pay the remainder.
-                    // A zero baseline (keyboard already up at first dispatch)
-                    // degrades to paying the full inset — the pre-vc17
-                    // behaviour, for one keyboard cycle at worst.
-                    int alreadyTaken = noImeWindowHeight > 0
-                            ? Math.max(0, noImeWindowHeight - rootH)
-                            : 0;
-                    pad = Math.max(0, imeBottom - alreadyTaken);
-                }
-                if (v.getPaddingBottom() != pad) v.setPadding(0, 0, 0, pad);
-            });
-            // NOT CONSUMED — the WebView needs these to populate env().
+            // Any padding a previous build left behind is cleared, once per
+            // dispatch — an updated app reuses the old activity's view state
+            // across some update paths, and a stale keyboard-sized padding
+            // would be the old bug wearing the new build's version number.
+            if (v.getPaddingBottom() != 0) v.setPadding(0, 0, 0, 0);
+            // NOT CONSUMED — the WebView needs every inset, the IME one
+            // included: env(safe-area-inset-*) reads them, and the keyboard
+            // resize is Chromium's to perform. See the block above.
             return insets;
         });
     }
