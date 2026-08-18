@@ -816,7 +816,26 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     setCallType(t);
   };
 
+  /**
+   * A TALLY OF THE HANDSHAKE, FOR THE ONE REPORT THAT NEEDS IT.
+   *
+   * `no peer reached connected in 20s (0 peer(s))` — caller, empty pool — is
+   * the shape that came back on 2026-08-17, and the report could say nothing
+   * about it: `detail` maps over the peers, and there were none, so it was an
+   * empty array describing an empty pool.
+   *
+   * These four counters split every explanation apart. No hellos received
+   * means the other side's acceptance never arrived and the fault is in
+   * signalling. Hellos received with no local media means our own camera
+   * never opened, and the `hello` handler's early return is why no peer was
+   * ever built. Hellos and media both present with an empty pool means
+   * createPeerEntry refused. Offers and answers tell the same story from the
+   * other end, for the callee rows that sit at ice:new forever.
+   */
+  const sigTallyRef = useRef({ helloTx: 0, helloRx: 0, offerRx: 0, answerRx: 0 });
+
   const sendSig = (event: string, to: string | null, payload: Record<string, unknown> = {}) => {
+    if (event === "hello") sigTallyRef.current.helloTx += 1;
     channelRef.current?.send({
       type: "broadcast",
       event,
@@ -876,6 +895,16 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
             offersSent: p.offersSent ?? 0,
           })),
           callType: callTypeRef.current,
+          // AND WHEN THERE ARE NO PEERS, `detail` ABOVE IS AN EMPTY ARRAY.
+          // That is the whole report for a caller whose pool never filled —
+          // the shape logged on 2026-08-17 — so the handshake is tallied
+          // separately and survives an empty pool. hello with no media says
+          // our own camera never opened; no hello at all says the acceptance
+          // never arrived; both present with an empty pool says the peer was
+          // refused a seat.
+          tally: { ...sigTallyRef.current },
+          media: !!localStreamRef.current,
+          state: statusRef.current,
           peers: peers.map((p) => ({
             ice: p.pc.iceConnectionState,
             conn: p.connState,
@@ -1820,6 +1849,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
     ch.on("broadcast", { event: "hello" }, async ({ payload }) => {
       const p = payload as { from: string; to: string | null; callId: string; fromName?: string };
       if (!forMe(p) || !matchesCall(p)) return;
+      sigTallyRef.current.helloRx += 1;
       if (p.fromName) peerNamesRef.current.set(p.from, p.fromName);
       // Any inbound hello during outgoing means someone accepted → move on.
       if (
@@ -1870,6 +1900,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         sdp: RTCSessionDescriptionInit;
       };
       if (!forMe(p) || !matchesCall(p)) return;
+      sigTallyRef.current.offerRx += 1;
       try {
         sessionIceServers = await ensureIceServers();
       } catch (e) {
@@ -1907,6 +1938,7 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
         sdp: RTCSessionDescriptionInit;
       };
       if (!forMe(p) || !matchesCall(p)) return;
+      sigTallyRef.current.answerRx += 1;
       const entry = peerPoolRef.current.get(p.from);
       if (!entry) return;
       try {
