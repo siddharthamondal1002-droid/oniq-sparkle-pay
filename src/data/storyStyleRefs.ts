@@ -68,6 +68,15 @@ import maoriRangatira from "@/assets/story-style/maori-rangatira.png.asset.json"
 import amazonRiverwoman from "@/assets/story-style/amazon-riverwoman.png.asset.json";
 import pampasDrover from "@/assets/story-style/pampas-drover.png.asset.json";
 import samiHerderSheet from "@/assets/story-style/sami-herder-sheet.png.asset.json";
+// Sixth batch, uploaded 2026-08-18.
+import polynesianOutrigger from "@/assets/story-style/polynesian-outrigger.png.asset.json";
+import zuluBeadworkArtistSheet from "@/assets/story-style/zulu-beadwork-artist-sheet.png.asset.json";
+import lagosTalkingDrummer from "@/assets/story-style/lagos-talking-drummer.png.asset.json";
+import madagascarRicePlanter from "@/assets/story-style/madagascar-rice-planter.png.asset.json";
+import anatolianTeaHouse from "@/assets/story-style/anatolian-tea-house.png.asset.json";
+import bavarianOrnamentPainter from "@/assets/story-style/bavarian-ornament-painter.png.asset.json";
+import irishPubFiddler from "@/assets/story-style/irish-pub-fiddler.png.asset.json";
+import icelandicShepherd from "@/assets/story-style/icelandic-shepherd.png.asset.json";
 
 export type StoryStyleRef = {
   id: string;
@@ -462,6 +471,70 @@ export const STORY_STYLE_REFS: StoryStyleRef[] = [
     title: "Sámi reindeer herder (annotated sheet)",
     note: "2D character sheet — blue gákti with red trim and pewter embroidery, front/back turnaround, reindeer detail plate. Direction only.",
     url: samiHerderSheet.url,
+    attachable: false,
+  },
+  {
+    id: "polynesian-outrigger",
+    kind: "scene",
+    title: "Islander poling an outrigger canoe over a reef lagoon",
+    note: "Brightest-key reference in the set: high-chroma turquoise water, visible coral through the surface, clean cel-leaning linework.",
+    url: polynesianOutrigger.url,
+    attachable: false,
+  },
+  {
+    id: "zulu-beadwork-artist-sheet",
+    kind: "sheet",
+    title: "Zulu beadwork artist (annotated sheet)",
+    note: "2D character sheet — beaded collar, patterned wrap skirt, ochre turban, hand and loom detail plates, two expression heads. Direction only.",
+    url: zuluBeadworkArtistSheet.url,
+    attachable: false,
+  },
+  {
+    id: "lagos-talking-drummer",
+    kind: "scene",
+    title: "Talking drummer in a dusty street at golden hour",
+    note: "Loose visible brushwork, indigo adire cloth against warm dust haze, busy background kept soft.",
+    url: lagosTalkingDrummer.url,
+    attachable: false,
+  },
+  {
+    id: "madagascar-rice-planter",
+    kind: "scene",
+    title: "Planter setting seedlings as a storm crosses the terraces",
+    note: "Storm reference: cool slate sky and distant rain columns above pale green flooded paddies, laterite-red bunds.",
+    url: madagascarRicePlanter.url,
+    attachable: false,
+  },
+  {
+    id: "anatolian-tea-house",
+    kind: "scene",
+    title: "Tea house keeper pouring from a samovar under an autumn vine",
+    note: "Warm amber interior light with dappled leaf shadow; portrait-orientation staging with layered background patrons.",
+    url: anatolianTeaHouse.url,
+    attachable: false,
+  },
+  {
+    id: "bavarian-ornament-painter",
+    kind: "scene",
+    title: "Ornament painter at a workbench, snow through the window",
+    note: "Three-source night interior: stove fire, oil lamp, cold blue window — the warmth-vs-cold night rule.",
+    url: bavarianOrnamentPainter.url,
+    attachable: false,
+  },
+  {
+    id: "irish-pub-fiddler",
+    kind: "scene",
+    title: "Fiddler by the hearth in a stone pub, rain at the window (two-shot pair)",
+    note: "Continuity reference: the same character and room from two angles with consistent firelight and wardrobe.",
+    url: irishPubFiddler.url,
+    attachable: false,
+  },
+  {
+    id: "icelandic-shepherd",
+    kind: "scene",
+    title: "Shepherd beside a steaming geothermal pool at midnight sun",
+    note: "Pale lilac-and-gold low sun, steam volumes, turf-roofed houses; muted high-latitude palette.",
+    url: icelandicShepherd.url,
     attachable: false,
   },
 ];
