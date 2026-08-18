@@ -1860,7 +1860,24 @@ function ChatThread() {
           context at z-auto, which let animated message bubbles paint OVER the
           three-dot dropdown. Lifting the header keeps the menu above the
           thread while sheets/viewers (z-50+) still cover everything. */}
-      <header className="relative z-40 flex items-center gap-2 border-b border-border/60 bg-background/72 px-2 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] backdrop-blur-md">
+      {/* NO SAFE-AREA INSET HERE. The shell already paid it.
+          src/routes/_authenticated/app.tsx pads <main> by
+          env(safe-area-inset-top) for all 45 screens, so a screen that adds it
+          again gets TWO status bars of gap.
+
+          This header used to read `calc(env(safe-area-inset-top)+0.75rem)`,
+          and that was correct until 2026-08-17. Before then MainActivity
+          returned WindowInsetsCompat.CONSUMED, which stopped the insets ever
+          reaching the WebView — every env(safe-area-inset-*) in this codebase
+          evaluated to ZERO, so the calc quietly meant 0.75rem and the real
+          inset came from native padding. The edge-to-edge flip let the insets
+          through, and this line started charging for them a second time.
+
+          The 17 screens written as `max(3rem, env(...))` are fine and were
+          left alone: 3rem beats a phone's inset, so they resolve to 3rem on
+          top of the shell's padding exactly as they did before. It is the
+          ADDITIVE form that broke, and this was the only one. */}
+      <header className="relative z-40 flex items-center gap-2 border-b border-border/60 bg-background/72 px-2 pb-3 pt-3 backdrop-blur-md">
         <Link
           to="/app/chat"
           className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
