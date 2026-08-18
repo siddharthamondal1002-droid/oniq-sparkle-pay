@@ -57,6 +57,17 @@ import punjabiFarmerSheet from "@/assets/story-style/punjabi-farmer-sheet.png.as
 import jiangnanScholar from "@/assets/story-style/jiangnan-scholar.png.asset.json";
 import kyotoLanternCraftswomanSheet from "@/assets/story-style/kyoto-lantern-craftswoman-sheet.png.asset.json";
 import vietnamRiceTerrace from "@/assets/story-style/vietnam-rice-terrace.png.asset.json";
+// Fifth batch, uploaded 2026-08-18.
+import filipinoBangkaFisherman from "@/assets/story-style/filipino-bangka-fisherman.png.asset.json";
+import kazakhEagleHunter from "@/assets/story-style/kazakh-eagle-hunter.png.asset.json";
+import isfahanScholarPoetSheet from "@/assets/story-style/isfahan-scholar-poet-sheet.png.asset.json";
+import andeanWomanSheet from "@/assets/story-style/andean-woman-sheet.png.asset.json";
+import inuitIceFisher from "@/assets/story-style/inuit-ice-fisher.png.asset.json";
+import outbackElder from "@/assets/story-style/outback-elder.png.asset.json";
+import maoriRangatira from "@/assets/story-style/maori-rangatira.png.asset.json";
+import amazonRiverwoman from "@/assets/story-style/amazon-riverwoman.png.asset.json";
+import pampasDrover from "@/assets/story-style/pampas-drover.png.asset.json";
+import samiHerderSheet from "@/assets/story-style/sami-herder-sheet.png.asset.json";
 
 export type StoryStyleRef = {
   id: string;
