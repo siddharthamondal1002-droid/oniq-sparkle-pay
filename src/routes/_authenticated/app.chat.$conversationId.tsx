@@ -2143,7 +2143,23 @@ function ChatThread() {
           nearBottomRef.current = nearBottom;
           setShowJump((cur) => (cur === !nearBottom ? cur : !nearBottom));
         }}
-        className="relative flex-1 overflow-y-auto overscroll-contain px-3 pb-2 pt-3"
+        /*
+         * overflow-x-clip IS LORE-BEARING, NOT TIDINESS.
+         *
+         * `overflow-y: auto` alone does not mean "scrolls vertically". CSS
+         * computes the OTHER axis to `auto` as soon as one axis is not
+         * `visible`, so this scroller was horizontally scrollable too — and
+         * the doodle wallpaper overflows it: doodleScatter can place a figure
+         * at 67% with a 171px width, which runs past the right edge of a 448px
+         * column. Reported 2026-08-18 from screenshots as a dark band down the
+         * right side with the bubbles clipped against it.
+         *
+         * `clip` rather than `hidden` on purpose: `hidden` would make this a
+         * scroll container on both axes and break the `sticky` doodle layer
+         * below. `clip` pairs legally with `auto` on the other axis and just
+         * refuses to paint outside the box.
+         */
+        className="relative flex-1 overflow-y-auto overflow-x-clip overscroll-contain px-3 pb-2 pt-3"
         style={doodle ? doodleSurfaceStyle : undefined}
       >
         {doodle && (

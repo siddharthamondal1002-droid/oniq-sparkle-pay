@@ -158,7 +158,17 @@ export function doodleScatter(seed: string, count = 4): ScatteredDoodle[] {
       ...pick,
       // 6vh–84vh: below the header, above the composer.
       top: 6 + (i * 78) / count + (a % 5),
-      start: i % 2 === 0 ? 1 + (a % 12) : 54 + (b % 14),
+      // RIGHT-HAND FIGURES USED TO RUN OFF THE PAPER. The old upper bound was
+      // 54 + (b % 14) = up to 67%, and `size` reaches 171px. On the shell's
+      // 448px column that is 300px + 171px = 471px — 23px past the edge, which
+      // showed up as a dark band down the right of the thread with the bubbles
+      // clipped against it (screenshots, 2026-08-18).
+      //
+      // 44 + (b % 10) tops out at 53%, leaving 47% (≈210px) of room for the
+      // widest figure. The scroller also clips now, so this is belt AND braces:
+      // the clip guarantees it can never be visible, this keeps the wallpaper
+      // from being silently half-drawn off-paper in the first place.
+      start: i % 2 === 0 ? 1 + (a % 12) : 44 + (b % 10),
       size: 104 + (b % 68),
       rotate: (a % 25) - 12,
       flip: b % 2 === 0,
