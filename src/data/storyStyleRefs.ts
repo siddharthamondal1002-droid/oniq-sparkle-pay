@@ -38,6 +38,17 @@ import dinerCookNight from "@/assets/story-style/diner-cook-night.png.asset.json
 import oaxacanWeaverSheet from "@/assets/story-style/oaxacan-weaver-sheet.png.asset.json";
 import caribbeanFishMarket from "@/assets/story-style/caribbean-fish-market.png.asset.json";
 import himalayanClimber from "@/assets/story-style/himalayan-climber.png.asset.json";
+// Third batch, uploaded 2026-08-18.
+import welshBlacksmith from "@/assets/story-style/welsh-blacksmith.png.asset.json";
+import amazonCanoe from "@/assets/story-style/amazon-canoe.png.asset.json";
+import bolivianAymaraSheet from "@/assets/story-style/bolivian-aymara-sheet.png.asset.json";
+import mediterraneanBaker from "@/assets/story-style/mediterranean-baker.png.asset.json";
+import anatolianShepherd from "@/assets/story-style/anatolian-shepherd.png.asset.json";
+import singaporeHawker from "@/assets/story-style/singapore-hawker.png.asset.json";
+import khmerStoneCarver from "@/assets/story-style/khmer-stone-carver.png.asset.json";
+import baganAlmsRound from "@/assets/story-style/bagan-alms-round.png.asset.json";
+import kashmiriCarpetWeaver from "@/assets/story-style/kashmiri-carpet-weaver.png.asset.json";
+import siberianTrapper from "@/assets/story-style/siberian-trapper.png.asset.json";
 
 export type StoryStyleRef = {
   id: string;
@@ -216,6 +227,86 @@ export const STORY_STYLE_REFS: StoryStyleRef[] = [
     title: "Himalayan climber on the ridge",
     note: "Cold high-altitude palette, snow particles, prayer flags for scale and colour accent.",
     url: himalayanClimber.url,
+    attachable: false,
+  },
+  {
+    id: "welsh-blacksmith",
+    kind: "scene",
+    title: "Welsh village blacksmith at the forge",
+    note: "Interior/exterior split frame: cold rainy slate-grey street through the arch vs hot forge orange inside.",
+    url: welshBlacksmith.url,
+    attachable: false,
+  },
+  {
+    id: "amazon-canoe",
+    kind: "scene",
+    title: "Amazonian boatman in a dugout canoe",
+    note: "Dense green canopy, dappled light, river mist; carved hull detail kept legible.",
+    url: amazonCanoe.url,
+    attachable: false,
+  },
+  {
+    id: "bolivian-aymara-sheet",
+    kind: "sheet",
+    title: "Bolivian Aymara textile seller (annotated sheet)",
+    note: "2D character sheet — bowler hat, fringed shawl, layered polleras, side and 3/4 back. Direction only.",
+    url: bolivianAymaraSheet.url,
+    attachable: false,
+  },
+  {
+    id: "mediterranean-baker",
+    kind: "scene",
+    title: "Mediterranean stone-oven baker",
+    note: "Cool blue dawn alley against warm oven mouth; flour dust and steam as atmosphere.",
+    url: mediterraneanBaker.url,
+    attachable: false,
+  },
+  {
+    id: "anatolian-shepherd",
+    kind: "scene",
+    title: "Highland shepherd above a terraced valley",
+    note: "Epic landscape staging: sun-through-cloud, layered mountain depth, flock scattered for scale.",
+    url: anatolianShepherd.url,
+    attachable: false,
+  },
+  {
+    id: "singapore-hawker",
+    kind: "scene",
+    title: "Hawker-centre wok cook at night",
+    note: "Neon signage plus wok flame as the two light sources; busy background crowd simplified.",
+    url: singaporeHawker.url,
+    attachable: false,
+  },
+  {
+    id: "khmer-stone-carver",
+    kind: "scene",
+    title: "Khmer temple stone carver",
+    note: "Bright daylight, warm sandstone palette, heavy carved-relief detail behind the figure.",
+    url: khmerStoneCarver.url,
+    attachable: false,
+  },
+  {
+    id: "bagan-alms-round",
+    kind: "scene",
+    title: "Monks on the dawn alms round",
+    note: "Crowd-in-depth reference: repeated figures fading into mist, saffron against pale gold sky.",
+    url: baganAlmsRound.url,
+    attachable: false,
+  },
+  {
+    id: "kashmiri-carpet-weaver",
+    kind: "scene",
+    title: "Kashmiri carpet weaver by the lake window",
+    note: "Portrait crop, quiet interior, cold snow light from the window; fine loom and pattern detail.",
+    url: kashmiriCarpetWeaver.url,
+    attachable: false,
+  },
+  {
+    id: "siberian-trapper",
+    kind: "scene",
+    title: "Taiga trapper setting a snare",
+    note: "High-key snow palette with limited colour: green coat, fur hat, blue shadow, distant cabin smoke.",
+    url: siberianTrapper.url,
     attachable: false,
   },
 ];
