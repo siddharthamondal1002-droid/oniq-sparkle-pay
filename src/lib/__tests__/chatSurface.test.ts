@@ -53,7 +53,9 @@ describe("message bubbles read at arm's length", () => {
 
 describe("the composer is a card, not a pill", () => {
   it("the input shell is a 22px rounded rectangle", () => {
-    const shell = CODE.match(/relative flex flex-1 items-center gap-2 ([^"]*)/)?.[1] ?? "";
+    // min-w-0 sits between flex and flex-1 since 2026-08-18 — it is what lets
+    // the field yield instead of the row overflowing the screen sideways.
+    const shell = CODE.match(/relative flex min-w-0 flex-1 items-center gap-2 ([^"]*)/)?.[1] ?? "";
     expect(shell, "the composer shell went back to rounded-full").toContain("rounded-[22px]");
     expect(shell).not.toContain("rounded-full");
   });

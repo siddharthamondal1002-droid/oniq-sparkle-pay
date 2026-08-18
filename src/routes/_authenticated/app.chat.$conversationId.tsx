@@ -1006,6 +1006,17 @@ function ChatThread() {
       if (el && !zoomed && nearBottomRef.current) el.scrollTop = el.scrollHeight;
 
       /*
+       * THE ROOT MUST SIT AT (0,0) ON THIS SCREEN. The chat column is exactly
+       * one viewport tall, so the document has nothing legitimate to scroll —
+       * yet the 15:47 screenshots show it scrolled anyway: the header ridden
+       * up under the status bar, a black band under the composer. The WebView
+       * scrolls the document while the keyboard resizes things, and the
+       * offset survives the keyboard's dismissal. Not while zoomed: panning a
+       * magnified viewport is the one time root offsets are the user's own.
+       */
+      if (!zoomed && (window.scrollX !== 0 || window.scrollY !== 0)) window.scrollTo(0, 0);
+
+      /*
        * THE KEYBOARD PROBE — measurements, because three theories were wrong.
        *
        * This layout has now been "fixed" three times from reading the code,
@@ -3374,7 +3385,17 @@ function ChatThread() {
                     to a lozenge the moment the field is one line tall, which
                     is most of the time; 22px keeps a readable rectangle at one
                     line and still looks intentional at three. */}
-                <div className="relative flex flex-1 items-center gap-2 rounded-[22px] border border-border bg-input/40 pl-4 pr-2">
+                {/* min-w-0 IS THE COMPOSER FITTING ON A PHONE AT ALL. An
+                    <input> refuses to shrink below its intrinsic size (about
+                    20 characters, ~180px) unless its flex ancestors allow it,
+                    because flexbox min-width defaults to auto. On a 384px-wide
+                    phone, paperclip + emoji + that floor + circle-dot + mic
+                    comes to MORE than the screen: the mic fell off the right
+                    edge and the document went wider than the viewport, which
+                    is the sideways-pannable app in the 15:47 screenshots.
+                    min-w-0 here and on the input lets the field yield instead
+                    of the row overflowing. */}
+                <div className="relative flex min-w-0 flex-1 items-center gap-2 rounded-[22px] border border-border bg-input/40 pl-4 pr-2">
                   <button
                     type="button"
                     aria-label="Emoji"
@@ -3478,7 +3499,7 @@ function ChatThread() {
                           : "Message"
                     }
                     disabled={isBlocked}
-                    className="flex-1 bg-transparent py-3 text-[15px] placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-60"
+                    className="min-w-0 flex-1 bg-transparent py-3 text-[15px] placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-60"
                   />
                 </div>
                 {text.trim() ? (
