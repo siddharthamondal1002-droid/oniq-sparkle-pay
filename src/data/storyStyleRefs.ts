@@ -49,6 +49,14 @@ import khmerStoneCarver from "@/assets/story-style/khmer-stone-carver.png.asset.
 import baganAlmsRound from "@/assets/story-style/bagan-alms-round.png.asset.json";
 import kashmiriCarpetWeaver from "@/assets/story-style/kashmiri-carpet-weaver.png.asset.json";
 import siberianTrapper from "@/assets/story-style/siberian-trapper.png.asset.json";
+// Fourth batch, uploaded 2026-08-18.
+import griotStorytellerSheet from "@/assets/story-style/griot-storyteller-sheet.png.asset.json";
+import maasaiHerdsmanSheet from "@/assets/story-style/maasai-herdsman-sheet.png.asset.json";
+import kolkataRainMarket from "@/assets/story-style/kolkata-rain-market.png.asset.json";
+import punjabiFarmerSheet from "@/assets/story-style/punjabi-farmer-sheet.png.asset.json";
+import jiangnanScholar from "@/assets/story-style/jiangnan-scholar.png.asset.json";
+import kyotoLanternCraftswomanSheet from "@/assets/story-style/kyoto-lantern-craftswoman-sheet.png.asset.json";
+import vietnamRiceTerrace from "@/assets/story-style/vietnam-rice-terrace.png.asset.json";
 
 export type StoryStyleRef = {
   id: string;
@@ -307,6 +315,62 @@ export const STORY_STYLE_REFS: StoryStyleRef[] = [
     title: "Taiga trapper setting a snare",
     note: "High-key snow palette with limited colour: green coat, fur hat, blue shadow, distant cabin smoke.",
     url: siberianTrapper.url,
+    attachable: false,
+  },
+  {
+    id: "griot-storyteller-sheet",
+    kind: "sheet",
+    title: "West African griot storyteller (annotated sheet)",
+    note: "2D character sheet — indigo boubou with ochre embroidery, woven cap, kora. Direction only.",
+    url: griotStorytellerSheet.url,
+    attachable: false,
+  },
+  {
+    id: "maasai-herdsman-sheet",
+    kind: "sheet",
+    title: "Maasai herdsman (annotated sheet)",
+    note: "2D character sheet — red/blue shuka, beaded collar, herding staff, savannah plate. Direction only.",
+    url: maasaiHerdsmanSheet.url,
+    attachable: false,
+  },
+  {
+    id: "kolkata-rain-market",
+    kind: "scene",
+    title: "Riverside cloth market in monsoon rain",
+    note: "Rain reference: desaturated grey-teal air, wet stone reflections, saturated textiles as the only colour.",
+    url: kolkataRainMarket.url,
+    attachable: false,
+  },
+  {
+    id: "punjabi-farmer-sheet",
+    kind: "sheet",
+    title: "Punjabi farmer (annotated sheet)",
+    note: "2D character sheet — saffron turban, kurta-dhoti, mustard-field hero plate, three expressions. Direction only.",
+    url: punjabiFarmerSheet.url,
+    attachable: false,
+  },
+  {
+    id: "jiangnan-scholar",
+    kind: "scene",
+    title: "Jiangnan scholar at his desk by lantern light",
+    note: "Two-source night interior: warm lantern on the figure, cold blue courtyard through the lattice window.",
+    url: jiangnanScholar.url,
+    attachable: false,
+  },
+  {
+    id: "kyoto-lantern-craftswoman-sheet",
+    kind: "sheet",
+    title: "Kyoto lantern craftswoman (annotated sheet)",
+    note: "2D character sheet — indigo sashiko work kimono, canvas apron, kushi-pinned hair, multi-pose workshop. Direction only.",
+    url: kyotoLanternCraftswomanSheet.url,
+    attachable: false,
+  },
+  {
+    id: "vietnam-rice-terrace",
+    kind: "scene",
+    title: "Rice planter in flooded terraces under drizzle",
+    note: "Wide landscape with a small figure; misted mountain layers, mirrored water, near-monochrome green palette.",
+    url: vietnamRiceTerrace.url,
     attachable: false,
   },
 ];
