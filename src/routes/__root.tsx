@@ -80,8 +80,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       {
         name: "viewport",
-        content:
-          "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content",
+        /*
+         * NO interactive-widget HERE. It is added at runtime for the WEB only
+         * — see the effect in RootComponent.
+         *
+         * Having it in the static meta meant the keyboard was subtracted TWICE
+         * on native, by two platform layers that each believed they were the
+         * only one doing it:
+         *
+         *   MainActivity   pads android.R.id.content by ime.bottom, making the
+         *                  WebView physically shorter.
+         *   this meta      makes the WebView ALSO shrink its own layout
+         *                  viewport for the same keyboard.
+         *
+         * On a 2000px screen with a 760px keyboard that leaves 100dvh at about
+         * 480px, which is exactly the chat column measured from a screenshot on
+         * 2026-08-18: header, a sliver of thread, the composer, and then a
+         * keyboard-sized dead band where the native padding shows through.
+         *
+         * Three CSS fixes chased this in the chat file and none could reach it,
+         * because by the time any stylesheet runs the viewport is already wrong.
+         * The comment those fixes were written under claimed "the Android
+         * WebView does not implement interactive-widget" — it does, from
+         * Chromium 108, and that belief is what let both layers coexist.
+         *
+         * Native keeps MainActivity's padding; the web keeps the meta. Exactly
+         * one of the two, on each platform.
+         */
+        content: "width=device-width, initial-scale=1, viewport-fit=cover",
       },
       { name: "theme-color", content: "#1a1230" },
       { title: "ONIQ — One App. Every World." },
@@ -201,6 +227,46 @@ function RootComponent() {
     import("@/lib/nativeAuth").then((m) => m.initNativeAuth()).catch(() => {});
     return () => sub.subscription.unsubscribe();
   }, [router, queryClient]);
+
+  /*
+   * THE WEB, AND ONLY THE WEB, GETS interactive-widget=resizes-content.
+   *
+   * In a browser this is what shrinks the layout viewport when the keyboard
+   * opens, so a bottom-anchored composer stays above it. Without it the
+   * composer would sit behind the keyboard — so the web genuinely needs it.
+   *
+   * Native must NOT have it. MainActivity already pads the content view by the
+   * IME inset, and the two together subtract the keyboard twice: 2000px screen
+   * minus a 760px keyboard twice leaves 100dvh at ~480px, which is the exact
+   * broken chat measured from a screenshot on 2026-08-18.
+   *
+   * Applied here rather than in the static meta so native NEVER carries both,
+   * not even for one frame before hydration. Chrome re-evaluates the viewport
+   * meta when its content attribute changes, and the keyboard is never up
+   * during boot, so switching it at mount costs nothing.
+   */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { Capacitor } = await import("@capacitor/core");
+        if (cancelled || Capacitor.isNativePlatform()) return;
+        const meta = document.querySelector('meta[name="viewport"]');
+        if (!meta) return;
+        const content = meta.getAttribute("content") ?? "";
+        if (content.includes("interactive-widget")) return;
+        meta.setAttribute("content", `${content}, interactive-widget=resizes-content`);
+      } catch {
+        // No Capacitor bundled means this is the web, which is the branch that
+        // wants the flag — but a failed import must not leave the page broken,
+        // and a browser without it merely keeps the default resizes-visual.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;

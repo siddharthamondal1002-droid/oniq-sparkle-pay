@@ -40,6 +40,19 @@
  *
  * These guards keep it that way, and forbid any height that so much as
  * mentions the keyboard, whatever the variable ends up being called.
+ *
+ * AND THE THIRD FIX STILL WAS NOT ENOUGH, which is the real lesson here.
+ * Native was running BOTH platform mechanisms at once: the viewport meta
+ * carried interactive-widget=resizes-content unconditionally, so the WebView
+ * shrank its own layout viewport, while MainActivity ALSO padded the content
+ * view by the same IME inset. 100dvh reached the chat already at about
+ * (screen - 2x keyboard), so every fix in this file was correcting a number
+ * that was wrong before any stylesheet ran.
+ *
+ * The claim repeated through this file's history — that "the Android WebView
+ * does not implement interactive-widget" — is false. It has since Chromium
+ * 108, and believing it is precisely what allowed two layers to stack. The
+ * meta is now applied for the web only; see viewportMetaOnce.test.ts.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

@@ -921,6 +921,18 @@ function ChatThread() {
    * amount for this file to subtract is zero. --kb stays only because the
    * composer's safe-area padding has to know whether the keyboard is up.
    *
+   * AND THE REASON THAT STILL WAS NOT ENOUGH, found 2026-08-18: native was
+   * running BOTH of those platform mechanisms at once. The viewport meta in
+   * __root.tsx carried interactive-widget=resizes-content unconditionally, so
+   * the WebView shrank its own layout viewport for the keyboard while
+   * MainActivity was also padding the content view by the same inset. 100dvh
+   * arrived here already about (screen - 2x keyboard), and no expression in
+   * this file could have recovered it — every fix above was chasing a number
+   * that was wrong before any stylesheet ran. The meta is now added for the
+   * web only. The claim in the old note that "the Android WebView does not
+   * implement interactive-widget" was simply false: it has since Chromium 108,
+   * and believing otherwise is what let the two layers stack.
+   *
    * Both listeners are required: iOS often moves offsetTop and fires `scroll`
    * without ever firing `resize`. scrollTop is assigned directly rather than
    * via scrollIntoView because a smooth scroll gets interrupted by the
