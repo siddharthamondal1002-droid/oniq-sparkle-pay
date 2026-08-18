@@ -63,9 +63,12 @@ import {
   FACE_FX,
   FACE_LENSES,
   geometryFrom,
+  faceCpuRetried,
   faceDelegate,
+  frameLook,
   isFaceFilter,
   loadFaceLandmarker,
+  retryFaceLandmarkerOnCpu,
   type Pt as FacePt,
 } from "@/lib/faceFx";
 
@@ -685,7 +688,9 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
   // Face landmarker + the last points it produced. Held in refs because the
   // draw loop reads them every frame and must never re-render to do it.
   const faceRef = useRef<{
-    lm: { detectForVideo(v: HTMLVideoElement, ts: number): { faceLandmarks: FacePt[][] } } | null;
+    // CanvasImageSource, not HTMLVideoElement: the frame handed to the model
+    // is the 2D canvas the draw loop just painted, not the <video> behind it.
+    lm: { detectForVideo(f: CanvasImageSource, ts: number): { faceLandmarks: FacePt[][] } } | null;
     pts: FacePt[] | null;
     tick: number;
     /**
@@ -2471,7 +2476,17 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
               try {
                 // performance.now() is the clock detectForVideo wants; it
                 // refuses a timestamp that does not move forward.
-                const res = face.lm.detectForVideo(cur.video, performance.now());
+                //
+                // THE CANVAS, NOT THE VIDEO. Handing the model the <video>
+                // put the WebView's video-to-GPU-texture upload inside the
+                // pipeline, and that step can deliver a black or garbage
+                // texture without failing — a clean run that finds nobody,
+                // which is precisely what 2026-08-17 reported. This canvas
+                // holds the frame that was just drawn from that same video
+                // and that the user can see, so if a face is on screen it is
+                // in these pixels. Face lenses carry no `css` (see
+                // CALL_FILTERS), so nothing has been tinted at this point.
+                const res = face.lm.detectForVideo(cur.canvas, performance.now());
                 const found = res?.faceLandmarks?.[0] ?? null;
                 face.pts = found;
                 face.fails = 0;
@@ -2500,14 +2515,35 @@ export const CallOverlay = forwardRef<CallHandle, Props>(function CallOverlay(
                 });
               } else if (face.dry >= 50 && face.said !== "dry") {
                 face.said = "dry";
+                const delegate = faceDelegate();
                 reportClientError("call-face-fx", "landmarker runs but finds no face", {
                   filter: active.id,
                   dry: face.dry,
-                  delegate: faceDelegate(),
+                  delegate,
+                  retried: faceCpuRetried(),
                   vw: cur.video.videoWidth,
                   vh: cur.video.videoHeight,
                   ready: cur.video.readyState,
+                  // WHAT WAS ACTUALLY IN THE FRAME. Without this, "found no
+                  // face" and "was handed a black rectangle" are the same
+                  // report, and last time they were — five of them, with no
+                  // way to tell which. One getImageData, once per call, at
+                  // the moment we have already decided to speak.
+                  ...frameLook(cur.canvas),
                 });
+                // The GPU delegate ran fifty times and saw nobody. That is
+                // the post-construction GPU failure the loader documents and
+                // could not catch, so try the CPU once and let the counters
+                // speak again — a second dry report on CPU means there was
+                // genuinely no face, which is a different answer entirely.
+                if (delegate === "GPU" && !faceCpuRetried()) {
+                  void retryFaceLandmarkerOnCpu().then((lm) => {
+                    if (!lm) return;
+                    faceRef.current.lm = lm;
+                    faceRef.current.dry = 0;
+                    faceRef.current.said = null;
+                  });
+                }
               }
             }
             if (face.pts) {

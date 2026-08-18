@@ -87,8 +87,18 @@ const IDX = {
   cheekRight: 280,
 } as const;
 
+/**
+ * The live detector.
+ *
+ * The source is a CanvasImageSource, not an HTMLVideoElement, and that is
+ * deliberate. Feeding it the <video> put an Android WebView's video-to-GPU
+ * texture upload in the middle of the pipeline — a step that can hand the
+ * model a black or garbage texture without failing, which reads back as a
+ * clean run that simply found nobody. The caller already draws that frame to
+ * a 2D canvas it can see, so it passes the canvas and that step disappears.
+ */
 type Landmarker = {
-  detectForVideo(video: HTMLVideoElement, ts: number): { faceLandmarks: Pt[][] };
+  detectForVideo(frame: CanvasImageSource, ts: number): { faceLandmarks: Pt[][] };
   close(): void;
 };
 
@@ -177,6 +187,106 @@ export async function loadFaceLandmarker(): Promise<Landmarker | null> {
 let loadedDelegate: "GPU" | "CPU" | null = null;
 export function faceDelegate(): string {
   return loadedDelegate ?? "none";
+}
+
+/**
+ * WHAT THE DETECTOR WAS ACTUALLY LOOKING AT.
+ *
+ * "Ran clean and found no face" has two completely different causes — the
+ * frame was fine and nobody was in it, or the frame handed to the model was
+ * black — and the report from 2026-08-17 could not tell them apart, which is
+ * why five of them produced no fix. A mean luminance near zero with no spread
+ * is a dead frame; a normal picture with a wide spread is a real miss.
+ *
+ * Every 64th pixel, and only at the moment a report is already being sent, so
+ * this costs one getImageData per call rather than one per frame.
+ */
+export function frameLook(canvas: HTMLCanvasElement): {
+  luma: number | null;
+  spread: number | null;
+} {
+  try {
+    const ctx = canvas.getContext("2d");
+    if (!ctx || !canvas.width || !canvas.height) return { luma: null, spread: null };
+    const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let min = 255;
+    let max = 0;
+    let sum = 0;
+    let n = 0;
+    for (let i = 0; i + 2 < data.length; i += 4 * 64) {
+      const y = (data[i] * 299 + data[i + 1] * 587 + data[i + 2] * 114) / 1000;
+      sum += y;
+      n += 1;
+      if (y < min) min = y;
+      if (y > max) max = y;
+    }
+    if (!n) return { luma: null, spread: null };
+    return { luma: Math.round(sum / n), spread: Math.round(max - min) };
+  } catch {
+    // A tainted canvas throws on read. Nothing in the call path taints it,
+    // but a diagnostic must never be the thing that ends a conversation.
+    return { luma: null, spread: null };
+  }
+}
+
+/** One CPU retry per session, and only one. */
+let cpuRetried = false;
+export function faceCpuRetried(): boolean {
+  return cpuRetried;
+}
+
+/**
+ * REBUILD ON THE CPU AFTER THE GPU RAN AND SAW NOBODY.
+ *
+ * The loader above already says an Android WebView "can advertise a context
+ * that then fails — sometimes at construction, sometimes only once inference
+ * runs", and then handles only the first half: the GPU→CPU walk is a
+ * try/catch around createFromOptions. A delegate that constructs happily and
+ * thereafter returns zero faces on every frame never throws, so it never
+ * reaches that catch, and the call spends its whole length on a detector that
+ * cannot see.
+ *
+ * That is the shape of the five reports from 2026-08-17: delegate GPU, fifty
+ * consecutive faceless detections, no error, on every lens tried. The dry
+ * counter was built to make exactly this legible and nothing acted on it.
+ *
+ * So it acts on it now. Once per session, because a CPU detector that also
+ * sees nobody means the camera was pointed at the ceiling, and retrying that
+ * in a loop would just burn a phone's battery mid-call.
+ */
+export async function retryFaceLandmarkerOnCpu(): Promise<Landmarker | null> {
+  if (cpuRetried) return landmarkerPromise ?? Promise.resolve(null);
+  cpuRetried = true;
+  const previous = await (landmarkerPromise ?? Promise.resolve(null));
+  landmarkerPromise = (async () => {
+    const { vision, fileset } = await visionFileset().catch((e) => {
+      console.warn("[faceFx] fileset unavailable on cpu retry", e);
+      return { vision: null, fileset: null } as never;
+    });
+    if (!vision) return previous;
+    try {
+      const lm = await vision.FaceLandmarker.createFromOptions(
+        fileset as Parameters<typeof vision.FaceLandmarker.createFromOptions>[0],
+        {
+          baseOptions: { modelAssetPath: "/face_landmarker.task", delegate: "CPU" },
+          runningMode: "VIDEO",
+          numFaces: 1,
+          outputFaceBlendshapes: false,
+        },
+      );
+      loadedDelegate = "CPU";
+      // Only after the replacement exists. Closing first and then failing to
+      // build would leave the call with no detector at all.
+      try {
+        previous?.close();
+      } catch {}
+      return lm as unknown as Landmarker;
+    } catch (e) {
+      console.warn("[faceFx] cpu retry failed", e);
+      return previous;
+    }
+  })();
+  return landmarkerPromise;
 }
 
 /**
