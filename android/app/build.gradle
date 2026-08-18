@@ -21,8 +21,23 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 15
+        versionCode 16
         versionName "1.8.2"
+        // ----- code 16 -----
+        // A FRESH BUILD OF THE SAME APP. Asked for 2026-08-18, after 15 had
+        // already been uploaded to Play; the code goes up because Play rejects
+        // a duplicate outright, and a skipped code costs nothing.
+        //
+        // THE NAME DOES NOT MOVE, AND THIS ONE IS WORTH BEING BLUNT ABOUT: not
+        // one line of android/ has changed since 15. Every fix of that day —
+        // the chat keyboard, the doubled status-bar inset, the doodle overflow,
+        // and the viewport meta that was subtracting the keyboard twice — is
+        // web, and the shell loads https://oniqhub.com at runtime. Those fixes
+        // reached phones through the Lovable publish the moment it went out.
+        // This binary is byte-for-byte the same app as 15 in everything a user
+        // can feel, which is precisely the case the rule below exists for.
+        //
+        // ----- 1.8.2 -----
         // versionCode 15, SAME NAME. 14 was uploaded to Play and a version
         // code cannot be reused, so a fresh bundle needs a fresh code even
         // when not one line of app code has moved. The name stays 1.8.2
