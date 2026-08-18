@@ -45,7 +45,7 @@ import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
 import { ChannelSubBar } from "@/components/chat/ChannelSubBar";
 import { doodleSurfaceStyle } from "@/lib/chatWallpaper";
 import { doodleByKey, doodleFor, doodleScatter, DOODLES } from "@/data/doodleLibrary";
-import { prettyFail } from "@/lib/errorReport";
+import { prettyFail, reportClientError } from "@/lib/errorReport";
 import { ProfilePhotoPopup } from "@/components/chat/ProfilePhotoPopup";
 import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { useT } from "@/lib/i18n/LanguageProvider";
@@ -320,6 +320,10 @@ function ChatThread() {
   // this; a reader who has scrolled up must never be yanked to the bottom.
   const nearBottomRef = useRef(true);
   const composerRef = useRef<HTMLFormElement | null>(null);
+  /** The chat column itself, measured by the keyboard probe below. */
+  const columnRef = useRef<HTMLDivElement | null>(null);
+  /** Probe reports fired this mount. Bounded — this is a diagnostic, not telemetry. */
+  const probeCountRef = useRef(0);
   const [showJump, setShowJump] = useState(false);
   // callRef removed — CallOverlay is now mounted globally by GlobalCallHost.
   const typingChanRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -941,6 +945,59 @@ function ChatThread() {
       // third time is for there to be nothing to reach for.
       const el = scrollRef.current;
       if (el && !zoomed && nearBottomRef.current) el.scrollTop = el.scrollHeight;
+
+      /*
+       * THE KEYBOARD PROBE — measurements, because three theories were wrong.
+       *
+       * This layout has now been "fixed" three times from reading the code,
+       * and reported broken three times from a phone. Every one of those
+       * fixes was reasoned from a model of how the Android WebView handles
+       * the IME, and the model was wrong each time. So this stops modelling
+       * and records what the device actually reports.
+       *
+       * The one number that settles it is `innerH` against `screenH`. If the
+       * WebView is roughly a keyboard SHORTER than it should be, the loss is
+       * native — the window resized AND MainActivity padded on top of it —
+       * and no amount of CSS in this file can recover it. If the WebView is
+       * full height and `colH` is short, the fault is here after all.
+       *
+       * BOUNDED ON PURPOSE: at most two reports per mounted thread, and only
+       * once a keyboard is actually up. This is a diagnostic with a job to
+       * do, not telemetry — it comes out once the layout is right.
+       */
+      if (inset > 100 && probeCountRef.current < 2) {
+        probeCountRef.current += 1;
+        // env() cannot be read off a custom property, so measure it with a
+        // throwaway element the browser has to resolve for real.
+        let safeTop: number | null = null;
+        try {
+          const p = document.createElement("div");
+          p.style.cssText =
+            "position:fixed;top:0;left:0;width:0;height:env(safe-area-inset-top);visibility:hidden;pointer-events:none";
+          document.body.appendChild(p);
+          safeTop = Math.round(p.getBoundingClientRect().height);
+          p.remove();
+        } catch {
+          /* a probe that fails must not break the chat */
+        }
+        const shell = document.querySelector("[data-app-shell]");
+        const col = columnRef.current?.getBoundingClientRect();
+        reportClientError("chat-viewport", "keyboard layout probe", {
+          screenH: typeof screen !== "undefined" ? screen.height : null,
+          dpr: window.devicePixelRatio,
+          innerH: window.innerHeight,
+          docH: document.documentElement.clientHeight,
+          vvH: Math.round(vv.height),
+          vvTop: Math.round(vv.offsetTop),
+          kb: inset,
+          safeTop,
+          appVh: shell ? getComputedStyle(shell).getPropertyValue("--app-vh").trim() : null,
+          colH: col ? Math.round(col.height) : null,
+          colTop: col ? Math.round(col.top) : null,
+          scrollerH: el ? Math.round(el.getBoundingClientRect().height) : null,
+          ua: navigator.userAgent.slice(0, 120),
+        });
+      }
     };
     const onChange = () => {
       if (!raf) raf = requestAnimationFrame(apply);
@@ -1821,6 +1878,7 @@ function ChatThread() {
 
   return (
     <div
+      ref={columnRef}
       className="relative flex flex-col"
       /*
        * NO KEYBOARD ARITHMETIC HERE. NONE. THAT IS THE WHOLE FIX.
