@@ -575,6 +575,30 @@ Deno.serve(async (req) => {
     await admin.from("device_tokens").delete().in("token", toDelete);
   }
 
+  // Record what the push service told us about each mismatched row, so neither
+  // side has to rediscover it: the stale filter skips it from now on, and the
+  // client sees a recorded key that is not the live one and re-subscribes.
+  // The sentinel is deliberately not a real key — it is never signed with, and
+  // it can only ever compare unequal to whatever the live key is.
+  if (mismatchSubs.length > 0) {
+    console.error(
+      `send-push: ${mismatchSubs.length} web subscriber(s) rejected by the push service for a VAPID mismatch — marked for re-subscribe`,
+    );
+    await Promise.all(
+      mismatchSubs.map((s) =>
+        admin
+          .from("device_tokens")
+          .update({
+            keys: { p256dh: s.keys.p256dh, auth: s.keys.auth, appServerKey: "vapid-mismatch" },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("token", s.endpoint),
+      ),
+    );
+  }
+
+
+
   return new Response(
     JSON.stringify({
       sent: sent + webSent,
