@@ -113,4 +113,28 @@ describe("only one layer resizes for the keyboard", () => {
     );
     expect(activity).toContain("getRootView().getHeight()");
   });
+
+  it("measures AFTER layout, against the window's own keyboard-less height", () => {
+    /*
+     * versionCode 17 shipped the subtraction and changed nothing, because the
+     * measurement ran inside the insets callback — which is dispatched BEFORE
+     * the layout pass that applies the window's new size. rootView.getHeight()
+     * there returns the PRE-keyboard height, alreadyTaken computes 0, and the
+     * full inset gets paid again. Screenshot at 17:02, 2026-08-18: identical
+     * 200px app / keyboard-tall band / keyboard split, on the fixed build.
+     *
+     * So the measurement must be deferred past the traversal (v.post) and the
+     * baseline must be the window's own no-keyboard height, not
+     * DisplayMetrics — which excludes system decorations on some devices and
+     * would leak a navbar of error into the comparison.
+     */
+    expect(
+      activity,
+      "the padding is measured during dispatch again — pre-layout, so it reads the old height",
+    ).toContain("v.post(");
+    expect(activity, "the keyboard-less baseline is gone").toContain("noImeWindowHeight");
+    expect(activity, "the baseline stopped refreshing when the keyboard is down").toMatch(
+      /imeBottom <= 0[\s\S]{0,200}?noImeWindowHeight = rootH/,
+    );
+  });
 });

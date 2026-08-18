@@ -21,8 +21,19 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 17
+        versionCode 18
         versionName "1.8.3"
+        // ----- code 18 -----
+        // THE 17 FIX, TAKEN AT THE RIGHT MOMENT. 17's remainder arithmetic
+        // was correct and its measurement was not: insets dispatch BEFORE the
+        // layout pass that applies the window's new size, so reading the root
+        // view's height inside the callback returned the pre-keyboard height,
+        // "alreadyTaken" computed zero, and the full inset was paid again —
+        // the double subtraction, intact, on the build that claimed to fix
+        // it (screenshot 2026-08-18 17:02). The measurement now runs in
+        // v.post() after layout, against the window's own keyboard-less
+        // height. The NAME stays 1.8.3: this is the fix 1.8.3 claimed to be.
+        //
         // ----- 1.8.3 -----
         // THE FIRST BUILD SINCE 15 THAT A USER CAN FEEL, AND THE ONLY ONE THAT
         // COULD HAVE FIXED THIS.

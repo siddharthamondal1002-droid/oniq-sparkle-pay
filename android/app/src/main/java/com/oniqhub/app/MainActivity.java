@@ -37,6 +37,15 @@ public class MainActivity extends BridgeActivity {
     private static final int REQ_AV = 4201;
     private static final int REQ_GEO = 4202;
 
+    /**
+     * The window's height with NO keyboard up, measured after layout. The IME
+     * padding in applyEdgeToEdgeInsets pays only the difference between this
+     * and the current height — see the long note there for why the comparison
+     * must be against the window's own baseline, post-layout, and not against
+     * DisplayMetrics inside the insets callback.
+     */
+    private int noImeWindowHeight = 0;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(SpeakerRouterPlugin.class);
@@ -322,18 +331,49 @@ public class MainActivity extends BridgeActivity {
              * it here. None of them could have worked: by the time any CSS
              * runs, the WebView is already the wrong height, and no
              * expression can recover a viewport it was handed short.
+             *
+             * AND THE FIRST VERSION OF THE MEASUREMENT WAS TAKEN AT THE WRONG
+             * MOMENT, which is why 1.8.3 (versionCode 17) shipped this
+             * arithmetic and changed nothing on the device. Two mistakes:
+             *
+             *   1. Insets are dispatched BEFORE the layout pass that applies
+             *      the window's new size. Reading getRootView().getHeight()
+             *      inside this callback returns the PRE-keyboard height, so
+             *      "alreadyTaken" computed 0 and the padding fell back to the
+             *      full inset — the exact double subtraction, preserved. The
+             *      measurement now runs in v.post(), after the traversal this
+             *      dispatch belongs to has finished laying out.
+             *
+             *   2. DisplayMetrics.heightPixels historically excludes system
+             *      decorations on some devices, which would leak a navbar of
+             *      error into the comparison. The baseline is now the
+             *      window's OWN height measured while no keyboard is up —
+             *      self-referential, so device quirks cancel out. It refreshes
+             *      on every keyboard-less dispatch, which also keeps it right
+             *      across rotation.
              */
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
-            int pad = ime.bottom;
-            if (pad > 0) {
-                int displayH = v.getResources().getDisplayMetrics().heightPixels;
-                int windowH = v.getRootView().getHeight();
-                // Edge-to-edge means the window spans the display when no IME
-                // is up, so any shortfall here is the resize itself.
-                int alreadyTaken = Math.max(0, displayH - windowH);
-                pad = Math.max(0, pad - alreadyTaken);
-            }
-            v.setPadding(0, 0, 0, pad);
+            final int imeBottom = ime.bottom;
+            v.post(() -> {
+                int rootH = v.getRootView().getHeight();
+                int pad = 0;
+                if (imeBottom <= 0) {
+                    // No keyboard: this IS the baseline the next open compares
+                    // against, and the padding must be gone.
+                    noImeWindowHeight = rootH;
+                } else {
+                    // Whatever height the window lost since the baseline is
+                    // keyboard the system already handled; pay the remainder.
+                    // A zero baseline (keyboard already up at first dispatch)
+                    // degrades to paying the full inset — the pre-vc17
+                    // behaviour, for one keyboard cycle at worst.
+                    int alreadyTaken = noImeWindowHeight > 0
+                            ? Math.max(0, noImeWindowHeight - rootH)
+                            : 0;
+                    pad = Math.max(0, imeBottom - alreadyTaken);
+                }
+                if (v.getPaddingBottom() != pad) v.setPadding(0, 0, 0, pad);
+            });
             // NOT CONSUMED — the WebView needs these to populate env().
             return insets;
         });
