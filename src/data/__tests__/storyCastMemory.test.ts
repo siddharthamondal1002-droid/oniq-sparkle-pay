@@ -38,9 +38,9 @@ const expected: StoryCastMember[] = STORY_CHARACTER_REFS.map((c) => {
   const frame = STORY_STYLE_REFS.find((r) => r.id === c.styleRefId);
   if (!frame) throw new Error(`${c.region}: styleRefId "${c.styleRefId}" resolves to nothing`);
   row.frame = frame.url;
-  // Scenes are look references and may be attached. Character sheets carry
-  // several views on one canvas; a model handed one paints the sheet.
-  row.attachable = frame.kind === "scene";
+  // Mirrors StoryStyleRef's literal `false` — NOT derived from kind. Every
+  // frame here is 2D, and only a 3D sheet may ever be attached.
+  row.attachable = false;
   return row;
 });
 
@@ -56,16 +56,16 @@ describe("the generator's cast mirror", () => {
     expect([...STORY_CAST]).toEqual(expected);
   });
 
-  it("never marks a character SHEET attachable", () => {
-    // The ep3/ep4 runbook rule, restated where it can break: sheets are human
-    // direction. If one is ever attached to a generation the shot comes back
-    // as a contact sheet of expressions instead of a frame.
-    const sheetIds = new Set(STORY_STYLE_REFS.filter((r) => r.kind === "sheet").map((r) => r.url));
+  it("marks NOTHING attachable — the whole library is 2D", () => {
+    // First cut of this mirror derived `attachable` from kind and so marked 28
+    // hand-painted scenes attachable. StoryStyleRef types the field as the
+    // literal `false` for a reason: the ep3/ep4 runbook lets only 3D sheets
+    // reach a generation as an attachment, and none of these are 3D. A model
+    // handed a 2D frame paints that frame instead of the shot.
     for (const c of STORY_CAST) {
-      if (c.frame && sheetIds.has(c.frame)) {
-        expect(c.attachable, `${c.region} is a sheet and must not be attachable`).toBe(false);
-      }
+      if (c.frame) expect(c.attachable, `${c.region} must not be attachable`).toBe(false);
     }
+    expect(STORY_STYLE_REFS.every((r) => r.attachable === false)).toBe(true);
   });
 
   it("every frame URL points at a pointer that exists on disk", () => {

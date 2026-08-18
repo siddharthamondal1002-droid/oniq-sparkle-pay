@@ -78,6 +78,39 @@ import bavarianOrnamentPainter from "@/assets/story-style/bavarian-ornament-pain
 import irishPubFiddler from "@/assets/story-style/irish-pub-fiddler.png.asset.json";
 import icelandicShepherd from "@/assets/story-style/icelandic-shepherd.png.asset.json";
 
+// Sixth, seventh and eighth batches, uploaded 2026-08-18: the 30 characters
+// the manifest described but had no picture for.
+import dragonTamerCloud from "@/assets/story-style/dragon-tamer-cloud.jpg.asset.json";
+import jacmelSkippingGirl from "@/assets/story-style/jacmel-skipping-girl.jpg.asset.json";
+import atitlanMaizeBoy from "@/assets/story-style/atitlan-maize-boy.jpg.asset.json";
+import gunaYalaMolaSheet from "@/assets/story-style/guna-yala-mola-sheet.jpg.asset.json";
+import nordicRuneWizard from "@/assets/story-style/nordic-rune-wizard.jpg.asset.json";
+import marrakechSpiceMerchant from "@/assets/story-style/marrakech-spice-merchant.jpg.asset.json";
+import havanaBalconyMusician from "@/assets/story-style/havana-balcony-musician.jpg.asset.json";
+import sevilleFlamencoDancer from "@/assets/story-style/seville-flamenco-dancer.jpg.asset.json";
+import navajoHealerHogan from "@/assets/story-style/navajo-healer-hogan.jpg.asset.json";
+import madangHoopBoy from "@/assets/story-style/madang-hoop-boy.jpg.asset.json";
+import chennaiBharatanatyam from "@/assets/story-style/chennai-bharatanatyam.jpg.asset.json";
+import igluStorytellingGrandmother from "@/assets/story-style/iglu-storytelling-grandmother.jpg.asset.json";
+import ironForgedGuardian from "@/assets/story-style/iron-forged-guardian.jpg.asset.json";
+import polynesianWaveCaller from "@/assets/story-style/polynesian-wave-caller.jpg.asset.json";
+import kumasiKenteWeaver from "@/assets/story-style/kumasi-kente-weaver.jpg.asset.json";
+import nazareNetMender from "@/assets/story-style/nazare-net-mender.jpg.asset.json";
+import brassAstrolabeArtifact from "@/assets/story-style/brass-astrolabe-artifact.jpg.asset.json";
+import salvadorSambaDancer from "@/assets/story-style/salvador-samba-dancer.jpg.asset.json";
+import waraoHammockWeaverSheet from "@/assets/story-style/warao-hammock-weaver-sheet.jpg.asset.json";
+import lisseTulipFarmer from "@/assets/story-style/lisse-tulip-farmer.jpg.asset.json";
+import copenhagenPastryBaker from "@/assets/story-style/copenhagen-pastry-baker.jpg.asset.json";
+import zonaCafeteraCoffeePicker from "@/assets/story-style/zona-cafetera-coffee-picker.jpg.asset.json";
+import celestialLibrarian from "@/assets/story-style/celestial-librarian.jpg.asset.json";
+import hiloTikiCarver from "@/assets/story-style/hilo-tiki-carver.jpg.asset.json";
+import salzburgWoodcutter from "@/assets/story-style/salzburg-woodcutter.jpg.asset.json";
+import zanzibarCloveHarvester from "@/assets/story-style/zanzibar-clove-harvester.jpg.asset.json";
+import iquitosShamanHealer from "@/assets/story-style/iquitos-shaman-healer.jpg.asset.json";
+import svanetiPolyphonicSinger from "@/assets/story-style/svaneti-polyphonic-singer.jpg.asset.json";
+import paroArcheryContest from "@/assets/story-style/paro-archery-contest.jpg.asset.json";
+import slavicFirebirdKeeper from "@/assets/story-style/slavic-firebird-keeper.jpg.asset.json";
+
 export type StoryStyleRef = {
   id: string;
   kind: "scene" | "sheet";
@@ -535,6 +568,246 @@ export const STORY_STYLE_REFS: StoryStyleRef[] = [
     title: "Shepherd beside a steaming geothermal pool at midnight sun",
     note: "Pale lilac-and-gold low sun, steam volumes, turf-roofed houses; muted high-latitude palette.",
     url: icelandicShepherd.url,
+    attachable: false,
+  },
+  {
+    id: "dragon-tamer-cloud",
+    kind: "scene",
+    title: "Dragon-tamer girl reaching for a cloud-dragon",
+    note: "Creature reference: soft cloud-form anatomy against warm sky, child scale held small.",
+    url: dragonTamerCloud.url,
+    attachable: false,
+  },
+  {
+    id: "jacmel-skipping-girl",
+    kind: "scene",
+    title: "Girl skipping rope in a Jacmel schoolyard",
+    note: "Motion reference: rope arc and skirt swing, saturated Caribbean pastels in flat midday sun.",
+    url: jacmelSkippingGirl.url,
+    attachable: false,
+  },
+  {
+    id: "atitlan-maize-boy",
+    kind: "scene",
+    title: "Maya boy carrying maize beside Lake Atitlan",
+    note: "Volcano-and-lake depth staging; hand-woven stripe detail kept legible at small figure scale.",
+    url: atitlanMaizeBoy.url,
+    attachable: false,
+  },
+  {
+    id: "guna-yala-mola-sheet",
+    kind: "sheet",
+    title: "Guna Yala mola maker (annotated sheet)",
+    note: "2D character sheet — layered mola applique, beaded winis on arms and legs. Direction only.",
+    url: gunaYalaMolaSheet.url,
+    attachable: false,
+  },
+  {
+    id: "nordic-rune-wizard",
+    kind: "scene",
+    title: "Rune-wizard before a glacier ice palace",
+    note: "Cold magic reference: aurora and rune-glow as the only warm light against blue ice.",
+    url: nordicRuneWizard.url,
+    attachable: false,
+  },
+  {
+    id: "marrakech-spice-merchant",
+    kind: "scene",
+    title: "Spice merchant at a Marrakech stall",
+    note: "Colour-mass reference: cones of pigment powder as the saturation anchor in a dim souk.",
+    url: marrakechSpiceMerchant.url,
+    attachable: false,
+  },
+  {
+    id: "havana-balcony-musician",
+    kind: "scene",
+    title: "Elderly guitarist on a Havana balcony",
+    note: "Weathered-paint texture and wrought iron; late warm sun raking a lined face.",
+    url: havanaBalconyMusician.url,
+    attachable: false,
+  },
+  {
+    id: "seville-flamenco-dancer",
+    kind: "scene",
+    title: "Flamenco dancer mid-spin in a Seville courtyard",
+    note: "Fabric-in-motion reference: ruffle sweep held sharp, string lights as warm bokeh.",
+    url: sevilleFlamencoDancer.url,
+    attachable: false,
+  },
+  {
+    id: "navajo-healer-hogan",
+    kind: "scene",
+    title: "Navajo healer grinding herbs outside a hogan",
+    note: "High-desert palette: red rock, sage green, turquoise accent; low sun and long shadow.",
+    url: navajoHealerHogan.url,
+    attachable: false,
+  },
+  {
+    id: "madang-hoop-boy",
+    kind: "scene",
+    title: "Boy running with a hoop on a jungle-fringed beach",
+    note: "Joy-in-motion reference: running pose, wet sand reflection, dense green backdrop.",
+    url: madangHoopBoy.url,
+    attachable: false,
+  },
+  {
+    id: "chennai-bharatanatyam",
+    kind: "scene",
+    title: "Bharatanatyam dancer mid-pose on a temple stage",
+    note: "Costume-and-gesture reference: silk pleat fan, temple jewellery, oil-lamp warmth.",
+    url: chennaiBharatanatyam.url,
+    attachable: false,
+  },
+  {
+    id: "iglu-storytelling-grandmother",
+    kind: "scene",
+    title: "Grandmother telling a story inside an iglu",
+    note: "Interior-of-ice reference: lamp warmth through blue snow blocks, listening faces in a ring.",
+    url: igluStorytellingGrandmother.url,
+    attachable: false,
+  },
+  {
+    id: "iron-forged-guardian",
+    kind: "scene",
+    title: "Iron-forged guardian spirit in a sacred grove",
+    note: "Hot-metal-as-light reference: lava seams in dark iron, carved posts receding into green dark.",
+    url: ironForgedGuardian.url,
+    attachable: false,
+  },
+  {
+    id: "polynesian-wave-caller",
+    kind: "scene",
+    title: "Wave-caller commanding a spirit-shark wave",
+    note: "Water-magic reference: the shark form read from the wave itself, spray and glow as one mass.",
+    url: polynesianWaveCaller.url,
+    attachable: false,
+  },
+  {
+    id: "kumasi-kente-weaver",
+    kind: "scene",
+    title: "Kente weaver at a narrow-strip loom",
+    note: "Pattern-density reference: woven strip detail held sharp against a soft thatched courtyard.",
+    url: kumasiKenteWeaver.url,
+    attachable: false,
+  },
+  {
+    id: "nazare-net-mender",
+    kind: "scene",
+    title: "Net mender on a Nazare doorstep",
+    note: "Azulejo blue against black widow's dress; cold Atlantic haze, fine net linework.",
+    url: nazareNetMender.url,
+    attachable: false,
+  },
+  {
+    id: "brass-astrolabe-artifact",
+    kind: "scene",
+    title: "Glowing brass astrolabe on a scholar's desk",
+    note: "OBJECT reference, no character: engraved brass, warm glow, shallow depth on a dark desk.",
+    url: brassAstrolabeArtifact.url,
+    attachable: false,
+  },
+  {
+    id: "salvador-samba-dancer",
+    kind: "scene",
+    title: "Carnival samba dancer in a Salvador street",
+    note: "Highest-energy reference in the set: feather mass, sequin specular, crowd kept loose.",
+    url: salvadorSambaDancer.url,
+    attachable: false,
+  },
+  {
+    id: "warao-hammock-weaver-sheet",
+    kind: "sheet",
+    title: "Warao hammock weaver (annotated sheet)",
+    note: "2D character sheet — woven palm skirt, beaded necklaces, side and back turnaround. Direction only.",
+    url: waraoHammockWeaverSheet.url,
+    attachable: false,
+  },
+  {
+    id: "lisse-tulip-farmer",
+    kind: "scene",
+    title: "Tulip farmer walking the fields at dawn",
+    note: "Colour-field reference: banded rows to the horizon, pale dawn sky, windmill for scale.",
+    url: lisseTulipFarmer.url,
+    attachable: false,
+  },
+  {
+    id: "copenhagen-pastry-baker",
+    kind: "scene",
+    title: "Baker at a Copenhagen shop window in snow",
+    note: "Warm-interior-vs-cold-street rule again: lamplit flour dust against snowy pastel facades.",
+    url: copenhagenPastryBaker.url,
+    attachable: false,
+  },
+  {
+    id: "zona-cafetera-coffee-picker",
+    kind: "scene",
+    title: "Coffee picker in the Zona Cafetera",
+    note: "Green-on-green depth: wax palms behind, red cherries as the only saturated note.",
+    url: zonaCafeteraCoffeePicker.url,
+    attachable: false,
+  },
+  {
+    id: "celestial-librarian",
+    kind: "scene",
+    title: "Celestial librarian among glowing scrolls",
+    note: "Scale-and-awe reference: galaxies through a dome, gold scroll-glow, figure held small.",
+    url: celestialLibrarian.url,
+    attachable: false,
+  },
+  {
+    id: "hilo-tiki-carver",
+    kind: "scene",
+    title: "Carver shaping a tiki figure at Hilo",
+    note: "Carving-in-progress reference: chips mid-air, black sand and turquoise water behind.",
+    url: hiloTikiCarver.url,
+    attachable: false,
+  },
+  {
+    id: "salzburg-woodcutter",
+    kind: "scene",
+    title: "Woodcutter splitting logs outside an alpine cabin",
+    note: "High-key snow with hard blue shadow; axe-strike moment and carved balcony detail.",
+    url: salzburgWoodcutter.url,
+    attachable: false,
+  },
+  {
+    id: "zanzibar-clove-harvester",
+    kind: "scene",
+    title: "Clove harvester on a Zanzibar plantation",
+    note: "Dappled-canopy reference: kanga geometry as the colour anchor, dhow sail on the horizon.",
+    url: zanzibarCloveHarvester.url,
+    attachable: false,
+  },
+  {
+    id: "iquitos-shaman-healer",
+    kind: "scene",
+    title: "Shaman-healer arranging medicinal plants, Iquitos",
+    note: "PHOTOREAL OUTLIER — this frame is a photograph-grade render and does NOT hold the hand-painted house style. Kept for costume and plant reference only; never cite it for LOOK.",
+    url: iquitosShamanHealer.url,
+    attachable: false,
+  },
+  {
+    id: "svaneti-polyphonic-singer",
+    kind: "scene",
+    title: "Polyphonic singer at a Svaneti feast",
+    note: "Candle-warm faces against cold dusk towers; embroidered chokha braid kept legible.",
+    url: svanetiPolyphonicSinger.url,
+    attachable: false,
+  },
+  {
+    id: "paro-archery-contest",
+    kind: "scene",
+    title: "Archer drawing a bamboo bow at Paro",
+    note: "Draw-tension reference: bow curve and string line, dzong woodwork and blossom behind.",
+    url: paroArcheryContest.url,
+    attachable: false,
+  },
+  {
+    id: "slavic-firebird-keeper",
+    kind: "scene",
+    title: "Firebird keeper cradling a glowing chick",
+    note: "Single-source magic light: the bird IS the lamp, cool birch dark everywhere else.",
+    url: slavicFirebirdKeeper.url,
     attachable: false,
   },
 ];

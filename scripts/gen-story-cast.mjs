@@ -43,7 +43,12 @@ for (let m; (m = castRe.exec(chars)); ) {
       fs.readFileSync(`src/assets/story-style/${varToFile[frame.varName]}`, "utf8"),
     );
     row.frame = pointer.url;
-    row.attachable = frame.kind === "scene";
+    // NOT derived from kind. StoryStyleRef types `attachable` as the literal
+    // `false`: every frame in this library is 2D, and the ep3/ep4 runbook allows
+    // only 3D sheets to be attached to a generation. Deriving it from kind marked
+    // 28 hand-painted scenes attachable, which is exactly the mistake the rule
+    // exists to prevent. It stays false until a 3D frame is uploaded.
+    row.attachable = false;
   }
   cast.push(row);
 }
