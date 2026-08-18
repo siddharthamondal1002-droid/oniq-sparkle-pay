@@ -63,6 +63,7 @@ import { verifyJobToken } from "../_shared/jobToken.ts";
 import { MOVIE_RULES, MAX_DIALOGUE_WORDS } from "../_shared/movieGrammar.ts";
 import { paletteFor } from "../_shared/cinemaLexicon.ts";
 import { styleBlockFor } from "../_shared/directorStyles.ts";
+import { castBlock } from "../_shared/storyCast.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -225,6 +226,13 @@ Deno.serve(async (req) => {
     const styleKey = typeof body?.style === "string" ? body.style : "";
     const styleText = styleKey ? styleBlockFor(styleKey) : "";
     const styleBlock = styleText ? `\n\n${styleText}` : "";
+    // ONIQ's own house cast — the 74-entry manifest, 37 of whom already have a
+    // hand-painted frame in the repo. Offered ONLY when the user brought no
+    // recurring characters of their own: two "cast these people" blocks in one
+    // prompt argue with each other, and the user's own library wins that
+    // argument every time. Empty string when nothing in the manifest matches.
+    const houseCast = reuse.length > 0 ? "" : castBlock(prompt);
+    const houseCastBlock = houseCast ? `\n\n${houseCast}` : "";
 
     if (!prompt) return json({ error: "Tell me what happens in your story." }, 400);
     if (prompt.length > MAX_PROMPT) return json({ error: "That prompt is too long." }, 400);
@@ -316,7 +324,7 @@ Deno.serve(async (req) => {
         {
           role: "user" as const,
           content:
-            `Write a ${shots}-shot film from this idea:\n\n${prompt}${verbatimBlock}${reuseBlock}${styleBlock}${paletteBlock}\n\n` +
+            `Write a ${shots}-shot film from this idea:\n\n${prompt}${verbatimBlock}${reuseBlock}${houseCastBlock}${styleBlock}${paletteBlock}\n\n` +
             `Return exactly ${shots} shots.`,
         },
       ],
@@ -394,7 +402,7 @@ Deno.serve(async (req) => {
           {
             role: "user" as const,
             content:
-              `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}${styleBlock}\n\n` +
+              `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}${houseCastBlock}${styleBlock}\n\n` +
               `Return exactly ${shots} beats.`,
           },
         ],
