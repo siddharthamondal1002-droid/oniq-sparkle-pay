@@ -1851,7 +1851,7 @@ function ChatThread() {
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="truncate text-[16px] font-semibold leading-tight text-foreground">
+            <div className="truncate text-[17px] font-semibold leading-tight text-foreground">
               {isChannel ? `📢 ${title}` : title}
             </div>
             <div className="text-xs text-white/90">
@@ -2219,14 +2219,17 @@ function ChatThread() {
               const groupGap = firstOfGroup ? "mt-2.5" : "mt-[2px]";
               const prev = windowedRows[idx - 1];
               const isFirstAfterBreak = firstOfGroup || (prev && prev.kind !== "msg");
-              // 18px everywhere; the two corners FACING a neighbour in the same
-              // group collapse to 6px. That is what makes grouping read without
-              // drawing tails (Signal/Telegram's rule).
+              // 20px everywhere; the two corners FACING a neighbour in the same
+              // group collapse to 7px. That is what makes grouping read without
+              // drawing tails (Signal/Telegram's rule). The pair moved up from
+              // 18/6 on 2026-08-18 to sit with the roomier padding and the
+              // 16px body — a radius has to grow with the box it rounds or the
+              // bubble reads tighter than it is.
               const bubbleRadius = [
-                "rounded-[18px]",
+                "rounded-[20px]",
                 mine
-                  ? `${isFirstAfterBreak ? "" : "rounded-tr-[6px]"} ${lastOfGroup ? "" : "rounded-br-[6px]"}`
-                  : `${isFirstAfterBreak ? "" : "rounded-tl-[6px]"} ${lastOfGroup ? "" : "rounded-bl-[6px]"}`,
+                  ? `${isFirstAfterBreak ? "" : "rounded-tr-[7px]"} ${lastOfGroup ? "" : "rounded-br-[7px]"}`
+                  : `${isFirstAfterBreak ? "" : "rounded-tl-[7px]"} ${lastOfGroup ? "" : "rounded-bl-[7px]"}`,
               ].join(" ");
               const isRead =
                 mine && peerReadAt && m.created_at
@@ -2241,7 +2244,7 @@ function ChatThread() {
                     className={`flex ${mine ? "justify-end" : "justify-start"} ${groupGap}`}
                   >
                     <div
-                      className={`max-w-[min(80%,26rem)] px-3 py-2 text-[15px] italic leading-[21px] text-muted-foreground shadow-[0_1px_1px_rgba(0,0,0,0.28),0_1px_3px_rgba(0,0,0,0.22)] ${bubbleRadius} ${doodle ? "border border-black/5 bg-white/70 text-black/50" : mine ? "border border-white/10 bg-[#0d6e58]/40" : "border border-border bg-surface-2"}`}
+                      className={`max-w-[min(80%,26rem)] px-3.5 py-2.5 text-[16px] italic leading-[23px] text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.16)] ${bubbleRadius} ${doodle ? "border border-black/5 bg-white/70 text-black/50" : mine ? "border border-white/10 bg-[#0d6e58]/40" : "border border-border bg-surface-2"}`}
                     >
                       <div className="flex items-center gap-1.5">
                         <Trash2 className="h-3.5 w-3.5" />
@@ -2288,14 +2291,20 @@ function ChatThread() {
                       e.preventDefault();
                       setMenuFor(m);
                     }}
-                    className={`group relative max-w-[min(80%,26rem)] flow-root text-[15px] leading-[21px] ${
+                    className={`group relative max-w-[min(80%,26rem)] flow-root text-[16px] leading-[23px] ${
                       m.type === "sticker"
                         ? /* Stickers wear no bubble — the glyph IS the message. */
                           "bg-transparent p-0.5 shadow-none"
-                        : `shadow-[0_1px_1px_rgba(0,0,0,0.28),0_1px_3px_rgba(0,0,0,0.22)] ${
+                        : /* ONE SOFT SHADOW, NOT TWO STACKED ONES. The pair
+                             below this was doing a job the border already
+                             does; two shadows on a light bubble over patterned
+                             paper reads as grime around the edge rather than
+                             lift. Asked for 2026-08-18 against a reference
+                             whose surfaces are flat and let type do the work. */
+                          `shadow-[0_1px_2px_rgba(0,0,0,0.16)] ${
                             (m.type === "image" || m.type === "video") && m.media_url
                               ? "p-1"
-                              : "px-3 py-2"
+                              : "px-3.5 py-2.5"
                           } ${bubbleRadius} ${
                             doodle
                               ? mine
@@ -2619,7 +2628,7 @@ function ChatThread() {
         )}
         {peerTyping && (
           <div className="mt-2 flex justify-start">
-            <div className="rounded-[18px] rounded-tl-[6px] border border-border bg-surface-2 px-3 py-2.5 text-xs text-muted-foreground shadow-[0_1px_1px_rgba(0,0,0,0.28),0_1px_3px_rgba(0,0,0,0.22)]">
+            <div className="rounded-[20px] rounded-tl-[7px] border border-border bg-surface-2 px-3.5 py-2.5 text-xs text-muted-foreground shadow-[0_1px_2px_rgba(0,0,0,0.16)]">
               <span className="inline-flex gap-1">
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground" />
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground [animation-delay:150ms]" />
@@ -3136,7 +3145,13 @@ function ChatThread() {
                     }}
                   />
                 </div>
-                <div className="relative flex flex-1 items-center gap-2 rounded-full border border-border bg-input/40 pl-3 pr-2">
+                {/* A ROUNDED CARD, NOT A PILL. Asked for 2026-08-18 against a
+                    reference whose composer is a squared-off rounded rectangle
+                    with a visible edge. A full pill (rounded-full) collapses
+                    to a lozenge the moment the field is one line tall, which
+                    is most of the time; 22px keeps a readable rectangle at one
+                    line and still looks intentional at three. */}
+                <div className="relative flex flex-1 items-center gap-2 rounded-[22px] border border-border bg-input/40 pl-4 pr-2">
                   <button
                     type="button"
                     aria-label="Emoji"
@@ -3240,7 +3255,7 @@ function ChatThread() {
                           : "Message"
                     }
                     disabled={isBlocked}
-                    className="flex-1 bg-transparent py-2.5 text-sm placeholder:text-muted-foreground focus:outline-none disabled:opacity-60"
+                    className="flex-1 bg-transparent py-3 text-[15px] placeholder:text-muted-foreground/70 focus:outline-none disabled:opacity-60"
                   />
                 </div>
                 {text.trim() ? (
