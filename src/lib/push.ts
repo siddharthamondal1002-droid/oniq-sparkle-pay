@@ -9,6 +9,7 @@
 // nothing had failed: there was simply nowhere to send.
 import { supabase } from "@/integrations/supabase/client";
 import { subscribeWebPush, unsubscribeWebPush } from "@/lib/webPush";
+import { reportClientError } from "@/lib/errorReport";
 
 export type PushKind = "message" | "call" | "call_cancel";
 
@@ -19,9 +20,54 @@ export function sendPush(payload: {
   call_type?: string;
   call_id?: string;
 }) {
-  // Fire-and-forget — never block UI, never throw.
+  // Fire-and-forget — never block UI, never throw. But NOT silent any more.
+  //
+  // WHY THIS GREW A REPORTING ARM, 2026-08-18. "No notification coming" was
+  // reported and took four rounds to even localise, because every layer that
+  // could have said something was mute:
+  //
+  //   this function swallowed the invoke's error with `.catch(() => {})`, so
+  //   a dead call looked exactly like a delivered one;
+  //   the edge platform's request logging was capturing nothing project-wide,
+  //   so "zero invocations in 24h" could not be trusted either way;
+  //   send-push's own {sent:0,failed:0} is a 200, which the comment inside it
+  //   already admits is indistinguishable from a delivery.
+  //
+  // Three mute layers is how 87 unreachable accounts went unnoticed until
+  // someone read the call logs by hand. A direct FCM probe proved the whole
+  // transport — credentials, project, token, channel, Android's display —
+  // works, which means the fault is on this side of the wire and the only
+  // thing missing was a witness.
+  //
+  // client_error_reports is that witness: admin-only to read, already wired,
+  // and reachable from here. Failures only — a working send writes nothing.
   try {
-    void supabase.functions.invoke("send-push", { body: payload }).catch(() => {});
+    void supabase.functions
+      .invoke("send-push", { body: payload })
+      .then(({ data, error }) => {
+        if (error) {
+          reportClientError("send-push", `invoke failed: ${error.message}`, {
+            kind: payload.kind,
+          });
+          return;
+        }
+        // invoke() resolves rather than rejects on a non-2xx, so the function's
+        // own refusal arrives as data, not as error.
+        const d = data as { sent?: number; failed?: number; error?: string } | null;
+        if (d?.error) {
+          reportClientError("send-push", `refused: ${d.error}`, { kind: payload.kind });
+        } else if ((d?.sent ?? 0) === 0) {
+          // The honest-but-useless 200. Nothing failed; nothing arrived either.
+          reportClientError("send-push", "accepted but sent 0", {
+            kind: payload.kind,
+            sent: d?.sent ?? null,
+            failed: d?.failed ?? null,
+          });
+        }
+      })
+      .catch((e: unknown) => {
+        reportClientError("send-push", "invoke threw", String(e));
+      });
   } catch {
     // ignore
   }

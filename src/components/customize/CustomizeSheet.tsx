@@ -375,10 +375,29 @@ function CustomizeSheet({ onClose }: { onClose: () => void }) {
   );
 }
 
+/**
+ * The feed tabs a user can switch off, and the ONLY place they can switch one
+ * back on.
+ *
+ * WATCH WAS MISSING FROM THIS LIST AND IT COST A FEATURE. Reported 2026-08-18
+ * as "watch problem": the WATCH tab and the ALSO IN ONIQ chip were both gone.
+ * Not the country gate — EARN was still on screen and it is gated to ["IN"] by
+ * the same registry call, which pins the country to IN and proves the gate was
+ * passing. What had happened is that `watch` sat in the TILE SKINS list below,
+ * whose rows each carry an eye toggle writing the same hidden-tiles key. One
+ * tap there removed a feed TAB, and the section actually titled "Show / hide
+ * feed tiles" — the one place anybody would look to undo that — did not list
+ * Watch at all.
+ *
+ * So the state was reachable in one tap and escapable in none. `watch` is a
+ * BANNER_MODE in app.index.tsx exactly like the three above it; the omission
+ * here was the whole bug.
+ */
 const HERO_TOGGLES: { key: TileKey; label: string }[] = [
   { key: "study", label: "Study feed 📚" },
   { key: "moments", label: "Moments feed ✨" },
   { key: "mast", label: "Mast feed 🎬" },
+  { key: "watch", label: "Watch feed 📺" },
   { key: "clips", label: "brainrot hero 🎬" },
 ];
 
