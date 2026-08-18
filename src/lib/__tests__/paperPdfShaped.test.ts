@@ -185,23 +185,33 @@ describe("a Hindi paper produces a real PDF", () => {
   });
 });
 
-describe("the HTML fallback is gone", () => {
-  it("Study no longer routes complex scripts away from the PDF path", () => {
+describe("the HTML fallback is scoped to scripts the font cannot draw", () => {
+  it("Devanagari goes down the shaped PDF path, not to HTML", () => {
     const study = readFileSync(
       join(process.cwd(), "src/routes/_authenticated/app.study.tsx"),
       "utf8",
     );
-    // The download path must choose an exporter, not divert to HTML.
     expect(study).toMatch(/exportShapedPaperPdf/);
     expect(study).toMatch(/exporter = hasNonLatin/);
-    // exportPaperHtml still exists for the explicit "open in browser" action,
-    // which is a different, user-chosen thing. What must not come back is a
-    // silent diversion inside the PDF download.
+    // The renderer embeds Noto Sans Devanagari and nothing else, so the
+    // coverage test names that block explicitly.
+    expect(study).toMatch(/u0900-\\u097F/);
+  });
+
+  it("keeps HTML only for uncovered scripts — Tamil, Bengali, Arabic, CJK", () => {
+    const study = readFileSync(
+      join(process.cwd(), "src/routes/_authenticated/app.study.tsx"),
+      "utf8",
+    );
     const download = study.slice(
       study.indexOf("async function doDownloadPdf"),
       study.indexOf("async function doOpenInBrowser"),
     );
     expect(download.length).toBeGreaterThan(200);
-    expect(download, "the PDF download still falls back to HTML").not.toMatch(/exportPaperHtml/);
+    // The diversion must be conditional on coverage, never unconditional:
+    // a PDF of .notdef boxes is worse than a readable HTML paper, and a
+    // blanket fallback would take Hindi back to having no PDF at all.
+    expect(download).toMatch(/if \(hasNonLatin && !shapedCovers\)/);
+    expect(download).toMatch(/exportPaperHtml/);
   });
 });

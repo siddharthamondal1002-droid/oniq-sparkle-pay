@@ -421,6 +421,12 @@ Deno.serve(async (req) => {
    * that on the first send after any rotation, when every web row is stale.
    */
   const rotatedKeyEndpoints: string[] = [];
+  /**
+   * Rows the push service itself refused with a VAPID-mismatch 403. Stamped
+   * with that fact after the batch, never deleted — see the branch below.
+   */
+  const mismatchSubs: { endpoint: string; keys: { p256dh: string; auth: string } }[] = [];
+
   let webSent = 0;
   let webFailed = 0;
   /** How many rows were actually attempted — the circuit-breaker's denominator. */
@@ -517,11 +523,29 @@ Deno.serve(async (req) => {
           webFailed++;
           if (r.gone) {
             deadEndpoints.push(sub.endpoint);
+          } else if (r.vapidMismatch) {
+            // THE SERVICE SAID IT, WE DID NOT INFER IT.
+            //
+            // Legacy rows carry no recorded key, so the comparison above reads
+            // them as deliverable and they were retried on every single send —
+            // the same 403 forever, because 403 is not 404/410 and nothing ever
+            // marked them. This is the one 403 that is a permanent property of
+            // the address, and unlike our own key comparison it cannot be
+            // inverted by a warm isolate holding a rotated-out key: it is the
+            // push service reading the subscription it issued.
+            //
+            // Still not a delete. We stamp the row with the fact instead, which
+            // both stops the retry here (the stale filter now sees a recorded
+            // key that differs) and gives the CLIENT the evidence it repairs
+            // itself with — subscribeWebPush finds the mismatch on next start
+            // and does the unsubscribe → delete → re-subscribe properly.
+            mismatchSubs.push(sub);
           } else {
             // Status and the service's complaint only — the endpoint is a
             // capability URL and belongs in logs no more than a token does.
             console.error("web push failed", r.status, r.error);
           }
+
         }),
       );
     }
@@ -551,6 +575,30 @@ Deno.serve(async (req) => {
     await admin.from("device_tokens").delete().in("token", toDelete);
   }
 
+  // Record what the push service told us about each mismatched row, so neither
+  // side has to rediscover it: the stale filter skips it from now on, and the
+  // client sees a recorded key that is not the live one and re-subscribes.
+  // The sentinel is deliberately not a real key — it is never signed with, and
+  // it can only ever compare unequal to whatever the live key is.
+  if (mismatchSubs.length > 0) {
+    console.error(
+      `send-push: ${mismatchSubs.length} web subscriber(s) rejected by the push service for a VAPID mismatch — marked for re-subscribe`,
+    );
+    await Promise.all(
+      mismatchSubs.map((s) =>
+        admin
+          .from("device_tokens")
+          .update({
+            keys: { p256dh: s.keys.p256dh, auth: s.keys.auth, appServerKey: "vapid-mismatch" },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("token", s.endpoint),
+      ),
+    );
+  }
+
+
+
   return new Response(
     JSON.stringify({
       sent: sent + webSent,
@@ -564,6 +612,9 @@ Deno.serve(async (req) => {
         // Reported rather than hidden inside `failed`: a rotated-key row is a
         // known state with a known remedy, not an error to be investigated.
         rotatedKey: rotatedKeyEndpoints.length,
+        /** Rows the push service rejected for a key mismatch, now marked. */
+        vapidMismatch: mismatchSubs.length,
+
       },
     }),
     { headers: { ...corsHeaders, "content-type": "application/json" } },

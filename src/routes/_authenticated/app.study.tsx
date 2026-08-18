@@ -73,7 +73,18 @@ type Board =
   | "ap_board"
   | "telangana_board";
 type ClassLevel =
-  "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg" | "drop" | "aspirant";
+  | "5"
+  | "6"
+  | "7"
+  | "8"
+  | "9"
+  | "10"
+  | "11"
+  | "12"
+  | "ug"
+  | "pg"
+  | "drop"
+  | "aspirant";
 
 type LearnerProfile = {
   id: string;
@@ -3623,11 +3634,24 @@ function PaperModal({
     // anything is drawn. Until this landed the branch here saved an HTML
     // file, so no Hindi, Tamil or Urdu paper had ever exported as a PDF.
     const NON_LATIN = /[^\u0000-\u024F\u2000-\u206F\u20A0-\u20BF\u2190-\u22FF]/;
-    const hasNonLatin = qs.some(
-      (qq) =>
-        NON_LATIN.test(qq.question) ||
-        (qq.type === "mcq" ? qq.options.some((o: string) => NON_LATIN.test(o)) : false),
-    );
+    // WHAT THE EMBEDDED FONT CAN ACTUALLY DRAW, not "anything non-Latin".
+    //
+    // paperPdfShaped embeds ONE font, Noto Sans Devanagari. Sending Tamil,
+    // Bengali, Arabic/Urdu, Telugu, CJK or Thai through it does not produce a
+    // wrong-looking paper, it produces .notdef for every glyph — a page of
+    // empty boxes, which is worse than the HTML fallback those languages had
+    // before. Study offers all of those languages, so this is not theoretical.
+    const SHAPED_OK =
+      /^[\u0000-\u024F\u2000-\u206F\u20A0-\u20BF\u2190-\u22FF\u0900-\u097F\u200C\u200D\s]*$/;
+    const textOf = (qq: (typeof qs)[number]) =>
+      qq.question + (qq.type === "mcq" ? qq.options.join(" ") : "");
+    const allText = qs.map(textOf).join(" ");
+    const hasNonLatin = NON_LATIN.test(allText);
+    // Devanagari (plus Latin) is the only complex script this renderer covers;
+    // everything else keeps the HTML paper, which renders through the OS text
+    // stack and is at least readable.
+    const shapedCovers = SHAPED_OK.test(allText);
+
     setPdfError(null);
     setPdfBusy(true);
     setPdfProgress({ done: 0, total: qs.length });
@@ -3646,6 +3670,16 @@ function PaperModal({
             })),
         }))
         .filter((s) => s.items.length > 0);
+      // A script the embedded font cannot draw keeps the HTML paper, which the
+      // OS renders with its own fonts. A readable HTML file beats a PDF of
+      // empty boxes.
+      if (hasNonLatin && !shapedCovers) {
+        const { exportPaperHtml } = await import("@/lib/paperPdf");
+        const { filename } = await exportPaperHtml(buildPaperHtml(), subject);
+        setDownloadSheet(false);
+        toast.success(`saved ${filename} 📄 — open it to print`);
+        return;
+      }
       // Same structured input either way; only the renderer differs. The
       // shaped path is imported lazily so Latin papers never pay for pdf-lib,
       // fontkit or a 220 KB font.

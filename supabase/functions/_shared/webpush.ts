@@ -34,8 +34,16 @@ export type WebPushSubscription = {
 
 export type WebPushResult =
   | { ok: true; status: number }
-  /** `gone` means the subscription is dead and the row should be deleted. */
-  | { ok: false; status: number; gone: boolean; error: string };
+  /**
+   * `gone` means the subscription is dead and the row should be deleted.
+   *
+   * `vapidMismatch` is the push service telling us, in its own words, that
+   * this subscription was minted against a DIFFERENT application server key.
+   * That is evidence, not inference: it is the one 403 whose meaning is not
+   * "try again later" but "this address can never accept anything we sign".
+   */
+  | { ok: false; status: number; gone: boolean; vapidMismatch: boolean; error: string };
+
 
 // ---------------------------------------------------------------------------
 // base64url. The push API speaks it everywhere and never pads.
@@ -297,10 +305,17 @@ export async function sendWebPush(
     });
     if (res.ok) return { ok: true, status: res.status };
     const text = await res.text().catch(() => "");
+    // Every service words it differently — FCM's web endpoint says "the VAPID
+    // credentials ... do not correspond", Mozilla says VapidPkHashMismatch —
+    // so match on either, and only ever on a 403.
+    const vapidMismatch =
+      res.status === 403 &&
+      /vapid\s*(credentials|pk)|VapidPkHashMismatch|do not correspond/i.test(text);
     return {
       ok: false,
       status: res.status,
       gone: res.status === 404 || res.status === 410,
+      vapidMismatch,
       error: text.slice(0, 200),
     };
   } catch (e) {
@@ -308,7 +323,9 @@ export async function sendWebPush(
       ok: false,
       status: 0,
       gone: false,
+      vapidMismatch: false,
       error: e instanceof Error ? e.message : String(e),
     };
   }
 }
+
