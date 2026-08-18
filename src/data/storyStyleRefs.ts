@@ -38,6 +38,17 @@ import dinerCookNight from "@/assets/story-style/diner-cook-night.png.asset.json
 import oaxacanWeaverSheet from "@/assets/story-style/oaxacan-weaver-sheet.png.asset.json";
 import caribbeanFishMarket from "@/assets/story-style/caribbean-fish-market.png.asset.json";
 import himalayanClimber from "@/assets/story-style/himalayan-climber.png.asset.json";
+// Third batch, uploaded 2026-08-18.
+import welshBlacksmith from "@/assets/story-style/welsh-blacksmith.png.asset.json";
+import amazonCanoe from "@/assets/story-style/amazon-canoe.png.asset.json";
+import bolivianAymaraSheet from "@/assets/story-style/bolivian-aymara-sheet.png.asset.json";
+import mediterraneanBaker from "@/assets/story-style/mediterranean-baker.png.asset.json";
+import anatolianShepherd from "@/assets/story-style/anatolian-shepherd.png.asset.json";
+import singaporeHawker from "@/assets/story-style/singapore-hawker.png.asset.json";
+import khmerStoneCarver from "@/assets/story-style/khmer-stone-carver.png.asset.json";
+import baganAlmsRound from "@/assets/story-style/bagan-alms-round.png.asset.json";
+import kashmiriCarpetWeaver from "@/assets/story-style/kashmiri-carpet-weaver.png.asset.json";
+import siberianTrapper from "@/assets/story-style/siberian-trapper.png.asset.json";
 
 export type StoryStyleRef = {
   id: string;
