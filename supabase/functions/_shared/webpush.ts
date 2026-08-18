@@ -305,10 +305,17 @@ export async function sendWebPush(
     });
     if (res.ok) return { ok: true, status: res.status };
     const text = await res.text().catch(() => "");
+    // Every service words it differently — FCM's web endpoint says "the VAPID
+    // credentials ... do not correspond", Mozilla says VapidPkHashMismatch —
+    // so match on either, and only ever on a 403.
+    const vapidMismatch =
+      res.status === 403 &&
+      /vapid\s*(credentials|pk)|VapidPkHashMismatch|do not correspond/i.test(text);
     return {
       ok: false,
       status: res.status,
       gone: res.status === 404 || res.status === 410,
+      vapidMismatch,
       error: text.slice(0, 200),
     };
   } catch (e) {
@@ -316,7 +323,9 @@ export async function sendWebPush(
       ok: false,
       status: 0,
       gone: false,
+      vapidMismatch: false,
       error: e instanceof Error ? e.message : String(e),
     };
   }
 }
+
