@@ -887,7 +887,10 @@ function ChatThread() {
    * Publish --kb: how many pixels of the layout viewport the on-screen
    * keyboard is covering, and re-pin the scroller while the IME animates in.
    *
-   * ALSO PUBLISHES --vvh, WHICH IS WHAT THE COLUMN IS ACTUALLY SIZED BY.
+   * IT PUBLISHES NOTHING THE COLUMN'S HEIGHT READS. That is deliberate, and
+   * it is the third correction to this effect in two days — see the block on
+   * the column itself. The height comes from --app-vh and involves the
+   * keyboard nowhere; --kb below is for the composer's safe-area padding only.
    *
    * --kb used to be subtracted from 100dvh to get the column height, on the
    * reasoning that it "resolves to 0 wherever the platform already shrinks
@@ -901,10 +904,18 @@ function ChatThread() {
    * squeezed into a strip at the top with a dead band beneath the composer,
    * which is exactly that arithmetic made visible.
    *
-   * visualViewport.height needs no such reasoning. It is the space genuinely
-   * visible right now, whoever shrank it and however many of them did, so it
-   * cannot double-count by construction. --kb stays because the composer's
-   * safe-area padding still has to know whether the keyboard is up.
+   * The correction to THAT was to size the column by visualViewport.height,
+   * on the reasoning that it "is the space genuinely visible right now, so it
+   * cannot double-count by construction". That reasoning was wrong too, and
+   * wrong in the same direction: the platform had already resized the layout
+   * viewport, and visualViewport then reported the space left after the
+   * keyboard ON TOP of that. Same picture, same cause, second disguise.
+   *
+   * What both attempts missed is that there was nothing here to fix. The
+   * keyboard is handled entirely by the platform — MainActivity's IME padding
+   * on native, interactive-widget=resizes-content on web — so the correct
+   * amount for this file to subtract is zero. --kb stays only because the
+   * composer's safe-area padding has to know whether the keyboard is up.
    *
    * Both listeners are required: iOS often moves offsetTop and fires `scroll`
    * without ever firing `resize`. scrollTop is assigned directly rather than
@@ -923,10 +934,11 @@ function ChatThread() {
       const zoomed = vv.scale > 1.01;
       const inset = zoomed ? 0 : Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
       document.documentElement.style.setProperty("--kb", `${inset}px`);
-      // Zoomed, vv.height is the magnified window and says nothing about the
-      // layout, so the column falls back to the CSS default of 100dvh.
-      if (zoomed) document.documentElement.style.removeProperty("--vvh");
-      else document.documentElement.style.setProperty("--vvh", `${vv.height}px`);
+      // --vvh IS GONE ON PURPOSE. It used to be published here and used as the
+      // chat column's height, which subtracted the keyboard a second time on
+      // top of the platform's own resize. Leaving a correct-looking variable
+      // lying around is how that mistake got made twice; the way to stop it a
+      // third time is for there to be nothing to reach for.
       const el = scrollRef.current;
       if (el && !zoomed && nearBottomRef.current) el.scrollTop = el.scrollHeight;
     };
@@ -953,7 +965,9 @@ function ChatThread() {
       cancelAnimationFrame(raf);
       if (ro) ro.disconnect();
       document.documentElement.style.removeProperty("--kb");
-      document.documentElement.style.removeProperty("--vvh");
+      // --vvh is no longer published, so there is nothing to clean up. Kept as
+      // a note rather than a stray removeProperty for a name that no longer
+      // exists anywhere in the file.
       document.documentElement.style.removeProperty("--composer-h");
     };
   }, []);
@@ -1808,12 +1822,39 @@ function ChatThread() {
   return (
     <div
       className="relative flex flex-col"
-      // MINUS THE STATUS BAR, because this column lives inside the shell's
-      // <main>, which is padded by exactly that. --vvh is visualViewport
-      // height — the whole WebView, status bar included — so using it raw made
-      // the thread one status bar taller than the room it had and pushed the
-      // composer below the fold, with the page scrolling to compensate.
-      style={{ height: "calc(var(--vvh, 100dvh) - env(safe-area-inset-top))" }}
+      /*
+       * NO KEYBOARD ARITHMETIC HERE. NONE. THAT IS THE WHOLE FIX.
+       *
+       * This one line has been wrong three times in two days, each time by
+       * subtracting the keyboard a SECOND time in a different disguise:
+       *
+       *   calc(100dvh - var(--kb))   --kb is innerHeight - visualViewport.
+       *                              That IS the keyboard. Subtracted.
+       *   var(--vvh)                 visualViewport.height is what is left
+       *                              AFTER the keyboard. Subtracted again,
+       *                              just with no minus sign to give it away.
+       *
+       * Both drew the same picture, reported 2026-08-18: the thread squeezed
+       * to a strip under the header, the composer, then a dead band exactly
+       * one keyboard tall beneath it.
+       *
+       * Both were wrong because 100dvh HAS ALREADY LOST THE KEYBOARD before
+       * this file sees it, in BOTH environments, for two unrelated reasons:
+       *
+       *   native  MainActivity pads the content view by the IME inset
+       *           (`v.setPadding(0, 0, 0, ime.bottom)`), so the WebView is
+       *           physically shorter while the keyboard is up.
+       *   web     __root.tsx sets `interactive-widget=resizes-content`, so
+       *           the browser shrinks the layout viewport itself.
+       *
+       * Exactly one layer may subtract the keyboard, and in both cases that
+       * layer is the platform. So the column takes --app-vh — the viewport
+       * less the status-bar inset the shell pads with — and does no keyboard
+       * maths of its own. --kb stays published because the composer's
+       * safe-area padding still needs to know the keyboard is up; it is
+       * simply never allowed near this height again.
+       */
+      style={{ height: "var(--app-vh, 100dvh)" }}
     >
       {/* relative z-40: backdrop-blur makes the header its own stacking
           context at z-auto, which let animated message bubbles paint OVER the

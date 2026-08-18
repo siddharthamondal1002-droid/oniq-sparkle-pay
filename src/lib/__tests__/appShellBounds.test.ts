@@ -104,11 +104,12 @@ describe("min-h-screen and h-screen mean the shell, not the window", () => {
 });
 
 describe("screens that set their own height still fit", () => {
-  it("the chat thread takes the status bar off visualViewport height", () => {
-    // --vvh is the whole WebView, status bar included. The column lives inside
-    // <main>, which is padded by exactly that inset, so using --vvh raw made
-    // the thread one status bar too tall and pushed the composer off-screen.
-    expect(CHAT).toContain('height: "calc(var(--vvh, 100dvh) - env(safe-area-inset-top))"');
+  it("the chat thread uses --app-vh, with no keyboard term of its own", () => {
+    // It briefly used visualViewport height instead, which subtracted the
+    // keyboard a second time on top of the platform's own resize — the strip
+    // -and-dead-band bug, reported 2026-08-18. --app-vh is the shell's
+    // viewport-less-status-bar figure and involves the keyboard nowhere.
+    expect(CHAT).toContain('height: "var(--app-vh, 100dvh)"');
   });
 
   it("the two full-bleed video screens cancel the inset instead of overflowing", () => {

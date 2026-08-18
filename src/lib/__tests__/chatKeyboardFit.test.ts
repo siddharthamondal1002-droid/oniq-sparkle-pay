@@ -21,10 +21,25 @@
  *
  * Result: screen − keyboard − keyboard.
  *
- * visualViewport.height is immune to the whole argument. It is the space
- * visible right now, whoever shrank it and however many of them did, so it
- * cannot double-count by construction. These guards keep the column sized by
- * that and keep the arithmetic that produced the bug out.
+ * THE FIRST FIX WAS ALSO WRONG, and its justification is worth keeping as a
+ * warning. It read: "visualViewport.height is immune to the whole argument. It
+ * is the space visible right now, whoever shrank it and however many of them
+ * did, so it cannot double-count by construction."
+ *
+ * It double-counted. visualViewport.height is the space left AFTER the
+ * keyboard, so using it as the column height subtracts the keyboard just as
+ * surely as `- var(--kb)` did — only with no minus sign to give it away. The
+ * same strip-and-dead-band picture came back on 2026-08-18.
+ *
+ * What both attempts missed is that there was nothing here to fix. The
+ * keyboard is handled entirely by the platform, twice over and independently:
+ * MainActivity pads the content view by the IME inset on native, and
+ * `interactive-widget=resizes-content` shrinks the layout viewport on web. So
+ * the correct amount for the chat to subtract is ZERO, and the column takes
+ * --app-vh — the viewport less the status bar, no keyboard term at all.
+ *
+ * These guards keep it that way, and forbid any height that so much as
+ * mentions the keyboard, whatever the variable ends up being called.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -45,36 +60,50 @@ const CODE = CHAT.split("\n")
   .join("\n");
 
 describe("the chat column is sized by what is actually visible", () => {
-  it("takes its height from the visual viewport, less the status bar", () => {
-    // The inset term joined this later the same day, and it is a different
-    // correction from the one above: --vvh measures the WHOLE WebView, status
-    // bar included, while this column sits inside the shell's <main>, which is
-    // padded by exactly that inset. Without the subtraction the thread was one
-    // status bar taller than the room it had and the composer fell below the
-    // fold. Not a second helping of the keyboard bug — the keyboard is still
-    // subtracted exactly once, by visualViewport, as the next test checks.
-    expect(CODE, "the column is no longer sized by --vvh").toContain(
-      'height: "calc(var(--vvh, 100dvh) - env(safe-area-inset-top))"',
+  it("takes its height from the viewport, with no keyboard term at all", () => {
+    // THIRD AND FINAL SHAPE. --vvh was the second attempt and it was wrong the
+    // same way as the first: the platform had already resized the viewport for
+    // the keyboard, and visualViewport.height then reported what was left
+    // AFTER the keyboard on top of that. Reported 2026-08-18 as the same strip
+    // -and-dead-band picture as the original bug.
+    //
+    // The right amount for this file to subtract is zero. --app-vh is the
+    // shell's viewport-less-status-bar figure and contains no keyboard maths.
+    expect(CODE, "the column is no longer sized by --app-vh").toContain(
+      'height: "var(--app-vh, 100dvh)"',
     );
-    expect(CODE, "--vvh is never published").toContain(
-      'style.setProperty("--vvh"',
-    );
+  });
+
+  it("never reintroduces a keyboard-derived height, in any disguise", () => {
+    // The two known disguises, plus the general shape. A height that mentions
+    // the keyboard at all is the bug, whatever the variable is called.
+    const height = /height: "([^"]*)"/g;
+    for (const m of CODE.matchAll(height)) {
+      expect(m[1], `a height reads the keyboard: ${m[1]}`).not.toMatch(/--kb|--vvh/);
+    }
+  });
+
+  it("does not publish --vvh at all any more", () => {
+    // A correct-looking variable left lying around is how this got made twice.
+    // The way to stop a third time is for there to be nothing to reach for.
+    expect(CODE, "--vvh is being published again").not.toContain('setProperty("--vvh"');
   });
 
   it("never subtracts the keyboard from a viewport unit again", () => {
     // The exact shape of the bug. Any layer that has already lost the
     // keyboard cannot lose it a second time.
-    expect(
-      CODE,
-      "the double-subtraction is back: screen - keyboard - keyboard",
-    ).not.toContain("calc(100dvh - var(--kb");
+    expect(CODE, "the double-subtraction is back: screen - keyboard - keyboard").not.toContain(
+      "calc(100dvh - var(--kb",
+    );
   });
 
-  it("falls back to 100dvh while pinch-zoomed, rather than to a magnified height", () => {
-    // Zoomed, visualViewport.height describes the magnifier, not the layout —
-    // sizing the column by it would collapse the thread while the user pans.
-    expect(CODE).toContain('if (zoomed) document.documentElement.style.removeProperty("--vvh")');
+  it("still ignores a pinch-zoomed viewport when measuring the keyboard", () => {
+    // Zoomed, visualViewport.height describes the magnifier rather than the
+    // layout. The column no longer reads it at all, so it can no longer
+    // collapse while panning — but --kb is still derived from it, and a
+    // magnified reading there would put phantom padding under the composer.
     expect(CHAT).toContain("vv.scale > 1.01");
+    expect(CODE).toContain("const inset = zoomed ? 0 :");
   });
 
   it("still publishes --kb, because the composer's safe-area padding needs it", () => {
@@ -85,10 +114,11 @@ describe("the chat column is sized by what is actually visible", () => {
     expect(CODE).toContain("env(safe-area-inset-bottom) - var(--kb, 0px)");
   });
 
-  it("cleans both custom properties up when the thread unmounts", () => {
-    // A stale --vvh left on documentElement would size every later screen to
-    // whatever the keyboard was doing when this one closed.
-    expect(CODE).toContain('removeProperty("--vvh")');
+  it("cleans up what it publishes when the thread unmounts", () => {
+    // A stale --kb left on documentElement would put phantom padding under
+    // every later screen's composer. --vvh is no longer published, so there is
+    // nothing of it to clean.
     expect(CODE).toContain('removeProperty("--kb")');
+    expect(CODE).toContain('removeProperty("--composer-h")');
   });
 });
