@@ -225,13 +225,38 @@ describe("GATE MET — including the Hindi export leg", () => {
     "utf8",
   );
 
-  it("routes complex-script papers to the shaping path, not to HTML", () => {
+  it("routes DEVANAGARI papers to the shaping path, not to HTML", () => {
+    // NARROWED 2026-08-18, and narrowed for a real reason rather than to make
+    // a red test go green.
+    //
+    // This used to forbid `exportPaperHtml` anywhere in the download path, on
+    // the belief that the shaped renderer covered every complex script. It
+    // does not: paperPdfShaped embeds ONE font, Noto Sans Devanagari. Tamil,
+    // Bengali, Telugu, Urdu, CJK and Thai do not come out looking imperfect
+    // through it — every glyph is .notdef, so the user gets a page of empty
+    // boxes. Study offers all of those languages.
+    //
+    // So an HTML fallback for scripts the font cannot draw is CORRECT, and the
+    // blanket ban was the thing that was wrong. What the gate has always been
+    // about is Hindi, and that is what is pinned here now: Devanagari must
+    // reach the shaper, and the fallback must be conditional on coverage
+    // rather than a free escape hatch back to HTML for everyone.
     expect(study).toMatch(/exportShapedPaperPdf/);
     const download = study.slice(
       study.indexOf("async function doDownloadPdf"),
       study.indexOf("async function doOpenInBrowser"),
     );
-    expect(download, "the PDF download diverts to HTML again").not.toMatch(/exportPaperHtml/);
+
+    // Devanagari is inside the covered set, so a Hindi paper cannot divert.
+    const covered = /const SHAPED_OK =\s*\/\^\[([^\]]*)\]/.exec(download)?.[1] ?? "";
+    expect(covered, "Devanagari fell out of the shaped-coverage set").toContain("\\u0900-\\u097F");
+
+    // And any HTML fallback present is gated on that coverage, not free.
+    if (/exportPaperHtml/.test(download)) {
+      expect(download, "the PDF download diverts to HTML unconditionally again").toMatch(
+        /hasNonLatin && !shapedCovers/,
+      );
+    }
   });
 
   it("the gate item survives translation into Devanagari", async () => {
