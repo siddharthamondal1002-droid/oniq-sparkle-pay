@@ -517,11 +517,29 @@ Deno.serve(async (req) => {
           webFailed++;
           if (r.gone) {
             deadEndpoints.push(sub.endpoint);
+          } else if (r.vapidMismatch) {
+            // THE SERVICE SAID IT, WE DID NOT INFER IT.
+            //
+            // Legacy rows carry no recorded key, so the comparison above reads
+            // them as deliverable and they were retried on every single send —
+            // the same 403 forever, because 403 is not 404/410 and nothing ever
+            // marked them. This is the one 403 that is a permanent property of
+            // the address, and unlike our own key comparison it cannot be
+            // inverted by a warm isolate holding a rotated-out key: it is the
+            // push service reading the subscription it issued.
+            //
+            // Still not a delete. We stamp the row with the fact instead, which
+            // both stops the retry here (the stale filter now sees a recorded
+            // key that differs) and gives the CLIENT the evidence it repairs
+            // itself with — subscribeWebPush finds the mismatch on next start
+            // and does the unsubscribe → delete → re-subscribe properly.
+            mismatchSubs.push(sub);
           } else {
             // Status and the service's complaint only — the endpoint is a
             // capability URL and belongs in logs no more than a token does.
             console.error("web push failed", r.status, r.error);
           }
+
         }),
       );
     }
