@@ -27,6 +27,17 @@ import teaPickerSheet from "@/assets/story-style/tea-picker-sheet.png.asset.json
 import patagonianShepherd from "@/assets/story-style/patagonian-shepherd.png.asset.json";
 import andeanSkyTemple from "@/assets/story-style/andean-sky-temple.png.asset.json";
 import thaiLongtail from "@/assets/story-style/thai-longtail.png.asset.json";
+// Second batch, uploaded 2026-08-18.
+import mongolianHerder from "@/assets/story-style/mongolian-herder.png.asset.json";
+import tibetanMonkSheet from "@/assets/story-style/tibetan-monk-sheet.png.asset.json";
+import koreanPotterSheet from "@/assets/story-style/korean-potter-sheet.png.asset.json";
+import balineseDancer from "@/assets/story-style/balinese-dancer.png.asset.json";
+import ethiopianCoffee from "@/assets/story-style/ethiopian-coffee.png.asset.json";
+import nileFeluccaSailor from "@/assets/story-style/nile-felucca-sailor.png.asset.json";
+import dinerCookNight from "@/assets/story-style/diner-cook-night.png.asset.json";
+import oaxacanWeaverSheet from "@/assets/story-style/oaxacan-weaver-sheet.png.asset.json";
+import caribbeanFishMarket from "@/assets/story-style/caribbean-fish-market.png.asset.json";
+import himalayanClimber from "@/assets/story-style/himalayan-climber.png.asset.json";
 
 export type StoryStyleRef = {
   id: string;
