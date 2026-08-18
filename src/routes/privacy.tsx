@@ -191,10 +191,70 @@ function PrivacyPage() {
             timelines required by DPDP.
           </p>
 
-          <h2 className="font-display text-2xl font-semibold">8. Retention</h2>
+          <h2 className="font-display text-2xl font-semibold">8. Data retention and deletion</h2>
           <p>
-            We keep your data while your account is active. When you delete your account, personal
-            content is removed; minimal safety-log records may be retained where required by law.
+            We keep personal data only for as long as it is needed for the purpose it was collected
+            for, and no longer. Each category has its own period:
+          </p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              <strong>Account data</strong> (email, user name, display name, avatar) — kept for as
+              long as your account is open. It is erased when you delete the account.
+            </li>
+            <li>
+              <strong>Messages, calls and uploads</strong> (chat content, clips, moments, avatars,
+              wallpapers) — kept while your account is open, or until you delete the individual
+              item, whichever comes first. Voice and video call streams are peer-to-peer where
+              possible and are never recorded or stored by us.
+            </li>
+            <li>
+              <strong>Status updates</strong> — deleted automatically 24 hours after posting.
+            </li>
+            <li>
+              <strong>One-time passcodes</strong> — expire and are discarded 10 minutes after they
+              are issued.
+            </li>
+            <li>
+              <strong>Parental-consent requests</strong> — expire 7 days after they are raised.
+            </li>
+            <li>
+              <strong>Health and wellness data</strong> (Vitals hub) — kept only while you use the
+              hub. You can delete individual cycle logs and check-ins at any time, and deleting your
+              account removes all of it.
+            </li>
+            <li>
+              <strong>Location</strong> — read only at the moment you ask for it and discarded
+              immediately. We do not track you in the background and we do not store coordinates.
+            </li>
+            <li>
+              <strong>Contacts</strong> — phone numbers are matched against existing accounts and
+              discarded. We do not upload your address book or keep a copy of your contact graph.
+            </li>
+            <li>
+              <strong>Diagnostic and performance logs</strong> — kept for up to 90 days, then
+              deleted.
+            </li>
+            <li>
+              <strong>Safety, abuse and copyright records</strong> — kept for up to 180 days after
+              the report is actioned, so that repeat abuse can be identified and appeals can be
+              answered, then deleted.
+            </li>
+            <li>
+              <strong>Records we are legally required to keep</strong> (tax and payment records,
+              data under a legal hold or a lawful order) — kept for the period the law requires, and
+              deleted once it ends. A legal hold is released as soon as the matter closes.
+            </li>
+          </ul>
+          <p>
+            <strong>When you delete your account</strong>, it enters a 30-day grace period during
+            which you can change your mind by signing back in. If you do not, the account is
+            permanently purged: your stored media is removed from our storage buckets and every
+            related record is deleted from our database. Nothing personal survives the purge except
+            the legally required records listed above.
+          </p>
+          <p>
+            Backups are kept for disaster recovery and roll off on their own cycle; deleted data is
+            not restored from a backup into a live account.
           </p>
 
           <h2 className="font-display text-2xl font-semibold">9. Contact</h2>
