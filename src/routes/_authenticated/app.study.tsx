@@ -3658,6 +3658,16 @@ function PaperModal({
             })),
         }))
         .filter((s) => s.items.length > 0);
+      // A script the embedded font cannot draw keeps the HTML paper, which the
+      // OS renders with its own fonts. A readable HTML file beats a PDF of
+      // empty boxes.
+      if (hasNonLatin && !shapedCovers) {
+        const { exportPaperHtml } = await import("@/lib/paperPdf");
+        const { filename } = await exportPaperHtml(buildPaperHtml(), subject);
+        setDownloadSheet(false);
+        toast.success(`saved ${filename} 📄 — open it to print`);
+        return;
+      }
       // Same structured input either way; only the renderer differs. The
       // shaped path is imported lazily so Latin papers never pay for pdf-lib,
       // fontkit or a 220 KB font.
@@ -3677,6 +3687,7 @@ function PaperModal({
       );
       setDownloadSheet(false);
       toast.success(`saved ${filename} 📄`);
+
     } catch (e) {
       if (e instanceof Error && /cancel|abort|dismiss/i.test(e.message)) {
         // user closed the share sheet — not an error
