@@ -289,11 +289,51 @@ public class MainActivity extends BridgeActivity {
         content.setBackgroundColor(Color.TRANSPARENT);
 
         ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
-            // The KEYBOARD still moves the view, because the WebView cannot
-            // resize itself around an IME it does not own. Everything else is
-            // handed onward untouched.
+            /*
+             * PAD ONLY THE PART OF THE KEYBOARD THE WINDOW HAS NOT ALREADY
+             * TAKEN.
+             *
+             * This line read `v.setPadding(0, 0, 0, ime.bottom)`, and on
+             * 2026-08-18 that was measured subtracting the keyboard a SECOND
+             * time. The chat probe, from the device, with no
+             * interactive-widget anywhere in the page:
+             *
+             *     screenH 832   innerH 211   vvH 0   docH 200
+             *
+             * and the screenshot behind it divides as app 196 + a dead grey
+             * band 327 + keyboard 310 = 833. The band is where this padding
+             * pushed the content view off the bottom of a window that had
+             * ALREADY shrunk by one keyboard: the window is 523, this made
+             * the content 196.
+             *
+             * No manifest windowSoftInputMode is declared, so the system
+             * resolves it to adjustResize and the window resizes itself. The
+             * IME inset is still reported at full height regardless — that is
+             * what it is for — so padding by it unconditionally double-counts
+             * wherever the window resizes, and padding by nothing would leave
+             * the composer under the keyboard wherever it does not.
+             *
+             * So measure. Whatever height the window has lost against the
+             * display is keyboard the platform has already handled; this pads
+             * the remainder and nothing more. Correct in both worlds, and it
+             * needs no assumption about which one this device is in.
+             *
+             * Four fixes on the web side chased this before the probe pinned
+             * it here. None of them could have worked: by the time any CSS
+             * runs, the WebView is already the wrong height, and no
+             * expression can recover a viewport it was handed short.
+             */
             Insets ime = insets.getInsets(WindowInsetsCompat.Type.ime());
-            v.setPadding(0, 0, 0, ime.bottom);
+            int pad = ime.bottom;
+            if (pad > 0) {
+                int displayH = v.getResources().getDisplayMetrics().heightPixels;
+                int windowH = v.getRootView().getHeight();
+                // Edge-to-edge means the window spans the display when no IME
+                // is up, so any shortfall here is the resize itself.
+                int alreadyTaken = Math.max(0, displayH - windowH);
+                pad = Math.max(0, pad - alreadyTaken);
+            }
+            v.setPadding(0, 0, 0, pad);
             // NOT CONSUMED — the WebView needs these to populate env().
             return insets;
         });

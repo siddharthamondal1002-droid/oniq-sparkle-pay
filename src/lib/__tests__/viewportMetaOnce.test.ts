@@ -35,7 +35,10 @@ const mainActivity = readFileSync(
 );
 
 /** Source with comments stripped — the notes here quote the flag to explain it. */
-const code = rootTsx.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+const code = strip(rootTsx);
+/** Same for the Java: its note quotes the old padding line in order to bury it. */
+const activity = strip(mainActivity);
 
 describe("only one layer resizes for the keyboard", () => {
   it("the STATIC viewport meta does not carry interactive-widget", () => {
@@ -85,5 +88,29 @@ describe("only one layer resizes for the keyboard", () => {
       mainActivity,
       "MainActivity stopped padding for the IME, so nothing handles the keyboard on native",
     ).toContain("ime.bottom");
+  });
+
+  it("native pays it ONCE — never on top of a window the system already resized", () => {
+    /*
+     * THE ACTUAL CAUSE, PINNED FROM THE DEVICE ON 2026-08-18.
+     *
+     * `v.setPadding(0, 0, 0, ime.bottom)` pushed the content view off the
+     * bottom of a window that had already shrunk by one keyboard, because no
+     * windowSoftInputMode is declared and the system resolves it to
+     * adjustResize. Probe, with no interactive-widget in the page at all:
+     * screenH 832, innerH 211, vvH 0 — the WebView a quarter of the screen,
+     * half an hour after the publish that removed the flag.
+     *
+     * Four web-side fixes chased this first and none could reach it. The
+     * padding must subtract only the part the window has not taken.
+     */
+    expect(
+      activity,
+      "MainActivity pads by the raw IME inset again — double-subtracted wherever the window resizes",
+    ).not.toMatch(/setPadding\(\s*0\s*,\s*0\s*,\s*0\s*,\s*ime\.bottom\s*\)/);
+    expect(activity, "the padding no longer measures what the window already lost").toContain(
+      "alreadyTaken",
+    );
+    expect(activity).toContain("getRootView().getHeight()");
   });
 });

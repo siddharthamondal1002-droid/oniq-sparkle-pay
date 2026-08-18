@@ -98,8 +98,15 @@ describe("the insets reach the WebView, and the web layer uses them", () => {
 
   it("pads for the keyboard and nothing else", () => {
     // A WebView cannot resize itself around an IME it does not own, so that
-    // one stays native. Top/left/right are the web layer's job now.
-    expect(code).toMatch(/setPadding\(0,\s*0,\s*0,\s*ime\.bottom\)/);
+    // one stays native. Top/left/right are the web layer's job now — the
+    // padding is bottom-only, and the other three stay at zero.
+    //
+    // The AMOUNT is no longer the raw inset: on 2026-08-18 the device showed
+    // this padding landing on top of a window the system had already resized
+    // for the same keyboard, leaving the WebView at 211 of 832 CSS px. It now
+    // pays only the part the window has not taken — see viewportMetaOnce.
+    expect(code).toMatch(/setPadding\(0,\s*0,\s*0,\s*pad\)/);
+    expect(code, "the keyboard inset is no longer what is being paid").toContain("ime.bottom");
   });
 
   it("the document opts into drawing under the bars", () => {

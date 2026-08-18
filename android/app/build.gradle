@@ -21,8 +21,31 @@ android {
         applicationId "com.oniqhub.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 16
-        versionName "1.8.2"
+        versionCode 17
+        versionName "1.8.3"
+        // ----- 1.8.3 -----
+        // THE FIRST BUILD SINCE 15 THAT A USER CAN FEEL, AND THE ONLY ONE THAT
+        // COULD HAVE FIXED THIS.
+        //
+        // The chat thread collapsed to a strip whenever the keyboard opened:
+        // header, a sliver of messages, the composer, then a dead grey band
+        // exactly one keyboard tall. Four fixes were attempted on the web side
+        // on 2026-08-18 and all four were in the wrong layer — the note in 16
+        // below asserting the cause was "the viewport meta" is wrong, and the
+        // device disproved it.
+        //
+        // The chat probe, from the phone, with no interactive-widget anywhere
+        // in the page: screenH 832, innerH 211, vvH 0. Half an hour after the
+        // publish that removed the flag, the WebView was still a quarter of
+        // the screen. Nothing in the web layer was ever going to move that.
+        //
+        // MainActivity was padding the content view by the full IME inset on
+        // top of a window the system had ALREADY resized for the same
+        // keyboard. It now pads only the part the window has not taken, which
+        // is correct whether or not a given device resizes.
+        //
+        // Native, so it reaches nobody until this bundle is installed.
+        //
         // ----- code 16 -----
         // A FRESH BUILD OF THE SAME APP. Asked for 2026-08-18, after 15 had
         // already been uploaded to Play; the code goes up because Play rejects
