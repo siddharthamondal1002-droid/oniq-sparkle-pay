@@ -421,6 +421,12 @@ Deno.serve(async (req) => {
    * that on the first send after any rotation, when every web row is stale.
    */
   const rotatedKeyEndpoints: string[] = [];
+  /**
+   * Rows the push service itself refused with a VAPID-mismatch 403. Stamped
+   * with that fact after the batch, never deleted — see the branch below.
+   */
+  const mismatchSubs: { endpoint: string; keys: { p256dh: string; auth: string } }[] = [];
+
   let webSent = 0;
   let webFailed = 0;
   /** How many rows were actually attempted — the circuit-breaker's denominator. */
