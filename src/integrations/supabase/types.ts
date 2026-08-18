@@ -441,6 +441,8 @@ export type Database = {
           created_at: string
           duration_s: number | null
           id: string
+          peers_connected: number | null
+          peers_peak: number | null
           started_at: string
           status: string
         }
@@ -452,6 +454,8 @@ export type Database = {
           created_at?: string
           duration_s?: number | null
           id?: string
+          peers_connected?: number | null
+          peers_peak?: number | null
           started_at?: string
           status: string
         }
@@ -463,6 +467,8 @@ export type Database = {
           created_at?: string
           duration_s?: number | null
           id?: string
+          peers_connected?: number | null
+          peers_peak?: number | null
           started_at?: string
           status?: string
         }
@@ -3686,6 +3692,7 @@ export type Database = {
           id: string
           no_watermark: boolean
           paid_seconds_charged: number
+          plate_path: string | null
           prompt: string
           reaped_count: number
           refunded_at: string | null
@@ -3709,6 +3716,7 @@ export type Database = {
           id?: string
           no_watermark?: boolean
           paid_seconds_charged?: number
+          plate_path?: string | null
           prompt: string
           reaped_count?: number
           refunded_at?: string | null
@@ -3732,6 +3740,7 @@ export type Database = {
           id?: string
           no_watermark?: boolean
           paid_seconds_charged?: number
+          plate_path?: string | null
           prompt?: string
           reaped_count?: number
           refunded_at?: string | null
@@ -5224,6 +5233,10 @@ export type Database = {
         Returns: Json
       }
       set_story_cast: { Args: { _cast: Json; _job_id: string }; Returns: Json }
+      set_story_plate: {
+        Args: { _job_id: string; _path: string }
+        Returns: Json
+      }
       settle_watermark_purchase: {
         Args: {
           _confirmed_by?: string
