@@ -888,13 +888,18 @@ function ChatThread() {
   }, [conversationId]);
 
   /**
-   * Publish --kb: how many pixels of the layout viewport the on-screen
-   * keyboard is covering, and re-pin the scroller while the IME animates in.
+   * Re-pin the scroller while the IME animates in, and measure the composer.
    *
-   * IT PUBLISHES NOTHING THE COLUMN'S HEIGHT READS. That is deliberate, and
-   * it is the third correction to this effect in two days — see the block on
-   * the column itself. The height comes from --app-vh and involves the
-   * keyboard nowhere; --kb below is for the composer's safe-area padding only.
+   * IT PUBLISHES NO KEYBOARD MEASUREMENT AT ALL — not to the column, not to
+   * the composer, not to anything. That is the whole correction, arrived at
+   * from the file's own history rather than from a fourth theory: between
+   * 6c16f217 (2026-07-02) and b0363564 (2026-08-11) this component ran no
+   * viewport JavaScript whatsoever and the thread was smooth for six weeks.
+   *
+   * The keyboard belongs to the platform, and to exactly one layer of it:
+   * MainActivity's IME padding on native, interactive-widget on the web.
+   * Everything this effect used to contribute was a second subtraction in
+   * some disguise.
    *
    * --kb used to be subtracted from 100dvh to get the column height, on the
    * reasoning that it "resolves to 0 wherever the platform already shrinks
@@ -973,7 +978,25 @@ function ChatThread() {
       const raw = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
       const plausible = usable && raw < window.innerHeight * 0.9;
       const inset = zoomed || !plausible ? 0 : raw;
-      document.documentElement.style.setProperty("--kb", `${inset}px`);
+      /*
+       * --kb IS NO LONGER PUBLISHED. NOTHING IN THIS FILE TOUCHES THE KEYBOARD.
+       *
+       * The history settles it. From 6c16f217 on 2026-07-02 this component was
+       * `<div className="flex h-[100dvh] flex-col">` with no viewport
+       * JavaScript of any kind, and it stayed that way, working, for six
+       * weeks. Every part of this apparatus — --kb, --vvh, the column height
+       * arithmetic, interactive-widget in the meta — arrived together in
+       * b0363564 on 2026-08-11, which is the day the thread started
+       * collapsing into a strip.
+       *
+       * All three failed fixes on 2026-08-18 were made inside that apparatus.
+       * They could not have worked: the platform had already subtracted the
+       * keyboard before any of them ran, and the only real defect was that it
+       * was doing so twice.
+       *
+       * `inset` survives as a local because the probe below reports it. It is
+       * deliberately not written anywhere a stylesheet can reach.
+       */
       // --vvh IS GONE ON PURPOSE. It used to be published here and used as the
       // chat column's height, which subtracted the keyboard a second time on
       // top of the platform's own resize. Leaving a correct-looking variable
@@ -1085,7 +1108,6 @@ function ChatThread() {
       vv.removeEventListener("scroll", onChange);
       cancelAnimationFrame(raf);
       if (ro) ro.disconnect();
-      document.documentElement.style.removeProperty("--kb");
       // --vvh is no longer published, so there is nothing to clean up. Kept as
       // a note rather than a stray removeProperty for a name that no longer
       // exists anywhere in the file.
@@ -1970,11 +1992,16 @@ function ChatThread() {
        *           the browser shrinks the layout viewport itself.
        *
        * Exactly one layer may subtract the keyboard, and in both cases that
-       * layer is the platform. So the column takes --app-vh — the viewport
-       * less the status-bar inset the shell pads with — and does no keyboard
-       * maths of its own. --kb stays published because the composer's
-       * safe-area padding still needs to know the keyboard is up; it is
-       * simply never allowed near this height again.
+       * layer is the platform — which is why native carrying BOTH mechanisms
+       * at once was the real defect all along, fixed in __root.tsx rather
+       * than here.
+       *
+       * So the column takes --app-vh: the viewport less the status-bar inset
+       * the shell pads with, and nothing else. That is arithmetically the
+       * same as the `h-[100dvh]` this file carried from 2026-07-02 until the
+       * apparatus landed — the shell simply owns the inset now. No keyboard
+       * term survives anywhere in this component; --kb is not published at
+       * all any more, so there is nothing left to reach for.
        */
       style={{ height: "var(--app-vh, 100dvh)" }}
     >
@@ -3149,7 +3176,7 @@ function ChatThread() {
         <div
           className="border-t border-border/60 bg-background/88 px-4 pt-3 text-center text-xs text-muted-foreground backdrop-blur-md"
           style={{
-            paddingBottom: "calc(0.75rem + max(0px, env(safe-area-inset-bottom) - var(--kb, 0px)))",
+            paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))",
           }}
         >
           You're subscribed 🔔 · only the channel owner can post
@@ -3160,7 +3187,7 @@ function ChatThread() {
           onSubmit={send}
           className="flex flex-col gap-2 border-t border-border/60 bg-background/88 px-3 pt-3 backdrop-blur-md"
           style={{
-            paddingBottom: "calc(0.75rem + max(0px, env(safe-area-inset-bottom) - var(--kb, 0px)))",
+            paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))",
           }}
         >
           {editing && (

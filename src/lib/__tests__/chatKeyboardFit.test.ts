@@ -137,19 +137,31 @@ describe("the chat column is sized by what is actually visible", () => {
     );
   });
 
-  it("still publishes --kb, because the composer's safe-area padding needs it", () => {
-    // The bottom inset must not be added on top of a raised keyboard, so the
-    // composer subtracts one from the other. That use was always correct; it
-    // was the height calculation that was not.
-    expect(CODE).toContain('style.setProperty("--kb"');
-    expect(CODE).toContain("env(safe-area-inset-bottom) - var(--kb, 0px)");
+  it("publishes NO keyboard measurement to CSS at all", () => {
+    // The answer came from the file's own history, not a fourth theory.
+    // Between 6c16f217 (2026-07-02) and b0363564 (2026-08-11) this component
+    // ran no viewport JavaScript whatsoever and the thread was smooth for six
+    // weeks. --kb, --vvh and the column arithmetic all arrived in b0363564,
+    // the same commit that put interactive-widget in the meta — and that is
+    // the day it started collapsing into a strip.
+    //
+    // So nothing here measures the keyboard for CSS any more. The composer
+    // pays a plain safe-area inset, exactly as it did for those six weeks.
+    expect(CODE, "--kb is being published again").not.toContain('setProperty("--kb"');
+    expect(CODE, "the composer is doing keyboard arithmetic again").not.toContain("var(--kb");
+    expect(CODE, "the composer lost its safe-area padding entirely").toContain(
+      "calc(0.75rem + env(safe-area-inset-bottom))",
+    );
   });
 
-  it("cleans up what it publishes when the thread unmounts", () => {
-    // A stale --kb left on documentElement would put phantom padding under
-    // every later screen's composer. --vvh is no longer published, so there is
-    // nothing of it to clean.
-    expect(CODE).toContain('removeProperty("--kb")');
+  it("still cleans up the one variable it does publish", () => {
+    // --composer-h is a measurement of the composer, not of the keyboard —
+    // the jump-to-latest pill sits above it. A stale one would strand that
+    // pill on every later screen.
+    expect(CODE).toContain('setProperty(\n          "--composer-h"');
     expect(CODE).toContain('removeProperty("--composer-h")');
+    expect(CODE, "a stale --kb cleanup remains for a variable never set").not.toContain(
+      'removeProperty("--kb")',
+    );
   });
 });
