@@ -249,18 +249,60 @@ function RootComponent() {
     if (typeof document === "undefined") return;
     let cancelled = false;
     void (async () => {
+      let native = false;
       try {
         const { Capacitor } = await import("@capacitor/core");
-        if (cancelled || Capacitor.isNativePlatform()) return;
-        const meta = document.querySelector('meta[name="viewport"]');
-        if (!meta) return;
-        const content = meta.getAttribute("content") ?? "";
-        if (content.includes("interactive-widget")) return;
-        meta.setAttribute("content", `${content}, interactive-widget=resizes-content`);
+        native = Capacitor.isNativePlatform();
       } catch {
-        // No Capacitor bundled means this is the web, which is the branch that
-        // wants the flag — but a failed import must not leave the page broken,
-        // and a browser without it merely keeps the default resizes-visual.
+        // No Capacitor bundled means this is the web, which is the branch
+        // that wants the flag. A failed import must not leave the page
+        // broken, and a browser without the flag merely keeps the default
+        // resizes-visual behaviour.
+        native = false;
+      }
+      if (cancelled) return;
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
+      const content = meta.getAttribute("content") ?? "";
+      const has = content.includes("interactive-widget");
+
+      /*
+       * NATIVE STRIPS IT. It is not enough to leave it out of the static meta.
+       *
+       * Removing it from the served HTML was the right fix and it did not
+       * reach the phone. A screenshot on 2026-08-18 13:37, with the probe
+       * agreeing, shows the app still collapsed to ~211 of 832 CSS px with a
+       * keyboard-sized dead band beneath the composer — the double
+       * subtraction, unchanged, after the publish that removed the flag.
+       *
+       * WHY IS NOT SETTLED, AND THAT IS THE POINT. The service worker is
+       * network-first, so it is not serving a stale shell; MainActivity pads
+       * once and the manifest declares no windowSoftInputMode, so native
+       * subtracts once. Either the WebView had simply not reloaded since the
+       * publish, or the flag is arriving from somewhere this file cannot see.
+       * The chat probe now records the live meta content, which will say.
+       *
+       * Either way, "we left it out of the markup" is a weaker guarantee than
+       * "we take it off if it is there". So the flag is now removed at runtime
+       * wherever native finds it, rather than merely not being added. That is
+       * self-healing: the phone corrects itself on the next launch whichever
+       * shell it happens to have loaded, from whatever source.
+       */
+      if (native && has) {
+        meta.setAttribute(
+          "content",
+          content
+            .split(",")
+            .map((part) => part.trim())
+            .filter((part) => part && !part.startsWith("interactive-widget"))
+            .join(", "),
+        );
+        return;
+      }
+      // The web genuinely needs it: without it a browser keyboard covers the
+      // composer instead of shrinking the page.
+      if (!native && !has) {
+        meta.setAttribute("content", `${content}, interactive-widget=resizes-content`);
       }
     })();
     return () => {

@@ -54,6 +54,19 @@ describe("only one layer resizes for the keyboard", () => {
     expect(meta).toContain("width=device-width");
   });
 
+  it("native STRIPS it, rather than merely not adding it", () => {
+    // Leaving it out of the served markup is a weaker guarantee than taking
+    // it off when found. On 2026-08-18 the app was still collapsed to ~211 of
+    // 832 CSS px with a keyboard-sized dead band under the composer, half an
+    // hour after the publish that removed it from the static meta — whatever
+    // the phone had loaded, it still carried the flag. Removing it at runtime
+    // makes the device correct itself on the next launch regardless.
+    expect(code, "native no longer removes the flag when it finds one").toContain(
+      'part.startsWith("interactive-widget")',
+    );
+    expect(code, "the strip is not gated on being native").toMatch(/native && has/);
+  });
+
   it("the web still gets it, gated on not being native", () => {
     // Removing the flag outright would fix native by breaking every browser:
     // the keyboard would cover the composer instead of shrinking the page.

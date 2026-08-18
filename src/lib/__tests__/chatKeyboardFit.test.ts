@@ -116,7 +116,25 @@ describe("the chat column is sized by what is actually visible", () => {
     // collapse while panning — but --kb is still derived from it, and a
     // magnified reading there would put phantom padding under the composer.
     expect(CHAT).toContain("vv.scale > 1.01");
-    expect(CODE).toContain("const inset = zoomed ? 0 :");
+    // Written as intent rather than as one exact expression. The condition
+    // gained a second disqualifier on 2026-08-18 — a reading with vv.height
+    // at 0 turned the whole window into "keyboard" and fired the probe three
+    // times on something that was not one — and pinning the literal text made
+    // that correction look like a regression. What must hold is that a zoomed
+    // viewport still yields no inset.
+    expect(CODE, "a pinch-zoomed viewport no longer zeroes the inset").toMatch(
+      /const inset = zoomed[^;]*\? 0 :/,
+    );
+  });
+
+  it("refuses a degenerate viewport reading instead of calling it a keyboard", () => {
+    // vv.height of exactly 0 is the absence of a measurement, not a keyboard
+    // filling the screen. Believing it published --kb equal to the entire
+    // window and walked past the probe's "a keyboard is up" guard.
+    expect(CODE, "a zero-height visualViewport is trusted again").toContain("vv.height > 0");
+    expect(CODE, "an implausibly large keyboard is trusted again").toContain(
+      "window.innerHeight * 0.9",
+    );
   });
 
   it("still publishes --kb, because the composer's safe-area padding needs it", () => {

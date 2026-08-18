@@ -948,7 +948,31 @@ function ChatThread() {
       // a reason that has nothing to do with the keyboard. Without this the
       // chat column collapses by up to half the screen while panning.
       const zoomed = vv.scale > 1.01;
-      const inset = zoomed ? 0 : Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      /*
+       * A DEGENERATE READING IS NOT A KEYBOARD.
+       *
+       * The three probe rows from 2026-08-18 09:00 are byte-identical, and
+       * every one of them says vv.height = 0 with innerHeight = 211 on an
+       * 832px screen. visualViewport.height of exactly zero is not a layout,
+       * it is the absence of one — the Android WebView reporting nothing yet
+       * during the synchronous apply() below that runs at mount, before the
+       * view has been measured.
+       *
+       * With vv.height at 0 the subtraction turns the WHOLE window into
+       * "keyboard": inset became 211 of a 211px viewport. That published a
+       * nonsense --kb and, worse, walked straight past the `inset > 100`
+       * probe guard that exists precisely to mean "a keyboard is up". Three
+       * reports, none of them about a keyboard.
+       *
+       * So a reading has to be plausible before it counts: a viewport with
+       * real height, and a keyboard that leaves some of it behind. A real IME
+       * takes roughly a third of the screen; one that takes nine tenths is a
+       * measurement failure wearing a keyboard's clothes.
+       */
+      const usable = vv.height > 0 && window.innerHeight > 0;
+      const raw = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      const plausible = usable && raw < window.innerHeight * 0.9;
+      const inset = zoomed || !plausible ? 0 : raw;
       document.documentElement.style.setProperty("--kb", `${inset}px`);
       // --vvh IS GONE ON PURPOSE. It used to be published here and used as the
       // chat column's height, which subtracted the keyboard a second time on
@@ -977,7 +1001,19 @@ function ChatThread() {
        * once a keyboard is actually up. This is a diagnostic with a job to
        * do, not telemetry — it comes out once the layout is right.
        */
-      if (inset > 100 && probeCountRef.current < 2) {
+      /*
+       * FIRES ON A REAL KEYBOARD, OR ON A READING THAT CLAIMS ONE AND IS NOT
+       * BELIEVABLE.
+       *
+       * Only the first of those was wanted, but rejecting the second outright
+       * would go blind on the very case that matters most: if native really
+       * is subtracting the keyboard twice, the viewport collapses to about a
+       * keyboard's worth and `raw` then exceeds the 0.9 plausibility bar — so
+       * a guard on `inset` alone would have nothing to say about exactly the
+       * failure it was built to catch. Both are recorded, and `plausible`
+       * separates them.
+       */
+      if ((inset > 100 || (!plausible && raw > 100)) && probeCountRef.current < 2) {
         probeCountRef.current += 1;
         // env() cannot be read off a custom property, so measure it with a
         // throwaway element the browser has to resolve for real.
@@ -1007,6 +1043,22 @@ function ChatThread() {
           colH: col ? Math.round(col.height) : null,
           colTop: col ? Math.round(col.top) : null,
           scrollerH: el ? Math.round(el.getBoundingClientRect().height) : null,
+          // THE ONE FACT THAT SETTLES WHETHER THE FIX ARRIVED. The viewport
+          // fix removed interactive-widget from the static meta so native
+          // stops subtracting the keyboard twice. Whether the phone actually
+          // received that is unknowable from here — a service worker serving
+          // a cached shell would keep the old meta indefinitely through any
+          // number of publishes. So read it off the live document.
+          meta:
+            document
+              .querySelector('meta[name="viewport"]')
+              ?.getAttribute("content")
+              ?.slice(0, 90) ?? null,
+          // A collapsed viewport in a backgrounded WebView is not a bug in
+          // the layout, and these two say so before anyone theorises again.
+          vis: document.visibilityState,
+          raw,
+          plausible,
           ua: navigator.userAgent.slice(0, 120),
         });
       }
