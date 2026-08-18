@@ -57,6 +57,17 @@ import punjabiFarmerSheet from "@/assets/story-style/punjabi-farmer-sheet.png.as
 import jiangnanScholar from "@/assets/story-style/jiangnan-scholar.png.asset.json";
 import kyotoLanternCraftswomanSheet from "@/assets/story-style/kyoto-lantern-craftswoman-sheet.png.asset.json";
 import vietnamRiceTerrace from "@/assets/story-style/vietnam-rice-terrace.png.asset.json";
+// Fifth batch, uploaded 2026-08-18.
+import filipinoBangkaFisherman from "@/assets/story-style/filipino-bangka-fisherman.png.asset.json";
+import kazakhEagleHunter from "@/assets/story-style/kazakh-eagle-hunter.png.asset.json";
+import isfahanScholarPoetSheet from "@/assets/story-style/isfahan-scholar-poet-sheet.png.asset.json";
+import andeanWomanSheet from "@/assets/story-style/andean-woman-sheet.png.asset.json";
+import inuitIceFisher from "@/assets/story-style/inuit-ice-fisher.png.asset.json";
+import outbackElder from "@/assets/story-style/outback-elder.png.asset.json";
+import maoriRangatira from "@/assets/story-style/maori-rangatira.png.asset.json";
+import amazonRiverwoman from "@/assets/story-style/amazon-riverwoman.png.asset.json";
+import pampasDrover from "@/assets/story-style/pampas-drover.png.asset.json";
+import samiHerderSheet from "@/assets/story-style/sami-herder-sheet.png.asset.json";
 
 export type StoryStyleRef = {
   id: string;
@@ -371,6 +382,86 @@ export const STORY_STYLE_REFS: StoryStyleRef[] = [
     title: "Rice planter in flooded terraces under drizzle",
     note: "Wide landscape with a small figure; misted mountain layers, mirrored water, near-monochrome green palette.",
     url: vietnamRiceTerrace.url,
+    attachable: false,
+  },
+  {
+    id: "filipino-bangka-fisherman",
+    kind: "scene",
+    title: "Bangka fisherman hauling a net at sunset",
+    note: "Coral-to-gold sunset gradient, stilt village on the horizon, turquoise water and hard-edged spray.",
+    url: filipinoBangkaFisherman.url,
+    attachable: false,
+  },
+  {
+    id: "kazakh-eagle-hunter",
+    kind: "scene",
+    title: "Kazakh eagle hunter on horseback in snowfall",
+    note: "Animal-anatomy reference: eagle wings and horse in motion, cold blue steppe with warm ochre embroidery accents.",
+    url: kazakhEagleHunter.url,
+    attachable: false,
+  },
+  {
+    id: "isfahan-scholar-poet-sheet",
+    kind: "sheet",
+    title: "Isfahan scholar-poet (annotated sheet)",
+    note: "2D character sheet — plum wool robe, felt cap, sandals, tiled courtyard fountain plate. Direction only.",
+    url: isfahanScholarPoetSheet.url,
+    attachable: false,
+  },
+  {
+    id: "andean-woman-sheet",
+    kind: "sheet",
+    title: "Andean woman with llamas (annotated sheet)",
+    note: "2D character sheet — bowler hat, red/ochre woven poncho, spindle, front/back/side turnaround. Direction only.",
+    url: andeanWomanSheet.url,
+    attachable: false,
+  },
+  {
+    id: "inuit-ice-fisher",
+    kind: "scene",
+    title: "Inuit fisher lifting a char from the ice hole",
+    note: "High-key arctic palette: near-white snow held by pale blue shadow, single warm fur-brown figure.",
+    url: inuitIceFisher.url,
+    attachable: false,
+  },
+  {
+    id: "outback-elder",
+    kind: "scene",
+    title: "Aboriginal elder walking the red centre at dusk",
+    note: "Monochrome red-ochre landscape, tiny figure with a long cast shadow, flat mesa silhouettes.",
+    url: outbackElder.url,
+    attachable: false,
+  },
+  {
+    id: "maori-rangatira",
+    kind: "scene",
+    title: "Māori rangatira before a carved wharenui",
+    note: "Portrait framing reference: feathered korowai, tā moko linework, red-ochre carving detail behind.",
+    url: maoriRangatira.url,
+    attachable: false,
+  },
+  {
+    id: "amazon-riverwoman",
+    kind: "scene",
+    title: "Riverwoman paddling past a stilt village, rain on the horizon",
+    note: "Humid golden light with a distant rain curtain; silted ochre water, layered jungle greens.",
+    url: amazonRiverwoman.url,
+    attachable: false,
+  },
+  {
+    id: "pampas-drover",
+    kind: "scene",
+    title: "Drover moving cattle through dust at golden hour",
+    note: "Dust-and-godray reference: softened painterly edges, near-sepia palette, motion carried by haze.",
+    url: pampasDrover.url,
+    attachable: false,
+  },
+  {
+    id: "sami-herder-sheet",
+    kind: "sheet",
+    title: "Sámi reindeer herder (annotated sheet)",
+    note: "2D character sheet — blue gákti with red trim and pewter embroidery, front/back turnaround, reindeer detail plate. Direction only.",
+    url: samiHerderSheet.url,
     attachable: false,
   },
 ];
