@@ -612,6 +612,9 @@ Deno.serve(async (req) => {
         // Reported rather than hidden inside `failed`: a rotated-key row is a
         // known state with a known remedy, not an error to be investigated.
         rotatedKey: rotatedKeyEndpoints.length,
+        /** Rows the push service rejected for a key mismatch, now marked. */
+        vapidMismatch: mismatchSubs.length,
+
       },
     }),
     { headers: { ...corsHeaders, "content-type": "application/json" } },
