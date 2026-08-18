@@ -34,8 +34,16 @@ export type WebPushSubscription = {
 
 export type WebPushResult =
   | { ok: true; status: number }
-  /** `gone` means the subscription is dead and the row should be deleted. */
-  | { ok: false; status: number; gone: boolean; error: string };
+  /**
+   * `gone` means the subscription is dead and the row should be deleted.
+   *
+   * `vapidMismatch` is the push service telling us, in its own words, that
+   * this subscription was minted against a DIFFERENT application server key.
+   * That is evidence, not inference: it is the one 403 whose meaning is not
+   * "try again later" but "this address can never accept anything we sign".
+   */
+  | { ok: false; status: number; gone: boolean; vapidMismatch: boolean; error: string };
+
 
 // ---------------------------------------------------------------------------
 // base64url. The push API speaks it everywhere and never pads.
