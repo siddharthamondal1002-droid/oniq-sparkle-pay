@@ -131,7 +131,6 @@ describe("screens that set their own height still fit", () => {
     expect(CHAT).toContain('height: "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))"');
   });
 
-
   it("the two full-bleed video screens cancel the inset instead of overflowing", () => {
     // Clips and Reels are the exception: they belong UNDER the status bar and
     // reserve it in their own overlays. Cancelling the shell's padding with a

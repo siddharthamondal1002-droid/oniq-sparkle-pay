@@ -122,9 +122,7 @@ function AppShell() {
   // scroll under a 100dvh page).
   const isFullBleed =
     normalized.startsWith("/app/chat/reels") || normalized.startsWith("/app/clips");
-  const isChatSubtab =
-    !isFullBleed && (normalized === "/app/chat" || CHAT_SUBTABS.has(normalized));
-
+  const isChatSubtab = !isFullBleed && (normalized === "/app/chat" || CHAT_SUBTABS.has(normalized));
 
   // Resolved from the HOME country's CountryConfig.dir (AE => rtl) and mirrored
   // onto <html dir>; portal roots take it from useDir() themselves.
@@ -144,7 +142,6 @@ function AppShell() {
       : isChatSubtab
         ? CHAT_SECTION_CHROME
         : "1rem";
-
 
   return (
     <LanguageProvider>
@@ -218,7 +215,6 @@ function AppShell() {
               style={{ height: "env(safe-area-inset-top)" }}
             />
           )}
-
 
           {wallpaper && (
             <div className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-md md:max-w-lg lg:max-w-xl">
