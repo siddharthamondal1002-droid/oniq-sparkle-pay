@@ -1170,10 +1170,12 @@ function ChatThread() {
       ro.observe(composer);
     }
     return () => {
+      stopKeyboardInset();
       vv.removeEventListener("resize", onChange);
       vv.removeEventListener("scroll", onChange);
       cancelAnimationFrame(raf);
       if (ro) ro.disconnect();
+
       // --vvh is no longer published, so there is nothing to clean up. Kept as
       // a note rather than a stray removeProperty for a name that no longer
       // exists anywhere in the file.
