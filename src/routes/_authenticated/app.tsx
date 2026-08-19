@@ -184,10 +184,31 @@ function AppShell() {
           style={
             {
               "--app-vh": `calc(100dvh - env(safe-area-inset-top) - ${chromeBottom})`,
+              // The padding is the SAME expression that --app-vh subtracts,
+              // read from the same constant — the pb-* classes used to state
+              // it a second time and could drift.
+              paddingBottom: chromeBottom,
             } as CSSProperties
           }
-          className={`relative mx-auto flex min-h-[100dvh] max-w-md md:max-w-lg lg:max-w-xl flex-col bg-background ${showNav ? "pb-28" : isChatThread ? "pb-0" : "pb-4"}`}
+          className="relative mx-auto flex min-h-[100dvh] max-w-md md:max-w-lg lg:max-w-xl flex-col bg-background"
         >
+          {/*
+            STATUS-BAR SCRIM.
+
+            The document is the scroller, so the `paddingTop` on <main> only
+            says where content STARTS — with the window now edge-to-edge and
+            the status bar transparent, scrolled content travelled up behind
+            the clock. This paints the inset in the theme background, above
+            content and below the nav/overlays. Height collapses to nothing
+            where the inset is 0 (desktop, older Android), and it is clipped
+            to the shell's own width so it never stripes the desktop backdrop.
+          */}
+          <div
+            aria-hidden
+            className="pointer-events-none fixed top-0 left-1/2 z-30 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 bg-background"
+            style={{ height: "env(safe-area-inset-top)" }}
+          />
+
           {wallpaper && (
             <div className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-md md:max-w-lg lg:max-w-xl">
               {/* Desaturated and dimmed in the compositor, not re-encoded: a
