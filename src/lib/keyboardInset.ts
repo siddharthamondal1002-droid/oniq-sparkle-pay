@@ -34,15 +34,31 @@
  */
 
 const VAR = "--kb-inset";
+/**
+ * --vvh: the height that is ACTUALLY VISIBLE right now, in px.
+ *
+ * AMENDED 2026-08-19 after a device screenshot showed the thread squeezed to a
+ * strip with a keyboard-tall dead band beneath it — again. Every composed
+ * expression (`100dvh - --kb-inset`) depends on knowing which layer already
+ * subtracted the keyboard, and on a real device that guess was wrong once
+ * more: dvh had lost the keyboard AND --kb-inset measured it, so it went twice.
+ *
+ * --vvh cannot double-subtract, because it is not a subtraction: it is the
+ * visible height itself, whatever produced it (native padding, a Chromium
+ * layout resize, overlays-content, or nothing at all). A screen that wants to
+ * fit above the keyboard uses this and stops reasoning about the keyboard.
+ */
+const VVH = "--vvh";
 
-/** Last published value, so an unchanged frame does no work. */
+/** Last published values, so an unchanged frame does no work. */
 let published = -1;
+let publishedVvh = -1;
 
-function measure(): number {
+function measure(): { inset: number; vvh: number } {
   const vv = typeof window !== "undefined" ? window.visualViewport : undefined;
   // No API (older WebViews, SSR, tests) means no keyboard term at all. The
-  // layout has to be correct with the variable simply absent.
-  if (!vv) return 0;
+  // layout has to be correct with the variables simply absent.
+  if (!vv) return { inset: 0, vvh: 0 };
 
   // A pinch-zoomed visual viewport describes the magnifier, not the keyboard.
   // Without this the chat column collapses by up to half the screen on a pan.
@@ -56,8 +72,13 @@ function measure(): number {
   // A real IME takes roughly a third of the screen. One that takes nine
   // tenths is a measurement failure wearing a keyboard's clothes.
   const plausible = usable && raw < docH * 0.9;
-  return zoomed || !plausible ? 0 : Math.round(raw);
+  const inset = zoomed || !plausible ? 0 : Math.round(raw);
+  // 0 means "no trustworthy measurement" and makes consumers fall back to
+  // their static height.
+  const vvh = zoomed || !usable ? 0 : Math.round(vv.height);
+  return { inset, vvh };
 }
+
 
 /**
  * Start publishing `--kb-inset` on the document element. Returns a cleanup
