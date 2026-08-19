@@ -127,7 +127,12 @@ function OwnedChannelCard({ ch }: { ch: Channel }) {
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
           {ch.avatar_url ? (
-            <img src={ch.avatar_url} alt="" className="h-8 w-8 rounded-full object-cover" />
+            <img
+              src={ch.avatar_url}
+              alt=""
+              loading="lazy"
+              className="h-8 w-8 rounded-full object-cover"
+            />
           ) : (
             <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-primary-foreground">
               {name.charAt(0).toUpperCase()}

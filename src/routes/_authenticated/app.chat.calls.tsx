@@ -73,7 +73,11 @@ function AvatarCircle({ name, url }: { name: string; url: string | null }) {
   const initial = (name || "?").charAt(0).toUpperCase();
   return (
     <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-primary/20 font-semibold text-primary">
-      {url ? <img src={url} alt="" className="h-full w-full object-cover" /> : initial}
+      {url ? (
+        <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" />
+      ) : (
+        initial
+      )}
     </div>
   );
 }

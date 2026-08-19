@@ -64,7 +64,10 @@ export function ViewersSheet({
   }, [viewers, search]);
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/60 backdrop-blur-sm" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[90] flex items-end justify-center bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
       <div
         className="flex max-h-[70dvh] w-full max-w-md flex-col rounded-t-3xl border-t border-border bg-card p-5 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
         onClick={(e) => e.stopPropagation()}
@@ -72,9 +75,14 @@ export function ViewersSheet({
         <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-muted-foreground/30" />
         <div className="mb-3 flex items-center justify-between">
           <h3 className="flex items-center gap-2 font-display text-base font-semibold">
-            <Eye className="h-4 w-4 text-primary" /> seen by{viewers.length ? ` · ${viewers.length}${query.hasNextPage ? "+" : ""}` : ""}
+            <Eye className="h-4 w-4 text-primary" /> seen by
+            {viewers.length ? ` · ${viewers.length}${query.hasNextPage ? "+" : ""}` : ""}
           </h3>
-          <button onClick={onClose} aria-label="Close" className="grid h-11 w-11 place-items-center rounded-full bg-muted">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-11 w-11 place-items-center rounded-full bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -104,7 +112,10 @@ export function ViewersSheet({
           ) : query.isError ? (
             <div className="py-8 text-center text-xs text-muted-foreground">
               couldn't load viewers
-              <button onClick={() => query.refetch()} className="mx-auto mt-2 block rounded-full border border-border px-4 py-1.5 text-xs font-semibold">
+              <button
+                onClick={() => query.refetch()}
+                className="mx-auto mt-2 block rounded-full border border-border px-4 py-1.5 text-xs font-semibold"
+              >
                 retry
               </button>
             </div>
@@ -117,12 +128,18 @@ export function ViewersSheet({
               if (v.anonymous || !v.viewer_id) {
                 return (
                   <div key={`anon-${i}`} className="flex items-center gap-3 rounded-xl p-2">
-                    <span className="grid h-9 w-9 place-items-center rounded-full bg-muted text-sm">🫥</span>
+                    <span className="grid h-9 w-9 place-items-center rounded-full bg-muted text-sm">
+                      🫥
+                    </span>
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-semibold text-muted-foreground">Someone</div>
-                      <div className="text-[11px] text-muted-foreground/70">prefers to stay anonymous</div>
+                      <div className="text-[11px] text-muted-foreground/70">
+                        prefers to stay anonymous
+                      </div>
                     </div>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">{relTime(v.viewed_at)}</span>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {relTime(v.viewed_at)}
+                    </span>
                   </div>
                 );
               }
@@ -136,7 +153,12 @@ export function ViewersSheet({
                   className="flex min-h-[44px] items-center gap-3 rounded-xl p-2 active:bg-muted hover:bg-muted"
                 >
                   {v.avatar_url ? (
-                    <img src={v.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" />
+                    <img
+                      src={v.avatar_url}
+                      alt=""
+                      loading="lazy"
+                      className="h-9 w-9 rounded-full object-cover"
+                    />
                   ) : (
                     <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-sm font-bold text-white">
                       {name.charAt(0).toUpperCase()}
@@ -144,9 +166,15 @@ export function ViewersSheet({
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-semibold">{name}</div>
-                    {v.username && <div className="truncate text-[11px] text-muted-foreground">@{v.username}</div>}
+                    {v.username && (
+                      <div className="truncate text-[11px] text-muted-foreground">
+                        @{v.username}
+                      </div>
+                    )}
                   </div>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">{relTime(v.viewed_at)}</span>
+                  <span className="shrink-0 text-[10px] text-muted-foreground">
+                    {relTime(v.viewed_at)}
+                  </span>
                 </Link>
               );
             })

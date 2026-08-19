@@ -73,18 +73,7 @@ type Board =
   | "ap_board"
   | "telangana_board";
 type ClassLevel =
-  | "5"
-  | "6"
-  | "7"
-  | "8"
-  | "9"
-  | "10"
-  | "11"
-  | "12"
-  | "ug"
-  | "pg"
-  | "drop"
-  | "aspirant";
+  "5" | "6" | "7" | "8" | "9" | "10" | "11" | "12" | "ug" | "pg" | "drop" | "aspirant";
 
 type LearnerProfile = {
   id: string;
@@ -1458,6 +1447,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
                         <img
                           src={m.attachment.previewUrl}
                           alt=""
+                          loading="lazy"
                           className="max-h-40 rounded-xl border border-border object-cover"
                         />
                       ) : (
