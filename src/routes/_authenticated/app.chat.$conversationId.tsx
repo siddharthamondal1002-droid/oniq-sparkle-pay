@@ -2114,13 +2114,17 @@ function ChatThread() {
        * than here.
        *
        * So the column takes --app-vh: the viewport less the status-bar inset
-       * the shell pads with, and nothing else. That is arithmetically the
-       * same as the `h-[100dvh]` this file carried from 2026-07-02 until the
-       * apparatus landed — the shell simply owns the inset now. No keyboard
-       * term survives anywhere in this component; --kb is not published at
-       * all any more, so there is nothing left to reach for.
+       * the shell pads with, MINUS --kb-inset, which is NOT a fourth model of
+       * the keyboard — it is a MEASUREMENT of how much of the layout viewport
+       * is currently not visible (see src/lib/keyboardInset.ts). Where a layer
+       * below has already shrunk the layout viewport for the IME, that
+       * difference is 0 and this subtracts nothing, which is what makes the
+       * expression safe in both build states. With no keyboard, and with no
+       * visualViewport API, it is 0 and the column is exactly --app-vh — the
+       * pre-existing behaviour, unchanged.
        */
-      style={{ height: "var(--app-vh, 100dvh)" }}
+      style={{ height: "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))" }}
+
     >
       {/* relative z-40: backdrop-blur makes the header its own stacking
           context at z-auto, which let animated message bubbles paint OVER the
