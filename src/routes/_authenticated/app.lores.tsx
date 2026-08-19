@@ -134,6 +134,20 @@ function LoreCard({ v }: { v: LoreVideo }) {
                 </div>
               </div>
             )}
+            {/* THE LABEL THAT ACTUALLY HAS TO BE HERE.
+                India's IT Amendment Rules 2026 ask for PROMINENT labelling,
+                and the panel banner above the grid is not prominent once
+                someone has scrolled to an episode and tapped play — it is off
+                screen at exactly the moment the video is on it. This badge is
+                inside the player frame, in every mode including full playback,
+                so a screenshot or a screen recording carries the disclosure
+                with it the way the file's metadata does.
+                Rendered under the controls row, top-start, so it never covers
+                the scrubber. pointer-events-none so it cannot eat a tap meant
+                for the video. */}
+            <span className="pointer-events-none absolute start-2 top-2 z-10 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur-sm">
+              🤖 {AI_OUTPUT_LABEL_TEXT}
+            </span>
           </>
         ) : (
           <div className="grid h-full w-full place-items-center bg-gradient-to-br from-[#1a1230] via-[#241a40] to-[#0d0a18] text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -146,10 +160,35 @@ function LoreCard({ v }: { v: LoreVideo }) {
         <div className="mt-0.5 text-xs text-muted-foreground">
           {v.blurb} · {v.runtime}
         </div>
+        {/* PER-EPISODE report, not one hub-level control. The takedown window
+            is three hours — two where the complaint is sexual content or a
+            deepfake — and a report that says only "something in Lores" spends
+            most of that window being triaged into which episode it meant. */}
+        {prov && (
+          <details className="mt-2 rounded-xl bg-muted/30 px-2.5 py-1.5">
+            <summary className="cursor-pointer list-none text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+              How this was made
+            </summary>
+            <div className="mt-1 space-y-0.5 text-[10px] leading-relaxed text-muted-foreground">
+              <div>Stills: {prov.imageModel}</div>
+              <div>Motion: {prov.videoModel}</div>
+              <div>Voice: {prov.voice}</div>
+              <div>Assembly: {prov.assembly}</div>
+            </div>
+          </details>
+        )}
+        <div className="mt-2">
+          <AiOutputReport
+            surface="lores_ai_output"
+            targetId={v.id}
+            context={{ title: v.title, collection: v.collection }}
+          />
+        </div>
       </div>
     </div>
   );
 }
+
 
 const TABS = [
   { id: "originals", label: "Originals" },
