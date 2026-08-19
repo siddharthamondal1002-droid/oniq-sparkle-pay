@@ -142,6 +142,23 @@ describe("error is not empty — batch 1 screens", () => {
     ).toBeLessThan(src.indexOf("posts && posts.length > 0"));
   });
 
+  it("MomentsFeed comments are bounded and throw on error, not a false 'No comments yet'", () => {
+    // Raw source: this file's `/\.(mp4|…)/` regex literal confuses the stripper.
+    const src = read("src/components/moments/MomentsFeed.tsx");
+    // The comment read is capped (was an unbounded load of every comment) and
+    // ordered newest-first before the .reverse() that restores chronology.
+    expect(src, "comments read is no longer bounded").toContain(".limit(200)");
+    expect(src, "comments read no longer flips newest-first back to chronological").toContain(
+      ".reverse()",
+    );
+    // A failed comments read surfaces retry rather than the empty state.
+    expect(src, "commentsError branch is gone").toContain("commentsError ?");
+    expect(
+      src.indexOf("commentsError ?"),
+      "commentsError branch must precede the comments empty branch",
+    ).toBeLessThan(src.indexOf("comments?.length ?"));
+  });
+
   it("faith shows a radio error+retry, not 'no stations'", () => {
     const src = read("src/routes/_authenticated/app.faith.tsx");
     expect(src, "the isError radio branch is gone").toMatch(/\) : isError \? \(/);

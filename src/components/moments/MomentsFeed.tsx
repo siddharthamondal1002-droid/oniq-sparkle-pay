@@ -914,17 +914,26 @@ function EditPostSheet({
 function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => void }) {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  const { data: comments, refetch } = useQuery({
+  const {
+    data: comments,
+    isError: commentsError,
+    refetch,
+  } = useQuery({
     queryKey: ["comments", postId],
     queryFn: async () => {
-      const { data } = await supabase
+      // Newest 200, then flipped to chronological for display. The unbounded
+      // read this replaces pulled every comment on a viral thread at once; a
+      // swallowed error also showed "No comments yet" on a post that had them.
+      const { data, error } = await supabase
         .from("moments_comments")
         .select(
           "id, content, created_at, user_id, profiles:profiles!moments_comments_user_id_fkey(display_name, username, avatar_url)",
         )
         .eq("post_id", postId)
-        .order("created_at", { ascending: true });
-      return data ?? [];
+        .order("created_at", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return (data ?? []).reverse();
     },
   });
 
@@ -963,7 +972,17 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
           </button>
         </div>
         <div className="max-h-[50vh] space-y-3 overflow-y-auto">
-          {comments?.length ? (
+          {commentsError ? (
+            <div className="py-6 text-center text-xs text-muted-foreground">
+              Couldn&apos;t load comments — a hiccup, not an empty thread.
+              <button
+                onClick={() => refetch()}
+                className="mx-auto mt-2 block rounded-full border border-border px-4 py-1.5 font-semibold"
+              >
+                Try again
+              </button>
+            </div>
+          ) : comments?.length ? (
             comments.map((c) => (
               <div key={c.id} className="flex gap-3">
                 <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-primary to-accent text-xs font-bold text-primary-foreground">
