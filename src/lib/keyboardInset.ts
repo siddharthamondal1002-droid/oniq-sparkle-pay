@@ -124,6 +124,9 @@ export function startKeyboardInsetTracking(): () => void {
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
     published = -1;
+    publishedVvh = -1;
     root.style.removeProperty(VAR);
+    root.style.removeProperty(VVH);
   };
+
 }
