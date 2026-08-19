@@ -45,6 +45,14 @@ const CHAT_SUBTABS = new Set([
   "/app/chat/calls",
 ]);
 
+/**
+ * Clearance for the chat section's OWN floating six-tab bar: the bar is about
+ * 2.75rem of pill plus its max(0.75rem, safe-area) offset from the bottom.
+ * 4rem + the inset covers it with a little breathing room at every inset.
+ * Declared once and used for BOTH the padding and the --app-vh subtraction.
+ */
+const CHAT_SECTION_CHROME = "calc(4rem + env(safe-area-inset-bottom))";
+
 function AppShell() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
@@ -108,13 +116,32 @@ function AppShell() {
   // The message thread owns its own full-height column, so the shell must not
   // add slack under it. Sub-tabs keep theirs.
   const isChatThread = normalized.startsWith("/app/chat/") && !CHAT_SUBTABS.has(normalized);
+  // Reels and Clips are deliberately edge-to-edge: they cancel the shell's top
+  // inset and reserve the bars in their own overlays. They must get neither the
+  // scrim (it would band the video) nor bottom clearance (it would add dead
+  // scroll under a 100dvh page).
+  const isFullBleed =
+    normalized.startsWith("/app/chat/reels") || normalized.startsWith("/app/clips");
+  const isChatSubtab = !isFullBleed && (normalized === "/app/chat" || CHAT_SUBTABS.has(normalized));
+
   // Resolved from the HOME country's CountryConfig.dir (AE => rtl) and mirrored
   // onto <html dir>; portal roots take it from useDir() themselves.
   const dir = useDocumentDirection();
-  // How much of the viewport the shell itself occupies below the content. Kept
-  // as a value rather than only a class because --app-vh has to subtract the
-  // SAME number the padding adds; see the comment on the container below.
-  const chromeBottom = showNav ? "7rem" : isChatThread ? "0px" : "1rem";
+  // How much of the viewport the shell itself occupies below the content.
+  // ONE source: this value is BOTH subtracted from --app-vh and applied as the
+  // container's bottom padding (inline, not a pb-* class), so the two halves
+  // can no longer drift apart.
+  //
+  // The chat section is the case that was wrong: /app/chat/* is not TOP_LEVEL,
+  // so it used to reserve 1rem while rendering its own six-tab bar roughly
+  // five times that tall — the last contact row sat under it.
+  const chromeBottom = showNav
+    ? "7rem"
+    : isChatThread
+      ? "0px"
+      : isChatSubtab
+        ? CHAT_SECTION_CHROME
+        : "1rem";
 
   return (
     <LanguageProvider>
@@ -162,10 +189,33 @@ function AppShell() {
           style={
             {
               "--app-vh": `calc(100dvh - env(safe-area-inset-top) - ${chromeBottom})`,
+              // The padding is the SAME expression that --app-vh subtracts,
+              // read from the same constant — the pb-* classes used to state
+              // it a second time and could drift.
+              paddingBottom: chromeBottom,
             } as CSSProperties
           }
-          className={`relative mx-auto flex min-h-[100dvh] max-w-md md:max-w-lg lg:max-w-xl flex-col bg-background ${showNav ? "pb-28" : isChatThread ? "pb-0" : "pb-4"}`}
+          className="relative mx-auto flex min-h-[100dvh] max-w-md md:max-w-lg lg:max-w-xl flex-col bg-background"
         >
+          {/*
+            STATUS-BAR SCRIM.
+
+            The document is the scroller, so the `paddingTop` on <main> only
+            says where content STARTS — with the window now edge-to-edge and
+            the status bar transparent, scrolled content travelled up behind
+            the clock. This paints the inset in the theme background, above
+            content and below the nav/overlays. Height collapses to nothing
+            where the inset is 0 (desktop, older Android), and it is clipped
+            to the shell's own width so it never stripes the desktop backdrop.
+          */}
+          {!isFullBleed && (
+            <div
+              aria-hidden
+              className="pointer-events-none fixed top-0 left-1/2 z-30 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 bg-background"
+              style={{ height: "env(safe-area-inset-top)" }}
+            />
+          )}
+
           {wallpaper && (
             <div className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-md md:max-w-lg lg:max-w-xl">
               {/* Desaturated and dimmed in the compositor, not re-encoded: a
