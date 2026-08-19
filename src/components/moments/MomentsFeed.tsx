@@ -280,11 +280,15 @@ export function MomentsFeed() {
     supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
   }, []);
 
-  const { data: posts, refetch } = useQuery({
+  const {
+    data: posts,
+    isError: postsError,
+    refetch,
+  } = useQuery({
     queryKey: ["moments"],
     staleTime: 15_000,
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("moments_posts")
         .select(
           "id, content, media_urls, like_count, comment_count, view_count, created_at, user_id, visibility, is_synthetic, profiles:profiles!moments_posts_user_id_fkey(display_name, username, avatar_url)",
@@ -292,6 +296,8 @@ export function MomentsFeed() {
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(50);
+      // Throw so a failed read shows a retry, not "No moments yet".
+      if (error) throw error;
       return (data ?? []) as unknown as Post[];
     },
   });
@@ -327,15 +333,13 @@ export function MomentsFeed() {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     const media = imageUrl.trim() ? [imageUrl.trim()] : [];
-    const { error } = await supabase
-      .from("moments_posts")
-      .insert({
-        user_id: u.user.id,
-        content: content.trim(),
-        media_urls: media,
-        visibility,
-        is_synthetic: isSynthetic,
-      } as never);
+    const { error } = await supabase.from("moments_posts").insert({
+      user_id: u.user.id,
+      content: content.trim(),
+      media_urls: media,
+      visibility,
+      is_synthetic: isSynthetic,
+    } as never);
 
     if (error) toast.error(error.message);
     else {
@@ -528,7 +532,20 @@ export function MomentsFeed() {
           </div>
         </div>
 
-        {posts && posts.length > 0 ? (
+        {postsError ? (
+          <div className="mt-6 rounded-2xl border border-border bg-card p-4 text-sm">
+            <p className="text-muted-foreground">
+              Couldn't load moments right now — a connection problem, not an empty feed.
+            </p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="press mt-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+            >
+              Try again
+            </button>
+          </div>
+        ) : posts && posts.length > 0 ? (
           <div className="mt-5 space-y-4">
             {posts.map((p) => {
               const liked = likedIds.has(p.id);

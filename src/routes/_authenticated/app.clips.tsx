@@ -125,7 +125,19 @@ function ClipsScreen() {
         </div>
       </div>
 
-      {clips.length === 0 && !query.isLoading ? (
+      {query.isError ? (
+        <div className="flex h-full flex-col items-center justify-center px-8 text-center">
+          <p className="max-w-xs text-sm text-white/80">
+            Couldn't load the feed right now — a connection problem, not an empty feed.
+          </p>
+          <button
+            onClick={() => query.refetch()}
+            className="mt-6 rounded-full bg-white px-5 py-2 text-sm font-semibold text-black"
+          >
+            Try again
+          </button>
+        </div>
+      ) : clips.length === 0 && !query.isLoading ? (
         <div className="flex h-full flex-col items-center justify-center px-8 text-center">
           <div className="mb-4 grid h-16 w-16 place-items-center rounded-3xl bg-white/10">
             <Plus className="h-7 w-7" />

@@ -113,4 +113,32 @@ describe("error is not empty — batch 1 screens", () => {
       "logsError branch must precede the logs.length === 0 empty branch",
     ).toBeLessThan(src.indexOf("logs.length === 0"));
   });
+
+  it("clips consumes the feed error before showing 'No clips yet'", () => {
+    const src = strip(read("src/routes/_authenticated/app.clips.tsx"));
+    expect(
+      src.indexOf("query.isError ?"),
+      "query.isError branch must precede the empty-feed branch",
+    ).toBeLessThan(src.indexOf("clips.length === 0 && !query.isLoading"));
+  });
+
+  it("reels returns an error state before the empty feed", () => {
+    const src = strip(read("src/routes/_authenticated/app.chat.reels.tsx"));
+    expect(
+      src.indexOf("if (query.isError)"),
+      "the query.isError early return must precede the empty-feed return",
+    ).toBeLessThan(src.indexOf("if (clips.length === 0 && !query.isLoading)"));
+  });
+
+  it("MomentsFeed throws on a posts error and shows retry, not 'No moments yet'", () => {
+    // Raw source here, not strip(): this file's `/\.(mp4|…)/` regex literal
+    // confuses the block-comment stripper. The markers below are code, not
+    // anything a comment could forge.
+    const src = read("src/components/moments/MomentsFeed.tsx");
+    expect(src, "moments query no longer throws on error").toMatch(/if \(error\) throw error/);
+    expect(
+      src.indexOf("postsError ?"),
+      "postsError branch must precede the posts.length feed branch",
+    ).toBeLessThan(src.indexOf("posts && posts.length > 0"));
+  });
 });

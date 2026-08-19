@@ -2,7 +2,18 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useRef, useState } from "react";
-import { Heart, MessageCircle, Volume2, VolumeX, Loader2, Play, Plus, MoreHorizontal, Share2, Eye } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  Volume2,
+  VolumeX,
+  Loader2,
+  Play,
+  Plus,
+  MoreHorizontal,
+  Share2,
+  Eye,
+} from "lucide-react";
 import { systemShare, type SharePayload } from "@/lib/share";
 import { ShareSheet } from "@/components/share/ShareSheet";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
@@ -71,6 +82,27 @@ function ReelsTab() {
   });
 
   const clips = query.data?.pages.flat() ?? [];
+
+  if (query.isError) {
+    return (
+      <div className="flex min-h-[70vh] flex-col items-center justify-center gap-3 px-8 text-center">
+        <div className="grid h-14 w-14 place-items-center rounded-2xl bg-muted">
+          <Play className="h-6 w-6" />
+        </div>
+        <div className="font-display text-base font-semibold">Couldn't load the feed</div>
+        <p className="max-w-xs text-xs text-muted-foreground">
+          A connection problem, not an empty feed.
+        </p>
+        <button
+          type="button"
+          onClick={() => query.refetch()}
+          className="mt-2 rounded-full bg-primary px-5 py-2 text-xs font-semibold text-primary-foreground"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   if (clips.length === 0 && !query.isLoading) {
     return (
@@ -226,10 +258,14 @@ function ReelCard({
     }
   }
 
-  const [ownerSheet, setOwnerSheet] = useState<
-    | null
-    | { id: string; video_url: string; thumbnail_url: string | null; caption: string | null; hashtags: string[] | null; visibility: string }
-  >(null);
+  const [ownerSheet, setOwnerSheet] = useState<null | {
+    id: string;
+    video_url: string;
+    thumbnail_url: string | null;
+    caption: string | null;
+    hashtags: string[] | null;
+    visibility: string;
+  }>(null);
   const [shareSheet, setShareSheet] = useState<SharePayload | null>(null);
   const [showViewers, setShowViewers] = useState(false);
 
@@ -283,12 +319,20 @@ function ReelCard({
           <MessageCircle className="h-7 w-7" />
           <span className="text-xs">{clip.comment_count}</span>
         </div>
-        <button onClick={share} className="flex flex-col items-center gap-1 text-white" aria-label="Share">
+        <button
+          onClick={share}
+          className="flex flex-col items-center gap-1 text-white"
+          aria-label="Share"
+        >
           <Share2 className="h-7 w-7" />
           <span className="text-xs">Share</span>
         </button>
         {me === clip.user_id ? (
-          <button onClick={() => setShowViewers(true)} className="flex flex-col items-center gap-1 text-white" aria-label="See who viewed">
+          <button
+            onClick={() => setShowViewers(true)}
+            className="flex flex-col items-center gap-1 text-white"
+            aria-label="See who viewed"
+          >
             <Eye className="h-6 w-6" />
             <span className="text-xs">{clip.view_count}</span>
           </button>
@@ -299,7 +343,11 @@ function ReelCard({
           </div>
         )}
         {me === clip.user_id && (
-          <button onClick={openOwnerSheet} className="flex flex-col items-center gap-1 text-white" aria-label="Reel options">
+          <button
+            onClick={openOwnerSheet}
+            className="flex flex-col items-center gap-1 text-white"
+            aria-label="Reel options"
+          >
             <MoreHorizontal className="h-7 w-7" />
           </button>
         )}
@@ -332,15 +380,19 @@ function ReelCard({
           </span>
           <span className="text-sm font-semibold">@{handle}</span>
         </Link>
-        {clip.caption && (
-          <p className="mt-2 text-sm text-white/95 line-clamp-2">{clip.caption}</p>
-        )}
+        {clip.caption && <p className="mt-2 text-sm text-white/95 line-clamp-2">{clip.caption}</p>}
       </div>
 
       {shareSheet && (
-        <ShareSheet payload={shareSheet} reel={{ id: clip.id, videoUrl: clip.video_url }} onClose={() => setShareSheet(null)} />
+        <ShareSheet
+          payload={shareSheet}
+          reel={{ id: clip.id, videoUrl: clip.video_url }}
+          onClose={() => setShareSheet(null)}
+        />
       )}
-      {showViewers && <ViewersSheet postType="reel" postId={clip.id} onClose={() => setShowViewers(false)} />}
+      {showViewers && (
+        <ViewersSheet postType="reel" postId={clip.id} onClose={() => setShowViewers(false)} />
+      )}
       {ownerSheet && me && (
         <ReelOwnerSheet
           clip={ownerSheet}
