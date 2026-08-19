@@ -74,8 +74,14 @@ function Landing() {
             <ArrowRight className="h-4 w-4 shrink-0" />
           </Link>
         </div>
-
+        <nav className="flex items-center gap-5 overflow-x-auto px-4 pb-3 text-sm text-muted-foreground sm:px-5 md:hidden">
+          <a href="#features" className="hover:text-foreground">Features</a>
+          <a href="#worlds" className="hover:text-foreground">Worlds</a>
+          <Link to="/privacy" className="hover:text-foreground">Privacy</Link>
+          <a href="#download" className="whitespace-nowrap hover:text-foreground">Get the app</a>
+        </nav>
       </header>
+
 
       <main>
       {/* Hero */}
