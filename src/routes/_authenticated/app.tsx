@@ -108,6 +108,8 @@ function AppShell() {
   // The message thread owns its own full-height column, so the shell must not
   // add slack under it. Sub-tabs keep theirs.
   const isChatThread = normalized.startsWith("/app/chat/") && !CHAT_SUBTABS.has(normalized);
+  const isChatSubtab = normalized === "/app/chat" || CHAT_SUBTABS.has(normalized);
+
   // Resolved from the HOME country's CountryConfig.dir (AE => rtl) and mirrored
   // onto <html dir>; portal roots take it from useDir() themselves.
   const dir = useDocumentDirection();
