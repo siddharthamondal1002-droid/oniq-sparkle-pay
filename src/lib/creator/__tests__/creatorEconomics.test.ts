@@ -134,7 +134,7 @@ describe("B5 — clawback recovery order, and the line it must not cross", () =>
     // No mandate exists. Attempting one turns a billing dispute into a legal
     // one, and the creator is the party with the sympathetic story.
     const src = readFileSync(join(process.cwd(), "src/lib/creator/economics.ts"), "utf8");
-    expect(src.replace(/\s+/g, " ")).toMatch(/never\s+debited/i);
+    expect(src.replace(/\s+/g, " ")).toMatch(/never[\s*]+debited/i);
     for (const bad of ["debitBank", "bank_debit", "autoDebit"]) expect(src).not.toContain(bad);
   });
 });
