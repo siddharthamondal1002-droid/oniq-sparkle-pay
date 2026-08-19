@@ -111,10 +111,22 @@ function AppShell() {
   // Resolved from the HOME country's CountryConfig.dir (AE => rtl) and mirrored
   // onto <html dir>; portal roots take it from useDir() themselves.
   const dir = useDocumentDirection();
-  // How much of the viewport the shell itself occupies below the content. Kept
-  // as a value rather than only a class because --app-vh has to subtract the
-  // SAME number the padding adds; see the comment on the container below.
-  const chromeBottom = showNav ? "7rem" : isChatThread ? "0px" : "1rem";
+  // How much of the viewport the shell itself occupies below the content.
+  // ONE source: this value is BOTH subtracted from --app-vh and applied as the
+  // container's bottom padding (inline, not a pb-* class), so the two halves
+  // can no longer drift apart.
+  //
+  // The chat section is the case that was wrong: /app/chat/* is not TOP_LEVEL,
+  // so it used to reserve 1rem while rendering its own six-tab bar roughly
+  // five times that tall — the last contact row sat under it.
+  const chromeBottom = showNav
+    ? "7rem"
+    : isChatThread
+      ? "0px"
+      : isChatSubtab
+        ? CHAT_SECTION_CHROME
+        : "1rem";
+
 
   return (
     <LanguageProvider>
