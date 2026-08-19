@@ -235,9 +235,9 @@ export const PRIVACY_BAND = {
  *
  * The site sold Ting and Scout without ever saying an AI was involved, while
  * the app itself labels generated output and carries a report control. The
- * three clauses below each map to something shipped: Ting's live web search,
- * AI_OUTPUT_LABEL / <AiOutputReport /> on every AI surface, and the report
- * path behind them.
+ * four clauses below each map to something shipped: Ting's live web search,
+ * the AI label and in-app report control on every declared AI surface (see
+ * src/config/playCompliance.ts), and the reports table behind them.
  */
 export const AI_DISCLOSURE = {
   heading: "Where AI is involved",
