@@ -118,18 +118,18 @@ describe("min-h-screen and h-screen mean the shell, not the window", () => {
 });
 
 describe("screens that set their own height still fit", () => {
-  it("the chat thread uses --app-vh, less only the MEASURED keyboard inset", () => {
-    // It briefly used visualViewport height instead, which subtracted the
-    // keyboard a second time on top of the platform's own resize — the strip
-    // -and-dead-band bug, reported 2026-08-18. --app-vh is the shell's
-    // viewport-less-status-bar figure and involves the keyboard nowhere.
-    //
-    // AMENDED 2026-08-19: --kb-inset is subtracted from it. That term is not a
-    // model of the keyboard but the measured difference between the layout
-    // viewport and the visible one, so it is 0 exactly when a lower layer has
-    // already taken the keyboard off, and cannot double-count.
-    expect(CHAT).toContain('height: "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))"');
+  it("the chat thread takes the MEASURED visible height, less the status bar", () => {
+    // AMENDED 2026-08-19 (second pass). `--app-vh - --kb-inset` still assumed
+    // that exactly one of dvh and --kb-inset carried the keyboard; on the
+    // shipped device both did and the thread collapsed to a strip with a
+    // keyboard-tall dead band. --vvh is visualViewport.height — the visible
+    // area itself, not a subtraction — so there is nothing to double-count.
+    // The status-bar inset is still owed, because the shell pads <main> by it.
+    expect(CHAT).toContain(
+      'height: "calc(var(--vvh, var(--app-vh, 100dvh)) - env(safe-area-inset-top))"',
+    );
   });
+
 
   it("the two full-bleed video screens cancel the inset instead of overflowing", () => {
     // Clips and Reels are the exception: they belong UNDER the status bar and
