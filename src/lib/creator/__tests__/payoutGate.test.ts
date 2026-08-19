@@ -7,7 +7,7 @@
  * money moved" against a disabled flag proves nothing a later edit could not
  * silently undo, so the shape is pinned instead.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { stripComments } from "@/test/sourceText";
