@@ -201,8 +201,21 @@ async function renderJob(job, dir) {
     '-r', String(FPS), '-movflags', '+faststart', out,
   ]);
 
-  return { out, notes, total };
+  // PROVENANCE IS NOT OPTIONAL AND NOT MANUAL. Every one of the four episodes
+  // already published shipped with nothing but "Made with Remotion" because
+  // stamping was a step someone was supposed to remember. It is now part of
+  // the render: a stream copy that costs a second, followed by a verify that
+  // exits non-zero if the tags did not survive the mux.
+  const stamped = path.join(dir, 'episode-provenance.mp4');
+  await run('node', [
+    path.join(import.meta.dirname, 'embed-provenance.mjs'),
+    process.env.EPISODE || 'ep3', out, stamped,
+  ]);
+  await run('node', [path.join(import.meta.dirname, 'verify-provenance.mjs'), stamped]);
+
+  return { out: stamped, notes, total };
 }
+
 
 async function claim(jobId) {
   const q = db.from('episode_jobs').select('*').eq('status', 'queued').order('created_at').limit(1);
