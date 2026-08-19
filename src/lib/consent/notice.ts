@@ -9,7 +9,10 @@
 
 import type { LegalRegime } from "@/data/countryRegistry";
 
-export const NOTICE_VERSION = "2026-08-04.1";
+export const NOTICE_VERSION = "2026-08-19.1";
+
+/** The purpose id chat translation writes to the ledger. One name, one place. */
+export const TRANSLATION_PURPOSE_ID = "translation";
 
 /** Locales the notice exists in. English and Hindi at minimum. */
 export const NOTICE_LOCALES = ["en", "hi"] as const;
