@@ -299,52 +299,31 @@ public class MainActivity extends BridgeActivity {
         content.setBackgroundColor(Color.TRANSPARENT);
 
         /*
-         * NO IME PADDING. NONE. THE WEBVIEW HANDLES THE KEYBOARD ITSELF.
+         * PAD, THEN CONSUME. The pre-17-August behaviour, restored.
          *
-         * The timeline that proves it, assembled 2026-08-18 after two shipped
-         * builds (versionCode 17 and 18) measured the window and fixed
-         * nothing:
+         * Top/left/right come from system bars ∪ display cutout, so headers
+         * clear the status bar and landscape cutouts. Bottom is ime.bottom
+         * only: content still runs under the transparent gesture bar (Reels
+         * and Clips depend on that), while an open keyboard lifts the whole
+         * WebView above itself.
          *
-         *   Jul 29 – Aug 17   This listener padded by ime.bottom AND returned
-         *                     WindowInsetsCompat.CONSUMED. The WebView never
-         *                     saw an IME inset, so the padding was the ONLY
-         *                     subtraction. The chat worked the whole time.
-         *
-         *   Aug 17            198a3f2d stopped consuming, correctly, so that
-         *                     env(safe-area-inset-*) stopped reading zero.
-         *                     Side effect nobody priced: the WebView now
-         *                     RECEIVES the IME inset, and modern Chromium
-         *                     responds by resizing its own viewport for the
-         *                     keyboard. Two subtractions from that moment.
-         *                     The owner reported the chat broken THAT DAY.
-         *
-         *   The probe agrees: view = screen 832 − padding 310 = 522 CSS, and
-         *   innerHeight = 522 − 311 = 211 — the WebView took a second
-         *   keyboard off its OWN height. The window never resized at all,
-         *   which is why vc17/vc18's decor-height measurements both computed
-         *   an "alreadyTaken" of zero and left the bug intact.
-         *
-         * So the padding is deleted rather than computed. The WebView,
-         * demonstrably, resizes for the keyboard by itself now that the
-         * insets reach it — and the insets MUST keep reaching it, or all 54
-         * env() reads go back to zero. One mechanism, by construction: there
-         * is no measurement here to take at the wrong moment.
-         *
-         * If a keyboard ever covers the composer on some device, the fix is
-         * in the WEB layer (the viewport meta), never a padding here — this
-         * file must stay out of the keyboard business permanently.
+         * CONSUMED is the point of the revert, not an oversight. It keeps the
+         * IME inset away from Chromium, so Chromium does not resize its own
+         * viewport and this padding stays the ONLY subtraction — the single
+         * mechanism that worked 29 Jul – 17 Aug. The cost, stated plainly: the
+         * WebView sees no insets, every env(safe-area-inset-*) reads 0, and
+         * the max() fallbacks at those call sites carry the layout.
          */
         ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
-            // Any padding a previous build left behind is cleared, once per
-            // dispatch — an updated app reuses the old activity's view state
-            // across some update paths, and a stale keyboard-sized padding
-            // would be the old bug wearing the new build's version number.
-            if (v.getPaddingBottom() != 0) v.setPadding(0, 0, 0, 0);
-            // NOT CONSUMED — the WebView needs every inset, the IME one
-            // included: env(safe-area-inset-*) reads them, and the keyboard
-            // resize is Chromium's to perform. See the block above.
-            return insets;
+            androidx.core.graphics.Insets bars =
+                insets.getInsets(WindowInsetsCompat.Type.systemBars()
+                    | WindowInsetsCompat.Type.displayCutout());
+            androidx.core.graphics.Insets ime =
+                insets.getInsets(WindowInsetsCompat.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, ime.bottom);
+            return WindowInsetsCompat.CONSUMED;
         });
+
     }
 
     /**
