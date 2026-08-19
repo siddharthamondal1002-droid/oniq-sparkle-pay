@@ -51,6 +51,13 @@ import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { LANG_NATIVE } from "@/lib/userLanguage";
 import { WINDOW_STEP, windowRows, windowSizeToReveal } from "@/lib/chat/messageWindow";
+import {
+  fetchCachedTranslations,
+  getConversationTranslation,
+  grantTranslationConsent,
+  hasTranslationConsent,
+  setConversationTranslation,
+} from "@/lib/chat/translation";
 import { PhotoStudio } from "@/components/photo/PhotoStudio";
 import { EMOJI_CATEGORIES } from "@/lib/emojis";
 import { format, isToday, isYesterday } from "date-fns";
@@ -290,6 +297,15 @@ function ChatThread() {
   const [translated, setTranslated] = useState<Record<string, string>>({});
   const [showOriginal, setShowOriginal] = useState<Record<string, boolean>>({});
   const [translatingId, setTranslatingId] = useState<string | null>(null);
+  // Per-conversation, not global, and off until you turn it on here. With it
+  // on, translations ALREADY IN THE SHARED CACHE are shown on read — that
+  // sends nothing anywhere and calls no provider. A message nobody has
+  // translated yet still needs an explicit tap.
+  const [convTranslate, setConvTranslate] = useState(false);
+  // Set when a translation was asked for before the translation purpose was
+  // consented to. The call does not happen until this is answered.
+  const [consentAsk, setConsentAsk] = useState<Message | null>(null);
+  const [consentBusy, setConsentBusy] = useState(false);
   // Track A1 — how many rows stay mounted. See lib/chat/messageWindow.ts for
   // why this is a tail window rather than a measured virtualiser.
   const [windowSize, setWindowSize] = useState(WINDOW_STEP);
@@ -300,6 +316,15 @@ function ChatThread() {
     // A different conversation starts at the bottom again. Without this the
     // window stays as wide as whatever the last thread was expanded to.
     setWindowSize(WINDOW_STEP);
+    setTranslated({});
+    setShowOriginal({});
+    let alive = true;
+    void getConversationTranslation(conversationId).then((on) => {
+      if (alive) setConvTranslate(on);
+    });
+    return () => {
+      alive = false;
+    };
   }, [conversationId]);
   // Opening the thread makes any tray entry for it stale — the whole point of
   // the notification was to get you here. Nothing used to clear it, so a chat
