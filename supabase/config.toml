@@ -17,6 +17,16 @@ verify_jwt = false
 #   story-plot      each checks Authorization against /auth/v1/user for a real
 #   story-still     person, OR accepts x-story-job-token from the runner. Both
 #   story-voice     branches are in requireAuth(); neither is skippable.
+#   story-clip      image-to-video is only ever a runner step, never a
+#                   user-facing call, so it authenticates SOLELY by the same
+#                   x-story-job-token — verifyJobToken(): HMAC-SHA256 over one
+#                   job id, 1-hour TTL, constant-time compare, expiry checked
+#                   after the signature. In dispatched mode the runner sends no
+#                   Authorization header at all, so leaving verify_jwt on here
+#                   makes the gateway 401 the runner before the function's own
+#                   token check ever runs — which is exactly the break this
+#                   line fixes. The job-token gate is strictly stronger than a
+#                   user JWT for a machine caller.
 #
 # Leaving verify_jwt on here would not add a check — it would break the runner
 # and leave the user path exactly as guarded as it already is.
@@ -33,6 +43,9 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.story-voice]
+verify_jwt = false
+
+[functions.story-clip]
 verify_jwt = false
 
 # Called by pg_cron with the service-role key, which it compares itself — same

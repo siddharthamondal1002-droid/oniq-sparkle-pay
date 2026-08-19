@@ -20,7 +20,11 @@ import {
   Eye,
 } from "lucide-react";
 import { ReportSheet, type ReportTarget } from "@/components/safety/ReportSheet";
-import { AttachmentSheet, useAttachmentContext, type AttachmentOption } from "@/components/attach/AttachmentSheet";
+import {
+  AttachmentSheet,
+  useAttachmentContext,
+  type AttachmentOption,
+} from "@/components/attach/AttachmentSheet";
 import { systemShare, type SharePayload } from "@/lib/share";
 import { watchImageView } from "@/lib/views";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
@@ -57,7 +61,12 @@ function isImageUrl(url: string): boolean {
 
 // Upload a moment attachment to storage and return a long-lived signed URL.
 // Exported for reuse (e.g. profile-photo uploads share this bucket + pattern).
-export async function uploadMomentBlob(blob: Blob, ext: string, contentType: string, bucket = "moments"): Promise<string> {
+export async function uploadMomentBlob(
+  blob: Blob,
+  ext: string,
+  contentType: string,
+  bucket = "moments",
+): Promise<string> {
   const { data: u } = await supabase.auth.getUser();
   if (!u.user) throw new Error("Not signed in");
   const path = `${u.user.id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
@@ -90,7 +99,15 @@ export function routeMomentFile(file: File): { bucket: string; ext: string } {
   }
   if (file.type.startsWith("video/")) {
     const map: Record<string, string> = { mp4: "mp4", webm: "webm", mov: "mov", quicktime: "mov" };
-    const e = map[ext] ?? (file.type === "video/quicktime" ? "mov" : file.type === "video/webm" ? "webm" : ext === "" ? "mp4" : ext);
+    const e =
+      map[ext] ??
+      (file.type === "video/quicktime"
+        ? "mov"
+        : file.type === "video/webm"
+          ? "webm"
+          : ext === ""
+            ? "mp4"
+            : ext);
     if (!["mp4", "webm", "mov"].includes(e)) {
       throw new Error("that video format isn't supported — use mp4, webm or mov 🎬");
     }
@@ -178,7 +195,10 @@ export function MomentsFeed() {
     const payload: SharePayload = {
       title: "ONIQ Moment ✨",
       text: p.content ?? undefined,
-      url: typeof window !== "undefined" ? `${window.location.origin}/app/chat/moments#post-${p.id}` : "",
+      url:
+        typeof window !== "undefined"
+          ? `${window.location.origin}/app/chat/moments#post-${p.id}`
+          : "",
     };
     setShareSheet(payload);
   }
@@ -194,16 +214,20 @@ export function MomentsFeed() {
       // P4: read Content Credentials server-side; pre-tick when found.
       const ref = parseStorageRef(url);
       if (ref) {
-        void scanProvenance({ bucket: ref.bucket, path: ref.path, contentType: "moment" }).then((r) => {
-          if (r.verdict === "confirmed") {
-            setIsSynthetic(true);
-            setSyntheticLocked(true);
-            toast("AI content credentials verified — label applied 🤖");
-          } else if (r.verdict === "likely" || r.verdict === "possible") {
-            setIsSynthetic(true);
-            toast("this file carries AI-generation credentials — label pre-applied (untick if that's wrong)");
-          }
-        });
+        void scanProvenance({ bucket: ref.bucket, path: ref.path, contentType: "moment" }).then(
+          (r) => {
+            if (r.verdict === "confirmed") {
+              setIsSynthetic(true);
+              setSyntheticLocked(true);
+              toast("AI content credentials verified — label applied 🤖");
+            } else if (r.verdict === "likely" || r.verdict === "possible") {
+              setIsSynthetic(true);
+              toast(
+                "this file carries AI-generation credentials — label pre-applied (untick if that's wrong)",
+              );
+            }
+          },
+        );
       }
     } catch (err: any) {
       toast.error(err?.message ?? "Upload failed");
@@ -305,7 +329,13 @@ export function MomentsFeed() {
     const media = imageUrl.trim() ? [imageUrl.trim()] : [];
     const { error } = await supabase
       .from("moments_posts")
-      .insert({ user_id: u.user.id, content: content.trim(), media_urls: media, visibility, is_synthetic: isSynthetic } as never);
+      .insert({
+        user_id: u.user.id,
+        content: content.trim(),
+        media_urls: media,
+        visibility,
+        is_synthetic: isSynthetic,
+      } as never);
 
     if (error) toast.error(error.message);
     else {
@@ -392,7 +422,11 @@ export function MomentsFeed() {
                   aria-label="Rotate photo"
                   className="absolute right-2 top-11 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white disabled:opacity-50"
                 >
-                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />}
+                  {uploading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <RotateCw className="h-3.5 w-3.5" />
+                  )}
                 </button>
               )}
             </div>
@@ -440,7 +474,13 @@ export function MomentsFeed() {
               onChange={(e) => setIsSynthetic(e.target.checked)}
               className="mt-0.5 accent-[hsl(var(--primary))]"
             />
-            <span>this media is AI-generated or AI-edited 🤖 <span className="opacity-70">(ticks itself when we detect AI credentials; required under Indian law{syntheticLocked ? " — verified, can't be removed" : ""})</span></span>
+            <span>
+              this media is AI-generated or AI-edited 🤖{" "}
+              <span className="opacity-70">
+                (ticks itself when we detect AI credentials; required under Indian law
+                {syntheticLocked ? " — verified, can't be removed" : ""})
+              </span>
+            </span>
           </label>
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
             <div className="flex gap-2 text-muted-foreground">
@@ -470,7 +510,11 @@ export function MomentsFeed() {
                   visibility === "public" ? "text-primary" : "text-muted-foreground"
                 }`}
               >
-                {visibility === "public" ? <Globe className="h-4 w-4" /> : <span aria-hidden>🤝</span>}
+                {visibility === "public" ? (
+                  <Globe className="h-4 w-4" />
+                ) : (
+                  <span aria-hidden>🤝</span>
+                )}
                 {visibility === "public" ? "public" : "moots"}
               </button>
             </div>
@@ -505,6 +549,8 @@ export function MomentsFeed() {
                             <img
                               src={p.profiles.avatar_url}
                               alt=""
+                              loading="lazy"
+                              decoding="async"
                               className="h-9 w-9 rounded-full object-cover"
                             />
                           ) : (
@@ -640,7 +686,9 @@ export function MomentsFeed() {
       {reportTarget && <ReportSheet target={reportTarget} onClose={() => setReportTarget(null)} />}
       {showCrisis && <CrisisSupportSheet onClose={() => setShowCrisis(false)} />}
       {shareSheet && <ShareSheet payload={shareSheet} onClose={() => setShareSheet(null)} />}
-      {viewersFor && <ViewersSheet postType="moment" postId={viewersFor} onClose={() => setViewersFor(null)} />}
+      {viewersFor && (
+        <ViewersSheet postType="moment" postId={viewersFor} onClose={() => setViewersFor(null)} />
+      )}
       <AttachmentSheet
         open={showAttach}
         surface="moment"
@@ -674,7 +722,15 @@ export function MomentsFeed() {
   );
 }
 
-function EditPostSheet({ post, onClose, onSaved }: { post: Post; onClose: () => void; onSaved: () => void }) {
+function EditPostSheet({
+  post,
+  onClose,
+  onSaved,
+}: {
+  post: Post;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
   const [text, setText] = useState(post.content ?? "");
   const [media, setMedia] = useState<string | null>(post.media_urls?.[0] ?? null);
   const [busy, setBusy] = useState(false);
@@ -699,7 +755,11 @@ function EditPostSheet({ post, onClose, onSaved }: { post: Post; onClose: () => 
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/") && !file.type.startsWith("video/") && !file.type.startsWith("audio/")) {
+    if (
+      !file.type.startsWith("image/") &&
+      !file.type.startsWith("video/") &&
+      !file.type.startsWith("audio/")
+    ) {
       toast.error("Choose a photo, video, or audio file");
       return;
     }
@@ -753,7 +813,10 @@ function EditPostSheet({ post, onClose, onSaved }: { post: Post; onClose: () => 
       >
         <div className="mb-3 flex items-center justify-between">
           <h3 className="font-display text-base font-semibold">edit post ✏️</h3>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-muted">
+          <button
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -783,12 +846,22 @@ function EditPostSheet({ post, onClose, onSaved }: { post: Post; onClose: () => 
                 aria-label="Rotate photo"
                 className="absolute right-2 top-11 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white disabled:opacity-50"
               >
-                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCw className="h-3.5 w-3.5" />}
+                {busy ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RotateCw className="h-3.5 w-3.5" />
+                )}
               </button>
             )}
           </div>
         )}
-        <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" className="hidden" onChange={pickReplacement} />
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*,video/*,audio/*"
+          className="hidden"
+          onChange={pickReplacement}
+        />
         <div className="mt-3 flex items-center gap-2">
           <button
             type="button"
@@ -931,7 +1004,15 @@ function MomentMedia({ url, className }: { url: string; className?: string }) {
 
 /* Invisible helper: observes its parent post card and records a qualified
    view (>=1s at >=50% visible) through the shared batching path. */
-function ViewTracker({ postId, ownerId, me }: { postId: string; ownerId: string; me: string | null }) {
+function ViewTracker({
+  postId,
+  ownerId,
+  me,
+}: {
+  postId: string;
+  ownerId: string;
+  me: string | null;
+}) {
   const ref = useRef<HTMLSpanElement | null>(null);
   useEffect(() => {
     const host = ref.current?.closest("article");

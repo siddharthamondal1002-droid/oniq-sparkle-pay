@@ -631,7 +631,13 @@ function Avatar({
       style={{ width: size, height: size, backgroundColor: bg, fontSize: size * 0.42 }}
     >
       {url ? (
-        <img src={url} alt="" className="h-full w-full object-cover" />
+        <img
+          src={url}
+          alt=""
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover"
+        />
       ) : channel ? (
         <span aria-hidden style={{ fontSize: size * 0.5 }}>
           📢
