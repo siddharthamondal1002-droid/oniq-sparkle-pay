@@ -78,7 +78,7 @@ function ChatWorldLayout() {
             ? "grid-cols-3"
             : "grid-cols-2";
 
-  const fullBleed = normalized.startsWith("/app/chat/reels");
+  
   // No bottom padding here: the shell reserves the clearance for THIS nav
   // (CHAT_SECTION_CHROME in app.tsx), and it has to be the same number that
   // --app-vh subtracts. Padding it twice put dead scroll under every sub-tab.
