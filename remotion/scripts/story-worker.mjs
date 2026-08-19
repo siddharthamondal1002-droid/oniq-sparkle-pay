@@ -306,7 +306,13 @@ async function voiceWithRetry(payload, attempts) {
       return await edge('story-voice', payload);
     } catch (err) {
       const msg = String(err?.message ?? err);
-      if (a >= attempts || !/story-voice: 502/.test(msg)) throw err;
+      // 502 is the gateway wrapping an upstream failure (quota arrives as
+      // "502 ... (upstream 429)"). A BARE 429 is story-voice's own
+      // per-minute rate limiter — pacing, not verdict — and it killed run
+      // sl004 of the 2026-08-18 dry-run campaign in under a second because
+      // only the 502 shape was retried. Both are transient; both wait.
+      const transient = /story-voice: 502/.test(msg) || /story-voice: 429/.test(msg);
+      if (a >= attempts || !transient) throw err;
       const wait = 30_000 * a;
       console.log(`  voice retry in ${wait / 1000}s (${msg.slice(0, 100)})`);
       await new Promise((r) => setTimeout(r, wait));
@@ -544,6 +550,15 @@ async function renderPlan(plan, outFile) {
       concurrency: CONCURRENCY,
       crf: 28,
       audioBitrate: '128k',
+      // Stated intent, MEASURED as insufficient: the compositor still tags
+      // the master yuvj420p (full-range) with this set, because Chromium
+      // hands it full-range frames. The film-look pass is what actually
+      // normalises — its re-encode carries -pix_fmt yuv420p — so on a
+      // runner with a grade-capable ffmpeg the shipped film is yuv420p, and
+      // on one without, the clean master keeps the compositor's tag exactly
+      // as it always has. Kept because it is Remotion's documented knob and
+      // harmless; do not read it as the fix.
+      pixelFormat: 'yuv420p',
     });
     const seconds = (Date.now() - started) / 1000;
     const videoSeconds = composition.durationInFrames / composition.fps;
@@ -555,6 +570,13 @@ async function renderPlan(plan, outFile) {
     // Destructures its argument — a bare close() throws AFTER the mp4 is on
     // disk, which reads as a render failure and is not one.
     await browser.close({ silent: true });
+    // The bundle is ~520MB of webpack output in os.tmpdir(), and bundle()
+    // never removes it. Twenty-seven invocations filled a 22GB disk in the
+    // 2026-08-18 dry-run campaign and took thirteen runs down with ENOSPC.
+    // One render, one bundle, one removal — never a glob over /tmp, which
+    // would tread on a sibling process the way the campaign's first cleanup
+    // attempt did.
+    fs.rmSync(bundled, { recursive: true, force: true });
   }
 }
 
@@ -656,15 +678,55 @@ const RIG_KEY_BY_NAME = new Map([...MEASURED_RIGS].map((k) => [k.toLowerCase(), 
  * of CPU per finished minute, most of the visible "filmed" quality, and
  * STORY_FILM_LOOK=off turns it off without a deploy.
  */
+/**
+ * An ffmpeg that can actually run the grade, found once and remembered.
+ *
+ * The compositor's ffmpeg is a cut-down build with NONE of the six filters
+ * the grade needs (lutyuv, gblur, curves, rgbashift, vignette, noise) — it
+ * has crop/scale/split/format and little else, so on every runner shaped
+ * like this one the grade has been skipping silently since it shipped. A
+ * full ffmpeg usually exists right next to it on the PATH or at
+ * /usr/bin/ffmpeg; if one does, the grade runs there. If none does, the
+ * step-down below ships the clean master exactly as before — this probe
+ * never makes the pipeline worse, only sometimes better.
+ */
+let gradeFfmpeg; // undefined = not probed; null = none capable
+function findGradeFfmpeg() {
+  if (gradeFfmpeg !== undefined) return gradeFfmpeg;
+  const NEEDED = ['lutyuv', 'gblur', 'curves', 'rgbashift', 'vignette', 'noise'];
+  const candidates = [findBin('ffmpeg'), '/usr/bin/ffmpeg', 'ffmpeg'];
+  for (const bin of candidates) {
+    try {
+      const out = execFileSync(bin, ['-hide_banner', '-filters'], { stdio: 'pipe' }).toString();
+      if (NEEDED.every((f) => out.includes(` ${f} `))) {
+        gradeFfmpeg = bin;
+        return bin;
+      }
+    } catch {
+      // absent or unrunnable — try the next
+    }
+  }
+  gradeFfmpeg = null;
+  return null;
+}
+
 function gradeInPlace(file) {
   if ((process.env.STORY_FILM_LOOK ?? 'on') === 'off') {
     console.log('film look: off by env');
     return;
   }
+  const ffmpeg = findGradeFfmpeg();
+  if (!ffmpeg) {
+    // Named plainly so a log reader sees a capability gap, not an error.
+    // Pixel format is NOT at stake here any more — the render itself owns
+    // -pix_fmt now — so skipping the grade costs the look and nothing else.
+    console.log('film look: no ffmpeg on this runner has the grade filters — shipping the clean master');
+    return;
+  }
   const graded = `${file}.look.mp4`;
   try {
     const t0 = Date.now();
-    applyFilmLook(findBin('ffmpeg'), file, graded);
+    applyFilmLook(ffmpeg, file, graded);
     fs.renameSync(graded, file);
     console.log(`film look: graded in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
   } catch (err) {
@@ -1099,11 +1161,31 @@ if (offline) {
             break outer;
           } catch (err) {
             const msg = String(err?.message ?? err);
-            // A refusal or a length rejection both step down; anything else
-            // is a real failure and throws.
+            // Three sorts of failure, three verdicts:
+            //   422 / 400-too-long  — the CONTENT is refused: step down.
+            //   5xx / 429           — the SERVICE hiccuped: one same-ask
+            //                         retry after a pause, then fatal. Runs
+            //                         3, 11 and 19 of the 2026-08-18 dry
+            //                         campaign died to a single injected 500
+            //                         because only refusals had a ladder; a
+            //                         one-blip transient is not worth a paid
+            //                         film. One retry, never more — a host
+            //                         that failed twice in a row is down,
+            //                         and infinite patience here would hold
+            //                         the whole queue.
+            //   anything else       — a real failure: throw.
             const steppable =
               /story-still: 422/.test(msg) || /story-still: 400 .*too long/i.test(msg);
-            if (!steppable) throw err;
+            const transient = /story-still: (5\d\d|429)/.test(msg);
+            if (!steppable && !transient) throw err;
+            if (transient) {
+              if (t === 0) {
+                console.log(`  still ${i + 1}: transient (${msg.slice(0, 80)}) — once more in 5s`);
+                await new Promise((r) => setTimeout(r, 5_000));
+                continue;
+              }
+              throw err;
+            }
             if (/NO_IMAGE/.test(msg) && t === 0) {
               console.log(`  still ${i + 1}: empty reply — same ask once more`);
               continue;
@@ -1140,7 +1222,13 @@ if (offline) {
           const voiced = await voiceWithRetry({ text: shot.narration, voice }, 4);
           fs.writeFileSync(wav, voiceBytesToFile(voiced.data, voiced.mime));
         } catch (err) {
-          if (!/story-voice: 502/.test(String(err?.message ?? err))) throw err;
+          // The switch fires when the cloud voice is EXHAUSTED, whatever the
+          // exhaustion's shape: the gateway's 502 wrap, or story-voice's own
+          // 429 limiter surviving every paced retry. Refusals and missing
+          // keys still throw — Piper is for a dry bucket, not a bad request.
+          const msg = String(err?.message ?? err);
+          const dry = /story-voice: 502/.test(msg) || /story-voice: 429/.test(msg);
+          if (!dry) throw err;
           if (!(await localTts())) throw err;
           ttsEngine = 'local';
           console.log(`  voice ${i + 1}: cloud quota dry — in-house piper carries the film from here`);
