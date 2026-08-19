@@ -43,4 +43,27 @@ describe("error is not empty — batch 1 screens", () => {
       "hpError branch must precede the !hp ExperiencePicker branch",
     ).toBeLessThan(src.indexOf("!hp ?"));
   });
+
+  it("data-rights keeps the erasure gate closed on a failed requests read", () => {
+    const src = strip(read("src/routes/_authenticated/app.privacy.data-rights.tsx"));
+    // A failed list read sets reqError rather than being silently swallowed.
+    expect(src, "the requests read still swallows its error").toMatch(/setReqError\(true\)/);
+    // The Delete-account button must be gated on a CONFIRMED load, so a failed
+    // read can never re-enable it and let the user file a duplicate erasure.
+    expect(src, "delete button no longer gated on reqLoaded").toMatch(
+      /disabled=\{!!pendingErasure \|\| !reqLoaded\}/,
+    );
+    expect(src, "no retry on the requests card error state").toContain("Try again");
+  });
+
+  it("profile throws on a reports error and shows retry, not a false empty", () => {
+    const src = strip(read("src/routes/_authenticated/app.profile.tsx"));
+    expect(src, "my-reports query no longer throws on error").toMatch(/if \(error\) throw error/);
+    expect(src, "reportsError branch is gone").toContain("reportsError");
+    // The error branch must precede the length===0 "no reports" branch.
+    expect(
+      src.indexOf("reportsError ?"),
+      "reportsError branch must precede the empty branch",
+    ).toBeLessThan(src.indexOf("myReports.length === 0"));
+  });
 });

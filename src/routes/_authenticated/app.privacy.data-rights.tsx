@@ -1,7 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { ArrowLeft, Download, Pencil, Trash2, AlertTriangle, FileText, Sparkles, Brain, Clock } from "lucide-react";
+import {
+  ArrowLeft,
+  Download,
+  Pencil,
+  Trash2,
+  AlertTriangle,
+  FileText,
+  Sparkles,
+  Brain,
+  Clock,
+} from "lucide-react";
 import {
   PERSONALISATION_NOTICE,
   clearMySignals,
@@ -29,8 +39,6 @@ import {
 } from "@/lib/dsr";
 import { deliverFile, isShareCancelled } from "@/lib/saveFile";
 
-
-
 export const Route = createFileRoute("/_authenticated/app/privacy/data-rights")({
   head: () => ({
     meta: [
@@ -51,12 +59,20 @@ function DataRightsPage() {
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [requests, setRequests] = useState<DsrRequest[]>([]);
+  const [reqLoaded, setReqLoaded] = useState(false);
+  const [reqError, setReqError] = useState(false);
 
   const refreshRequests = useCallback(async () => {
     try {
       setRequests(await listMyDsrRequests());
+      setReqLoaded(true);
+      setReqError(false);
     } catch {
-      /* read-only list; a failure here shouldn't block the page */
+      // A failed read must NOT read as "no requests". Left unguarded it
+      // re-enabled the Delete-account button even when an erasure was already
+      // pending, letting the user file a duplicate. Surface it, keep the gate
+      // closed until we have actually confirmed the current request state.
+      setReqError(true);
     }
   }, []);
 
@@ -86,7 +102,9 @@ function DataRightsPage() {
       const outcome = await deliverFile(filename, "application/json", blob);
       await refreshRequests();
       toast.success(
-        outcome === "shared" ? "Export ready — choose where to save it 📦" : "Data export downloaded 📦",
+        outcome === "shared"
+          ? "Export ready — choose where to save it 📦"
+          : "Data export downloaded 📦",
       );
     } catch (e) {
       if (isShareCancelled(e)) {
@@ -99,7 +117,6 @@ function DataRightsPage() {
       setExporting(false);
     }
   }
-
 
   async function requestCorrection() {
     setBusy(true);
@@ -160,12 +177,16 @@ function DataRightsPage() {
 
         <h1 className="mt-4 font-display text-2xl font-bold">Your data rights</h1>
         <p className="mt-1 text-xs text-muted-foreground">
-          Under India's Digital Personal Data Protection Act, 2023, you can access, correct, or delete your data at any time.
-          Every request is answered within {DSR_SLA_DAYS} days.
+          Under India's Digital Personal Data Protection Act, 2023, you can access, correct, or
+          delete your data at any time. Every request is answered within {DSR_SLA_DAYS} days.
         </p>
 
         {pendingErasure && (
-          <ErasureBanner req={pendingErasure} busy={busy} onCancel={() => void cancel(pendingErasure.id)} />
+          <ErasureBanner
+            req={pendingErasure}
+            busy={busy}
+            onCancel={() => void cancel(pendingErasure.id)}
+          />
         )}
 
         <div className="mt-6 space-y-3">
@@ -229,7 +250,13 @@ function DataRightsPage() {
 
           <MemoryCard />
 
-          <RequestsCard requests={requests} busy={busy} onCancel={(id) => void cancel(id)} />
+          <RequestsCard
+            requests={requests}
+            busy={busy}
+            onCancel={(id) => void cancel(id)}
+            error={reqError}
+            onRetry={() => void refreshRequests()}
+          />
 
           <RightsCard
             icon={<Trash2 className="h-5 w-5 text-destructive" />}
@@ -239,10 +266,16 @@ function DataRightsPage() {
           >
             <button
               onClick={() => setConfirmOpen(true)}
-              disabled={!!pendingErasure}
+              disabled={!!pendingErasure || !reqLoaded}
               className="w-full rounded-xl bg-destructive py-2.5 text-sm font-semibold text-destructive-foreground disabled:opacity-50"
             >
-              {pendingErasure ? "Deletion already scheduled" : "Delete my account"}
+              {pendingErasure
+                ? "Deletion already scheduled"
+                : reqError
+                  ? "Couldn't check your requests — retry above"
+                  : !reqLoaded
+                    ? "Checking your requests…"
+                    : "Delete my account"}
             </button>
           </RightsCard>
         </div>
@@ -255,9 +288,9 @@ function DataRightsPage() {
         </Link>
 
         <p className="mt-6 text-[11px] text-muted-foreground">
-          Some records (anonymised transactions, grievance correspondence) may be retained up to 90 days as required by Indian law.
+          Some records (anonymised transactions, grievance correspondence) may be retained up to 90
+          days as required by Indian law.
         </p>
-
       </div>
 
       {confirmOpen && (
@@ -268,8 +301,8 @@ function DataRightsPage() {
               <div className="font-display text-lg font-semibold">Permanent deletion</div>
             </div>
             <p className="mt-2 text-sm text-muted-foreground">
-              Your account is deactivated 48 hours from now, then erased for good 30 days after that. Type{" "}
-              <span className="font-semibold text-foreground">DELETE</span> to confirm.
+              Your account is deactivated 48 hours from now, then erased for good 30 days after
+              that. Type <span className="font-semibold text-foreground">DELETE</span> to confirm.
             </p>
             <input
               autoFocus
@@ -280,7 +313,10 @@ function DataRightsPage() {
             />
             <div className="mt-4 flex gap-2">
               <button
-                onClick={() => { setConfirmOpen(false); setTyped(""); }}
+                onClick={() => {
+                  setConfirmOpen(false);
+                  setTyped("");
+                }}
                 disabled={busy}
                 className="flex-1 rounded-2xl border border-border bg-card py-2.5 text-sm font-semibold hover:bg-muted"
               >
@@ -302,7 +338,15 @@ function DataRightsPage() {
 }
 
 /** The authoritative 48-hour advance notice: in-app, impossible to miss. */
-function ErasureBanner({ req, busy, onCancel }: { req: DsrRequest; busy: boolean; onCancel: () => void }) {
+function ErasureBanner({
+  req,
+  busy,
+  onCancel,
+}: {
+  req: DsrRequest;
+  busy: boolean;
+  onCancel: () => void;
+}) {
   const left = req.erasure_effective_at ? countdown(req.erasure_effective_at) : null;
   return (
     <div className="mt-4 rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
@@ -337,10 +381,14 @@ function RequestsCard({
   requests,
   busy,
   onCancel,
+  error,
+  onRetry,
 }: {
   requests: DsrRequest[];
   busy: boolean;
   onCancel: (id: string) => void;
+  error: boolean;
+  onRetry: () => void;
 }) {
   return (
     <RightsCard
@@ -348,12 +396,29 @@ function RequestsCard({
       title="My privacy requests"
       desc={`Every access, correction, erasure, or portability request you've made, and where it's up to. We answer all of them within ${DSR_SLA_DAYS} days.`}
     >
-      {requests.length === 0 ? (
+      {error ? (
+        <div className="text-xs">
+          <p className="text-muted-foreground">
+            Couldn't load your requests right now — a connection problem, not confirmation that you
+            have none.
+          </p>
+          <button
+            type="button"
+            onClick={onRetry}
+            className="press mt-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+          >
+            Try again
+          </button>
+        </div>
+      ) : requests.length === 0 ? (
         <p className="text-xs text-muted-foreground">No requests yet — nothing pending 🧼</p>
       ) : (
         <div className="space-y-2">
           {requests.map((r) => (
-            <div key={r.id} className="flex items-center gap-2 rounded-xl border border-border bg-card p-2.5">
+            <div
+              key={r.id}
+              className="flex items-center gap-2 rounded-xl border border-border bg-card p-2.5"
+            >
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-medium">{DSR_TYPE_LABEL[r.request_type]}</div>
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
@@ -391,9 +456,13 @@ function RightsCard({
   children: React.ReactNode;
 }) {
   return (
-    <div className={`rounded-2xl border p-4 ${danger ? "border-destructive/40 bg-destructive/5" : "border-border bg-card"}`}>
+    <div
+      className={`rounded-2xl border p-4 ${danger ? "border-destructive/40 bg-destructive/5" : "border-border bg-card"}`}
+    >
       <div className="flex items-center gap-3">
-        <div className={`grid h-10 w-10 place-items-center rounded-xl ${danger ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}>
+        <div
+          className={`grid h-10 w-10 place-items-center rounded-xl ${danger ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"}`}
+        >
           {icon}
         </div>
         <div className="flex-1">
@@ -431,7 +500,11 @@ function PersonalisationCard() {
     try {
       await setPersonalisationConsent(next);
       await refresh();
-      toast.success(next ? "Personalisation on — thanks ✨" : "Personalisation off. Everything collected has been erased.");
+      toast.success(
+        next
+          ? "Personalisation on — thanks ✨"
+          : "Personalisation off. Everything collected has been erased.",
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Couldn't update that";
       toast.error(/minor/i.test(msg) ? "Personalisation isn't available on this account." : msg);
@@ -462,7 +535,9 @@ function PersonalisationCard() {
           onClick={() => void toggle(!on)}
           disabled={busy || on === null}
           className={`w-full rounded-xl py-2.5 text-sm font-semibold disabled:opacity-50 ${
-            on ? "border border-border bg-card hover:bg-muted" : "bg-primary text-primary-foreground"
+            on
+              ? "border border-border bg-card hover:bg-muted"
+              : "bg-primary text-primary-foreground"
           }`}
         >
           {on === null ? "Checking…" : on ? "Turn personalisation off" : "Turn personalisation on"}
@@ -480,7 +555,6 @@ function PersonalisationCard() {
     </RightsCard>
   );
 }
-
 
 /**
  * Loop 3 — everything ONIQ remembers about this account, in plain words.
@@ -533,7 +607,9 @@ function MemoryCard() {
                 </div>
                 <div className="truncate text-sm font-medium">{r.value}</div>
                 <div className="text-[10px] text-muted-foreground">
-                  {r.confirmed || r.source === "stated" ? "you confirmed this" : "guessed from your activity"}
+                  {r.confirmed || r.source === "stated"
+                    ? "you confirmed this"
+                    : "guessed from your activity"}
                 </div>
               </div>
               {!r.confirmed && r.source === "derived" && (

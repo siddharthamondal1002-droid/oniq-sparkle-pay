@@ -337,17 +337,23 @@ function DangerZone() {
 
 function SafetySection() {
   const [isAdmin, setIsAdmin] = useState(false);
-  const { data: myReports = [] } = useQuery({
+  const {
+    data: myReports = [],
+    isError: reportsError,
+    refetch: refetchReports,
+  } = useQuery({
     queryKey: ["my-reports"],
     queryFn: async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("reports")
         .select("id, target_type, reason, status, created_at")
         .eq("reporter_id", u.user.id)
         .order("created_at", { ascending: false })
         .limit(20);
+      // Throw so a failed read shows a retry, not a false "no reports filed".
+      if (error) throw error;
       return data ?? [];
     },
   });
@@ -438,7 +444,21 @@ function SafetySection() {
         <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
           <Flag className="h-4 w-4" /> My reports
         </div>
-        {myReports.length === 0 ? (
+        {reportsError ? (
+          <div className="text-xs">
+            <p className="text-muted-foreground">
+              Couldn't load your reports right now — a connection problem, not confirmation that you
+              have none.
+            </p>
+            <button
+              type="button"
+              onClick={() => refetchReports()}
+              className="press mt-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+            >
+              Try again
+            </button>
+          </div>
+        ) : myReports.length === 0 ? (
           <p className="text-xs text-muted-foreground">You haven't filed any reports.</p>
         ) : (
           <ul className="space-y-1.5">
