@@ -16,8 +16,7 @@
 // Until then nothing in this app, its store listing or its marketing claims
 // end-to-end encryption, because it would be false.
 export const MESSAGE_STORAGE_NOTE =
-  "Messages are stored server-readable by design so translation can work. " +
-  "Not end-to-end encrypted.";
+  "Messages are stored server-readable by design so translation can work.";
 
 import { supabase } from "@/integrations/supabase/client";
 import { listMyConsents, latestStates, writeConsent } from "@/lib/consent/ledger";
