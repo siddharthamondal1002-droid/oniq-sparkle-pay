@@ -37,15 +37,16 @@ export async function hasTranslationConsent(): Promise<boolean> {
 }
 
 /** Record the grant. Append-only; withdrawal is a later row, never an update. */
-export async function grantTranslationConsent(opts: {
-  lang: string | undefined;
-  home: Country | null | undefined;
-}): Promise<void> {
+export async function grantTranslationConsent(lang: string | undefined): Promise<void> {
+  // Home country decides which legal regime the row is stamped with; read it
+  // here so no caller has to remember to pass it.
+  const { data: prof } = await supabase.rpc("get_my_profile_meta").maybeSingle();
+  const home = (prof?.country_code as Country | null) ?? null;
   await writeConsent({
     purposeId: TRANSLATION_PURPOSE_ID,
     state: "granted",
-    locale: resolveNoticeLocale(opts.lang),
-    home: opts.home,
+    locale: resolveNoticeLocale(lang),
+    home,
   });
 }
 
