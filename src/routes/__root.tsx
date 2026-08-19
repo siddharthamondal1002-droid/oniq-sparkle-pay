@@ -81,33 +81,36 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       {
         name: "viewport",
         /*
-         * NO interactive-widget HERE. It is added at runtime for the WEB only
-         * — see the effect in RootComponent.
+         * interactive-widget=overlays-content — ONE keyboard mechanism, the
+         * same on every platform and every build state (owner decision,
+         * 2026-08-19).
          *
-         * Having it in the static meta meant the keyboard was subtracted TWICE
-         * on native, by two platform layers that each believed they were the
-         * only one doing it:
+         * It tells Chromium NOT to resize the layout viewport for the IME.
+         * The keyboard then only ever occludes the VISUAL viewport, which is
+         * what --kb-inset (src/lib/keyboardInset.ts) measures:
          *
-         *   MainActivity   pads android.R.id.content by ime.bottom, making the
-         *                  WebView physically shorter.
-         *   this meta      makes the WebView ALSO shrink its own layout
-         *                  viewport for the same keyboard.
+         *   installed build (MainActivity still pads by ime.bottom):
+         *     WebView is already 522 of 832 and sits entirely above the
+         *     keyboard. clientHeight 522, visualViewport 522, --kb-inset 0.
+         *     One subtraction, done by native. Correct.
+         *   pending build (no native padding):
+         *     WebView 832, keyboard occludes 311, visualViewport 521,
+         *     --kb-inset 311, subtracted once by the chat column. Correct.
          *
-         * On a 2000px screen with a 760px keyboard that leaves 100dvh at about
-         * 480px, which is exactly the chat column measured from a screenshot on
-         * 2026-08-18: header, a sliver of thread, the composer, and then a
-         * keyboard-sized dead band where the native padding shows through.
+         * The old default (no token) is what produced the 18 Aug probe:
+         * 832 − 310 (native) → 522, then Chromium resized again → 211, a
+         * keyboard-sized dead band --kb-inset could measure as 0 but never
+         * recover. overlays-content removes exactly that second subtraction.
          *
-         * Three CSS fixes chased this in the chat file and none could reach it,
-         * because by the time any stylesheet runs the viewport is already wrong.
-         * The comment those fixes were written under claimed "the Android
-         * WebView does not implement interactive-widget" — it does, from
-         * Chromium 108, and that belief is what let both layers coexist.
+         * A WebView too old to know the token ignores it and keeps today's
+         * behaviour — degrades to the status quo, never to something worse.
          *
-         * Native keeps MainActivity's padding; the web keeps the meta. Exactly
-         * one of the two, on each platform.
+         * viewport-fit=cover is untouched, so every env(safe-area-inset-*)
+         * read keeps resolving.
          */
-        content: "width=device-width, initial-scale=1, viewport-fit=cover",
+        content:
+          "width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=overlays-content",
+
       },
       { name: "theme-color", content: "#1a1230" },
       { title: "ONIQ — One App. Every World." },
