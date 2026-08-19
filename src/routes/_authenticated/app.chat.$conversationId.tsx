@@ -2122,17 +2122,23 @@ function ChatThread() {
        * at once was the real defect all along, fixed in __root.tsx rather
        * than here.
        *
-       * So the column takes --app-vh: the viewport less the status-bar inset
-       * the shell pads with, MINUS --kb-inset, which is NOT a fourth model of
-       * the keyboard — it is a MEASUREMENT of how much of the layout viewport
-       * is currently not visible (see src/lib/keyboardInset.ts). Where a layer
-       * below has already shrunk the layout viewport for the IME, that
-       * difference is 0 and this subtracts nothing, which is what makes the
-       * expression safe in both build states. With no keyboard, and with no
-       * visualViewport API, it is 0 and the column is exactly --app-vh — the
-       * pre-existing behaviour, unchanged.
+       * AMENDED 2026-08-19, after a device screenshot showed the strip AND the
+       * dead band a third time: `--app-vh - --kb-inset` was still a COMPOSED
+       * expression, and it only holds while exactly one of dvh / --kb-inset
+       * carries the keyboard. On the shipped device both did, so the keyboard
+       * came off twice and the thread was left about a header tall.
+       *
+       * The column now takes --vvh, the MEASURED visible height (see
+       * src/lib/keyboardInset.ts), less the status-bar inset the shell pads
+       * with. Nothing about the keyboard is modelled or subtracted here, so
+       * there is no second subtraction to get wrong: whatever combination of
+       * native padding, Chromium resizing and overlays-content produced the
+       * visible area, --vvh IS that area. With no visualViewport API the
+       * variable is absent and the fallback is the previous --app-vh
+       * behaviour, unchanged.
        */
-      style={{ height: "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))" }}
+      style={{ height: "calc(var(--vvh, var(--app-vh, 100dvh)) - env(safe-area-inset-top))" }}
+
 
     >
       {/* relative z-40: backdrop-blur makes the header its own stacking

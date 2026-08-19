@@ -19,7 +19,16 @@ describe("the measured keyboard inset", () => {
   });
 
   it("falls back to zero with no visualViewport API", () => {
-    expect(SRC).toMatch(/if \(!vv\) return 0;/);
+    expect(SRC).toMatch(/if \(!vv\) return \{ inset: 0, vvh: 0 \};/);
+  });
+
+  it("also publishes --vvh, the visible height itself", () => {
+    // AMENDED 2026-08-19: a composed `dvh - inset` height double-subtracted on
+    // a real device. --vvh is the visible height rather than a subtraction, so
+    // it cannot.
+    expect(SRC).toContain('const VVH = "--vvh"');
+    expect(SRC).toContain("Math.round(vv.height)");
+    expect(SRC).toContain("removeProperty(VVH)");
   });
 
   it("ignores a pinch-zoomed or degenerate reading", () => {
@@ -29,14 +38,15 @@ describe("the measured keyboard inset", () => {
 
   it("coalesces into one rAF and writes without reading afterwards", () => {
     expect(SRC).toContain("requestAnimationFrame");
-    // The write is the last statement of the frame: one setProperty, nothing
-    // after it.
+    // The writes are the last statements of the frame: setProperty only,
+    // nothing read after them.
     const frame = SRC.slice(SRC.indexOf("const apply"), SRC.indexOf("const schedule"));
-    expect(frame).toContain('root.style.setProperty(VAR, `${next}px`)');
+    expect(frame).toContain("root.style.setProperty(VAR, `${next.inset}px`)");
     expect(frame, "layout is read after the write").not.toMatch(
       /setProperty[\s\S]*getBoundingClientRect|setProperty[\s\S]*clientHeight/,
     );
   });
+
 
   it("listens to both resize and scroll, and cleans the variable up", () => {
     expect(SRC).toContain('addEventListener("resize"');
