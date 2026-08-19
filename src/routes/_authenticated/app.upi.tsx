@@ -395,10 +395,15 @@ function ReceiveTab() {
     }
     setSaving(true);
     const { data: u } = await supabase.auth.getUser();
+    if (!u.user) {
+      setSaving(false);
+      toast.error("Please sign in again");
+      return;
+    }
     const { error } = await supabase
       .from("profiles_private")
       .upsert(
-        { user_id: u.user!.id, upi_vpa: vpaInput.trim().toLowerCase() },
+        { user_id: u.user.id, upi_vpa: vpaInput.trim().toLowerCase() },
         { onConflict: "user_id" },
       );
     setSaving(false);

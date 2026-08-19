@@ -885,11 +885,17 @@ function ViewIdentityToggle() {
     const next = !on;
     setOn(next);
     const { data: u } = await supabase.auth.getUser();
+    if (!u.user) {
+      setOn(!next);
+      setBusy(false);
+      toast.error("Please sign in again");
+      return;
+    }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (supabase as any)
       .from("profiles")
       .update({ show_view_identity: next })
-      .eq("id", u.user!.id);
+      .eq("id", u.user.id);
     if (error) {
       setOn(!next);
       toast.error("couldn't save — try again");

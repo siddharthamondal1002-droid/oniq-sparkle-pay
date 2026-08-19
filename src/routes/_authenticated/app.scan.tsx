@@ -1,7 +1,17 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, ScanLine, QrCode, Camera, ClipboardPaste, AtSign, ImagePlus, Link2, RefreshCw } from "lucide-react";
+import {
+  ArrowLeft,
+  ScanLine,
+  QrCode,
+  Camera,
+  ClipboardPaste,
+  AtSign,
+  ImagePlus,
+  Link2,
+  RefreshCw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { upiLink, isValidVpa } from "@/lib/miniapps";
@@ -16,7 +26,9 @@ export const Route = createFileRoute("/_authenticated/app/scan")({
  *  `raw` carries the untouched URI — merchant QRs include fields we don't
  *  model (mc, tr, mode, sign) that must survive to the intent launch, or
  *  UPI apps flag the payment as unverified P2P and decline it. */
-export function parseUpiUri(raw: string): { pa: string; pn?: string; am?: string; tn?: string; raw?: string } | null {
+export function parseUpiUri(
+  raw: string,
+): { pa: string; pn?: string; am?: string; tn?: string; raw?: string } | null {
   const s = raw.trim();
   if (!/^upi:\/\/pay\?/i.test(s)) return null;
   try {
@@ -41,7 +53,10 @@ function ScanScreen() {
   return (
     <div className="px-5 pt-12 pb-6">
       <div className="flex items-center gap-3">
-        <Link to="/app" className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card">
+        <Link
+          to="/app"
+          className="grid h-9 w-9 place-items-center rounded-full border border-border bg-card"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <h1 className="font-display text-2xl font-bold">Scan & Pay</h1>
@@ -65,9 +80,16 @@ function ScanScreen() {
       {/* Standing, low-key anti-fraud note — visible on both tabs. */}
       <p className="mt-3 text-center text-[11px] text-muted-foreground">
         Suspect fraud? Call{" "}
-        <a href="tel:1930" className="font-semibold text-foreground underline">1930</a>{" "}
+        <a href="tel:1930" className="font-semibold text-foreground underline">
+          1930
+        </a>{" "}
         or report at{" "}
-        <a href="https://cybercrime.gov.in" target="_blank" rel="noreferrer" className="font-semibold text-foreground underline">
+        <a
+          href="https://cybercrime.gov.in"
+          target="_blank"
+          rel="noreferrer"
+          className="font-semibold text-foreground underline"
+        >
           cybercrime.gov.in
         </a>
         .
@@ -210,8 +232,6 @@ function ScanTab() {
     }
   }
 
-
-
   return (
     <div className="mt-5 space-y-4">
       <div className="relative overflow-hidden rounded-3xl border border-border bg-black aspect-square">
@@ -290,8 +310,6 @@ function ScanTab() {
           onChange={onPickFile}
         />
       </div>
-
-
 
       {/* Manual fallback */}
       <div className="rounded-3xl border border-border bg-card p-4">
@@ -397,7 +415,12 @@ function MyProfileQrCard() {
 
       <div className="mx-auto mt-4 w-56 overflow-hidden rounded-2xl bg-white p-3">
         {png ? (
-          <img data-testid="profile-qr-img" src={png} alt="Your ONIQ profile QR code" className="h-full w-full" />
+          <img
+            data-testid="profile-qr-img"
+            src={png}
+            alt="Your ONIQ profile QR code"
+            className="h-full w-full"
+          />
         ) : (
           <div className="grid aspect-square place-items-center text-xs text-muted-foreground">
             {isLoading ? "…" : "couldn't load"}
@@ -475,7 +498,6 @@ function MyQrTab() {
     },
   });
 
-
   // Render the QR whenever we have a saved VPA
   useEffect(() => {
     let cancelled = false;
@@ -484,7 +506,10 @@ function MyQrTab() {
         setQrDataUrl(null);
         return;
       }
-      const link = upiLink({ vpa: profile.upi_vpa, name: profile.display_name || profile.username || "" });
+      const link = upiLink({
+        vpa: profile.upi_vpa,
+        name: profile.display_name || profile.username || "",
+      });
       const QRCode = (await import("qrcode")).default;
       const url = await QRCode.toDataURL(link, {
         width: 480,
@@ -506,10 +531,15 @@ function MyQrTab() {
     }
     setSaving(true);
     const { data: u } = await supabase.auth.getUser();
+    if (!u.user) {
+      setSaving(false);
+      toast.error("Please sign in again");
+      return;
+    }
     const { error } = await supabase
       .from("profiles_private")
       .upsert(
-        { user_id: u.user!.id, upi_vpa: vpaInput.trim().toLowerCase() },
+        { user_id: u.user.id, upi_vpa: vpaInput.trim().toLowerCase() },
         { onConflict: "user_id" },
       );
     setSaving(false);
@@ -531,7 +561,12 @@ function MyQrTab() {
       {profile?.upi_vpa && qrDataUrl ? (
         <div className="rounded-3xl border border-border bg-card p-5 text-center">
           <div className="mx-auto w-64 overflow-hidden rounded-2xl bg-white p-3">
-            <img data-testid="my-qr-img" src={qrDataUrl} alt="Your UPI QR code" className="h-full w-full" />
+            <img
+              data-testid="my-qr-img"
+              src={qrDataUrl}
+              alt="Your UPI QR code"
+              className="h-full w-full"
+            />
           </div>
           <div className="mt-4 font-display text-lg font-semibold">
             {profile.display_name || profile.username}
@@ -540,11 +575,12 @@ function MyQrTab() {
             <AtSign className="inline h-3.5 w-3.5" /> {profile.upi_vpa}
           </div>
           <p className="mt-3 text-xs text-muted-foreground">
-            Anyone can scan this with GPay, PhonePe, Paytm or any UPI app — money lands straight in your bank. Screenshot it, print it, own it 📸
+            Anyone can scan this with GPay, PhonePe, Paytm or any UPI app — money lands straight in
+            your bank. Screenshot it, print it, own it 📸
           </p>
           <p className="mt-2 text-xs text-muted-foreground">
-            receiving money never needs your UPI PIN — anyone who asks for it to
-            "receive" a payment is scamming you 🚩
+            receiving money never needs your UPI PIN — anyone who asks for it to "receive" a payment
+            is scamming you 🚩
           </p>
           <button
             onClick={() => {
@@ -560,7 +596,8 @@ function MyQrTab() {
         <div className="rounded-3xl border border-border bg-card p-5">
           <h3 className="font-display text-base font-semibold">Set up your receive QR</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Enter your UPI ID once — ONIQ turns it into a scannable QR. Real money, straight to your bank; ONIQ never touches it.
+            Enter your UPI ID once — ONIQ turns it into a scannable QR. Real money, straight to your
+            bank; ONIQ never touches it.
           </p>
           <div className="relative mt-4">
             <AtSign className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
