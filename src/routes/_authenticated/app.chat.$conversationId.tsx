@@ -44,6 +44,8 @@ import { clearConversationNotification } from "@/lib/notificationTray";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
 import { ChannelSubBar } from "@/components/chat/ChannelSubBar";
 import { doodleSurfaceStyle } from "@/lib/chatWallpaper";
+import { startKeyboardInsetTracking } from "@/lib/keyboardInset";
+
 import { doodleByKey, doodleFor, doodleScatter, DOODLES } from "@/data/doodleLibrary";
 import { prettyFail, reportClientError } from "@/lib/errorReport";
 import { ProfilePhotoPopup } from "@/components/chat/ProfilePhotoPopup";
@@ -992,9 +994,14 @@ function ChatThread() {
    * viewport animation and lands short.
    */
   useEffect(() => {
+    // --kb-inset is published by src/lib/keyboardInset.ts, not here: the
+    // measurement is shared, rAF-coalesced, and writes one variable without
+    // reading layout after the write. This file only turns it on and off.
+    const stopKeyboardInset = startKeyboardInsetTracking();
     const vv = window.visualViewport;
-    if (!vv) return;
+    if (!vv) return stopKeyboardInset;
     let raf = 0;
+
     const apply = () => {
       raf = 0;
       // scale > 1 means the user pinch-zoomed, and vv.height then shrinks for
@@ -1163,10 +1170,12 @@ function ChatThread() {
       ro.observe(composer);
     }
     return () => {
+      stopKeyboardInset();
       vv.removeEventListener("resize", onChange);
       vv.removeEventListener("scroll", onChange);
       cancelAnimationFrame(raf);
       if (ro) ro.disconnect();
+
       // --vvh is no longer published, so there is nothing to clean up. Kept as
       // a note rather than a stray removeProperty for a name that no longer
       // exists anywhere in the file.
@@ -2114,13 +2123,17 @@ function ChatThread() {
        * than here.
        *
        * So the column takes --app-vh: the viewport less the status-bar inset
-       * the shell pads with, and nothing else. That is arithmetically the
-       * same as the `h-[100dvh]` this file carried from 2026-07-02 until the
-       * apparatus landed — the shell simply owns the inset now. No keyboard
-       * term survives anywhere in this component; --kb is not published at
-       * all any more, so there is nothing left to reach for.
+       * the shell pads with, MINUS --kb-inset, which is NOT a fourth model of
+       * the keyboard — it is a MEASUREMENT of how much of the layout viewport
+       * is currently not visible (see src/lib/keyboardInset.ts). Where a layer
+       * below has already shrunk the layout viewport for the IME, that
+       * difference is 0 and this subtracts nothing, which is what makes the
+       * expression safe in both build states. With no keyboard, and with no
+       * visualViewport API, it is 0 and the column is exactly --app-vh — the
+       * pre-existing behaviour, unchanged.
        */
-      style={{ height: "var(--app-vh, 100dvh)" }}
+      style={{ height: "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))" }}
+
     >
       {/* relative z-40: backdrop-blur makes the header its own stacking
           context at z-auto, which let animated message bubbles paint OVER the

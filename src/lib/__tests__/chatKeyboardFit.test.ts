@@ -73,28 +73,43 @@ const CODE = CHAT.split("\n")
   .join("\n");
 
 describe("the chat column is sized by what is actually visible", () => {
-  it("takes its height from the viewport, with no keyboard term at all", () => {
-    // THIRD AND FINAL SHAPE. --vvh was the second attempt and it was wrong the
-    // same way as the first: the platform had already resized the viewport for
-    // the keyboard, and visualViewport.height then reported what was left
-    // AFTER the keyboard on top of that. Reported 2026-08-18 as the same strip
-    // -and-dead-band picture as the original bug.
-    //
-    // The right amount for this file to subtract is zero. --app-vh is the
-    // shell's viewport-less-status-bar figure and contains no keyboard maths.
+  it("takes its height from the viewport, less only the measured inset", () => {
+    // FOURTH SHAPE, and the first one that is a measurement. --vvh and --kb
+    // were models of who had already subtracted the keyboard; both were wrong
+    // because the answer differs between the installed build (native pads the
+    // content view) and the pending one (it does not). --kb-inset asks the
+    // page instead: layout viewport minus visible viewport. Zero when a lower
+    // layer already took the keyboard off, the keyboard when nobody did.
     expect(CODE, "the column is no longer sized by --app-vh").toContain(
-      'height: "var(--app-vh, 100dvh)"',
+      'height: "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))"',
     );
   });
 
+
   it("never reintroduces a keyboard-derived height, in any disguise", () => {
-    // The two known disguises, plus the general shape. A height that mentions
-    // the keyboard at all is the bug, whatever the variable is called.
+    // AMENDED 2026-08-19. The blanket ban stood on the belief that the
+    // platform always subtracts the keyboard exactly once below us. It does
+    // not: the installed build and the pending build differ on that, so a
+    // fixed answer (zero, or one keyboard) is wrong in one of them.
+    //
+    // What is allowed now is exactly one expression, and only because it is a
+    // MEASUREMENT rather than a model: --kb-inset is
+    // documentElement.clientHeight - visualViewport.height - offsetTop, i.e.
+    // the part of the layout viewport that is not visible. Where a lower layer
+    // already shrank the layout viewport, it measures 0 and subtracts nothing.
+    // The old disguises (--kb from innerHeight, --vvh as an absolute height)
+    // stay banned: neither can tell those two states apart.
     const height = /height: "([^"]*)"/g;
     for (const m of CODE.matchAll(height)) {
-      expect(m[1], `a height reads the keyboard: ${m[1]}`).not.toMatch(/--kb|--vvh/);
+      const expr = m[1] ?? "";
+      const banned = expr.replace(/--kb-inset/g, "");
+      expect(banned, `a height reads the keyboard: ${expr}`).not.toMatch(/--kb\b|--vvh/);
     }
+    expect(CODE, "the column stopped subtracting the measured inset").toContain(
+      "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))",
+    );
   });
+
 
   it("does not publish --vvh at all any more", () => {
     // A correct-looking variable left lying around is how this got made twice.
@@ -148,7 +163,15 @@ describe("the chat column is sized by what is actually visible", () => {
     // So nothing here measures the keyboard for CSS any more. The composer
     // pays a plain safe-area inset, exactly as it did for those six weeks.
     expect(CODE, "--kb is being published again").not.toContain('setProperty("--kb"');
-    expect(CODE, "the composer is doing keyboard arithmetic again").not.toContain("var(--kb");
+    // AMENDED 2026-08-19: the only keyboard variable this file may read is
+    // --kb-inset, and only in the column height (guarded above). The old --kb
+    // — innerHeight minus visualViewport, i.e. an assumed keyboard — stays
+    // banned, and the composer still pays a plain safe-area inset.
+    expect(CODE, "the old assumed --kb is back").not.toMatch(/var\(--kb[),\s]/);
+    const composerPad = CODE.match(/paddingBottom: "([^"]*)"/g) ?? [];
+    for (const p of composerPad) {
+      expect(p, `the composer is doing keyboard arithmetic again: ${p}`).not.toContain("--kb");
+    }
     expect(CODE, "the composer lost its safe-area padding entirely").toContain(
       "calc(0.75rem + env(safe-area-inset-bottom))",
     );
