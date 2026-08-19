@@ -9,7 +9,10 @@
 
 import type { LegalRegime } from "@/data/countryRegistry";
 
-export const NOTICE_VERSION = "2026-08-04.1";
+export const NOTICE_VERSION = "2026-08-19.1";
+
+/** The purpose id chat translation writes to the ledger. One name, one place. */
+export const TRANSLATION_PURPOSE_ID = "translation";
 
 /** Locales the notice exists in. English and Hindi at minimum. */
 export const NOTICE_LOCALES = ["en", "hi"] as const;
@@ -65,6 +68,40 @@ export const CONSENT_PURPOSES: ConsentPurpose[] = [
       { id: "device_token", label: { en: "Push notification token for your device", hi: "आपके डिवाइस का पुश नोटिफ़िकेशन टोकन" } },
     ],
   },
+  {
+    // Message content leaving the device to a third-party model provider is
+    // its own processing purpose, and it is not covered by "Messages and
+    // calls": delivering a message to the person you sent it to is a
+    // different activity from sending someone else's words to a translator.
+    // Nothing is translated until this is granted.
+    id: "translation",
+    title: { en: "Translating chat messages", hi: "चैट संदेशों का अनुवाद" },
+    purpose: {
+      en: "To translate a chat message into your language when you ask for it. The message text is sent to our AI provider (Anthropic, or Google as a fallback) to be translated, and the translation is stored so the same message does not have to be sent again. Machine translation can be wrong, so the original message is always kept and always shown to you. Nothing is translated automatically.",
+      hi: "जब आप कहें तब किसी चैट संदेश का आपकी भाषा में अनुवाद करने के लिए। संदेश का टेक्स्ट अनुवाद हेतु हमारे AI प्रदाता (Anthropic, या विकल्प रूप में Google) को भेजा जाता है, और अनुवाद संग्रहित होता है ताकि वही संदेश दोबारा न भेजना पड़े। मशीन अनुवाद ग़लत हो सकता है, इसलिए मूल संदेश हमेशा रखा और दिखाया जाता है। कुछ भी स्वतः अनुवादित नहीं होता।",
+    },
+    categories: [
+      {
+        id: "message_text",
+        label: {
+          en: "The text of the message you ask to translate",
+          hi: "उस संदेश का टेक्स्ट जिसका अनुवाद आप माँगते हैं",
+        },
+      },
+      {
+        id: "target_lang",
+        label: { en: "The language you want it in", hi: "वह भाषा जिसमें आप उसे चाहते हैं" },
+      },
+      {
+        id: "stored_translation",
+        label: {
+          en: "The stored translation, alongside the original message (the original is never replaced)",
+          hi: "संग्रहित अनुवाद, मूल संदेश के साथ (मूल कभी नहीं बदला जाता)",
+        },
+      },
+    ],
+  },
+
   {
     id: "personalisation",
     title: { en: "Behavioural personalisation", hi: "व्यवहार आधारित निजीकरण" },

@@ -1015,6 +1015,35 @@ export type Database = {
           },
         ]
       }
+      conversation_translation_prefs: {
+        Row: {
+          conversation_id: string
+          enabled: boolean
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id: string
+          enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Update: {
+          conversation_id?: string
+          enabled?: boolean
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_translation_prefs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       conversations: {
         Row: {
           avatar_url: string | null

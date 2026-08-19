@@ -51,6 +51,13 @@ import { useUserTheme } from "@/components/customize/CustomizeSheet";
 import { useT } from "@/lib/i18n/LanguageProvider";
 import { LANG_NATIVE } from "@/lib/userLanguage";
 import { WINDOW_STEP, windowRows, windowSizeToReveal } from "@/lib/chat/messageWindow";
+import {
+  fetchCachedTranslations,
+  getConversationTranslation,
+  grantTranslationConsent,
+  hasTranslationConsent,
+  setConversationTranslation,
+} from "@/lib/chat/translation";
 import { PhotoStudio } from "@/components/photo/PhotoStudio";
 import { EMOJI_CATEGORIES } from "@/lib/emojis";
 import { format, isToday, isYesterday } from "date-fns";
@@ -290,6 +297,15 @@ function ChatThread() {
   const [translated, setTranslated] = useState<Record<string, string>>({});
   const [showOriginal, setShowOriginal] = useState<Record<string, boolean>>({});
   const [translatingId, setTranslatingId] = useState<string | null>(null);
+  // Per-conversation, not global, and off until you turn it on here. With it
+  // on, translations ALREADY IN THE SHARED CACHE are shown on read — that
+  // sends nothing anywhere and calls no provider. A message nobody has
+  // translated yet still needs an explicit tap.
+  const [convTranslate, setConvTranslate] = useState(false);
+  // Set when a translation was asked for before the translation purpose was
+  // consented to. The call does not happen until this is answered.
+  const [consentAsk, setConsentAsk] = useState<Message | null>(null);
+  const [consentBusy, setConsentBusy] = useState(false);
   // Track A1 — how many rows stay mounted. See lib/chat/messageWindow.ts for
   // why this is a tail window rather than a measured virtualiser.
   const [windowSize, setWindowSize] = useState(WINDOW_STEP);
@@ -300,6 +316,15 @@ function ChatThread() {
     // A different conversation starts at the bottom again. Without this the
     // window stays as wide as whatever the last thread was expanded to.
     setWindowSize(WINDOW_STEP);
+    setTranslated({});
+    setShowOriginal({});
+    let alive = true;
+    void getConversationTranslation(conversationId).then((on) => {
+      if (alive) setConvTranslate(on);
+    });
+    return () => {
+      alive = false;
+    };
   }, [conversationId]);
   // Opening the thread makes any tray entry for it stale — the whole point of
   // the notification was to get you here. Nothing used to clear it, so a chat
@@ -540,6 +565,27 @@ function ChatThread() {
 
   // Reactions for all messages in this conversation. Realtime refetch on any change.
   const messageIds = useMemo(() => messages.map((m) => m.id), [messages]);
+
+  /**
+   * Translate on read — from the CACHE ONLY.
+   *
+   * With the per-conversation setting on, any message someone has already had
+   * translated into this reader's language is shown translated straight away.
+   * In a group that means one message is translated once and serves everyone
+   * reading in that language. This reads message_translations under RLS: no
+   * text leaves the device here, and a message with no cached translation
+   * stays as its original until someone taps Translate on it.
+   */
+  useEffect(() => {
+    if (!convTranslate || messageIds.length === 0) return;
+    let alive = true;
+    void fetchCachedTranslations(messageIds, myLang).then((hits) => {
+      if (alive && Object.keys(hits).length) setTranslated((s) => ({ ...hits, ...s }));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [convTranslate, messageIds, myLang]);
   const { data: reactions = [], refetch: refetchReactions } = useQuery({
     queryKey: ["reactions", conversationId, messageIds.length],
     enabled: messageIds.length > 0,
@@ -1827,12 +1873,7 @@ function ChatThread() {
    * and the shared cache cannot be poisoned with caller-supplied content. See
    * the header of supabase/functions/translate-message/index.ts.
    */
-  const translateMessage = async (m: Message) => {
-    setMenuFor(null);
-    if (translated[m.id]) {
-      setShowOriginal((s) => ({ ...s, [m.id]: false }));
-      return;
-    }
+  const runTranslate = async (m: Message) => {
     setTranslatingId(m.id);
     try {
       const { data, error } = await supabase.functions.invoke("translate-message", {
@@ -1841,6 +1882,7 @@ function ChatThread() {
       if (error) throw error;
       const out = typeof data?.translation === "string" ? data.translation.trim() : "";
       if (!out) {
+        // Quiet failure: the original is already on screen and stays there.
         toast.error(data?.error || "Couldn't translate that");
         return;
       }
@@ -1851,6 +1893,27 @@ function ChatThread() {
     } finally {
       setTranslatingId(null);
     }
+  };
+
+  const translateMessage = async (m: Message) => {
+    setMenuFor(null);
+    if (translated[m.id]) {
+      setShowOriginal((s) => ({ ...s, [m.id]: false }));
+      return;
+    }
+    // CONSENT FIRST. Sending message text to a model provider is its own
+    // processing purpose with its own line in the notice and its own row in
+    // the ledger. No grant, no call — the ask is raised and this returns.
+    try {
+      if (!(await hasTranslationConsent())) {
+        setConsentAsk(m);
+        return;
+      }
+    } catch {
+      setConsentAsk(m);
+      return;
+    }
+    await runTranslate(m);
   };
 
   const highlight = (el: HTMLElement) => {
@@ -2982,6 +3045,32 @@ function ChatThread() {
                     : `Translate to ${LANG_NATIVE[myLang] ?? myLang}`}
                 </button>
               )}
+            {/* Per conversation, never global, and off until turned on here.
+                On, it only reveals translations already in the shared cache
+                — it never translates anything by itself. */}
+            {menuFor.type === "text" && !menuFor.is_deleted && (
+              <button
+                type="button"
+                data-testid="msg-translate-chat-pref"
+                onClick={async () => {
+                  const next = !convTranslate;
+                  setMenuFor(null);
+                  setConvTranslate(next);
+                  try {
+                    await setConversationTranslation(conversationId, next);
+                  } catch {
+                    setConvTranslate(!next);
+                    toast.error("Couldn't save that setting");
+                  }
+                }}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+              >
+                <Languages className="h-4 w-4" />{" "}
+                {convTranslate
+                  ? "Stop showing translations in this chat"
+                  : "Show translations in this chat"}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -3041,6 +3130,53 @@ function ChatThread() {
         </div>
       )}
 
+      {/* Translation consent. Raised BEFORE the first translation call ever
+          happens, never after: the message text leaves the device to a model
+          provider, which is its own purpose in the notice and its own row in
+          the consent ledger. Declining simply leaves the original on screen. */}
+      {consentAsk && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-6">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
+            <div className="mb-1 font-display text-lg font-semibold">Translate messages?</div>
+            <div className="mb-4 text-sm text-muted-foreground">
+              To translate, the text of this message is sent to our AI provider and the machine
+              translation is stored so it does not have to be sent again. The original message is
+              always kept and always shown. Nothing is translated unless you ask. You can withdraw
+              this in Privacy → Consent notice at any time.
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                data-testid="translate-consent-agree"
+                disabled={consentBusy}
+                onClick={async () => {
+                  const m = consentAsk;
+                  setConsentBusy(true);
+                  try {
+                    await grantTranslationConsent(myLang);
+                    setConsentAsk(null);
+                    await runTranslate(m);
+                  } catch {
+                    toast.error("Couldn't record that — try again");
+                  } finally {
+                    setConsentBusy(false);
+                  }
+                }}
+                className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                I agree — translate
+              </button>
+              <button
+                type="button"
+                onClick={() => setConsentAsk(null)}
+                className="w-full rounded-xl px-4 py-3 text-sm text-muted-foreground hover:bg-muted"
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {deleteConfirm && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-6"
