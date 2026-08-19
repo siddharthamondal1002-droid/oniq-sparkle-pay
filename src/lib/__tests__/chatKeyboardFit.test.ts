@@ -73,19 +73,18 @@ const CODE = CHAT.split("\n")
   .join("\n");
 
 describe("the chat column is sized by what is actually visible", () => {
-  it("takes its height from the viewport, with no keyboard term at all", () => {
-    // THIRD AND FINAL SHAPE. --vvh was the second attempt and it was wrong the
-    // same way as the first: the platform had already resized the viewport for
-    // the keyboard, and visualViewport.height then reported what was left
-    // AFTER the keyboard on top of that. Reported 2026-08-18 as the same strip
-    // -and-dead-band picture as the original bug.
-    //
-    // The right amount for this file to subtract is zero. --app-vh is the
-    // shell's viewport-less-status-bar figure and contains no keyboard maths.
+  it("takes its height from the viewport, less only the measured inset", () => {
+    // FOURTH SHAPE, and the first one that is a measurement. --vvh and --kb
+    // were models of who had already subtracted the keyboard; both were wrong
+    // because the answer differs between the installed build (native pads the
+    // content view) and the pending one (it does not). --kb-inset asks the
+    // page instead: layout viewport minus visible viewport. Zero when a lower
+    // layer already took the keyboard off, the keyboard when nobody did.
     expect(CODE, "the column is no longer sized by --app-vh").toContain(
-      'height: "var(--app-vh, 100dvh)"',
+      'height: "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))"',
     );
   });
+
 
   it("never reintroduces a keyboard-derived height, in any disguise", () => {
     // AMENDED 2026-08-19. The blanket ban stood on the belief that the
