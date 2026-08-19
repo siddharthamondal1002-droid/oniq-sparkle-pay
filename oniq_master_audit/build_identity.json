@@ -1,0 +1,54 @@
+{
+  "pass": "01-DISCOVERY",
+  "generated_at_utc": "2026-08-19T07:0Z",
+  "read_only": true,
+  "mutations_performed": "none — no migrations, no code changes, no writes to production data",
+  "app": {
+    "application_id": "com.oniqhub.app",
+    "app_name_in_capacitor": "ONIQ",
+    "play_listing_title": "Oniq-The supapp",
+    "play_version_name": "1.8.3",
+    "play_updated_on": "18 Aug 2026",
+    "play_downloads": "1+",
+    "play_content_rating": "Rated for 12+ (parental guidance recommended, users interact)",
+    "play_category": "Social",
+    "min_android": "7.0"
+  },
+  "source_build": {
+    "android_version_code": 19,
+    "android_version_name": "1.8.3",
+    "matches_play": true,
+    "evidence": "android/app/build.gradle lines 24-25 vs Play 'About this app' → Version 1.8.3"
+  },
+  "shell": {
+    "type": "Capacitor WebView pointing at the live web origin",
+    "capacitor_server_url": "https://oniqhub.com",
+    "android_scheme": "https",
+    "cleartext": false,
+    "implication": "The Android app renders the SAME deployment as the website. A web publish changes app behaviour without a Play release; edge functions are NOT carried by a web publish."
+  },
+  "web": {
+    "framework": "TanStack Start v1 + React 19 + Vite 7",
+    "custom_domains": ["https://oniqhub.com", "https://www.oniqhub.com"],
+    "lovable_published": "https://oniq-sparkle-pay.lovable.app"
+  },
+  "backend": {
+    "platform": "Lovable Cloud (Supabase)",
+    "public_tables": 111,
+    "edge_functions": 53,
+    "shared_edge_modules": 1,
+    "server_functions_modules": 6,
+    "cron_jobs_active": 4
+  },
+  "test_evidence": {
+    "suite": "vitest",
+    "test_files": 121,
+    "tests_passed": 1825,
+    "tests_failed": 0,
+    "note": "Source-level and unit assertions. Green tests are NOT runtime proof of a shipped feature."
+  },
+  "dependencies": {
+    "runtime": 78,
+    "dev": 23
+  }
+}

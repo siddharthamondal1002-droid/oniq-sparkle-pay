@@ -1,0 +1,26 @@
+{
+  "pass": "01-DISCOVERY",
+  "totals": {"route_files": 78, "public_routes": 26, "authenticated_routes": 45, "api_routes": 7},
+  "public_route_http_probe_oniqhub_com": {
+    "/": 200, "/privacy": 200, "/terms": 200, "/child-safety": 200,
+    "/delete-account": 200, "/dmca": 200, "/auth": 200,
+    "/blog/what-is-a-super-app": 200, "/blog/super-apps-in-india": 200,
+    "/sitemap.xml": 200, "/q/<token>": 200, "/u/<id>": 200, "/m/<id>": 200,
+    "/r/<id>": 200, "/pay/story": 200, "/mcp-signin": 307, "/app": 200
+  },
+  "unreachable_from_ui": [
+    {"route": "/app/weather", "inbound_links": 0, "severity": "HIGH", "why": "advertised on Play as 'live weather' but no tile, nav item or link points at it"},
+    {"route": "/app/food", "inbound_links": 0, "severity": "HIGH", "why": "entire food-ordering world is orphaned; restaurants/menu_items/orders are all empty"},
+    {"route": "/app/food/$id", "inbound_links": "only from /app/food", "severity": "HIGH", "why": "inherits the orphan"},
+    {"route": "/app/jobs-apps", "inbound_links": 0, "severity": "MEDIUM", "why": "superseded by JobAppsDirectory embedded in Jobs; the standalone route is now dead code"},
+    {"route": "/app/admin/video", "inbound_links": 0, "severity": "LOW", "why": "admin-only, URL access is acceptable but undocumented"},
+    {"route": "/app/diag", "inbound_links": 0, "severity": "NONE", "why": "deliberately unlinked, documented in source"}
+  ],
+  "deep_links": {
+    "android_intent_filters": ["/r/*", "/m/*", "/u/*"],
+    "missing_from_android_manifest": ["/q/* (profile QR)", "/pay/story"],
+    "impact": "Scanning an ONIQ profile QR on Android opens Chrome instead of the app."
+  },
+  "high_reference_routes": {"/app": 37, "/app/profile": 13, "/app/chat": 12, "/app/chat/moments": 8},
+  "notes": "Route reachability was computed by counting literal route-string references across src excluding routeTree.gen.ts and tests, then manually confirming each zero-count route."
+}
