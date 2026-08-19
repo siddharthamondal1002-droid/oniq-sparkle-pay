@@ -44,6 +44,8 @@ import { clearConversationNotification } from "@/lib/notificationTray";
 import { isConversationMuted, toggleConversationMute } from "@/lib/chatMute";
 import { ChannelSubBar } from "@/components/chat/ChannelSubBar";
 import { doodleSurfaceStyle } from "@/lib/chatWallpaper";
+import { startKeyboardInsetTracking } from "@/lib/keyboardInset";
+
 import { doodleByKey, doodleFor, doodleScatter, DOODLES } from "@/data/doodleLibrary";
 import { prettyFail, reportClientError } from "@/lib/errorReport";
 import { ProfilePhotoPopup } from "@/components/chat/ProfilePhotoPopup";
