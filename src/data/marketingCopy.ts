@@ -20,6 +20,7 @@
 // logos. No "guaranteed", "official", "endorsed" or "ATS-optimised".
 
 import { LANGUAGE_COUNT } from "@/data/languages";
+import { APP_REGISTRY } from "@/data/appRegistry";
 
 export type CardStatus = "live" | "soon";
 
@@ -38,7 +39,12 @@ export type FeatureCard = {
 };
 
 export const HERO = {
-  badge: "Now in early access",
+  badge: "Get it on Google Play",
+  /**
+   * The app published to Google Play on 18 Aug 2026, so "Now in early access"
+   * became false the moment it shipped. The badge now links to the listing.
+   */
+  playUrl: "https://play.google.com/store/apps/details?id=com.oniqhub.app",
   titleTop: "ONE APP.",
   titleBottom: "EVERY WORLD.",
   body: "Chat with voice and video, study for your boards, compare rides and travel, learn a language, and ask an AI that actually knows what's happening now. One beautifully fast app.",
@@ -55,6 +61,13 @@ export const HERO = {
  * rather than typed, so it cannot drift again.
  */
 export const COUNTRIES_SUPPORTED = 7;
+
+/**
+ * Counted from the registry, minus entries that are present in data but never
+ * rendered (oniq-upi is hidden). The site said "25+" while the registry held
+ * far more — an understatement is still an uncounted number.
+ */
+export const MINI_APPS_LIVE = APP_REGISTRY.filter((a) => !a.hidden).length;
 
 /**
  * Derived, not typed. This said a flat 25 while the picker offered 25 — but
@@ -97,13 +110,19 @@ export const FEATURE_CARDS: FeatureCard[] = [
   },
   {
     title: "Rides",
-    copy: "Compare ride prices across providers before you book.",
+    // VERIFIED 2026-08-19: estimate-fares returns low–high ranges from a
+    // static rate card, not live provider quotes, and booking is a hand-off to
+    // the provider's own app. "Compare ride prices" claimed live pricing.
+    copy: "Fare estimates across providers, then open the right app to book.",
     status: "live",
     route: "/app/rides",
   },
   {
     title: "Wanderlust",
-    copy: "Compare buses, trains, flights and hotels in one hub.",
+    // VERIFIED 2026-08-19: only hotels are price-compared live (hotel-scout
+    // web search). Buses, trains, flights and ferries are a curated directory
+    // of provider links plus deep-link search hand-offs.
+    copy: "Live hotel price comparison, plus bus, train and flight sites in one hub.",
     status: "live",
     route: "/app/travel",
   },
@@ -211,6 +230,25 @@ export const PRIVACY_BAND = {
   body: "Row-level security means nobody but you can read your sleep, mood and cycle logs — enforced in the database, not just the interface. Your safety plan never leaves your phone at all. And you can export or delete everything, with a 30-day deadline we hold ourselves to.",
 } as const;
 
+/**
+ * AI DISCLOSURE.
+ *
+ * The site sold Ting and Scout without ever saying an AI was involved, while
+ * the app itself labels generated output and carries a report control. The
+ * four clauses below each map to something shipped: Ting's live web search,
+ * the AI label and in-app report control on every declared AI surface (see
+ * src/config/playCompliance.ts), and the reports table behind them.
+ */
+export const AI_DISCLOSURE = {
+  heading: "Where AI is involved",
+  points: [
+    "Ting answers using live web search, and shows its sources.",
+    "AI-generated media in the app is labelled as AI-generated.",
+    "You can report any AI answer or generated item from the screen it appears on.",
+    "AI can be wrong. Check anything that matters — money, health, law or exams.",
+  ],
+} as const;
+
 export const NOT_AFFILIATED =
   "ONIQ is not affiliated with, endorsed by, or sponsored by any third-party app, board, university, exchange or bank named in this app. All trademarks belong to their owners.";
 
@@ -236,7 +274,7 @@ CHAT — Real-time messaging with voice and video calls, plus Moments for your c
 
 STUDY — Question papers for your board and class, ready to print. Campus adds admissions routes, deadlines and study notes for IELTS, TOEFL and PTE.
 
-GET AROUND — Compare ride prices across providers before you book, and compare buses, trains, flights and hotels in Wanderlust.
+GET AROUND — Fare estimates across ride providers before you open their app, and Wanderlust for live hotel price comparison plus bus, train and flight sites in one hub.
 
 ASK — Ting is a live-web AI assistant that answers what's happening now. Scout translates across ${SCOUT_LANGUAGES} languages.
 

@@ -4,6 +4,8 @@ import {
   COUNTRIES_SUPPORTED,
   FEATURE_CARDS,
   HERO,
+  AI_DISCLOSURE,
+  MINI_APPS_LIVE,
   NOT_AFFILIATED,
   PRIVACY_BAND,
   SCOUT_LANGUAGES,
@@ -85,10 +87,20 @@ function Landing() {
         <div className="relative mx-auto max-w-6xl px-5 pb-24 pt-20 md:pt-32">
           <div className="grid gap-12 md:grid-cols-[1.2fr_1fr] md:items-center">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+              {/*
+                The app published to Google Play on 18 Aug 2026, so an
+                early-access badge was stale the day it shipped. It now links
+                to the listing.
+              */}
+              <a
+                href={HERO.playUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-xs font-medium text-primary transition hover:bg-primary/20"
+              >
                 <Zap className="h-3.5 w-3.5" />
-                Now in early access ⚡
-              </div>
+                {HERO.badge}
+              </a>
               <h1 className="mt-5 font-display text-5xl font-bold leading-[1.05] tracking-tight md:text-7xl">
                 One app.
                 <br />
@@ -186,6 +198,23 @@ function Landing() {
         </div>
       </section>
 
+      {/* AI disclosure — see AI_DISCLOSURE in src/data/marketingCopy.ts */}
+      <section className="mx-auto max-w-4xl px-5 py-16">
+        <div className="rounded-2xl border border-border bg-card/50 p-6">
+          <div className="inline-flex items-center gap-2 rounded-full border border-border bg-background/60 px-3 py-1 text-xs">
+            <Sparkles className="h-3.5 w-3.5 text-primary" /> {AI_DISCLOSURE.heading}
+          </div>
+          <ul className="mt-5 space-y-3 text-sm text-muted-foreground">
+            {AI_DISCLOSURE.points.map((p) => (
+              <li key={p} className="flex gap-2">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                <span>{p}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
       {/* Worlds split */}
       <section id="worlds" style={{ scrollMarginTop: "5rem" }} className="border-y border-border bg-surface/40">
         <div className="mx-auto grid max-w-6xl gap-12 px-5 py-24 md:grid-cols-2 md:items-center">
@@ -206,7 +235,7 @@ function Landing() {
               <Check>Real-time voice &amp; video calls in chat</Check>
               <Check>RLS-enforced data — every write checked server-side</Check>
               <Check>Installable as a PWA with custom wallpapers &amp; skins</Check>
-              <Check>25+ mini apps, one login, no re-auth</Check>
+              <Check>{MINI_APPS_LIVE} mini apps, one login, no re-auth</Check>
             </ul>
           </div>
           <div className="grid grid-cols-2 gap-4">
