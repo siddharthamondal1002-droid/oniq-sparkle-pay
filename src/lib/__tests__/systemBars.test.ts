@@ -85,28 +85,30 @@ describe("the window really is edge-to-edge", () => {
   });
 });
 
-describe("the insets reach the WebView, and the web layer uses them", () => {
+describe("the insets are consumed natively again (reverted 2026-08-19)", () => {
   const code = javaCode(MAIN_ACTIVITY);
 
-  it("does NOT consume the insets", () => {
-    // WindowInsetsCompat.CONSUMED was why all 54 env(safe-area-inset-*) reads
-    // in the CSS returned zero. Returning them is the entire fix.
-    expect(code, "the inset listener is swallowing insets again").not.toMatch(
-      /WindowInsetsCompat\.CONSUMED/,
+  // AMENDED 2026-08-19 (owner decision). These two used to demand the
+  // opposite: no CONSUMED, no padding. That was correct in principle — it
+  // made env(safe-area-inset-*) real — but the web layer applied the top
+  // inset in one place that does not cover scroll containers, and Chromium
+  // began resizing for the IME on top of native's padding. Two days of
+  // regression across the keyboard and every scrolling screen. The owner
+  // reverted to the behaviour that worked 29 Jul – 17 Aug.
+  it("consumes the insets, so exactly one layer subtracts anything", () => {
+    expect(code, "the listener is passing insets through again").toMatch(
+      /return\s+WindowInsetsCompat\.CONSUMED/,
     );
   });
 
-  it("pads NOTHING — the keyboard included", () => {
-    // The premise this test used to state — "a WebView cannot resize itself
-    // around an IME it does not own" — was measured false on 2026-08-18: with
-    // the insets unconsumed since 198a3f2d, Chromium receives the IME inset
-    // and resizes its own viewport, which made the native padding a SECOND
-    // subtraction (versionCodes 17 and 18 both tried to compute around it and
-    // failed; see viewportMetaOnce.test.ts for the full timeline). Native now
-    // clears padding to zero and leaves the keyboard entirely to the WebView.
-    expect(code).toMatch(/setPadding\(0,\s*0,\s*0,\s*0\)/);
-    expect(code, "an IME-derived padding is back").not.toContain("ime.bottom");
+  it("pads top/sides from bars+cutout and bottom from the IME", () => {
+    expect(code).toContain("WindowInsetsCompat.Type.displayCutout()");
+    expect(code).toContain("WindowInsetsCompat.Type.ime()");
+    expect(code, "the IME padding is gone — the keyboard will cover the composer").toMatch(
+      /setPadding\(bars\.left,\s*bars\.top,\s*bars\.right,\s*ime\.bottom\)/,
+    );
   });
+
 
   it("the document opts into drawing under the bars", () => {
     // Without viewport-fit=cover the env() values are zero no matter what the
