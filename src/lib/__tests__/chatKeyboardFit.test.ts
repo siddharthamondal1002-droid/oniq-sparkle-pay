@@ -88,13 +88,29 @@ describe("the chat column is sized by what is actually visible", () => {
   });
 
   it("never reintroduces a keyboard-derived height, in any disguise", () => {
-    // The two known disguises, plus the general shape. A height that mentions
-    // the keyboard at all is the bug, whatever the variable is called.
+    // AMENDED 2026-08-19. The blanket ban stood on the belief that the
+    // platform always subtracts the keyboard exactly once below us. It does
+    // not: the installed build and the pending build differ on that, so a
+    // fixed answer (zero, or one keyboard) is wrong in one of them.
+    //
+    // What is allowed now is exactly one expression, and only because it is a
+    // MEASUREMENT rather than a model: --kb-inset is
+    // documentElement.clientHeight - visualViewport.height - offsetTop, i.e.
+    // the part of the layout viewport that is not visible. Where a lower layer
+    // already shrank the layout viewport, it measures 0 and subtracts nothing.
+    // The old disguises (--kb from innerHeight, --vvh as an absolute height)
+    // stay banned: neither can tell those two states apart.
     const height = /height: "([^"]*)"/g;
     for (const m of CODE.matchAll(height)) {
-      expect(m[1], `a height reads the keyboard: ${m[1]}`).not.toMatch(/--kb|--vvh/);
+      const expr = m[1] ?? "";
+      const banned = expr.replace(/--kb-inset/g, "");
+      expect(banned, `a height reads the keyboard: ${expr}`).not.toMatch(/--kb\b|--vvh/);
     }
+    expect(CODE, "the column stopped subtracting the measured inset").toContain(
+      "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))",
+    );
   });
+
 
   it("does not publish --vvh at all any more", () => {
     // A correct-looking variable left lying around is how this got made twice.
