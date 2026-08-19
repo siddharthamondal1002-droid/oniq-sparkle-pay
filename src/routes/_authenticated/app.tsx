@@ -45,6 +45,14 @@ const CHAT_SUBTABS = new Set([
   "/app/chat/calls",
 ]);
 
+/**
+ * Clearance for the chat section's OWN floating six-tab bar: the bar is about
+ * 2.75rem of pill plus its max(0.75rem, safe-area) offset from the bottom.
+ * 4rem + the inset covers it with a little breathing room at every inset.
+ * Declared once and used for BOTH the padding and the --app-vh subtraction.
+ */
+const CHAT_SECTION_CHROME = "calc(4rem + env(safe-area-inset-bottom))";
+
 function AppShell() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
