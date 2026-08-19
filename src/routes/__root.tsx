@@ -232,86 +232,34 @@ function RootComponent() {
   }, [router, queryClient]);
 
   /*
-   * THE WEB, AND ONLY THE WEB, GETS interactive-widget=resizes-content.
+   * SELF-HEALING: the live meta must read interactive-widget=overlays-content
+   * on EVERY platform.
    *
-   * In a browser this is what shrinks the layout viewport when the keyboard
-   * opens, so a bottom-anchored composer stays above it. Without it the
-   * composer would sit behind the keyboard — so the web genuinely needs it.
+   * The previous version of this effect did the opposite — it stripped the
+   * token on native and added resizes-content on the web, back when native
+   * had its own IME padding AND Chromium resized, i.e. two subtractions. With
+   * overlays-content there is exactly one subtraction in both build states
+   * (see the viewport meta above), so the platform branch is gone.
    *
-   * Native must NOT have it. MainActivity already pads the content view by the
-   * IME inset, and the two together subtract the keyboard twice: 2000px screen
-   * minus a 760px keyboard twice leaves 100dvh at ~480px, which is the exact
-   * broken chat measured from a screenshot on 2026-08-18.
-   *
-   * Applied here rather than in the static meta so native NEVER carries both,
-   * not even for one frame before hydration. Chrome re-evaluates the viewport
-   * meta when its content attribute changes, and the keyboard is never up
-   * during boot, so switching it at mount costs nothing.
+   * It is kept as a runtime pass rather than trusting the served markup alone
+   * because on 2026-08-18 a phone was still carrying a token the published
+   * HTML no longer had. Correcting it at mount makes the device heal itself
+   * on the next launch whatever shell it loaded.
    */
   useEffect(() => {
     if (typeof document === "undefined") return;
-    let cancelled = false;
-    void (async () => {
-      let native = false;
-      try {
-        const { Capacitor } = await import("@capacitor/core");
-        native = Capacitor.isNativePlatform();
-      } catch {
-        // No Capacitor bundled means this is the web, which is the branch
-        // that wants the flag. A failed import must not leave the page
-        // broken, and a browser without the flag merely keeps the default
-        // resizes-visual behaviour.
-        native = false;
-      }
-      if (cancelled) return;
-      const meta = document.querySelector('meta[name="viewport"]');
-      if (!meta) return;
-      const content = meta.getAttribute("content") ?? "";
-      const has = content.includes("interactive-widget");
-
-      /*
-       * NATIVE STRIPS IT. It is not enough to leave it out of the static meta.
-       *
-       * Removing it from the served HTML was the right fix and it did not
-       * reach the phone. A screenshot on 2026-08-18 13:37, with the probe
-       * agreeing, shows the app still collapsed to ~211 of 832 CSS px with a
-       * keyboard-sized dead band beneath the composer — the double
-       * subtraction, unchanged, after the publish that removed the flag.
-       *
-       * WHY IS NOT SETTLED, AND THAT IS THE POINT. The service worker is
-       * network-first, so it is not serving a stale shell; MainActivity pads
-       * once and the manifest declares no windowSoftInputMode, so native
-       * subtracts once. Either the WebView had simply not reloaded since the
-       * publish, or the flag is arriving from somewhere this file cannot see.
-       * The chat probe now records the live meta content, which will say.
-       *
-       * Either way, "we left it out of the markup" is a weaker guarantee than
-       * "we take it off if it is there". So the flag is now removed at runtime
-       * wherever native finds it, rather than merely not being added. That is
-       * self-healing: the phone corrects itself on the next launch whichever
-       * shell it happens to have loaded, from whatever source.
-       */
-      if (native && has) {
-        meta.setAttribute(
-          "content",
-          content
-            .split(",")
-            .map((part) => part.trim())
-            .filter((part) => part && !part.startsWith("interactive-widget"))
-            .join(", "),
-        );
-        return;
-      }
-      // The web genuinely needs it: without it a browser keyboard covers the
-      // composer instead of shrinking the page.
-      if (!native && !has) {
-        meta.setAttribute("content", `${content}, interactive-widget=resizes-content`);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    const meta = document.querySelector('meta[name="viewport"]');
+    if (!meta) return;
+    const content = meta.getAttribute("content") ?? "";
+    const parts = content
+      .split(",")
+      .map((part) => part.trim())
+      .filter((part) => part && !part.startsWith("interactive-widget"));
+    parts.push("interactive-widget=overlays-content");
+    const next = parts.join(", ");
+    if (next !== content) meta.setAttribute("content", next);
   }, []);
+
 
   useEffect(() => {
     if (typeof window === "undefined") return;
