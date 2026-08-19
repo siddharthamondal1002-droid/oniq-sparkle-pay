@@ -565,6 +565,27 @@ function ChatThread() {
 
   // Reactions for all messages in this conversation. Realtime refetch on any change.
   const messageIds = useMemo(() => messages.map((m) => m.id), [messages]);
+
+  /**
+   * Translate on read — from the CACHE ONLY.
+   *
+   * With the per-conversation setting on, any message someone has already had
+   * translated into this reader's language is shown translated straight away.
+   * In a group that means one message is translated once and serves everyone
+   * reading in that language. This reads message_translations under RLS: no
+   * text leaves the device here, and a message with no cached translation
+   * stays as its original until someone taps Translate on it.
+   */
+  useEffect(() => {
+    if (!convTranslate || messageIds.length === 0) return;
+    let alive = true;
+    void fetchCachedTranslations(messageIds, myLang).then((hits) => {
+      if (alive && Object.keys(hits).length) setTranslated((s) => ({ ...hits, ...s }));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [convTranslate, messageIds, myLang]);
   const { data: reactions = [], refetch: refetchReactions } = useQuery({
     queryKey: ["reactions", conversationId, messageIds.length],
     enabled: messageIds.length > 0,
@@ -1856,6 +1877,18 @@ function ChatThread() {
     setMenuFor(null);
     if (translated[m.id]) {
       setShowOriginal((s) => ({ ...s, [m.id]: false }));
+      return;
+    }
+    // CONSENT FIRST. Sending message text to a model provider is its own
+    // processing purpose with its own line in the notice and its own row in
+    // the ledger. No grant, no call — the ask is raised and this returns.
+    try {
+      if (!(await hasTranslationConsent())) {
+        setConsentAsk(m);
+        return;
+      }
+    } catch {
+      setConsentAsk(m);
       return;
     }
     setTranslatingId(m.id);
