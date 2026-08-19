@@ -1205,6 +1205,243 @@ export type Database = {
         }
         Relationships: []
       }
+      creator_accounts: {
+        Row: {
+          active_days_at_apply: number
+          applied_at: string
+          approved_at: string | null
+          country_code: string
+          earnings_suspended: boolean
+          followers_at_apply: number
+          founding: boolean
+          has_pan: boolean
+          kyc_status: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          active_days_at_apply?: number
+          applied_at?: string
+          approved_at?: string | null
+          country_code: string
+          earnings_suspended?: boolean
+          followers_at_apply?: number
+          founding?: boolean
+          has_pan?: boolean
+          kyc_status?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          active_days_at_apply?: number
+          applied_at?: string
+          approved_at?: string | null
+          country_code?: string
+          earnings_suspended?: boolean
+          followers_at_apply?: number
+          founding?: boolean
+          has_pan?: boolean
+          kyc_status?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      creator_clawback_notices: {
+        Row: {
+          amount_paise: number
+          creator_id: string
+          dispute_opened_at: string | null
+          human_reply_due: string | null
+          id: string
+          notified_at: string
+          period: string | null
+          reason: string
+          resolved_at: string | null
+          resulting_balance_paise: number
+          txn_id: string
+        }
+        Insert: {
+          amount_paise: number
+          creator_id: string
+          dispute_opened_at?: string | null
+          human_reply_due?: string | null
+          id?: string
+          notified_at?: string
+          period?: string | null
+          reason: string
+          resolved_at?: string | null
+          resulting_balance_paise: number
+          txn_id: string
+        }
+        Update: {
+          amount_paise?: number
+          creator_id?: string
+          dispute_opened_at?: string | null
+          human_reply_due?: string | null
+          id?: string
+          notified_at?: string
+          period?: string | null
+          reason?: string
+          resolved_at?: string | null
+          resulting_balance_paise?: number
+          txn_id?: string
+        }
+        Relationships: []
+      }
+      creator_ledger: {
+        Row: {
+          account: string
+          amount_paise: number
+          available_at: string | null
+          created_at: string
+          creator_id: string | null
+          id: string
+          purchase_token: string | null
+          reason: string | null
+          reverses_entry_id: string | null
+          subscription_id: string | null
+          txn_id: string
+        }
+        Insert: {
+          account: string
+          amount_paise: number
+          available_at?: string | null
+          created_at?: string
+          creator_id?: string | null
+          id?: string
+          purchase_token?: string | null
+          reason?: string | null
+          reverses_entry_id?: string | null
+          subscription_id?: string | null
+          txn_id: string
+        }
+        Update: {
+          account?: string
+          amount_paise?: number
+          available_at?: string | null
+          created_at?: string
+          creator_id?: string | null
+          id?: string
+          purchase_token?: string | null
+          reason?: string | null
+          reverses_entry_id?: string | null
+          subscription_id?: string | null
+          txn_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_ledger_reverses_entry_id_fkey"
+            columns: ["reverses_entry_id"]
+            isOneToOne: false
+            referencedRelation: "creator_ledger"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creator_ledger_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "creator_subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      creator_payout_attempts: {
+        Row: {
+          amount_paise: number
+          created_at: string
+          creator_id: string
+          detail: string | null
+          id: string
+          idempotency_key: string
+          provider: string | null
+          provider_payout_id: string | null
+          status: string
+        }
+        Insert: {
+          amount_paise: number
+          created_at?: string
+          creator_id: string
+          detail?: string | null
+          id?: string
+          idempotency_key: string
+          provider?: string | null
+          provider_payout_id?: string | null
+          status: string
+        }
+        Update: {
+          amount_paise?: number
+          created_at?: string
+          creator_id?: string
+          detail?: string | null
+          id?: string
+          idempotency_key?: string
+          provider?: string | null
+          provider_payout_id?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      creator_payout_config: {
+        Row: {
+          breakeven_refund_bp: number
+          direct_recovery_paise: number
+          founding_commission_bp: number
+          founding_until: string
+          hold_days: number
+          id: boolean
+          min_payout_paise: number
+          payout_countries: string[]
+          payouts_enabled: boolean
+          play_fee_bp: number
+          refund_review_bp: number
+          standard_commission_bp: number
+          tcs_52_bp: number
+          tds_194o_bp: number
+          tds_194o_no_pan_bp: number
+          updated_at: string
+          writeoff_after_days: number
+        }
+        Insert: {
+          breakeven_refund_bp?: number
+          direct_recovery_paise?: number
+          founding_commission_bp?: number
+          founding_until?: string
+          hold_days?: number
+          id?: boolean
+          min_payout_paise?: number
+          payout_countries?: string[]
+          payouts_enabled?: boolean
+          play_fee_bp?: number
+          refund_review_bp?: number
+          standard_commission_bp?: number
+          tcs_52_bp?: number
+          tds_194o_bp?: number
+          tds_194o_no_pan_bp?: number
+          updated_at?: string
+          writeoff_after_days?: number
+        }
+        Update: {
+          breakeven_refund_bp?: number
+          direct_recovery_paise?: number
+          founding_commission_bp?: number
+          founding_until?: string
+          hold_days?: number
+          id?: boolean
+          min_payout_paise?: number
+          payout_countries?: string[]
+          payouts_enabled?: boolean
+          play_fee_bp?: number
+          refund_review_bp?: number
+          standard_commission_bp?: number
+          tcs_52_bp?: number
+          tds_194o_bp?: number
+          tds_194o_no_pan_bp?: number
+          updated_at?: string
+          writeoff_after_days?: number
+        }
+        Relationships: []
+      }
       creator_payout_runs: {
         Row: {
           channels: number
@@ -1335,6 +1572,122 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      creator_rtdn_events: {
+        Row: {
+          error: string | null
+          fetched_state: Json | null
+          message_id: string
+          notification_type: number | null
+          payload: Json | null
+          processed_at: string | null
+          purchase_token: string | null
+          received_at: string
+          sku: string | null
+        }
+        Insert: {
+          error?: string | null
+          fetched_state?: Json | null
+          message_id: string
+          notification_type?: number | null
+          payload?: Json | null
+          processed_at?: string | null
+          purchase_token?: string | null
+          received_at?: string
+          sku?: string | null
+        }
+        Update: {
+          error?: string | null
+          fetched_state?: Json | null
+          message_id?: string
+          notification_type?: number | null
+          payload?: Json | null
+          processed_at?: string | null
+          purchase_token?: string | null
+          received_at?: string
+          sku?: string | null
+        }
+        Relationships: []
+      }
+      creator_sub_skus: {
+        Row: {
+          active: boolean
+          label: string
+          price_paise: number
+          sku: string
+          sort: number
+        }
+        Insert: {
+          active?: boolean
+          label: string
+          price_paise: number
+          sku: string
+          sort?: number
+        }
+        Update: {
+          active?: boolean
+          label?: string
+          price_paise?: number
+          sku?: string
+          sort?: number
+        }
+        Relationships: []
+      }
+      creator_subscriptions: {
+        Row: {
+          creator_id: string
+          current_period_end: string | null
+          id: string
+          obfuscated_account_id: string | null
+          price_paise: number
+          purchase_token: string
+          rc_app_user_id: string | null
+          sku: string
+          started_at: string
+          status: string
+          store: string
+          subscriber_id: string
+          updated_at: string
+        }
+        Insert: {
+          creator_id: string
+          current_period_end?: string | null
+          id?: string
+          obfuscated_account_id?: string | null
+          price_paise: number
+          purchase_token: string
+          rc_app_user_id?: string | null
+          sku: string
+          started_at?: string
+          status?: string
+          store?: string
+          subscriber_id: string
+          updated_at?: string
+        }
+        Update: {
+          creator_id?: string
+          current_period_end?: string | null
+          id?: string
+          obfuscated_account_id?: string | null
+          price_paise?: number
+          purchase_token?: string
+          rc_app_user_id?: string | null
+          sku?: string
+          started_at?: string
+          status?: string
+          store?: string
+          subscriber_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "creator_subscriptions_sku_fkey"
+            columns: ["sku"]
+            isOneToOne: false
+            referencedRelation: "creator_sub_skus"
+            referencedColumns: ["sku"]
+          },
+        ]
       }
       cv_attestations: {
         Row: {
@@ -4951,6 +5304,20 @@ export type Database = {
         Returns: Json
       }
       create_watermark_purchase: { Args: { _job_id: string }; Returns: Json }
+      creator_activity_days: {
+        Args: { _days?: number; _uid: string }
+        Returns: number
+      }
+      creator_balance: { Args: { _uid: string }; Returns: Json }
+      creator_eligibility: { Args: { _uid: string }; Returns: Json }
+      creator_refund_rate: {
+        Args: { _days?: number; _uid: string }
+        Returns: Json
+      }
+      creator_split: {
+        Args: { _founding: boolean; _gross_paise: number }
+        Returns: Json
+      }
       credit_plan_purchase: {
         Args: {
           _confirmed_by?: string
@@ -5305,6 +5672,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      record_creator_charge: {
+        Args: {
+          _creator: string
+          _gross_paise: number
+          _period_end?: string
+          _purchase_token: string
+          _sku: string
+          _subscriber: string
+        }
+        Returns: Json
+      }
+      record_creator_refund: {
+        Args: { _purchase_token: string; _reason?: string }
+        Returns: Json
+      }
       record_post_view: {
         Args: { _post_id: string; _post_type: string }
         Returns: undefined
@@ -5318,6 +5700,10 @@ export type Database = {
       report_client_error: {
         Args: { _detail?: string; _message: string; _surface: string }
         Returns: undefined
+      }
+      request_creator_payout: {
+        Args: { _idempotency_key: string; _uid: string }
+        Returns: Json
       }
       request_parental_consent: {
         Args: { _method?: string; _parent_email: string }
@@ -5348,6 +5734,10 @@ export type Database = {
       set_story_cast: { Args: { _cast: Json; _job_id: string }; Returns: Json }
       set_story_plate: {
         Args: { _job_id: string; _path: string }
+        Returns: Json
+      }
+      settle_creator_payout: {
+        Args: { _attempt: string; _provider_payout_id: string }
         Returns: Json
       }
       settle_watermark_purchase: {
