@@ -1,0 +1,77 @@
+{
+  "pass": "01-DISCOVERY",
+  "tables": {
+    "total_public": 111,
+    "rls_enabled": 111,
+    "rls_disabled": 0,
+    "rls_on_but_zero_policies": [
+      "api_budget", "copyright_notices", "otp_attempts", "profile_qr_tokens",
+      "story_dispatch_health", "study_chapters_debug", "study_papers"
+    ],
+    "note_on_zero_policy_tables": "Locked, not leaking. study_papers is the notable one: it holds 87 rows and is read by users, so all access must be flowing through SECURITY DEFINER RPCs — verify in Pass 02 that no client path expects a direct select.",
+    "empty_tables_with_zero_src_references": [
+      "assessment_competency", "assessment_item", "assessment_response", "assessment_task_model",
+      "ai_chats", "ai_messages", "service_bookings", "learn_courses", "learn_lessons", "learn_questions",
+      "email_send_log", "email_send_state", "suppressed_emails", "email_unsubscribe_tokens",
+      "creator_payouts", "creator_payout_runs", "payout_queue", "payout_methods",
+      "subscriptions", "plan_purchases", "watermark_purchases", "orders", "payments",
+      "restaurants", "menu_items", "clips_comments", "message_translations", "profile_qr_tokens",
+      "legal_holds", "legal_requests", "takedown_orders", "deletion_proofs", "security_incidents",
+      "copyright_notices", "media_provenance", "blocked_users", "grievances", "reports",
+      "call_reminders", "chapter_overrides", "story_addons", "video_jobs", "episode_jobs"
+    ],
+    "populated_tables_top": {
+      "chapters": 1164, "messages": 833, "call_logs": 325, "study_messages": 154,
+      "study_papers": 87, "quiz_attempts": 67, "conversations": 57, "story_jobs": 46,
+      "device_tokens": 46, "cv_documents": 25, "cv_attestations": 25, "clips": 22,
+      "moments_posts": 21, "profiles": 20, "learner_profiles": 16
+    }
+  },
+  "edge_functions": {
+    "total": 53,
+    "orphaned_no_client_caller": [
+      {"fn": "flight-search", "reason": "no caller AND AMADEUS_API_KEY/SECRET unset"},
+      {"fn": "send-otp", "reason": "OTP_LOGIN_ENABLED=false, MSG91_* unset"},
+      {"fn": "verify-otp", "reason": "same as send-otp"},
+      {"fn": "check-user-exists", "reason": "no caller; expects CHECK_USER_KEY which is unset"},
+      {"fn": "find-friends", "reason": "no caller"},
+      {"fn": "turn-creds", "reason": "no direct client caller — TURN creds resolved elsewhere in the call stack; PROTECTED, do not touch"}
+    ],
+    "intentionally_serverless_callers": ["razorpay-webhook", "story-dispatch", "story-sweep", "email queue processor"],
+    "deployment_caveat": "A web publish does NOT deploy edge functions. Any function whose source changed since its last explicit deploy is running stale code in production."
+  },
+  "cron_jobs_active": [
+    {"name": "dsr-promote-erasures", "schedule": "*/15 * * * *"},
+    {"name": "dsr-hard-purge", "schedule": "*/15 * * * *"},
+    {"name": "story-dispatch", "schedule": "* * * * *"},
+    {"name": "story-sweep", "schedule": "*/10 * * * *"}
+  ],
+  "secrets": {
+    "configured": [
+      "ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "GOOGLE_MAPS_API_KEY", "LOVABLE_API_KEY",
+      "RUNWAY_API_KEY", "RAZORPAY_KEY_ID", "RAZORPAY_KEY_SECRET", "RAZORPAY_WEBHOOK_SECRET",
+      "METERED_API_KEY", "METERED_TURN_API_KEY", "METERED_DOMAIN",
+      "FIREBASE_SERVICE_ACCOUNT", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT",
+      "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_S3_ENDPOINT",
+      "GITHUB_API_KEY", "GITHUB_DISPATCH_TOKEN", "STORY_JOB_SECRET",
+      "GOOGLE_SEARCH_CONSOLE_API_KEY"
+    ],
+    "referenced_in_code_but_NOT_configured": [
+      {"key": "AMADEUS_API_KEY", "impact": "flight-search cannot work"},
+      {"key": "AMADEUS_API_SECRET", "impact": "flight-search cannot work"},
+      {"key": "MAPPLS_CLIENT_ID", "impact": "mappls-geo falls back / fails — India geocoding degraded"},
+      {"key": "MAPPLS_CLIENT_SECRET", "impact": "same"},
+      {"key": "MSG91_AUTH_KEY / MSG91_SENDER_ID / MSG91_WIDGET_ID / MSG91_WIDGET_TOKEN", "impact": "OTP login cannot work (already flagged off)"},
+      {"key": "RAZORPAYX_ACCOUNT_NUMBER", "impact": "creator payouts cannot be initiated"},
+      {"key": "R2_ACCOUNT_ID", "impact": "R2 storage path may be incomplete — verify in Pass 02"},
+      {"key": "CHECK_USER_KEY", "impact": "check-user-exists always rejects"},
+      {"key": "GITHUB_REPOSITORY", "impact": "clip transfer workflow dispatch target unresolved"}
+    ],
+    "client_exposure_check": "PASS — the only import.meta.env values used in src are VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY, VITE_SUPABASE_PROJECT_ID. No private key literal appears in src."
+  },
+  "storage_buckets_referenced": ["moments", "clips", "story", "avatars", "cv"],
+  "security_posture": {
+    "active_error_findings": 1,
+    "finding": "profiles_full_row_exposure — profiles_select_public_columns allows any authenticated user to read is_admin and oniq_pay_enabled for every profile"
+  }
+}
