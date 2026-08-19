@@ -992,9 +992,14 @@ function ChatThread() {
    * viewport animation and lands short.
    */
   useEffect(() => {
+    // --kb-inset is published by src/lib/keyboardInset.ts, not here: the
+    // measurement is shared, rAF-coalesced, and writes one variable without
+    // reading layout after the write. This file only turns it on and off.
+    const stopKeyboardInset = startKeyboardInsetTracking();
     const vv = window.visualViewport;
-    if (!vv) return;
+    if (!vv) return stopKeyboardInset;
     let raf = 0;
+
     const apply = () => {
       raf = 0;
       // scale > 1 means the user pinch-zoomed, and vv.height then shrinks for
