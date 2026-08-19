@@ -2,7 +2,18 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Heart, MessageCircle, Play, Eye, Pencil, X, Check, Film, Sparkles, Camera } from "lucide-react";
+import {
+  Heart,
+  MessageCircle,
+  Play,
+  Eye,
+  Pencil,
+  X,
+  Check,
+  Film,
+  Sparkles,
+  Camera,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { AvatarEditorSheet } from "@/components/profile/AvatarEditorSheet";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
@@ -82,34 +93,49 @@ function MyPageTab() {
     },
   });
 
-  const { data: moments = [] } = useQuery({
+  const {
+    data: moments = [],
+    isError: momentsError,
+    refetch: refetchMoments,
+  } = useQuery({
     queryKey: ["my-page-moments", me?.id],
     enabled: !!me?.id,
     queryFn: async (): Promise<MyMoment[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("moments_posts")
-        .select("id, content, media_urls, like_count, comment_count, visibility, is_synthetic, created_at")
+        .select(
+          "id, content, media_urls, like_count, comment_count, visibility, is_synthetic, created_at",
+        )
         .eq("user_id", me!.id)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(90);
+      if (error) throw error;
       return (data as MyMoment[]) ?? [];
     },
   });
 
-  const { data: clips = [], isLoading: clipsLoading } = useQuery({
+  const {
+    data: clips = [],
+    isLoading: clipsLoading,
+    isError: clipsError,
+    refetch: refetchClips,
+  } = useQuery({
     queryKey: ["my-page-clips", me?.id],
     enabled: !!me?.id,
     queryFn: async (): Promise<MyClip[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("clips")
-        .select("id, caption, video_url, thumbnail_url, hashtags, visibility, is_synthetic, like_count, view_count, comment_count, created_at")
+        .select(
+          "id, caption, video_url, thumbnail_url, hashtags, visibility, is_synthetic, like_count, view_count, comment_count, created_at",
+        )
         .eq("user_id", me!.id)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(90);
+      if (error) throw error;
       return (data as MyClip[]) ?? [];
     },
   });
@@ -189,15 +215,21 @@ function MyPageTab() {
           <div className="mb-1 flex flex-1 items-center justify-evenly pl-2 text-center">
             <div>
               <div className="font-display text-lg font-bold">{moments.length}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">moments</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                moments
+              </div>
             </div>
             <div>
               <div className="font-display text-lg font-bold">{clips.length}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">reels</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                reels
+              </div>
             </div>
             <div>
               <div className="font-display text-lg font-bold">{totalLikes}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">likes</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                likes
+              </div>
             </div>
           </div>
         </div>
@@ -243,7 +275,9 @@ function MyPageTab() {
               }}
               className="mt-2 flex w-full items-start gap-2 rounded-2xl border border-dashed border-border/70 bg-card/50 px-3 py-2 text-left"
             >
-              <span className={`flex-1 text-sm ${me?.bio ? "text-foreground/90" : "italic text-muted-foreground"}`}>
+              <span
+                className={`flex-1 text-sm ${me?.bio ? "text-foreground/90" : "italic text-muted-foreground"}`}
+              >
                 {me?.bio || "no status yet — tap to drop your vibe ✨"}
               </span>
               <Pencil className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -275,7 +309,20 @@ function MyPageTab() {
       {/* IG-style 3-column grid */}
       <div className="mt-3 px-1">
         {grid === "moments" ? (
-          moments.length === 0 ? (
+          momentsError ? (
+            <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+              <p>
+                Couldn't load your moments right now — a connection problem, not an empty profile.
+              </p>
+              <button
+                type="button"
+                onClick={() => refetchMoments()}
+                className="press mt-3 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+              >
+                Try again
+              </button>
+            </div>
+          ) : moments.length === 0 ? (
             <EmptyState label="no moments yet — post something iconic 🧊" />
           ) : (
             <div className="grid grid-cols-3 gap-1">
@@ -290,11 +337,22 @@ function MyPageTab() {
                     {media && !isAudioUrl(media) ? (
                       isVideoUrl(media) ? (
                         <>
-                          <video src={media} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                          <video
+                            src={media}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="h-full w-full object-cover"
+                          />
                           <Play className="absolute right-1.5 top-1.5 h-4 w-4 text-white drop-shadow" />
                         </>
                       ) : (
-                        <img src={media} alt="" loading="lazy" className="h-full w-full object-cover" />
+                        <img
+                          src={media}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
                       )
                     ) : (
                       <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 to-fuchsia-500/15 p-2">
@@ -313,9 +371,22 @@ function MyPageTab() {
               })}
             </div>
           )
+        ) : clipsError ? (
+          <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+            <p>Couldn't load your reels right now — a connection problem, not an empty profile.</p>
+            <button
+              type="button"
+              onClick={() => refetchClips()}
+              className="press mt-3 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+            >
+              Try again
+            </button>
+          </div>
         ) : clipsLoading ? (
           <div className="grid grid-cols-3 gap-0.5">
-            {[0, 1, 2, 3, 4, 5].map((i) => <ReelTileSkeleton key={i} />)}
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <ReelTileSkeleton key={i} />
+            ))}
           </div>
         ) : clips.length === 0 ? (
           <EmptyState label="no reels yet — create one 🎬 your main-character era awaits" />
@@ -373,21 +444,47 @@ function MyPageTab() {
         <MediaViewer onClose={() => setViewMoment(null)}>
           {viewMoment.media_urls?.[0] &&
             (isVideoUrl(viewMoment.media_urls[0]) ? (
-              <video src={viewMoment.media_urls[0]} controls autoPlay playsInline className="max-h-[60vh] w-full rounded-2xl bg-black object-contain" />
+              <video
+                src={viewMoment.media_urls[0]}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-[60vh] w-full rounded-2xl bg-black object-contain"
+              />
             ) : isAudioUrl(viewMoment.media_urls[0]) ? (
               <audio src={viewMoment.media_urls[0]} controls className="w-full" />
             ) : (
-              <img src={viewMoment.media_urls[0]} alt="" className="max-h-[60vh] w-full rounded-2xl object-contain" />
+              <img
+                src={viewMoment.media_urls[0]}
+                alt=""
+                className="max-h-[60vh] w-full rounded-2xl object-contain"
+              />
             ))}
           {viewMoment.is_synthetic && (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">AI-generated content 🤖</span>
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+              AI-generated content 🤖
+            </span>
           )}
-          {viewMoment.content && <p className="mt-3 whitespace-pre-wrap text-sm">{viewMoment.content}</p>}
+          {viewMoment.content && (
+            <p className="mt-3 whitespace-pre-wrap text-sm">{viewMoment.content}</p>
+          )}
           <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> {viewMoment.like_count ?? 0}</span>
-            <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> {viewMoment.comment_count ?? 0}</span>
-            {viewMoment.visibility === "moots" && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>}
-            {viewMoment.created_at && <span className="ml-auto">{new Date(viewMoment.created_at).toLocaleDateString()}</span>}
+            <span className="flex items-center gap-1">
+              <Heart className="h-3.5 w-3.5" /> {viewMoment.like_count ?? 0}
+            </span>
+            <span className="flex items-center gap-1">
+              <MessageCircle className="h-3.5 w-3.5" /> {viewMoment.comment_count ?? 0}
+            </span>
+            {viewMoment.visibility === "moots" && (
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                moots only 🤝
+              </span>
+            )}
+            {viewMoment.created_at && (
+              <span className="ml-auto">
+                {new Date(viewMoment.created_at).toLocaleDateString()}
+              </span>
+            )}
           </div>
           <button
             onClick={async () => {
@@ -402,7 +499,8 @@ function MyPageTab() {
                 return;
               }
               const failures = await removeStorageObjects(viewMoment.media_urls ?? []);
-              if (failures > 0) toast.error("post removed, but some media files couldn't be cleaned up");
+              if (failures > 0)
+                toast.error("post removed, but some media files couldn't be cleaned up");
               else toast.success("Post deleted");
               setViewMoment(null);
               qc.invalidateQueries({ queryKey: ["my-page-moments"] });
@@ -414,16 +512,30 @@ function MyPageTab() {
           </button>
         </MediaViewer>
       )}
-      {viewersFor && <ViewersSheet postType="reel" postId={viewersFor} onClose={() => setViewersFor(null)} />}
+      {viewersFor && (
+        <ViewersSheet postType="reel" postId={viewersFor} onClose={() => setViewersFor(null)} />
+      )}
       {viewClip && (
         <MediaViewer onClose={() => setViewClip(null)}>
-          <video src={viewClip.video_url} controls autoPlay playsInline className="max-h-[65vh] w-full rounded-2xl bg-black object-contain" />
+          <video
+            src={viewClip.video_url}
+            controls
+            autoPlay
+            playsInline
+            className="max-h-[65vh] w-full rounded-2xl bg-black object-contain"
+          />
           {viewClip.is_synthetic && (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">AI-generated content 🤖</span>
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+              AI-generated content 🤖
+            </span>
           )}
-          {viewClip.caption && <p className="mt-3 whitespace-pre-wrap text-sm">{viewClip.caption}</p>}
+          {viewClip.caption && (
+            <p className="mt-3 whitespace-pre-wrap text-sm">{viewClip.caption}</p>
+          )}
           <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> {viewClip.like_count}</span>
+            <span className="flex items-center gap-1">
+              <Heart className="h-3.5 w-3.5" /> {viewClip.like_count}
+            </span>
             <button
               onClick={() => setViewersFor(viewClip.id)}
               role="button"
@@ -432,8 +544,12 @@ function MyPageTab() {
             >
               <Eye className="h-3.5 w-3.5" /> {viewClip.view_count}
             </button>
-            <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> {viewClip.comment_count}</span>
-            {viewClip.created_at && <span className="ml-auto">{new Date(viewClip.created_at).toLocaleDateString()}</span>}
+            <span className="flex items-center gap-1">
+              <MessageCircle className="h-3.5 w-3.5" /> {viewClip.comment_count}
+            </span>
+            {viewClip.created_at && (
+              <span className="ml-auto">{new Date(viewClip.created_at).toLocaleDateString()}</span>
+            )}
           </div>
         </MediaViewer>
       )}
@@ -451,13 +567,20 @@ function EmptyState({ label }: { label: string }) {
 
 function MediaViewer({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/80 sm:items-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/80 sm:items-center"
+      onClick={onClose}
+    >
       <div
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-border bg-card p-4 sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex justify-end">
-          <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full bg-muted">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>

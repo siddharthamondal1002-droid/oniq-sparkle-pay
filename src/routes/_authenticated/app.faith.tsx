@@ -361,7 +361,7 @@ type RadioStation = {
 };
 
 function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["blessed-devotional-radio"],
     staleTime: 30 * 60 * 1000,
     queryFn: async () => {
@@ -385,6 +385,17 @@ function DevotionalRadioSection({ religion }: { religion: Religion | null }) {
       {isLoading ? (
         <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
           scanning the airwaves…
+        </div>
+      ) : isError ? (
+        <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">
+          <p>Couldn't load the stations right now — a connection problem, not an empty dial.</p>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="press mt-3 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+          >
+            Try again
+          </button>
         </div>
       ) : (
         <div className="space-y-5">

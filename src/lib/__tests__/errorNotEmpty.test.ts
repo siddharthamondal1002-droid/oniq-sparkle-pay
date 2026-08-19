@@ -141,4 +141,30 @@ describe("error is not empty — batch 1 screens", () => {
       "postsError branch must precede the posts.length feed branch",
     ).toBeLessThan(src.indexOf("posts && posts.length > 0"));
   });
+
+  it("faith shows a radio error+retry, not 'no stations'", () => {
+    const src = read("src/routes/_authenticated/app.faith.tsx");
+    expect(src, "the isError radio branch is gone").toMatch(/\) : isError \? \(/);
+    expect(src, "no retry on the radio error branch").toContain("refetch()");
+  });
+
+  it("chat.me throws on moments/reels errors and shows retry, not a false empty", () => {
+    const src = read("src/routes/_authenticated/app.chat.me.tsx");
+    expect(src, "moments query no longer throws on error").toMatch(/if \(error\) throw error/);
+    expect(
+      src.indexOf("momentsError ?"),
+      "momentsError branch must precede the moments empty branch",
+    ).toBeLessThan(src.indexOf("moments.length === 0"));
+    expect(src, "clipsError branch is gone").toContain("clipsError ?");
+  });
+
+  it("u.$userId throws on moments/reels errors and shows retry, not a false empty", () => {
+    const src = read("src/routes/_authenticated/app.u.$userId.tsx");
+    expect(src, "moments query no longer throws on error").toMatch(/if \(error\) throw error/);
+    expect(
+      src.indexOf("momentsError ?"),
+      "momentsError branch must precede the moments empty branch",
+    ).toBeLessThan(src.indexOf("moments.length === 0"));
+    expect(src, "clipsError branch is gone").toContain("clipsError ?");
+  });
 });

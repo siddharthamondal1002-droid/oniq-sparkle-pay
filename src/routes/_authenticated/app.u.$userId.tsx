@@ -79,32 +79,46 @@ function UserPage() {
 
   // RLS does the privacy work: moots-only posts only come back if the
   // viewer actually is a moot (or the owner).
-  const { data: moments = [] } = useQuery({
+  const {
+    data: moments = [],
+    isError: momentsError,
+    refetch: refetchMoments,
+  } = useQuery({
     queryKey: ["user-page-moments", userId],
     queryFn: async (): Promise<UserMoment[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any)
+      const { data, error } = await (supabase as any)
         .from("moments_posts")
-        .select("id, content, media_urls, like_count, comment_count, visibility, is_synthetic, created_at")
+        .select(
+          "id, content, media_urls, like_count, comment_count, visibility, is_synthetic, created_at",
+        )
         .eq("user_id", userId)
         .eq("is_deleted", false)
         .order("created_at", { ascending: false })
         .limit(90);
+      if (error) throw error;
       return (data as UserMoment[]) ?? [];
     },
   });
 
-  const { data: clips = [] } = useQuery({
+  const {
+    data: clips = [],
+    isError: clipsError,
+    refetch: refetchClips,
+  } = useQuery({
     queryKey: ["user-page-clips", userId, isMe],
     queryFn: async (): Promise<UserClip[]> => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let q = (supabase as any)
         .from("clips")
-        .select("id, caption, video_url, thumbnail_url, is_synthetic, like_count, view_count, comment_count, created_at")
+        .select(
+          "id, caption, video_url, thumbnail_url, is_synthetic, like_count, view_count, comment_count, created_at",
+        )
         .eq("user_id", userId)
         .eq("is_deleted", false);
       if (!isMe) q = q.eq("visibility", "public");
-      const { data } = await q.order("created_at", { ascending: false }).limit(90);
+      const { data, error } = await q.order("created_at", { ascending: false }).limit(90);
+      if (error) throw error;
       return (data as UserClip[]) ?? [];
     },
   });
@@ -134,7 +148,9 @@ function UserPage() {
       <div className="px-5 pt-16 text-center">
         <div className="text-4xl">👻</div>
         <div className="mt-2 font-display text-lg font-bold">this page doesn't exist</div>
-        <Link to="/app/chat" className="mt-3 inline-block text-sm text-primary">← back to chats</Link>
+        <Link to="/app/chat" className="mt-3 inline-block text-sm text-primary">
+          ← back to chats
+        </Link>
       </div>
     );
   }
@@ -158,7 +174,11 @@ function UserPage() {
           <div className="isolate rounded-full bg-gradient-to-tr from-amber-400 via-fuchsia-500 to-primary p-[3px]">
             <div className="rounded-full bg-background p-[3px]">
               {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="h-20 w-20 rounded-full object-cover" />
+                <img
+                  src={profile.avatar_url}
+                  alt=""
+                  className="h-20 w-20 rounded-full object-cover"
+                />
               ) : (
                 <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-primary to-accent font-display text-2xl font-bold text-primary-foreground">
                   {initial}
@@ -169,22 +189,30 @@ function UserPage() {
           <div className="mb-1 flex flex-1 items-center justify-evenly pl-2 text-center">
             <div>
               <div className="font-display text-lg font-bold">{moments.length}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">moments</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                moments
+              </div>
             </div>
             <div>
               <div className="font-display text-lg font-bold">{clips.length}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">reels</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                reels
+              </div>
             </div>
             <div>
               <div className="font-display text-lg font-bold">{totalLikes}</div>
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">likes</div>
+              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+                likes
+              </div>
             </div>
           </div>
         </div>
 
         <div className="mt-3">
           <div className="font-display text-xl font-bold leading-tight">{name}</div>
-          {profile?.username && <div className="text-xs text-muted-foreground">@{profile.username}</div>}
+          {profile?.username && (
+            <div className="text-xs text-muted-foreground">@{profile.username}</div>
+          )}
           {profile?.bio && <p className="mt-2 text-sm text-foreground/90">{profile.bio}</p>}
         </div>
 
@@ -227,7 +255,20 @@ function UserPage() {
 
       <div className="mt-3 px-1">
         {grid === "moments" ? (
-          moments.length === 0 ? (
+          momentsError ? (
+            <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+              <p>
+                Couldn't load this profile's moments — a connection problem, not an empty profile.
+              </p>
+              <button
+                type="button"
+                onClick={() => refetchMoments()}
+                className="press mt-3 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+              >
+                Try again
+              </button>
+            </div>
+          ) : moments.length === 0 ? (
             <EmptyState label="nothing to see here (yet) — moots-only posts stay hidden 🤝" />
           ) : (
             <div className="grid grid-cols-3 gap-1">
@@ -242,11 +283,22 @@ function UserPage() {
                     {media && !isAudioUrl(media) ? (
                       isVideoUrl(media) ? (
                         <>
-                          <video src={media} muted playsInline preload="metadata" className="h-full w-full object-cover" />
+                          <video
+                            src={media}
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="h-full w-full object-cover"
+                          />
                           <Play className="absolute right-1.5 top-1.5 h-4 w-4 text-white drop-shadow" />
                         </>
                       ) : (
-                        <img src={media} alt="" loading="lazy" className="h-full w-full object-cover" />
+                        <img
+                          src={media}
+                          alt=""
+                          loading="lazy"
+                          className="h-full w-full object-cover"
+                        />
                       )
                     ) : (
                       <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 to-fuchsia-500/15 p-2">
@@ -265,6 +317,17 @@ function UserPage() {
               })}
             </div>
           )
+        ) : clipsError ? (
+          <div className="px-6 py-10 text-center text-sm text-muted-foreground">
+            <p>Couldn't load this profile's reels — a connection problem, not an empty profile.</p>
+            <button
+              type="button"
+              onClick={() => refetchClips()}
+              className="press mt-3 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+            >
+              Try again
+            </button>
+          </div>
         ) : clips.length === 0 ? (
           <EmptyState label="no public reels yet 🎬" />
         ) : (
@@ -286,36 +349,80 @@ function UserPage() {
         <MediaViewer onClose={() => setViewMoment(null)}>
           {viewMoment.media_urls?.[0] &&
             (isVideoUrl(viewMoment.media_urls[0]) ? (
-              <video src={viewMoment.media_urls[0]} controls autoPlay playsInline className="max-h-[60vh] w-full rounded-2xl bg-black object-contain" />
+              <video
+                src={viewMoment.media_urls[0]}
+                controls
+                autoPlay
+                playsInline
+                className="max-h-[60vh] w-full rounded-2xl bg-black object-contain"
+              />
             ) : isAudioUrl(viewMoment.media_urls[0]) ? (
               <audio src={viewMoment.media_urls[0]} controls className="w-full" />
             ) : (
-              <img src={viewMoment.media_urls[0]} alt="" className="max-h-[60vh] w-full rounded-2xl object-contain" />
+              <img
+                src={viewMoment.media_urls[0]}
+                alt=""
+                className="max-h-[60vh] w-full rounded-2xl object-contain"
+              />
             ))}
           {viewMoment.is_synthetic && (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">AI-generated content 🤖</span>
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+              AI-generated content 🤖
+            </span>
           )}
-          {viewMoment.content && <p className="mt-3 whitespace-pre-wrap text-sm">{viewMoment.content}</p>}
+          {viewMoment.content && (
+            <p className="mt-3 whitespace-pre-wrap text-sm">{viewMoment.content}</p>
+          )}
           <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> {viewMoment.like_count ?? 0}</span>
-            <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> {viewMoment.comment_count ?? 0}</span>
-            {viewMoment.visibility === "moots" && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">moots only 🤝</span>}
-            {viewMoment.created_at && <span className="ml-auto">{new Date(viewMoment.created_at).toLocaleDateString()}</span>}
+            <span className="flex items-center gap-1">
+              <Heart className="h-3.5 w-3.5" /> {viewMoment.like_count ?? 0}
+            </span>
+            <span className="flex items-center gap-1">
+              <MessageCircle className="h-3.5 w-3.5" /> {viewMoment.comment_count ?? 0}
+            </span>
+            {viewMoment.visibility === "moots" && (
+              <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                moots only 🤝
+              </span>
+            )}
+            {viewMoment.created_at && (
+              <span className="ml-auto">
+                {new Date(viewMoment.created_at).toLocaleDateString()}
+              </span>
+            )}
           </div>
         </MediaViewer>
       )}
       {viewClip && (
         <MediaViewer onClose={() => setViewClip(null)}>
-          <video src={viewClip.video_url} controls autoPlay playsInline className="max-h-[65vh] w-full rounded-2xl bg-black object-contain" />
+          <video
+            src={viewClip.video_url}
+            controls
+            autoPlay
+            playsInline
+            className="max-h-[65vh] w-full rounded-2xl bg-black object-contain"
+          />
           {viewClip.is_synthetic && (
-            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">AI-generated content 🤖</span>
+            <span className="mt-2 inline-flex items-center gap-1 rounded-full border border-amber-400/50 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300">
+              AI-generated content 🤖
+            </span>
           )}
-          {viewClip.caption && <p className="mt-3 whitespace-pre-wrap text-sm">{viewClip.caption}</p>}
+          {viewClip.caption && (
+            <p className="mt-3 whitespace-pre-wrap text-sm">{viewClip.caption}</p>
+          )}
           <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-            <span className="flex items-center gap-1"><Heart className="h-3.5 w-3.5" /> {viewClip.like_count}</span>
-            <span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> {viewClip.view_count}</span>
-            <span className="flex items-center gap-1"><MessageCircle className="h-3.5 w-3.5" /> {viewClip.comment_count}</span>
-            {viewClip.created_at && <span className="ml-auto">{new Date(viewClip.created_at).toLocaleDateString()}</span>}
+            <span className="flex items-center gap-1">
+              <Heart className="h-3.5 w-3.5" /> {viewClip.like_count}
+            </span>
+            <span className="flex items-center gap-1">
+              <Eye className="h-3.5 w-3.5" /> {viewClip.view_count}
+            </span>
+            <span className="flex items-center gap-1">
+              <MessageCircle className="h-3.5 w-3.5" /> {viewClip.comment_count}
+            </span>
+            {viewClip.created_at && (
+              <span className="ml-auto">{new Date(viewClip.created_at).toLocaleDateString()}</span>
+            )}
           </div>
         </MediaViewer>
       )}
@@ -333,13 +440,20 @@ function EmptyState({ label }: { label: string }) {
 
 function MediaViewer({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/80 sm:items-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-[70] flex items-end justify-center bg-black/80 sm:items-center"
+      onClick={onClose}
+    >
       <div
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border border-border bg-card p-4 sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-2 flex justify-end">
-          <button onClick={onClose} aria-label="Close" className="grid h-8 w-8 place-items-center rounded-full bg-muted">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>
