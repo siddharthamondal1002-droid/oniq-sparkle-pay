@@ -18,22 +18,37 @@ function RestaurantPage() {
   const [cart, setCart] = useState<Cart>({});
   const [showCheckout, setShowCheckout] = useState(false);
 
-  const { data: restaurant } = useQuery({
+  const {
+    data: restaurant,
+    isLoading: restaurantLoading,
+    isError: restaurantError,
+    refetch: refetchRestaurant,
+  } = useQuery({
     queryKey: ["restaurant", id],
     queryFn: async () => {
-      const { data } = await supabase.from("restaurants").select("*").eq("id", id).maybeSingle();
+      const { data, error } = await supabase
+        .from("restaurants")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) throw error;
       return data;
     },
   });
 
-  const { data: items } = useQuery({
+  const {
+    data: items,
+    isError: menuError,
+    refetch: refetchMenu,
+  } = useQuery({
     queryKey: ["menu", id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("menu_items")
         .select("*")
         .eq("restaurant_id", id)
         .order("category");
+      if (error) throw error;
       return data ?? [];
     },
   });
@@ -57,7 +72,25 @@ function RestaurantPage() {
     });
   }
 
-  if (!restaurant) {
+  if (restaurantError) {
+    return (
+      <div className="space-y-3 p-5 pt-12 text-center">
+        <p className="text-sm text-muted-foreground">
+          Couldn&apos;t load this restaurant right now — a connection problem, not a closed kitchen.
+        </p>
+        <button
+          onClick={() => {
+            refetchRestaurant();
+            refetchMenu();
+          }}
+          className="mx-auto rounded-full border border-border bg-card px-4 py-2 text-sm font-semibold"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+  if (restaurantLoading || !restaurant) {
     return (
       <div className="space-y-3 p-5 pt-12">
         <div className="h-56 animate-pulse rounded-3xl bg-card" />
@@ -102,6 +135,18 @@ function RestaurantPage() {
           Menu
         </h2>
         <div className="mt-3 space-y-3">
+          {menuError && (
+            <div className="rounded-2xl border border-border bg-card p-4 text-center text-sm text-muted-foreground">
+              Couldn&apos;t load the menu right now — an empty list here would be a lie, not an
+              empty kitchen.
+              <button
+                onClick={() => refetchMenu()}
+                className="mt-2 block w-full rounded-full border border-border py-2 font-semibold"
+              >
+                Try again
+              </button>
+            </div>
+          )}
           {items?.map((it) => {
             const qty = cart[it.id] ?? 0;
             return (
@@ -275,7 +320,10 @@ function CheckoutSheet({
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="font-display text-lg font-semibold">Your order</h3>
-          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-muted">
+          <button
+            onClick={onClose}
+            className="grid h-8 w-8 place-items-center rounded-full bg-muted"
+          >
             <X className="h-4 w-4" />
           </button>
         </div>

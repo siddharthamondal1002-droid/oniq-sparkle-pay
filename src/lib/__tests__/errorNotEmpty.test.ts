@@ -167,4 +167,18 @@ describe("error is not empty — batch 1 screens", () => {
     ).toBeLessThan(src.indexOf("moments.length === 0"));
     expect(src, "clipsError branch is gone").toContain("clipsError ?");
   });
+
+  it("food.$id throws on restaurant/menu errors and shows retry, not an infinite skeleton or empty menu", () => {
+    const src = strip(read("src/routes/_authenticated/app.food.$id.tsx"));
+    // Both reads now throw rather than swallowing the error into null/[].
+    expect(src, "a food read still swallows its error").toMatch(/if \(error\) throw error/);
+    expect(src, "restaurantError branch is gone").toContain("restaurantError");
+    expect(src, "menuError branch is gone").toContain("menuError");
+    // The restaurant error branch must precede the loading skeleton, so a failed
+    // read shows a retry instead of spinning on the skeleton forever.
+    expect(
+      src.indexOf("restaurantError)"),
+      "restaurantError branch must precede the loading skeleton",
+    ).toBeLessThan(src.indexOf("restaurantLoading || !restaurant"));
+  });
 });
