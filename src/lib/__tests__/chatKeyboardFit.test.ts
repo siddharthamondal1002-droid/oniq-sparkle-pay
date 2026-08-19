@@ -163,7 +163,15 @@ describe("the chat column is sized by what is actually visible", () => {
     // So nothing here measures the keyboard for CSS any more. The composer
     // pays a plain safe-area inset, exactly as it did for those six weeks.
     expect(CODE, "--kb is being published again").not.toContain('setProperty("--kb"');
-    expect(CODE, "the composer is doing keyboard arithmetic again").not.toContain("var(--kb");
+    // AMENDED 2026-08-19: the only keyboard variable this file may read is
+    // --kb-inset, and only in the column height (guarded above). The old --kb
+    // — innerHeight minus visualViewport, i.e. an assumed keyboard — stays
+    // banned, and the composer still pays a plain safe-area inset.
+    expect(CODE, "the old assumed --kb is back").not.toMatch(/var\(--kb[),\s]/);
+    const composerPad = CODE.match(/paddingBottom: "([^"]*)"/g) ?? [];
+    for (const p of composerPad) {
+      expect(p, `the composer is doing keyboard arithmetic again: ${p}`).not.toContain("--kb");
+    }
     expect(CODE, "the composer lost its safe-area padding entirely").toContain(
       "calc(0.75rem + env(safe-area-inset-bottom))",
     );
