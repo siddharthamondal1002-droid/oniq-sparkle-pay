@@ -211,11 +211,14 @@ function AppShell() {
             where the inset is 0 (desktop, older Android), and it is clipped
             to the shell's own width so it never stripes the desktop backdrop.
           */}
-          <div
-            aria-hidden
-            className="pointer-events-none fixed top-0 left-1/2 z-30 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 bg-background"
-            style={{ height: "env(safe-area-inset-top)" }}
-          />
+          {!isFullBleed && (
+            <div
+              aria-hidden
+              className="pointer-events-none fixed top-0 left-1/2 z-30 w-full max-w-md md:max-w-lg lg:max-w-xl -translate-x-1/2 bg-background"
+              style={{ height: "env(safe-area-inset-top)" }}
+            />
+          )}
+
 
           {wallpaper && (
             <div className="pointer-events-none fixed inset-0 z-0 mx-auto max-w-md md:max-w-lg lg:max-w-xl">
