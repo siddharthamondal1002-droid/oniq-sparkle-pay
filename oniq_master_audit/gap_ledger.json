@@ -1,0 +1,168 @@
+{
+  "pass": "01-DISCOVERY",
+  "ranking_rule": "Ranked by user harm first, then legal/store exposure, then wasted surface. No fixes were applied in this pass.",
+  "gaps": [
+    {
+      "rank": 1,
+      "id": "PLAY-CLAIM-CRYPTO",
+      "severity": "CRITICAL",
+      "class": "MISSING",
+      "title": "Play listing advertises 'crypto and investing launchers' that do not exist",
+      "evidence": "appRegistry.ts categories are beauty, entertainment, fashion, food, gig, jobs, payments, quickcommerce, rides, services, shopping, social. No crypto or investing category or tile exists.",
+      "risk": "Google Play policy: store listing must not describe features the app lacks. Also a financial-services claim, which Play treats strictly.",
+      "owner_decision_needed": true,
+      "options": ["Remove the phrase from the Play listing (no code change)", "Add a crypto/investing category to Plug (business decision: which providers)"]
+    },
+    {
+      "rank": 2,
+      "id": "PLAY-CLAIM-RIDES-NINE",
+      "severity": "HIGH",
+      "class": "PARTIAL",
+      "title": "Play says Ride Genie 'compares ride options across nine providers'; the backend serves a static rate card",
+      "evidence": "supabase/functions/estimate-fares/index.ts header: fares come 'from a static rate card'. The website wording ('fare estimates across providers, then open the right app to book') is accurate; the Play wording is not.",
+      "risk": "Misleading price claim in a store listing.",
+      "owner_decision_needed": true,
+      "options": ["Align the Play copy with the site copy (recommended, free)", "Integrate live provider pricing (paid APIs — owner decision)"]
+    },
+    {
+      "rank": 3,
+      "id": "WEATHER-UNREACHABLE",
+      "severity": "HIGH",
+      "class": "PARTIAL",
+      "title": "'Live weather' is advertised but /app/weather has zero inbound links",
+      "evidence": "Route + weather.functions.ts exist; grep finds no link to /app/weather anywhere in src.",
+      "risk": "Advertised feature is effectively absent for every user.",
+      "fix_shape": "Add one Plug/home entry point, or drop the claim."
+    },
+    {
+      "rank": 4,
+      "id": "FOOD-DEAD-WORLD",
+      "severity": "HIGH",
+      "class": "BROKEN",
+      "title": "Food ordering is unreachable AND has an empty catalogue",
+      "evidence": "No link to /app/food in src; restaurants=0, menu_items=0, orders=0 rows.",
+      "risk": "Dead code carrying a money path (place_order RPC) with no oversight.",
+      "owner_decision_needed": true,
+      "options": ["Retire the world and its tables", "Seed a catalogue and surface it"]
+    },
+    {
+      "rank": 5,
+      "id": "SEC-PROFILES-FLAGS",
+      "severity": "HIGH",
+      "class": "BROKEN",
+      "title": "profiles_select_public_columns exposes is_admin and oniq_pay_enabled to every logged-in user",
+      "evidence": "Active scanner finding profiles_full_row_exposure; policy USING (auth.uid() IS NOT NULL) covers all columns.",
+      "risk": "Admin enumeration. Recurring finding — previous fixes have regressed.",
+      "fix_shape": "Column-scoped grant or a profiles_public view; must survive the next scan."
+    },
+    {
+      "rank": 6,
+      "id": "MAPPLS-KEYS-MISSING",
+      "severity": "HIGH",
+      "class": "BROKEN",
+      "title": "MAPPLS_CLIENT_ID / MAPPLS_CLIENT_SECRET are referenced by mappls-geo but not configured",
+      "evidence": "Secret diff: both keys referenced in supabase/functions/mappls-geo/index.ts, neither present in project secrets.",
+      "risk": "India geocoding degraded or failing silently for Rides/Scout.",
+      "note": "mappls-geo is on the do-not-touch list for edits; this is a credentials gap, not a code gap."
+    },
+    {
+      "rank": 7,
+      "id": "STUDY-UNDISCLOSED",
+      "severity": "MEDIUM",
+      "class": "PUBLICLY_UNDISCLOSED",
+      "title": "Study — the most-used feature in the database — is absent from the Play listing",
+      "evidence": "1164 chapters, 154 tutor messages, 87 papers, 67 quiz attempts, 16 learner profiles; zero mention on Play.",
+      "risk": "Lost acquisition; also an education/minors surface that the listing's data-safety narrative does not describe."
+    },
+    {
+      "rank": 8,
+      "id": "JOBS-STALE-LABEL",
+      "severity": "MEDIUM",
+      "class": "STALE_COPY",
+      "title": "Website labels Jobs 'Coming soon' while 25 CVs have been generated in production",
+      "evidence": "oniqhub.com Jobs tile text vs cv_documents=25, cv_attestations=25."
+    },
+    {
+      "rank": 9,
+      "id": "LEARN-EMPTY-CATALOGUE",
+      "severity": "MEDIUM",
+      "class": "PARTIAL",
+      "title": "Site advertises ONIQ Learn lessons; learn_courses / learn_lessons / learn_questions are all empty",
+      "evidence": "Row counts 0/0/0 with learn_progress=3, learn_stats=1."
+    },
+    {
+      "rank": 10,
+      "id": "QR-DEEPLINK-GAP",
+      "severity": "MEDIUM",
+      "class": "PARTIAL",
+      "title": "/q/<token> is not in the Android app-links intent filter and no tokens have ever been issued",
+      "evidence": "AndroidManifest declares /r/, /m/, /u/ only; profile_qr_tokens=0 rows."
+    },
+    {
+      "rank": 11,
+      "id": "EARN-PAYOUT-BLOCKED",
+      "severity": "MEDIUM",
+      "class": "PARTIAL",
+      "title": "Creator payouts cannot be initiated — RAZORPAYX_ACCOUNT_NUMBER unset, payout tables empty",
+      "evidence": "Secret diff + creator_payouts=0, payout_queue=0, payout_methods=0.",
+      "owner_decision_needed": true
+    },
+    {
+      "rank": 12,
+      "id": "TRANSLATION-NEVER-USED",
+      "severity": "LOW",
+      "class": "PARTIAL",
+      "title": "In-chat translation shipped but message_translations has 0 rows",
+      "evidence": "Table empty despite translate-message being deployed and gated per conversation."
+    },
+    {
+      "rank": 13,
+      "id": "ORPHANED-FUNCTIONS",
+      "severity": "LOW",
+      "class": "STUB",
+      "title": "Six edge functions have no client caller",
+      "evidence": "flight-search, send-otp, verify-otp, check-user-exists, find-friends, turn-creds (turn-creds is PROTECTED — leave alone).",
+      "risk": "Attack surface and maintenance cost with no user value."
+    },
+    {
+      "rank": 14,
+      "id": "ORPHANED-SCHEMA",
+      "severity": "LOW",
+      "class": "MISSING",
+      "title": "The assessment_* family (4 tables) and ai_chats/ai_messages have zero rows and zero source references",
+      "evidence": "Row counts 0; grep finds no references in src."
+    },
+    {
+      "rank": 15,
+      "id": "ZERO-POLICY-TABLES",
+      "severity": "LOW",
+      "class": "PARTIAL",
+      "title": "Seven tables have RLS enabled with no policies at all",
+      "evidence": "api_budget, copyright_notices, otp_attempts, profile_qr_tokens, story_dispatch_health, study_chapters_debug, study_papers.",
+      "risk": "Not a leak. But study_papers holds 87 rows, so confirm every read path is a SECURITY DEFINER RPC."
+    },
+    {
+      "rank": 16,
+      "id": "MCP-UNDISCLOSED",
+      "severity": "LOW",
+      "class": "PUBLICLY_UNDISCLOSED",
+      "title": "A public MCP tool surface (/mcp, /.mcp/list-tools, /.mcp/invoke-tool) ships with the app and is described nowhere",
+      "evidence": "Routes present in src/routes; /mcp-signin returns 307 on production."
+    },
+    {
+      "rank": 17,
+      "id": "JOBS-APPS-DEAD-ROUTE",
+      "severity": "LOW",
+      "class": "STUB",
+      "title": "/app/jobs-apps is dead — its content was extracted into JobAppsDirectory",
+      "evidence": "Zero inbound links; the component comment records the extraction."
+    }
+  ],
+  "cannot_verify_without_hardware": [
+    "[HW] Real Android call setup, ring delivery, speaker routing",
+    "[HW] Push notification arrival on a physical handset",
+    "[HW] Camera-based UPI QR scanning",
+    "[HW] Offline behaviour and PWA install prompt",
+    "[HW] Actual scroll performance of the virtualised chat list"
+  ]
+}
