@@ -57,7 +57,7 @@ describe("the app shell hands screens a height that fits inside it", () => {
       /const CHAT_SECTION_CHROME = "calc\([^"]*env\(safe-area-inset-bottom\)\)"/,
     );
     expect(SHELL, "the chat sub-tabs no longer get that clearance").toContain(
-      "isChatSubtab\n",
+      "isChatSubtab\n        ? CHAT_SECTION_CHROME",
     );
     expect(
       CHAT_LAYOUT,
