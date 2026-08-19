@@ -76,22 +76,14 @@ describe("only one layer resizes for the keyboard", () => {
     expect(code).not.toMatch(/--kb\b|--vvh/);
   });
 
-  it("MainActivity is OUT of the keyboard business — no IME padding, in any form", () => {
-    expect(
-      activity,
-      "MainActivity reads the IME inset again — the padding is coming back",
-    ).not.toContain("Type.ime()");
-    expect(activity, "a keyboard-derived padding is back in some disguise").not.toMatch(
-      /setPadding\([^)]*ime/,
-    );
-    // The one padding write left is the stale-state reset to zero.
-    expect(activity).toMatch(/setPadding\(0,\s*0,\s*0,\s*0\)/);
-  });
-
-  it("the insets still reach the WebView unconsumed — env() depends on it", () => {
-    expect(activity, "the inset listener is swallowing insets again").not.toMatch(
-      /return\s+WindowInsetsCompat\.CONSUMED/,
-    );
-    expect(activity).toContain("return insets;");
+  // AMENDED 2026-08-19 (owner decision): native is back IN the keyboard
+  // business and consumes the insets again — see systemBars.test.ts for the
+  // reasoning. The web tokens above stay because they go inert: with the IME
+  // inset consumed Chromium never resizes, so overlays-content governs a
+  // resize that does not happen and --kb-inset measures 0.
+  it("MainActivity pads by the IME inset and consumes, as it did before 17 Aug", () => {
+    expect(activity, "the IME padding is gone again").toContain("Type.ime()");
+    expect(activity, "the listener stopped consuming").toContain("WindowInsetsCompat.CONSUMED");
   });
 });
+
