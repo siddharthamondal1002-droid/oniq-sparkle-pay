@@ -1873,6 +1873,28 @@ function ChatThread() {
    * and the shared cache cannot be poisoned with caller-supplied content. See
    * the header of supabase/functions/translate-message/index.ts.
    */
+  const runTranslate = async (m: Message) => {
+    setTranslatingId(m.id);
+    try {
+      const { data, error } = await supabase.functions.invoke("translate-message", {
+        body: { message_id: m.id, to: myLang },
+      });
+      if (error) throw error;
+      const out = typeof data?.translation === "string" ? data.translation.trim() : "";
+      if (!out) {
+        // Quiet failure: the original is already on screen and stays there.
+        toast.error(data?.error || "Couldn't translate that");
+        return;
+      }
+      setTranslated((s) => ({ ...s, [m.id]: out }));
+      setShowOriginal((s) => ({ ...s, [m.id]: false }));
+    } catch {
+      toast.error("Couldn't translate that — try again");
+    } finally {
+      setTranslatingId(null);
+    }
+  };
+
   const translateMessage = async (m: Message) => {
     setMenuFor(null);
     if (translated[m.id]) {
