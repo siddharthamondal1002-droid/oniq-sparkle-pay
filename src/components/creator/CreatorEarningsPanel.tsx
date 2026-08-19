@@ -127,7 +127,7 @@ export function CreatorEarningsPanel({ userId }: { userId: string }) {
         <p className="mt-3 text-xs text-muted-foreground">
           Refund rate (30 days): {(rate.refundBp / 100).toFixed(1)}% of {rate.charges} charges.
           {rate.refundBp >= BREAKEVEN_REFUND_BP && (
-            <span className="ml-1 inline-flex items-center gap-1 text-amber-500">
+            <span className="ms-1 inline-flex items-center gap-1 text-amber-500">
               <AlertTriangle className="h-3 w-3" /> past the {(BREAKEVEN_REFUND_BP / 100).toFixed(1)}%
               break-even
             </span>
