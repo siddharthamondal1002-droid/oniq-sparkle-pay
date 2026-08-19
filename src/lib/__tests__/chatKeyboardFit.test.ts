@@ -73,48 +73,36 @@ const CODE = CHAT.split("\n")
   .join("\n");
 
 describe("the chat column is sized by what is actually visible", () => {
-  it("takes its height from the viewport, less only the measured inset", () => {
-    // FOURTH SHAPE, and the first one that is a measurement. --vvh and --kb
-    // were models of who had already subtracted the keyboard; both were wrong
-    // because the answer differs between the installed build (native pads the
-    // content view) and the pending one (it does not). --kb-inset asks the
-    // page instead: layout viewport minus visible viewport. Zero when a lower
-    // layer already took the keyboard off, the keyboard when nobody did.
-    expect(CODE, "the column is no longer sized by --app-vh").toContain(
-      'height: "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))"',
-    );
+  const EXPR = 'height: "calc(var(--vvh, var(--app-vh, 100dvh)) - env(safe-area-inset-top))"';
+
+  it("takes its height from the MEASURED visible height, not a subtraction", () => {
+    // FIFTH SHAPE, and the last one that can be wrong about who subtracted the
+    // keyboard, because it does not subtract it. `--app-vh - --kb-inset` still
+    // assumed exactly one of the two carried the keyboard; on the shipped
+    // device both did, and the thread collapsed to a strip again (screenshot
+    // 2026-08-19 17:07). --vvh is visualViewport.height: whatever combination
+    // of native padding, Chromium resizing and overlays-content produced the
+    // visible area, that IS the area.
+    expect(CODE, "the column is no longer sized by the measured visible height").toContain(EXPR);
   });
 
-
-  it("never reintroduces a keyboard-derived height, in any disguise", () => {
-    // AMENDED 2026-08-19. The blanket ban stood on the belief that the
-    // platform always subtracts the keyboard exactly once below us. It does
-    // not: the installed build and the pending build differ on that, so a
-    // fixed answer (zero, or one keyboard) is wrong in one of them.
-    //
-    // What is allowed now is exactly one expression, and only because it is a
-    // MEASUREMENT rather than a model: --kb-inset is
-    // documentElement.clientHeight - visualViewport.height - offsetTop, i.e.
-    // the part of the layout viewport that is not visible. Where a lower layer
-    // already shrank the layout viewport, it measures 0 and subtracts nothing.
-    // The old disguises (--kb from innerHeight, --vvh as an absolute height)
-    // stay banned: neither can tell those two states apart.
+  it("never composes a keyboard subtraction into a height again", () => {
+    // Only --vvh may appear in a height, and only on its own. --kb-inset,
+    // --kb, and any `dvh - keyboard` arithmetic stay banned here: every one of
+    // them depends on knowing which layer already took the keyboard off.
     const height = /height: "([^"]*)"/g;
     for (const m of CODE.matchAll(height)) {
       const expr = m[1] ?? "";
-      const banned = expr.replace(/--kb-inset/g, "");
-      expect(banned, `a height reads the keyboard: ${expr}`).not.toMatch(/--kb\b|--vvh/);
+      const banned = expr.replace(/--vvh/g, "");
+      expect(banned, `a height reads the keyboard: ${expr}`).not.toMatch(/--kb/);
     }
-    expect(CODE, "the column stopped subtracting the measured inset").toContain(
-      "calc(var(--app-vh, 100dvh) - var(--kb-inset, 0px))",
-    );
   });
 
-
-  it("does not publish --vvh at all any more", () => {
-    // A correct-looking variable left lying around is how this got made twice.
-    // The way to stop a third time is for there to be nothing to reach for.
-    expect(CODE, "--vvh is being published again").not.toContain('setProperty("--vvh"');
+  it("does not publish viewport variables from the route", () => {
+    // Measuring belongs in src/lib/keyboardInset.ts, once.
+    expect(CODE, "--vvh is being published from the route again").not.toContain(
+      'setProperty("--vvh"',
+    );
   });
 
   it("never subtracts the keyboard from a viewport unit again", () => {
@@ -124,6 +112,7 @@ describe("the chat column is sized by what is actually visible", () => {
       "calc(100dvh - var(--kb",
     );
   });
+
 
   it("still ignores a pinch-zoomed viewport when measuring the keyboard", () => {
     // Zoomed, visualViewport.height describes the magnifier rather than the
