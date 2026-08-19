@@ -25,13 +25,7 @@ const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
 const SHELL = read("src/routes/_authenticated/app.tsx");
 const CSS = read("src/styles.css");
 const CHAT = read("src/routes/_authenticated/app.chat.$conversationId.tsx");
-
-/** Tailwind's spacing scale is 0.25rem a step, which is the whole mapping. */
-function pbToLength(cls: string): string {
-  const n = Number(cls.replace("pb-", ""));
-  if (n === 0) return "0px";
-  return `${n * 0.25}rem`;
-}
+const CHAT_LAYOUT = read("src/routes/_authenticated/app.chat.tsx");
 
 describe("the app shell hands screens a height that fits inside it", () => {
   it("publishes --app-vh, net of both the status bar and its own bottom chrome", () => {
@@ -41,28 +35,48 @@ describe("the app shell hands screens a height that fits inside it", () => {
     expect(decl, "the bottom chrome is not subtracted").toContain("${chromeBottom}");
   });
 
-  it("subtracts exactly the padding it adds, for all three chrome states", () => {
-    // Both ternaries are read out of the source rather than restated here, so
-    // this compares the file against itself and cannot drift into agreeing
-    // with a stale copy of the values.
-    const subtracted = [
-      ...SHELL.matchAll(
-        /const chromeBottom = showNav \? "([^"]+)" : isChatThread \? "([^"]+)" : "([^"]+)"/g,
-      ),
-    ][0];
-    expect(subtracted, "the chromeBottom ternary changed shape").toBeTruthy();
+  it("pads with the SAME expression it subtracts, from one source", () => {
+    // AMENDED 2026-08-19: the shell used to state the bottom chrome twice —
+    // once as a length for --app-vh and once as a pb-* class — and the two
+    // could drift. There is now a fourth chrome state (the chat section's own
+    // six-tab bar, which reserved 1rem for ~5rem of bar), and a class scale
+    // cannot express `calc(4rem + env(safe-area-inset-bottom))` anyway. So the
+    // padding is applied inline from the same `chromeBottom` binding, and this
+    // guard checks the single source rather than comparing two spellings.
+    expect(SHELL, "the shell pads with a literal instead of chromeBottom").toContain(
+      "paddingBottom: chromeBottom",
+    );
+    expect(
+      SHELL,
+      "a pb-* class is back on the shell container — that is the drift this guard exists to stop",
+    ).not.toMatch(/className=\{`relative mx-auto flex min-h-\[100dvh\][^`]*pb-/);
+  });
 
-    const padded = [
-      ...SHELL.matchAll(/showNav \? "(pb-\d+)" : isChatThread \? "(pb-\d+)" : "(pb-\d+)"/g),
-    ][0];
-    expect(padded, "the padding ternary changed shape").toBeTruthy();
+  it("the chat section's own nav is reserved once, by the shell", () => {
+    expect(SHELL, "the chat-section clearance constant is gone").toMatch(
+      /const CHAT_SECTION_CHROME = "calc\([^"]*env\(safe-area-inset-bottom\)\)"/,
+    );
+    expect(SHELL, "the chat sub-tabs no longer get that clearance").toContain(
+      "isChatSubtab\n",
+    );
+    expect(
+      CHAT_LAYOUT,
+      "the chat layout pads for its own nav again — that double-counts the shell's reservation",
+    ).not.toMatch(/pb-\d+/);
+  });
 
-    for (let i = 1; i <= 3; i += 1) {
-      expect(
-        subtracted[i],
-        `--app-vh subtracts ${subtracted[i]} where the shell pads ${padded[i]}`,
-      ).toBe(pbToLength(padded[i]));
-    }
+  it("paints a status-bar scrim, themed, inset-sized and shell-width", () => {
+    // The document is the scroller; padding on <main> says where content
+    // starts, not where it may travel. Since the edge-to-edge flip, scrolled
+    // content passed behind the transparent status bar.
+    const scrim = SHELL.match(/pointer-events-none fixed top-0[^"]*/)?.[0];
+    expect(scrim, "the status-bar scrim is gone").toBeTruthy();
+    expect(scrim, "the scrim is not themed (hardcoded colour?)").toContain("bg-background");
+    expect(scrim, "the scrim would stripe the desktop backdrop").toContain("max-w-md");
+    expect(scrim, "the scrim must sit under the nav and any overlay").toContain("z-30");
+    expect(SHELL, "the scrim is not sized to the inset").toContain(
+      'height: "env(safe-area-inset-top)"',
+    );
   });
 });
 
