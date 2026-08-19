@@ -34,12 +34,18 @@ export const MIN_PAYOUT_PAISE = 100_000; // Rs 1,000
 export const BREAKEVEN_REFUND_BP = 1050;
 export const REFUND_REVIEW_BP = 500;
 
-/** The only price points that exist. See PLAY_PRODUCT_LIMITS for why. */
+/**
+ * The only price points that exist. See PLAY_PRODUCT_LIMITS for why.
+ *
+ * No display label here on purpose: prices are rendered through the shared
+ * money formatter so a subscriber outside India sees their own currency
+ * conventions rather than a hardcoded symbol.
+ */
 export const SUB_TIERS = [
-  { sku: "oniq_creator_49", pricePaise: 4_900, label: "₹49" },
-  { sku: "oniq_creator_99", pricePaise: 9_900, label: "₹99" },
-  { sku: "oniq_creator_199", pricePaise: 19_900, label: "₹199" },
-  { sku: "oniq_creator_499", pricePaise: 49_900, label: "₹499" },
+  { sku: "oniq_creator_49", pricePaise: 4_900 },
+  { sku: "oniq_creator_99", pricePaise: 9_900 },
+  { sku: "oniq_creator_199", pricePaise: 19_900 },
+  { sku: "oniq_creator_499", pricePaise: 49_900 },
 ] as const;
 
 /**
