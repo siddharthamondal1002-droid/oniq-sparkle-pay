@@ -85,7 +85,11 @@ function CallsTab() {
     queryFn: async () => (await supabase.auth.getUser()).data.user,
   });
 
-  const { data: logs = [], refetch } = useQuery({
+  const {
+    data: logs = [],
+    isError: logsError,
+    refetch,
+  } = useQuery({
     queryKey: ["call-logs", me?.id],
     enabled: !!me,
     staleTime: 15_000,
@@ -216,7 +220,23 @@ function CallsTab() {
         <h1 className="font-display text-3xl font-bold">Calls</h1>
       </div>
 
-      {logs.length === 0 ? (
+      {logsError ? (
+        <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground">
+          <div className="grid h-16 w-16 place-items-center rounded-full bg-primary/10 text-primary">
+            <Phone className="h-7 w-7" />
+          </div>
+          <div className="text-sm">
+            Couldn't load your call history — a connection problem, not an empty log.
+          </div>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="press rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+          >
+            Try again
+          </button>
+        </div>
+      ) : logs.length === 0 ? (
         <div className="mt-16 flex flex-col items-center gap-3 text-center text-muted-foreground">
           <div className="grid h-16 w-16 place-items-center rounded-full bg-primary/10 text-primary">
             <Phone className="h-7 w-7" />

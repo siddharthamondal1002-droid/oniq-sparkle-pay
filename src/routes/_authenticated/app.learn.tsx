@@ -402,10 +402,16 @@ function LessonsPanel() {
     },
   });
 
-  const { data: courses } = useQuery({
+  const {
+    data: courses,
+    isError: coursesError,
+    refetch: refetchCourses,
+  } = useQuery({
     queryKey: ["learn-courses"],
     queryFn: async () => {
-      const { data } = await supabase.from("learn_courses").select("*").order("sort");
+      const { data, error } = await supabase.from("learn_courses").select("*").order("sort");
+      // Throw so a failed read shows a retry, not "No courses yet".
+      if (error) throw error;
       return (data ?? []) as Course[];
     },
   });
@@ -457,7 +463,20 @@ function LessonsPanel() {
         </div>
       </div>
 
-      {!courses?.length ? (
+      {coursesError ? (
+        <div className="rounded-2xl border border-border bg-card p-4 text-sm">
+          <p className="text-muted-foreground">
+            Couldn't load courses right now — a connection problem, not an empty curriculum.
+          </p>
+          <button
+            type="button"
+            onClick={() => refetchCourses()}
+            className="press mt-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+          >
+            Try again
+          </button>
+        </div>
+      ) : !courses?.length ? (
         <div className="rounded-2xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
           No courses yet — curriculum is cooking 🧑‍🍳
         </div>

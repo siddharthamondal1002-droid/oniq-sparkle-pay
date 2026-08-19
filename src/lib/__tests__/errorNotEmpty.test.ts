@@ -89,4 +89,28 @@ describe("error is not empty — batch 1 screens", () => {
       /disabled=\{busy === p\.id \|\| !ledgerLoaded\}/,
     );
   });
+
+  it("food.index throws on a restaurants error and shows retry, not an empty menu", () => {
+    const src = strip(read("src/routes/_authenticated/app.food.index.tsx"));
+    expect(src, "restaurants query no longer throws on error").toMatch(/if \(error\) throw error/);
+    expect(src, "restaurantsError branch is gone").toContain("restaurantsError");
+  });
+
+  it("learn throws on a courses error and shows retry, not 'no courses yet'", () => {
+    const src = strip(read("src/routes/_authenticated/app.learn.tsx"));
+    expect(src, "courses query no longer throws on error").toMatch(/if \(error\) throw error/);
+    expect(
+      src.indexOf("coursesError ?"),
+      "coursesError branch must precede the '!courses?.length' empty branch",
+    ).toBeLessThan(src.indexOf("!courses?.length"));
+  });
+
+  it("chat.calls consumes its throw with an error branch, not 'no calls yet'", () => {
+    const src = strip(read("src/routes/_authenticated/app.chat.calls.tsx"));
+    expect(src, "logsError is no longer consumed").toContain("logsError");
+    expect(
+      src.indexOf("logsError ?"),
+      "logsError branch must precede the logs.length === 0 empty branch",
+    ).toBeLessThan(src.indexOf("logs.length === 0"));
+  });
 });

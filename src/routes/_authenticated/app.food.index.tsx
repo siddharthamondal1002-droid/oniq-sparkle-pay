@@ -9,14 +9,20 @@ export const Route = createFileRoute("/_authenticated/app/food/")({
 });
 
 function FoodScreen() {
-  const { data: restaurants } = useQuery({
+  const {
+    data: restaurants,
+    isError: restaurantsError,
+    refetch: refetchRestaurants,
+  } = useQuery({
     queryKey: ["restaurants"],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("restaurants")
         .select("*")
         .eq("is_open", true)
         .order("rating", { ascending: false });
+      // Throw so a failed read shows a retry, not an empty restaurant list.
+      if (error) throw error;
       return data ?? [];
     },
   });
@@ -43,6 +49,20 @@ function FoodScreen() {
       </div>
 
       <div className="mt-5 px-5 space-y-3">
+        {restaurantsError && (
+          <div className="rounded-2xl border border-border bg-card p-4 text-sm">
+            <p className="text-muted-foreground">
+              Couldn't load restaurants right now — a connection problem, not an empty menu.
+            </p>
+            <button
+              type="button"
+              onClick={() => refetchRestaurants()}
+              className="press mt-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+            >
+              Try again
+            </button>
+          </div>
+        )}
         {restaurants?.map((r) => (
           <Link
             key={r.id}
