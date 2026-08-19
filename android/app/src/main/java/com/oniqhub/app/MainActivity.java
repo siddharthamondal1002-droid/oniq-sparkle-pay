@@ -193,48 +193,58 @@ public class MainActivity extends BridgeActivity {
     }
 
     /**
-     * Android 15+ (SDK 35) draws apps edge-to-edge by default. Pad the content
-     * view by the top/side system-bar/cutout insets so headers never sit under
-     * the status bar, but let the WebView extend BENEATH the bottom gesture/
-     * navigation bar (full-bleed surfaces like Reels draw edge to edge; web UI
-     * anchored to the bottom already reserves env(safe-area-inset-bottom)).
-     * The keyboard (IME) inset is kept so inputs still lift above it. No-op on
-     * older Android where the window already fits system bars (insets are 0).
+     * NATIVE OWNS THE INSETS AGAIN — reverted 2026-08-19 by owner decision.
+     *
+     * WHAT THIS FILE DID, 29 JUL – 17 AUG, AND DOES AGAIN NOW. Pad the content
+     * view by the top/left/right system-bar and cutout insets AND by
+     * ime.bottom, then return WindowInsetsCompat.CONSUMED. The WebView
+     * therefore starts below the status bar, ends above the keyboard, and
+     * never sees an inset of its own. That behaviour worked, without a single
+     * layout report against it, for nineteen days.
+     *
+     * WHY IT WAS CHANGED ON 17 AUG, AND WHY THAT WAS NOT WRONG IN PRINCIPLE.
+     * 198a3f2d stopped consuming so that env(safe-area-inset-*) would be real
+     * for the first time — all 54 reads across ~20 files had been returning
+     * zero, and only looked right because every call site is written
+     * defensively as max(3rem, env(...)). That is a genuine improvement on
+     * paper: it makes the app truly edge-to-edge and moves inset
+     * responsibility to the layer that knows what it is drawing.
+     *
+     * WHY IT FAILED IN PRACTICE. The responsibility moved, but it landed in
+     * ONE place — a single paddingTop on <main> in the app shell
+     * (src/routes/_authenticated/app.tsx). Padding a container says where its
+     * content STARTS, not where it may travel: the document is the scroller,
+     * so on every scrolling screen the content simply rode up behind a now
+     * transparent status bar. And the keyboard got worse rather than better,
+     * because with insets unconsumed Chromium began resizing its own viewport
+     * for the IME on top of this file's ime.bottom padding — two subtractions.
+     *
+     * THE 18 AUG PROBE — KEPT AS THE RECORD, NOT DELETED:
+     *   view = screen 832 − padding 310 = 522 CSS
+     *   innerHeight = 522 − 311 = 211
+     * The WebView took a second keyboard off its own height. The window never
+     * resized, which is why versionCode 17 and 18 both measured the decor
+     * height, computed an "alreadyTaken" of zero, and shipped no fix.
+     *
+     * NET: two days of regression across the keyboard and every scrolling
+     * screen, against a correctness win nobody could see. On 19 Aug the owner
+     * reverted to the behaviour that demonstrably worked. Consuming is a
+     * deliberate trade: env(safe-area-inset-*) goes back to zero and the
+     * max() fallbacks carry the layout, exactly as they did before 17 Aug.
+     *
+     * The web-layer work from 17–19 Aug is intentionally LEFT IN PLACE. It is
+     * self-neutralising once insets are consumed: env() reads 0 so the shell's
+     * padding and the status-bar scrim collapse to nothing, --kb-inset
+     * measures 0 because Chromium no longer resizes for an IME inset it never
+     * receives, and interactive-widget=overlays-content governs a resize that
+     * no longer happens. Nothing needs unpicking, and if this decision is ever
+     * revisited the web side is already there.
+     *
+     * EdgeToEdge.enable(this) STAYS. It is what replaced the four deprecated
+     * window setters Play flagged on release 11; that is a separate concern
+     * from inset consumption and is not part of this revert.
      */
-    /**
-     * TRUE edge-to-edge — the window draws behind the system bars and the WEB
-     * layer places content clear of them.
-     *
-     * WHAT THIS REPLACES, AND WHY IT WAS BACKWARDS. The previous version
-     * padded the content view by the top/left/right insets and returned
-     * WindowInsetsCompat.CONSUMED. Two consequences, both invisible until you
-     * go looking:
-     *
-     *   1. CONSUMED stops the insets reaching the WebView, so every
-     *      `env(safe-area-inset-*)` in the CSS read ZERO — all 54 of them,
-     *      across 20-odd files. The web layer already asks for edge-to-edge
-     *      (`viewport-fit=cover` is set in __root.tsx) and already writes
-     *      `max(3rem, env(safe-area-inset-top))` everywhere; none of it did
-     *      anything. It only looked right because every call site was written
-     *      defensively with a max() fallback.
-     *   2. Padding the top means the app is NOT edge-to-edge there. The strip
-     *      above the content showed an opaque system bar plus a hardcoded
-     *      #1a1230 purple that matches neither ONIQ theme (#0e0f13 dark,
-     *      #faf9f7 light) — a leftover from an older palette. That is exactly
-     *      the "don't have opaque system bars" case in the Android guidance.
-     *
-     * WHY THIS IS SAFE TO FLIP. The top/left/right inset does not disappear —
-     * it MOVES, from here to a single rule on the app shell
-     * (src/routes/_authenticated/app.tsx), which wraps all 45 screens through
-     * one <main>. Doing it there rather than here is what makes it possible at
-     * all: 28 of those 45 screens have no top-inset handling of their own and
-     * would slide straight under the status bar if each had to fend for
-     * itself.
-     *
-     * The bottom is deliberately still edge-to-edge, as it already was: only
-     * the IME is padded, so content runs under the transparent gesture bar and
-     * the web layer holds the bottom inset off its own bars.
-     */
+
     private void applyEdgeToEdgeInsets() {
         View content = findViewById(android.R.id.content);
         if (content == null) return;
@@ -289,52 +299,31 @@ public class MainActivity extends BridgeActivity {
         content.setBackgroundColor(Color.TRANSPARENT);
 
         /*
-         * NO IME PADDING. NONE. THE WEBVIEW HANDLES THE KEYBOARD ITSELF.
+         * PAD, THEN CONSUME. The pre-17-August behaviour, restored.
          *
-         * The timeline that proves it, assembled 2026-08-18 after two shipped
-         * builds (versionCode 17 and 18) measured the window and fixed
-         * nothing:
+         * Top/left/right come from system bars ∪ display cutout, so headers
+         * clear the status bar and landscape cutouts. Bottom is ime.bottom
+         * only: content still runs under the transparent gesture bar (Reels
+         * and Clips depend on that), while an open keyboard lifts the whole
+         * WebView above itself.
          *
-         *   Jul 29 – Aug 17   This listener padded by ime.bottom AND returned
-         *                     WindowInsetsCompat.CONSUMED. The WebView never
-         *                     saw an IME inset, so the padding was the ONLY
-         *                     subtraction. The chat worked the whole time.
-         *
-         *   Aug 17            198a3f2d stopped consuming, correctly, so that
-         *                     env(safe-area-inset-*) stopped reading zero.
-         *                     Side effect nobody priced: the WebView now
-         *                     RECEIVES the IME inset, and modern Chromium
-         *                     responds by resizing its own viewport for the
-         *                     keyboard. Two subtractions from that moment.
-         *                     The owner reported the chat broken THAT DAY.
-         *
-         *   The probe agrees: view = screen 832 − padding 310 = 522 CSS, and
-         *   innerHeight = 522 − 311 = 211 — the WebView took a second
-         *   keyboard off its OWN height. The window never resized at all,
-         *   which is why vc17/vc18's decor-height measurements both computed
-         *   an "alreadyTaken" of zero and left the bug intact.
-         *
-         * So the padding is deleted rather than computed. The WebView,
-         * demonstrably, resizes for the keyboard by itself now that the
-         * insets reach it — and the insets MUST keep reaching it, or all 54
-         * env() reads go back to zero. One mechanism, by construction: there
-         * is no measurement here to take at the wrong moment.
-         *
-         * If a keyboard ever covers the composer on some device, the fix is
-         * in the WEB layer (the viewport meta), never a padding here — this
-         * file must stay out of the keyboard business permanently.
+         * CONSUMED is the point of the revert, not an oversight. It keeps the
+         * IME inset away from Chromium, so Chromium does not resize its own
+         * viewport and this padding stays the ONLY subtraction — the single
+         * mechanism that worked 29 Jul – 17 Aug. The cost, stated plainly: the
+         * WebView sees no insets, every env(safe-area-inset-*) reads 0, and
+         * the max() fallbacks at those call sites carry the layout.
          */
         ViewCompat.setOnApplyWindowInsetsListener(content, (v, insets) -> {
-            // Any padding a previous build left behind is cleared, once per
-            // dispatch — an updated app reuses the old activity's view state
-            // across some update paths, and a stale keyboard-sized padding
-            // would be the old bug wearing the new build's version number.
-            if (v.getPaddingBottom() != 0) v.setPadding(0, 0, 0, 0);
-            // NOT CONSUMED — the WebView needs every inset, the IME one
-            // included: env(safe-area-inset-*) reads them, and the keyboard
-            // resize is Chromium's to perform. See the block above.
-            return insets;
+            androidx.core.graphics.Insets bars =
+                insets.getInsets(WindowInsetsCompat.Type.systemBars()
+                    | WindowInsetsCompat.Type.displayCutout());
+            androidx.core.graphics.Insets ime =
+                insets.getInsets(WindowInsetsCompat.Type.ime());
+            v.setPadding(bars.left, bars.top, bars.right, ime.bottom);
+            return WindowInsetsCompat.CONSUMED;
         });
+
     }
 
     /**
