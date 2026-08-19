@@ -13,11 +13,26 @@ import { describe, expect, it } from "vitest";
 import { stripComments } from "@/test/sourceText";
 
 const ROOT = process.cwd();
-const rtdn = readFileSync(join(ROOT, "src/routes/api/public/play-rtdn.ts"), "utf8");
+// 19 Aug 2026 — the billing surface is PARKED outside src/ until the feature
+// launches with a matching Play Data safety declaration. The guards below keep
+// running against the parked source so nothing rots, plus a guard that it
+// stays out of the shipped tree.
+const PARKED = "parked/creator-billing";
+const rtdn = readFileSync(join(ROOT, `${PARKED}/play-rtdn.ts`), "utf8");
 const rtdnCode = stripComments(rtdn);
-const purchase = stripComments(
-  readFileSync(join(ROOT, "src/lib/creator/purchase.ts"), "utf8"),
-);
+const purchase = stripComments(readFileSync(join(ROOT, `${PARKED}/purchase.ts`), "utf8"));
+
+describe("the billing surface does not ship", () => {
+  it("is absent from the app source tree", () => {
+    expect(existsSync(join(ROOT, "src/lib/creator/purchase.ts"))).toBe(false);
+    expect(existsSync(join(ROOT, "src/routes/api/public/play-rtdn.ts"))).toBe(false);
+  });
+
+  it("the payment SDK is not a dependency", () => {
+    const pkg = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8"));
+    expect(Object.keys(pkg.dependencies ?? {})).not.toContain("@revenuecat/purchases-capacitor");
+  });
+});
 
 describe("no client-side path moves money or grants entitlement", () => {
   it("the purchase wrapper never writes earnings", () => {
