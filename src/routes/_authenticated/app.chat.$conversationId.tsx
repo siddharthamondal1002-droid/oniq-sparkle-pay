@@ -3045,6 +3045,32 @@ function ChatThread() {
                     : `Translate to ${LANG_NATIVE[myLang] ?? myLang}`}
                 </button>
               )}
+            {/* Per conversation, never global, and off until turned on here.
+                On, it only reveals translations already in the shared cache
+                — it never translates anything by itself. */}
+            {menuFor.type === "text" && !menuFor.is_deleted && (
+              <button
+                type="button"
+                data-testid="msg-translate-chat-pref"
+                onClick={async () => {
+                  const next = !convTranslate;
+                  setMenuFor(null);
+                  setConvTranslate(next);
+                  try {
+                    await setConversationTranslation(conversationId, next);
+                  } catch {
+                    setConvTranslate(!next);
+                    toast.error("Couldn't save that setting");
+                  }
+                }}
+                className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-left text-sm hover:bg-muted"
+              >
+                <Languages className="h-4 w-4" />{" "}
+                {convTranslate
+                  ? "Stop showing translations in this chat"
+                  : "Show translations in this chat"}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -3104,6 +3130,53 @@ function ChatThread() {
         </div>
       )}
 
+      {/* Translation consent. Raised BEFORE the first translation call ever
+          happens, never after: the message text leaves the device to a model
+          provider, which is its own purpose in the notice and its own row in
+          the consent ledger. Declining simply leaves the original on screen. */}
+      {consentAsk && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-6">
+          <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
+            <div className="mb-1 font-display text-lg font-semibold">Translate messages?</div>
+            <div className="mb-4 text-sm text-muted-foreground">
+              To translate, the text of this message is sent to our AI provider and the machine
+              translation is stored so it does not have to be sent again. The original message is
+              always kept and always shown. Nothing is translated unless you ask. You can withdraw
+              this in Privacy → Consent notice at any time.
+            </div>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                data-testid="translate-consent-agree"
+                disabled={consentBusy}
+                onClick={async () => {
+                  const m = consentAsk;
+                  setConsentBusy(true);
+                  try {
+                    await grantTranslationConsent(myLang);
+                    setConsentAsk(null);
+                    await runTranslate(m);
+                  } catch {
+                    toast.error("Couldn't record that — try again");
+                  } finally {
+                    setConsentBusy(false);
+                  }
+                }}
+                className="w-full rounded-xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                I agree — translate
+              </button>
+              <button
+                type="button"
+                onClick={() => setConsentAsk(null)}
+                className="w-full rounded-xl px-4 py-3 text-sm text-muted-foreground hover:bg-muted"
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {deleteConfirm && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-6"
