@@ -95,11 +95,18 @@ export function startKeyboardInsetTracking(): () => void {
     // READ everything first...
     const next = measure();
     // ...then WRITE, and read nothing afterwards in this frame.
-    if (next !== published) {
-      published = next;
-      root.style.setProperty(VAR, `${next}px`);
+    if (next.inset !== published) {
+      published = next.inset;
+      root.style.setProperty(VAR, `${next.inset}px`);
+    }
+    if (next.vvh !== publishedVvh) {
+      publishedVvh = next.vvh;
+      // 0 = no trustworthy measurement: remove it so the CSS fallback applies.
+      if (next.vvh > 0) root.style.setProperty(VVH, `${next.vvh}px`);
+      else root.style.removeProperty(VVH);
     }
   };
+
 
   const schedule = () => {
     if (!raf) raf = requestAnimationFrame(apply);
