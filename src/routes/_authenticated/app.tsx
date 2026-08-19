@@ -116,7 +116,15 @@ function AppShell() {
   // The message thread owns its own full-height column, so the shell must not
   // add slack under it. Sub-tabs keep theirs.
   const isChatThread = normalized.startsWith("/app/chat/") && !CHAT_SUBTABS.has(normalized);
-  const isChatSubtab = normalized === "/app/chat" || CHAT_SUBTABS.has(normalized);
+  // Reels and Clips are deliberately edge-to-edge: they cancel the shell's top
+  // inset and reserve the bars in their own overlays. They must get neither the
+  // scrim (it would band the video) nor bottom clearance (it would add dead
+  // scroll under a 100dvh page).
+  const isFullBleed =
+    normalized.startsWith("/app/chat/reels") || normalized.startsWith("/app/clips");
+  const isChatSubtab =
+    !isFullBleed && (normalized === "/app/chat" || CHAT_SUBTABS.has(normalized));
+
 
   // Resolved from the HOME country's CountryConfig.dir (AE => rtl) and mirrored
   // onto <html dir>; portal roots take it from useDir() themselves.
