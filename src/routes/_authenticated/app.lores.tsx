@@ -115,10 +115,10 @@ function LoreCard({ v }: { v: LoreVideo }) {
                 className="absolute inset-0 block h-full w-full"
                 aria-label={`Watch ${v.title} in full`}
               >
-                <span className="absolute start-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90">
+                <span className="absolute start-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-white/90">
                   Preview
                 </span>
-                <span className="absolute bottom-2 end-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white/90 normal-case tracking-normal">
+                <span className="absolute bottom-2 end-2 rounded-full bg-black/60 px-2 py-0.5 text-[11px] font-semibold text-white/90 normal-case tracking-normal">
                   Tap for full episode
                 </span>
               </button>
@@ -148,7 +148,7 @@ function LoreCard({ v }: { v: LoreVideo }) {
                 Rendered under the controls row, top-start, so it never covers
                 the scrubber. pointer-events-none so it cannot eat a tap meant
                 for the video. */}
-            <span className="pointer-events-none absolute start-2 top-2 z-10 rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-semibold text-white/90 backdrop-blur-sm">
+            <span className="pointer-events-none absolute start-2 top-2 z-10 rounded-full bg-black/70 px-2 py-0.5 text-[11px] font-semibold text-white/90 backdrop-blur-sm">
               🤖 {AI_OUTPUT_LABEL_TEXT}
             </span>
           </>
@@ -169,10 +169,10 @@ function LoreCard({ v }: { v: LoreVideo }) {
             most of that window being triaged into which episode it meant. */}
         {prov && (
           <details className="mt-2 rounded-xl bg-muted/30 px-2.5 py-1.5">
-            <summary className="cursor-pointer list-none text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <summary className="cursor-pointer list-none text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               How this was made
             </summary>
-            <div className="mt-1 space-y-0.5 text-[10px] leading-relaxed text-muted-foreground">
+            <div className="mt-1 space-y-0.5 text-[11px] leading-relaxed text-muted-foreground">
               <div>Stills: {prov.imageModel}</div>
               <div>Motion: {prov.videoModel}</div>
               <div>Voice: {prov.voice}</div>
