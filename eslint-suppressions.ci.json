@@ -155,11 +155,6 @@
       "count": 4
     }
   },
-  "src/routes/_authenticated/app.lores.tsx": {
-    "oniq/a11y-type-scale": {
-      "count": 2
-    }
-  },
   "src/routes/_authenticated/app.miniapps.tsx": {
     "oniq/a11y-type-scale": {
       "count": 2
