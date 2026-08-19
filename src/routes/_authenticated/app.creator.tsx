@@ -17,6 +17,7 @@ import { formatPaise } from "@/lib/storyPricing";
 import { useFormat } from "@/lib/format";
 import { homeFormat } from "@/lib/format";
 import { ProgramCriteria, useProgramBars } from "@/components/chat/ProgramInfoSheet";
+import { CreatorEarningsPanel } from "@/components/creator/CreatorEarningsPanel";
 
 export const Route = createFileRoute("/_authenticated/app/creator")({
   component: CreatorStudio,
@@ -372,6 +373,10 @@ function CreatorStudio() {
 
       {tab === "influencer" ? (
         <div className="mt-4 space-y-3">
+          {/* Subscriptions money sits above the channel cards: it is the part a
+              creator checks daily, and Accrued/Available must be the first
+              numbers they see rather than a total they have to work out. */}
+          {me && <CreatorEarningsPanel userId={me} />}
           {owned.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
               <Clapperboard className="mx-auto mb-2 h-6 w-6" />
