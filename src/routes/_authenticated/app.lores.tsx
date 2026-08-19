@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { Play, Clapperboard } from "lucide-react";
 import { LORE_COLLECTIONS, type LoreVideo } from "@/data/lores";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
+import { AI_OUTPUT_LABEL_TEXT, provenanceFor } from "@/config/aiProvenance";
 import { StoryStudio } from "@/components/stories/StoryStudio";
 import { YourVideos } from "@/components/stories/YourVideos";
 
@@ -42,6 +43,8 @@ function LoreCard({ v }: { v: LoreVideo }) {
   const modeRef = useRef(mode);
   modeRef.current = mode;
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  // Hooks stay above every branch; this is a plain lookup, not a hook.
+  const prov = provenanceFor(v.id);
 
   const startPreview = () => {
     const el = videoRef.current;
