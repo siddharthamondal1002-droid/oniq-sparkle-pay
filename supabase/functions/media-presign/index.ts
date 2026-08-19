@@ -24,6 +24,27 @@ const SIGNED_URL_TTL_SECONDS = 300;
 const PART_URL_TTL_SECONDS = 3600;
 const BUCKET = "oniq-chat-media";
 
+/**
+ * Signatures, never extensions — renaming payload.exe to holiday.pdf defeats
+ * an extension check completely.
+ *
+ * This is a SUBSET of BLOCKED_MAGIC_BYTES in src/config/mediaStorage.ts: the
+ * ZIP signature 504B0304 is deliberately absent HERE. Every .docx, .xlsx,
+ * .pptx and .zip begins with those same four bytes, so blocking them at the
+ * server would reject the office documents chat explicitly allows. The client
+ * screen still refuses an .apk by that signature at pick time; the server
+ * refuses the signatures that can only ever be an executable.
+ */
+const BLOCKED_MAGIC_BYTES = [
+  { hex: "4D5A", label: "a Windows program" },
+  { hex: "7F454C46", label: "a Linux program" },
+  { hex: "CAFEBABE", label: "a Java program" },
+  { hex: "FEEDFACE", label: "a macOS program" },
+  { hex: "CEFAEDFE", label: "a macOS program" },
+  { hex: "CFFAEDFE", label: "a macOS program" },
+  { hex: "2321", label: "a script" },
+];
+
 /** Not the bucket location. See R2_SIGNING_REGION in config/mediaStorage.ts. */
 const SIGNING_REGION = "auto";
 
@@ -151,6 +172,11 @@ Deno.serve(async (req) => {
     // stops here.
     if (!userId) return json(403, { error: "this action needs a signed-in user" });
 
+    // The service client exists for the metadata ledger only: chat_media rows
+    // are written here, never by the client, so a caller cannot mint a row
+    // claiming a key it does not own or an expiry it prefers.
+    const svc = serviceKey.length > 20 ? createClient(supaUrl, serviceKey) : null;
+
     // ---- create -----------------------------------------------------------
     if (action === "create") {
       const size = Number(body?.size);
@@ -158,6 +184,18 @@ Deno.serve(async (req) => {
       // The control, not the courtesy. The client already checked; this is the
       // one that counts, because a client can lie.
       if (size > MAX_UPLOAD_BYTES) return json(413, { error: "file too large" });
+
+      // Per-user rate cap, decided in the database rather than in an isolate:
+      // an in-memory counter resets on every cold start, which is no cap.
+      if (svc) {
+        const { data: gate } = await svc.rpc("media_upload_allowed", {
+          _user: userId,
+          _size: size,
+        });
+        if (gate && gate.allowed === false) {
+          return json(429, { error: String(gate.reason ?? "slow down a moment") });
+        }
+      }
 
       const uploadRef = crypto.randomUUID();
       const key = objectKey(userId, uploadRef);
@@ -171,6 +209,18 @@ Deno.serve(async (req) => {
       const xml = await init.text();
       const uploadId = /<UploadId>([^<]+)<\/UploadId>/.exec(xml)?.[1];
       if (!uploadId) return json(502, { error: "couldn't start the upload" });
+
+      if (svc) {
+        await svc.from("chat_media").insert({
+          owner_id: userId,
+          r2_key: key,
+          upload_id: uploadId,
+          size_bytes: size,
+          mime: typeof body?.mime === "string" ? body.mime.slice(0, 120) : null,
+          file_name: typeof body?.fileName === "string" ? body.fileName.slice(0, 200) : null,
+          status: "pending",
+        });
+      }
 
       const parts = planParts(size);
       const urls = await Promise.all(
@@ -205,6 +255,7 @@ Deno.serve(async (req) => {
 
       if (action === "abort") {
         const res = await env.r2.fetch(new Request(url, { method: "DELETE" }));
+        if (svc) await svc.from("chat_media").delete().eq("r2_key", key);
         return json(res.ok ? 200 : 502, { ok: res.ok });
       }
 
@@ -235,13 +286,82 @@ Deno.serve(async (req) => {
         console.error("r2 complete failed", res.status, await res.text().catch(() => ""));
         return json(502, { error: "couldn't finish the upload" });
       }
+
+      // Signature check on the STORED bytes, by content and never by
+      // extension. The client screens too, but the client is the thing being
+      // defended against — renaming payload.exe to holiday.pdf defeats an
+      // extension check completely. A ranged GET reads 8 bytes, not the file.
+      const headUrl = await presign(env, "GET", `/${key}`, 60);
+      const headRes = await fetch(headUrl, { headers: { Range: "bytes=0-7" } });
+      if (headRes.ok) {
+        const head = new Uint8Array(await headRes.arrayBuffer());
+        const hex = Array.from(head)
+          .map((b) => b.toString(16).padStart(2, "0"))
+          .join("")
+          .toUpperCase();
+        const blocked = BLOCKED_MAGIC_BYTES.find((s) => hex.startsWith(s.hex));
+        if (blocked) {
+          await env.r2.fetch(
+            new Request(new URL(`${env.endpoint}/${BUCKET}/${key}`), { method: "DELETE" }),
+          );
+          if (svc) await svc.from("chat_media").delete().eq("r2_key", key);
+          return json(415, { error: `that looks like ${blocked.label}, not a photo or video` });
+        }
+      }
+
+      if (svc) await svc.from("chat_media").update({ status: "ready" }).eq("r2_key", key);
       return json(200, { ok: true, key });
+    }
+
+    // ---- attach -------------------------------------------------------------
+    // Ties a finished object to the message that carries it, so that deleting
+    // the message deletes the bytes (the trigger reads this link).
+    if (action === "attach") {
+      const key = String(body?.key ?? "");
+      const messageId = String(body?.messageId ?? "");
+      if (!key.startsWith(`u/${userId}/`)) return json(403, { error: "not your upload" });
+      if (!messageId) return json(400, { error: "missing messageId" });
+      if (svc) {
+        await svc
+          .from("chat_media")
+          .update({ message_id: messageId })
+          .eq("r2_key", key)
+          .eq("owner_id", userId);
+      }
+      return json(200, { ok: true });
     }
 
     // ---- signed read ------------------------------------------------------
     if (action === "get") {
       const key = String(body?.key ?? "");
       if (!key.startsWith("u/")) return json(400, { error: "bad key" });
+
+      // A recipient is not the owner, so ownership alone cannot gate reads —
+      // but neither can "anyone who knows a key". The link is the message: you
+      // may read an object if you are in the conversation it was sent to.
+      if (!key.startsWith(`u/${userId}/`)) {
+        if (!svc) return json(403, { error: "not yours" });
+        const { data: row } = await svc
+          .from("chat_media")
+          .select("message_id, status")
+          .eq("r2_key", key)
+          .maybeSingle();
+        if (!row?.message_id || row.status === "deleted") return json(403, { error: "not yours" });
+        const { data: msg } = await svc
+          .from("messages")
+          .select("conversation_id, is_deleted")
+          .eq("id", row.message_id)
+          .maybeSingle();
+        if (!msg || msg.is_deleted) return json(403, { error: "not yours" });
+        const { data: member } = await svc
+          .from("conversation_members")
+          .select("user_id")
+          .eq("conversation_id", msg.conversation_id)
+          .eq("user_id", userId)
+          .maybeSingle();
+        if (!member) return json(403, { error: "not yours" });
+      }
+
       // Short TTL — signed URLs are cheap to reissue, and a long-lived one
       // forwarded out of the app is an unrevocable public link.
       const url = await presign(env, "GET", `/${key}`, SIGNED_URL_TTL_SECONDS);

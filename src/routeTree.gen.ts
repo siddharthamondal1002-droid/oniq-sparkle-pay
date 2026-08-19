@@ -61,6 +61,7 @@ import { Route as AuthenticatedAppUpiRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedAppVitalsRouteImport } from './routes/_authenticated/app.vitals'
 import { Route as AuthenticatedAppWatchRouteImport } from './routes/_authenticated/app.watch'
 import { Route as AuthenticatedAppWeatherRouteImport } from './routes/_authenticated/app.weather'
+import { Route as ApiPublicMediaSweepRouteImport } from './routes/api/public/media-sweep'
 import { Route as AuthenticatedAppAdminVideoRouteImport } from './routes/_authenticated/app.admin.video'
 import { Route as AuthenticatedAppChatIndexRouteImport } from './routes/_authenticated/app.chat.index'
 import { Route as AuthenticatedAppChatConversationIdRouteImport } from './routes/_authenticated/app.chat.$conversationId'
@@ -346,6 +347,11 @@ const AuthenticatedAppWeatherRoute = AuthenticatedAppWeatherRouteImport.update({
   path: '/weather',
   getParentRoute: () => AuthenticatedAppRoute,
 } as any)
+const ApiPublicMediaSweepRoute = ApiPublicMediaSweepRouteImport.update({
+  id: '/api/public/media-sweep',
+  path: '/api/public/media-sweep',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedAppAdminVideoRoute =
   AuthenticatedAppAdminVideoRouteImport.update({
     id: '/video',
@@ -491,6 +497,7 @@ export interface FileRoutesByFullPath {
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
   '/app/watch': typeof AuthenticatedAppWatchRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
+  '/api/public/media-sweep': typeof ApiPublicMediaSweepRoute
   '/app/': typeof AuthenticatedAppIndexRoute
   '/app/admin/video': typeof AuthenticatedAppAdminVideoRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
@@ -558,6 +565,7 @@ export interface FileRoutesByTo {
   '/app/vitals': typeof AuthenticatedAppVitalsRoute
   '/app/watch': typeof AuthenticatedAppWatchRoute
   '/app/weather': typeof AuthenticatedAppWeatherRoute
+  '/api/public/media-sweep': typeof ApiPublicMediaSweepRoute
   '/app': typeof AuthenticatedAppIndexRoute
   '/app/admin/video': typeof AuthenticatedAppAdminVideoRoute
   '/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
@@ -629,6 +637,7 @@ export interface FileRoutesById {
   '/_authenticated/app/vitals': typeof AuthenticatedAppVitalsRoute
   '/_authenticated/app/watch': typeof AuthenticatedAppWatchRoute
   '/_authenticated/app/weather': typeof AuthenticatedAppWeatherRoute
+  '/api/public/media-sweep': typeof ApiPublicMediaSweepRoute
   '/_authenticated/app/': typeof AuthenticatedAppIndexRoute
   '/_authenticated/app/admin/video': typeof AuthenticatedAppAdminVideoRoute
   '/_authenticated/app/chat/$conversationId': typeof AuthenticatedAppChatConversationIdRoute
@@ -700,6 +709,7 @@ export interface FileRouteTypes {
     | '/app/vitals'
     | '/app/watch'
     | '/app/weather'
+    | '/api/public/media-sweep'
     | '/app/'
     | '/app/admin/video'
     | '/app/chat/$conversationId'
@@ -767,6 +777,7 @@ export interface FileRouteTypes {
     | '/app/vitals'
     | '/app/watch'
     | '/app/weather'
+    | '/api/public/media-sweep'
     | '/app'
     | '/app/admin/video'
     | '/app/chat/$conversationId'
@@ -837,6 +848,7 @@ export interface FileRouteTypes {
     | '/_authenticated/app/vitals'
     | '/_authenticated/app/watch'
     | '/_authenticated/app/weather'
+    | '/api/public/media-sweep'
     | '/_authenticated/app/'
     | '/_authenticated/app/admin/video'
     | '/_authenticated/app/chat/$conversationId'
@@ -880,6 +892,7 @@ export interface RootRouteChildren {
   UUserIdRoute: typeof UUserIdRoute
   DotlovableOauthConsentRoute: typeof DotlovableOauthConsentRoute
   Char91DotmcpChar93InvokeToolToolRoute: typeof Char91DotmcpChar93InvokeToolToolRoute
+  ApiPublicMediaSweepRoute: typeof ApiPublicMediaSweepRoute
   LovableEmailQueueProcessRoute: typeof LovableEmailQueueProcessRoute
 }
 
@@ -1249,6 +1262,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAppWeatherRouteImport
       parentRoute: typeof AuthenticatedAppRoute
     }
+    '/api/public/media-sweep': {
+      id: '/api/public/media-sweep'
+      path: '/api/public/media-sweep'
+      fullPath: '/api/public/media-sweep'
+      preLoaderRoute: typeof ApiPublicMediaSweepRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/app/admin/video': {
       id: '/_authenticated/app/admin/video'
       path: '/video'
@@ -1518,6 +1538,7 @@ const rootRouteChildren: RootRouteChildren = {
   UUserIdRoute: UUserIdRoute,
   DotlovableOauthConsentRoute: DotlovableOauthConsentRoute,
   Char91DotmcpChar93InvokeToolToolRoute: Char91DotmcpChar93InvokeToolToolRoute,
+  ApiPublicMediaSweepRoute: ApiPublicMediaSweepRoute,
   LovableEmailQueueProcessRoute: LovableEmailQueueProcessRoute,
 }
 export const routeTree = rootRouteImport

@@ -70,6 +70,8 @@ import {
   type AttachmentOption,
 } from "@/components/attach/AttachmentSheet";
 import { scanProvenance } from "@/lib/provenance";
+import { attachR2ToMessage, uploadFileToR2 } from "@/lib/upload/r2Upload";
+import { MAX_UPLOAD_BYTES, formatBytes, withinUploadCap } from "@/config/mediaStorage";
 import { resolveMedia, isStoragePath } from "@/lib/media/resolveMedia";
 import { ReelChatCard, extractReelShare } from "@/components/chat/ReelChatCard";
 
@@ -1378,21 +1380,26 @@ function ChatThread() {
        content VIDEO_NOTE_MARK so the round bubble needs no schema change. */
     content?: string;
   }) => {
-    if (!me) return;
-    const { error } = await supabase.from("messages").insert({
-      conversation_id: conversationId,
-      sender_id: me.id,
-      content:
-        payload.content ?? (payload.file_name && payload.type === "file" ? payload.file_name : ""),
-      type: payload.type,
-      media_url: payload.media_url,
-      duration_s: payload.duration_s ?? null,
-      file_name: payload.file_name ?? null,
-      file_size: payload.file_size ?? null,
-    });
+    if (!me) return null;
+    const { data: inserted, error } = await supabase
+      .from("messages")
+      .insert({
+        conversation_id: conversationId,
+        sender_id: me.id,
+        content:
+          payload.content ??
+          (payload.file_name && payload.type === "file" ? payload.file_name : ""),
+        type: payload.type,
+        media_url: payload.media_url,
+        duration_s: payload.duration_s ?? null,
+        file_name: payload.file_name ?? null,
+        file_size: payload.file_size ?? null,
+      })
+      .select("id")
+      .single();
     if (error) {
       toast.error(error.message || "Couldn't send");
-      return;
+      return null;
     }
     await supabase
       .from("conversations")
@@ -1412,6 +1419,7 @@ function ChatThread() {
         preview: previewMap[payload.type],
       });
     }
+    return inserted?.id ?? null;
   };
 
   // Stickers: a message whose whole body is one big glyph. No media upload,
@@ -1518,17 +1526,52 @@ function ChatThread() {
     "rar",
   ];
   const validateAnyFile = (f: File): string | null => {
-    if (f.size > 50 * 1024 * 1024) return "keep it under 50MB";
+    // 200 MB, and R2 carries anything past the small-file path. The cap is
+    // enforced again at presign — a client-side limit is a courtesy so the
+    // user hears immediately, never the control.
+    if (!withinUploadCap(f.size)) return `keep it under ${formatBytes(MAX_UPLOAD_BYTES)}`;
     const rawExt = (f.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     if (!rawExt || bannedFileExts.includes(rawExt)) return "that file type isn't allowed 🚫";
     if (!allowedFileExts.includes(rawExt)) return `.${rawExt} isn't supported yet`;
     return null;
   };
 
+  /**
+   * Anything above this goes to R2 in resumable 5 MB parts. Below it, the
+   * existing single-shot Supabase Storage path is simpler and already proven.
+   */
+  const R2_THRESHOLD_BYTES = 15 * 1024 * 1024;
+
   type BatchKind = "image" | "video" | "file";
   const uploadOne = async (f: File, kind: BatchKind, skipPush = false): Promise<boolean> => {
     try {
       const rawExt = (f.name.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const type = kind === "image" ? "image" : kind === "video" ? "video" : "file";
+
+      if (f.size > R2_THRESHOLD_BYTES) {
+        // Streamed, resumable, never materialised. The File is only sliced.
+        const res = await uploadFileToR2(f, {
+          onProgress: (done, total) => setBatchProgress({ done, total }),
+        });
+        if (!res.ok) {
+          toast.error(
+            `${f.name}: ${"rejected" in res ? (res.rejected as { message?: string }).message || "not allowed" : res.error}`,
+          );
+          return false;
+        }
+        const messageId = await insertMediaMessage({
+          type,
+          media_url: res.ref,
+          file_name: f.name,
+          file_size: f.size,
+          skipPush,
+        });
+        // Link the object to the message so deleting the message deletes the
+        // bytes. Unlinked, the sweeper would only ever remove it on expiry.
+        if (messageId) await attachR2ToMessage(res.ref, messageId);
+        return true;
+      }
+
       if (kind === "image") {
         const ext = rawExt || "jpg";
         const url = await uploadToChatMedia(f, ext);

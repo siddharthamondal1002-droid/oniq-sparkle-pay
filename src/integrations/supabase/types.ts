@@ -646,6 +646,56 @@ export type Database = {
         }
         Relationships: []
       }
+      chat_media: {
+        Row: {
+          created_at: string
+          expires_at: string
+          file_name: string | null
+          id: string
+          message_id: string | null
+          mime: string | null
+          owner_id: string
+          r2_key: string
+          size_bytes: number
+          status: string
+          upload_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          file_name?: string | null
+          id?: string
+          message_id?: string | null
+          mime?: string | null
+          owner_id: string
+          r2_key: string
+          size_bytes: number
+          status?: string
+          upload_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          file_name?: string | null
+          id?: string
+          message_id?: string | null
+          mime?: string | null
+          owner_id?: string
+          r2_key?: string
+          size_bytes?: number
+          status?: string
+          upload_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chat_media_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_error_reports: {
         Row: {
           created_at: string
@@ -2200,6 +2250,36 @@ export type Database = {
           target_identifier?: string
           window_end?: string | null
           window_start?: string | null
+        }
+        Relationships: []
+      }
+      media_deletions: {
+        Row: {
+          attempts: number
+          deleted_at: string | null
+          id: string
+          last_error: string | null
+          queued_at: string
+          r2_key: string
+          reason: string
+        }
+        Insert: {
+          attempts?: number
+          deleted_at?: string | null
+          id?: string
+          last_error?: string | null
+          queued_at?: string
+          r2_key: string
+          reason?: string
+        }
+        Update: {
+          attempts?: number
+          deleted_at?: string | null
+          id?: string
+          last_error?: string | null
+          queued_at?: string
+          r2_key?: string
+          reason?: string
         }
         Relationships: []
       }
@@ -5064,6 +5144,10 @@ export type Database = {
           id: string
           username: string
         }[]
+      }
+      media_upload_allowed: {
+        Args: { _size: number; _user: string }
+        Returns: Json
       }
       minor_age_for_country: { Args: { _country: string }; Returns: number }
       move_to_dlq: {
