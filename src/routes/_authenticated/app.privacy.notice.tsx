@@ -53,6 +53,8 @@ function ConsentNoticePage() {
   const [rows, setRows] = useState<ConsentRow[]>([]);
   const [chain, setChain] = useState<{ ok: boolean; rows_checked: number } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [ledgerLoaded, setLedgerLoaded] = useState(false);
+  const [ledgerError, setLedgerError] = useState(false);
 
   const load = useCallback(async () => {
     const { data: auth } = await supabase.auth.getUser();
@@ -63,8 +65,14 @@ function ConsentNoticePage() {
       const list = await listMyConsents();
       setRows(list);
       setChain(await verifyMyChain());
+      setLedgerLoaded(true);
+      setLedgerError(false);
     } catch {
-      /* the notice must still render if the ledger read fails */
+      // The consent switches derive from `rows`; on a failed read they would
+      // all fall back to the default (withdrawn) state, misrepresenting
+      // consents the user may actually have granted. Surface the failure and
+      // keep the switches disabled (above) until the record truly loads.
+      setLedgerError(true);
     }
   }, []);
 
@@ -125,9 +133,7 @@ function ConsentNoticePage() {
             <FileText className="h-5 w-5" />
           </div>
           <div>
-            <h1 className="font-display text-2xl font-bold">
-              {tr(NOTICE_STRINGS.title, locale)}
-            </h1>
+            <h1 className="font-display text-2xl font-bold">{tr(NOTICE_STRINGS.title, locale)}</h1>
             <p className="text-xs text-muted-foreground">
               v{NOTICE_VERSION} · {locale.toUpperCase()} · {config.legalRegime}
             </p>
@@ -138,6 +144,23 @@ function ConsentNoticePage() {
           {tr(NOTICE_INTRO, locale)}
         </p>
         <p className="mt-2 px-1 text-xs text-muted-foreground">{tr(regime.notice, locale)}</p>
+
+        {ledgerError && (
+          <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs">
+            <p>
+              Couldn't load your consent record right now — a connection problem, not a change to
+              your consents. The switches below stay disabled until it loads, so nothing is acted on
+              an unconfirmed state.
+            </p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="press mt-2 rounded-full border border-border px-3 py-1.5 font-medium"
+            >
+              Try again
+            </button>
+          </div>
+        )}
 
         {/* Itemised, per-purpose. Nothing pre-ticked. */}
         <div className="mt-6 space-y-3">
@@ -180,7 +203,7 @@ function ConsentNoticePage() {
                     </span>
                     <button
                       type="button"
-                      disabled={busy === p.id}
+                      disabled={busy === p.id || !ledgerLoaded}
                       onClick={() => void toggle(p.id, !on)}
                       className={
                         on
@@ -188,9 +211,7 @@ function ConsentNoticePage() {
                           : "rounded-2xl bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground disabled:opacity-50"
                       }
                     >
-                      {on
-                        ? tr(NOTICE_STRINGS.withdraw, locale)
-                        : tr(NOTICE_STRINGS.give, locale)}
+                      {on ? tr(NOTICE_STRINGS.withdraw, locale) : tr(NOTICE_STRINGS.give, locale)}
                     </button>
                   </div>
                 )}
@@ -209,16 +230,10 @@ function ConsentNoticePage() {
 
         {/* (a) withdraw — the buttons above; (b) rights; (c) complain. */}
         <div className="mt-6 space-y-2 rounded-2xl border border-border bg-card p-4 text-sm">
-          <Link
-            to="/app/privacy/data-rights"
-            className="block text-primary hover:underline"
-          >
+          <Link to="/app/privacy/data-rights" className="block text-primary hover:underline">
             {tr(NOTICE_STRINGS.rights, locale)}
           </Link>
-          <Link
-            to="/app/privacy/grievance"
-            className="block text-primary hover:underline"
-          >
+          <Link to="/app/privacy/grievance" className="block text-primary hover:underline">
             {tr(NOTICE_STRINGS.grievance, locale)}: {GRIEVANCE_OFFICER.name}
           </Link>
           <a
@@ -262,10 +277,7 @@ function ConsentNoticePage() {
           </div>
           <ul className="mt-2 space-y-2">
             {rows.map((r) => (
-              <li
-                key={r.id}
-                className="rounded-2xl border border-border bg-card px-4 py-3 text-xs"
-              >
+              <li key={r.id} className="rounded-2xl border border-border bg-card px-4 py-3 text-xs">
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-medium">{r.purpose_id}</span>
                   <span

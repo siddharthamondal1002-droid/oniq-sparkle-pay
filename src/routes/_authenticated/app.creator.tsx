@@ -267,17 +267,23 @@ function CreatorStudio() {
     supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
   }, []);
 
-  const { data: owned = [] } = useQuery<Channel[]>({
+  const {
+    data: owned = [],
+    isError: ownedError,
+    refetch: refetchOwned,
+  } = useQuery<Channel[]>({
     queryKey: ["studio-owned", me],
     enabled: !!me,
     queryFn: async () => {
-      const { data } = await sb
+      const { data, error } = await sb
         .from("conversation_members")
         .select("conversations!inner(id, name, avatar_url, type)")
         .eq("user_id", me)
         .eq("role", "owner")
         .eq("conversations.type", "channel")
         .limit(12);
+      // Throw so a failed read shows a retry, not a false "no channels yet".
+      if (error) throw error;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return ((data ?? []) as any[]).map((r) => r.conversations as Channel);
     },
@@ -377,7 +383,21 @@ function CreatorStudio() {
               creator checks daily, and Accrued/Available must be the first
               numbers they see rather than a total they have to work out. */}
           {me && <CreatorEarningsPanel userId={me} />}
-          {owned.length === 0 ? (
+          {ownedError ? (
+            <div className="rounded-2xl border border-border p-4 text-sm">
+              <p className="text-muted-foreground">
+                Couldn't load your channels right now — a connection problem, not confirmation that
+                you have none.
+              </p>
+              <button
+                type="button"
+                onClick={() => refetchOwned()}
+                className="press mt-2 rounded-full border border-border px-3 py-1.5 text-xs font-medium"
+              >
+                Try again
+              </button>
+            </div>
+          ) : owned.length === 0 ? (
             <div className="rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
               <Clapperboard className="mx-auto mb-2 h-6 w-6" />
               no channels yet — create one in Chat and the road to monetization starts here.

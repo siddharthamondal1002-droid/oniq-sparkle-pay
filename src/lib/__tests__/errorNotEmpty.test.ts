@@ -66,4 +66,27 @@ describe("error is not empty — batch 1 screens", () => {
       "reportsError branch must precede the empty branch",
     ).toBeLessThan(src.indexOf("myReports.length === 0"));
   });
+
+  it("app.creator throws on an owned-channels error and shows retry, not 'no channels'", () => {
+    const src = strip(read("src/routes/_authenticated/app.creator.tsx"));
+    expect(src, "owned-channels query no longer throws on error").toMatch(
+      /if \(error\) throw error/,
+    );
+    expect(src, "ownedError branch is gone").toContain("ownedError");
+    expect(
+      src.indexOf("ownedError ?"),
+      "ownedError branch must precede the 'no channels' empty branch",
+    ).toBeLessThan(src.indexOf("owned.length === 0"));
+  });
+
+  it("privacy.notice disables consent switches until the ledger truly loads", () => {
+    const src = strip(read("src/routes/_authenticated/app.privacy.notice.tsx"));
+    // A failed ledger read sets ledgerError rather than being swallowed...
+    expect(src, "the ledger read still swallows its error").toMatch(/setLedgerError\(true\)/);
+    // ...and the toggle is gated on a confirmed load, so it can never act on
+    // the default (withdrawn) state a failed read would show.
+    expect(src, "consent toggle no longer gated on ledgerLoaded").toMatch(
+      /disabled=\{busy === p\.id \|\| !ledgerLoaded\}/,
+    );
+  });
 });
