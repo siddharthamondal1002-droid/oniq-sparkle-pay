@@ -165,7 +165,7 @@ export function evaluateContinuity(input: {
   const observed = input.observedShot;
   if (observed?.classification === "MISMATCH") {
     if (observed.confidence >= 0.75 && !intentional) {
-      score -= 22;
+      score -= 42;
       findings.push({
         severity: "high",
         category: "temporal",

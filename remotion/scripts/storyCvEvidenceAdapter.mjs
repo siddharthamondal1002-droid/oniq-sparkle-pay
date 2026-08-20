@@ -23,7 +23,7 @@ function run(bin, args, opts = {}) {
   });
 }
 
-function parseRate(raw) {
+export function parseRate(raw) {
   if (!raw) return 0;
   const s = String(raw);
   if (!s.includes('/')) return Number(s) || 0;

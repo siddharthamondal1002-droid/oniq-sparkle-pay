@@ -62,7 +62,7 @@ import { rhubarbCuesForWav } from './rhubarb.mjs';
 import { applyFilmLook } from './filmLook.mjs';
 import { ensureDepthModel, inferDepth, cutNearPlane } from './depth.mjs';
 import { defaultTtsCache, ensureLocalTts, speakerFor, synthLocal } from './localTts.mjs';
-import { extractVisualEvidence } from './storyCvEvidenceAdapter.mjs';
+import { extractVisualEvidence, parseRate } from './storyCvEvidenceAdapter.mjs';
 import {
   PARALLAX,
   bandAlpha,
@@ -925,16 +925,6 @@ function secondsOf(file) {
   const n = Number(out);
   if (!Number.isFinite(n) || n <= 0) throw new Error(`${file}: unreadable duration "${out}"`);
   return n;
-}
-
-function parseRate(raw) {
-  if (!raw) return 0;
-  if (!String(raw).includes('/')) return Number(raw) || 0;
-  const [a, b] = String(raw).split('/');
-  const num = Number(a);
-  const den = Number(b);
-  if (!Number.isFinite(num) || !Number.isFinite(den) || den === 0) return 0;
-  return num / den;
 }
 
 function probeMedia(file) {
