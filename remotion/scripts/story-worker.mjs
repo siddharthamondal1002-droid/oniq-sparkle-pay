@@ -83,6 +83,7 @@ import {
   walkFor,
 } from '../../src/lib/puppetPerformance.ts';
 import { planStory } from '../../src/lib/storyPlan.ts';
+import { preflight, STORY_FPS, STORY_WIDTH, STORY_HEIGHT } from '../../src/lib/storyPreflight.ts';
 import { composeVideoPrompt } from '../../supabase/functions/_shared/movieGrammar.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -898,6 +899,97 @@ function secondsOf(file) {
   return n;
 }
 
+// --- explicit stage markers -------------------------------------------------
+// Every expensive-or-fallible stage brackets itself with STAGE_START and then
+// STAGE_SUCCESS/STAGE_FAILURE plus elapsed ms, so a log can never again say only
+// "browser launch failed" with no way to tell whether it preceded or followed
+// the render. The names are the lifecycle this worker walks:
+//   PREPARE -> PREFLIGHT -> RENDER -> OUTPUT_VALIDATE -> UPLOAD -> FINALIZE.
+function stageStart(name) {
+  console.log(`STAGE_START ${name}`);
+  return Date.now();
+}
+function stageOk(name, t0, extra) {
+  console.log(`STAGE_SUCCESS ${name} ${Date.now() - t0}ms${extra ? ` — ${extra}` : ''}`);
+}
+function stageFail(name, t0, err) {
+  console.log(`STAGE_FAILURE ${name} ${Date.now() - t0}ms — ${String(err?.message ?? err).slice(0, 200)}`);
+}
+
+/**
+ * One asset on disk, measured for PREFLIGHT — existence, byte size, and (for
+ * audio/video) ffprobe duration. The DECISION about whether those are valid is
+ * the pure preflight() module's; this only gathers the facts it reads.
+ */
+function probeAsset(role, relPath, kind, publicDir, minSeconds) {
+  const abs = path.resolve(publicDir, relPath);
+  const present = fs.existsSync(abs);
+  let bytes = 0;
+  let seconds;
+  if (present) {
+    try {
+      bytes = fs.statSync(abs).size;
+    } catch {
+      bytes = 0;
+    }
+    if ((kind === 'audio' || kind === 'video') && bytes > 0) {
+      try {
+        seconds = secondsOf(abs);
+      } catch {
+        seconds = undefined;
+      }
+    }
+  }
+  return {
+    role,
+    path: relPath,
+    kind,
+    present,
+    bytes,
+    ...(seconds !== undefined ? { seconds } : {}),
+    ...(minSeconds !== undefined ? { minSeconds } : {}),
+  };
+}
+
+/**
+ * Turn the finished shot list into the manifest preflight() reads. Every asset
+ * the composition will actually load is probed: the still and voice (required),
+ * and the optional clip, parallax planes, ambience bed and film score where a
+ * shot carries them.
+ */
+function buildPreflightManifest(job, plan, rendered, publicDir) {
+  const shots = rendered.map((s, i) => {
+    const assets = [
+      probeAsset('still', s.still, 'image', publicDir),
+      probeAsset('audio', s.audio, 'audio', publicDir),
+    ];
+    if (s.clip?.src) {
+      // A clip that came back must at least reach the frames the composition was
+      // told to play it for; below that the tail would run dry.
+      const minSeconds = s.clip.frames ? s.clip.frames / STORY_FPS : undefined;
+      assets.push(probeAsset('clip', s.clip.src, 'video', publicDir, minSeconds));
+    }
+    if (s.parallax?.near) assets.push(probeAsset('parallax-near', s.parallax.near, 'image', publicDir));
+    if (s.parallax?.mid) assets.push(probeAsset('parallax-mid', s.parallax.mid, 'image', publicDir));
+    if (s.ambience?.src) assets.push(probeAsset('ambience', s.ambience.src, 'audio', publicDir));
+    return { index: i, seconds: s.seconds, assets };
+  });
+  if (plan.score?.src) {
+    // The film-level drone belongs to no single shot; hang it off the first so
+    // it is probed exactly once without inventing a shot for it.
+    shots[0]?.assets.push(probeAsset('score', plan.score.src, 'audio', publicDir));
+  }
+  return {
+    id: String(job.id),
+    requestedSeconds: job.requestedSeconds,
+    verbatim: job.verbatim === true,
+    fps: STORY_FPS,
+    width: STORY_WIDTH,
+    height: STORY_HEIGHT,
+    shots,
+  };
+}
+
 // --- offline path: render a plan from disk ----------------------------------
 if (offline) {
   const plan = JSON.parse(fs.readFileSync(PLAN_FILE, 'utf8'));
@@ -943,6 +1035,7 @@ if (offline) {
   const assetRoot = path.resolve(__dirname, '../public', assetDir);
   fs.mkdirSync(assetRoot, { recursive: true });
   const work = fs.mkdtempSync(path.join(os.tmpdir(), 'story-'));
+  const prepareStart = stageStart('PREPARE');
   try {
     // THE SHOT COUNT IS DERIVED HERE, FROM THE SAME planStory THE APP USES.
     //
@@ -1634,24 +1727,68 @@ if (offline) {
       }
     }
 
+    // PREPARE is done — every still, voice and clip is on disk. The boundary is
+    // logged so the expensive stages that follow have a clear start line.
+    stageOk('PREPARE', prepareStart, `${rendered.length} shots assembled`);
+
+    // The plan the composition renders, built once and reused by PREFLIGHT so
+    // the gate probes exactly the assets the render will load. The ONIQ mark is
+    // burned in unless the job PAID it off; passing the flag explicitly keeps
+    // the intent readable (the composition defaults ON either way).
+    const renderInput = {
+      title: plan.title,
+      shots: rendered,
+      watermark: !job.noWatermark,
+      // Rung 9: movie films open on their title and close to black.
+      grade: job.grade === 'movie' ? 'movie' : 'classic',
+      // Rung 11: the film-level drone, when the shots earned one.
+      ...(score ? { score } : {}),
+    };
+
+    // PREFLIGHT — prove the job is renderable BEFORE Chromium starts. A missing
+    // still, a zero-byte or header-only voice, a clip that came back short, a
+    // duplicate/gap in the shot indexes, or a timeline that silently shrank
+    // (the 300s-that-became-60s class) fails HERE — cheaply, with a structured
+    // code and the exact shot/asset named — instead of after a ~300s render or,
+    // worse, after every asset has been paid for. No browser, no regeneration.
+    // The decision is the pure preflight() module's; this only gathers the
+    // facts on disk. See src/lib/storyPreflight.ts.
+    const publicDir = path.resolve(__dirname, '../public');
+    const preflightStart = stageStart('PREFLIGHT');
+    const manifest = buildPreflightManifest(job, renderInput, rendered, publicDir);
+    const pf = preflight(manifest);
+    if (!pf.ok) {
+      const { code, detail, shot, asset } = pf.failure;
+      const where = [
+        shot !== undefined ? `shot ${shot}` : null,
+        asset ? `asset ${asset}` : null,
+      ]
+        .filter(Boolean)
+        .join(', ');
+      // Structured, so story-callback records the class and the offending piece
+      // rather than a bare stack. Flows through the existing markFailed -> refund
+      // path: the user got no video, so the seconds go back.
+      const err = new Error(`${code}: ${detail}${where ? ` (${where})` : ''}`);
+      stageFail('PREFLIGHT', preflightStart, err);
+      throw err;
+    }
+    const { timelineSeconds, expectedSeconds: requestedAfterClamp } = pf.timeline;
+    stageOk('PREFLIGHT', preflightStart, `${rendered.length} shots, timeline ${timelineSeconds.toFixed(1)}s vs ${requestedAfterClamp}s requested`);
+
     await markAssembling(job);
     const outFile = path.join(work, 'story.mp4');
-    // The ONIQ mark is burned in unless the job PAID it off (no_watermark).
-    // Passing the flag explicitly rather than omitting it keeps the intent
-    // readable here; the composition defaults ON either way.
-    await renderPlan(
-      {
-        title: plan.title,
-        shots: rendered,
-        watermark: !job.noWatermark,
-        // Rung 9: movie films open on their title and close to black.
-        grade: job.grade === 'movie' ? 'movie' : 'classic',
-        // Rung 11: the film-level drone, when the shots earned one.
-        ...(score ? { score } : {}),
-      },
-      outFile,
-    );
-    gradeInPlace(outFile);
+
+    // RENDER — the expensive stage: Chromium + Remotion. Everything above proved
+    // it is worth starting; a preflight failure never reaches this line.
+    const renderStart = stageStart('RENDER');
+    try {
+      await renderPlan(renderInput, outFile);
+      gradeInPlace(outFile);
+    } catch (err) {
+      stageFail('RENDER', renderStart, err);
+      throw err;
+    }
+    stageOk('RENDER', renderStart);
 
     // OUTPUT_VALIDATE — ffprobe the master before it counts as a film. A
     // truncated or empty render caught HERE fails honestly and refunds; the
@@ -1660,15 +1797,18 @@ if (offline) {
     // its shots measured is broken, not brief. Mirrors masterLooksValid /
     // MASTER_MIN_DURATION_RATIO in src/lib/storyRenderer.ts, pinned against
     // drift by src/lib/__tests__/storyStageRecovery.test.ts.
+    const validateStart = stageStart('OUTPUT_VALIDATE');
     const MASTER_MIN_DURATION_RATIO = 0.5;
     const expectedSeconds = rendered.reduce((a, s) => a + (s.seconds || 0), 0);
     const masterSeconds = secondsOf(outFile);
     if (!(masterSeconds > 0) || (expectedSeconds > 0 && masterSeconds < expectedSeconds * MASTER_MIN_DURATION_RATIO)) {
-      throw new Error(
+      const err = new Error(
         `master invalid: ${masterSeconds.toFixed(1)}s vs ${expectedSeconds.toFixed(1)}s of shots`,
       );
+      stageFail('OUTPUT_VALIDATE', validateStart, err);
+      throw err;
     }
-    console.log(`master validated: ${masterSeconds.toFixed(1)}s over ${rendered.length} shots`);
+    stageOk('OUTPUT_VALIDATE', validateStart, `${masterSeconds.toFixed(1)}s over ${rendered.length} shots`);
 
     // UPLOAD — retried IN PLACE, never re-rendered. The render above cost every
     // still, clip and voice; a PUT that flakes is network weather, not a verdict
@@ -1677,6 +1817,7 @@ if (offline) {
     // motivated this whole section was a fully-paid film regenerated from
     // scratch to recover a dropped upload. Mirrors UPLOAD_MAX_ATTEMPTS /
     // uploadBackoffMs in src/lib/storyRenderer.ts (same pin as above).
+    const uploadStart = stageStart('UPLOAD');
     const UPLOAD_MAX_ATTEMPTS = 4;
     let storagePath;
     for (let attempt = 1; ; attempt++) {
@@ -1684,7 +1825,10 @@ if (offline) {
         storagePath = await uploadFinished(job, outFile);
         break;
       } catch (err) {
-        if (attempt >= UPLOAD_MAX_ATTEMPTS) throw err;
+        if (attempt >= UPLOAD_MAX_ATTEMPTS) {
+          stageFail('UPLOAD', uploadStart, err);
+          throw err;
+        }
         const wait = attempt * 3_000; // uploadBackoffMs(attempt + 1)
         console.log(
           `upload failed (attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS}) — again in ${wait / 1000}s, ` +
@@ -1693,7 +1837,12 @@ if (offline) {
         await new Promise((r) => setTimeout(r, wait));
       }
     }
+    stageOk('UPLOAD', uploadStart, storagePath);
+
+    // FINALIZE — record the film as ready.
+    const finalizeStart = stageStart('FINALIZE');
     await markReady(job, storagePath, rendered.length);
+    stageOk('FINALIZE', finalizeStart);
     console.log(`job ${job.id} ready at ${storagePath}`);
   } catch (e) {
     console.error(`job ${job.id} failed:`, e.message);
