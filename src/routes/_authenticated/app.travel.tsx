@@ -340,7 +340,17 @@ function StayScout() {
                   <div className="flex items-center gap-1.5">
                     <div className="truncate font-semibold">{r.hotel || r.site}</div>
                     {r.verified && (
-                      <span className="shrink-0 text-[10px] font-medium text-emerald-400">✓ verified</span>
+                      // `verified` is the scout model's own judgement that the
+                      // rate came from a recognised booking platform or the
+                      // hotel's official site — NOT an independently verified
+                      // price. Label it as a source signal, never as "verified",
+                      // so a model assertion is not presented as established fact.
+                      <span
+                        className="shrink-0 text-[10px] font-medium text-emerald-400"
+                        title="AI recognised this as a known booking platform or the hotel's official site — not an independently verified rate. Tap through to confirm."
+                      >
+                        ✓ recognised source
+                      </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 truncate text-xs text-muted-foreground">
