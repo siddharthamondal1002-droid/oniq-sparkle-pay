@@ -90,10 +90,15 @@ export const TEXT_PRIMARY: ModelEntry = {
   id: "claude-sonnet-4-6",
   provider: "anthropic",
   keyEnv: "ANTHROPIC_API_KEY",
-  usedBy: "_shared/llm.ts callClaude default",
+  usedBy: "_shared/llm.ts callClaude, callers that pass model:'claude-sonnet-4-6' (translate, health-scan)",
   status: "current",
   shutdownOn: null,
-  note: "The baseline every existing caller relies on. Callers may override per call.",
+  // CORRECTED 2026-08-20 against the live client: this is NOT the callClaude
+  // default. callClaude defaults to claude-opus-5 (TEXT_TOOLS) — verified in
+  // _shared/llm.ts (`opts.model ?? "claude-opus-5"`) and in the successful
+  // job 11d02818 run, where story-plot (which passes no model) ran on opus-5.
+  // Sonnet-4-6 is selected only when a caller passes it explicitly.
+  note: "Anthropic text baseline for callers that opt in explicitly. The pipeline default is TEXT_TOOLS.",
   capabilities: {
     modality: "text",
     durationsSec: null,
@@ -109,10 +114,14 @@ export const TEXT_TOOLS: ModelEntry = {
   id: "claude-opus-5",
   provider: "anthropic",
   keyEnv: "ANTHROPIC_API_KEY",
-  usedBy: "_shared/llm.ts tool-calling path",
+  usedBy: "_shared/llm.ts callClaude DEFAULT (opts.model ?? this) + tool-calling path",
   status: "current",
   shutdownOn: null,
-  note: "Tool-use path only.",
+  // This is the ACTUAL callClaude default (opts.model ?? "claude-opus-5"), so
+  // every caller that passes no model runs on it — story-plot, smart-scout,
+  // ting, hotel-scout. Kept named TEXT_TOOLS for continuity; the pipeline text
+  // default lives here, not in TEXT_PRIMARY.
+  note: "The live callClaude default model, and the tool-use path.",
   capabilities: {
     modality: "text",
     durationsSec: null,

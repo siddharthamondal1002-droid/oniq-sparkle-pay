@@ -205,9 +205,11 @@ export type CallClaudeOpts = {
   // gets reused — caching a shorter prompt is silently ignored. The Gemini
   // fallback path ignores this flag (caching is Anthropic-specific).
   cacheSystem?: boolean;
-  // Optional Anthropic model override. When absent, defaults to the shared
-  // "claude-sonnet-4-6" baseline every existing caller has relied on. The
-  // Gemini fallback path ignores this (fallback model is Gemini-specific).
+  // Optional Anthropic model override. When absent, defaults to "claude-opus-5"
+  // (see callClaude below and modelRegistry TEXT_TOOLS) — the model story-plot
+  // and the other no-override callers actually run on. Callers that want the
+  // sonnet baseline pass model:"claude-sonnet-4-6" explicitly (translate,
+  // health-scan). The Gemini fallback path ignores this flag.
   model?: string;
   // When true, make EXACTLY ONE attempt: skip the built-in retry on a
   // timeout/network error and on a retryable 5xx. Default (undefined) keeps the
