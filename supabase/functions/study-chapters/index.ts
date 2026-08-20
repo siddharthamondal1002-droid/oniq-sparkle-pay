@@ -18,6 +18,7 @@ Deno.serve(async (req) => {
   const authHeader = req.headers.get("Authorization") ?? "";
   const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : "";
   if (!token) return json(401, { error: "unauthorized" });
+  let userId = "";
   try {
     const supa = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -26,6 +27,7 @@ Deno.serve(async (req) => {
     );
     const { data, error } = await supa.auth.getUser(token);
     if (error || !data?.user) return json(401, { error: "unauthorized" });
+    userId = data.user.id;
   } catch {
     return json(401, { error: "unauthorized" });
   }
@@ -67,11 +69,31 @@ Deno.serve(async (req) => {
     } catch { /* best effort */ }
   };
 
+  // IDOR guard: profileId is client-supplied, so a caller could otherwise
+  // pass another family's learner UUID and read that learner's custom syllabus
+  // (chapter_overrides). Only honour the override when the caller actually owns
+  // the profile; a non-owner silently falls through to the generic chapter
+  // list below — never another learner's private overrides.
+  let ownsProfile = false;
+  if (isUuid) {
+    try {
+      const { data: prof } = await admin
+        .from("learner_profiles")
+        .select("id")
+        .eq("id", profileId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      ownsProfile = !!prof;
+    } catch {
+      ownsProfile = false;
+    }
+  }
+
   // 0) Profile-specific override check — a family may have replaced the
   // generic AI-generated chapter list with their real school syllabus for
   // this learner+subject. Overrides win over cache and generation, and are
   // returned as-is (any language they were entered in — no translation).
-  if (isUuid) try {
+  if (isUuid && ownsProfile) try {
     const { data: ovr, error: ovrErr } = await admin
       .from("chapter_overrides")
       .select("chapter_number, chapter_title")
