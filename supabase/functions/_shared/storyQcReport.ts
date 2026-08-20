@@ -51,6 +51,8 @@ function cleanShot(v: unknown): JsonObject {
     continuity: isObject(o.continuity) ? o.continuity : {},
     visual: isObject(o.visual) ? o.visual : {},
     cinematic: isObject(o.cinematic) ? o.cinematic : {},
+    visualEvidence: isObject(o.visualEvidence) ? o.visualEvidence : {},
+    observedShot: isObject(o.observedShot) ? o.observedShot : {},
     recommendation: str(o.recommendation, 180),
   };
 }

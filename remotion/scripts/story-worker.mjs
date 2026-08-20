@@ -62,6 +62,7 @@ import { rhubarbCuesForWav } from './rhubarb.mjs';
 import { applyFilmLook } from './filmLook.mjs';
 import { ensureDepthModel, inferDepth, cutNearPlane } from './depth.mjs';
 import { defaultTtsCache, ensureLocalTts, speakerFor, synthLocal } from './localTts.mjs';
+import { extractVisualEvidence } from './storyCvEvidenceAdapter.mjs';
 import {
   PARALLAX,
   bandAlpha,
@@ -1254,6 +1255,7 @@ if (offline) {
       shots: [],
     };
     let productionState = createProductionState(plan);
+    let previousAcceptedVisualEvidence = null;
     const shotMap = { scenes: [{ id: 'Scene 01', shots: [] }] };
     // Rung 11: the shots' emotional registers, collected for the film-level
     // score vote. Classic films push nulls and vote for silence.
@@ -1784,6 +1786,15 @@ if (offline) {
         clipFile,
         expectedSeconds: seconds,
       });
+      const cvEvidence = extractVisualEvidence({
+        ffmpeg,
+        ffprobe: findBin('ffprobe'),
+        mediaPath: clipFile || stillFile,
+        mediaKind: clipFile ? 'clip' : 'still',
+        expectedShotId: i + 1,
+        expectedDurationSeconds: seconds,
+        previousEvidence: previousAcceptedVisualEvidence,
+      });
       const continuity = evaluateContinuity({
         shotIndex: i,
         shotStill: shot.still,
@@ -1799,6 +1810,9 @@ if (offline) {
             : null,
         nextPlannedShot: plan.shots[i + 1] ?? null,
         characterBible: productionState.characterBible,
+        visualEvidence: cvEvidence.visualEvidence,
+        previousVisualEvidence: previousAcceptedVisualEvidence,
+        observedShot: cvEvidence.observedShot,
       });
       const visual = evaluateVisualQuality({
         stillLuma: qc.metrics?.still?.luma,
@@ -1835,6 +1849,8 @@ if (offline) {
         continuity,
         visual,
         cinematic: cinematicScore,
+        visualEvidence: cvEvidence.visualEvidence,
+        observedShot: cvEvidence.observedShot,
       };
       attemptCandidates.push(candidateEval);
       const qcEntry = {
@@ -1854,6 +1870,8 @@ if (offline) {
           score: cinematicScore.score,
           findings: cinematicScore.findings,
         },
+        visualEvidence: cvEvidence.visualEvidence,
+        observedShot: cvEvidence.observedShot,
         recommendation:
           qc.passed && continuity.status === 'PASS' ? 'PASS' : continuity.status === 'REGENERATE' ? 'REGENERATE' : 'WARN',
       };
@@ -1886,6 +1904,7 @@ if (offline) {
               narration: shot.narration,
               cast: plan.cast ?? [],
             });
+            previousAcceptedVisualEvidence = fallback.visualEvidence ?? previousAcceptedVisualEvidence;
             shotMap.scenes[0].shots.push({
               shotId: `Shot ${String(i + 1).padStart(2, '0')}`,
               duration: seconds,
@@ -1897,6 +1916,7 @@ if (offline) {
               musicCue: null,
               sfx: ambience?.kind ?? null,
               transitionIntent: shot.motion ?? null,
+              observedShot: fallback.observedShot ?? null,
             });
             console.log(`  qc ${i + 1}: accepted candidate ${fallback.attempt} after comparison`);
             break;
@@ -1925,6 +1945,7 @@ if (offline) {
         narration: shot.narration,
         cast: plan.cast ?? [],
       });
+      previousAcceptedVisualEvidence = winner.visualEvidence ?? previousAcceptedVisualEvidence;
       shotMap.scenes[0].shots.push({
         shotId: `Shot ${String(i + 1).padStart(2, '0')}`,
         duration: seconds,
@@ -1936,6 +1957,7 @@ if (offline) {
         musicCue: null,
         sfx: ambience?.kind ?? null,
         transitionIntent: shot.motion ?? null,
+        observedShot: winner.observedShot ?? null,
       });
       console.log(`  voice ${i + 1}/${plan.shots.length} — ${seconds.toFixed(2)}s, ${spans.length} spans`);
       console.log(

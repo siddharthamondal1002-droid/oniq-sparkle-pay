@@ -123,3 +123,39 @@ describe("regeneration + selector", () => {
     expect(ranked[0].composite).toBeGreaterThanOrEqual(ranked[1].composite);
   });
 });
+
+describe("cv-backed continuity evidence", () => {
+  it("regenerates on high-confidence observed mismatch", () => {
+    const out = evaluateContinuity({
+      shotIndex: 3,
+      shotStill: "Ravi stands near the same harbor gate",
+      shotNarration: "He watches the rain gather.",
+      observedShot: {
+        expectedShotId: 4,
+        observedCutCount: 3,
+        classification: "MISMATCH",
+        confidence: 0.91,
+        reasons: ["multiple_internal_cuts"],
+      },
+    });
+    expect(out.status).toMatch(/REGENERATE|FAIL/);
+    expect(out.findings.some((f) => f.category === "temporal" && f.status === "REGENERATE")).toBe(true);
+  });
+
+  it("keeps low-confidence cv mismatch as warning evidence", () => {
+    const out = evaluateContinuity({
+      shotIndex: 1,
+      shotStill: "Asha walks through mist by the village gate",
+      shotNarration: "The shot continues calmly.",
+      observedShot: {
+        expectedShotId: 2,
+        observedCutCount: 2,
+        classification: "MISMATCH",
+        confidence: 0.31,
+        reasons: ["low_confidence"],
+      },
+    });
+    expect(out.findings.some((f) => f.status === "REGENERATE")).toBe(false);
+    expect(out.findings.some((f) => f.status === "WARN")).toBe(true);
+  });
+});

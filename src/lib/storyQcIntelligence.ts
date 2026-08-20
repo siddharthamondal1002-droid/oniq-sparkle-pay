@@ -1,3 +1,5 @@
+import type { ShotBoundaryObservation, VisualEvidence } from "./storyCvEvidence";
+
 export type QcStatus = "PASS" | "WARN" | "FAIL" | "REGENERATE";
 
 export type ContinuityCategory =
@@ -87,6 +89,9 @@ export function evaluateContinuity(input: {
   previousAcceptedShot?: { id: number; still: string; narration: string } | null;
   nextPlannedShot?: { still?: string; narration?: string } | null;
   characterBible?: Record<string, string>;
+  visualEvidence?: VisualEvidence | null;
+  previousVisualEvidence?: VisualEvidence | null;
+  observedShot?: ShotBoundaryObservation | null;
 }): Scored {
   const findings: ContinuityFinding[] = [];
   let score = 100;
@@ -153,6 +158,111 @@ export function evaluateContinuity(input: {
       confidence: 0.79,
       affectedShotIds: [shotId],
       recommendedAction: "Keep one dominant camera direction in the regenerated motion prompt.",
+      status: "WARN",
+    });
+  }
+
+  const observed = input.observedShot;
+  if (observed?.classification === "MISMATCH") {
+    if (observed.confidence >= 0.75 && !intentional) {
+      score -= 22;
+      findings.push({
+        severity: "high",
+        category: "temporal",
+        evidence: "Observed internal boundaries indicate shot mismatch against expected single-shot intent.",
+        confidence: observed.confidence,
+        affectedShotIds: [shotId],
+        recommendedAction: "Regenerate the shot with explicit single-beat camera and transition constraints.",
+        status: "REGENERATE",
+      });
+    } else {
+      score -= 8;
+      findings.push({
+        severity: "low",
+        category: "temporal",
+        evidence: "Observed boundary mismatch is low confidence; treat as warning evidence only.",
+        confidence: observed.confidence,
+        affectedShotIds: [shotId],
+        recommendedAction: "Keep but watch for mismatch in subsequent candidate comparison.",
+        status: "WARN",
+      });
+    }
+  } else if (observed?.classification === "MINOR_DRIFT" && observed.confidence >= 0.5) {
+    score -= 8;
+    findings.push({
+      severity: "low",
+      category: "temporal",
+      evidence: "Observed shot boundary drift versus expectation.",
+      confidence: observed.confidence,
+      affectedShotIds: [shotId],
+      recommendedAction: "Tighten expected duration or transition cues on regeneration if needed.",
+      status: "WARN",
+    });
+  }
+
+  if (input.visualEvidence && input.previousVisualEvidence) {
+    const colorSimilarity = Number(input.visualEvidence.color.histogramSimilarityToPrevious?.value ?? NaN);
+    const colorConfidence = Number(input.visualEvidence.color.histogramSimilarityToPrevious?.confidence ?? 0);
+    if (Number.isFinite(colorSimilarity) && colorSimilarity < 0.32 && colorConfidence >= 0.8 && !intentional) {
+      score -= 16;
+      findings.push({
+        severity: "medium",
+        category: "location",
+        evidence: "Large environment color/layout drift from previous accepted shot.",
+        confidence: colorConfidence,
+        affectedShotIds: [shotId - 1, shotId].filter((x) => x > 0),
+        recommendedAction: "Regenerate with stronger location continuity anchors.",
+        status: "REGENERATE",
+      });
+    } else if (Number.isFinite(colorSimilarity) && colorSimilarity < 0.45 && colorConfidence >= 0.5) {
+      score -= 6;
+      findings.push({
+        severity: "low",
+        category: "lighting",
+        evidence: "Color/lighting shift detected with moderate confidence.",
+        confidence: colorConfidence,
+        affectedShotIds: [shotId - 1, shotId].filter((x) => x > 0),
+        recommendedAction: "Keep if intentional; otherwise reinforce color continuity intent.",
+        status: "WARN",
+      });
+    }
+
+    const wardrobe = input.visualEvidence.subjects.wardrobe.changeVsPrevious;
+    if (wardrobe?.value === "LIKELY_CHANGE" && wardrobe.confidence >= 0.85 && !intentional) {
+      score -= 18;
+      findings.push({
+        severity: "medium",
+        category: "wardrobe",
+        evidence: "Wardrobe palette shift likely differs from previous accepted shot.",
+        confidence: wardrobe.confidence,
+        affectedShotIds: [shotId - 1, shotId].filter((x) => x > 0),
+        recommendedAction: "Repeat wardrobe lock and preserve clothing colors in regeneration constraints.",
+        status: "REGENERATE",
+      });
+    } else if (wardrobe?.value === "POSSIBLE_CHANGE" && wardrobe.confidence >= 0.55) {
+      score -= 6;
+      findings.push({
+        severity: "low",
+        category: "wardrobe",
+        evidence: "Possible wardrobe change detected from visual evidence.",
+        confidence: wardrobe.confidence,
+        affectedShotIds: [shotId - 1, shotId].filter((x) => x > 0),
+        recommendedAction: "Treat as warning unless corroborated by stronger evidence.",
+        status: "WARN",
+      });
+    }
+  }
+
+  const direction = input.visualEvidence?.screenDirection;
+  if (direction && direction.confidence >= 0.75 && direction.value === "mixed" && !intentional) {
+    score -= 8;
+    findings.push({
+      severity: "low",
+      category: "camera",
+      evidence: "Screen-direction signal is mixed with high confidence.",
+      confidence: direction.confidence,
+      affectedShotIds: [shotId],
+      recommendedAction: "Prefer one dominant movement direction to avoid eye-line confusion.",
       status: "WARN",
     });
   }
