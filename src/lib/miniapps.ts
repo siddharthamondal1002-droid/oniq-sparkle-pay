@@ -21,6 +21,7 @@ export type {
   TileLabel,
 } from "@/data/appRegistry";
 import { effectiveLaunchType as _effLaunch, type AppEntry } from "@/data/appRegistry";
+import { fetchWithTimeout } from "@/lib/fetchWithTimeout";
 
 // ---------------- Seamless switch-and-return launcher ----------------
 
@@ -407,7 +408,7 @@ async function invokeMappls(payload: { op: "geocode" | "reverse" | "autosuggest"
 }
 
 async function nominatimGeocode(query: string): Promise<GeoResult[]> {
-  const res = await fetch(
+  const res = await fetchWithTimeout(
     `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(query)}`,
     { headers: { Accept: "application/json" } },
   );
@@ -459,7 +460,7 @@ export async function getRoute(
     throw new Error("Invalid coordinates");
   }
   const url = `https://router.project-osrm.org/route/v1/driving/${from.lon},${from.lat};${to.lon},${to.lat}?overview=false`;
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
+  const res = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error("Route service unavailable");
   const data = (await res.json()) as { routes?: Array<{ distance: number; duration: number }> };
   const r = data.routes?.[0];
@@ -540,7 +541,7 @@ export async function getCurrentLocation(): Promise<{ lat: number; lon: number }
 
 async function nominatimReverse(lat: number, lon: number): Promise<string> {
   try {
-    const res = await fetch(
+    const res = await fetchWithTimeout(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=16`,
       { headers: { Accept: "application/json" } },
     );
