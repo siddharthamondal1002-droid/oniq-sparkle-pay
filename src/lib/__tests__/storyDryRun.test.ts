@@ -230,6 +230,13 @@ describe("finished media integrity gate", () => {
     expect(codeOnly(WORKER)).toMatch(/const expectedSeconds = await renderPlan\(/);
   });
 
+  it("keeps measured narration length instead of forcing the requested tier", () => {
+    const code = codeOnly(WORKER);
+    expect(code).toContain("const seconds = secondsOf(wav)");
+    expect(code).toContain("const durationFrames = framesForStorySeconds(seconds, FPS)");
+    expect(code).not.toMatch(/framesForStorySeconds\(job\.requestedSeconds/);
+  });
+
   it("uses the same ceiling-safe audio frame conversion as the composition", () => {
     expect(codeOnly(WORKER)).toContain(
       "const durationFrames = framesForStorySeconds(seconds, FPS)",

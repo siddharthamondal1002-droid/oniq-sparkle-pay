@@ -1485,7 +1485,10 @@ if (offline) {
 
       // MEASURED, both of them. The duration decides how long the shot is on
       // screen — narration is the clock and a word-count estimate drifts
-      // further out of sync with every shot. The spans decide when the mouth
+      // further out of sync with every shot. VARIABLE LENGTH IS DELIBERATE
+      // (owner directive, 2026-08-20): do not regenerate valid narration just
+      // to force it onto job.requestedSeconds; another model pass adds spend.
+      // The measured audio remains the clock. The spans decide when the mouth
       // moves, and they come from the same envelope the episodes use, imported
       // rather than reimplemented so the two cannot disagree.
       const seconds = secondsOf(wav);
