@@ -396,19 +396,35 @@ Deno.serve(async (req) => {
     // LONG FILMS TAKE THE TWO-STAGE PATH. Below the threshold the single call
     // is proven and simpler, and simpler is worth keeping for the common case.
     if (!plan && hasClaude && shots > SINGLE_CALL_MAX_SHOTS) {
+      // VERBATIM films supply the narration for every shot (the user's own
+      // text), and the beats are replaced by it wholesale below. So a verbatim
+      // spine must NOT write beats — asking a 43-shot film for 43 beats that are
+      // then discarded is exactly what pushed the spine past its 45s budget on
+      // the 300s story and 502'd the job. A verbatim spine writes ONLY the
+      // structural locks the batches copy (title, logline, setting, cast); the
+      // beats come from the narrations. Non-verbatim films are unchanged.
+      const isVerbatim = narrations.length === shots;
       const spineOpts = {
-        system: SPINE_SYSTEM + langInstruction(lang),
+        system: (isVerbatim ? SPINE_SYSTEM_VERBATIM : SPINE_SYSTEM) + langInstruction(lang),
         messages: [
           {
             role: "user" as const,
-            content:
-              `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}${houseCastBlock}${styleBlock}\n\n` +
-              `Return exactly ${shots} beats.`,
+            content: isVerbatim
+              ? `Write ONLY the structure — title, logline, setting, and cast locks — for a ` +
+                `${shots}-shot film of this story. The narration is already written; do NOT ` +
+                `write beats, shots, or scene text.\n\n${prompt}${reuseBlock}${houseCastBlock}${styleBlock}`
+              : `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}${houseCastBlock}${styleBlock}\n\n` +
+                `Return exactly ${shots} beats.`,
           },
         ],
         // A ceiling, not a spend — same reasoning as the single-call cap.
         maxTokens: 8192,
       };
+      // One verbatim-aware contract for parsing a spine reply: the structure
+      // parser fills beats from the user's narrations; the full parser requires
+      // the model's own beats.
+      const parseSpineReply = (t: string) =>
+        isVerbatim ? parseSpineStructure(t, narrations) : parseSpine(t, shots);
       let spine: Spine | null = null;
       const spineRes = await callClaude({ ...spineOpts, timeoutMs: claudeRoomFor(45_000) });
 
@@ -418,7 +434,7 @@ Deno.serve(async (req) => {
           reason: String(spineRes.reason ?? "failed").slice(0, 160),
         });
       } else {
-        const parsedSpine = parseSpine(textOf(spineRes.data), shots);
+        const parsedSpine = parseSpineReply(textOf(spineRes.data));
         if ("reason" in parsedSpine) {
           tried.push({
             engine: "anthropic:spine",
@@ -453,8 +469,11 @@ Deno.serve(async (req) => {
                 role: "user" as const,
                 content:
                   `That reply was rejected: ${spineReason}.\n` +
-                  `Return ONLY the JSON object, with exactly ${shots} beats. ` +
-                  `Keep every beat under twelve words and every lock under fifty.`,
+                  (isVerbatim
+                    ? `Return ONLY the JSON object, with title, logline, setting and cast — ` +
+                      `NO beats and NO shots. Keep every lock under fifty words.`
+                    : `Return ONLY the JSON object, with exactly ${shots} beats. ` +
+                      `Keep every beat under twelve words and every lock under fifty.`),
               },
             ],
           });
@@ -464,7 +483,7 @@ Deno.serve(async (req) => {
               reason: String(retry.reason ?? "failed").slice(0, 160),
             });
           } else {
-            const p2 = parseSpine(textOf(retry.data), shots);
+            const p2 = parseSpineReply(textOf(retry.data));
             if ("reason" in p2) {
               tried.push({
                 engine: "anthropic:spine-retry",
@@ -813,6 +832,41 @@ const SPINE_SYSTEM = [
   "story that does not, and say so in `logline`.",
 ].join("\n");
 
+/**
+ * The VERBATIM spine: structure only, never beats. A verbatim film already has
+ * the narration for every shot (the user's own text), so the spine writes only
+ * the structural locks the batches copy — title, logline, setting, cast — and
+ * NOTHING else. Asking it for beats would generate output that is discarded
+ * wholesale, and on a long film that discarded generation is what overran the
+ * spine's time budget and 502'd the job.
+ */
+const SPINE_SYSTEM_VERBATIM = [
+  "You are Ting 🔮, ONIQ's built-in assistant, working as a story editor for ONIQ Lores.",
+  "You read a finished story and write ONLY its STRUCTURE — never its shots.",
+  "",
+  "Return ONLY a JSON object. No prose, no markdown fence, no commentary.",
+  "",
+  "Shape:",
+  '{ "title": string, "logline": string, "setting": string,',
+  '  "cast": [{ "name": string, "lock": string }] }',
+  "",
+  "RULES:",
+  "1. Do NOT write beats, shots, scenes, or narration. The narration already",
+  "   exists — you are only naming the film and locking its look.",
+  "2. `lock` is a verbatim physical description — age, build, hair, clothing,",
+  "   colours — detailed enough that repeating it produces the same person every",
+  "   time. Nothing carries between image generations, so this text IS the",
+  "   character.",
+  "3. `setting` is locked the same way: place, time of day, weather, palette.",
+  "4. `logline` is one sentence naming what the story is about.",
+  "",
+  "CONTENT RULES, non-negotiable, carried from the Arabian Nights season:",
+  "no prophets, no divine figures, no scripture; no real living people; no",
+  "named brands or copyrighted characters; violence implied, never depicted;",
+  "nothing sexual. If the story requires any of these, lock the nearest look",
+  "that does not, and say so in `logline`.",
+].join("\n");
+
 /** The expansion prompt: turn beats into shots, repeating the locks verbatim. */
 const BATCH_SYSTEM = [
   "You are Ting 🔮, working as a storyboard artist for ONIQ Lores.",
@@ -921,6 +975,36 @@ function parseSpine(text: string, shots: number): { spine: Spine } | { reason: s
   if (beats.length < shots) return { reason: `spine: ${beats.length} beats, wanted ${shots}` };
   return {
     spine: { title, logline: trimmed(p.logline), setting, cast, beats: beats.slice(0, shots) },
+  };
+}
+
+/**
+ * The VERBATIM spine parse. The model returns NO beats — the beats ARE the
+ * user's own narrations, supplied here and written straight into the spine so
+ * everything downstream is identical to the full path. title and setting are
+ * still required (a spine without them cannot lock the film); cast may be empty
+ * (a story with no recurring named character is legal, same as parseSpine). The
+ * narrations are never rewritten, reordered, or summarised — they pass through
+ * exactly as given.
+ */
+function parseSpineStructure(
+  text: string,
+  narrations: string[],
+): { spine: Spine } | { reason: string } {
+  const got = jsonIn(text, "spine");
+  if ("reason" in got) return got;
+  const p = got.obj;
+  const title = trimmed(p.title);
+  const setting = trimmed(p.setting);
+  if (!title || !setting) return { reason: `spine: missing ${!title ? "title" : "setting"}` };
+  const cast = (Array.isArray(p.cast) ? p.cast : [])
+    .map((c) => {
+      const o = (c ?? {}) as Record<string, unknown>;
+      return { name: trimmed(o.name), lock: trimmed(o.lock) };
+    })
+    .filter((c) => c.name && c.lock);
+  return {
+    spine: { title, logline: trimmed(p.logline), setting, cast, beats: narrations },
   };
 }
 
