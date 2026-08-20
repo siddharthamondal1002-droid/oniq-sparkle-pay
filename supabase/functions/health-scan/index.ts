@@ -96,7 +96,11 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify(payload),
     });
-    if (res.status === 401) return json({ configured: false }, 200);
+    if (res.status === 401 || res.status === 403) {
+      const t = await res.text().catch(() => "");
+      console.error("anthropic auth error", res.status, t);
+      return json({ error: "health scan's Claude key was rejected — check ANTHROPIC_API_KEY" }, 502);
+    }
     if (res.status === 429) return json({ error: "AI is busy — try again in a moment 🐢" }, 429);
     if (!res.ok) {
       const t = await res.text().catch(() => "");

@@ -130,7 +130,11 @@ Deno.serve(async (req) => {
         body: JSON.stringify(payload),
       });
 
-      if (res.status === 401) return json({ configured: false }, 200);
+      if (res.status === 401 || res.status === 403) {
+        const t = await res.text().catch(() => "");
+        console.error("anthropic auth error", res.status, t);
+        return json({ error: "Ting's Claude key was rejected — check ANTHROPIC_API_KEY" }, 502);
+      }
       if (res.ok) {
         data = await res.json();
         console.info("Ting answered via Claude Opus 5 (primary)");
