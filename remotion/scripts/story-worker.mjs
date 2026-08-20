@@ -1827,6 +1827,12 @@ if (offline) {
         ? 100
         : 45;
       const generationConfidence = Math.max(35, 100 - (qcAttempt - 1) * 15 - regenPlan.constraints.length * 3);
+      const shouldRegenerate = candidateNeedsRegeneration({
+        qcPassed: qc.passed,
+        continuityStatus: continuity.status,
+        visualStatus: visual.status,
+        cinematicStatus: cinematicScore.status,
+      });
       const candidateEval = {
         attempt: qcAttempt,
         candidateShot,
@@ -1845,6 +1851,7 @@ if (offline) {
         qcPassed: qc.passed,
         continuityStatus: continuity.status,
         visualStatus: visual.status,
+        cinematicStatus: cinematicScore.status,
       };
       attemptCandidates.push(candidateEval);
       const qcEntry = {
@@ -1867,22 +1874,29 @@ if (offline) {
         visualEvidence: cvEvidence.visualEvidence,
         observedShot: cvEvidence.observedShot,
         recommendation:
-          qc.passed && continuity.status === 'PASS' ? 'PASS' : continuity.status === 'REGENERATE' ? 'REGENERATE' : 'WARN',
+          shouldRegenerate
+            ? 'REGENERATE'
+            : [continuity.status, visual.status, cinematicScore.status].includes('WARN')
+              ? 'WARN'
+              : 'PASS',
       };
       qcReport.shots.push(qcEntry);
       await saveQcReport(job, qcReport).catch((err) => {
         console.log(`  qc report ${i + 1}: save failed (${String(err?.message ?? err).slice(0, 120)})`);
       });
       const failedCheckNames = qc.checks.filter((c) => !c.pass).map((c) => c.name);
-      const shouldRegenerate = candidateNeedsRegeneration({
-        qcPassed: qc.passed,
-        continuityStatus: continuity.status,
-        visualStatus: visual.status,
-      });
+      const blockingQcNames = [
+        ['continuity', continuity.status],
+        ['visual', visual.status],
+        ['cinematic', cinematicScore.status],
+      ]
+        .filter(([, status]) => status === 'FAIL' || status === 'REGENERATE')
+        .map(([domain, status]) => `${domain}.${status.toLowerCase()}`);
+      const failureReasons = [...failedCheckNames, ...blockingQcNames];
       if (shouldRegenerate) {
         console.log(
           `  qc ${i + 1} attempt ${qcAttempt}: ${qc.score}% ` +
-            `(${failedCheckNames.join(', ') || continuity.status || 'failed'})`,
+            `(${failureReasons.join(', ') || 'failed'})`,
         );
         if (qcAttempt >= 2) {
           const ranked = chooseAcceptedCandidate(attemptCandidates);
@@ -1916,7 +1930,7 @@ if (offline) {
           }
           throw new Error(
             `shot ${i + 1} failed qc after ${qcAttempt} attempts: ` +
-              `${failedCheckNames.join(', ') || 'unknown'}`,
+              `${failureReasons.join(', ') || 'unknown'}`,
           );
         }
         regenPlan = classifyRegenerationNeeds({

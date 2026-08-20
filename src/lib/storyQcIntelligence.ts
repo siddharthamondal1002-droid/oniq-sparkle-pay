@@ -35,6 +35,12 @@ type Scored = { score: number; status: QcStatus; findings: ContinuityFinding[] }
 
 const CHANGE_MARKERS = /\b(now|suddenly|later|next|after|meanwhile|changes?|switch(?:es|ed)?|new|transitions?)\b/i;
 const WORD = /[a-z0-9]+/gi;
+const QC_STATUS_PRIORITY: Record<QcStatus, number> = {
+  PASS: 0,
+  WARN: 1,
+  REGENERATE: 2,
+  FAIL: 3,
+};
 
 function words(input: string): Set<string> {
   const out = new Set<string>();
@@ -53,24 +59,39 @@ function overlap(a: string, b: string): number {
   return hit / Math.max(left.size, right.size);
 }
 
-function statusFor(score: number): QcStatus {
+function statusFromScore(score: number): QcStatus {
   if (score >= 80) return "PASS";
   if (score >= 60) return "WARN";
   if (score >= 45) return "REGENERATE";
   return "FAIL";
 }
 
+function worstStatus(statuses: QcStatus[]): QcStatus {
+  return statuses.reduce(
+    (worst, status) => (QC_STATUS_PRIORITY[status] > QC_STATUS_PRIORITY[worst] ? status : worst),
+    "PASS",
+  );
+}
+
+function statusFor(score: number, findings: ContinuityFinding[]): QcStatus {
+  return worstStatus([statusFromScore(score), ...findings.map((finding) => finding.status)]);
+}
+
+function blocksAcceptance(status: QcStatus): boolean {
+  return status === "FAIL" || status === "REGENERATE";
+}
+
 export function candidateNeedsRegeneration(input: {
   qcPassed: boolean;
   continuityStatus: QcStatus;
   visualStatus: QcStatus;
+  cinematicStatus: QcStatus;
 }): boolean {
   return (
     !input.qcPassed ||
-    input.continuityStatus === "FAIL" ||
-    input.continuityStatus === "REGENERATE" ||
-    input.visualStatus === "FAIL" ||
-    input.visualStatus === "REGENERATE"
+    blocksAcceptance(input.continuityStatus) ||
+    blocksAcceptance(input.visualStatus) ||
+    blocksAcceptance(input.cinematicStatus)
   );
 }
 
@@ -282,7 +303,7 @@ export function evaluateContinuity(input: {
   }
 
   score = Math.max(0, Math.min(100, score));
-  return { score, status: statusFor(score), findings };
+  return { score, status: statusFor(score, findings), findings };
 }
 
 export function evaluateVisualQuality(input: {
@@ -318,7 +339,7 @@ export function evaluateVisualQuality(input: {
     });
   }
   score = Math.max(0, Math.min(100, score));
-  return { score, findings, status: statusFor(score) };
+  return { score, findings, status: statusFor(score, findings) };
 }
 
 export function evaluateCinematicQuality(input: {
@@ -357,7 +378,7 @@ export function evaluateCinematicQuality(input: {
     });
   }
   score = Math.max(0, Math.min(100, score));
-  return { score, status: statusFor(score), findings };
+  return { score, status: statusFor(score, findings), findings };
 }
 
 export function classifyRegenerationNeeds(input: {
@@ -390,7 +411,7 @@ export function classifyRegenerationNeeds(input: {
     focus.push("continuity");
     constraints.push(...input.continuityFindings.slice(0, 2).map((f) => f.recommendedAction));
   }
-  if (input.cinematicStatus === "REGENERATE") {
+  if (blocksAcceptance(input.cinematicStatus)) {
     focus.push("camera");
     constraints.push("adjust framing and camera language; avoid unnecessary motion");
   }
@@ -441,6 +462,7 @@ export function chooseAcceptedCandidate<
     qcPassed: boolean;
     continuityStatus: QcStatus;
     visualStatus: QcStatus;
+    cinematicStatus: QcStatus;
   },
 >(candidates: T[]): { winner: (T & { composite: number }) | null; ranked: Array<T & { composite: number }> } {
   const { ranked } = selectBestCandidate(candidates);
@@ -451,6 +473,7 @@ export function chooseAcceptedCandidate<
           qcPassed: candidate.qcPassed,
           continuityStatus: candidate.continuityStatus,
           visualStatus: candidate.visualStatus,
+          cinematicStatus: candidate.cinematicStatus,
         }),
     ) ?? null;
   return { winner, ranked };

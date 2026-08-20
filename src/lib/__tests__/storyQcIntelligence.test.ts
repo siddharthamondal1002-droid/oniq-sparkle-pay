@@ -44,6 +44,18 @@ describe("story continuity intelligence", () => {
     expect(out.findings.length).toBeGreaterThan(0);
   });
 
+  it("does not average a blocking character finding back to PASS", () => {
+    const out = evaluateContinuity({
+      shotIndex: 0,
+      shotStill: "Asha waits at the village gate",
+      shotNarration: "Asha watches the road.",
+      characterBible: { Asha: "silver-haired pilot wearing a green coat" },
+    });
+    expect(out.score).toBe(82);
+    expect(out.findings.some((finding) => finding.status === "REGENERATE")).toBe(true);
+    expect(out.status).toBe("REGENERATE");
+  });
+
   it("tracks production state only from accepted shots", () => {
     const initial = createProductionState({
       setting: "Monsoon harbor at dusk",
@@ -68,6 +80,13 @@ describe("visual and cinematic scoring", () => {
     expect(["WARN", "REGENERATE", "FAIL"]).toContain(visual.status);
   });
 
+  it("does not average a blocking visual finding back to PASS", () => {
+    const visual = evaluateVisualQuality({ stillLuma: 10 });
+    expect(visual.score).toBe(80);
+    expect(visual.findings.some((finding) => finding.status === "REGENERATE")).toBe(true);
+    expect(visual.status).toBe("REGENERATE");
+  });
+
   it("keeps cinematic score separate from technical", () => {
     const cinematic = evaluateCinematicQuality({
       technicalScore: 92,
@@ -78,6 +97,26 @@ describe("visual and cinematic scoring", () => {
     });
     expect(cinematic.score).toBeLessThan(92);
     expect(cinematic.findings.length).toBeGreaterThan(0);
+  });
+
+  it("regenerates when cinematic QC is the only blocking domain", () => {
+    const cinematic = evaluateCinematicQuality({
+      technicalScore: 100,
+      continuityScore: 80,
+      hasSubjectCue: false,
+      hasMotionCue: false,
+      framing: { figureHeight: 0.9, pan: 1, travel: 0 },
+    });
+    expect(cinematic.score).toBe(59);
+    expect(cinematic.status).toBe("REGENERATE");
+    expect(
+      candidateNeedsRegeneration({
+        qcPassed: true,
+        continuityStatus: "PASS",
+        visualStatus: "PASS",
+        cinematicStatus: cinematic.status,
+      }),
+    ).toBe(true);
   });
 });
 
@@ -97,9 +136,9 @@ describe("regeneration + selector", () => {
           status: "REGENERATE",
         },
       ],
-      cinematicStatus: "WARN",
+      cinematicStatus: "FAIL",
     });
-    expect(out.focus).toEqual(expect.arrayContaining(["audio", "clip", "continuity"]));
+    expect(out.focus).toEqual(expect.arrayContaining(["audio", "clip", "continuity", "camera"]));
   });
 
   it("chooses the best valid candidate", () => {
@@ -131,6 +170,7 @@ describe("regeneration + selector", () => {
         qcPassed: true,
         continuityStatus: "REGENERATE",
         visualStatus: "PASS",
+        cinematicStatus: "PASS",
       }),
     ).toBe(true);
     expect(
@@ -138,6 +178,7 @@ describe("regeneration + selector", () => {
         qcPassed: true,
         continuityStatus: "PASS",
         visualStatus: "FAIL",
+        cinematicStatus: "PASS",
       }),
     ).toBe(true);
     expect(
@@ -145,6 +186,15 @@ describe("regeneration + selector", () => {
         qcPassed: true,
         continuityStatus: "PASS",
         visualStatus: "PASS",
+        cinematicStatus: "REGENERATE",
+      }),
+    ).toBe(true);
+    expect(
+      candidateNeedsRegeneration({
+        qcPassed: true,
+        continuityStatus: "PASS",
+        visualStatus: "PASS",
+        cinematicStatus: "PASS",
       }),
     ).toBe(false);
   });
@@ -161,6 +211,7 @@ describe("regeneration + selector", () => {
         qcPassed: true,
         continuityStatus: "REGENERATE",
         visualStatus: "PASS",
+        cinematicStatus: "PASS",
       },
       {
         technicalScore: 90,
@@ -172,10 +223,41 @@ describe("regeneration + selector", () => {
         qcPassed: true,
         continuityStatus: "PASS",
         visualStatus: "PASS",
+        cinematicStatus: "PASS",
       },
     ]);
     expect(winner).not.toBeNull();
     expect(winner?.continuityStatus).toBe("PASS");
+  });
+
+  it("rejects a higher-ranked candidate with blocking cinematic QC", () => {
+    const { winner } = chooseAcceptedCandidate([
+      {
+        technicalScore: 99,
+        continuityScore: 96,
+        cinematicScore: 92,
+        storyRelevance: 95,
+        audioCompatibility: 100,
+        generationConfidence: 95,
+        qcPassed: true,
+        continuityStatus: "PASS",
+        visualStatus: "PASS",
+        cinematicStatus: "REGENERATE",
+      },
+      {
+        technicalScore: 90,
+        continuityScore: 82,
+        cinematicScore: 81,
+        storyRelevance: 84,
+        audioCompatibility: 100,
+        generationConfidence: 88,
+        qcPassed: true,
+        continuityStatus: "PASS",
+        visualStatus: "PASS",
+        cinematicStatus: "PASS",
+      },
+    ]);
+    expect(winner?.cinematicStatus).toBe("PASS");
   });
 });
 
