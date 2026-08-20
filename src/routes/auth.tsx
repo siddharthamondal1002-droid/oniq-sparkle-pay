@@ -964,11 +964,19 @@ function Field({
   value: string;
   onChange: (v: string) => void;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
+  // A placeholder is not an accessible name. Fall back to the placeholder text
+  // for `aria-label` when the caller didn't pass one, so every Field-based
+  // input (email, password, …) is announced to screen readers instead of being
+  // a nameless "edit text". An explicit aria-label from the caller still wins.
+  const ariaLabel =
+    (rest["aria-label"] as string | undefined) ??
+    (typeof rest.placeholder === "string" ? rest.placeholder : undefined);
   return (
     <div className="relative">
       <Icon className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <input
         {...rest}
+        aria-label={ariaLabel}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-2xl border border-border bg-input/40 py-3 pl-10 pr-3 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"

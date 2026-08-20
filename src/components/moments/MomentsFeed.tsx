@@ -837,6 +837,7 @@ function EditPostSheet({
           <h3 className="font-display text-base font-semibold">edit post ✏️</h3>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="grid h-8 w-8 place-items-center rounded-full bg-muted"
           >
             <X className="h-4 w-4" />
@@ -976,6 +977,7 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
           <h3 className="font-display text-base font-semibold">Comments</h3>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="grid h-8 w-8 place-items-center rounded-full bg-muted"
           >
             <X className="h-4 w-4" />
@@ -1015,6 +1017,7 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
         <div className="mt-3 flex items-center gap-2 border-t border-border pt-3">
           <input
             value={text}
+            aria-label="Add a comment"
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") send();
@@ -1024,6 +1027,7 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
           />
           <button
             onClick={send}
+            aria-label="Post comment"
             disabled={sending || !text.trim()}
             className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
           >

@@ -3686,6 +3686,7 @@ function ChatThread() {
                   )}
                   <input
                     data-testid="chat-input"
+                    aria-label="Message"
                     ref={inputRef}
                     value={text}
                     onChange={(e) => handleTextChange(e.target.value)}

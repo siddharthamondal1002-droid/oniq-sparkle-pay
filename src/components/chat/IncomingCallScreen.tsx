@@ -291,6 +291,7 @@ function SheetShell({
           <h3 className="text-base font-semibold text-white">{title}</h3>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="grid h-8 w-8 place-items-center rounded-full bg-white/5 text-white/70 hover:bg-white/10"
           >
             <X className="h-4 w-4" />

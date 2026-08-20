@@ -476,6 +476,7 @@ function TingScreen() {
             </button>
             <input
               data-testid="ting-input"
+              aria-label="Message Ting"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={listening ? "listening… tap 🎤 to stop" : "Message Ting…"}
@@ -486,6 +487,7 @@ function TingScreen() {
             <button
               data-testid="ting-send"
               type="submit"
+              aria-label="Send message"
               disabled={!canSend}
               className="grid h-9 w-9 place-items-center rounded-full bg-accent text-accent-foreground disabled:opacity-50"
             >
