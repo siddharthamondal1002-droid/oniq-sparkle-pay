@@ -131,8 +131,8 @@ Deno.serve(async (req) => {
       });
 
       if (res.status === 401 || res.status === 403) {
-        const t = await res.text().catch(() => "");
-        console.error("anthropic auth error", res.status, t);
+        const errorText = await res.text().catch(() => "");
+        console.error("anthropic auth error", res.status, errorText);
         return json({ error: "Ting's Claude key was rejected — check ANTHROPIC_API_KEY" }, 502);
       }
       if (res.ok) {
