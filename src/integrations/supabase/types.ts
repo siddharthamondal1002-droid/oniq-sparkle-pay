@@ -4156,6 +4156,7 @@ export type Database = {
           paid_seconds_charged: number
           plate_path: string | null
           prompt: string
+          qc_report: Json | null
           reaped_count: number
           refunded_at: string | null
           render_target: string | null
@@ -4180,6 +4181,7 @@ export type Database = {
           paid_seconds_charged?: number
           plate_path?: string | null
           prompt: string
+          qc_report?: Json | null
           reaped_count?: number
           refunded_at?: string | null
           render_target?: string | null
@@ -4204,6 +4206,7 @@ export type Database = {
           paid_seconds_charged?: number
           plate_path?: string | null
           prompt?: string
+          qc_report?: Json | null
           reaped_count?: number
           refunded_at?: string | null
           render_target?: string | null

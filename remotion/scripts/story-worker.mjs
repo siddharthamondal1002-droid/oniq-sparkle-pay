@@ -84,6 +84,15 @@ import {
 } from '../../src/lib/puppetPerformance.ts';
 import { planStory } from '../../src/lib/storyPlan.ts';
 import { composeVideoPrompt } from '../../supabase/functions/_shared/movieGrammar.ts';
+import {
+  classifyRegenerationNeeds,
+  createProductionState,
+  evaluateCinematicQuality,
+  evaluateContinuity,
+  evaluateVisualQuality,
+  selectBestCandidate,
+  updateProductionStateWithAcceptedShot,
+} from '../../src/lib/storyQcIntelligence.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -861,13 +870,15 @@ async function fetchPlate(objectName) {
 
 const CLIP_POLL_MS = 10_000;
 const CLIP_WAIT_MS = 6 * 60_000;
-async function generateClip(shot, stillFile, shotSeconds) {
-  const prompt = composeVideoPrompt(shot).slice(0, 1900);
+async function generateClip(shot, stillFile, shotSeconds, regen = {}) {
+  const basePrompt = composeVideoPrompt(shot);
+  const prompt = `${basePrompt} ${String(regen?.clipPromptTail ?? '').trim()}`.trim().slice(0, 1900);
   const imageBase64 = fs.readFileSync(stillFile).toString('base64');
   // Veo's menu is 4, 6 or 8 seconds — no 10, no extend. Ask for the longest
   // that the narration can use; the composition freezes the last frame under
   // whatever narration outlasts it.
-  const ask = shotSeconds >= 6.5 ? 8 : shotSeconds >= 4.5 ? 6 : 4;
+  const requestedSeconds = Number(regen?.clipSeconds ?? shotSeconds);
+  const ask = requestedSeconds >= 6.5 ? 8 : requestedSeconds >= 4.5 ? 6 : 4;
   for (let attempt = 1; ; attempt++) {
     try {
       const started = await edge('story-clip', {
@@ -1222,13 +1233,35 @@ if (offline) {
     const qcReport = {
       version: 1,
       stage: 'pre-assembly-shot-validator',
+      technical: { status: 'PASS', score: 100 },
+      visual: { status: 'PASS', score: 100 },
+      continuity: {
+        status: 'PASS',
+        score: 100,
+        character: [],
+        location: [],
+        props: [],
+        wardrobe: [],
+        lighting: [],
+        temporal: [],
+        camera: [],
+      },
+      audio: { status: 'PASS', score: 100 },
+      score: { technical: 100, continuity: 100, cinematic: 100, overall: 100 },
+      failures: [],
+      warnings: [],
+      recommendation: 'PASS',
       shots: [],
     };
+    let productionState = createProductionState(plan);
+    const shotMap = { scenes: [{ id: 'Scene 01', shots: [] }] };
     // Rung 11: the shots' emotional registers, collected for the film-level
     // score vote. Classic films push nulls and vote for silence.
     const shotEmotions = [];
     let movingShots = 0;
     for (const [i, shot] of plan.shots.entries()) {
+      const attemptCandidates = [];
+      let regenPlan = { constraints: [], focus: [], cause: 'initial' };
       for (let qcAttempt = 1; qcAttempt <= 2; qcAttempt++) {
       // One call per shot, sequentially. Not a fan-out: the rate limit is per
       // call and a loop that ignores it is how a month of credits goes in an
@@ -1256,14 +1289,18 @@ if (offline) {
       // is repeated in every other shot anyway — a marginally vaguer frame
       // beats a dead film, the same trade as the refusal rungs below.
         const locks = (plan.cast ?? []).map((c) => `${c.name}: ${c.lock}`).join('\n');
+        const continuityTail =
+          qcAttempt > 1 && regenPlan.constraints.length > 0
+            ? `\n\nContinuity constraints: ${regenPlan.constraints.join(' ')}`
+            : '';
       const asks = [
-        `${shot.still}\n\nSetting: ${plan.setting}`.slice(0, 1900),
+        `${shot.still}\n\nSetting: ${plan.setting}${continuityTail}`.slice(0, 1900),
         (
           `Gentle, family-friendly animated storybook illustration. ` +
-          `${shot.narration}\n\nCharacters:\n${locks}\n\nSetting: ${plan.setting}`
+          `${shot.narration}\n\nCharacters:\n${locks}\n\nSetting: ${plan.setting}${continuityTail}`
         ).slice(0, 1900),
         `A gentle watercolor storybook illustration of a place with no people in it: ` +
-          `${plan.setting}. Soft warm light, wide view.`.slice(0, 1900),
+          `${plan.setting}. Soft warm light, wide view.${continuityTail}`.slice(0, 1900),
       ];
       let still;
       // THE USER'S OWN OPENING FRAME, when they gave one.
@@ -1471,7 +1508,12 @@ if (offline) {
       let clipFile = null;
       if (movie) {
         try {
-          const got = await generateClip(shot, stillFile, seconds);
+          const got = await generateClip(shot, stillFile, seconds, {
+            clipPromptTail:
+              qcAttempt > 1 && regenPlan.constraints.length > 0
+                ? `Keep continuity with previous accepted shot. ${regenPlan.constraints.join(' ')}`
+                : '',
+          });
           clipFile = path.join(assetRoot, `${stem}.clip.mp4`);
           fs.writeFileSync(clipFile, Buffer.from(got.data, 'base64'));
           const clipSeconds = secondsOf(clipFile);
@@ -1742,31 +1784,252 @@ if (offline) {
         clipFile,
         expectedSeconds: seconds,
       });
-      qcReport.shots.push(qc);
+      const continuity = evaluateContinuity({
+        shotIndex: i,
+        shotStill: shot.still,
+        shotNarration: shot.narration,
+        shotMotion: shot.motion ?? null,
+        previousAcceptedShot:
+          productionState.shotState.length > 0
+            ? {
+                id: productionState.shotState[productionState.shotState.length - 1].shotId,
+                still: productionState.shotState[productionState.shotState.length - 1].still,
+                narration: productionState.shotState[productionState.shotState.length - 1].narration,
+              }
+            : null,
+        nextPlannedShot: plan.shots[i + 1] ?? null,
+        characterBible: productionState.characterBible,
+      });
+      const visual = evaluateVisualQuality({
+        stillLuma: qc.metrics?.still?.luma,
+        clipLuma: qc.metrics?.clip?.luma,
+        clipFps: qc.metrics?.clip?.fps,
+      });
+      const cinematicScore = evaluateCinematicQuality({
+        technicalScore: qc.score,
+        continuityScore: continuity.score,
+        hasSubjectCue: Boolean(shotRigs[i]),
+        hasMotionCue: Boolean(shot.motion || clip),
+        framing: { figureHeight: framing.figureHeight, travel: framing.travel, pan: framing.pan },
+      });
+      const storyRelevance = Math.min(
+        100,
+        Math.max(0, Math.round((continuity.score + (shot.motion ? 100 : 72)) / 2)),
+      );
+      const audioCompatibility = qc.checks
+        .filter((c) => c.name.startsWith('audio.'))
+        .every((c) => c.pass)
+        ? 100
+        : 45;
+      const generationConfidence = Math.max(35, 100 - (qcAttempt - 1) * 15 - regenPlan.constraints.length * 3);
+      const candidateEval = {
+        attempt: qcAttempt,
+        candidateShot,
+        technicalScore: qc.score,
+        continuityScore: continuity.score,
+        cinematicScore: cinematicScore.score,
+        storyRelevance,
+        audioCompatibility,
+        generationConfidence,
+        qc,
+        continuity,
+        visual,
+        cinematic: cinematicScore,
+      };
+      attemptCandidates.push(candidateEval);
+      const qcEntry = {
+        ...qc,
+        continuity: {
+          status: continuity.status,
+          score: continuity.score,
+          findings: continuity.findings,
+        },
+        visual: {
+          status: visual.status,
+          score: visual.score,
+          findings: visual.findings,
+        },
+        cinematic: {
+          status: cinematicScore.status,
+          score: cinematicScore.score,
+          findings: cinematicScore.findings,
+        },
+        recommendation:
+          qc.passed && continuity.status === 'PASS' ? 'PASS' : continuity.status === 'REGENERATE' ? 'REGENERATE' : 'WARN',
+      };
+      qcReport.shots.push(qcEntry);
       await saveQcReport(job, qcReport).catch((err) => {
         console.log(`  qc report ${i + 1}: save failed (${String(err?.message ?? err).slice(0, 120)})`);
       });
-      if (!qc.passed) {
+      const failedCheckNames = qc.checks.filter((c) => !c.pass).map((c) => c.name);
+      const shouldRegenerate =
+        !qc.passed ||
+        continuity.status === 'FAIL' ||
+        continuity.status === 'REGENERATE' ||
+        visual.status === 'FAIL' ||
+        visual.status === 'REGENERATE';
+      if (shouldRegenerate) {
         console.log(
           `  qc ${i + 1} attempt ${qcAttempt}: ${qc.score}% ` +
-            `(${qc.checks.filter((c) => !c.pass).map((c) => c.name).join(', ') || 'failed'})`,
+            `(${failedCheckNames.join(', ') || continuity.status || 'failed'})`,
         );
         if (qcAttempt >= 2) {
+          const ranked = selectBestCandidate(attemptCandidates);
+          const fallback = ranked.winner;
+          if (fallback && fallback.qc.passed) {
+            if (movedSlide) movingShots += 1;
+            shotEmotions.push(expression);
+            rendered.push(fallback.candidateShot);
+            productionState = updateProductionStateWithAcceptedShot(productionState, {
+              shotId: i + 1,
+              still: shot.still,
+              narration: shot.narration,
+              cast: plan.cast ?? [],
+            });
+            shotMap.scenes[0].shots.push({
+              shotId: `Shot ${String(i + 1).padStart(2, '0')}`,
+              duration: seconds,
+              acceptedCandidate: fallback.attempt,
+              qcScore: fallback.technicalScore,
+              continuityScore: fallback.continuityScore,
+              cinematicScore: fallback.cinematicScore,
+              dialogue: shot.dialogue ?? null,
+              musicCue: null,
+              sfx: ambience?.kind ?? null,
+              transitionIntent: shot.motion ?? null,
+            });
+            console.log(`  qc ${i + 1}: accepted candidate ${fallback.attempt} after comparison`);
+            break;
+          }
           throw new Error(
             `shot ${i + 1} failed qc after ${qcAttempt} attempts: ` +
-              `${qc.checks.filter((c) => !c.pass).map((c) => c.name).join(', ') || 'unknown'}`,
+              `${failedCheckNames.join(', ') || 'unknown'}`,
           );
         }
+        regenPlan = classifyRegenerationNeeds({
+          failedCheckNames,
+          continuityStatus: continuity.status,
+          continuityFindings: continuity.findings,
+          cinematicStatus: cinematicScore.status,
+        });
         continue;
       }
+      const ranked = selectBestCandidate(attemptCandidates);
+      const winner = ranked.winner ?? candidateEval;
       if (movedSlide) movingShots += 1;
       shotEmotions.push(expression);
-      rendered.push(candidateShot);
+      rendered.push(winner.candidateShot);
+      productionState = updateProductionStateWithAcceptedShot(productionState, {
+        shotId: i + 1,
+        still: shot.still,
+        narration: shot.narration,
+        cast: plan.cast ?? [],
+      });
+      shotMap.scenes[0].shots.push({
+        shotId: `Shot ${String(i + 1).padStart(2, '0')}`,
+        duration: seconds,
+        acceptedCandidate: winner.attempt,
+        qcScore: winner.technicalScore,
+        continuityScore: winner.continuityScore,
+        cinematicScore: winner.cinematicScore,
+        dialogue: shot.dialogue ?? null,
+        musicCue: null,
+        sfx: ambience?.kind ?? null,
+        transitionIntent: shot.motion ?? null,
+      });
       console.log(`  voice ${i + 1}/${plan.shots.length} — ${seconds.toFixed(2)}s, ${spans.length} spans`);
-      console.log(`  qc ${i + 1}: pass ${qc.score}%`);
+      console.log(
+        `  qc ${i + 1}: pass t=${winner.technicalScore}% c=${winner.continuityScore}% cine=${winner.cinematicScore}%`,
+      );
       break;
       }
     }
+
+    const latestShots = qcReport.shots;
+    const avg = (arr) =>
+      arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+    const technicalScores = latestShots.map((s) => Number(s.score ?? 0));
+    const continuityScores = latestShots.map((s) => Number(s.continuity?.score ?? 0));
+    const cinematicScores = latestShots.map((s) => Number(s.cinematic?.score ?? 0));
+    const technicalAvg = avg(technicalScores);
+    const continuityAvg = avg(continuityScores);
+    const cinematicAvg = avg(cinematicScores);
+    const overall = Math.round(technicalAvg * 0.5 + continuityAvg * 0.3 + cinematicAvg * 0.2);
+    qcReport.technical = {
+      status: technicalAvg >= 80 ? 'PASS' : technicalAvg >= 60 ? 'WARN' : 'FAIL',
+      score: technicalAvg,
+    };
+    qcReport.visual = {
+      status: latestShots.some((s) => s.visual?.status === 'REGENERATE') ? 'WARN' : 'PASS',
+      score: avg(latestShots.map((s) => Number(s.visual?.score ?? 0))),
+    };
+    qcReport.audio = {
+      status: latestShots.some((s) => s.checks?.some((c) => c.name?.startsWith('audio.') && !c.pass))
+        ? 'WARN'
+        : 'PASS',
+      score: avg(
+        latestShots.map((s) => {
+          const checks = Array.isArray(s.checks) ? s.checks : [];
+          const audioChecks = checks.filter((c) => c.name?.startsWith('audio.'));
+          if (audioChecks.length === 0) return 100;
+          const pass = audioChecks.filter((c) => c.pass).length;
+          return Math.round((pass / audioChecks.length) * 100);
+        }),
+      ),
+    };
+    qcReport.continuity = {
+      ...qcReport.continuity,
+      status: continuityAvg >= 80 ? 'PASS' : continuityAvg >= 60 ? 'WARN' : 'REGENERATE',
+      score: continuityAvg,
+    };
+    qcReport.score = {
+      technical: technicalAvg,
+      continuity: continuityAvg,
+      cinematic: cinematicAvg,
+      overall,
+    };
+    qcReport.failures = latestShots
+      .flatMap((s) => (Array.isArray(s.continuity?.findings) ? s.continuity.findings : []))
+      .filter((f) => f.status === 'FAIL' || f.status === 'REGENERATE');
+    qcReport.warnings = latestShots
+      .flatMap((s) => [
+        ...(Array.isArray(s.continuity?.findings) ? s.continuity.findings : []),
+        ...(Array.isArray(s.cinematic?.findings) ? s.cinematic.findings : []),
+      ])
+      .filter((f) => f.status === 'WARN');
+    qcReport.recommendation =
+      overall >= 80 ? 'PASS' : overall >= 65 ? 'WARN' : qcReport.failures.length > 0 ? 'REGENERATE' : 'FAIL';
+    qcReport.shotMap = shotMap;
+    qcReport.editorialProject = {
+      project: {
+        sequences: [
+          {
+            id: 'Sequence 01',
+            scenes: shotMap.scenes.map((scene) => ({
+              id: scene.id,
+              shots: scene.shots,
+              audio: scene.shots.map((s) => ({
+                shotId: s.shotId,
+                dialogue: s.dialogue ?? null,
+                musicCue: s.musicCue ?? null,
+                sfx: s.sfx ?? null,
+              })),
+            })),
+            transitions: shotMap.scenes.flatMap((scene) =>
+              scene.shots.map((s, idx) => ({
+                from: s.shotId,
+                to: scene.shots[idx + 1]?.shotId ?? null,
+                intent: s.transitionIntent ?? null,
+              })),
+            ),
+          },
+        ],
+      },
+    };
+    qcReport.updatedAt = new Date().toISOString();
+    await saveQcReport(job, qcReport).catch((err) => {
+      console.log(`  qc final report: save failed (${String(err?.message ?? err).slice(0, 120)})`);
+    });
 
     // RUNG 11 — the score, movie grade only. The film's shots vote on a
     // register (rung 5's emotions; surprise ballots discarded, silence

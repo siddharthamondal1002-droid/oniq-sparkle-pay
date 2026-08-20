@@ -15,6 +15,7 @@
 // refunded_at — none of which are the runner's business. The database trigger
 // still rejects an illegal move on top of this.
 import { verifyJobToken } from "../_shared/jobToken.ts";
+import { sanitizeQcReport } from "../_shared/storyQcReport.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -164,11 +165,21 @@ Deno.serve(async (req) => {
         patch.error = String(body?.error ?? "render failed").slice(0, 500);
         break;
       case "qc-report":
-        patch.qc_report = body?.report ?? null;
+        if (body?.report === null) {
+          patch.qc_report = null;
+          break;
+        }
+        {
+          const sanitized = sanitizeQcReport(body?.report);
+          if (!sanitized.ok) return json({ error: sanitized.error }, 400);
+          patch.qc_report = sanitized.report;
+        }
         break;
     }
 
-    const res = await fetch(`${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}`, {
+    const statusScope =
+      action === "qc-report" ? "&status=in.(generating,assembling)" : "";
+    const res = await fetch(`${supabaseUrl}/rest/v1/story_jobs?id=eq.${jobId}${statusScope}`, {
       method: "PATCH",
       headers: {
         apikey: serviceKey,
