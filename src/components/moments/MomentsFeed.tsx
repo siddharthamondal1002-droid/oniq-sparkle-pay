@@ -331,7 +331,12 @@ export function MomentsFeed() {
     if (!content.trim() && !imageUrl.trim()) return;
     setPosting(true);
     const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
+    if (!u.user) {
+      // Session lapsed mid-compose — clear the spinner so the composer isn't
+      // stuck disabled with no feedback.
+      setPosting(false);
+      return;
+    }
     const media = imageUrl.trim() ? [imageUrl.trim()] : [];
     const { error } = await supabase.from("moments_posts").insert({
       user_id: u.user.id,
@@ -941,7 +946,11 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
     if (!text.trim()) return;
     setSending(true);
     const { data: u } = await supabase.auth.getUser();
-    if (!u.user) return;
+    if (!u.user) {
+      // Session lapsed — clear the spinner so the send button isn't stuck.
+      setSending(false);
+      return;
+    }
     const { error } = await supabase.from("moments_comments").insert({
       post_id: postId,
       user_id: u.user.id,
@@ -949,7 +958,8 @@ function CommentsSheet({ postId, onClose }: { postId: string; onClose: () => voi
     });
     if (error) toast.error(error.message);
     else {
-      (await supabase.rpc) as any;
+      // moments_posts.comment_count is maintained by the bump_comment_count
+      // AFTER INSERT trigger on moments_comments — nothing to call from here.
       setText("");
       refetch();
     }
