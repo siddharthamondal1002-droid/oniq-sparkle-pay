@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { ensureNotificationPermission, playRingback, stopAllCallSounds } from "@/lib/callSounds";
+import { sanitizeLikeQuery } from "@/lib/searchFilter";
 import { sendPush } from "@/lib/push";
 import { AttachmentSheet, useAttachmentContext } from "@/components/attach/AttachmentSheet";
 import { reportClientError } from "@/lib/errorReport";
@@ -3384,7 +3385,9 @@ function AddPeopleSheet({
       void supabase
         .from("profiles")
         .select("id, username, display_name, avatar_url")
-        .or(`username.ilike.%${term}%,display_name.ilike.%${term}%`)
+        .or(
+          `username.ilike.%${sanitizeLikeQuery(term)}%,display_name.ilike.%${sanitizeLikeQuery(term)}%`,
+        )
         .limit(10)
         .then(({ data }) => {
           if (cancelled) return;

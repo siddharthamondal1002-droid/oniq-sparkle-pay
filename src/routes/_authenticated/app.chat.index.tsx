@@ -23,6 +23,7 @@ import { format, isToday, isYesterday, differenceInDays } from "date-fns";
 import { useOnlineUsers } from "@/hooks/usePresence";
 import { ProfilePhotoPopup, type ProfilePhotoTarget } from "@/components/chat/ProfilePhotoPopup";
 import { getNativeContacts, isNativeContactsAvailable, normalizePhone } from "@/lib/nativeContacts";
+import { sanitizeLikeQuery } from "@/lib/searchFilter";
 import { prettyFail } from "@/lib/errorReport";
 import { doodleByKey } from "@/data/doodleLibrary";
 
@@ -852,11 +853,12 @@ function NewChatSheet({ meId, onClose }: { meId: string; onClose: () => void }) 
     queryKey: ["user-search", debounced, meId],
     enabled: debounced.length >= 1,
     queryFn: async () => {
+      const q = sanitizeLikeQuery(debounced);
       const { data } = await supabase
         .from("profiles")
         .select("id, username, display_name, avatar_url")
         .neq("id", meId)
-        .or(`username.ilike.%${debounced}%,display_name.ilike.%${debounced}%`)
+        .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
         .limit(20);
       return (data ?? []) as PickedUser[];
     },
@@ -1317,11 +1319,12 @@ function FriendRequestsSheet({ meId, onClose }: { meId: string; onClose: () => v
     queryKey: ["moot-search", searchDebounced, meId],
     enabled: searchDebounced.length >= 1,
     queryFn: async () => {
+      const q = sanitizeLikeQuery(searchDebounced);
       const { data } = await supabase
         .from("profiles")
         .select("id, username, display_name, avatar_url")
         .neq("id", meId)
-        .or(`username.ilike.%${searchDebounced}%,display_name.ilike.%${searchDebounced}%`)
+        .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
         .limit(15);
       return (data ?? []) as Array<{
         id: string;

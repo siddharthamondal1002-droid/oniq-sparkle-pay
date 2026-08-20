@@ -1,4 +1,5 @@
 import { homeFormat } from "@/lib/format";
+import { sanitizeLikeQuery } from "@/lib/searchFilter";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -4028,10 +4029,11 @@ function GroupMembersSheet({
     queryKey: ["add-members-search", debounced, conversationId],
     enabled: showAdd && debounced.length >= 1,
     queryFn: async () => {
+      const q = sanitizeLikeQuery(debounced);
       const { data } = await supabase
         .from("profiles")
         .select("id, username, display_name, avatar_url")
-        .or(`username.ilike.%${debounced}%,display_name.ilike.%${debounced}%`)
+        .or(`username.ilike.%${q}%,display_name.ilike.%${q}%`)
         .limit(15);
       return (data ?? []).filter((u) => !existingIds.has(u.id));
     },
