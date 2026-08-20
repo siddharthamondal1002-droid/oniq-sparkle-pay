@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  candidateNeedsRegeneration,
+  chooseAcceptedCandidate,
   classifyRegenerationNeeds,
   createProductionState,
   evaluateCinematicQuality,
@@ -121,6 +123,59 @@ describe("regeneration + selector", () => {
     ]);
     expect(winner).not.toBeNull();
     expect(ranked[0].composite).toBeGreaterThanOrEqual(ranked[1].composite);
+  });
+
+  it("requires regeneration when continuity or visual status fails even if technical QC passed", () => {
+    expect(
+      candidateNeedsRegeneration({
+        qcPassed: true,
+        continuityStatus: "REGENERATE",
+        visualStatus: "PASS",
+      }),
+    ).toBe(true);
+    expect(
+      candidateNeedsRegeneration({
+        qcPassed: true,
+        continuityStatus: "PASS",
+        visualStatus: "FAIL",
+      }),
+    ).toBe(true);
+    expect(
+      candidateNeedsRegeneration({
+        qcPassed: true,
+        continuityStatus: "PASS",
+        visualStatus: "PASS",
+      }),
+    ).toBe(false);
+  });
+
+  it("prefers the highest-ranked acceptable candidate over a higher-ranked rejected one", () => {
+    const { winner } = chooseAcceptedCandidate([
+      {
+        technicalScore: 99,
+        continuityScore: 96,
+        cinematicScore: 92,
+        storyRelevance: 95,
+        audioCompatibility: 100,
+        generationConfidence: 95,
+        qcPassed: true,
+        continuityStatus: "REGENERATE",
+        visualStatus: "PASS",
+      },
+      {
+        technicalScore: 90,
+        continuityScore: 82,
+        cinematicScore: 81,
+        storyRelevance: 84,
+        audioCompatibility: 100,
+        generationConfidence: 88,
+        qcPassed: true,
+        continuityStatus: "PASS",
+        visualStatus: "PASS",
+      },
+    ]);
+    expect(winner).not.toBeNull();
+    expect(winner?.continuityStatus).toBe("PASS");
   });
 });
 

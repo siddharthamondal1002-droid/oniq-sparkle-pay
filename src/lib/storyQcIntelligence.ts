@@ -60,6 +60,20 @@ function statusFor(score: number): QcStatus {
   return "FAIL";
 }
 
+export function candidateNeedsRegeneration(input: {
+  qcPassed: boolean;
+  continuityStatus: QcStatus;
+  visualStatus: QcStatus;
+}): boolean {
+  return (
+    !input.qcPassed ||
+    input.continuityStatus === "FAIL" ||
+    input.continuityStatus === "REGENERATE" ||
+    input.visualStatus === "FAIL" ||
+    input.visualStatus === "REGENERATE"
+  );
+}
+
 export function createProductionState(plan: {
   setting?: string;
   cast?: Array<{ name?: string; lock?: string }>;
@@ -414,6 +428,32 @@ export function selectBestCandidate<T extends {
     }))
     .sort((a, b) => b.composite - a.composite);
   return { winner: ranked[0] ?? null, ranked };
+}
+
+export function chooseAcceptedCandidate<
+  T extends {
+    technicalScore: number;
+    continuityScore: number;
+    cinematicScore: number;
+    storyRelevance: number;
+    audioCompatibility: number;
+    generationConfidence: number;
+    qcPassed: boolean;
+    continuityStatus: QcStatus;
+    visualStatus: QcStatus;
+  },
+>(candidates: T[]): { winner: (T & { composite: number }) | null; ranked: Array<T & { composite: number }> } {
+  const { ranked } = selectBestCandidate(candidates);
+  const winner =
+    ranked.find(
+      (candidate) =>
+        !candidateNeedsRegeneration({
+          qcPassed: candidate.qcPassed,
+          continuityStatus: candidate.continuityStatus,
+          visualStatus: candidate.visualStatus,
+        }),
+    ) ?? null;
+  return { winner, ranked };
 }
 
 export function updateProductionStateWithAcceptedShot(

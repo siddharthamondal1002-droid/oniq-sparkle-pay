@@ -86,12 +86,13 @@ import {
 import { planStory } from '../../src/lib/storyPlan.ts';
 import { composeVideoPrompt } from '../../supabase/functions/_shared/movieGrammar.ts';
 import {
+  candidateNeedsRegeneration,
+  chooseAcceptedCandidate,
   classifyRegenerationNeeds,
   createProductionState,
   evaluateCinematicQuality,
   evaluateContinuity,
   evaluateVisualQuality,
-  selectBestCandidate,
   updateProductionStateWithAcceptedShot,
 } from '../../src/lib/storyQcIntelligence.ts';
 
@@ -1841,6 +1842,9 @@ if (offline) {
         cinematic: cinematicScore,
         visualEvidence: cvEvidence.visualEvidence,
         observedShot: cvEvidence.observedShot,
+        qcPassed: qc.passed,
+        continuityStatus: continuity.status,
+        visualStatus: visual.status,
       };
       attemptCandidates.push(candidateEval);
       const qcEntry = {
@@ -1870,21 +1874,20 @@ if (offline) {
         console.log(`  qc report ${i + 1}: save failed (${String(err?.message ?? err).slice(0, 120)})`);
       });
       const failedCheckNames = qc.checks.filter((c) => !c.pass).map((c) => c.name);
-      const shouldRegenerate =
-        !qc.passed ||
-        continuity.status === 'FAIL' ||
-        continuity.status === 'REGENERATE' ||
-        visual.status === 'FAIL' ||
-        visual.status === 'REGENERATE';
+      const shouldRegenerate = candidateNeedsRegeneration({
+        qcPassed: qc.passed,
+        continuityStatus: continuity.status,
+        visualStatus: visual.status,
+      });
       if (shouldRegenerate) {
         console.log(
           `  qc ${i + 1} attempt ${qcAttempt}: ${qc.score}% ` +
             `(${failedCheckNames.join(', ') || continuity.status || 'failed'})`,
         );
         if (qcAttempt >= 2) {
-          const ranked = selectBestCandidate(attemptCandidates);
+          const ranked = chooseAcceptedCandidate(attemptCandidates);
           const fallback = ranked.winner;
-          if (fallback && fallback.qc.passed) {
+          if (fallback) {
             if (movedSlide) movingShots += 1;
             shotEmotions.push(expression);
             rendered.push(fallback.candidateShot);
@@ -1924,7 +1927,7 @@ if (offline) {
         });
         continue;
       }
-      const ranked = selectBestCandidate(attemptCandidates);
+      const ranked = chooseAcceptedCandidate(attemptCandidates);
       const winner = ranked.winner ?? candidateEval;
       if (movedSlide) movingShots += 1;
       shotEmotions.push(expression);
