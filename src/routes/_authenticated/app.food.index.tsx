@@ -18,7 +18,13 @@ function FoodScreen() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("restaurants")
-        .select("*")
+        // Project only the columns the card renders. The old select-star also
+        // pulled the unbounded description and address text (plus review_count /
+        // created_at) that this list never shows — dead payload on every food
+        // page load. is_open and rating stay usable in the filter/order without
+        // being selected. (The full row is fetched on the restaurant detail
+        // route, app.food.$id.)
+        .select("id, name, cuisine_type, image_url, rating, delivery_time_mins, delivery_fee")
         .eq("is_open", true)
         .order("rating", { ascending: false });
       // Throw so a failed read shows a retry, not an empty restaurant list.
