@@ -14,27 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      _story_free_check: {
-        Row: {
-          at: string | null
-          id: number
-          note: string | null
-          payload: Json | null
-        }
-        Insert: {
-          at?: string | null
-          id?: number
-          note?: string | null
-          payload?: Json | null
-        }
-        Update: {
-          at?: string | null
-          id?: number
-          note?: string | null
-          payload?: Json | null
-        }
-        Relationships: []
-      }
       admin_actions: {
         Row: {
           action: string
