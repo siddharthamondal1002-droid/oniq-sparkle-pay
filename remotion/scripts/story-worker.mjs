@@ -466,25 +466,26 @@ async function markFailed(job, message) {
     return;
   }
 
-  async function saveQcReport(job, report) {
-    if (fixtureEdge) {
-      console.log(`  [dry] qc-report ${Array.isArray(report?.shots) ? report.shots.length : 0} entries`);
-      return;
-    }
-    if (dispatched) {
-      await callback('qc-report', { report });
-      return;
-    }
-    await db(`story_jobs?id=eq.${job.id}`, {
-      method: 'PATCH',
-      headers: { Prefer: 'return=minimal' },
-      body: JSON.stringify({ qc_report: report }),
-    });
-  }
   await setStatus(job.id, 'failed', { error }).catch(() => {});
   await rpc('refund_story_seconds', { _job_id: job.id }).catch((err) =>
     console.error('refund failed:', err.message),
   );
+}
+
+async function saveQcReport(job, report) {
+  if (fixtureEdge) {
+    console.log(`  [dry] qc-report ${Array.isArray(report?.shots) ? report.shots.length : 0} entries`);
+    return;
+  }
+  if (dispatched) {
+    await callback('qc-report', { report });
+    return;
+  }
+  await db(`story_jobs?id=eq.${job.id}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ qc_report: report }),
+  });
 }
 
 // --- the render -------------------------------------------------------------
