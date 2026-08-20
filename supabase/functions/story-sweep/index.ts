@@ -33,8 +33,20 @@
  */
 const READY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
-/** queued/generating/assembling -> stale. A render is minutes, not half hours. */
+/** queued -> stale. An UNCLAIMED job that no runner picked up dies at 30 min. */
 const STALE_TTL_MS = 30 * 60 * 1000;
+
+/**
+ * generating/assembling -> stale. Distinct from STALE_TTL_MS: a job in these
+ * states has a runner ACTIVELY rendering, and the in-house Remotion render of a
+ * long film runs far past 30 minutes (measured 0.178x realtime: a 300s film
+ * ~40 min, the 600s ceiling ~80-100). The old "a render is minutes" assumption
+ * swept every 300s film mid-render. The bound is the render workflow's own hard
+ * cap (`timeout-minutes: 150`): while that clock is live the runner may still be
+ * working; once expired GitHub has killed the run and the job truly is dead.
+ * MIRRORED in src/lib/storyLifecycle.ts (RENDER_ACTIVE_TTL_MS).
+ */
+const RENDER_ACTIVE_TTL_MS = 150 * 60 * 1000;
 
 /** Same bucket as everything else. */
 const BUCKET = "video-gen";
@@ -69,8 +81,10 @@ function owesPurge(row: Row, now: number): boolean {
   if (row.status === "delivered" || row.status === "failed") return true;
   const age = now - Date.parse(row.updated_at);
   if (row.status === "ready") return age > READY_TTL_MS;
-  if (row.status === "queued" || row.status === "generating" || row.status === "assembling") {
-    return age > STALE_TTL_MS;
+  if (row.status === "queued") return age > STALE_TTL_MS;
+  if (row.status === "generating" || row.status === "assembling") {
+    // Actively rendering: the full render window, not the unclaimed-queue TTL.
+    return age > RENDER_ACTIVE_TTL_MS;
   }
   // `delivering` is excluded on purpose: a transfer in flight must not have its
   // source deleted underneath it. It is released back to `ready` below and
@@ -115,11 +129,18 @@ Deno.serve(async (req) => {
     // `failed` is the honest label and it is also the useful one: the trigger
     // allows it from every pre-terminal state, and story_jobs' refund RPC is
     // idempotent, so a job swept twice gives its seconds back once.
+    // An UNCLAIMED queued job dies at 30 min; a job actively rendering
+    // (generating/assembling) is only dead once its render workflow could not
+    // still be alive — RENDER_ACTIVE_TTL_MS. Splitting these is what stopped the
+    // 30-minute sweep from killing every 300s film mid-render.
     const deadBefore = new Date(now - STALE_TTL_MS).toISOString();
+    const renderDeadBefore = new Date(now - RENDER_ACTIVE_TTL_MS).toISOString();
     const dead = await fetch(
       `${supabaseUrl}/rest/v1/story_jobs` +
-        `?status=in.(queued,generating,assembling)&has_bytes=is.false` +
-        `&updated_at=lt.${deadBefore}&select=id,dispatched_at&limit=${BATCH}`,
+        `?has_bytes=is.false` +
+        `&or=(and(status.eq.queued,updated_at.lt.${deadBefore}),` +
+        `and(status.in.(generating,assembling),updated_at.lt.${renderDeadBefore}))` +
+        `&select=id,dispatched_at&limit=${BATCH}`,
       { headers: svc },
     );
 

@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   READY_TTL_MS,
+  RENDER_ACTIVE_TTL_MS,
   STALE_TTL_MS,
   type StoryJob,
   type StoryStatus,
@@ -24,6 +25,7 @@ import {
   jobsToPurge,
   owesPurge,
   purgeReason,
+  staleTtlForActive,
 } from "@/lib/storyLifecycle";
 
 const ALL: StoryStatus[] = [
@@ -87,12 +89,29 @@ describe("every Story eventually leaves our servers", () => {
     expect(purgeReason(job("ready", READY_TTL_MS + 1000), NOW)).toBe("expired");
   });
 
-  it("sweeps a job that died mid-generation", () => {
-    for (const status of ["queued", "generating", "assembling"] as const) {
-      expect(owesPurge(job(status, STALE_TTL_MS - 1000), NOW), `${status} fresh`).toBe(false);
-      expect(owesPurge(job(status, STALE_TTL_MS + 1000), NOW), `${status} stale`).toBe(true);
-      expect(purgeReason(job(status, STALE_TTL_MS + 1000), NOW)).toBe("stale");
+  it("sweeps an UNCLAIMED queued job at the 30-minute TTL", () => {
+    expect(owesPurge(job("queued", STALE_TTL_MS - 1000), NOW), "queued fresh").toBe(false);
+    expect(owesPurge(job("queued", STALE_TTL_MS + 1000), NOW), "queued stale").toBe(true);
+    expect(purgeReason(job("queued", STALE_TTL_MS + 1000), NOW)).toBe("stale");
+  });
+
+  it("does NOT sweep an actively-rendering job at 30 minutes — a 300s film takes ~40", () => {
+    // The bug that killed every 300s film: generating/assembling was reaped at
+    // the queued TTL while the runner was still rendering. Now it survives until
+    // its workflow could not still be alive.
+    for (const status of ["generating", "assembling"] as const) {
+      expect(owesPurge(job(status, STALE_TTL_MS + 1000), NOW), `${status} @31min`).toBe(false);
+      expect(owesPurge(job(status, RENDER_ACTIVE_TTL_MS - 1000), NOW), `${status} @149min`).toBe(false);
+      expect(owesPurge(job(status, RENDER_ACTIVE_TTL_MS + 1000), NOW), `${status} @151min`).toBe(true);
+      expect(purgeReason(job(status, RENDER_ACTIVE_TTL_MS + 1000), NOW)).toBe("stale");
     }
+  });
+
+  it("staleTtlForActive gives render states the long window and queued the short one", () => {
+    expect(staleTtlForActive("queued")).toBe(STALE_TTL_MS);
+    expect(staleTtlForActive("generating")).toBe(RENDER_ACTIVE_TTL_MS);
+    expect(staleTtlForActive("assembling")).toBe(RENDER_ACTIVE_TTL_MS);
+    expect(RENDER_ACTIVE_TTL_MS).toBeGreaterThan(STALE_TTL_MS);
   });
 
   it("returns exactly the jobs a sweeper should act on", () => {
@@ -173,7 +192,7 @@ describe("story-sweep mirrors the lifecycle rules", () => {
 
   it("uses the same TTLs, written the same way", () => {
     const lifecycle = readFileSync(resolve(here, "../storyLifecycle.ts"), "utf8");
-    for (const name of ["READY_TTL_MS", "STALE_TTL_MS"]) {
+    for (const name of ["READY_TTL_MS", "STALE_TTL_MS", "RENDER_ACTIVE_TTL_MS"]) {
       const here = constantIn(lifecycle, name);
       const there = constantIn(sweeper, name);
       expect(here, `${name} missing from storyLifecycle.ts`).toBeTruthy();

@@ -67,6 +67,38 @@ export const READY_TTL_MS = 30 * 24 * 60 * 60 * 1000;
  */
 export const STALE_TTL_MS = 30 * 60 * 1000;
 
+/**
+ * How long a Story may sit ACTIVELY RENDERING before we treat it as dead.
+ *
+ * Distinct from STALE_TTL_MS because the old "a render is minutes" assumption
+ * predates the in-house engine. The worker writes updated_at when it enters
+ * `assembling` and not again until the film is `ready`; in between it is inside
+ * one long Remotion render whose wall clock scales with the film. Measured at
+ * 0.178x realtime, a 300s film renders in ~40 minutes and the 600s ceiling in
+ * ~80–100, all far past the 30-minute queued TTL — which is why every 300s job
+ * was swept mid-render and died while 120s films (~11 minutes assembling→ready)
+ * sailed through.
+ *
+ * The bound is not a guessed larger number: it is the render workflow's OWN hard
+ * cap (`timeout-minutes: 150` in .github/workflows/story-worker.yml). While that
+ * clock has not expired the runner may still be rendering, so the job is not
+ * abandoned; once it has, GitHub has force-killed the run and the job genuinely
+ * is. A queued job that no runner ever claimed is still dead at 30 minutes — the
+ * long TTL applies only to the render-active states.
+ */
+export const RENDER_ACTIVE_TTL_MS = 150 * 60 * 1000;
+
+/**
+ * The staleness clock for a not-yet-finished job, by status. `queued` means no
+ * runner has claimed it (dead at 30 min); `generating`/`assembling` mean a
+ * runner is actively working (dead only once its workflow could not still be).
+ */
+export function staleTtlForActive(status: StoryStatus): number {
+  return status === "generating" || status === "assembling"
+    ? RENDER_ACTIVE_TTL_MS
+    : STALE_TTL_MS;
+}
+
 export type StoryJob = {
   id: string;
   status: StoryStatus;
@@ -129,7 +161,10 @@ export function owesPurge(job: StoryJob, now: number): boolean {
   const age = now - job.updatedAt;
   if (job.status === "ready") return age > READY_TTL_MS;
   if (job.status === "queued" || job.status === "generating" || job.status === "assembling") {
-    return age > STALE_TTL_MS;
+    // A render that already wrote bytes and then stalled still gets the full
+    // render window before its bytes are ours — the same reason the reap below
+    // waits: mid-render is not abandoned.
+    return age > staleTtlForActive(job.status);
   }
   // `delivering` is excluded on purpose: a transfer in flight must not have its
   // source deleted underneath it. It ages out via the stale sweep only after it
