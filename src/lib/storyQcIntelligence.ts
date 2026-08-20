@@ -81,6 +81,12 @@ function blocksAcceptance(status: QcStatus): boolean {
   return status === "FAIL" || status === "REGENERATE";
 }
 
+export function latestAttemptByShot<T extends { shot: number }>(attempts: readonly T[]): T[] {
+  const latest = new Map<number, T>();
+  for (const attempt of attempts) latest.set(attempt.shot, attempt);
+  return [...latest.values()];
+}
+
 export function candidateNeedsRegeneration(input: {
   qcPassed: boolean;
   continuityStatus: QcStatus;

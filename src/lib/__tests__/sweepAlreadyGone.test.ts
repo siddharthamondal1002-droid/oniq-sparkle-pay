@@ -23,6 +23,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const SWEEP = readFileSync(join(process.cwd(), "supabase/functions/story-sweep/index.ts"), "utf8");
+const DELIVER = readFileSync(
+  join(process.cwd(), "supabase/functions/story-deliver/index.ts"),
+  "utf8",
+);
 
 describe("the sweep's already-gone check", () => {
   it("reads the body, not just the status code", () => {
@@ -52,5 +56,16 @@ describe("the sweep's already-gone check", () => {
     // with bytes remaining is a failed delete, not a finished job.
     const lifecycle = readFileSync(join(process.cwd(), "src/lib/storyLifecycle.ts"), "utf8");
     expect(lifecycle).toContain('if (job.status === "purged") return true;');
+  });
+});
+
+describe("delivery's already-gone check", () => {
+  it("reads the body because Supabase reports a missing object as HTTP 400", () => {
+    expect(DELIVER).toContain("await del.text()");
+    expect(DELIVER).toMatch(/statusCode.*404|not\[_ \]\?found/i);
+  });
+
+  it("does not decide from the HTTP status alone", () => {
+    expect(/if \(!del\.ok && del\.status !== 404\)/.test(DELIVER)).toBe(false);
   });
 });

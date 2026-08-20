@@ -186,6 +186,29 @@ describe("every route out of the process is stubbed", () => {
   });
 });
 
+describe("finished media integrity gate", () => {
+  it("uses the existing episode verifier after grading and before upload", () => {
+    const code = codeOnly(WORKER);
+    const onlinePath = code.slice(code.lastIndexOf("await markAssembling(job)"));
+    const grade = onlinePath.indexOf("gradeInPlace(outFile)");
+    const verify = onlinePath.indexOf("verifyFinishedRender(outFile, expectedSeconds)");
+    const upload = onlinePath.indexOf("uploadFinished(job, outFile)");
+    const ready = onlinePath.indexOf("markReady(job, storagePath, rendered.length)");
+
+    expect(code).toMatch(/function verifyFinishedRender[\s\S]*verify-episode\.mjs/);
+    expect(grade).toBeGreaterThan(-1);
+    expect(verify).toBeGreaterThan(grade);
+    expect(upload).toBeGreaterThan(verify);
+    expect(ready).toBeGreaterThan(upload);
+  });
+
+  it("verifies against the exact duration selected by Remotion", () => {
+    const render = functionBodies(codeOnly(WORKER)).get("renderPlan") as string;
+    expect(render).toMatch(/return videoSeconds/);
+    expect(codeOnly(WORKER)).toMatch(/const expectedSeconds = await renderPlan\(/);
+  });
+});
+
 /** Call the seam and insist it had an opinion. `null` means "let it through". */
 async function answer(
   dir: string,

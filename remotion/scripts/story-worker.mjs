@@ -93,6 +93,7 @@ import {
   evaluateCinematicQuality,
   evaluateContinuity,
   evaluateVisualQuality,
+  latestAttemptByShot,
   updateProductionStateWithAcceptedShot,
 } from '../../src/lib/storyQcIntelligence.ts';
 
@@ -594,6 +595,7 @@ async function renderPlan(plan, outFile) {
       `rendered ${composition.durationInFrames} frames in ${seconds.toFixed(1)}s ` +
         `(${(videoSeconds / seconds).toFixed(3)}x realtime)`,
     );
+    return videoSeconds;
   } finally {
     // Destructures its argument — a bare close() throws AFTER the mp4 is on
     // disk, which reads as a render failure and is not one.
@@ -605,6 +607,19 @@ async function renderPlan(plan, outFile) {
     // would tread on a sibling process the way the campaign's first cleanup
     // attempt did.
     fs.rmSync(bundled, { recursive: true, force: true });
+  }
+}
+
+function verifyFinishedRender(file, expectedSeconds) {
+  try {
+    execFileSync(
+      process.execPath,
+      [path.resolve(__dirname, 'verify-episode.mjs'), file, '--expect', String(expectedSeconds)],
+      { stdio: 'inherit' },
+    );
+  } catch (err) {
+    const detail = String(err?.message ?? err).split('\n')[0];
+    throw new Error(`final video verification failed; refusing upload: ${detail}`);
   }
 }
 
@@ -1047,8 +1062,9 @@ if (offline) {
     if (!shot.seconds) throw new Error(`shot "${shot.still}" has no duration and no audio`);
   }
   console.log(`${plan.title}: ${plan.shots.length} shots -> ${OUT}`);
-  await renderPlan(plan, OUT);
+  const expectedSeconds = await renderPlan(plan, OUT);
   gradeInPlace(OUT);
+  verifyFinishedRender(OUT, expectedSeconds);
   console.log(`${(fs.statSync(OUT).size / 1024 / 1024).toFixed(1)} MB`);
 } else {
   // --- online path: claim a job and run it ----------------------------------
@@ -1974,7 +1990,7 @@ if (offline) {
       }
     }
 
-    const latestShots = qcReport.shots;
+    const latestShots = latestAttemptByShot(qcReport.shots);
     const avg = (arr) =>
       arr.length > 0 ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
     const technicalScores = latestShots.map((s) => Number(s.score ?? 0));
@@ -2092,7 +2108,7 @@ if (offline) {
     // The ONIQ mark is burned in unless the job PAID it off (no_watermark).
     // Passing the flag explicitly rather than omitting it keeps the intent
     // readable here; the composition defaults ON either way.
-    await renderPlan(
+    const expectedSeconds = await renderPlan(
       {
         title: plan.title,
         shots: rendered,
@@ -2105,6 +2121,7 @@ if (offline) {
       outFile,
     );
     gradeInPlace(outFile);
+    verifyFinishedRender(outFile, expectedSeconds);
 
     const storagePath = await uploadFinished(job, outFile);
     await markReady(job, storagePath, rendered.length);

@@ -7,6 +7,7 @@ import {
   evaluateCinematicQuality,
   evaluateContinuity,
   evaluateVisualQuality,
+  latestAttemptByShot,
   selectBestCandidate,
   updateProductionStateWithAcceptedShot,
 } from "@/lib/storyQcIntelligence";
@@ -121,6 +122,17 @@ describe("visual and cinematic scoring", () => {
 });
 
 describe("regeneration + selector", () => {
+  it("keeps only the accepted retry in film-level QC", () => {
+    const rejected = { shot: 1, attempt: 1, status: "REGENERATE" };
+    const accepted = { shot: 1, attempt: 2, status: "PASS" };
+    const firstAttemptPass = { shot: 2, attempt: 1, status: "PASS" };
+
+    expect(latestAttemptByShot([rejected, accepted, firstAttemptPass])).toEqual([
+      accepted,
+      firstAttemptPass,
+    ]);
+  });
+
   it("classifies targeted regeneration focus", () => {
     const out = classifyRegenerationNeeds({
       failedCheckNames: ["audio.decode", "clip.fps"],

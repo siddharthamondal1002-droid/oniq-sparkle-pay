@@ -156,10 +156,14 @@ Deno.serve(async (req) => {
         method: "DELETE",
         headers: svc,
       });
-      if (!del.ok && del.status !== 404) {
+      if (!del.ok) {
         const detail = await del.text().catch(() => "");
-        console.error("story-deliver delete", del.status, detail.slice(0, 300));
-        return json({ error: "saved, but the file could not be cleared yet" }, 502);
+        const gone =
+          del.status === 404 || /"statusCode"\s*:\s*"404"|not[_ ]?found/i.test(detail);
+        if (!gone) {
+          console.error("story-deliver delete", del.status, detail.slice(0, 300));
+          return json({ error: "saved, but the file could not be cleared yet" }, 502);
+        }
       }
     }
 
