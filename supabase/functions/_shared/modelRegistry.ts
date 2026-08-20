@@ -32,6 +32,35 @@
 
 export type ModelStatus = "current" | "deprecated" | "shutdown" | "unknown";
 
+/**
+ * What a provider can actually do — the routing envelope.
+ *
+ * This is the FIRST brick of a provider-agnostic router: a future selector asks
+ * "who can make an 8-second 9:16 clip from a reference frame?" and this is what
+ * it reads. The same honesty rule as the rest of the file applies — a field is
+ * filled only from EVIDENCE (the call site, or a sourced note), never guessed.
+ * A limit this environment cannot verify (Google docs are egress-blocked) is
+ * left `null`/`[]` with a note, NOT invented. `capabilityMatrix.test.ts` pins
+ * the video envelope against story-clip's own constants so it cannot drift.
+ */
+export type Modality = "text" | "text-to-image" | "image-to-video" | "text-to-speech";
+
+export type Capabilities = {
+  modality: Modality;
+  /** Discrete clip durations the provider accepts, in seconds. null = not video. */
+  durationsSec: number[] | null;
+  /** Aspect ratios the provider emits. [] = unconstrained or unrecorded. */
+  aspectRatios: string[];
+  /** Accepts a reference image/frame as input. */
+  referenceSupport: boolean;
+  /** Its OWN output carries audio. (The clip stage is silent — the worker composites audio separately.) */
+  audioSupport: boolean;
+  /** Cleared for commercial use under the provider ToS, as far as recorded. null = unverified here. */
+  commercialUse: boolean | null;
+  /** Sourcing / limits, same labelling rule as the rest of the file. */
+  note: string;
+};
+
 export type ModelEntry = {
   /** The exact string sent to the provider. */
   id: string;
@@ -46,6 +75,8 @@ export type ModelEntry = {
   shutdownOn: string | null;
   /** Why this id and not another. */
   note: string;
+  /** What it can produce — the routing envelope. */
+  capabilities: Capabilities;
 };
 
 /**
@@ -63,6 +94,15 @@ export const TEXT_PRIMARY: ModelEntry = {
   status: "current",
   shutdownOn: null,
   note: "The baseline every existing caller relies on. Callers may override per call.",
+  capabilities: {
+    modality: "text",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: false,
+    audioSupport: false,
+    commercialUse: true,
+    note: "Text generation — plot, shot list, dialogue. Called via _shared/llm.ts callClaude.",
+  },
 };
 
 export const TEXT_TOOLS: ModelEntry = {
@@ -73,6 +113,15 @@ export const TEXT_TOOLS: ModelEntry = {
   status: "current",
   shutdownOn: null,
   note: "Tool-use path only.",
+  capabilities: {
+    modality: "text",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: false,
+    audioSupport: false,
+    commercialUse: true,
+    note: "Text generation, tool-calling path only.",
+  },
 };
 
 export const TEXT_FALLBACK: ModelEntry = {
@@ -85,6 +134,15 @@ export const TEXT_FALLBACK: ModelEntry = {
   note:
     "Pinned, NOT gemini-flash-latest. A moving alias under a fallback changes " +
     "silently and is only discovered mid-outage, when the primary is already down.",
+  capabilities: {
+    modality: "text",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: false,
+    audioSupport: false,
+    commercialUse: true,
+    note: "Text generation, the fallback when Claude is down. Called via _shared/llm.ts callGemini.",
+  },
 };
 
 /**
@@ -107,6 +165,18 @@ export const IMAGE_STILL: ModelEntry = {
     "Image) to gemini-3.1-flash-image or gemini-3-pro-image. This runs through " +
     "the gateway, so the migration is a question for Lovable AND a cost " +
     "question for the owner — see GOOGLE_AI_RESEARCH.md. Not changed here.",
+  capabilities: {
+    modality: "text-to-image",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: false,
+    audioSupport: false,
+    commercialUse: null,
+    note:
+      "Text-to-image: story-still sends a prompt, gets a base64 frame. Output " +
+      "resolution not recorded here (gateway-served); the film's 1080x1920 is set " +
+      "by the Remotion render, not this model.",
+  },
 };
 
 /**
@@ -122,6 +192,15 @@ export const VOICE_TTS: ModelEntry = {
   status: "unknown",
   shutdownOn: null,
   note: "No published gateway lifecycle found. Left exactly as found.",
+  capabilities: {
+    modality: "text-to-speech",
+    durationsSec: null,
+    aspectRatios: [],
+    referenceSupport: false,
+    audioSupport: true,
+    commercialUse: null,
+    note: "Text-to-speech: story-voice returns s16le PCM the worker wraps as WAV.",
+  },
 };
 
 /**
@@ -140,6 +219,22 @@ export const VIDEO_CLIP: ModelEntry = {
   status: "current",
   shutdownOn: null,
   note: "Preview id. storyCostModel's per-second price is derived from this tier.",
+  capabilities: {
+    modality: "image-to-video",
+    // Sourced from story-clip/index.ts: `const DURATIONS = new Set([4, 6, 8])`
+    // ("Veo accepts 4, 6 or 8 — there is no 10 on this API and no extend").
+    durationsSec: [4, 6, 8],
+    // Sourced from story-clip/index.ts: `const ASPECT = "9:16"`.
+    aspectRatios: ["9:16"],
+    // story-clip requires a starting frame (imageBase64); text-to-video "ignores
+    // the style prompt entirely (measured 2026-08-08)", so image-to-video only.
+    referenceSupport: true,
+    // The clip stage is SILENT motion — the worker composites narration, dialogue,
+    // ambience and score separately. Recorded as false to match how ONIQ uses it.
+    audioSupport: false,
+    commercialUse: null,
+    note: "Image-to-video. Envelope pinned to story-clip's DURATIONS/ASPECT by capabilityMatrix.test.ts.",
+  },
 };
 
 /**
@@ -164,6 +259,15 @@ export const VIDEO_CLIP_FALLBACK: ModelEntry = {
     "DEAD. Deprecated 2026-06-15, shut down 2026-06-30. The 404 ladder in " +
     "story-clip buys nothing while this is the fallback. Replacing it changes " +
     "the per-second price, so it needs an owner decision — see ENGINE_AUDIT.md.",
+  capabilities: {
+    modality: "image-to-video",
+    durationsSec: [4, 6, 8],
+    aspectRatios: ["9:16"],
+    referenceSupport: true,
+    audioSupport: false,
+    commercialUse: null,
+    note: "Same envelope as VIDEO_CLIP, but status:'shutdown' — the router must never select it.",
+  },
 };
 
 /** Everything, for the registry test and for anything that wants to report. */
@@ -200,4 +304,48 @@ export function provenance(model: ModelEntry): Record<string, string> {
     model_id: model.id,
     model_provider: model.provider,
   };
+}
+
+/**
+ * THE ROUTER CORE — the first, deliberately small brick of provider-agnostic
+ * routing (the mission's P8). No caller routes through this yet; it exists so a
+ * future selector has ONE honest place to ask "who can make this?" instead of
+ * hard-coding a model id at the call site. It changes nothing about what ONIQ
+ * spends — swapping which provider actually runs is an owner/cost decision, and
+ * this only narrows the field to the ones that CAN.
+ */
+export type Requirement = {
+  modality: Modality;
+  /** For video: the exact clip length wanted, seconds. */
+  durationSec?: number;
+  /** e.g. "9:16". */
+  aspectRatio?: string;
+  /** The request supplies a reference frame that the model must accept. */
+  referenceImage?: boolean;
+  /** The model's own output must carry audio. */
+  audio?: boolean;
+};
+
+/** Does one model satisfy a requirement? Pure, side-effect-free, testable. */
+export function capabilityMatch(m: ModelEntry, req: Requirement): boolean {
+  const c = m.capabilities;
+  if (c.modality !== req.modality) return false;
+  if (req.durationSec !== undefined) {
+    if (!c.durationsSec || !c.durationsSec.includes(req.durationSec)) return false;
+  }
+  if (req.aspectRatio !== undefined && !c.aspectRatios.includes(req.aspectRatio)) return false;
+  if (req.referenceImage === true && !c.referenceSupport) return false;
+  if (req.audio === true && !c.audioSupport) return false;
+  return true;
+}
+
+/**
+ * Every non-dead model that can meet the requirement. A `shutdown` model is
+ * NEVER returned — that is the whole point of pairing the router with the
+ * status field: the dead Veo fallback that story-clip still wastes a round-trip
+ * on would be excluded here by construction. Order is registry order; ranking
+ * by quality/price/latency is a later brick once those fields are sourced.
+ */
+export function selectByCapability(req: Requirement): ModelEntry[] {
+  return MODEL_REGISTRY.filter((m) => m.status !== "shutdown" && capabilityMatch(m, req));
 }
