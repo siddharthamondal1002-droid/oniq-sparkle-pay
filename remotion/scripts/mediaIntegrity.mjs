@@ -8,7 +8,7 @@ export function packetCoverageFailures({ video, audio, expectedSeconds, fps }) {
   if (video) {
     const packets = Number(video.nb_read_packets);
     if (!Number.isInteger(packets) || packets <= 0) {
-      failures.push('video packet count is unavailable; output may be partial');
+      failures.push("video packet count is unavailable; output may be partial");
     } else if (Number.isFinite(expectedSeconds)) {
       const expected = Math.round(expectedSeconds * fps);
       if (Math.abs(packets - expected) > VIDEO_PACKET_TOLERANCE) {
@@ -22,8 +22,13 @@ export function packetCoverageFailures({ video, audio, expectedSeconds, fps }) {
   if (audio) {
     const packets = Number(audio.nb_read_packets);
     const sampleRate = Number(audio.sample_rate);
-    if (!Number.isInteger(packets) || packets <= 0 || !Number.isFinite(sampleRate) || sampleRate <= 0) {
-      failures.push('audio packet coverage is unavailable; output may be partial');
+    if (
+      !Number.isInteger(packets) ||
+      packets <= 0 ||
+      !Number.isFinite(sampleRate) ||
+      sampleRate <= 0
+    ) {
+      failures.push("audio packet coverage is unavailable; output may be partial");
     } else if (Number.isFinite(expectedSeconds)) {
       const decodedSeconds = (packets * AAC_SAMPLES_PER_PACKET) / sampleRate;
       if (expectedSeconds - decodedSeconds > AUDIO_SECONDS_TOLERANCE) {
