@@ -37,6 +37,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { findBin } from "../../../remotion/scripts/findFfmpeg.mjs";
+import { packetCoverageFailures } from "../../../remotion/scripts/mediaIntegrity.mjs";
 import {
   assertNoProductionCredentials,
   createFixtureEdge,
@@ -187,6 +188,27 @@ describe("every route out of the process is stubbed", () => {
 });
 
 describe("finished media integrity gate", () => {
+  it("rejects a container whose declared duration outlives its media packets", () => {
+    const valid = packetCoverageFailures({
+      video: { nb_read_packets: "240" },
+      audio: { nb_read_packets: "189", sample_rate: "24000" },
+      expectedSeconds: 8,
+      fps: 30,
+    });
+    const truncated = packetCoverageFailures({
+      video: { nb_read_packets: "179" },
+      audio: { nb_read_packets: "140", sample_rate: "24000" },
+      expectedSeconds: 8,
+      fps: 30,
+    });
+
+    expect(valid).toEqual([]);
+    expect(truncated).toEqual([
+      expect.stringMatching(/video.*partial/i),
+      expect.stringMatching(/audio.*partial/i),
+    ]);
+  });
+
   it("uses the existing episode verifier after grading and before upload", () => {
     const code = codeOnly(WORKER);
     const onlinePath = code.slice(code.lastIndexOf("await markAssembling(job)"));
@@ -206,6 +228,18 @@ describe("finished media integrity gate", () => {
     const render = functionBodies(codeOnly(WORKER)).get("renderPlan") as string;
     expect(render).toMatch(/return videoSeconds/);
     expect(codeOnly(WORKER)).toMatch(/const expectedSeconds = await renderPlan\(/);
+  });
+
+  it("uses the same ceiling-safe audio frame conversion as the composition", () => {
+    expect(codeOnly(WORKER)).toContain(
+      "const durationFrames = framesForStorySeconds(seconds, FPS)",
+    );
+  });
+
+  it("rejects narration that decodes but contains no speech signal", () => {
+    expect(codeOnly(WORKER)).toContain(
+      "push('audio.signal', speechSpanCount > 0, `${speechSpanCount} speech spans`)",
+    );
   });
 });
 

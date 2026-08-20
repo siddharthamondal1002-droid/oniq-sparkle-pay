@@ -96,6 +96,10 @@ export type StoryPlan = {
   generations: number;
 };
 
+export function framesForStorySeconds(seconds: number, fps: number): number {
+  return Math.max(1, Math.ceil(seconds * fps));
+}
+
 /**
  * Split a requested duration into generatable shots.
  *

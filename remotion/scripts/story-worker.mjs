@@ -83,7 +83,7 @@ import {
   speakerMatchesRig,
   walkFor,
 } from '../../src/lib/puppetPerformance.ts';
-import { planStory } from '../../src/lib/storyPlan.ts';
+import { framesForStorySeconds, planStory } from '../../src/lib/storyPlan.ts';
 import { composeVideoPrompt } from '../../supabase/functions/_shared/movieGrammar.ts';
 import {
   candidateNeedsRegeneration,
@@ -971,7 +971,16 @@ function avgLuma(ffmpeg, file) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-function validateShotAssets({ ffmpeg, shotIndex, attempt, stillFile, audioFile, clipFile, expectedSeconds }) {
+function validateShotAssets({
+  ffmpeg,
+  shotIndex,
+  attempt,
+  stillFile,
+  audioFile,
+  clipFile,
+  expectedSeconds,
+  speechSpanCount,
+}) {
   const checks = [];
   const metrics = {};
   const push = (name, pass, detail) => checks.push({ name, pass, detail });
@@ -1003,6 +1012,7 @@ function validateShotAssets({ ffmpeg, shotIndex, attempt, stillFile, audioFile, 
       Math.abs(duration - expectedSeconds) <= 0.25,
       `expected=${expectedSeconds.toFixed(3)}s actual=${duration.toFixed(3)}s`,
     );
+    push('audio.signal', speechSpanCount > 0, `${speechSpanCount} speech spans`);
   } catch (err) {
     push('audio.decode', false, String(err?.message ?? err).slice(0, 120));
   }
@@ -1479,7 +1489,7 @@ if (offline) {
       // moves, and they come from the same envelope the episodes use, imported
       // rather than reimplemented so the two cannot disagree.
       const seconds = secondsOf(wav);
-      const durationFrames = Math.max(1, Math.round(seconds * FPS));
+      const durationFrames = framesForStorySeconds(seconds, FPS);
       const spans = speechSpans(envelope(ffmpeg, wav)).filter(([a]) => a < durationFrames);
 
       // RUNG 8 — the sound stage, movie grade only. The shot's own words
@@ -1792,6 +1802,7 @@ if (offline) {
         audioFile: wav,
         clipFile,
         expectedSeconds: seconds,
+        speechSpanCount: spans.length,
       });
       const cvEvidence = extractVisualEvidence({
         ffmpeg,

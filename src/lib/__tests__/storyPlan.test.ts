@@ -14,6 +14,7 @@ import {
   MAX_STORY_SECONDS,
   MIN_STORY_SECONDS,
   checkStoryQuota,
+  framesForStorySeconds,
   parseClaimResult,
   planStory,
   refusalMessage,
@@ -21,6 +22,14 @@ import {
 } from "@/lib/storyPlan";
 
 describe("planStory splits a duration into generatable shots", () => {
+  it("rounds partial frames up so the timeline cannot clip narration", () => {
+    const seconds = 4.483;
+    const frames = framesForStorySeconds(seconds, 30);
+
+    expect(frames).toBe(135);
+    expect(frames / 30).toBeGreaterThanOrEqual(seconds);
+  });
+
   it("sums to the requested seconds exactly, across the whole range", () => {
     // A sweep rather than examples: the remainder is where an off-by-one hides,
     // and a Story that is one second short of what the user asked for is a bug

@@ -29,6 +29,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { findBin } from './findFfmpeg.mjs';
+import { packetCoverageFailures } from './mediaIntegrity.mjs';
 
 const args = process.argv.slice(2);
 const file = args.find((a) => !a.startsWith('--'));
@@ -67,7 +68,9 @@ const failures = [];
 function probeStreams() {
   const out = execFileSync(ffprobe, [
     '-v', 'error',
-    '-show_entries', 'stream=index,codec_type,codec_name,width,height,r_frame_rate,bit_rate,sample_rate,channels',
+    '-count_packets',
+    '-show_entries',
+    'stream=index,codec_type,codec_name,width,height,r_frame_rate,bit_rate,sample_rate,channels,nb_read_packets',
     '-of', 'json',
     file,
   ]).toString();
@@ -163,6 +166,14 @@ if (audio[0]) {
   // takes. Merely existing is not the bar.
   if (!kbps || kbps < 32) failures.push(`audio bitrate is ${kbps ?? 'absent'}kbps, expected ~128`);
 }
+failures.push(
+  ...packetCoverageFailures({
+    video: video[0],
+    audio: audio[0],
+    expectedSeconds: EXPECT,
+    fps: 30,
+  }),
+);
 
 // --- duration --------------------------------------------------------------
 const format = probeFormat();

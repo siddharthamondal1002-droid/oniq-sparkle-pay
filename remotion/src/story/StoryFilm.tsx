@@ -46,6 +46,7 @@ import { TITLE_SECONDS, endFadeAt, titleOpacityAt } from "../../../src/lib/filmC
 import type { VfxKind } from "../../../src/lib/particleField";
 import type { PuppetPerformance } from "../../../src/lib/puppetPerformance";
 import type { Emotion } from "../../../src/lib/expressionGrammar";
+import { framesForStorySeconds } from "../../../src/lib/storyPlan";
 import { Character } from "../rig/Character";
 import { CHARACTER_RIGS } from "../rig/characterRig";
 import { EXPRESSION_HEADS } from "../rig/expressionHeads";
@@ -260,7 +261,7 @@ export const STORY_FPS = 30;
 
 /** Frames per shot, and the total. One place, so the two cannot disagree. */
 export function storyFrames(shots: StoryShotInput[], fps = STORY_FPS): number[] {
-  return shots.map((s) => Math.max(1, Math.round(s.seconds * fps)));
+  return shots.map((s) => framesForStorySeconds(s.seconds, fps));
 }
 
 /**

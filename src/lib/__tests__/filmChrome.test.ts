@@ -86,4 +86,8 @@ describe("the wiring pins", () => {
       "duration no longer derives from the shots alone",
     ).toBe(true);
   });
+
+  it("the composition uses the ceiling-safe audio frame conversion", () => {
+    expect(FILM_SRC).toContain("framesForStorySeconds(s.seconds, fps)");
+  });
 });
