@@ -60,7 +60,7 @@ import { envelope, speechSpans } from './speech.mjs';
 import { framingFor, isSlide } from '../../src/lib/shotGrammar.ts';
 import { rhubarbCuesForWav } from './rhubarb.mjs';
 import { applyFilmLook } from './filmLook.mjs';
-import { ensureDepthModel, inferDepth, cutNearPlane } from './depth.mjs';
+import { ensureDepthModel, inferDepth, cutNearPlane, decodeStillRgba } from './depth.mjs';
 import { defaultTtsCache, ensureLocalTts, speakerFor, synthLocal } from './localTts.mjs';
 import {
   PARALLAX,
@@ -1369,12 +1369,17 @@ if (offline) {
             const depth01 = normalizeDepth(await inferDepth(model, stillFile));
             const alpha = nearPlaneAlpha(depth01, PARALLAX.threshold);
             const coverage = planeCoverage(alpha);
+            // Decode the still ONCE and share it across the near and mid planes
+            // (both cut from the same source image) — one full-res RGBA decode
+            // instead of one per plane.
+            const decodedStill = await decodeStillRgba(stillFile);
             const out = await cutNearPlane(
               stillFile,
               path.join(assetRoot, `${stem}.near.png`),
               alpha,
               coverage,
               PARALLAX,
+              decodedStill,
             );
             if (out) {
               nearPlane = `${assetDir}/${stem}.near.png`;
@@ -1395,6 +1400,7 @@ if (offline) {
                 midMask,
                 midCoverage,
                 PARALLAX,
+                decodedStill,
               );
               if (midOut) {
                 midPlane = `${assetDir}/${stem}.mid.png`;
