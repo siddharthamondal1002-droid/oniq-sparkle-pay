@@ -290,6 +290,10 @@ Deno.serve(async (req) => {
         ],
         maxTokens: 300,
         timeoutMs: 20_000,
+        // The gate sits before every later billable call; a retry here doubles
+        // the worst-case wait and can push the whole function past Supabase's
+        // 150 s idle timeout. One honest attempt is enough.
+        noRetry: true,
       });
       const verdict = gate.ok ? contentVerdict(textOf(gate.data)) : null;
       if (!verdict) {
@@ -539,6 +543,12 @@ Deno.serve(async (req) => {
               // A ceiling, not a spend — same reasoning as the other caps.
               maxTokens: 8192,
               timeoutMs: batchMs,
+              // Parallel batches already consume the largest slice of the
+              // function's 115 s budget. Allowing `callClaude` to retry a
+              // batch timeout would double that slice and can push the whole
+              // function past Supabase's 150 s idle timeout → 504. Fail fast;
+              // a single batch timeout is not recoverable inside one run.
+              noRetry: true,
             });
             if (!res.ok)
               return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };

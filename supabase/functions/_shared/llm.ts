@@ -209,6 +209,11 @@ export type CallClaudeOpts = {
   // "claude-sonnet-4-6" baseline every existing caller has relied on. The
   // Gemini fallback path ignores this (fallback model is Gemini-specific).
   model?: string;
+  // When true, skip the one automatic retry on network/5xx/timeout. Use in
+  // callers whose own wall-clock budget cannot afford the retry doubling the
+  // worst-case duration (e.g., story-plot's parallel batches, where one retry
+  // can push the whole function past Supabase's 150 s idle timeout).
+  noRetry?: boolean;
 };
 
 export type CallClaudeResult =
@@ -505,12 +510,15 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
   let r = await attempt();
   if ("error" in r) {
     console.warn(`callClaude: fetch failed (${r.error}) key=${mask(key)}`);
-    // retry once on network/timeout too
-    await new Promise((res) => setTimeout(res, 600));
-    r = await attempt();
+    // retry once on network/timeout too, unless the caller cannot afford the
+    // doubled worst-case duration.
+    if (!opts.noRetry) {
+      await new Promise((res) => setTimeout(res, 600));
+      r = await attempt();
+    }
     if ("error" in r) return { ok: false, reason: r.error };
   }
-  if ("status" in r && RETRY_STATUSES.has(r.status)) {
+  if (!opts.noRetry && "status" in r && RETRY_STATUSES.has(r.status)) {
     console.warn(`callClaude: http ${r.status} retrying key=${mask(key)}`);
     await new Promise((res) => setTimeout(res, 600));
     r = await attempt();
