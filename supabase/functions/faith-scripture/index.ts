@@ -1,5 +1,7 @@
 // faith-scripture — proxies free scripture APIs into a normalized shape.
 // Input: { religion, book?, chapter? } → { title, verses: [{ ref, text, translation? }] }
+import { fetchWithTimeout } from "../_shared/fetchTimeout.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -25,7 +27,7 @@ async function gita(chapter: number): Promise<Out> {
   const results = await Promise.all(
     Array.from({ length: n }, (_, i) => i + 1).map(async (v) => {
       try {
-        const r = await fetch(`https://vedicscriptures.github.io/slok/${ch}/${v}/`);
+        const r = await fetchWithTimeout(`https://vedicscriptures.github.io/slok/${ch}/${v}/`);
         if (!r.ok) return null;
         const d = await r.json();
         const text = d?.slok || "";
@@ -40,8 +42,8 @@ async function gita(chapter: number): Promise<Out> {
 async function quran(surah: number): Promise<Out> {
   const s = Math.max(1, Math.min(114, surah || 1));
   const [ar, en] = await Promise.all([
-    fetch(`https://api.alquran.cloud/v1/surah/${s}`).then((r) => r.json()),
-    fetch(`https://api.alquran.cloud/v1/surah/${s}/en.asad`).then((r) => r.json()),
+    fetchWithTimeout(`https://api.alquran.cloud/v1/surah/${s}`).then((r) => r.json()),
+    fetchWithTimeout(`https://api.alquran.cloud/v1/surah/${s}/en.asad`).then((r) => r.json()),
   ]);
   const arAyahs = ar?.data?.ayahs ?? [];
   const enAyahs = en?.data?.ayahs ?? [];
@@ -57,7 +59,7 @@ async function quran(surah: number): Promise<Out> {
 async function bible(book: string, chapter: number): Promise<Out> {
   const b = (book || "john").toLowerCase();
   const ch = chapter || 1;
-  const r = await fetch(`https://bible-api.com/${encodeURIComponent(b)}+${ch}`);
+  const r = await fetchWithTimeout(`https://bible-api.com/${encodeURIComponent(b)}+${ch}`);
   const d = await r.json();
   const verses: Verse[] = (d?.verses ?? []).map((v: { chapter: number; verse: number; text: string }) => ({
     ref: `${v.chapter}:${v.verse}`,
@@ -69,7 +71,7 @@ async function bible(book: string, chapter: number): Promise<Out> {
 async function torah(book: string, chapter: number): Promise<Out> {
   const b = book || "Genesis";
   const ch = chapter || 1;
-  const r = await fetch(`https://www.sefaria.org/api/texts/${encodeURIComponent(b)}.${ch}?context=0`);
+  const r = await fetchWithTimeout(`https://www.sefaria.org/api/texts/${encodeURIComponent(b)}.${ch}?context=0`);
   const d = await r.json();
   const he: string[] = Array.isArray(d?.he) ? d.he : [];
   const en: string[] = Array.isArray(d?.text) ? d.text : [];

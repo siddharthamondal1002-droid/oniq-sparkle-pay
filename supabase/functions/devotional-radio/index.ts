@@ -19,6 +19,8 @@
 // under its own terms. Stations without a homepage are dropped: a row with
 // nowhere to go is not a directory entry.
 
+import { fetchWithTimeout } from "../_shared/fetchTimeout.ts";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -59,7 +61,7 @@ type RBStation = {
 async function searchTag(mirror: string, tag: string): Promise<RBStation[]> {
   const url = `https://${mirror}/json/stations/search?tag=${encodeURIComponent(tag)}&limit=15&hidebroken=true&order=clickcount&reverse=true`;
   try {
-    const r = await fetch(url, { headers: { "User-Agent": UA, "Accept": "application/json" } });
+    const r = await fetchWithTimeout(url, { headers: { "User-Agent": UA, "Accept": "application/json" } });
     if (!r.ok) return [];
     const j = await r.json();
     return Array.isArray(j) ? j : [];
@@ -72,7 +74,7 @@ async function pickMirror(): Promise<string> {
   // Try each in order; fall back to first if all ping fails.
   for (const m of MIRRORS) {
     try {
-      const r = await fetch(`https://${m}/json/stats`, { headers: { "User-Agent": UA } });
+      const r = await fetchWithTimeout(`https://${m}/json/stats`, { headers: { "User-Agent": UA } });
       if (r.ok) return m;
     } catch { /* next */ }
   }

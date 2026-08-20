@@ -4,6 +4,7 @@
 // a small, stable shape. On any failure, returns HTTP 200 with
 // { source: "unavailable", reason } — callers fall back to Nominatim.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { fetchWithTimeout } from "../_shared/fetchTimeout.ts";
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -45,7 +46,7 @@ async function getToken(force = false): Promise<string | null> {
       client_id: clientId,
       client_secret: clientSecret,
     });
-    const r = await fetch("https://outpost.mappls.com/api/security/oauth/token", {
+    const r = await fetchWithTimeout("https://outpost.mappls.com/api/security/oauth/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: body.toString(),
@@ -121,7 +122,7 @@ function extractArray(payload: any): any[] {
 async function doForward(token: string, query: string): Promise<Norm[] | "unauthorized" | null> {
   try {
     const url = `https://atlas.mappls.com/api/places/geocode?address=${encodeURIComponent(query)}&access_token=${encodeURIComponent(token)}`;
-    const r = await fetch(url);
+    const r = await fetchWithTimeout(url);
     if (r.status === 401) return "unauthorized";
     if (!r.ok) { console.warn(`mappls-geo: geocode http ${r.status}`); return null; }
     const payload = await r.json().catch(() => null);
@@ -140,7 +141,7 @@ async function doAutosuggest(token: string, query: string, near?: string): Promi
   try {
     const params = new URLSearchParams({ query, access_token: token });
     if (near) params.set("location", near);
-    const r = await fetch(`https://atlas.mappls.com/api/places/search/json?${params.toString()}`);
+    const r = await fetchWithTimeout(`https://atlas.mappls.com/api/places/search/json?${params.toString()}`);
     if (r.status === 401) return "unauthorized";
     if (!r.ok) { console.warn(`mappls-geo: autosuggest http ${r.status}`); return null; }
     const payload = await r.json().catch(() => null);
@@ -158,7 +159,7 @@ async function doAutosuggest(token: string, query: string, near?: string): Promi
 async function doReverse(token: string, lat: number, lon: number): Promise<string | "unauthorized" | null> {
   try {
     const url = `https://search.mappls.com/search/address/rev-geocode?lat=${lat}&lng=${lon}&access_token=${encodeURIComponent(token)}`;
-    const r = await fetch(url);
+    const r = await fetchWithTimeout(url);
     if (r.status === 401) return "unauthorized";
     if (!r.ok) { console.warn(`mappls-geo: reverse http ${r.status}`); return null; }
     const payload = await r.json().catch(() => null);
