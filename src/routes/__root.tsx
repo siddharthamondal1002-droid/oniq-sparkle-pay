@@ -157,7 +157,24 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       {
+        /*
+         * The per-script Baloo (Indic) + Noto (CJK/Arabic/Sinhala/Thai/Urdu)
+         * faces. This stylesheet is ~253 KB gzipped / ~1 MB parsed across 1,206
+         * @font-face rules, and it is cross-origin — a heavy render-blocking
+         * request on the critical path. It styles ONLY :lang() subtrees
+         * (src/styles.css), so the initial `lang="en"` paint renders none of
+         * these glyphs, yet every user used to wait on it before first paint.
+         *
+         * media="print" makes it non-render-blocking (a print sheet never
+         * blocks the screen render); a mount effect in RootComponent flips it
+         * to "all" so the faces apply right after hydration. Every :lang() rule
+         * already lists a system-ui fallback — which on Android/iOS covers all
+         * these scripts — and display=swap keeps the swap graceful, so nothing
+         * renders worse in the window before the flip. No-JS clients keep the
+         * system-ui fallback (legible for every supported script).
+         */
         rel: "stylesheet",
+        media: "print",
         href: "https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;700&family=Baloo+Bhai+2:wght@400;600;700&family=Baloo+Bhaijaan+2:wght@400;600;700&family=Baloo+Bhaina+2:wght@400;600;700&family=Baloo+Chettan+2:wght@400;600;700&family=Baloo+Da+2:wght@400;600;700&family=Baloo+Paaji+2:wght@400;600;700&family=Baloo+Tamma+2:wght@400;600;700&family=Baloo+Tammudu+2:wght@400;600;700&family=Baloo+Thambi+2:wght@400;600;700&family=Noto+Nastaliq+Urdu:wght@400;700&family=Noto+Sans+Sinhala:wght@400;600;700&family=Noto+Sans+SC:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;600;700&family=Noto+Sans+JP:wght@400;600;700&family=Noto+Sans+KR:wght@400;600;700&family=Noto+Sans+Thai:wght@400;600;700&display=swap",
       },
     ],
@@ -261,6 +278,24 @@ function RootComponent() {
     if (next !== content) meta.setAttribute("content", next);
   }, []);
 
+
+  /*
+   * Apply the deferred Google Fonts stylesheet after first paint.
+   *
+   * It is emitted with media="print" (see the head links) so it never blocks
+   * the critical render — a ~253 KB gzipped, 1,206-rule cross-origin sheet that
+   * styles only :lang() subtrees and therefore paints nothing on the initial
+   * `lang="en"` render. Flipping it to "all" at mount lets the per-script Baloo
+   * / Noto faces apply for non-Latin locales; display=swap + the system-ui
+   * fallback in each :lang() rule keep the pre-flip window legible.
+   */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const link = document.querySelector<HTMLLinkElement>(
+      'link[rel="stylesheet"][href*="fonts.googleapis.com"]',
+    );
+    if (link && link.media !== "all") link.media = "all";
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
