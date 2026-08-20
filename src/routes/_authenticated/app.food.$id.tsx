@@ -322,6 +322,7 @@ function CheckoutSheet({
           <h3 className="font-display text-lg font-semibold">Your order</h3>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="grid h-8 w-8 place-items-center rounded-full bg-muted"
           >
             <X className="h-4 w-4" />

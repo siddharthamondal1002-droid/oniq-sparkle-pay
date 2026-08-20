@@ -518,6 +518,7 @@ function RidesScreen() {
               </div>
               <button
                 onClick={searchPickup}
+                aria-label="Search pickup address"
                 disabled={pickupSearching}
                 className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
               >
@@ -609,6 +610,7 @@ function RidesScreen() {
           </div>
           <button
             onClick={search}
+            aria-label="Search destination"
             disabled={searching}
             className="grid h-11 w-11 place-items-center rounded-xl bg-primary text-primary-foreground disabled:opacity-50"
           >

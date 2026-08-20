@@ -940,6 +940,7 @@ function ReadSection({ religion }: { religion: Religion }) {
           <div className="flex gap-1">
             <button
               onClick={prev}
+              aria-label="Previous"
               disabled={active === 0}
               className="press grid h-8 w-8 place-items-center rounded-full bg-surface-2 disabled:opacity-40"
             >
@@ -947,6 +948,7 @@ function ReadSection({ religion }: { religion: Religion }) {
             </button>
             <button
               onClick={next}
+              aria-label="Next"
               disabled={active === idx.items.length - 1}
               className="press grid h-8 w-8 place-items-center rounded-full bg-surface-2 disabled:opacity-40"
             >

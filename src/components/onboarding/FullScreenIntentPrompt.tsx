@@ -81,7 +81,7 @@ export function FullScreenIntentPrompt() {
             </button>
           </div>
         </div>
-        <button onClick={dismiss} className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-white/5">
+        <button onClick={dismiss} aria-label="Dismiss" className="grid h-7 w-7 place-items-center rounded-full text-muted-foreground hover:bg-white/5">
           <X className="h-4 w-4" />
         </button>
       </div>

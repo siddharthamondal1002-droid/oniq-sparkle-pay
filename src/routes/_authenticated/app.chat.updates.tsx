@@ -344,6 +344,7 @@ function ComposeStatusSheet({ onClose, onDone }: { onClose: () => void; onDone: 
           <h2 className="font-display text-xl font-semibold">Share an update</h2>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="grid h-9 w-9 place-items-center rounded-full hover:bg-muted"
           >
             <X className="h-4 w-4" />
@@ -506,6 +507,7 @@ function StatusViewer({
         ))}
         <button
           onClick={onClose}
+          aria-label="Close"
           className="ml-2 grid h-9 w-9 place-items-center rounded-full bg-white/10"
         >
           <X className="h-4 w-4" />

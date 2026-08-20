@@ -546,6 +546,7 @@ function CommentsSheet({
           <h3 className="font-display text-base font-semibold">Comments</h3>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="grid h-8 w-8 place-items-center rounded-full bg-muted"
           >
             <X className="h-4 w-4" />
@@ -586,6 +587,7 @@ function CommentsSheet({
           />
           <button
             onClick={send}
+            aria-label="Post comment"
             disabled={sending || !text.trim()}
             className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground disabled:opacity-50"
           >
@@ -787,6 +789,7 @@ function UploadSheet({
           <h3 className="font-display text-base font-semibold">Post a clip</h3>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="grid h-8 w-8 place-items-center rounded-full bg-muted"
           >
             <X className="h-4 w-4" />

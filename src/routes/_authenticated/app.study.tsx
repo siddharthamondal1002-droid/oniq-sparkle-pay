@@ -1844,6 +1844,7 @@ function TutorChat({ profile }: { profile: LearnerProfile }) {
             />
             <button
               type="submit"
+              aria-label="Send message"
               disabled={!canSend}
               className="grid h-9 w-9 place-items-center rounded-full bg-accent text-accent-foreground disabled:opacity-50"
             >
