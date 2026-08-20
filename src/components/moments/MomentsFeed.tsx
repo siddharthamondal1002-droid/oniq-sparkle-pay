@@ -29,7 +29,7 @@ import { systemShare, type SharePayload } from "@/lib/share";
 import { watchImageView } from "@/lib/views";
 import { ViewersSheet } from "@/components/reels/ViewersSheet";
 import { ShareSheet } from "@/components/share/ShareSheet";
-import { PhotoStudio } from "@/components/photo/PhotoStudio";
+import { PhotoStudio } from "@/components/photo/PhotoStudioLazy";
 import { detectSelfHarmSignal } from "@/lib/selfHarm";
 import { sha256Hex, recordProvenance, scanProvenance } from "@/lib/provenance";
 import { CrisisSupportSheet } from "@/components/safety/CrisisSupportSheet";

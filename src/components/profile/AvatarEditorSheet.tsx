@@ -3,7 +3,7 @@ import { toast } from "sonner";
 import { Camera, Trash2, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { uploadMomentBlob } from "@/components/moments/MomentsFeed";
-import { PhotoStudio } from "@/components/photo/PhotoStudio";
+import { PhotoStudio } from "@/components/photo/PhotoStudioLazy";
 
 /**
  * One shared bottom sheet for profile-photo management, reachable from the

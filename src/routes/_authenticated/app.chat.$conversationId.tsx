@@ -61,7 +61,7 @@ import {
   hasTranslationConsent,
   setConversationTranslation,
 } from "@/lib/chat/translation";
-import { PhotoStudio } from "@/components/photo/PhotoStudio";
+import { PhotoStudio } from "@/components/photo/PhotoStudioLazy";
 import { EMOJI_CATEGORIES } from "@/lib/emojis";
 import { format, isToday, isYesterday } from "date-fns";
 import { toast } from "sonner";
