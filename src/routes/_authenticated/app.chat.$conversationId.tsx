@@ -614,9 +614,18 @@ function ChatThread() {
     return m;
   }, [reactions]);
 
+  // The on-screen message ids, read by the reactions channel handler below.
+  // Kept in a ref so a new message (which changes messageIds) updates the
+  // FILTER without re-subscribing the realtime channel. messageIds used to sit
+  // in the effect deps, so every incoming message tore the channel down and
+  // re-subscribed it — a removeChannel + subscribe round-trip per message, with
+  // a window in which reaction events arriving mid-resubscribe were missed.
+  const reactionMsgIdsRef = useRef<Set<string>>(new Set(messageIds));
   useEffect(() => {
-    if (messageIds.length === 0) return;
-    const ids = new Set(messageIds);
+    reactionMsgIdsRef.current = new Set(messageIds);
+  }, [messageIds]);
+
+  useEffect(() => {
     const ch = supabase
       .channel(`reactions:${conversationId}`)
       .on(
@@ -625,14 +634,14 @@ function ChatThread() {
         (payload) => {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const mid = ((payload.new || payload.old) as any)?.message_id;
-          if (mid && ids.has(mid)) refetchReactions();
+          if (mid && reactionMsgIdsRef.current.has(mid)) refetchReactions();
         },
       )
       .subscribe();
     return () => {
       supabase.removeChannel(ch);
     };
-  }, [conversationId, messageIds, refetchReactions]);
+  }, [conversationId, refetchReactions]);
 
   const toggleReaction = async (messageId: string, emoji: string) => {
     if (!me) return;
