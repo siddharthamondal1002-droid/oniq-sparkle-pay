@@ -1,21 +1,65 @@
 {
-  "generatedAt": "2026-08-20T10:01:21.459Z",
+  "generatedAt": "2026-08-20T10:15:20.710Z",
   "fixtureCount": 8,
-  "toleranceMs": 80,
+  "extractor": {
+    "mode": "EXTRACTOR_UNAVAILABLE",
+    "ffmpegAvailable": false,
+    "ffprobeAvailable": false,
+    "ffmpegPath": null,
+    "ffprobePath": null,
+    "ffmpegSource": "unavailable",
+    "ffprobeSource": "unavailable"
+  },
+  "tolerancePolicy": {
+    "minimumMs": 50,
+    "frameMultiplier": 2,
+    "formula": "max(minimumMs, frameDurationMs * frameMultiplier)"
+  },
   "boundedSampling": {
     "maxSamples": 9,
     "maxDurationMs": 180000
   },
+  "readiness": {
+    "policy": {
+      "minRealClips": 5,
+      "requiredCategories": [
+        "hard-cut",
+        "gradual-transition",
+        "continuous-shot",
+        "camera-movement",
+        "lighting-change",
+        "rapid-motion",
+        "low-contrast",
+        "talking-head"
+      ]
+    },
+    "status": "BLOCKED",
+    "realFixtureCount": 0,
+    "categoryCoverage": []
+  },
   "rows": [
     {
       "fixture": "ep3_s01a",
+      "mediaPath": "remotion/public/ep3/shots/ep3_s01a.jpg",
+      "mediaKind": "still",
+      "mediaExists": true,
+      "labels": [],
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      },
       "groundTruth": {
         "sceneCutsMs": [],
         "motionDirection": "static",
         "cameraMovement": "static",
         "screenDirection": "static",
         "identity": "UNKNOWN",
-        "shotScale": "medium"
+        "shotScale": "medium",
+        "cuts": []
       },
       "observed": {
         "sceneCutsMs": [],
@@ -25,30 +69,57 @@
         "identity": "UNKNOWN",
         "shotScale": "unknown",
         "confidence": 0,
+        "durationMs": null,
+        "fps": null,
+        "vfr": false,
         "sampleCount": 0,
+        "adaptiveSampleCount": 0,
         "subprocesses": 1
       },
-      "metrics": {
+      "extractor": {
+        "mode": "EXTRACTOR_UNAVAILABLE",
+        "ffmpegAvailable": false,
+        "ffprobeAvailable": false,
+        "ffmpegPath": null,
+        "ffprobePath": null
+      },
+      "boundary": {
+        "eligibleForMetrics": false,
+        "toleranceMs": 50,
         "tp": 0,
         "fp": 0,
         "fn": 0,
+        "tn": 0,
         "precision": null,
         "recall": null,
-        "fpr": 0,
+        "fpr": null,
         "fnr": null
       },
-      "runtimeMs": 0.75,
-      "rssDeltaBytes": 393216
+      "runtimeMs": 0.98,
+      "rssDeltaBytes": 299008
     },
     {
       "fixture": "ep3_s04c",
+      "mediaPath": "remotion/public/ep3/shots/ep3_s04c.jpg",
+      "mediaKind": "still",
+      "mediaExists": true,
+      "labels": [],
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      },
       "groundTruth": {
         "sceneCutsMs": [],
         "motionDirection": "static",
         "cameraMovement": "static",
         "screenDirection": "static",
         "identity": "UNKNOWN",
-        "shotScale": "medium"
+        "shotScale": "medium",
+        "cuts": []
       },
       "observed": {
         "sceneCutsMs": [],
@@ -58,30 +129,57 @@
         "identity": "UNKNOWN",
         "shotScale": "unknown",
         "confidence": 0,
+        "durationMs": null,
+        "fps": null,
+        "vfr": false,
         "sampleCount": 0,
+        "adaptiveSampleCount": 0,
         "subprocesses": 1
       },
-      "metrics": {
+      "extractor": {
+        "mode": "EXTRACTOR_UNAVAILABLE",
+        "ffmpegAvailable": false,
+        "ffprobeAvailable": false,
+        "ffmpegPath": null,
+        "ffprobePath": null
+      },
+      "boundary": {
+        "eligibleForMetrics": false,
+        "toleranceMs": 50,
         "tp": 0,
         "fp": 0,
         "fn": 0,
+        "tn": 0,
         "precision": null,
         "recall": null,
-        "fpr": 0,
+        "fpr": null,
         "fnr": null
       },
       "runtimeMs": 0.07,
-      "rssDeltaBytes": 131072
+      "rssDeltaBytes": 0
     },
     {
       "fixture": "ep3_s08b",
+      "mediaPath": "remotion/public/ep3/shots/ep3_s08b.jpg",
+      "mediaKind": "still",
+      "mediaExists": true,
+      "labels": [],
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      },
       "groundTruth": {
         "sceneCutsMs": [],
         "motionDirection": "static",
         "cameraMovement": "static",
         "screenDirection": "static",
         "identity": "UNKNOWN",
-        "shotScale": "medium"
+        "shotScale": "medium",
+        "cuts": []
       },
       "observed": {
         "sceneCutsMs": [],
@@ -91,16 +189,30 @@
         "identity": "UNKNOWN",
         "shotScale": "unknown",
         "confidence": 0,
+        "durationMs": null,
+        "fps": null,
+        "vfr": false,
         "sampleCount": 0,
+        "adaptiveSampleCount": 0,
         "subprocesses": 1
       },
-      "metrics": {
+      "extractor": {
+        "mode": "EXTRACTOR_UNAVAILABLE",
+        "ffmpegAvailable": false,
+        "ffprobeAvailable": false,
+        "ffmpegPath": null,
+        "ffprobePath": null
+      },
+      "boundary": {
+        "eligibleForMetrics": false,
+        "toleranceMs": 50,
         "tp": 0,
         "fp": 0,
         "fn": 0,
+        "tn": 0,
         "precision": null,
         "recall": null,
-        "fpr": 0,
+        "fpr": null,
         "fnr": null
       },
       "runtimeMs": 0.05,
@@ -108,13 +220,26 @@
     },
     {
       "fixture": "ep3_s11f",
+      "mediaPath": "remotion/public/ep3/shots/ep3_s11f.jpg",
+      "mediaKind": "still",
+      "mediaExists": true,
+      "labels": [],
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      },
       "groundTruth": {
         "sceneCutsMs": [],
         "motionDirection": "static",
         "cameraMovement": "static",
         "screenDirection": "static",
         "identity": "UNKNOWN",
-        "shotScale": "medium"
+        "shotScale": "medium",
+        "cuts": []
       },
       "observed": {
         "sceneCutsMs": [],
@@ -124,30 +249,57 @@
         "identity": "UNKNOWN",
         "shotScale": "unknown",
         "confidence": 0,
+        "durationMs": null,
+        "fps": null,
+        "vfr": false,
         "sampleCount": 0,
+        "adaptiveSampleCount": 0,
         "subprocesses": 1
       },
-      "metrics": {
+      "extractor": {
+        "mode": "EXTRACTOR_UNAVAILABLE",
+        "ffmpegAvailable": false,
+        "ffprobeAvailable": false,
+        "ffmpegPath": null,
+        "ffprobePath": null
+      },
+      "boundary": {
+        "eligibleForMetrics": false,
+        "toleranceMs": 50,
         "tp": 0,
         "fp": 0,
         "fn": 0,
+        "tn": 0,
         "precision": null,
         "recall": null,
-        "fpr": 0,
+        "fpr": null,
         "fnr": null
       },
-      "runtimeMs": 0.04,
+      "runtimeMs": 0.05,
       "rssDeltaBytes": 0
     },
     {
       "fixture": "ep3_s14d",
+      "mediaPath": "remotion/public/ep3/shots/ep3_s14d.jpg",
+      "mediaKind": "still",
+      "mediaExists": true,
+      "labels": [],
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      },
       "groundTruth": {
         "sceneCutsMs": [],
         "motionDirection": "static",
         "cameraMovement": "static",
         "screenDirection": "static",
         "identity": "UNKNOWN",
-        "shotScale": "medium"
+        "shotScale": "medium",
+        "cuts": []
       },
       "observed": {
         "sceneCutsMs": [],
@@ -157,30 +309,57 @@
         "identity": "UNKNOWN",
         "shotScale": "unknown",
         "confidence": 0,
+        "durationMs": null,
+        "fps": null,
+        "vfr": false,
         "sampleCount": 0,
+        "adaptiveSampleCount": 0,
         "subprocesses": 1
       },
-      "metrics": {
+      "extractor": {
+        "mode": "EXTRACTOR_UNAVAILABLE",
+        "ffmpegAvailable": false,
+        "ffprobeAvailable": false,
+        "ffmpegPath": null,
+        "ffprobePath": null
+      },
+      "boundary": {
+        "eligibleForMetrics": false,
+        "toleranceMs": 50,
         "tp": 0,
         "fp": 0,
         "fn": 0,
+        "tn": 0,
         "precision": null,
         "recall": null,
-        "fpr": 0,
+        "fpr": null,
         "fnr": null
       },
-      "runtimeMs": 0.04,
+      "runtimeMs": 0.08,
       "rssDeltaBytes": 0
     },
     {
       "fixture": "ep4_s02",
+      "mediaPath": "remotion/public/ep4/ep4_s02.jpg",
+      "mediaKind": "still",
+      "mediaExists": true,
+      "labels": [],
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      },
       "groundTruth": {
         "sceneCutsMs": [],
         "motionDirection": "static",
         "cameraMovement": "static",
         "screenDirection": "static",
         "identity": "UNKNOWN",
-        "shotScale": "medium"
+        "shotScale": "medium",
+        "cuts": []
       },
       "observed": {
         "sceneCutsMs": [],
@@ -190,30 +369,57 @@
         "identity": "UNKNOWN",
         "shotScale": "unknown",
         "confidence": 0,
+        "durationMs": null,
+        "fps": null,
+        "vfr": false,
         "sampleCount": 0,
+        "adaptiveSampleCount": 0,
         "subprocesses": 1
       },
-      "metrics": {
+      "extractor": {
+        "mode": "EXTRACTOR_UNAVAILABLE",
+        "ffmpegAvailable": false,
+        "ffprobeAvailable": false,
+        "ffmpegPath": null,
+        "ffprobePath": null
+      },
+      "boundary": {
+        "eligibleForMetrics": false,
+        "toleranceMs": 50,
         "tp": 0,
         "fp": 0,
         "fn": 0,
+        "tn": 0,
         "precision": null,
         "recall": null,
-        "fpr": 0,
+        "fpr": null,
         "fnr": null
       },
-      "runtimeMs": 0.04,
+      "runtimeMs": 0.05,
       "rssDeltaBytes": 0
     },
     {
       "fixture": "ep4_s06",
+      "mediaPath": "remotion/public/ep4/ep4_s06.jpg",
+      "mediaKind": "still",
+      "mediaExists": true,
+      "labels": [],
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      },
       "groundTruth": {
         "sceneCutsMs": [],
         "motionDirection": "static",
         "cameraMovement": "static",
         "screenDirection": "static",
         "identity": "UNKNOWN",
-        "shotScale": "medium"
+        "shotScale": "medium",
+        "cuts": []
       },
       "observed": {
         "sceneCutsMs": [],
@@ -223,30 +429,57 @@
         "identity": "UNKNOWN",
         "shotScale": "unknown",
         "confidence": 0,
+        "durationMs": null,
+        "fps": null,
+        "vfr": false,
         "sampleCount": 0,
+        "adaptiveSampleCount": 0,
         "subprocesses": 1
       },
-      "metrics": {
+      "extractor": {
+        "mode": "EXTRACTOR_UNAVAILABLE",
+        "ffmpegAvailable": false,
+        "ffprobeAvailable": false,
+        "ffmpegPath": null,
+        "ffprobePath": null
+      },
+      "boundary": {
+        "eligibleForMetrics": false,
+        "toleranceMs": 50,
         "tp": 0,
         "fp": 0,
         "fn": 0,
+        "tn": 0,
         "precision": null,
         "recall": null,
-        "fpr": 0,
+        "fpr": null,
         "fnr": null
       },
-      "runtimeMs": 0.04,
+      "runtimeMs": 0.05,
       "rssDeltaBytes": 0
     },
     {
       "fixture": "ep4_s09",
+      "mediaPath": "remotion/public/ep4/ep4_s09.jpg",
+      "mediaKind": "still",
+      "mediaExists": true,
+      "labels": [],
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      },
       "groundTruth": {
         "sceneCutsMs": [],
         "motionDirection": "static",
         "cameraMovement": "static",
         "screenDirection": "static",
         "identity": "UNKNOWN",
-        "shotScale": "medium"
+        "shotScale": "medium",
+        "cuts": []
       },
       "observed": {
         "sceneCutsMs": [],
@@ -256,16 +489,30 @@
         "identity": "UNKNOWN",
         "shotScale": "unknown",
         "confidence": 0,
+        "durationMs": null,
+        "fps": null,
+        "vfr": false,
         "sampleCount": 0,
+        "adaptiveSampleCount": 0,
         "subprocesses": 1
       },
-      "metrics": {
+      "extractor": {
+        "mode": "EXTRACTOR_UNAVAILABLE",
+        "ffmpegAvailable": false,
+        "ffprobeAvailable": false,
+        "ffmpegPath": null,
+        "ffprobePath": null
+      },
+      "boundary": {
+        "eligibleForMetrics": false,
+        "toleranceMs": 50,
         "tp": 0,
         "fp": 0,
         "fn": 0,
+        "tn": 0,
         "precision": null,
         "recall": null,
-        "fpr": 0,
+        "fpr": null,
         "fnr": null
       },
       "runtimeMs": 0.04,
@@ -277,11 +524,13 @@
       "tp": 0,
       "fp": 0,
       "fn": 0,
-      "tn": 8,
+      "tn": 0,
       "precision": null,
       "recall": null,
-      "fpr": 0,
-      "fnr": null
+      "fpr": null,
+      "fnr": null,
+      "eligibleFixtures": 0,
+      "opportunities": 0
     },
     "signals": {
       "motionDirection": {
@@ -322,16 +571,20 @@
     },
     "performance": {
       "wallTimeMs": {
-        "p50": 0.04,
-        "p95": 0.75,
-        "total": 1.07
+        "p50": 0.05,
+        "p95": 0.98,
+        "total": 1.37
       },
       "rssDeltaBytes": {
         "p50": 0,
-        "p95": 393216,
-        "max": 393216
+        "p95": 299008,
+        "max": 299008
       },
       "sampleCount": {
+        "p50": 0,
+        "p95": 0
+      },
+      "adaptiveSampleCount": {
         "p50": 0,
         "p95": 0
       },
@@ -341,11 +594,25 @@
       }
     }
   },
+  "blockedReasons": [
+    "EXTRACTOR_UNAVAILABLE",
+    "REAL_FIXTURE_COUNT_UNDER_MINIMUM",
+    "NO_POSITIVE_CUT_LABELS",
+    "NO_NO_CUT_LABELS",
+    "MISSING_CATEGORY:hard-cut",
+    "MISSING_CATEGORY:gradual-transition",
+    "MISSING_CATEGORY:continuous-shot",
+    "MISSING_CATEGORY:camera-movement",
+    "MISSING_CATEGORY:lighting-change",
+    "MISSING_CATEGORY:rapid-motion",
+    "MISSING_CATEGORY:low-contrast",
+    "MISSING_CATEGORY:talking-head"
+  ],
   "limitations": [
-    "ffmpeg/ffprobe not available in this runtime; extraction executed in UNKNOWN fallback mode.",
-    "Repository fixtures currently contain committed still images but no committed real video clips/mp4s for cut-positive calibration.",
-    "Boundary recall/FNR are under-constrained without positive cut labels from real clips.",
-    "Motion/screen-direction on still fixtures validate UNKNOWN-safe/static behavior, not moving-scene accuracy."
+    "EXTRACTOR_UNAVAILABLE: ffmpeg/ffprobe are missing or unresolved in this runtime.",
+    "REAL_FIXTURE_COUNT_UNDER_MINIMUM: found 0, need at least 5.",
+    "NO_POSITIVE_CUT_LABELS: no committed real clip has independent positive cut annotations yet.",
+    "NO_NO_CUT_LABELS: no committed real clip is labelled as continuous/no-cut yet."
   ],
   "decisionGate": "BLOCKED"
 }

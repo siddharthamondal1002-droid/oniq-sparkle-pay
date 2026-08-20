@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "status": "BLOCKED",
+  "blockedBy": [
+    "EXTRACTOR_UNAVAILABLE in this local runtime",
+    "No committed real-video clips with independent cut labels"
+  ],
+  "tolerancePolicy": {
+    "minimumMs": 50,
+    "frameMultiplier": 2
+  },
+  "readinessPolicy": {
+    "minRealClips": 5,
+    "requiredCategories": [
+      "hard-cut",
+      "gradual-transition",
+      "continuous-shot",
+      "camera-movement",
+      "lighting-change",
+      "rapid-motion",
+      "low-contrast",
+      "talking-head"
+    ]
+  },
+  "fixtureSchema": {
+    "requiredFields": [
+      "id",
+      "mediaPath",
+      "mediaKind",
+      "durationMs",
+      "fps",
+      "groundTruth.cuts[].timeMs",
+      "groundTruth.cuts[].toleranceMs",
+      "groundTruth.continuityEvents",
+      "labels",
+      "provenance"
+    ],
+    "notes": [
+      "Ground truth must be independent from detector output",
+      "Do not label synthetic fixtures as real-video",
+      "UNKNOWN extractor output must never be counted as detector negatives"
+    ]
+  },
+  "acquisition": {
+    "templatePath": "remotion/fixtures/cv-calibration/manifest.real.template.json",
+    "sourceHints": [
+      "remotion/public/ep3/raw/*.mp4.asset.json",
+      "remotion/public/ep3/clips/*.mp4.asset.json",
+      "remotion/public/ep4/raw/*.mp4.asset.json",
+      "GitHub prerelease tags: ep3-clips-transfer, ep4-clips-transfer"
+    ]
+  }
+}

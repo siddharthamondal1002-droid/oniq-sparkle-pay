@@ -1,0 +1,62 @@
+{
+  "version": 2,
+  "status": "READY",
+  "tolerancePolicy": {
+    "minimumMs": 50,
+    "frameMultiplier": 2
+  },
+  "readinessPolicy": {
+    "minRealClips": 5,
+    "requiredCategories": [
+      "hard-cut",
+      "gradual-transition",
+      "continuous-shot",
+      "camera-movement",
+      "lighting-change",
+      "rapid-motion",
+      "low-contrast",
+      "talking-head"
+    ]
+  },
+  "fixtures": [
+    {
+      "id": "replace_with_unique_clip_id",
+      "mediaPath": "remotion/fixtures/cv-calibration/media/replace_with_clip.mp4",
+      "mediaKind": "clip",
+      "durationMs": 0,
+      "fps": 0,
+      "groundTruth": {
+        "cuts": [
+          {
+            "timeMs": 0,
+            "toleranceMs": 50
+          }
+        ],
+        "continuityEvents": [
+          {
+            "type": "cut|drift|match",
+            "timeMs": 0,
+            "toleranceMs": 50,
+            "notes": "independent human label"
+          }
+        ],
+        "motionDirection": "UNKNOWN",
+        "cameraMovement": "UNKNOWN",
+        "screenDirection": "UNKNOWN",
+        "identity": "UNKNOWN",
+        "shotScale": "UNKNOWN"
+      },
+      "labels": [
+        "real-video",
+        "hard-cut"
+      ],
+      "provenance": {
+        "source": "production-render",
+        "episode": "ep3|ep4|...",
+        "shot": "sXX",
+        "assetPointer": "remotion/public/.../*.mp4.asset.json",
+        "notes": "how this clip was acquired"
+      }
+    }
+  ]
+}
