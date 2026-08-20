@@ -465,6 +465,22 @@ async function markFailed(job, message) {
     );
     return;
   }
+
+  async function saveQcReport(job, report) {
+    if (fixtureEdge) {
+      console.log(`  [dry] qc-report ${Array.isArray(report?.shots) ? report.shots.length : 0} entries`);
+      return;
+    }
+    if (dispatched) {
+      await callback('qc-report', { report });
+      return;
+    }
+    await db(`story_jobs?id=eq.${job.id}`, {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ qc_report: report }),
+    });
+  }
   await setStatus(job.id, 'failed', { error }).catch(() => {});
   await rpc('refund_story_seconds', { _job_id: job.id }).catch((err) =>
     console.error('refund failed:', err.message),
@@ -898,6 +914,119 @@ function secondsOf(file) {
   return n;
 }
 
+function parseRate(raw) {
+  if (!raw) return 0;
+  if (!String(raw).includes('/')) return Number(raw) || 0;
+  const [a, b] = String(raw).split('/');
+  const num = Number(a);
+  const den = Number(b);
+  if (!Number.isFinite(num) || !Number.isFinite(den) || den === 0) return 0;
+  return num / den;
+}
+
+function probeMedia(file) {
+  const out = execFileSync(findBin('ffprobe'), [
+    '-v', 'error',
+    '-print_format', 'json',
+    '-show_streams',
+    '-show_format',
+    file,
+  ]).toString();
+  return JSON.parse(out);
+}
+
+function avgLuma(ffmpeg, file) {
+  const rgb = execFileSync(ffmpeg, [
+    '-v', 'error',
+    '-i', file,
+    '-vf', 'scale=1:1',
+    '-frames:v', '1',
+    '-f', 'rawvideo',
+    '-pix_fmt', 'rgb24',
+    'pipe:1',
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+  if (!rgb || rgb.length < 3) throw new Error('no decoded frame');
+  const r = rgb[0];
+  const g = rgb[1];
+  const b = rgb[2];
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function validateShotAssets({ ffmpeg, shotIndex, attempt, stillFile, audioFile, clipFile, expectedSeconds }) {
+  const checks = [];
+  const metrics = {};
+  const push = (name, pass, detail) => checks.push({ name, pass, detail });
+
+  try {
+    const still = probeMedia(stillFile);
+    const stream = (still.streams ?? []).find((s) => s.codec_type === 'video');
+    push('still.decode', Boolean(stream), stream ? 'ok' : 'no video stream');
+    const w = Number(stream?.width ?? 0);
+    const h = Number(stream?.height ?? 0);
+    metrics.still = { width: w, height: h };
+    push('still.resolution', w >= 320 && h >= 320, `${w}x${h}`);
+    const luma = avgLuma(ffmpeg, stillFile);
+    metrics.still.luma = Number(luma.toFixed(1));
+    push('still.visual', luma >= 8 && luma <= 247, `luma=${luma.toFixed(1)}`);
+  } catch (err) {
+    push('still.decode', false, String(err?.message ?? err).slice(0, 120));
+  }
+
+  try {
+    const audio = probeMedia(audioFile);
+    const stream = (audio.streams ?? []).find((s) => s.codec_type === 'audio');
+    push('audio.decode', Boolean(stream), stream ? 'ok' : 'no audio stream');
+    const duration = Number(audio.format?.duration ?? 0);
+    metrics.audio = { duration: Number(duration.toFixed(3)) };
+    push('audio.duration', duration >= 0.25, `${duration.toFixed(3)}s`);
+    push(
+      'audio.sync-window',
+      Math.abs(duration - expectedSeconds) <= 0.25,
+      `expected=${expectedSeconds.toFixed(3)}s actual=${duration.toFixed(3)}s`,
+    );
+  } catch (err) {
+    push('audio.decode', false, String(err?.message ?? err).slice(0, 120));
+  }
+
+  if (clipFile) {
+    try {
+      const clip = probeMedia(clipFile);
+      const stream = (clip.streams ?? []).find((s) => s.codec_type === 'video');
+      push('clip.decode', Boolean(stream), stream ? 'ok' : 'no video stream');
+      const w = Number(stream?.width ?? 0);
+      const h = Number(stream?.height ?? 0);
+      const fps = parseRate(stream?.avg_frame_rate ?? stream?.r_frame_rate ?? 0);
+      const duration = Number(clip.format?.duration ?? 0);
+      metrics.clip = {
+        width: w,
+        height: h,
+        fps: Number(fps.toFixed(3)),
+        duration: Number(duration.toFixed(3)),
+      };
+      push('clip.resolution', w >= 320 && h >= 320, `${w}x${h}`);
+      push('clip.fps', fps >= 12, `${fps.toFixed(3)}fps`);
+      push('clip.duration', duration >= 0.8, `${duration.toFixed(3)}s`);
+      const luma = avgLuma(ffmpeg, clipFile);
+      metrics.clip.luma = Number(luma.toFixed(1));
+      push('clip.visual', luma >= 8 && luma <= 247, `luma=${luma.toFixed(1)}`);
+    } catch (err) {
+      push('clip.decode', false, String(err?.message ?? err).slice(0, 120));
+    }
+  }
+
+  const passed = checks.every((c) => c.pass);
+  const score = checks.length > 0 ? Math.round((checks.filter((c) => c.pass).length / checks.length) * 100) : 0;
+  return {
+    shot: shotIndex + 1,
+    attempt,
+    passed,
+    score,
+    checks,
+    metrics,
+    createdAt: new Date().toISOString(),
+  };
+}
+
 // --- offline path: render a plan from disk ----------------------------------
 if (offline) {
   const plan = JSON.parse(fs.readFileSync(PLAN_FILE, 'utf8'));
@@ -1089,11 +1218,17 @@ if (offline) {
     const facings = conversationFacings(shotRigs.map((rig) => ({ rig })));
 
     const rendered = [];
+    const qcReport = {
+      version: 1,
+      stage: 'pre-assembly-shot-validator',
+      shots: [],
+    };
     // Rung 11: the shots' emotional registers, collected for the film-level
     // score vote. Classic films push nulls and vote for silence.
     const shotEmotions = [];
     let movingShots = 0;
     for (const [i, shot] of plan.shots.entries()) {
+      for (let qcAttempt = 1; qcAttempt <= 2; qcAttempt++) {
       // One call per shot, sequentially. Not a fan-out: the rate limit is per
       // call and a loop that ignores it is how a month of credits goes in an
       // hour.
@@ -1119,7 +1254,7 @@ if (offline) {
       // outside the ladder. The slice loses the tail of the setting, which
       // is repeated in every other shot anyway — a marginally vaguer frame
       // beats a dead film, the same trade as the refusal rungs below.
-      const locks = (plan.cast ?? []).map((c) => `${c.name}: ${c.lock}`).join('\n');
+        const locks = (plan.cast ?? []).map((c) => `${c.name}: ${c.lock}`).join('\n');
       const asks = [
         `${shot.still}\n\nSetting: ${plan.setting}`.slice(0, 1900),
         (
@@ -1206,7 +1341,7 @@ if (offline) {
       // alternation: every shot moves now, so counting movement would let a
       // push in the middle flip the direction and send two slides the same way.
       const framing = framingFor(shot.still, movingShots);
-      if (isSlide(framing)) movingShots += 1;
+      const movedSlide = isSlide(framing);
 
       // NARRATION: the cloud voice first, the in-house voice when the cloud
       // cannot answer. A story-voice 502 that survives every paced retry is
@@ -1332,10 +1467,11 @@ if (offline) {
       // not a hole, and the ep3 finding is that refusals are luck, not
       // verdicts. Sequential like every billable call here.
       let clip = null;
+      let clipFile = null;
       if (movie) {
         try {
           const got = await generateClip(shot, stillFile, seconds);
-          const clipFile = path.join(assetRoot, `${stem}.clip.mp4`);
+          clipFile = path.join(assetRoot, `${stem}.clip.mp4`);
           fs.writeFileSync(clipFile, Buffer.from(got.data, 'base64'));
           const clipSeconds = secondsOf(clipFile);
           // Two frames shy of the measured end: the composition must never
@@ -1539,9 +1675,7 @@ if (offline) {
         ];
         console.log(`  body ${i + 1}: ${notes.join(', ')}`);
       }
-      shotEmotions.push(expression);
-
-      rendered.push({
+      const candidateShot = {
         // Relative to public/, because that is what staticFile() takes. Posix
         // separators explicitly: this is a URL path once it reaches the
         // browser, not a filesystem path.
@@ -1597,8 +1731,40 @@ if (offline) {
               ...(companion ? { companion: { ...companion, speech: spans } } : {}),
             }
           : {}),
+      };
+      const qc = validateShotAssets({
+        ffmpeg,
+        shotIndex: i,
+        attempt: qcAttempt,
+        stillFile,
+        audioFile: wav,
+        clipFile,
+        expectedSeconds: seconds,
       });
+      qcReport.shots.push(qc);
+      await saveQcReport(job, qcReport).catch((err) => {
+        console.log(`  qc report ${i + 1}: save failed (${String(err?.message ?? err).slice(0, 120)})`);
+      });
+      if (!qc.passed) {
+        console.log(
+          `  qc ${i + 1} attempt ${qcAttempt}: ${qc.score}% ` +
+            `(${qc.checks.filter((c) => !c.pass).map((c) => c.name).join(', ') || 'failed'})`,
+        );
+        if (qcAttempt >= 2) {
+          throw new Error(
+            `shot ${i + 1} failed qc after ${qcAttempt} attempts: ` +
+              `${qc.checks.filter((c) => !c.pass).map((c) => c.name).join(', ') || 'unknown'}`,
+          );
+        }
+        continue;
+      }
+      if (movedSlide) movingShots += 1;
+      shotEmotions.push(expression);
+      rendered.push(candidateShot);
       console.log(`  voice ${i + 1}/${plan.shots.length} — ${seconds.toFixed(2)}s, ${spans.length} spans`);
+      console.log(`  qc ${i + 1}: pass ${qc.score}%`);
+      break;
+      }
     }
 
     // RUNG 11 — the score, movie grade only. The film's shots vote on a

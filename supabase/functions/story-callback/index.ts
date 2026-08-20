@@ -22,13 +22,14 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-type Action = "claim" | "assembling" | "upload-url" | "ready" | "failed";
+type Action = "claim" | "assembling" | "upload-url" | "ready" | "failed" | "qc-report";
 const ACTIONS: ReadonlySet<string> = new Set([
   "claim",
   "assembling",
   "upload-url",
   "ready",
   "failed",
+  "qc-report",
 ]);
 
 /** Where a finished Story lands. Same bucket the episodes use. */
@@ -161,6 +162,9 @@ Deno.serve(async (req) => {
       case "failed":
         patch.status = "failed";
         patch.error = String(body?.error ?? "render failed").slice(0, 500);
+        break;
+      case "qc-report":
+        patch.qc_report = body?.report ?? null;
         break;
     }
 
