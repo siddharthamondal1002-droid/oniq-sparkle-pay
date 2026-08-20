@@ -1653,7 +1653,46 @@ if (offline) {
     );
     gradeInPlace(outFile);
 
-    const storagePath = await uploadFinished(job, outFile);
+    // OUTPUT_VALIDATE — ffprobe the master before it counts as a film. A
+    // truncated or empty render caught HERE fails honestly and refunds; the
+    // same break caught AFTER upload would ship a stub the user paid for. The
+    // grade re-encode preserves duration, so a master shorter than half of what
+    // its shots measured is broken, not brief. Mirrors masterLooksValid /
+    // MASTER_MIN_DURATION_RATIO in src/lib/storyRenderer.ts, pinned against
+    // drift by src/lib/__tests__/storyStageRecovery.test.ts.
+    const MASTER_MIN_DURATION_RATIO = 0.5;
+    const expectedSeconds = rendered.reduce((a, s) => a + (s.seconds || 0), 0);
+    const masterSeconds = secondsOf(outFile);
+    if (!(masterSeconds > 0) || (expectedSeconds > 0 && masterSeconds < expectedSeconds * MASTER_MIN_DURATION_RATIO)) {
+      throw new Error(
+        `master invalid: ${masterSeconds.toFixed(1)}s vs ${expectedSeconds.toFixed(1)}s of shots`,
+      );
+    }
+    console.log(`master validated: ${masterSeconds.toFixed(1)}s over ${rendered.length} shots`);
+
+    // UPLOAD — retried IN PLACE, never re-rendered. The render above cost every
+    // still, clip and voice; a PUT that flakes is network weather, not a verdict
+    // on the film. The object path is derived from the job id, so a re-PUT
+    // overwrites the same object and the retry is idempotent — the loss that
+    // motivated this whole section was a fully-paid film regenerated from
+    // scratch to recover a dropped upload. Mirrors UPLOAD_MAX_ATTEMPTS /
+    // uploadBackoffMs in src/lib/storyRenderer.ts (same pin as above).
+    const UPLOAD_MAX_ATTEMPTS = 4;
+    let storagePath;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        storagePath = await uploadFinished(job, outFile);
+        break;
+      } catch (err) {
+        if (attempt >= UPLOAD_MAX_ATTEMPTS) throw err;
+        const wait = attempt * 3_000; // uploadBackoffMs(attempt + 1)
+        console.log(
+          `upload failed (attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS}) — again in ${wait / 1000}s, ` +
+            `render preserved: ${String(err?.message ?? err).slice(0, 160)}`,
+        );
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
     await markReady(job, storagePath, rendered.length);
     console.log(`job ${job.id} ready at ${storagePath}`);
   } catch (e) {

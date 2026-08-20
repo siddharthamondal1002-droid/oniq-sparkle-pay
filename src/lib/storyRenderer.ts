@@ -136,3 +136,76 @@ export function fallbackAfter(failed: RenderTarget): RenderTarget | null {
 export function isRetryable(kind: "timeout" | "oom" | "bad-input" | "unknown"): boolean {
   return kind === "timeout" || kind === "oom";
 }
+
+/* -------------------------------------------------------------------------- *
+ *  Stage-aware recovery inside a single CI render.
+ *
+ *  chooseRenderer/fallbackAfter above decide WHICH backend runs a job. This
+ *  section governs what happens INSIDE one CI run once the expensive work is
+ *  already done — the lifecycle the worker walks after Veo has been paid for:
+ *
+ *    RENDER  → VALIDATE → UPLOAD → FINALIZE
+ *   (minutes)  (ffprobe)  (a PUT)  (a callback)
+ *
+ *  The rule these encode, learned the expensive way: a run that renders a full
+ *  film (every still, every clip, every voice already generated and billed) and
+ *  then loses it to a transient PUT flake, only to REGENERATE from scratch on
+ *  the retry, has thrown away the one stage that cost real money and minutes to
+ *  recover from the one that costs neither. The render is precious; the upload
+ *  is a network hiccup. So the upload retries in place, and a successful render
+ *  is never recomputed to recover from a later stage's failure.
+ *
+ *  PURE, and mirrored by remotion/scripts/story-worker.mjs — pinned against
+ *  drift by storyStageRecovery.test.ts, the same discipline the capability
+ *  matrix uses against story-clip's own constants.
+ * -------------------------------------------------------------------------- */
+
+/**
+ * How many times the UPLOAD stage may be attempted before the film is declared
+ * lost. Four, because the object path is derived from the job id, so a re-PUT
+ * overwrites the same object — the retry is idempotent, and the master already
+ * on disk is worth several paced attempts before regeneration is even considered.
+ */
+export const UPLOAD_MAX_ATTEMPTS = 4;
+
+/**
+ * Backoff before upload attempt N (1-indexed). Linear, matching the browser
+ * retry's cadence in the same worker: attempt 2 waits 3s, attempt 3 waits 6s,
+ * attempt 4 waits 9s. Attempt 1 never waits.
+ */
+export function uploadBackoffMs(attempt: number): number {
+  if (!Number.isInteger(attempt) || attempt < 1) {
+    throw new Error(`uploadBackoffMs: ${attempt} is not an attempt number`);
+  }
+  return (attempt - 1) * 3_000;
+}
+
+/**
+ * The lower bound on a valid master's duration, as a fraction of the duration
+ * the shots add up to. A finished concat re-encoded by the film-look grade keeps
+ * its duration, so a master that comes back at less than half of what its shots
+ * measured is truncated or empty — a broken render, not a short film. Kept well
+ * below 1 so a real film with normal rounding never trips it.
+ */
+export const MASTER_MIN_DURATION_RATIO = 0.5;
+
+/**
+ * Does the rendered master look like a whole film, or like a broken render?
+ *
+ * `actualSeconds` is what ffprobe reads off the mp4; `expectedSeconds` is the
+ * sum of the shot durations that went into it (omit when unknown — then only
+ * the "playable at all" floor applies). Returns false for the failures worth
+ * catching BEFORE upload — an unreadable, zero-length, or truncated master —
+ * so the run fails honestly instead of shipping a stub the user paid for.
+ *
+ * Deliberately one-sided: it never rejects a master for being too LONG, because
+ * an over-long file is still a watchable film and a false rejection here would
+ * discard a real, fully-paid render — the exact waste this section exists to
+ * prevent.
+ */
+export function masterLooksValid(actualSeconds: number, expectedSeconds?: number): boolean {
+  if (!Number.isFinite(actualSeconds) || actualSeconds <= 0) return false;
+  if (expectedSeconds === undefined) return true;
+  if (!Number.isFinite(expectedSeconds) || expectedSeconds <= 0) return true;
+  return actualSeconds >= expectedSeconds * MASTER_MIN_DURATION_RATIO;
+}
