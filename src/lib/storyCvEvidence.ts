@@ -1,9 +1,27 @@
 export type EvidenceSource = "ffmpeg" | "ffprobe" | "opencv" | "pyscenedetect" | "heuristic" | "unknown";
+export type EvidenceState = "OBSERVED" | "INFERRED" | "UNKNOWN";
+
+export type BoundedSamplingInfo = {
+  bounded: boolean;
+  strategy: "first-middle-last-adaptive" | "unknown";
+  maxSamples: number;
+  actualSamples: number;
+  maxDurationMs: number;
+  sampleScale: string;
+};
+
+export type EvidenceProvenance = {
+  method: string;
+  sourceDetail?: string;
+};
 
 export type EvidenceConfidence<T> = {
   value: T;
   confidence: number;
   source: EvidenceSource | string;
+  state?: EvidenceState;
+  provenance?: EvidenceProvenance;
+  sampling?: BoundedSamplingInfo;
   timestampMs?: number;
   frameNumber?: number;
   detector?: { name: string; version: string };
@@ -19,6 +37,8 @@ export type FrameSample = {
 
 export type VisualEvidence = {
   version: 1;
+  contractVersion: 1;
+  sampling: BoundedSamplingInfo;
   media: {
     kind: "still" | "clip" | "unknown";
     pathHash: string;
@@ -95,6 +115,18 @@ export type ShotBoundaryObservation = {
 export function boundedConfidence(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.max(0, Math.min(1, Number(value.toFixed(3))));
+}
+
+export function evidenceStateFor(input: {
+  source: EvidenceSource | string;
+  confidence: number;
+  value: unknown;
+}): EvidenceState {
+  const confidence = boundedConfidence(input.confidence);
+  if (confidence <= 0) return "UNKNOWN";
+  if (input.source === "unknown") return "UNKNOWN";
+  if (typeof input.value === "string" && input.value.toUpperCase() === "UNKNOWN") return "UNKNOWN";
+  return input.source === "heuristic" ? "INFERRED" : "OBSERVED";
 }
 
 export function safePathHash(pathLike: string): string {

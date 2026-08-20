@@ -4,12 +4,38 @@ import {
   boundedConfidence,
   classifyShotObservation,
   colorDistance,
+  evidenceStateFor,
   safePathHash,
 } from '../../src/lib/storyCvEvidence.ts';
 
 const DEFAULT_SCALE = '64:36';
 const MAX_SAMPLES = 9;
 const MAX_DURATION_MS = 180_000;
+const CONTRACT_VERSION = 1;
+
+function samplingInfo(overrides = {}) {
+  return {
+    bounded: true,
+    strategy: 'first-middle-last-adaptive',
+    maxSamples: MAX_SAMPLES,
+    actualSamples: 0,
+    maxDurationMs: MAX_DURATION_MS,
+    sampleScale: DEFAULT_SCALE,
+    ...overrides,
+  };
+}
+
+function evidence(value, confidence, source, detector, sampling, provenanceMethod) {
+  return {
+    value,
+    confidence: boundedConfidence(confidence),
+    source,
+    state: evidenceStateFor({ source, confidence, value }),
+    provenance: { method: provenanceMethod ?? (detector?.name || 'unknown') },
+    ...(sampling ? { sampling } : {}),
+    ...(detector ? { detector } : {}),
+  };
+}
 
 function clamp(n, min, max) {
   return Math.max(min, Math.min(max, n));
@@ -153,47 +179,50 @@ function sampleTimes(durationMs, maxSamples) {
 }
 
 function cvUnknown(pathLike) {
+  const sampling = samplingInfo();
   return {
     visualEvidence: {
       version: 1,
+      contractVersion: CONTRACT_VERSION,
+      sampling,
       media: { kind: 'unknown', pathHash: safePathHash(pathLike) },
-      timing: { durationMs: undefined, fps: undefined, vfr: { value: false, confidence: 0, source: 'unknown' } },
+      timing: { durationMs: undefined, fps: undefined, vfr: evidence(false, 0, 'unknown', null, sampling, 'missing-media') },
       sceneCuts: { observedCutTimestampsMs: [], transitionHints: [], confidence: 0, source: 'unknown' },
       frames: [],
       composition: {
-        shotScale: { value: 'unknown', confidence: 0, source: 'unknown' },
-        framingStability: { value: 'unknown', confidence: 0, source: 'unknown' },
+        shotScale: evidence('unknown', 0, 'unknown', null, sampling, 'missing-media'),
+        framingStability: evidence('unknown', 0, 'unknown', null, sampling, 'missing-media'),
       },
       color: {
-        luminance: { value: 0, confidence: 0, source: 'unknown' },
-        saturation: { value: 0, confidence: 0, source: 'unknown' },
-        contrast: { value: 0, confidence: 0, source: 'unknown' },
-        dominantColors: { value: [], confidence: 0, source: 'unknown' },
+        luminance: evidence(0, 0, 'unknown', null, sampling, 'missing-media'),
+        saturation: evidence(0, 0, 'unknown', null, sampling, 'missing-media'),
+        contrast: evidence(0, 0, 'unknown', null, sampling, 'missing-media'),
+        dominantColors: evidence([], 0, 'unknown', null, sampling, 'missing-media'),
       },
       motion: {
-        magnitude: { value: 0, confidence: 0, source: 'unknown' },
-        dominantDirection: { value: 'unknown', confidence: 0, source: 'unknown' },
-        cameraMovement: { value: 'unknown', confidence: 0, source: 'unknown' },
+        magnitude: evidence(0, 0, 'unknown', null, sampling, 'missing-media'),
+        dominantDirection: evidence('unknown', 0, 'unknown', null, sampling, 'missing-media'),
+        cameraMovement: evidence('unknown', 0, 'unknown', null, sampling, 'missing-media'),
       },
       subjects: {
-        personDetected: { value: null, confidence: 0, source: 'unknown' },
-        appearanceEmbeddingAvailable: { value: false, confidence: 1, source: 'unknown' },
-        identity: { value: 'UNKNOWN', confidence: 0, source: 'unknown' },
-        wardrobe: { dominantColors: { value: [], confidence: 0, source: 'unknown' } },
+        personDetected: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
+        appearanceEmbeddingAvailable: evidence(false, 1, 'unknown', null, sampling, 'unsupported'),
+        identity: evidence('UNKNOWN', 0, 'unknown', null, sampling, 'unsupported'),
+        wardrobe: { dominantColors: evidence([], 0, 'unknown', null, sampling, 'unsupported') },
       },
       faces: {
-        detected: { value: null, confidence: 0, source: 'unknown' },
-        count: { value: null, confidence: 0, source: 'unknown' },
-        boxes: { value: null, confidence: 0, source: 'unknown' },
+        detected: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
+        count: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
+        boxes: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
       },
       objects: {
-        detected: { value: null, confidence: 0, source: 'unknown' },
-        labels: { value: null, confidence: 0, source: 'unknown' },
+        detected: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
+        labels: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
       },
       location: {
-        indoorOutdoorSignal: { value: 'unknown', confidence: 0, source: 'unknown' },
+        indoorOutdoorSignal: evidence('unknown', 0, 'unknown', null, sampling, 'unsupported'),
       },
-      screenDirection: { value: 'unknown', confidence: 0, source: 'unknown' },
+      screenDirection: evidence('unknown', 0, 'unknown', null, sampling, 'missing-media'),
       confidence: 0,
     },
     observedShot: null,
@@ -227,6 +256,7 @@ export function extractVisualEvidence(input) {
     const height = Number(video.height ?? 0) || 0;
 
     const times = sampleTimes(durationMs ?? 1200, Math.max(3, Math.min(maxSamples, MAX_SAMPLES)));
+    const sampling = samplingInfo({ actualSamples: times.length });
     const samples = [];
     for (const t of times) {
       const rgb = rgbAt(ffmpeg, mediaPath, t / 1000);
@@ -300,6 +330,8 @@ export function extractVisualEvidence(input) {
 
     const visualEvidence = {
       version: 1,
+      contractVersion: CONTRACT_VERSION,
+      sampling,
       media: {
         kind: mediaKind === 'still' ? 'still' : mediaKind === 'clip' ? 'clip' : 'unknown',
         pathHash: safePathHash(mediaPath),
@@ -310,12 +342,13 @@ export function extractVisualEvidence(input) {
       timing: {
         durationMs,
         fps: Number.isFinite(fps) ? Number(fps.toFixed(3)) : undefined,
-        vfr: {
-          value: Boolean(vfr),
-          confidence: boundedConfidence(Number.isFinite(fps) ? 0.86 : 0.25),
-          source: 'ffprobe',
-          detector: { name: 'ffprobe-rate-check', version: '1.0.0' },
-        },
+        vfr: evidence(
+          Boolean(vfr),
+          Number.isFinite(fps) ? 0.86 : 0.25,
+          'ffprobe',
+          { name: 'ffprobe-rate-check', version: '1.0.0' },
+          sampling,
+        ),
       },
       sceneCuts: {
         observedCutTimestampsMs: cuts,
@@ -330,126 +363,140 @@ export function extractVisualEvidence(input) {
         reason: idx === 0 ? 'first' : idx === times.length - 1 ? 'last' : idx === Math.floor(times.length / 2) ? 'middle' : 'adaptive',
       })),
       composition: {
-        shotScale: {
-          value: shotScale,
-          confidence: boundedConfidence(width > 0 && height > 0 ? 0.6 : 0.2),
-          source: 'ffprobe',
-          detector: { name: 'resolution-scale-heuristic', version: '1.0.0' },
-        },
-        framingStability: {
-          value: moving ? 'moving' : 'stable',
-          confidence: boundedConfidence(0.45 + Math.min(0.4, motionMag * 4)),
-          source: 'heuristic',
-          detector: { name: 'energy-delta', version: '1.0.0' },
-        },
+        shotScale: evidence(
+          shotScale,
+          width > 0 && height > 0 ? 0.6 : 0.2,
+          'ffprobe',
+          { name: 'resolution-scale-heuristic', version: '1.0.0' },
+          sampling,
+        ),
+        framingStability: evidence(
+          moving ? 'moving' : 'stable',
+          0.45 + Math.min(0.4, motionMag * 4),
+          'heuristic',
+          { name: 'energy-delta', version: '1.0.0' },
+          sampling,
+        ),
       },
       color: {
-        luminance: {
-          value: Number(luma.toFixed(3)),
-          confidence: evidenceConfidence,
-          source: 'ffmpeg',
-          detector: { name: 'rgb-luma', version: '1.0.0' },
-        },
-        saturation: {
-          value: Number(sat.toFixed(4)),
-          confidence: evidenceConfidence,
-          source: 'ffmpeg',
-          detector: { name: 'rgb-saturation', version: '1.0.0' },
-        },
-        contrast: {
-          value: Number(contrast.toFixed(3)),
-          confidence: evidenceConfidence,
-          source: 'ffmpeg',
-          detector: { name: 'rgb-contrast', version: '1.0.0' },
-        },
-        dominantColors: {
-          value: [...new Set(dominantPalette)].slice(0, 4),
-          confidence: evidenceConfidence,
-          source: 'heuristic',
-          detector: { name: 'dominant-bin-color', version: '1.0.0' },
-        },
+        luminance: evidence(
+          Number(luma.toFixed(3)),
+          evidenceConfidence,
+          'ffmpeg',
+          { name: 'rgb-luma', version: '1.0.0' },
+          sampling,
+        ),
+        saturation: evidence(
+          Number(sat.toFixed(4)),
+          evidenceConfidence,
+          'ffmpeg',
+          { name: 'rgb-saturation', version: '1.0.0' },
+          sampling,
+        ),
+        contrast: evidence(
+          Number(contrast.toFixed(3)),
+          evidenceConfidence,
+          'ffmpeg',
+          { name: 'rgb-contrast', version: '1.0.0' },
+          sampling,
+        ),
+        dominantColors: evidence(
+          [...new Set(dominantPalette)].slice(0, 4),
+          evidenceConfidence,
+          'heuristic',
+          { name: 'dominant-bin-color', version: '1.0.0' },
+          sampling,
+        ),
         ...(Number.isFinite(locationSimilarity)
           ? {
-              histogramSimilarityToPrevious: {
-                value: Number(locationSimilarity.toFixed(3)),
-                confidence: boundedConfidence((previousEvidence?.confidence ?? 0) * evidenceConfidence),
-                source: 'heuristic',
-                detector: { name: 'palette-similarity', version: '1.0.0' },
-              },
+              histogramSimilarityToPrevious: evidence(
+                Number(locationSimilarity.toFixed(3)),
+                (previousEvidence?.confidence ?? 0) * evidenceConfidence,
+                'heuristic',
+                { name: 'palette-similarity', version: '1.0.0' },
+                sampling,
+              ),
             }
           : {}),
       },
       motion: {
-        magnitude: {
-          value: Number(motionMag.toFixed(4)),
-          confidence: evidenceConfidence,
-          source: 'heuristic',
-          detector: { name: 'energy-shift', version: '1.0.0' },
-        },
-        dominantDirection: {
-          value: direction,
-          confidence: boundedConfidence(0.35 + Math.min(0.5, motionMag * 4.5)),
-          source: 'heuristic',
-          detector: { name: 'energy-centroid-dx', version: '1.0.0' },
-        },
-        cameraMovement: {
-          value: moving ? 'moving' : 'static',
-          confidence: boundedConfidence(0.38 + Math.min(0.52, motionMag * 4)),
-          source: 'heuristic',
-          detector: { name: 'energy-shift', version: '1.0.0' },
-        },
+        magnitude: evidence(
+          Number(motionMag.toFixed(4)),
+          evidenceConfidence,
+          'heuristic',
+          { name: 'energy-shift', version: '1.0.0' },
+          sampling,
+        ),
+        dominantDirection: evidence(
+          direction,
+          0.35 + Math.min(0.5, motionMag * 4.5),
+          'heuristic',
+          { name: 'energy-centroid-dx', version: '1.0.0' },
+          sampling,
+        ),
+        cameraMovement: evidence(
+          moving ? 'moving' : 'static',
+          0.38 + Math.min(0.52, motionMag * 4),
+          'heuristic',
+          { name: 'energy-shift', version: '1.0.0' },
+          sampling,
+        ),
       },
       subjects: {
-        personDetected: { value: null, confidence: 0, source: 'unknown' },
-        appearanceEmbeddingAvailable: { value: false, confidence: 1, source: 'unknown' },
-        identity: { value: 'UNKNOWN', confidence: 0, source: 'unknown' },
+        personDetected: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
+        appearanceEmbeddingAvailable: evidence(false, 1, 'unknown', null, sampling, 'unsupported'),
+        identity: evidence('UNKNOWN', 0, 'unknown', null, sampling, 'unsupported'),
         wardrobe: {
-          dominantColors: {
-            value: [...new Set(dominantPalette)].slice(0, 3),
-            confidence: boundedConfidence(evidenceConfidence * 0.8),
-            source: 'heuristic',
-            detector: { name: 'palette-similarity', version: '1.0.0' },
-          },
+          dominantColors: evidence(
+            [...new Set(dominantPalette)].slice(0, 3),
+            evidenceConfidence * 0.8,
+            'heuristic',
+            { name: 'palette-similarity', version: '1.0.0' },
+            sampling,
+          ),
           ...(previousEvidence
             ? {
-                changeVsPrevious: {
-                  value: wardrobeChange,
-                  confidence: boundedConfidence((previousEvidence.confidence ?? 0) * evidenceConfidence),
-                  source: 'heuristic',
-                  detector: { name: 'palette-similarity', version: '1.0.0' },
-                },
+                changeVsPrevious: evidence(
+                  wardrobeChange,
+                  (previousEvidence.confidence ?? 0) * evidenceConfidence,
+                  'heuristic',
+                  { name: 'palette-similarity', version: '1.0.0' },
+                  sampling,
+                ),
               }
             : {}),
         },
       },
       faces: {
-        detected: { value: null, confidence: 0, source: 'unknown' },
-        count: { value: null, confidence: 0, source: 'unknown' },
-        boxes: { value: null, confidence: 0, source: 'unknown' },
+        detected: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
+        count: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
+        boxes: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
       },
       objects: {
-        detected: { value: null, confidence: 0, source: 'unknown' },
-        labels: { value: null, confidence: 0, source: 'unknown' },
+        detected: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
+        labels: evidence(null, 0, 'unknown', null, sampling, 'unsupported'),
       },
       location: {
-        indoorOutdoorSignal: { value: 'unknown', confidence: 0, source: 'unknown' },
+        indoorOutdoorSignal: evidence('unknown', 0, 'unknown', null, sampling, 'unsupported'),
         ...(Number.isFinite(locationSimilarity)
           ? {
-              environmentSimilarityToPrevious: {
-                value: Number(locationSimilarity.toFixed(3)),
-                confidence: boundedConfidence((previousEvidence?.confidence ?? 0) * evidenceConfidence),
-                source: 'heuristic',
-                detector: { name: 'palette-similarity', version: '1.0.0' },
-              },
+              environmentSimilarityToPrevious: evidence(
+                Number(locationSimilarity.toFixed(3)),
+                (previousEvidence?.confidence ?? 0) * evidenceConfidence,
+                'heuristic',
+                { name: 'palette-similarity', version: '1.0.0' },
+                sampling,
+              ),
             }
           : {}),
       },
-      screenDirection: {
-        value: direction,
-        confidence: boundedConfidence(0.3 + Math.min(0.55, motionMag * 5)),
-        source: 'heuristic',
-        detector: { name: 'energy-centroid-dx', version: '1.0.0' },
-      },
+      screenDirection: evidence(
+        direction,
+        0.3 + Math.min(0.55, motionMag * 5),
+        'heuristic',
+        { name: 'energy-centroid-dx', version: '1.0.0' },
+        sampling,
+      ),
       confidence: evidenceConfidence,
     };
 

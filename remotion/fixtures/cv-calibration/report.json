@@ -1,0 +1,351 @@
+{
+  "generatedAt": "2026-08-20T10:01:21.459Z",
+  "fixtureCount": 8,
+  "toleranceMs": 80,
+  "boundedSampling": {
+    "maxSamples": 9,
+    "maxDurationMs": 180000
+  },
+  "rows": [
+    {
+      "fixture": "ep3_s01a",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "observed": {
+        "sceneCutsMs": [],
+        "motionDirection": "unknown",
+        "cameraMovement": "unknown",
+        "screenDirection": "unknown",
+        "identity": "UNKNOWN",
+        "shotScale": "unknown",
+        "confidence": 0,
+        "sampleCount": 0,
+        "subprocesses": 1
+      },
+      "metrics": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "fpr": 0,
+        "fnr": null
+      },
+      "runtimeMs": 0.75,
+      "rssDeltaBytes": 393216
+    },
+    {
+      "fixture": "ep3_s04c",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "observed": {
+        "sceneCutsMs": [],
+        "motionDirection": "unknown",
+        "cameraMovement": "unknown",
+        "screenDirection": "unknown",
+        "identity": "UNKNOWN",
+        "shotScale": "unknown",
+        "confidence": 0,
+        "sampleCount": 0,
+        "subprocesses": 1
+      },
+      "metrics": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "fpr": 0,
+        "fnr": null
+      },
+      "runtimeMs": 0.07,
+      "rssDeltaBytes": 131072
+    },
+    {
+      "fixture": "ep3_s08b",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "observed": {
+        "sceneCutsMs": [],
+        "motionDirection": "unknown",
+        "cameraMovement": "unknown",
+        "screenDirection": "unknown",
+        "identity": "UNKNOWN",
+        "shotScale": "unknown",
+        "confidence": 0,
+        "sampleCount": 0,
+        "subprocesses": 1
+      },
+      "metrics": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "fpr": 0,
+        "fnr": null
+      },
+      "runtimeMs": 0.05,
+      "rssDeltaBytes": 0
+    },
+    {
+      "fixture": "ep3_s11f",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "observed": {
+        "sceneCutsMs": [],
+        "motionDirection": "unknown",
+        "cameraMovement": "unknown",
+        "screenDirection": "unknown",
+        "identity": "UNKNOWN",
+        "shotScale": "unknown",
+        "confidence": 0,
+        "sampleCount": 0,
+        "subprocesses": 1
+      },
+      "metrics": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "fpr": 0,
+        "fnr": null
+      },
+      "runtimeMs": 0.04,
+      "rssDeltaBytes": 0
+    },
+    {
+      "fixture": "ep3_s14d",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "observed": {
+        "sceneCutsMs": [],
+        "motionDirection": "unknown",
+        "cameraMovement": "unknown",
+        "screenDirection": "unknown",
+        "identity": "UNKNOWN",
+        "shotScale": "unknown",
+        "confidence": 0,
+        "sampleCount": 0,
+        "subprocesses": 1
+      },
+      "metrics": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "fpr": 0,
+        "fnr": null
+      },
+      "runtimeMs": 0.04,
+      "rssDeltaBytes": 0
+    },
+    {
+      "fixture": "ep4_s02",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "observed": {
+        "sceneCutsMs": [],
+        "motionDirection": "unknown",
+        "cameraMovement": "unknown",
+        "screenDirection": "unknown",
+        "identity": "UNKNOWN",
+        "shotScale": "unknown",
+        "confidence": 0,
+        "sampleCount": 0,
+        "subprocesses": 1
+      },
+      "metrics": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "fpr": 0,
+        "fnr": null
+      },
+      "runtimeMs": 0.04,
+      "rssDeltaBytes": 0
+    },
+    {
+      "fixture": "ep4_s06",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "observed": {
+        "sceneCutsMs": [],
+        "motionDirection": "unknown",
+        "cameraMovement": "unknown",
+        "screenDirection": "unknown",
+        "identity": "UNKNOWN",
+        "shotScale": "unknown",
+        "confidence": 0,
+        "sampleCount": 0,
+        "subprocesses": 1
+      },
+      "metrics": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "fpr": 0,
+        "fnr": null
+      },
+      "runtimeMs": 0.04,
+      "rssDeltaBytes": 0
+    },
+    {
+      "fixture": "ep4_s09",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "observed": {
+        "sceneCutsMs": [],
+        "motionDirection": "unknown",
+        "cameraMovement": "unknown",
+        "screenDirection": "unknown",
+        "identity": "UNKNOWN",
+        "shotScale": "unknown",
+        "confidence": 0,
+        "sampleCount": 0,
+        "subprocesses": 1
+      },
+      "metrics": {
+        "tp": 0,
+        "fp": 0,
+        "fn": 0,
+        "precision": null,
+        "recall": null,
+        "fpr": 0,
+        "fnr": null
+      },
+      "runtimeMs": 0.04,
+      "rssDeltaBytes": 0
+    }
+  ],
+  "aggregate": {
+    "boundary": {
+      "tp": 0,
+      "fp": 0,
+      "fn": 0,
+      "tn": 8,
+      "precision": null,
+      "recall": null,
+      "fpr": 0,
+      "fnr": null
+    },
+    "signals": {
+      "motionDirection": {
+        "match": 0,
+        "mismatch": 0,
+        "unknown": 8,
+        "known": 0,
+        "accuracy": null
+      },
+      "screenDirection": {
+        "match": 0,
+        "mismatch": 0,
+        "unknown": 8,
+        "known": 0,
+        "accuracy": null
+      },
+      "cameraMovement": {
+        "match": 0,
+        "mismatch": 0,
+        "unknown": 8,
+        "known": 0,
+        "accuracy": null
+      },
+      "identity": {
+        "match": 0,
+        "mismatch": 0,
+        "unknown": 8,
+        "known": 0,
+        "accuracy": null
+      },
+      "shotScale": {
+        "match": 0,
+        "mismatch": 0,
+        "unknown": 8,
+        "known": 0,
+        "accuracy": null
+      }
+    },
+    "performance": {
+      "wallTimeMs": {
+        "p50": 0.04,
+        "p95": 0.75,
+        "total": 1.07
+      },
+      "rssDeltaBytes": {
+        "p50": 0,
+        "p95": 393216,
+        "max": 393216
+      },
+      "sampleCount": {
+        "p50": 0,
+        "p95": 0
+      },
+      "subprocessCount": {
+        "p50": 1,
+        "p95": 1
+      }
+    }
+  },
+  "limitations": [
+    "ffmpeg/ffprobe not available in this runtime; extraction executed in UNKNOWN fallback mode.",
+    "Repository fixtures currently contain committed still images but no committed real video clips/mp4s for cut-positive calibration.",
+    "Boundary recall/FNR are under-constrained without positive cut labels from real clips.",
+    "Motion/screen-direction on still fixtures validate UNKNOWN-safe/static behavior, not moving-scene accuracy."
+  ],
+  "decisionGate": "BLOCKED"
+}

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { classifyShotObservation, colorDistance, safePathHash } from "@/lib/storyCvEvidence";
+import {
+  classifyShotObservation,
+  colorDistance,
+  evidenceStateFor,
+  safePathHash,
+} from "@/lib/storyCvEvidence";
 
 describe("storyCvEvidence helpers", () => {
   it("classifies strong single-shot alignment as MATCH", () => {
@@ -44,5 +49,13 @@ describe("storyCvEvidence helpers", () => {
     const a = safePathHash("/tmp/clip.mp4");
     const b = safePathHash("/tmp/clip.mp4");
     expect(a).toBe(b);
+  });
+
+  it("marks unknown evidence state correctly", () => {
+    expect(evidenceStateFor({ source: "unknown", confidence: 1, value: "UNKNOWN" })).toBe("UNKNOWN");
+  });
+
+  it("marks heuristic evidence as inferred", () => {
+    expect(evidenceStateFor({ source: "heuristic", confidence: 0.8, value: "static" })).toBe("INFERRED");
   });
 });

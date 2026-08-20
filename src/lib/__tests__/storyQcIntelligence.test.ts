@@ -158,4 +158,20 @@ describe("cv-backed continuity evidence", () => {
     expect(out.findings.some((f) => f.status === "REGENERATE")).toBe(false);
     expect(out.findings.some((f) => f.status === "WARN")).toBe(true);
   });
+
+  it("keeps UNKNOWN observed-shot evidence non-blocking", () => {
+    const out = evaluateContinuity({
+      shotIndex: 2,
+      shotStill: "Ravi waits at the same harbor rail",
+      shotNarration: "The wind rises over the same dock.",
+      observedShot: {
+        expectedShotId: 3,
+        observedCutCount: 4,
+        classification: "UNKNOWN",
+        confidence: 0.2,
+        reasons: ["low_confidence"],
+      },
+    });
+    expect(out.findings.some((f) => f.category === "temporal" && f.status === "REGENERATE")).toBe(false);
+  });
 });

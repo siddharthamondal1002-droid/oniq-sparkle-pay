@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "toleranceMs": 80,
+  "fixtures": [
+    {
+      "id": "ep3_s01a",
+      "mediaPath": "remotion/public/ep3/shots/ep3_s01a.jpg",
+      "mediaKind": "still",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      }
+    },
+    {
+      "id": "ep3_s04c",
+      "mediaPath": "remotion/public/ep3/shots/ep3_s04c.jpg",
+      "mediaKind": "still",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      }
+    },
+    {
+      "id": "ep3_s08b",
+      "mediaPath": "remotion/public/ep3/shots/ep3_s08b.jpg",
+      "mediaKind": "still",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      }
+    },
+    {
+      "id": "ep3_s11f",
+      "mediaPath": "remotion/public/ep3/shots/ep3_s11f.jpg",
+      "mediaKind": "still",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      }
+    },
+    {
+      "id": "ep3_s14d",
+      "mediaPath": "remotion/public/ep3/shots/ep3_s14d.jpg",
+      "mediaKind": "still",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      }
+    },
+    {
+      "id": "ep4_s02",
+      "mediaPath": "remotion/public/ep4/ep4_s02.jpg",
+      "mediaKind": "still",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      }
+    },
+    {
+      "id": "ep4_s06",
+      "mediaPath": "remotion/public/ep4/ep4_s06.jpg",
+      "mediaKind": "still",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      }
+    },
+    {
+      "id": "ep4_s09",
+      "mediaPath": "remotion/public/ep4/ep4_s09.jpg",
+      "mediaKind": "still",
+      "groundTruth": {
+        "sceneCutsMs": [],
+        "motionDirection": "static",
+        "cameraMovement": "static",
+        "screenDirection": "static",
+        "identity": "UNKNOWN",
+        "shotScale": "medium"
+      },
+      "provenance": {
+        "sceneCutsMs": "still_image",
+        "motionDirection": "still_image",
+        "cameraMovement": "still_image",
+        "screenDirection": "still_image",
+        "identity": "unsupported_identity_detector",
+        "shotScale": "fixture_resolution"
+      }
+    }
+  ]
+}
