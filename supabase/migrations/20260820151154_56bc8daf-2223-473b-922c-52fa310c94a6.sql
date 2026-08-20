@@ -1,0 +1,1 @@
+drop table if exists public._story_free_check;
