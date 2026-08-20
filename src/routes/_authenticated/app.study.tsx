@@ -4510,11 +4510,47 @@ function useAttempts() {
       )
         .from("quiz_attempts")
         .select(
-          "id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, chapter, created_at, answer_sheet",
+          // NOT answer_sheet: that per-question blob is heavy and only needed
+          // when one review is opened. It is fetched lazily in QuizSheetModal;
+          // presence (which attempts have a review) comes from useSheetIds.
+          "id, profile_id, subject, topic, total_questions, correct_count, total_marks, marks_scored, chapter, created_at",
         )
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data ?? [];
+    },
+  });
+}
+
+// Ids of quick-quiz attempts that have a saved review sheet. We fetch only the
+// ids (a few bytes each) rather than pulling every attempt's full answer_sheet
+// into the dashboard on every mount. The column is stored NULL when empty (see
+// the quiz insert), so `answer_sheet is not null` is exactly the old
+// `Array.isArray(answer_sheet) && answer_sheet.length > 0` presence test.
+function useSheetIds() {
+  return useQuery({
+    queryKey: ["quiz-sheet-ids"],
+    refetchOnMount: "always",
+    staleTime: 0,
+    queryFn: async (): Promise<Set<string>> => {
+      const { data, error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            select: (c: string) => {
+              not: (
+                col: string,
+                op: string,
+                val: null,
+              ) => Promise<{ data: { id: string }[] | null; error: Error | null }>;
+            };
+          };
+        }
+      )
+        .from("quiz_attempts")
+        .select("id")
+        .not("answer_sheet", "is", null);
+      if (error) throw error;
+      return new Set((data ?? []).map((r) => r.id));
     },
   });
 }
@@ -4795,6 +4831,7 @@ function ProgressDashboard({
   const [quizSheet, setQuizSheet] = useState<Attempt | null>(null);
   const { t: tProgress } = useT();
   const { data: attempts, isLoading } = useAttempts();
+  const { data: sheetIdSet } = useSheetIds();
   const { data: sheets } = usePaperSheets();
   const [openSheet, setOpenSheet] = useState<string | null>(null);
 
@@ -4942,8 +4979,7 @@ function ProgressDashboard({
                         });
                         const { num, den } = attemptScore(r);
                         const isPaper = !!(r.total_marks && r.total_marks > 0);
-                        const hasSheet =
-                          !isPaper && Array.isArray(r.answer_sheet) && r.answer_sheet.length > 0;
+                        const hasSheet = !isPaper && !!sheetIdSet?.has(r.id);
                         return hasSheet ? (
                           <button
                             key={r.id}
@@ -5022,7 +5058,38 @@ function ProgressDashboard({
 /* Review sheet for a quick quiz attempt: every question with the student's
    pick vs the correct answer, plus the explanation. */
 function QuizSheetModal({ attempt, onClose }: { attempt: Attempt; onClose: () => void }) {
-  const items = (attempt.answer_sheet ?? []) as QuizSheetItem[];
+  // Fetch the heavy answer_sheet for THIS attempt only — it is deliberately not
+  // carried in the dashboard's bulk attempts query. Falls back to any sheet
+  // already on the row (older callers) so nothing regresses if it is present.
+  const { data: items = (attempt.answer_sheet ?? []) as QuizSheetItem[], isLoading } = useQuery({
+    queryKey: ["quiz-sheet", attempt.id],
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<QuizSheetItem[]> => {
+      const { data, error } = await (
+        supabase as unknown as {
+          from: (t: string) => {
+            select: (c: string) => {
+              eq: (
+                col: string,
+                val: string,
+              ) => {
+                maybeSingle: () => Promise<{
+                  data: { answer_sheet: QuizSheetItem[] | null } | null;
+                  error: Error | null;
+                }>;
+              };
+            };
+          };
+        }
+      )
+        .from("quiz_attempts")
+        .select("answer_sheet")
+        .eq("id", attempt.id)
+        .maybeSingle();
+      if (error) throw error;
+      return (data?.answer_sheet ?? []) as QuizSheetItem[];
+    },
+  });
   const when = new Date(attempt.created_at).toLocaleDateString(undefined, {
     day: "numeric",
     month: "short",
@@ -5056,6 +5123,13 @@ function QuizSheetModal({ attempt, onClose }: { attempt: Attempt; onClose: () =>
           </button>
         </div>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pb-2">
+          {isLoading && items.length === 0 && (
+            <div className="space-y-3">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-24 animate-pulse rounded-2xl border border-border bg-muted/40" />
+              ))}
+            </div>
+          )}
           {items.map((q, i) => {
             const right = q.picked === q.correct_index;
             return (
