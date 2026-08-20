@@ -12,6 +12,7 @@ import {
   FileText,
   FileUp,
   GripVertical,
+  Loader2,
   Plus,
   ShieldAlert,
   Sparkles,
@@ -176,8 +177,17 @@ function JobsScreen() {
         ONE gate, then a mode switch. Both halves of Jobs are 18+ for the same
         reason and were previously guarded by two identical copies of the same
         check on two separate routes.
+
+        The gate FAILS CLOSED while the check is in flight: `isAdult` is
+        undefined until the is_adult_18 RPC resolves, and showing the 18+ tools
+        during that window would let an under-18 (or unverified) account see
+        them for a beat. Content renders only on an affirmative `=== true`.
       */}
-      {isAdult === false ? (
+      {isAdult === undefined ? (
+        <div className="mx-4 mt-6 flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-[#16181E] p-6 text-sm text-white/60">
+          <Loader2 className="size-4 animate-spin" /> Checking access…
+        </div>
+      ) : isAdult === false ? (
         <AgeGateCard
           hasDob={gate?.has_dob ?? true}
           onSaved={async () => {
