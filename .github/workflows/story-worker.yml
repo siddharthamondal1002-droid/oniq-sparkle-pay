@@ -131,6 +131,29 @@ jobs:
           mkdir -p /tmp/oniq-runtime && chmod 700 /tmp/oniq-runtime
           npx remotion browser ensure
 
+      # REDACT THE PER-JOB TOKEN FROM THE LOG.
+      #
+      # STORY_JOB_TOKEN arrives in the repository_dispatch payload, not from
+      # `secrets`, so GitHub never auto-masks it — and GitHub echoes every
+      # `run:` step's resolved `env:` block in the collapsed group header. The
+      # net effect was that the render step below printed the token in full
+      # plaintext (right next to a correctly-masked `SUPABASE_URL: ***`).
+      #
+      # Registering the value with `::add-mask::` here — BEFORE the render step
+      # runs — makes GitHub redact it to `***` in every later line, including
+      # that env header. The token is read from the event file into a shell
+      # variable, never interpolated via `${{ }}` and never echoed: the `run:`
+      # script GitHub prints is the literal text below (with `$tok`, not its
+      # value), and jq's output is captured, not written to stdout. This changes
+      # only what the log renders — the render step still receives the real
+      # token in its environment, so the auth path is untouched. The token is a
+      # one-hour single-job capability, but a printed credential is a printed
+      # credential.
+      - name: redact the job token from the log
+        run: |
+          tok="$(jq -r '.client_payload.token // ""' "$GITHUB_EVENT_PATH")"
+          if [ -n "$tok" ]; then echo "::add-mask::$tok"; fi
+
       - name: render one job
         working-directory: remotion
         env:
