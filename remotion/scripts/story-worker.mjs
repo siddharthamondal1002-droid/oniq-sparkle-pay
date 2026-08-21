@@ -1933,14 +1933,24 @@ if (offline) {
         }
       }
 
-      // RUNG 3 — the particle atmosphere, movie grade only. The shot's own
-      // words choose the effect (or nothing — absence is the honest default),
-      // and the seed is hashed from the shot's identity so every render of
-      // this plan draws the same air. Skipped over clips: Veo scenes carry
-      // their own atmosphere and a second one on top would disagree.
+      // RUNG 3 — the particle atmosphere, movie grade only. The VISIBLE scene
+      // chooses the effect (or nothing — absence is the honest default), and
+      // the seed is hashed from the shot's identity so every render of this
+      // plan draws the same air. Skipped over clips: Veo scenes carry their
+      // own atmosphere and a second one on top would disagree.
+      //
+      // KEYED ON shot.still ALONE, not narration (owner: "the rain error",
+      // 2026-08-21). shot.still is the prompt for the frame the viewer sees;
+      // shot.narration is the spoken voice-over. A narrator who only MENTIONS
+      // weather — "it had rained for days", "a tempest of grief" — was
+      // painting 140 rain streaks over a dry interior, so rain bled onto shot
+      // after shot that showed none. Atmosphere is a VISIBLE layer: it may
+      // only appear where the visible scene earns it. (Gait and emotion still
+      // read narration below — action and feeling legitimately live in the
+      // voice-over; weather you can see does not.)
       let vfx = null;
       if (cinematic && !clip) {
-        const kind = vfxKindFor(`${shot.still} ${shot.narration}`);
+        const kind = vfxKindFor(shot.still);
         if (kind) {
           vfx = { kind, seed: vfxSeed(`${i}:${shot.still}`) };
           console.log(`  vfx ${i + 1}: ${kind}`);

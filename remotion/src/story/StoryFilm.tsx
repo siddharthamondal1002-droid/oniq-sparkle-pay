@@ -43,7 +43,8 @@ import {
 import { PARALLAX } from "../../../src/lib/parallaxPlanes";
 import { ambientVolumeAt, scoreVolumeAt } from "../../../src/lib/soundStage";
 import { TITLE_SECONDS, endFadeAt, titleOpacityAt } from "../../../src/lib/filmChrome";
-import type { VfxKind } from "../../../src/lib/particleField";
+import { type VfxKind, vfxSeed } from "../../../src/lib/particleField";
+import { livingSubjectMotion } from "../../../src/lib/livingMotion";
 import type { PuppetPerformance } from "../../../src/lib/puppetPerformance";
 import type { Emotion } from "../../../src/lib/expressionGrammar";
 import { Character } from "../rig/Character";
@@ -331,6 +332,17 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
   const x = shot.pan === "left" ? -amount * 100 : shot.pan === "right" ? amount * 100 : 0;
   const y = shot.pan === "up" ? -amount * 100 : shot.pan === "down" ? amount * 100 : 0;
 
+  // LIVING-SUBJECT MOTION — the fix for "nobody moves". The depth-cut near
+  // plane (the foreground / subject) breathes and sways on its own seeded
+  // rhythm, INDEPENDENT of the camera, so the person in the frame is alive
+  // rather than a static plate. The mid plane follows at half amplitude; the
+  // base stays put (it is the background). Only where a near plane exists —
+  // movie grade — so classic films are pixel-identical. Never over a clip: a
+  // Veo scene already moves.
+  const livingSeed = vfxSeed(shot.still);
+  const near = livingSubjectMotion(frame, fps, livingSeed, 1);
+  const mid = livingSubjectMotion(frame, fps, livingSeed, 0.5);
+
   // The clip's usable length inside THIS shot — its own tail is the one trim
   // site, exactly ep3's rule. Whatever narration outlasts it is carried by
   // the last live frame under a smoothstepped push: at rest when the freeze
@@ -391,9 +403,9 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            transform: `scale(${zoom + travel * PARALLAX.midCoverGain}) translate(${
-              x * PARALLAX.midRate
-            }%, ${y * PARALLAX.midRate}%)`,
+            transform: `scale(${zoom + travel * PARALLAX.midCoverGain + mid.scale}) translate(${
+              x * PARALLAX.midRate + mid.dx
+            }%, ${y * PARALLAX.midRate + mid.dy}%)`,
           }}
         />
       ) : null}
@@ -411,9 +423,9 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            transform: `scale(${zoom + travel * PARALLAX.nearCoverGain}) translate(${
-              x * PARALLAX.nearRate
-            }%, ${y * PARALLAX.nearRate}%)`,
+            transform: `scale(${zoom + travel * PARALLAX.nearCoverGain + near.scale}) translate(${
+              x * PARALLAX.nearRate + near.dx
+            }%, ${y * PARALLAX.nearRate + near.dy}%)`,
           }}
         />
       ) : null}

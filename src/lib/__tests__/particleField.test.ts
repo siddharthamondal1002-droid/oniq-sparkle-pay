@@ -163,6 +163,12 @@ describe("particlesAt", () => {
     const worker = readFileSync(join(process.cwd(), "remotion/scripts/story-worker.mjs"), "utf8");
     expect(worker).toMatch(/if \(cinematic && !clip\) \{\s*\n\s*const kind = vfxKindFor\(/);
     expect(worker).toMatch(/vfx = \{ kind, seed: vfxSeed\(/);
+    // "the rain error" (owner, 2026-08-21): the atmosphere is a VISIBLE layer,
+    // so it keys on the still prompt (the frame the viewer sees) ALONE — never
+    // the narration, or a narrator merely mentioning weather paints rain over
+    // a dry shot. Pin the argument so narration can't creep back in.
+    expect(worker).toMatch(/const kind = vfxKindFor\(shot\.still\);/);
+    expect(worker).not.toMatch(/vfxKindFor\(`\$\{shot\.still\} \$\{shot\.narration\}`\)/);
     const film = readFileSync(join(process.cwd(), "remotion/src/story/StoryFilm.tsx"), "utf8");
     expect(film).toMatch(/\{!shot\.clip && shot\.vfx \? <ParticleOverlay/);
   });
