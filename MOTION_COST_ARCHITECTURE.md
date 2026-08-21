@@ -156,6 +156,39 @@ user-visible quality/spend decision — is the **owner's** call; this document i
 the input to it, not the decision. **No GPU has been provisioned and nothing has
 been spent.**
 
+## Phase-5 REAL CPU test (done) — L3_ACCEPT_WITH_LIMITS
+
+One real CPU walk was produced and inspected. **GPU=0, API cost ₹0.**
+
+- **Character:** Meta Animated Drawings example `char1` (an illustrated humanoid,
+  frontal, full-body — the same stylised class as ONIQ stills). **Not** a
+  specific ONIQ still (see limits).
+- **Driver:** `zombie.bvh` (FAIR MIT) — a forward-walking locomotion clip, trimmed
+  to 150 frames.
+- **Pipeline that ran:** char_cfg + rig → BVH retarget (PCA) → **ARAP 2D mesh
+  deform** → **headless OSMesa** GL render → frames → mp4. All CPU.
+- **Measured (4-core CPU):** ~24 s wall for a 150-frame / 4.5 s clip (~16.6
+  render-fps); **CPU 36.7 s user + 18 s sys**; **peak RSS 669 MB**; output h264
+  **500×500 @ 33.3 fps, 4.5 s**, ~170 KB.
+- **Visual (frames 0/25/50/75/99):** the character **takes strides (legs
+  alternate/lift), swings its arms, leans, and translates across the frame**
+  (real locomotion — not camera/parallax). **Identity stable** throughout; no
+  missing limbs, no exploding geometry. Mild 2D-puppet warping of the torso/arms
+  (expected for an ARAP paper-puppet).
+- **Verdict: L3_ACCEPT_WITH_LIMITS.** Good-enough "storybook puppet" motion at
+  near-zero CPU cost — a strong fit for ONIQ's illustrated aesthetic — with these
+  limits:
+  1. Proven on Animated Drawings' example character, **not** yet on a real ONIQ
+     still (the container can't reach Supabase storage).
+  2. **The auto-rig half is unproven here** — `char1` came pre-annotated; turning
+     an ARBITRARY ONIQ still into a rig needs the heavier char-analysis stack
+     (Detectron2 + mmpose + TorchServe), which was not installed.
+  3. 2D-puppet limits hold: only frontal / full-body / unoccluded / single
+     subject; some limb warping. Everything else escalates to L4.
+
+Reproduce with `remotion/scripts/l3_animate_reference.py` (deps + OSMesa noted in
+its header). This is a reference/proof script, **not** wired into production.
+
 ## Real-test status
 
 - **Mock/CPU-contract proofs (done, on branch):** tier selector + escalation +
