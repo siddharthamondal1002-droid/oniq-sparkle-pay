@@ -41,7 +41,7 @@ jobs:
           grab 12.0 s2_a.jpg   # woman medium
           grab 16.0 s2_b.jpg   # + 4s later (motion pair)
           grab 24.0 s3_dry.jpg # storm-in-narration, dry visible scene
-          grab 34.0 s4_rain.jpg# genuinely rainy
+          grab 34.0 s4_rain.jpg  # genuinely rainy
           grab 40.0 s5_a.jpg   # fishmonger actor (identity)
           grab 42.5 s5_b.jpg   # + 2.5s later (motion pair)
           # A labelled 2x4 contact sheet for the overview.
