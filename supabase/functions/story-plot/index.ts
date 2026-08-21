@@ -58,6 +58,7 @@
 // in a system prompt would drift from the first one and nobody would notice
 // until a Story came back the wrong length.
 import { callGemini, callClaude, langInstruction } from "../_shared/llm.ts";
+import { orchestratePlan } from "../_shared/planOrchestrator.ts";
 import { verifyJobToken } from "../_shared/jobToken.ts";
 
 import { MOVIE_RULES, MAX_DIALOGUE_WORDS } from "../_shared/movieGrammar.ts";
@@ -393,141 +394,108 @@ Deno.serve(async (req) => {
     // for every function and the only thing anyone had was "no usable plan".
     const tried: { engine: string; reason: string }[] = [];
 
-    // LONG FILMS TAKE THE TWO-STAGE PATH. Below the threshold the single call
-    // is proven and simpler, and simpler is worth keeping for the common case.
-    if (!plan && hasClaude && shots > SINGLE_CALL_MAX_SHOTS) {
-      // VERBATIM films supply the narration for every shot (the user's own
-      // text), and the beats are replaced by it wholesale below. So a verbatim
-      // spine must NOT write beats — asking a 43-shot film for 43 beats that are
-      // then discarded is exactly what pushed the spine past its 45s budget on
-      // the 300s story and 502'd the job. A verbatim spine writes ONLY the
-      // structural locks the batches copy (title, logline, setting, cast); the
-      // beats come from the narrations. Non-verbatim films are unchanged.
+    // LONG FILMS TAKE THE TWO-STAGE PATH — on EITHER provider (owner P0,
+    // 2026-08-21). The old path ran spine+batches on Claude only; its lone
+    // fallback for a large film was a whole-43-shot single Gemini call — the
+    // exact request this path exists to avoid — so a Claude spine TIMEOUT killed
+    // the job with no real recovery. Now the spine (small structural call) and
+    // the batches (all-or-nothing shot expansion) for ONE engine are wrapped as
+    // closures and handed to a pure, bounded orchestrator
+    // (_shared/planOrchestrator.ts, unit-tested with mocked providers): it runs
+    // Claude's, and on a TRANSIENT failure (timeout/5xx/network) falls over to
+    // Gemini running the SAME small spine contract — never a whole-film call.
+    // A PERMANENT failure (400/auth/parse) is never retried, and every attempt
+    // is clamped to the wall clock, so the total work is bounded.
+    if (!plan && shots > SINGLE_CALL_MAX_SHOTS && (hasClaude || hasGemini)) {
       const isVerbatim = narrations.length === shots;
-      const spineOpts = {
-        system: (isVerbatim ? SPINE_SYSTEM_VERBATIM : SPINE_SYSTEM) + langInstruction(lang),
-        messages: [
-          {
-            role: "user" as const,
-            content: isVerbatim
-              ? `Write ONLY the structure — title, logline, setting, and cast locks — for a ` +
-                `${shots}-shot film of this story. The narration is already written; do NOT ` +
-                `write beats, shots, or scene text.\n\n${prompt}${reuseBlock}${houseCastBlock}${styleBlock}`
-              : `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}${houseCastBlock}${styleBlock}\n\n` +
-                `Return exactly ${shots} beats.`,
-          },
-        ],
-        // A ceiling, not a spend — same reasoning as the single-call cap.
-        maxTokens: 8192,
-      };
-      // One verbatim-aware contract for parsing a spine reply: the structure
-      // parser fills beats from the user's narrations; the full parser requires
-      // the model's own beats.
+      const spineSystem =
+        (isVerbatim ? SPINE_SYSTEM_VERBATIM : SPINE_SYSTEM) + langInstruction(lang);
+      const spineUser = isVerbatim
+        ? `Write ONLY the structure — title, logline, setting, and cast locks — for a ` +
+          `${shots}-shot film of this story. The narration is already written; do NOT ` +
+          `write beats, shots, or scene text.\n\n${prompt}${reuseBlock}${houseCastBlock}${styleBlock}`
+        : `Write the skeleton of a ${shots}-shot film from this idea:\n\n${prompt}${reuseBlock}${houseCastBlock}${styleBlock}\n\n` +
+          `Return exactly ${shots} beats.`;
       const parseSpineReply = (t: string) =>
         isVerbatim ? parseSpineStructure(t, narrations) : parseSpine(t, shots);
-      let spine: Spine | null = null;
-      const spineRes = await callClaude({ ...spineOpts, timeoutMs: claudeRoomFor(45_000) });
+      const callFor = (engine: string) => (engine === "gemini" ? callGemini : callClaude);
 
-      if (!spineRes.ok) {
-        tried.push({
-          engine: "anthropic:spine",
-          reason: String(spineRes.reason ?? "failed").slice(0, 160),
+      // SPINE on ONE engine within `timeoutMs`. A transient failure bubbles up
+      // for the orchestrator to fall over; a reply that ARRIVED but would not
+      // parse earns ONE corrective retry here (same engine, told what was wrong)
+      // — the same parse-only retry the single-call path uses, never a
+      // timeout-retry (the shared helper already double-attempts a timeout).
+      const spineStage = async (
+        engine: string,
+        timeoutMs: number,
+      ): Promise<{ ok: true; value: Spine } | { ok: false; reason: string }> => {
+        const call = callFor(engine);
+        const first = await call({
+          system: spineSystem,
+          messages: [{ role: "user", content: spineUser }],
+          maxTokens: 8192,
+          timeoutMs,
         });
-      } else {
-        const parsedSpine = parseSpineReply(textOf(spineRes.data));
-        if ("reason" in parsedSpine) {
-          tried.push({
-            engine: "anthropic:spine",
-            reason: (parsedSpine.reason + cutNote(spineRes.data)).slice(0, 160),
-          });
-        } else {
-          spine = parsedSpine.spine;
-        }
-      }
+        if (!first.ok) return { ok: false, reason: String(first.reason ?? "failed").slice(0, 160) };
+        const p1 = parseSpineReply(textOf(first.data));
+        if (!("reason" in p1)) return { ok: true, value: p1.spine };
+        const why = (p1.reason + cutNote(first.data)).slice(0, 160);
+        const retry = await call({
+          system: spineSystem,
+          messages: [
+            { role: "user", content: spineUser },
+            { role: "assistant", content: "I returned a skeleton that could not be used." },
+            {
+              role: "user",
+              content:
+                `That reply was rejected: ${why}.\n` +
+                (isVerbatim
+                  ? `Return ONLY the JSON object, with title, logline, setting and cast — ` +
+                    `NO beats and NO shots. Keep every lock under fifty words.`
+                  : `Return ONLY the JSON object, with exactly ${shots} beats. ` +
+                    `Keep every beat under twelve words and every lock under fifty.`),
+            },
+          ],
+          maxTokens: 8192,
+          timeoutMs,
+        });
+        if (!retry.ok) return { ok: false, reason: String(retry.reason ?? "failed").slice(0, 160) };
+        const p2 = parseSpineReply(textOf(retry.data));
+        if (!("reason" in p2)) return { ok: true, value: p2.spine };
+        return { ok: false, reason: (p2.reason + cutNote(retry.data)).slice(0, 160) };
+      };
 
-      // Second go at the spine, same contract as the single-call retry below:
-      // only for a reply that arrived and would not parse, and told what was
-      // wrong. This used to fall through to a single call for the WHOLE film
-      // — the exact call this path exists to avoid, and on seventeen shots it
-      // failed the same way the spine did.
-      const spineReason = tried.at(-1)?.reason;
-      if (!spine && spineRes.ok && spineReason) {
-        const retryMs = claudeRoomFor(45_000);
-        if (retryMs === 0) {
-          tried.push({ engine: "anthropic:spine-retry", reason: "no time left after the spine" });
-        } else {
-          const retry = await callClaude({
-            ...spineOpts,
-            timeoutMs: retryMs,
-            messages: [
-              ...spineOpts.messages,
-              {
-                role: "assistant" as const,
-                content: "I returned a skeleton that could not be used.",
-              },
-              {
-                role: "user" as const,
-                content:
-                  `That reply was rejected: ${spineReason}.\n` +
-                  (isVerbatim
-                    ? `Return ONLY the JSON object, with title, logline, setting and cast — ` +
-                      `NO beats and NO shots. Keep every lock under fifty words.`
-                    : `Return ONLY the JSON object, with exactly ${shots} beats. ` +
-                      `Keep every beat under twelve words and every lock under fifty.`),
-              },
-            ],
-          });
-          if (!retry.ok) {
-            tried.push({
-              engine: "anthropic:spine-retry",
-              reason: String(retry.reason ?? "failed").slice(0, 160),
-            });
-          } else {
-            const p2 = parseSpineReply(textOf(retry.data));
-            if ("reason" in p2) {
-              tried.push({
-                engine: "anthropic:spine-retry",
-                reason: (p2.reason + cutNote(retry.data)).slice(0, 160),
-              });
-            } else {
-              spine = p2.spine;
-            }
-          }
-        }
-      }
-
-      if (spine) {
-        // A const alias, because narrowing on a `let` does not survive into
-        // the batch closures below.
-        const sp = spine;
-        // VERBATIM: the user's narrations ARE the beats. The spine call
-        // above still earned its keep — title, setting, cast and locks are
-        // read out of the story — but the batches below expand the user's
-        // own sentences, not Ting's summary of them.
+      // BATCHES on the SAME engine, all-or-nothing: a film missing shots is
+      // broken, and every shot downstream costs money — so a gap fails here,
+      // before any of it is spent. Batches run concurrently: six sequential
+      // expansions would be the timeout again.
+      const batchStage = async (
+        engine: string,
+        sp: Spine,
+        timeoutMs: number,
+      ): Promise<{ ok: true; value: Plan } | { ok: false; reason: string }> => {
+        const call = callFor(engine);
+        // VERBATIM: the user's narrations ARE the beats — copied in unchanged,
+        // never rewritten/sliced/reordered (the authoritative-text guarantee).
         if (narrations.length === shots) sp.beats = narrations;
         const locks = lockText(sp);
-
-        // Batches run AT THE SAME TIME. Six sequential expansions would be the
-        // timeout again; six concurrent ones cost one expansion of wall clock.
-        const batches: { from: number; beats: string[] }[] = [];
+        const groups: { from: number; beats: string[] }[] = [];
         for (let i = 0; i < shots; i += BATCH_SHOTS) {
-          batches.push({ from: i, beats: sp.beats.slice(i, i + BATCH_SHOTS) });
+          groups.push({ from: i, beats: sp.beats.slice(i, i + BATCH_SHOTS) });
         }
-        const batchMs = claudeRoomFor(60_000);
         const results = await Promise.all(
-          batches.map(async (b) => {
-            if (batchMs === 0) return { reason: "batch: no time left after the spine" };
-            const res = await callClaude({
+          groups.map(async (b) => {
+            const res = await call({
               system: BATCH_SYSTEM + langInstruction(lang),
               messages: [
                 {
-                  role: "user" as const,
+                  role: "user",
                   content:
                     `${locks}${styleBlock}${paletteBlock}\n\nFILM: ${sp.title}\n\n` +
                     `Draw shots ${b.from + 1}–${b.from + b.beats.length} of ${shots}. ` +
                     `One shot per beat, in order:\n` +
                     b.beats.map((t, i) => `${b.from + i + 1}. ${t}`).join("\n") +
-                    (narrations.length === shots
+                    (isVerbatim
                       ? `\n\nThe text after each number is that shot's FINISHED` +
                         ` narration — the user's own words, read aloud exactly as` +
                         ` given. Copy it into \`narration\` unchanged and design the` +
@@ -536,42 +504,68 @@ Deno.serve(async (req) => {
                       : ""),
                 },
               ],
-              // A ceiling, not a spend — same reasoning as the other caps.
               maxTokens: 8192,
-              timeoutMs: batchMs,
+              timeoutMs,
             });
-            if (!res.ok)
-              return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };
+            if (!res.ok) return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };
             const parsed = parseShots(textOf(res.data), b.beats.length);
             if ("reason" in parsed) return { reason: parsed.reason + cutNote(res.data) };
             return parsed;
           }),
         );
-
-        // ALL OR NOTHING. A film missing shots nine to sixteen is not a
-        // shorter film, it is a broken one, and every shot downstream costs
-        // money — so a gap must fail here, before any of it is spent.
         const bad = results.find((r) => "reason" in r);
-        if (bad && "reason" in bad) {
-          tried.push({ engine: "anthropic:batch", reason: bad.reason.slice(0, 160) });
-        } else {
-          const all = results.flatMap((r) => ("shots" in r ? r.shots : []));
-          if (all.length !== shots) {
-            tried.push({
-              engine: "anthropic:batch",
-              reason: `assembled ${all.length} shots, wanted ${shots}`,
-            });
-          } else {
-            plan = {
-              title: sp.title,
-              logline: sp.logline,
-              setting: sp.setting,
-              cast: sp.cast,
-              shots: all,
-            };
-            servedBy = `anthropic:spine+${batches.length}`;
-          }
+        if (bad && "reason" in bad) return { ok: false, reason: bad.reason.slice(0, 160) };
+        const all = results.flatMap((r) => ("shots" in r ? r.shots : []));
+        if (all.length !== shots) {
+          return { ok: false, reason: `assembled ${all.length} shots, wanted ${shots}` };
         }
+        return {
+          ok: true,
+          value: {
+            title: sp.title,
+            logline: sp.logline,
+            setting: sp.setting,
+            cast: sp.cast,
+            shots: all,
+          },
+        };
+      };
+
+      const engines = [hasClaude ? "anthropic" : null, hasGemini ? "gemini" : null].filter(
+        (e): e is string => e !== null,
+      );
+      const orch = await orchestratePlan<Spine, Plan>({
+        engines,
+        spine: spineStage,
+        batches: batchStage,
+        clock: { now: () => Date.now(), remaining },
+        // A small spine budget on purpose: the verbatim spine output is tiny, so
+        // a healthy engine answers in seconds and a HUNG one is abandoned fast,
+        // leaving the other engine real wall clock. The old 45s budget, doubled
+        // by the shared helper's own timeout-retry, ate ~90s and starved Gemini.
+        // That shared-helper double IS the bounded same-engine retry-with-backoff
+        // (llm.ts); the orchestrator adds the cross-engine spine fallback, so
+        // maxTransientRetriesPerEngine stays 0 here to avoid compounding.
+        spineBudgetMs: 15_000,
+        batchBudgetMs: 45_000,
+        fallbackReserveMs: 45_000,
+        minAttemptMs: 10_000,
+        maxTransientRetriesPerEngine: 0,
+        backoffMs: (a) => 400 * a,
+        sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+      });
+      for (const t of orch.tried) {
+        tried.push({
+          engine: `${t.engine}:${t.stage}`,
+          reason: `[${t.class} try${t.attempt} ${Math.round(t.ms / 1000)}s] ${t.reason}`.slice(
+            0,
+            160,
+          ),
+        });
+      }
+      if (orch.plan) {
+        plan = orch.plan;
+        servedBy = orch.servedBy;
       }
     }
 
@@ -645,9 +639,13 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Gemini is the last resort, not the second opinion. It runs only when
-    // Claude has had both goes, or has no key at all.
-    if (!plan && hasGemini) {
+    // Gemini is the last resort for a SMALL film, not the second opinion. It
+    // runs a whole-film single call only when Claude has had both goes (or has
+    // no key). LARGE films never reach here on Gemini: the orchestrator above
+    // already ran Gemini through the spine+batches path, and a whole-43-shot
+    // Gemini call is the doomed request that path exists to avoid (owner P0,
+    // 2026-08-21) — so this is gated to the single-call band.
+    if (!plan && hasGemini && shots <= SINGLE_CALL_MAX_SHOTS) {
       servedBy = "gemini";
       const geminiMs = roomFor(25_000);
       const g =

@@ -25,7 +25,7 @@ const PLOT = readFileSync(join(ROOT, "supabase/functions/story-plot/index.ts"), 
 
 const spineBlock = PLOT.slice(
   PLOT.indexOf("LONG FILMS TAKE THE TWO-STAGE PATH"),
-  PLOT.indexOf("if (spine) {"),
+  PLOT.indexOf("if (!plan && hasClaude && shots <= SINGLE_CALL_RESCUE_MAX_SHOTS)"),
 );
 const verbatimSystem = PLOT.slice(
   PLOT.indexOf("const SPINE_SYSTEM_VERBATIM = ["),
@@ -87,11 +87,30 @@ describe("C — the non-verbatim >12-shot path is unchanged", () => {
 });
 
 describe("E — the fallback stays bounded (no runaway retries introduced)", () => {
-  it("keeps exactly one spine-retry, gated on a parseable-but-rejected reply", () => {
-    expect(spineBlock).toContain("if (!spine && spineRes.ok && spineReason)");
-    expect(spineBlock).toContain("anthropic:spine-retry");
-    // Spine + its one retry share the same time budget — the timeout was NOT
-    // widened to paper over the failure.
-    expect((spineBlock.match(/claudeRoomFor\(45_000\)/g) ?? []).length).toBe(2);
+  it("the spine's only same-engine retry is the parse-failure corrective, not a timeout loop", () => {
+    // A reply that ARRIVED but would not parse earns ONE corrective retry (told
+    // what was wrong), inside the spine closure — the same parse-only intent as
+    // before. A TIMEOUT is never retried on the same engine here: the shared
+    // llm.ts helper already double-attempts a timeout, and the orchestrator adds
+    // the cross-engine fallback, so this must NOT stack a third layer.
+    expect(spineBlock).toContain("could not be used"); // the one corrective retry ask
+    expect(spineBlock).toContain("maxTransientRetriesPerEngine: 0");
+  });
+
+  it("the spine budget was TIGHTENED, never widened to paper over the timeout", () => {
+    // The old 45s spine budget, doubled by the helper's own timeout-retry, ate
+    // ~90s and starved Gemini. The fix makes it SMALLER, not larger.
+    expect(spineBlock).toContain("spineBudgetMs: 15_000");
+    expect(spineBlock).not.toContain("claudeRoomFor(45_000)");
+    expect(spineBlock).not.toMatch(/spineBudgetMs:\s*(4[5-9]|[5-9]\d|\d{3})_?000/); // ≥45s banned
+  });
+
+  it("BOTH engines run the SAME small spine contract — never a whole-film fallback", () => {
+    // The core P0 fix: the second engine goes through spine+batches, not a
+    // doomed whole-43-shot call. The whole-film Gemini last-resort is gated to
+    // the single-call band so a large film can never reach it.
+    expect(spineBlock).toContain("orchestratePlan<Spine, Plan>");
+    expect(spineBlock).toMatch(/engines\s*=\s*\[hasClaude \? "anthropic" : null, hasGemini \? "gemini" : null\]/);
+    expect(PLOT).toContain("if (!plan && hasGemini && shots <= SINGLE_CALL_MAX_SHOTS)");
   });
 });
