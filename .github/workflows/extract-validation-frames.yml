@@ -1,0 +1,65 @@
+name: extract validation frames
+
+# One-off helper for the 5-shot MAIN validation (job 838bd9e6). A runner can
+# reach Supabase storage; this container cannot. It downloads the rendered MP4
+# via a short-lived signed URL, cuts representative frames (per shot, plus
+# motion pairs), and commits them to a scratch branch so they can be inspected
+# through the GitHub API. Deleted after use. Touches no product code or config.
+on:
+  workflow_dispatch:
+    inputs:
+      signed_url:
+        description: Supabase signed URL for the rendered mp4
+        required: true
+      out_branch:
+        description: Branch to commit the frames to
+        required: true
+        default: val-838bd9e6
+
+jobs:
+  frames:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: download + extract
+        run: |
+          set -e
+          curl -sSL "${{ github.event.inputs.signed_url }}" -o film.mp4
+          ls -la film.mp4
+          ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 film.mp4 || true
+          mkdir -p frames
+          # Shot boundaries (s), from the render's per-shot voice durations:
+          # S1 0-9.49, S2 9.49-18.18, S3 18.18-29.15, S4 29.15-38.44, S5 38.44-43.73
+          # width-640 jpeg keeps each frame small enough to read back over the API.
+          grab () { ffmpeg -v error -ss "$1" -i film.mp4 -frames:v 1 -vf scale=640:-1 -q:v 3 "frames/$2" -y; }
+          grab 6.5  s1_a.jpg   # fisherman close-up (past title card)
+          grab 8.8  s1_b.jpg   # + ~2.3s later (motion pair)
+          grab 12.0 s2_a.jpg   # woman medium
+          grab 16.0 s2_b.jpg   # + 4s later (motion pair)
+          grab 24.0 s3_dry.jpg # storm-in-narration, dry visible scene
+          grab 34.0 s4_rain.jpg# genuinely rainy
+          grab 40.0 s5_a.jpg   # fishmonger actor (identity)
+          grab 42.5 s5_b.jpg   # + 2.5s later (motion pair)
+          # A labelled 2x4 contact sheet for the overview.
+          ffmpeg -v error \
+            -i frames/s1_a.jpg -i frames/s2_a.jpg -i frames/s3_dry.jpg -i frames/s4_rain.jpg \
+            -i frames/s1_b.jpg -i frames/s2_b.jpg -i frames/s5_a.jpg -i frames/s5_b.jpg \
+            -filter_complex "[0][1][2][3][4][5][6][7]xstack=inputs=8:layout=0_0|w0_0|w0+w1_0|w0+w1+w2_0|0_h0|w0_h0|w0+w1_h0|w0+w1+w2_h0,scale=1920:-1" \
+            -frames:v 1 -q:v 3 frames/contact.jpg -y || echo "contact sheet skipped"
+          ls -la frames
+      - name: commit frames
+        run: |
+          set -e
+          git config user.name "oniq-validation-bot"
+          git config user.email "noreply@anthropic.com"
+          BR="${{ github.event.inputs.out_branch }}"
+          git checkout --orphan "$BR"
+          git rm -rf --cached . >/dev/null 2>&1 || true
+          rm -rf .github src remotion supabase public *.md *.json *.mjs *.ts *.cjs 2>/dev/null || true
+          git add -f frames
+          git commit -m "validation frames for job 838bd9e6 (5-shot MAIN test)"
+          git push -f origin "$BR"
