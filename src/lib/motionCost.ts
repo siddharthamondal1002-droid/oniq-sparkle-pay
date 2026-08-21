@@ -151,6 +151,52 @@ export function selectMotionLevel(
   };
 }
 
+// ── L3 ELIGIBILITY — which shots the cheap CPU pose-warp can actually serve ───
+//
+// Animated Drawings (the L3 engine) serves a bounded shot type: a stylised,
+// roughly FRONTAL, FULL-BODY, UNOCCLUDED, SINGLE humanoid. Anything else —
+// ¾/side/back framing, occlusion, tight framing (no full skeleton), or a
+// photoreal look — must escalate to L4 diffusion. This is the router's branch
+// condition; it fails CLOSED (escalates) whenever a signal is unknown, so a
+// doubtful shot never gets forced into the cheap tier and mangled.
+
+/** The shot framings that show enough body for an auto-rig. */
+export type ShotFraming =
+  | "establisher" | "wide" | "full" | "medium"
+  | "cowboy" | "close-up" | "portrait" | "insert" | "unknown";
+
+const FULL_BODY_FRAMINGS = new Set<ShotFraming>(["establisher", "wide", "full", "medium"]);
+
+export type PoseWarpEligibilityInput = {
+  framing?: ShotFraming;
+  /** Number of characters legible in the shot (L3 is single-subject). */
+  characterCount?: number;
+  /** The subject is behind props / self-occluded (crossed arms, hand in front). */
+  occluded?: boolean;
+  /** Illustrated / storybook, not photoreal. ONIQ stills are stylised (default true). */
+  stylized?: boolean;
+  /** ¾ / side / back facing (the auto-rigger assumes frontal). */
+  nonFrontal?: boolean;
+};
+
+/**
+ * Decide L3 eligibility, failing CLOSED. Returns the boolean plus the reasons
+ * it was rejected, so the escalation log says WHY a shot went to diffusion.
+ */
+export function poseWarpEligible(m: PoseWarpEligibilityInput): {
+  eligible: boolean;
+  reasons: string[];
+} {
+  const reasons: string[] = [];
+  if (m.stylized === false) reasons.push("photoreal (L3 is for illustrated art)");
+  if (m.nonFrontal === true) reasons.push("non-frontal framing");
+  if (m.occluded === true) reasons.push("occluded / self-occluded");
+  if ((m.characterCount ?? 1) > 1) reasons.push("multiple characters");
+  const framing = m.framing ?? "unknown";
+  if (!FULL_BODY_FRAMINGS.has(framing)) reasons.push(`framing "${framing}" is not full-body`);
+  return { eligible: reasons.length === 0, reasons };
+}
+
 // ── POSE CACHE — extract a driver's pose ONCE, reuse for every character ──────
 //
 // DWPose on a driver video is the same work no matter which character wears the

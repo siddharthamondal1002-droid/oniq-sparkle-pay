@@ -8,6 +8,7 @@ import {
   makePoseCache,
   mockPoseExtractor,
   poseCachePath,
+  poseWarpEligible,
   selectMotionLevel,
   type LevelPolicy,
   type ShotCapabilities,
@@ -65,6 +66,29 @@ describe("selectMotionLevel — cheapest tier that satisfies the shot", () => {
     const d = selectMotionLevel({ motion: "she walks" }, NO_CAPS, NONE);
     expect(d.level).toBe(1);
     expect(d.reason).toMatch(/not a fake clip/);
+  });
+});
+
+describe("poseWarpEligible — L3 serves only the shots it can, fails closed", () => {
+  it("a stylised, frontal, full-body, single, unoccluded shot is eligible", () => {
+    const r = poseWarpEligible({ framing: "wide", characterCount: 1, stylized: true });
+    expect(r.eligible).toBe(true);
+    expect(r.reasons).toEqual([]);
+  });
+
+  it("escalates (not eligible) on any adverse signal, naming the reason", () => {
+    expect(poseWarpEligible({ framing: "close-up", stylized: true }).eligible).toBe(false);
+    expect(poseWarpEligible({ framing: "wide", occluded: true }).eligible).toBe(false);
+    expect(poseWarpEligible({ framing: "wide", nonFrontal: true }).eligible).toBe(false);
+    expect(poseWarpEligible({ framing: "wide", characterCount: 2 }).eligible).toBe(false);
+    expect(poseWarpEligible({ framing: "wide", stylized: false }).reasons).toContain(
+      "photoreal (L3 is for illustrated art)",
+    );
+  });
+
+  it("fails CLOSED on unknown framing (never forces a doubtful shot into L3)", () => {
+    expect(poseWarpEligible({}).eligible).toBe(false);
+    expect(poseWarpEligible({ framing: "unknown", stylized: true }).eligible).toBe(false);
   });
 });
 
