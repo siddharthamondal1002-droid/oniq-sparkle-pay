@@ -69,7 +69,8 @@ import {
   normalizeDepth,
   planeCoverage,
 } from '../../src/lib/parallaxPlanes.ts';
-import { vfxKindFor, vfxSeed } from '../../src/lib/particleField.ts';
+import { vfxSeed } from '../../src/lib/particleField.ts';
+import { selectSceneWeather, weatherConsistentSetting } from '../../src/lib/sceneWeather.ts';
 import { emotionFor } from '../../src/lib/expressionGrammar.ts';
 import { ambienceFor, ambienceGraph, scoreFor, scoreGraph } from '../../src/lib/soundStage.ts';
 import { packNarrations, verbatimFits } from '../../src/lib/verbatimNarration.ts';
@@ -1525,14 +1526,22 @@ if (offline) {
       // is repeated in every other shot anyway — a marginally vaguer frame
       // beats a dead film, the same trade as the refusal rungs below.
       const locks = (plan.cast ?? []).map((c) => `${c.name}: ${c.lock}`).join('\n');
+      // ONE authoritative visible-scene weather decision (owner, 2026-08-21).
+      // Decided from the shot's OWN scene, never its narration or the film-wide
+      // theme, and used for BOTH the image prompt and the VFX below so the two
+      // can never disagree. weatherConsistentSetting strips precipitation from
+      // the film-wide setting string when THIS shot is dry, so a film themed
+      // "…Weather" cannot wet a bright dry market shot.
+      const sceneWeather = selectSceneWeather(shot.still);
+      const settingForImage = weatherConsistentSetting(plan.setting ?? '', sceneWeather);
       const asks = [
-        `${shot.still}\n\nSetting: ${plan.setting}`.slice(0, 1900),
+        `${shot.still}\n\nSetting: ${settingForImage}`.slice(0, 1900),
         (
           `Gentle, family-friendly animated storybook illustration. ` +
-          `${shot.narration}\n\nCharacters:\n${locks}\n\nSetting: ${plan.setting}`
+          `${shot.narration}\n\nCharacters:\n${locks}\n\nSetting: ${settingForImage}`
         ).slice(0, 1900),
         `A gentle watercolor storybook illustration of a place with no people in it: ` +
-          `${plan.setting}. Soft warm light, wide view.`.slice(0, 1900),
+          `${settingForImage}. Soft warm light, wide view.`.slice(0, 1900),
       ];
       // OWNER-ASSET CASTING (character-as-actor), off unless STORY_ACTOR_REFS=on.
       // Cast only the actors this shot's own text supports and take the best as
@@ -1939,18 +1948,18 @@ if (offline) {
       // plan draws the same air. Skipped over clips: Veo scenes carry their
       // own atmosphere and a second one on top would disagree.
       //
-      // KEYED ON shot.still ALONE, not narration (owner: "the rain error",
-      // 2026-08-21). shot.still is the prompt for the frame the viewer sees;
-      // shot.narration is the spoken voice-over. A narrator who only MENTIONS
-      // weather — "it had rained for days", "a tempest of grief" — was
-      // painting 140 rain streaks over a dry interior, so rain bled onto shot
-      // after shot that showed none. Atmosphere is a VISIBLE layer: it may
-      // only appear where the visible scene earns it. (Gait and emotion still
-      // read narration below — action and feeling legitimately live in the
-      // voice-over; weather you can see does not.)
+      // THE SAME single weather decision that shaped the image prompt above
+      // (sceneWeather), so the overlay can never disagree with the frame it
+      // rides on (owner: "one authoritative visible-scene weather decision",
+      // 2026-08-21). Decided from shot.still — the shot's own visible scene —
+      // never its narration (a storm someone REMEMBERS is not falling here) and
+      // never the film-wide theme. Atmosphere is a VISIBLE layer: it appears
+      // only where the visible scene earns it. (Gait and emotion still read
+      // narration below — action and feeling live in the voice-over; weather
+      // you can see does not.)
       let vfx = null;
       if (cinematic && !clip) {
-        const kind = vfxKindFor(shot.still);
+        const kind = sceneWeather;
         if (kind) {
           vfx = { kind, seed: vfxSeed(`${i}:${shot.still}`) };
           console.log(`  vfx ${i + 1}: ${kind}`);

@@ -161,13 +161,15 @@ describe("particlesAt", () => {
     // classic plans must never carry vfx, clips must never get an overlay,
     // and the pushed shape must be what StoryShotInput['vfx'] declares.
     const worker = readFileSync(join(process.cwd(), "remotion/scripts/story-worker.mjs"), "utf8");
-    expect(worker).toMatch(/if \(cinematic && !clip\) \{\s*\n\s*const kind = vfxKindFor\(/);
+    expect(worker).toMatch(/if \(cinematic && !clip\) \{\s*\n\s*const kind = sceneWeather;/);
     expect(worker).toMatch(/vfx = \{ kind, seed: vfxSeed\(/);
-    // "the rain error" (owner, 2026-08-21): the atmosphere is a VISIBLE layer,
-    // so it keys on the still prompt (the frame the viewer sees) ALONE — never
-    // the narration, or a narrator merely mentioning weather paints rain over
-    // a dry shot. Pin the argument so narration can't creep back in.
-    expect(worker).toMatch(/const kind = vfxKindFor\(shot\.still\);/);
+    // "one authoritative visible-scene weather decision" (owner, 2026-08-21):
+    // the SAME token gates the image prompt and the VFX, so they cannot
+    // disagree. It is decided from the shot's own scene (selectSceneWeather on
+    // shot.still), never the narration or the film-wide theme — pin that the
+    // overlay reuses that one decision rather than re-deriving from other text.
+    expect(worker).toMatch(/const sceneWeather = selectSceneWeather\(shot\.still\);/);
+    expect(worker).toMatch(/weatherConsistentSetting\(plan\.setting/);
     expect(worker).not.toMatch(/vfxKindFor\(`\$\{shot\.still\} \$\{shot\.narration\}`\)/);
     const film = readFileSync(join(process.cwd(), "remotion/src/story/StoryFilm.tsx"), "utf8");
     expect(film).toMatch(/\{!shot\.clip && shot\.vfx \? <ParticleOverlay/);
