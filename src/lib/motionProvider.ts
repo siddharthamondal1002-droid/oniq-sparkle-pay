@@ -114,9 +114,11 @@ export type MotionRequest = {
   driverClass?: MotionDriverClass;
 };
 
-/** The clip artifact — the SAME shape the worker already turns into shot.clip. */
+/** The clip artifact — the SAME shape the worker already turns into shot.clip.
+ *  Carries EXACTLY ONE of `data` (base64, the edge/Veo path) or `videoPath` (a
+ *  file, the GPU-backend path); the worker handles both. */
 export type MotionClip =
-  | { ok: true; data: string; mime: string; seconds: number; provider: string }
+  | { ok: true; data?: string; videoPath?: string; mime: string; seconds: number; provider: string }
   | { ok: false; reason: string; provider: string; class: "transient" | "permanent" };
 
 /** Static, declarative facts about a provider — cost and hardware, per-engine. */
@@ -321,18 +323,36 @@ export function selectMotionDriver(
   return registry.find((d) => d.motionClass === driverClass) ?? null;
 }
 
-/** What a motion-transfer backend is handed. Still + driver in, clip out. */
+/** What a motion-transfer backend is handed — the common benchmark contract
+ *  every candidate engine is evaluated against. Still + driver in, clip out. */
 export type MotionTransferInput = {
   characterStillBase64: string;
   characterMime: string;
   driver: MotionDriver;
+  /** The classified need, so a backend can tune conditioning. */
+  motionClass: MotionClass;
   durationSeconds: 4 | 6 | 8;
   aspectRatio: "9:16";
+  /** Target render size, "WxH" (e.g. "480x832" for the VACE 1.3B path). */
+  resolution?: string;
   /** Narration for the optional lip-sync stage (TALK shots). */
   audioBase64?: string;
-  /** Whole-body conditioning toggles (Motion Mirror: body/hands/face). */
+  /** Whole-body conditioning toggles (Motion Mirror conditions all three). */
   conditioning?: { body?: boolean; hands?: boolean; face?: boolean };
 };
+
+/** The backend's result — a file on disk (GPU backends write one), with the
+ *  measured facts a caller needs. The owner's benchmark contract. */
+export type MotionResult =
+  | {
+      ok: true;
+      videoPath: string;
+      durationSeconds: number;
+      fps: number;
+      provider: string;
+      metadata?: Record<string, unknown>;
+    }
+  | { ok: false; reason: string; provider: string; class: "transient" | "permanent" };
 
 /**
  * The inference host. `mock` proves the DATA PATH with no GPU; `local-gpu` and
@@ -343,16 +363,16 @@ export type MotionTransferInput = {
 export type MotionBackend = {
   kind: "mock" | "local-gpu" | "remote-gpu";
   available: () => boolean;
-  run: (input: MotionTransferInput) => Promise<MotionClip>;
+  run: (input: MotionTransferInput) => Promise<MotionResult>;
 };
 
 /**
- * The mock backend: exercises still → driver → MotionClip → (shot.clip) without
- * a GPU. It fabricates NO pixels and claims NO real motion — `data` is a
- * sentinel marker, not a video, so nothing downstream can mistake it for a real
- * clip. A real backend returns real mp4 bytes in exactly this shape. This is
- * the local/mock validation the directive calls for; a real walking clip waits
- * on a GPU host.
+ * The mock backend: exercises still → driver → MotionResult → MotionClip →
+ * (shot.clip) without a GPU. It fabricates NO pixels and claims NO real motion —
+ * `videoPath` is a `mock://` sentinel, not a file, so nothing downstream can
+ * mistake it for a real clip. A real backend writes a real mp4 and returns its
+ * path in exactly this shape. This is the local/mock validation the directive
+ * calls for; a real walking clip waits on a GPU host.
  */
 export function mockBackend(): MotionBackend {
   return {
@@ -361,10 +381,11 @@ export function mockBackend(): MotionBackend {
     run: (input) =>
       Promise.resolve({
         ok: true as const,
-        data: `MOCK_MOTION_TRANSFER:${input.driver.id}:${input.durationSeconds}s`,
-        mime: "video/mp4",
-        seconds: input.durationSeconds,
+        videoPath: `mock://motion-transfer/${input.driver.id}/${input.durationSeconds}s`,
+        durationSeconds: input.durationSeconds,
+        fps: input.driver.fps,
         provider: MOTION_MIRROR_META.name,
+        metadata: { mock: true, driver: input.driver.id, motionClass: input.motionClass },
       }),
   };
 }
@@ -402,15 +423,56 @@ export function makeMotionTransferProvider(
           class: "permanent" as const,
         });
       }
-      return backend.run({
-        characterStillBase64: req.sourceStillBase64,
-        characterMime: req.sourceMime,
-        driver,
-        durationSeconds: req.durationSeconds,
-        aspectRatio: req.aspectRatio,
-        audioBase64: req.audioBase64,
-        conditioning: { body: true, hands: true, face: true },
-      });
+      return backend
+        .run({
+          characterStillBase64: req.sourceStillBase64,
+          characterMime: req.sourceMime,
+          driver,
+          motionClass: req.motionClass,
+          durationSeconds: req.durationSeconds,
+          aspectRatio: req.aspectRatio,
+          audioBase64: req.audioBase64,
+          conditioning: { body: true, hands: true, face: true },
+        })
+        .then((r): MotionClip =>
+          r.ok
+            ? {
+                ok: true,
+                videoPath: r.videoPath,
+                mime: "video/mp4",
+                seconds: r.durationSeconds,
+                provider: r.provider,
+              }
+            : r,
+        );
     },
   };
+}
+
+/** A MotionDriverRegistry is just the drivers; helpers keep lookups honest. */
+export type MotionDriverRegistry = MotionDriver[];
+
+/** The drivers matching a class (usually 0 or 1). */
+export function driversForClass(
+  registry: MotionDriverRegistry,
+  cls: MotionDriverClass,
+): MotionDriver[] {
+  return registry.filter((d) => d.motionClass === cls);
+}
+
+/**
+ * Which driver classes the registry can actually drive TODAY — a driver counts
+ * only when it has a real, non-placeholder video and a real license. The
+ * descriptors shipped now are placeholders (no video, license "TBD-*"), so this
+ * is empty until real CC0/permissive drivers are added — an honest "nothing is
+ * wired yet", never a false capability.
+ */
+export function usableDriverClasses(registry: MotionDriverRegistry): MotionDriverClass[] {
+  const usable = registry.filter(
+    (d) =>
+      d.driverVideo &&
+      !/\bTBD\b|placeholder/i.test(d.license ?? "") &&
+      !/\bTBD\b|placeholder/i.test(d.source ?? ""),
+  );
+  return [...new Set(usable.map((d) => d.motionClass))];
 }

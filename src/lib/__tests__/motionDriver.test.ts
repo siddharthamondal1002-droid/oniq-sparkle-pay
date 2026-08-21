@@ -10,12 +10,15 @@ import {
   MOTION_MIRROR_META,
   WAN22_META,
   classifyMotionDriver,
+  driversForClass,
   makeMotionTransferProvider,
   mockBackend,
   runMotion,
   selectMotionDriver,
   selectProviderOrder,
+  usableDriverClasses,
   type MotionDriver,
+  type MotionDriverRegistry,
   type MotionProvider,
   type MotionRequest,
 } from "@/lib/motionProvider";
@@ -90,8 +93,9 @@ describe("ONE WALKING SHOT (mock): different character, driver movement", () => 
       seconds: 8,
       provider: MOTION_MIRROR_META.name,
     });
-    // Honest: the mock returns a sentinel, NOT real pixels — no "walks" claim.
-    expect((clip as { data: string }).data).toMatch(/^MOCK_MOTION_TRANSFER:walk_9x16/);
+    // Honest: the mock returns a mock:// sentinel path, NOT real pixels or a
+    // real file — no "walks" claim can be made from it.
+    expect((clip as { videoPath: string }).videoPath).toMatch(/^mock:\/\/motion-transfer\/walk_9x16/);
   });
 
   it("no matching driver → transfer misses, runMotion falls to the i2v provider", async () => {
@@ -114,6 +118,33 @@ describe("ONE WALKING SHOT (mock): different character, driver movement", () => 
     const order = selectProviderOrder("INTERACTION", [transfer, i2v], { allowPremium: false });
     const { clip } = await runMotion(req, order);
     expect(clip).toMatchObject({ ok: true, provider: WAN22_META.name });
+  });
+});
+
+describe("MotionDriverRegistry — every class present, placeholders honestly unusable", () => {
+  const REGISTRY: MotionDriverRegistry = JSON.parse(
+    readFileSync(join(process.cwd(), "remotion/fixtures/motion-drivers/registry.json"), "utf8"),
+  ).drivers;
+
+  it("covers all twelve driver classes, each 9:16 with a license field", () => {
+    const classes = new Set(REGISTRY.map((d) => d.motionClass));
+    for (const c of ["WALK", "RUN", "TURN", "SIT", "STAND", "WAVE", "POINT", "CARRY", "LOOK_AROUND", "DANCE", "FIGHT", "TALK"]) {
+      expect(classes.has(c as never), `registry missing ${c}`).toBe(true);
+    }
+    for (const d of REGISTRY) {
+      expect(d.aspectRatio).toBe("9:16");
+      expect(d).toHaveProperty("license");
+      expect(d).toHaveProperty("source");
+      expect(d.fps).toBeGreaterThan(0);
+    }
+    expect(driversForClass(REGISTRY, "WALK").map((d) => d.id)).toEqual(["walk_9x16"]);
+  });
+
+  it("reports ZERO usable classes while all drivers are placeholders (no false capability)", () => {
+    // Honest: the descriptors carry no real video and a TBD license, so nothing
+    // is drivable yet. This flips to real classes only when licensed CC0/
+    // permissive driver videos are added.
+    expect(usableDriverClasses(REGISTRY)).toEqual([]);
   });
 });
 

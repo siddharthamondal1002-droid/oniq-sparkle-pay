@@ -1,0 +1,17 @@
+{
+  "note": "MotionDriverRegistry — reference MOVEMENT clips, identity-free. DESCRIPTORS ONLY: no driver videos are committed yet. Before real inference each driverVideo path will be filled with a PUBLIC-DOMAIN / CC0 / permissively-licensed 9:16 motion clip (movement only, never a real person's identity), and its exact license recorded in `license` + OSS_MODEL_LICENSES.md. No copyrighted stock. A driver defines pose/movement/timing; the ONIQ still defines face/body/clothing/ethnicity/age/occupation/scene.",
+  "drivers": [
+    { "id": "walk_9x16", "motionClass": "WALK", "driverVideo": "remotion/fixtures/motion-drivers/walk_9x16.mp4", "durationSeconds": 8, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/public-domain walk cycle", "license": "TBD-PLACEHOLDER" },
+    { "id": "run_9x16", "motionClass": "RUN", "driverVideo": "remotion/fixtures/motion-drivers/run_9x16.mp4", "durationSeconds": 6, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/public-domain run cycle", "license": "TBD-PLACEHOLDER" },
+    { "id": "turn_9x16", "motionClass": "TURN", "driverVideo": "remotion/fixtures/motion-drivers/turn_9x16.mp4", "durationSeconds": 4, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/permissive turn", "license": "TBD-PLACEHOLDER" },
+    { "id": "sit_9x16", "motionClass": "SIT", "driverVideo": "remotion/fixtures/motion-drivers/sit_9x16.mp4", "durationSeconds": 4, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/permissive sit", "license": "TBD-PLACEHOLDER" },
+    { "id": "stand_9x16", "motionClass": "STAND", "driverVideo": "remotion/fixtures/motion-drivers/stand_9x16.mp4", "durationSeconds": 4, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/permissive stand", "license": "TBD-PLACEHOLDER" },
+    { "id": "wave_9x16", "motionClass": "WAVE", "driverVideo": "remotion/fixtures/motion-drivers/wave_9x16.mp4", "durationSeconds": 4, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/permissive wave", "license": "TBD-PLACEHOLDER" },
+    { "id": "point_9x16", "motionClass": "POINT", "driverVideo": "remotion/fixtures/motion-drivers/point_9x16.mp4", "durationSeconds": 4, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/permissive point", "license": "TBD-PLACEHOLDER" },
+    { "id": "carry_9x16", "motionClass": "CARRY", "driverVideo": "remotion/fixtures/motion-drivers/carry_9x16.mp4", "durationSeconds": 6, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/permissive carry", "license": "TBD-PLACEHOLDER" },
+    { "id": "look_around_9x16", "motionClass": "LOOK_AROUND", "driverVideo": "remotion/fixtures/motion-drivers/look_around_9x16.mp4", "durationSeconds": 4, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/permissive look-around", "license": "TBD-PLACEHOLDER" },
+    { "id": "dance_9x16", "motionClass": "DANCE", "driverVideo": "remotion/fixtures/motion-drivers/dance_9x16.mp4", "durationSeconds": 8, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/permissive dance", "license": "TBD-PLACEHOLDER" },
+    { "id": "fight_9x16", "motionClass": "FIGHT", "driverVideo": "remotion/fixtures/motion-drivers/fight_9x16.mp4", "durationSeconds": 6, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/permissive fight/spar", "license": "TBD-PLACEHOLDER" },
+    { "id": "talk_9x16", "motionClass": "TALK", "driverVideo": "remotion/fixtures/motion-drivers/talk_9x16.mp4", "durationSeconds": 8, "fps": 30, "aspectRatio": "9:16", "source": "TBD — CC0/permissive talking-gesture (lip-sync added separately by MuseTalk)", "license": "TBD-PLACEHOLDER" }
+  ]
+}
