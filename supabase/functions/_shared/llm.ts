@@ -209,6 +209,13 @@ export type CallClaudeOpts = {
   // "claude-sonnet-4-6" baseline every existing caller has relied on. The
   // Gemini fallback path ignores this (fallback model is Gemini-specific).
   model?: string;
+  // When true, make EXACTLY ONE attempt: skip the built-in retry on a
+  // timeout/network error and on a retryable 5xx. Default (undefined) keeps the
+  // retry for every existing caller. Set by a caller that owns its own retry
+  // orchestration and must not have this layer double its per-attempt budget —
+  // story-plot's plan orchestrator (owner P0, 2026-08-21), where a 45s spine
+  // silently became a ~90s spine here and starved the fallback engine.
+  noRetry?: boolean;
 };
 
 export type CallClaudeResult =
@@ -503,14 +510,16 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
   };
 
   let r = await attempt();
-  if ("error" in r) {
+  // noRetry callers own their retry orchestration — one attempt, no doubling.
+  if (!opts.noRetry && "error" in r) {
     console.warn(`callClaude: fetch failed (${r.error}) key=${mask(key)}`);
     // retry once on network/timeout too
     await new Promise((res) => setTimeout(res, 600));
     r = await attempt();
     if ("error" in r) return { ok: false, reason: r.error };
   }
-  if ("status" in r && RETRY_STATUSES.has(r.status)) {
+  if ("error" in r) return { ok: false, reason: r.error };
+  if (!opts.noRetry && "status" in r && RETRY_STATUSES.has(r.status)) {
     console.warn(`callClaude: http ${r.status} retrying key=${mask(key)}`);
     await new Promise((res) => setTimeout(res, 600));
     r = await attempt();

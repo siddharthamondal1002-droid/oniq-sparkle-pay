@@ -90,17 +90,22 @@ describe("E — the fallback stays bounded (no runaway retries introduced)", () 
   it("the spine's only same-engine retry is the parse-failure corrective, not a timeout loop", () => {
     // A reply that ARRIVED but would not parse earns ONE corrective retry (told
     // what was wrong), inside the spine closure — the same parse-only intent as
-    // before. A TIMEOUT is never retried on the same engine here: the shared
-    // llm.ts helper already double-attempts a timeout, and the orchestrator adds
-    // the cross-engine fallback, so this must NOT stack a third layer.
+    // before. A TIMEOUT is never looped on the same engine: the orchestrator
+    // does exactly ONE spine attempt per engine (maxTransientRetriesPerEngine 0)
+    // then falls over, and each provider call is `noRetry` so the shared helper
+    // cannot silently double the per-attempt budget (which is what turned a 45s
+    // spine into ~90s and starved the fallback).
     expect(spineBlock).toContain("could not be used"); // the one corrective retry ask
     expect(spineBlock).toContain("maxTransientRetriesPerEngine: 0");
+    expect(spineBlock).toContain("noRetry: true");
   });
 
-  it("the spine budget was TIGHTENED, never widened to paper over the timeout", () => {
-    // The old 45s spine budget, doubled by the helper's own timeout-retry, ate
-    // ~90s and starved Gemini. The fix makes it SMALLER, not larger.
-    expect(spineBlock).toContain("spineBudgetMs: 15_000");
+  it("the spine budget stays under the old 45s AND above the too-tight 15s that timed out", () => {
+    // The old 45s budget, doubled by the helper's own timeout-retry, ate ~90s
+    // and starved Gemini; 15s was then too tight for the spine to answer at all.
+    // With `noRetry` the budget is a single attempt, set below 45s but generous
+    // enough for the provider to reply.
+    expect(spineBlock).toContain("spineBudgetMs: 40_000");
     expect(spineBlock).not.toContain("claudeRoomFor(45_000)");
     expect(spineBlock).not.toMatch(/spineBudgetMs:\s*(4[5-9]|[5-9]\d|\d{3})_?000/); // ≥45s banned
   });

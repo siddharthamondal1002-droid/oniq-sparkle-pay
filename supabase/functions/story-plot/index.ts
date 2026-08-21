@@ -434,6 +434,7 @@ Deno.serve(async (req) => {
           system: spineSystem,
           messages: [{ role: "user", content: spineUser }],
           maxTokens: 8192,
+          noRetry: true, // orchestrator owns retries — one attempt, no budget doubling
           timeoutMs,
         });
         if (!first.ok) return { ok: false, reason: String(first.reason ?? "failed").slice(0, 160) };
@@ -457,6 +458,7 @@ Deno.serve(async (req) => {
             },
           ],
           maxTokens: 8192,
+          noRetry: true, // orchestrator owns retries — one attempt, no budget doubling
           timeoutMs,
         });
         if (!retry.ok) return { ok: false, reason: String(retry.reason ?? "failed").slice(0, 160) };
@@ -505,6 +507,7 @@ Deno.serve(async (req) => {
                 },
               ],
               maxTokens: 8192,
+              noRetry: true, // orchestrator owns retries — one attempt, no budget doubling
               timeoutMs,
             });
             if (!res.ok) return { reason: `batch ${b.from + 1}: ${String(res.reason ?? "failed")}` };
@@ -546,7 +549,7 @@ Deno.serve(async (req) => {
         // That shared-helper double IS the bounded same-engine retry-with-backoff
         // (llm.ts); the orchestrator adds the cross-engine spine fallback, so
         // maxTransientRetriesPerEngine stays 0 here to avoid compounding.
-        spineBudgetMs: 15_000,
+        spineBudgetMs: 40_000,
         batchBudgetMs: 45_000,
         fallbackReserveMs: 45_000,
         minAttemptMs: 10_000,
