@@ -20,7 +20,10 @@
  * vocabulary, not two), and the theme stripper is a small precipitation-only
  * regex used solely to keep film-theme weather out of a dry shot's prompt.
  */
-import { vfxKindFor, type VfxKind } from "./particleField";
+// Explicit ".ts" so the Node story worker (strip-types, no bundler) can import
+// this module the same way it imports storyActorCasting.ts; vitest and tsc
+// accept it via allowImportingTsExtensions.
+import { vfxKindFor, type VfxKind } from "./particleField.ts";
 
 /**
  * THE decision. The visible weather a shot actually shows, from the shot's OWN
