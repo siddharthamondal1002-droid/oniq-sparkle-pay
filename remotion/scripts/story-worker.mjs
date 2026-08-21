@@ -84,6 +84,10 @@ import {
 } from '../../src/lib/puppetPerformance.ts';
 import { planStory } from '../../src/lib/storyPlan.ts';
 import { preflight, STORY_FPS, STORY_WIDTH, STORY_HEIGHT } from '../../src/lib/storyPreflight.ts';
+import { castShot } from '../../src/lib/storyActorCasting.ts';
+import { ONIQ_ASSET_ORIGIN } from '../../src/data/storyActorAssets.ts';
+import { planPortrait, PORTRAIT_W, PORTRAIT_H } from '../../src/lib/portraitReframe.ts';
+import { planPrecondition } from '../../src/lib/portraitPrecondition.ts';
 import { composeVideoPrompt } from '../../supabase/functions/_shared/movieGrammar.ts';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -899,6 +903,314 @@ function secondsOf(file) {
   return n;
 }
 
+// --- owner-asset conditioning (character-as-actor) --------------------------
+// Off unless STORY_ACTOR_REFS=on, so the wiring ships INERT: with the flag
+// unset a film is byte-for-byte the previous behaviour, and the owner enables it
+// deliberately for the approved small-batch proof. The proven path is
+//   registered actor -> owner asset URL -> fetch -> base64 -> data URI ->
+//   story-still referenceImage
+// and NOTHING else may become a reference: only URLs resolved from the 67-entry
+// owner-asset map (via castShot) reach here, and this fetcher additionally pins
+// the ONIQ origin, so a Google/stock/arbitrary URL cannot be conditioned on.
+const ACTOR_REFS = (process.env.STORY_ACTOR_REFS ?? 'off') === 'on';
+// The owner reference is ~1.4MB; 20MB is generous headroom and still refuses a
+// payload that could only be abuse. story-still caps the inlined data URL too.
+const OWNER_REF_MAX_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Fetch ONE owner reference frame and inline it as a data URL, or return null.
+ *
+ * GUARDS, in order — never source a face from anywhere but the owner asset:
+ *   - the url MUST be on the confirmed ONIQ asset origin (map-resolved already,
+ *     re-checked here as defence in depth);
+ *   - HTTP must succeed;
+ *   - the content-type must be an image;
+ *   - the bytes must be non-empty and under the cap.
+ * ANY failure returns null so the shot falls back to the existing text-only
+ * path — a reference that will not fetch never fails a paid film and never
+ * substitutes another actor.
+ */
+async function fetchOwnerReference(url) {
+  // A dry run has no network and no owner-asset origin to reach; it degrades to
+  // null (text-only), exactly as a real fetch miss would. The guard sits before
+  // the fetch so storyDryRun's static check sees a process that cannot escape.
+  if (fixtureEdge) return null;
+  if (typeof url !== 'string' || !url.startsWith(`${ONIQ_ASSET_ORIGIN}/`)) {
+    console.log(`  ref: refused non-owner url (${String(url).slice(0, 60)})`);
+    return null;
+  }
+  try {
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.log(`  ref: fetch ${res.status} for ${url.slice(ONIQ_ASSET_ORIGIN.length)}`);
+      return null;
+    }
+    const mime = (res.headers.get('content-type') ?? '').split(';')[0].trim().toLowerCase();
+    if (!/^image\/(png|jpe?g|webp)$/.test(mime)) {
+      console.log(`  ref: not an image (content-type ${mime || 'none'})`);
+      return null;
+    }
+    const buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length === 0 || buf.length > OWNER_REF_MAX_BYTES) {
+      console.log(`  ref: bytes ${buf.length} outside 1..${OWNER_REF_MAX_BYTES}`);
+      return null;
+    }
+    // The data URL is the ONLY form Gemini accepts (the probe proved a plain
+    // URL is rejected); never logged, so private asset bytes stay out of logs.
+    // The raw buffer rides along so the caller can portrait-precondition it
+    // without a second fetch — it stays owner bytes, never leaves this process.
+    return { dataUrl: `data:${mime};base64,${buf.toString('base64')}`, bytes: buf.length, mime, buf };
+  } catch (err) {
+    console.log(`  ref: fetch failed (${String(err?.message ?? err).slice(0, 100)})`);
+    return null;
+  }
+}
+
+// PORTRAIT PRECONDITION — DEFAULT OFF, even when STORY_ACTOR_REFS is on.
+// The 2026-08-21 A/B validation measured it neutral-to-worse: reshaping the
+// reference to a padded 9:16 canvas does make Gemini return portrait reliably,
+// but the model IMITATES the padded canvas as content — it reproduced the
+// blurred bands into the pixels (caribbean, worse than the honest post-render
+// pad) or left the actor in a seam'd mid-band (greek, marginal). So the padded
+// reference does not fill the frame and can bake the letterbox in irreversibly.
+// The lever stays wired for a future scene-EXTENSION (generative outpaint)
+// precondition, which is a separate, paid brick; blurred-fill padding is not it.
+// Turn on deliberately with STORY_ACTOR_PRECONDITION=on only to re-measure.
+const ACTOR_PRECONDITION =
+  ACTOR_REFS && (process.env.STORY_ACTOR_PRECONDITION ?? 'off') === 'on';
+
+/**
+ * Read any image's pixel dimensions — ffprobe first (handles png/jpg/webp), the
+ * PNG header as a fallback. Returns null if neither can.
+ */
+function imageDimensions(file) {
+  try {
+    const probe = findBin('ffprobe');
+    const out = execFileSync(
+      probe,
+      ['-v', 'error', '-select_streams', 'v:0', '-show_entries', 'stream=width,height', '-of', 'csv=p=0:s=x', file],
+      { stdio: 'pipe' },
+    )
+      .toString()
+      .trim();
+    const m = out.match(/^(\d+)x(\d+)/);
+    if (m) return { w: Number(m[1]), h: Number(m[2]) };
+  } catch {
+    // ffprobe absent or unrunnable — fall through to the PNG header
+  }
+  return pngDimensions(file);
+}
+
+/**
+ * Reshape a FETCHED owner reference's canvas to portrait (9:16) before it is
+ * conditioned, or return null to leave the reference exactly as fetched.
+ *
+ * The owner rule: the actor is never cropped and never regenerated. This ONLY
+ * expands the canvas (blurred-fill bands) around the untouched owner bytes on a
+ * temp file — the owner asset on disk is never touched, and a portrait source is
+ * returned unchanged. Deterministic ffmpeg, no generation. Any failure returns
+ * null so the caller falls back to the fetched reference (and the post-render
+ * reframe still guarantees 1080x1920). Never throws.
+ */
+function preconditionReferenceToPortrait(buf, mime) {
+  const audit = { strategy: 'off', canvasW: null, canvasH: null, padded: false };
+  let tmpIn;
+  let tmpOut;
+  try {
+    const ext = mime === 'image/jpeg' ? 'jpg' : mime === 'image/webp' ? 'webp' : 'png';
+    tmpIn = path.join(os.tmpdir(), `oniq-ref-${process.pid}-${Date.now()}.${ext}`);
+    fs.writeFileSync(tmpIn, buf);
+    const dims = imageDimensions(tmpIn);
+    if (!dims) return null;
+    const plan = planPrecondition(dims.w, dims.h);
+    audit.strategy = plan.strategy;
+    audit.canvasW = plan.canvasW;
+    audit.canvasH = plan.canvasH;
+    audit.padded = plan.padded;
+    // Already portrait (or unusable) → hand back the owner bytes untouched.
+    if (!plan.padded) {
+      return { dataUrl: `data:${mime};base64,${buf.toString('base64')}`, bytes: buf.length, mime, ...audit };
+    }
+    const cw = plan.canvasW;
+    const ch = plan.canvasH;
+    tmpOut = `${tmpIn}.portrait.png`;
+    // Blurred-fill expansion when a capable ffmpeg exists (the bands read as
+    // scene, which the model repaints); a plain pad otherwise. Either way the
+    // actor is centred at full size and nothing is cut.
+    const grade = findGradeFfmpeg();
+    let bin;
+    let filterArg;
+    let filterVal;
+    if (grade) {
+      bin = grade;
+      filterArg = '-filter_complex';
+      filterVal =
+        `split=2[bg][fg];` +
+        `[bg]scale=${cw}:${ch}:force_original_aspect_ratio=increase,crop=${cw}:${ch},gblur=sigma=40[bgb];` +
+        `[fg]scale=${dims.w}:${dims.h}[fgs];` +
+        `[bgb][fgs]overlay=(W-w)/2:(H-h)/2`;
+    } else {
+      let basic;
+      try {
+        basic = findBin('ffmpeg');
+      } catch {
+        return null;
+      }
+      bin = basic;
+      filterArg = '-vf';
+      filterVal = `pad=${cw}:${ch}:(ow-iw)/2:(oh-ih)/2:color=black`;
+    }
+    execFileSync(bin, ['-y', '-i', tmpIn, filterArg, filterVal, '-frames:v', '1', tmpOut], {
+      stdio: 'pipe',
+    });
+    const od = imageDimensions(tmpOut);
+    if (!od || od.w !== cw || od.h !== ch) return null;
+    const outBuf = fs.readFileSync(tmpOut);
+    if (outBuf.length === 0 || outBuf.length > OWNER_REF_MAX_BYTES) return null;
+    return { dataUrl: `data:image/png;base64,${outBuf.toString('base64')}`, bytes: outBuf.length, mime: 'image/png', ...audit };
+  } catch (err) {
+    console.log(`  precondition: skipped (${String(err?.message ?? err).slice(0, 100)}) — using the fetched reference`);
+    return null;
+  } finally {
+    if (tmpIn) fs.rmSync(tmpIn, { force: true });
+    if (tmpOut) fs.rmSync(tmpOut, { force: true });
+  }
+}
+
+/**
+ * Read a PNG's pixel dimensions from its IHDR chunk without decoding it, or
+ * null if the file is not a readable PNG. The width/height sit at a fixed
+ * offset right after the 8-byte signature and the IHDR chunk header, so 24
+ * bytes off the front is all it takes.
+ */
+function pngDimensions(file) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const head = Buffer.alloc(24);
+    if (fs.readSync(fd, head, 0, 24, 0) < 24) return null;
+    const SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    if (!head.subarray(0, 8).equals(SIG)) return null;
+    if (head.toString('ascii', 12, 16) !== 'IHDR') return null;
+    const w = head.readUInt32BE(16);
+    const h = head.readUInt32BE(20);
+    if (!w || !h) return null;
+    return { w, h };
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+/**
+ * PORTRAIT REFRAME (FIX 1) — bring a CONDITIONED still to the production
+ * 1080x1920 WITHOUT ever cutting the actor.
+ *
+ * A still conditioned on an owner reference inherits the reference's ASPECT,
+ * not the "9:16" prompt text (proven 2026-08-21: a landscape owner frame comes
+ * back ~1344x768). storyPlan/Remotion want 1080x1920, so the still must be
+ * reframed — and the owner's rule is absolute: NEVER a blind centre crop. The
+ * pure planner (portraitReframe.ts) decides the strategy; this executes it with
+ * ffmpeg and NEVER breaks the still — any failure leaves the original in place.
+ *
+ *   cover / crop-subject  crop (planned so the actor survives) then scale.
+ *   pad                   contain the WHOLE image in 1080x1920, so nothing is
+ *                         cut; a blurred fill when a capable ffmpeg exists,
+ *                         else a plain black letterbox. Flagged as a compromise.
+ *
+ * Operates ONLY on the generated still — the owner reference asset is never
+ * touched. Returns an audit the caller merges into the per-shot log.
+ */
+function reframeToPortrait(stillFile) {
+  const audit = {
+    reframed: false,
+    reframeStrategy: null,
+    actorPreserved: null,
+    reframeFlagged: null,
+    sourceWidth: null,
+    sourceHeight: null,
+    outputWidth: null,
+    outputHeight: null,
+  };
+  const dims = pngDimensions(stillFile);
+  if (!dims) {
+    audit.reframeStrategy = 'skip-unreadable';
+    return audit;
+  }
+  audit.sourceWidth = dims.w;
+  audit.sourceHeight = dims.h;
+
+  const plan = planPortrait(dims.w, dims.h);
+  audit.reframeStrategy = plan.strategy;
+  audit.actorPreserved = plan.actorPreserved;
+  audit.reframeFlagged = plan.flagged;
+
+  // Already exactly the production frame — never re-encode a correct still.
+  if (dims.w === PORTRAIT_W && dims.h === PORTRAIT_H) {
+    audit.outputWidth = PORTRAIT_W;
+    audit.outputHeight = PORTRAIT_H;
+    return audit;
+  }
+
+  let basic;
+  try {
+    basic = findBin('ffmpeg');
+  } catch {
+    audit.reframeStrategy = `${plan.strategy}:no-ffmpeg`;
+    return audit;
+  }
+
+  // crop → -vf on the cut-down ffmpeg (it has crop+scale). pad → blurred fill
+  // via -filter_complex on a full ffmpeg when present, else a black -vf pad.
+  let bin = basic;
+  let filterArg = '-vf';
+  let filterVal;
+  if (plan.crop) {
+    const { x, y, w, h } = plan.crop;
+    filterVal = `crop=${w}:${h}:${x}:${y},scale=${PORTRAIT_W}:${PORTRAIT_H}:flags=lanczos`;
+  } else {
+    const grade = findGradeFfmpeg();
+    if (grade) {
+      bin = grade;
+      filterArg = '-filter_complex';
+      filterVal =
+        `split=2[bg][fg];` +
+        `[bg]scale=${PORTRAIT_W}:${PORTRAIT_H}:force_original_aspect_ratio=increase,` +
+        `crop=${PORTRAIT_W}:${PORTRAIT_H},gblur=sigma=24[bgb];` +
+        `[fg]scale=${PORTRAIT_W}:${PORTRAIT_H}:force_original_aspect_ratio=decrease:flags=lanczos[fgs];` +
+        `[bgb][fgs]overlay=(W-w)/2:(H-h)/2`;
+    } else {
+      filterVal =
+        `scale=${PORTRAIT_W}:${PORTRAIT_H}:force_original_aspect_ratio=decrease:flags=lanczos,` +
+        `pad=${PORTRAIT_W}:${PORTRAIT_H}:(ow-iw)/2:(oh-ih)/2:black`;
+    }
+  }
+
+  const tmp = `${stillFile}.portrait.png`;
+  try {
+    execFileSync(bin, ['-y', '-i', stillFile, filterArg, filterVal, '-frames:v', '1', tmp], {
+      stdio: 'pipe',
+    });
+    // Adopt the reframed frame only after proving it is a valid PNG at target.
+    const out = pngDimensions(tmp);
+    if (!out || out.w !== PORTRAIT_W || out.h !== PORTRAIT_H) {
+      fs.rmSync(tmp, { force: true });
+      audit.reframeStrategy = `${plan.strategy}:output-invalid`;
+      return audit;
+    }
+    fs.renameSync(tmp, stillFile);
+    audit.reframed = true;
+    audit.outputWidth = PORTRAIT_W;
+    audit.outputHeight = PORTRAIT_H;
+  } catch (err) {
+    fs.rmSync(tmp, { force: true });
+    audit.reframeStrategy = `${plan.strategy}:ffmpeg-failed`;
+    console.log(`  reframe: skipped (${String(err?.message ?? err).slice(0, 100)}) — keeping the still`);
+  }
+  return audit;
+}
+
 // --- explicit stage markers -------------------------------------------------
 // Every expensive-or-fallible stage brackets itself with STAGE_START and then
 // STAGE_SUCCESS/STAGE_FAILURE plus elapsed ms, so a log can never again say only
@@ -1222,6 +1534,62 @@ if (offline) {
         `A gentle watercolor storybook illustration of a place with no people in it: ` +
           `${plan.setting}. Soft warm light, wide view.`.slice(0, 1900),
       ];
+      // OWNER-ASSET CASTING (character-as-actor), off unless STORY_ACTOR_REFS=on.
+      // Cast only the actors this shot's own text supports and take the best as
+      // the identity reference — the story-still adapter conditions on a SINGLE
+      // frame, so a second actor in the shot is recorded but not attached
+      // (multi-reference is unproven; degrade honestly rather than guess). A
+      // REFERENCE_UNAVAILABLE actor or a fetch miss leaves ref null and the shot
+      // draws text-only, exactly as before. Nothing but a map-resolved owner
+      // asset can reach fetchOwnerReference.
+      let ref = null;
+      let conditioned = false;
+      const refAudit = {
+        referenceResolved: false,
+        referenceFetched: false,
+        referenceAttached: false,
+      };
+      if (ACTOR_REFS) {
+        const cast = castShot([shot.still, shot.narration, plan.setting ?? ''], { max: 1 });
+        const pick = cast[0] ?? null;
+        refAudit.referenceResolved = Boolean(pick);
+        if (pick) {
+          refAudit.characterRefId = pick.actor.characterRefId;
+          refAudit.styleRefId = pick.actor.styleRefId;
+          refAudit.assetRef = pick.actor.assetPath;
+          refAudit.kind = pick.actor.kind;
+          refAudit.referenceEligible = pick.eligible;
+          if (!pick.eligible) {
+            // A sheet source matched by identity but reproduces its own
+            // turnaround/panel layout when conditioned (measured shot 04). Do
+            // NOT substitute another actor; draw text-only and say why.
+            refAudit.reason = 'SHEET_REFERENCE_NOT_DIRECTLY_ATTACHABLE';
+          } else {
+            const fetched = await fetchOwnerReference(pick.referenceUrl);
+            if (fetched) {
+              ref = fetched.dataUrl;
+              refAudit.referenceFetched = true;
+              refAudit.referenceAttached = true;
+              refAudit.referenceBytes = fetched.bytes;
+              refAudit.preconditionStrategy = 'off';
+              // PORTRAIT PRECONDITION — reshape the fetched reference's canvas to
+              // 9:16 so Gemini conditions portrait natively instead of landscape.
+              // Owner bytes only, actor never cropped; a failure keeps the fetched
+              // reference and the post-render reframe still guarantees 1080x1920.
+              if (ACTOR_PRECONDITION) {
+                const pc = preconditionReferenceToPortrait(fetched.buf, fetched.mime);
+                if (pc) {
+                  ref = pc.dataUrl;
+                  refAudit.preconditionStrategy = pc.strategy;
+                  refAudit.preconditionCanvas = pc.canvasW ? `${pc.canvasW}x${pc.canvasH}` : null;
+                  refAudit.preconditionBytes = pc.bytes;
+                }
+              }
+            }
+          }
+        }
+      }
+
       let still;
       // THE USER'S OWN OPENING FRAME, when they gave one.
       //
@@ -1250,7 +1618,14 @@ if (offline) {
         // (PROHIBITED_CONTENT) steps straight down.
         for (let t = 0; t < 2; t++) {
           try {
-            still = await edge('story-still', { prompt: asks[a] });
+            // The reference conditions only the CHARACTER rungs (0, 1); rung 2
+            // is people-less scenery by construction, so it never carries a face.
+            const usedRef = Boolean(ref) && a < 2;
+            still = await edge('story-still', {
+              prompt: asks[a],
+              ...(usedRef ? { referenceImage: ref } : {}),
+            });
+            conditioned = usedRef;
             break outer;
           } catch (err) {
             const msg = String(err?.message ?? err);
@@ -1293,6 +1668,33 @@ if (offline) {
       const stillFile = path.join(assetRoot, `${stem}.png`);
       fs.writeFileSync(stillFile, Buffer.from(still.data, 'base64'));
       console.log(`  still ${i + 1}/${plan.shots.length}${still.fromPlate ? ' (your photo)' : ''}`);
+      // PORTRAIT REFRAME (FIX 1) — a conditioned still inherits the owner
+      // reference's ASPECT (landscape ref -> 1344x768), so reframe it to the
+      // production 1080x1920 without a blind centre crop that could cut the
+      // actor. ONLY conditioned stills — a plain drawn still already comes back
+      // at 9:16, and this leaves the frozen non-actor pipeline untouched. A
+      // failure never breaks the still; it just ships un-reframed and says so.
+      if (ACTOR_REFS && conditioned) {
+        const rf = reframeToPortrait(stillFile);
+        Object.assign(refAudit, {
+          sourceWidth: rf.sourceWidth,
+          sourceHeight: rf.sourceHeight,
+          outputWidth: rf.outputWidth,
+          outputHeight: rf.outputHeight,
+          reframeStrategy: rf.reframeStrategy,
+          actorPreserved: rf.actorPreserved,
+          reframed: rf.reframed,
+          reframeFlagged: rf.reframeFlagged,
+        });
+      }
+      // OWNER-ASSET AUDIT — one structured line per shot when the flag is on, so
+      // "reference attached" can never be confused with "character moved". No
+      // base64 or private asset bytes are ever logged, only the sizes and ids.
+      if (ACTOR_REFS) {
+        console.log(
+          `  actorref ${i + 1}: ${JSON.stringify({ ...refAudit, generationConditioned: conditioned })}`,
+        );
+      }
 
       // The camera comes from what the SHOT IS, read off Ting's own size word,
       // not from the shot's position in the film. Only SLIDES advance the

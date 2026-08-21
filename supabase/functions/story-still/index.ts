@@ -55,6 +55,12 @@ const IMAGE_MODEL = "google/gemini-2.5-flash-image";
 const ASPECT_SUFFIX = "\n\nVertical 9:16 portrait composition, full-bleed.";
 
 const MAX_PROMPT = 2000;
+/**
+ * Cap on an inlined reference data URL. The owner character frames are ~1.4 MB
+ * PNGs (~1.9 MB once base64'd); 12 MB is generous headroom for those while
+ * still refusing a payload that could only be an abuse.
+ */
+const MAX_REFERENCE = 12 * 1024 * 1024;
 
 const rlBuckets = new Map<string, number[]>();
 function _subFromAuth(req: Request): string {
@@ -97,6 +103,40 @@ Deno.serve(async (req) => {
     if (!prompt) return json({ error: "No prompt." }, 400);
     if (prompt.length > MAX_PROMPT) return json({ error: "That prompt is too long." }, 400);
 
+    // OWNER-ASSET CONDITIONING (character-as-actor). An optional reference image
+    // establishes WHO the character is; the prompt establishes scene, action,
+    // camera and lighting. The gateway holds identity from the reference — a
+    // capability probe (2026-08-20) confirmed google/gemini-2.5-flash-image
+    // keeps the face/hair/clothing/palette when the frame is inlined, and the
+    // reply still lands in the data[].b64_json pocket firstImage() already reads.
+    //
+    // TWO HARD GUARDS, because "use the owner asset, never source a new face"
+    // is the whole point:
+    //   1. Only an inlined `data:image/*;base64,` URL is accepted — NEVER an
+    //      external http(s) URL. The owner frame is fetched upstream and handed
+    //      over as bytes, so this stage can never be pointed at a Google / stock
+    //      / web image, and Vertex is never asked to crawl a URL (it rejects one
+    //      anyway: URL_REJECTED).
+    //   2. A size cap, so a caller cannot smuggle a giant payload through.
+    const referenceImage =
+      typeof body?.referenceImage === "string" ? body.referenceImage.trim() : "";
+    if (referenceImage && !/^data:image\/(png|jpe?g|webp);base64,/i.test(referenceImage)) {
+      return json({ error: "referenceImage must be an inlined data:image/*;base64 URL." }, 400);
+    }
+    if (referenceImage.length > MAX_REFERENCE) {
+      return json({ error: "referenceImage is too large." }, 400);
+    }
+
+    // Multimodal content only when a reference rode along; otherwise the exact
+    // text-only shape the pipeline has always sent, so an unconditioned still
+    // is byte-for-byte the previous behaviour.
+    const content = referenceImage
+      ? [
+          { type: "text", text: prompt + ASPECT_SUFFIX },
+          { type: "image_url", image_url: { url: referenceImage } },
+        ]
+      : prompt + ASPECT_SUFFIX;
+
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 60000);
     let res: Response;
@@ -110,7 +150,7 @@ Deno.serve(async (req) => {
         signal: ctrl.signal,
         body: JSON.stringify({
           model: IMAGE_MODEL,
-          messages: [{ role: "user", content: prompt + ASPECT_SUFFIX }],
+          messages: [{ role: "user", content }],
           modalities: ["image", "text"],
         }),
       });

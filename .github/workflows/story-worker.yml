@@ -58,6 +58,15 @@ on:
         description: Gemini TTS voice for the narrator
         default: Charon
         required: false
+      actor_refs:
+        # OWNER-ACTOR conditioning (STORY_ACTOR_REFS), feature-gated. Default
+        # off so a manual run behaves exactly like production unless explicitly
+        # asked for. Set to "on" only for the deliberate owner-actor regression;
+        # repository_dispatch (the product path) never sets this, so real user
+        # renders are unaffected.
+        description: Enable owner-actor conditioning (STORY_ACTOR_REFS)
+        default: "off"
+        required: false
 
 concurrency:
   # Manual workflow_dispatch runs have no job id yet (the runner claims one
@@ -156,6 +165,15 @@ jobs:
           # no token and no key, and exits with a message naming both.
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           STORY_VOICE: ${{ inputs.voice || 'Charon' }}
+          # OWNER-ACTOR conditioning, opt-in per JOB — never globally on.
+          #   repository_dispatch: on ONLY when story-dispatch marks THIS job's
+          #     client_payload.actor_refs true (a story_jobs.actor_refs flag);
+          #     every ordinary production job sends false/absent -> 'off', so
+          #     real user renders are byte-for-byte unchanged.
+          #   workflow_dispatch: the manual actor_refs input.
+          #   default: 'off'. The worker's own default is 'off' too, so an unset
+          #     value can never enable it.
+          STORY_ACTOR_REFS: ${{ (github.event.client_payload.actor_refs && 'on') || inputs.actor_refs || 'off' }}
           # Present only on a repository_dispatch. The token IS the credential:
           # it names one job, expires in an hour, and story-callback checks it
           # before touching the database on this runner's behalf.
