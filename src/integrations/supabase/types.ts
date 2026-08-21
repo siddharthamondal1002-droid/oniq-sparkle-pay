@@ -4145,6 +4145,7 @@ export type Database = {
       }
       story_jobs: {
         Row: {
+          actor_refs: boolean
           cast_json: Json | null
           created_at: string
           dispatched_at: string | null
@@ -4169,6 +4170,7 @@ export type Database = {
           verbatim: boolean
         }
         Insert: {
+          actor_refs?: boolean
           cast_json?: Json | null
           created_at?: string
           dispatched_at?: string | null
@@ -4193,6 +4195,7 @@ export type Database = {
           verbatim?: boolean
         }
         Update: {
+          actor_refs?: boolean
           cast_json?: Json | null
           created_at?: string
           dispatched_at?: string | null
