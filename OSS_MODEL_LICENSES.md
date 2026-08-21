@@ -14,7 +14,24 @@ license terms only.
 licenses could **not** be read (huggingface.co is egress-blocked in this
 environment) and are marked **UNVERIFIED** — read the HF card before shipping.
 
-## Primary — Motion Mirror (motion TRANSFER, Wan2.1-VACE)
+## Phase-3 WINNER — official Wan2.1-VACE 1.3B (used directly)
+
+See `MOTION_ENGINE_MATRIX.md`. Chosen over the Motion Mirror wrapper because it
+runs the identical (character image + pose-video driver) contract **natively**
+(VACE R2V+V2V), at native 480×832, on ~8 GB VRAM, under **Apache-2.0 for both
+code AND weights** — and it **avoids the CC-BY-NC-SA-4.0 distill LoRA** that
+Motion Mirror bolts onto its 1.3B path (which would make 1.3B output
+non-commercial). Only the DWPose extraction + segmentation pre-pass is
+re-implemented (CPU-capable, ~350 MB detector).
+
+| Item | License | Commercial | Status |
+|---|---|---|---|
+| Wan2.1 / Wan2.1-VACE **code** | **Apache-2.0** | Yes | VERIFIED |
+| Wan2.1-VACE-1.3B **weights** | Apache-2.0 (claimed) | Yes | UNVERIFIED (HF blocked) — read the card before shipping |
+| DWPose + rtmlib + YOLOX (pre-pass) | **Apache-2.0** | Yes | code VERIFIED; ONNX weights UNVERIFIED |
+| rembg / SAM-2 (segmentation) | MIT / Apache-2.0 | Yes | code VERIFIED |
+
+## Secondary — Motion Mirror (motion TRANSFER, Wan2.1-VACE)
 
 `halli75/motion-mirror` (v0.4.0a0, alpha). Pipeline: character still + driver
 motion video → rembg/SAM-2 segment → DWPose-L whole-body pose (body+hands+face,
@@ -83,6 +100,14 @@ than corrupting the shot.
 | MimicMotion | research/education only |
 | HunyuanVideo family | Tencent license — EU/UK/SK blocked, 100M-MAU discretion |
 | CogVideoX weights | free commercial only to 1M visits/month |
+| **StableAnimator** (as-shipped) | code MIT, but runnable stack pulls **Antelopev2/InsightFace** (non-commercial) + **SVD** (Stability Community License, $1M revenue gate); no native 480×832. Keep only as an identity-quality benchmark, do not ship. |
+| Wan2.2 TI2V-5B (for this task) | Apache-2.0 and fine as an i2v engine, but REJECTED as the motion-transfer winner: 24 GB, 720p-only, text-driven (no character+driver contract). |
+
+## Experimental (pending verification)
+
+| Item | License | Status |
+|---|---|---|
+| One-to-All-Animation (ssj9596) | code **Apache-2.0**; **weights license UNVERIFIED** (not stated in README, HF blocked) | Do not adopt until the HF weight-card license is confirmed. 16 GB T4 host; pose format unspecified. |
 
 ## Hardware (a cost note, not a license one)
 

@@ -8,10 +8,12 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   MOTION_MIRROR_META,
+  VACE_1_3B_META,
   WAN22_META,
   classifyMotionDriver,
   driversForClass,
   makeMotionTransferProvider,
+  makeVaceMotionProvider,
   mockBackend,
   runMotion,
   selectMotionDriver,
@@ -145,6 +147,30 @@ describe("MotionDriverRegistry — every class present, placeholders honestly un
     // is drivable yet. This flips to real classes only when licensed CC0/
     // permissive driver videos are added.
     expect(usableDriverClasses(REGISTRY)).toEqual([]);
+  });
+});
+
+describe("makeVaceMotionProvider — the Phase-3 winner adapter (Wan2.1-VACE 1.3B)", () => {
+  const REGISTRY: MotionDriver[] = [WALK_FIXTURE];
+
+  it("is a motion-transfer provider attributing the clip to wan2.1-vace-1.3b", async () => {
+    expect(VACE_1_3B_META.name).toBe("wan2.1-vace-1.3b");
+    expect(VACE_1_3B_META.role).toBe("motion-transfer");
+    expect(VACE_1_3B_META.billing).toBe("gpu-compute");
+    const provider = makeVaceMotionProvider(mockBackend(), REGISTRY);
+    const req: MotionRequest = {
+      sourceStillBase64: "JAMAICAN_FISHMONGER_STILL",
+      sourceMime: "image/png",
+      motionPrompt: "walks through the market",
+      durationSeconds: 8,
+      aspectRatio: "9:16",
+      motionClass: "WALKING",
+      driverClass: "WALK",
+    };
+    const { clip } = await runMotion(req, [provider]);
+    expect(clip).toMatchObject({ ok: true, provider: "wan2.1-vace-1.3b", mime: "video/mp4" });
+    // Still a mock:// sentinel — winner adapter proven at the contract level only.
+    expect((clip as { videoPath: string }).videoPath).toMatch(/^mock:\/\//);
   });
 });
 

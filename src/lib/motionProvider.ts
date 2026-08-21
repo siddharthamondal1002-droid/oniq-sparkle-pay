@@ -400,9 +400,10 @@ export function mockBackend(): MotionBackend {
 export function makeMotionTransferProvider(
   backend: MotionBackend,
   registry: MotionDriver[],
+  meta: ProviderMeta = MOTION_MIRROR_META,
 ): MotionProvider {
   return {
-    meta: MOTION_MIRROR_META,
+    meta,
     available: () => backend.available(),
     generate: (req) => {
       const driverClass = req.driverClass ?? coarseDriver(req.motionClass);
@@ -410,7 +411,7 @@ export function makeMotionTransferProvider(
         return Promise.resolve({
           ok: false as const,
           reason: "still-only shot has no motion driver",
-          provider: MOTION_MIRROR_META.name,
+          provider: meta.name,
           class: "permanent" as const,
         });
       }
@@ -419,7 +420,7 @@ export function makeMotionTransferProvider(
         return Promise.resolve({
           ok: false as const,
           reason: `no driver in registry for ${driverClass}`,
-          provider: MOTION_MIRROR_META.name,
+          provider: meta.name,
           class: "permanent" as const,
         });
       }
@@ -441,12 +442,39 @@ export function makeMotionTransferProvider(
                 videoPath: r.videoPath,
                 mime: "video/mp4",
                 seconds: r.durationSeconds,
-                provider: r.provider,
+                provider: meta.name,
               }
-            : r,
+            : { ...r, provider: meta.name },
         );
     },
   };
+}
+
+/**
+ * THE WINNER (Phase-3 engine comparison, MOTION_ENGINE_MATRIX.md): official
+ * Wan2.1-VACE 1.3B, used DIRECTLY — not the Motion Mirror wrapper. It runs the
+ * same (character image + pose-video driver) contract NATIVELY (VACE R2V+V2V),
+ * at native 480×832, on ~8 GB VRAM (12 GB is the safe production floor), under
+ * Apache-2.0 for BOTH code and weights — the cleanest license in the set, with
+ * no InsightFace and, crucially, none of the CC-BY-NC-SA distill LoRA that
+ * contaminates Motion Mirror's 1.3B path. Same MotionBackend contract; the real
+ * backend runs OUT of process on a GPU host (owner-gated).
+ */
+export const VACE_1_3B_META: ProviderMeta = {
+  name: "wan2.1-vace-1.3b",
+  kind: "oss",
+  role: "motion-transfer",
+  requiresGpu: true,
+  inrPerSecond: null,
+  billing: "gpu-compute",
+};
+
+/** The winner's provider factory — a motion-transfer provider on VACE 1.3B. */
+export function makeVaceMotionProvider(
+  backend: MotionBackend,
+  registry: MotionDriver[],
+): MotionProvider {
+  return makeMotionTransferProvider(backend, registry, VACE_1_3B_META);
 }
 
 /** A MotionDriverRegistry is just the drivers; helpers keep lookups honest. */
