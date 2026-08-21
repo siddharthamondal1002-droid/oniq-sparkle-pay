@@ -108,6 +108,10 @@ export type MotionRequest = {
   actorReferenceUrl?: string;
   /** The classified need, for a provider that adapts its prompt. */
   motionClass: MotionClass;
+  /** The finer driver class (WALK/RUN/WAVE/…), for a motion-transfer provider
+   *  to pick its driver. Optional — the transfer provider derives a coarse one
+   *  from motionClass when absent. */
+  driverClass?: MotionDriverClass;
 };
 
 /** The clip artifact — the SAME shape the worker already turns into shot.clip. */
@@ -119,6 +123,9 @@ export type MotionClip =
 export type ProviderMeta = {
   name: string;
   kind: "oss" | "premium";
+  /** The engine shape: motion-transfer (driver-conditioned), i2v (image-to-
+   *  video), or premium (paid API). Sets the preference order per shot. */
+  role: "motion-transfer" | "i2v" | "premium";
   /** Real money the moment it runs. */
   requiresGpu: boolean;
   /** For premium (Veo), the metered per-second cost; for OSS, GPU $/hr is
@@ -132,6 +139,7 @@ export type ProviderMeta = {
 export const VEO_META: ProviderMeta = {
   name: "veo-3.1-fast",
   kind: "premium",
+  role: "premium",
   requiresGpu: false,
   inrPerSecond: 12.6,
   billing: "google-metered",
@@ -141,6 +149,19 @@ export const VEO_META: ProviderMeta = {
 export const WAN22_META: ProviderMeta = {
   name: "wan2.2-ti2v-5b",
   kind: "oss",
+  role: "i2v",
+  requiresGpu: true,
+  inrPerSecond: null,
+  billing: "gpu-compute",
+};
+
+/** Motion Mirror (Wan2.1-VACE) motion-TRANSFER, self-hosted OSS. GPU-bound.
+ *  Drives ONIQ's own character still with a reference motion video — the
+ *  economical primary for ordinary body action. $/s measured at deploy. */
+export const MOTION_MIRROR_META: ProviderMeta = {
+  name: "motion-mirror-wan2.1-vace",
+  kind: "oss",
+  role: "motion-transfer",
   requiresGpu: true,
   inrPerSecond: null,
   billing: "gpu-compute",
@@ -169,18 +190,27 @@ export type MotionPolicy = {
  * moved to the FRONT for the classes named premium-worthy. Unavailable
  * providers are dropped here so the runner never starts a dead engine.
  */
+/** Ordinary body action is a good fit for motion TRANSFER (a driver exists);
+ *  complex/generative shots lean on i2v. Decides the OSS sub-order. */
+function classPrefersTransfer(cls: MotionClass): boolean {
+  return cls === "WALKING" || cls === "GESTURE" || cls === "TALKING";
+}
+
 export function selectProviderOrder(
   cls: MotionClass,
   providers: MotionProvider[],
   policy: MotionPolicy,
 ): MotionProvider[] {
   if (!classNeedsClip(cls)) return [];
-  const oss = providers.filter((p) => p.meta.kind === "oss" && p.available());
-  const premium = policy.allowPremium
-    ? providers.filter((p) => p.meta.kind === "premium" && p.available())
-    : [];
+  const avail = providers.filter((p) => p.available());
+  const oss = avail.filter((p) => p.meta.kind === "oss");
+  const transfer = oss.filter((p) => p.meta.role === "motion-transfer");
+  const i2v = oss.filter((p) => p.meta.role !== "motion-transfer");
+  // Ordinary action → transfer first (economical, identity-safe); complex → i2v.
+  const ossOrdered = classPrefersTransfer(cls) ? [...transfer, ...i2v] : [...i2v, ...transfer];
+  const premium = policy.allowPremium ? avail.filter((p) => p.meta.kind === "premium") : [];
   const premiumFirst = (policy.premiumClasses ?? []).includes(cls);
-  return premiumFirst ? [...premium, ...oss] : [...oss, ...premium];
+  return premiumFirst ? [...premium, ...ossOrdered] : [...ossOrdered, ...premium];
 }
 
 /**
@@ -213,4 +243,174 @@ export async function runMotion(
     tried.push({ provider: out.provider, reason: out.reason });
   }
   return { clip: null, tried };
+}
+
+// ── MOTION TRANSFER (Motion Mirror / Wan2.1-VACE architecture) ───────────────
+//
+// A different shape from text/image-to-video: instead of asking a model to
+// INVENT body mechanics, motion transfer takes ONIQ's already-correct character
+// still and drives it with a reference MOTION video — a "driver". The driver
+// supplies movement ONLY, never identity: ONIQ's still already fixes who the
+// character is (age/gender/ethnicity/occupation/clothing/role), so the driver
+// just says "walk". Modelled on Motion Mirror (halli75/motion-mirror,
+// Wan2.1-VACE): character image → segmentation → pose (DWPose, body+hands+face)
+// → VACE conditioning → video → audio mux. Those GPU stages live behind
+// MotionBackend; nothing here imports torch, provisions a GPU, or touches
+// StoryFilm / Remotion / story-plot / story-still / story-voice.
+
+/** WHAT a character does — the movement a driver supplies. */
+export type MotionDriverClass =
+  | "WALK" | "RUN" | "TURN" | "SIT" | "STAND" | "WAVE" | "POINT"
+  | "TALK" | "CARRY" | "LOOK_AROUND" | "DANCE" | "FIGHT" | "CUSTOM";
+
+/**
+ * The finer driver class for a shot, from the SAME movie grammar the still and
+ * clip already use. null for still-only shots (STATIC / CAMERA_ONLY) — those
+ * never get a driver. The current shot's own words choose the movement; no
+ * stored actor metadata is consulted (ACTOR ASSET ≠ PERMANENT BIOGRAPHY).
+ */
+export function classifyMotionDriver(shot: MotionShot): MotionDriverClass | null {
+  const cls = classifyShotMotion(shot);
+  if (!classNeedsClip(cls)) return null;
+  if (cls === "TALKING") return "TALK";
+  const t = `${shot.motion ?? ""} ${shot.still ?? ""} ${shot.narration ?? ""}`
+    .toLowerCase()
+    .replace(CAMERA_PHRASE_G, " ");
+  if (/\b(run|runs|running|ran|sprints?|sprinting)\b/.test(t)) return "RUN";
+  if (/\b(walk|walks|walking|walked|steps?|stride|strides|approach\w*|enter\w*|leav\w*|climb\w*)\b/.test(t)) return "WALK";
+  if (/\b(danc\w+)\b/.test(t)) return "DANCE";
+  if (/\b(fight\w*|punch\w*|strike\w*)\b/.test(t)) return "FIGHT";
+  if (/\b(wave|waves|waving)\b/.test(t)) return "WAVE";
+  if (/\b(point|points|pointing)\b/.test(t)) return "POINT";
+  if (/\b(turns?|turning)\b/.test(t)) return "TURN";
+  if (/\b(looks? (around|behind|back)|glanc\w+)\b/.test(t)) return "LOOK_AROUND";
+  if (/\b(sit|sits|sitting|kneel\w*)\b/.test(t)) return "SIT";
+  if (/\b(stand|stands|standing|rises?|rising|gets? up)\b/.test(t)) return "STAND";
+  if (/\b(carry|carries|carrying|hold\w*|lift\w*)\b/.test(t)) return "CARRY";
+  return "CUSTOM";
+}
+
+/** The coarse fallback when only the broad class is known. */
+function coarseDriver(cls: MotionClass): MotionDriverClass | null {
+  if (!classNeedsClip(cls)) return null;
+  if (cls === "WALKING") return "WALK";
+  if (cls === "TALKING") return "TALK";
+  if (cls === "GESTURE") return "WAVE";
+  return "CUSTOM";
+}
+
+/** A reference motion clip: movement only, no identity. */
+export type MotionDriver = {
+  id: string;
+  motionClass: MotionDriverClass;
+  /** Path/ref to the driver clip (a fixture today; a real reference later). */
+  driverVideo: string;
+  durationSeconds: number;
+  fps: number;
+  aspectRatio: "9:16";
+  /** Provenance of the MOVEMENT (never the character). */
+  source: string;
+  license: string;
+};
+
+/** The first driver in the registry matching the class, or null. */
+export function selectMotionDriver(
+  driverClass: MotionDriverClass,
+  registry: MotionDriver[],
+): MotionDriver | null {
+  return registry.find((d) => d.motionClass === driverClass) ?? null;
+}
+
+/** What a motion-transfer backend is handed. Still + driver in, clip out. */
+export type MotionTransferInput = {
+  characterStillBase64: string;
+  characterMime: string;
+  driver: MotionDriver;
+  durationSeconds: 4 | 6 | 8;
+  aspectRatio: "9:16";
+  /** Narration for the optional lip-sync stage (TALK shots). */
+  audioBase64?: string;
+  /** Whole-body conditioning toggles (Motion Mirror: body/hands/face). */
+  conditioning?: { body?: boolean; hands?: boolean; face?: boolean };
+};
+
+/**
+ * The inference host. `mock` proves the DATA PATH with no GPU; `local-gpu` and
+ * `remote-gpu` are the real backends added later. The Story Worker stays
+ * CPU/orchestration only — a real backend runs OUT of process (a GPU worker or
+ * API), never by installing torch/CUDA/Wan weights into the ordinary worker.
+ */
+export type MotionBackend = {
+  kind: "mock" | "local-gpu" | "remote-gpu";
+  available: () => boolean;
+  run: (input: MotionTransferInput) => Promise<MotionClip>;
+};
+
+/**
+ * The mock backend: exercises still → driver → MotionClip → (shot.clip) without
+ * a GPU. It fabricates NO pixels and claims NO real motion — `data` is a
+ * sentinel marker, not a video, so nothing downstream can mistake it for a real
+ * clip. A real backend returns real mp4 bytes in exactly this shape. This is
+ * the local/mock validation the directive calls for; a real walking clip waits
+ * on a GPU host.
+ */
+export function mockBackend(): MotionBackend {
+  return {
+    kind: "mock",
+    available: () => true,
+    run: (input) =>
+      Promise.resolve({
+        ok: true as const,
+        data: `MOCK_MOTION_TRANSFER:${input.driver.id}:${input.durationSeconds}s`,
+        mime: "video/mp4",
+        seconds: input.durationSeconds,
+        provider: MOTION_MIRROR_META.name,
+      }),
+  };
+}
+
+/**
+ * A motion-transfer MotionProvider bound to a backend and a driver registry. It
+ * picks the driver for the shot (fine class if given, else coarse), and fails
+ * over cleanly — no matching driver → a PERMANENT miss so runMotion falls to
+ * the next provider (Wan i2v, then Veo, then the caller's still/depth). Never
+ * substitutes a driver from a different movement.
+ */
+export function makeMotionTransferProvider(
+  backend: MotionBackend,
+  registry: MotionDriver[],
+): MotionProvider {
+  return {
+    meta: MOTION_MIRROR_META,
+    available: () => backend.available(),
+    generate: (req) => {
+      const driverClass = req.driverClass ?? coarseDriver(req.motionClass);
+      if (!driverClass) {
+        return Promise.resolve({
+          ok: false as const,
+          reason: "still-only shot has no motion driver",
+          provider: MOTION_MIRROR_META.name,
+          class: "permanent" as const,
+        });
+      }
+      const driver = selectMotionDriver(driverClass, registry);
+      if (!driver) {
+        return Promise.resolve({
+          ok: false as const,
+          reason: `no driver in registry for ${driverClass}`,
+          provider: MOTION_MIRROR_META.name,
+          class: "permanent" as const,
+        });
+      }
+      return backend.run({
+        characterStillBase64: req.sourceStillBase64,
+        characterMime: req.sourceMime,
+        driver,
+        durationSeconds: req.durationSeconds,
+        aspectRatio: req.aspectRatio,
+        audioBase64: req.audioBase64,
+        conditioning: { body: true, hands: true, face: true },
+      });
+    },
+  };
 }
