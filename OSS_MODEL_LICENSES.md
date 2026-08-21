@@ -109,6 +109,20 @@ than corrupting the shot.
 |---|---|---|
 | One-to-All-Animation (ssj9596) | code **Apache-2.0**; **weights license UNVERIFIED** (not stated in README, HF blocked) | Do not adopt until the HF weight-card license is confirmed. 16 GB T4 host; pose format unspecified. |
 
+## Level-3 CPU animation (Phase 4) — Animated Drawings + talking
+
+The cheap tier (no diffusion). See `MOTION_COST_ARCHITECTURE.md`.
+
+| Item | License | Commercial | CPU? | Status |
+|---|---|---|---|---|
+| **Meta Animated Drawings** (code) | **MIT** | Yes | **yes** | VERIFIED (LICENSE) — repo archived read-only 2025-09 |
+| Animated Drawings detector/pose **weights** (.mar) | **MIT** | Yes | yes | VERIFIED (released MIT) |
+| BVH motion clips (L3 driver library) | must be **CC0 / public-domain / permissive** (e.g. CMU MoCab BVH) | — | yes | per-clip license recorded; none committed |
+| FOMM / Thin-Plate-Spline-MM | code MIT; **pretrained weights research-dataset-trained** | **NO (weights)** | no (GPU-practical) | REJECT for this tier — weights license risk + warps break on real walking |
+| Wav2Lip (talking) | **NON-COMMERCIAL weights (LRS2)** | **NO** | slow | REJECT — commercial use prohibited |
+| SadTalker (talking) | **Apache-2.0** | Yes | GPU-expected | real-face only; L4 talking option |
+| MuseTalk (talking) | **MIT code + weights** | Yes | **GPU** | real-face; L4 talking option |
+
 ## Hardware (a cost note, not a license one)
 
 OSS ≠ free to run. **Motion Mirror's VACE diffusion is strictly GPU** (pose +

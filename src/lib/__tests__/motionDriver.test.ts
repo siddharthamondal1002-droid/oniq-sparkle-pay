@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  ANIMATED_DRAWINGS_META,
   MOTION_MIRROR_META,
   VACE_1_3B_META,
   WAN22_META,
@@ -171,6 +172,21 @@ describe("makeVaceMotionProvider — the Phase-3 winner adapter (Wan2.1-VACE 1.3
     expect(clip).toMatchObject({ ok: true, provider: "wan2.1-vace-1.3b", mime: "video/mp4" });
     // Still a mock:// sentinel — winner adapter proven at the contract level only.
     expect((clip as { videoPath: string }).videoPath).toMatch(/^mock:\/\//);
+  });
+});
+
+describe("Animated Drawings — the CPU pose-warp tier leads OSS (cheapest first)", () => {
+  it("is the only OSS motion engine that needs NO GPU", () => {
+    expect(ANIMATED_DRAWINGS_META.role).toBe("pose-warp");
+    expect(ANIMATED_DRAWINGS_META.requiresGpu).toBe(false);
+    expect(ANIMATED_DRAWINGS_META.billing).toBe("cpu-runner");
+  });
+
+  it("leads the provider order ahead of the GPU diffusion engines", () => {
+    const warp: MotionProvider = { meta: ANIMATED_DRAWINGS_META, available: () => true, generate: async () => ({ ok: false, reason: "not eligible", provider: ANIMATED_DRAWINGS_META.name, class: "permanent" }) };
+    const vace: MotionProvider = { meta: VACE_1_3B_META, available: () => true, generate: async () => ({ ok: true, videoPath: "v", mime: "video/mp4", seconds: 8, provider: VACE_1_3B_META.name }) };
+    const order = selectProviderOrder("WALKING", [vace, warp], { allowPremium: false });
+    expect(order.map((p) => p.meta.role)).toEqual(["pose-warp", "motion-transfer"]);
   });
 });
 

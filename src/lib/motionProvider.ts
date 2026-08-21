@@ -125,9 +125,10 @@ export type MotionClip =
 export type ProviderMeta = {
   name: string;
   kind: "oss" | "premium";
-  /** The engine shape: motion-transfer (driver-conditioned), i2v (image-to-
-   *  video), or premium (paid API). Sets the preference order per shot. */
-  role: "motion-transfer" | "i2v" | "premium";
+  /** The engine shape: pose-warp (CPU 2D auto-rig + retarget, no diffusion),
+   *  motion-transfer (diffusion driver-conditioned), i2v (image-to-video), or
+   *  premium (paid API). Sets the preference order per shot. */
+  role: "pose-warp" | "motion-transfer" | "i2v" | "premium";
   /** Real money the moment it runs. */
   requiresGpu: boolean;
   /** For premium (Veo), the metered per-second cost; for OSS, GPU $/hr is
@@ -206,10 +207,14 @@ export function selectProviderOrder(
   if (!classNeedsClip(cls)) return [];
   const avail = providers.filter((p) => p.available());
   const oss = avail.filter((p) => p.meta.kind === "oss");
+  // CPU pose-warp is the cheapest OSS engine → always leads (it fails over to
+  // the diffusion engines for shots it cannot serve). Among the diffusion
+  // engines, ordinary action → transfer first, complex → i2v.
+  const warp = oss.filter((p) => p.meta.role === "pose-warp");
   const transfer = oss.filter((p) => p.meta.role === "motion-transfer");
-  const i2v = oss.filter((p) => p.meta.role !== "motion-transfer");
-  // Ordinary action → transfer first (economical, identity-safe); complex → i2v.
-  const ossOrdered = classPrefersTransfer(cls) ? [...transfer, ...i2v] : [...i2v, ...transfer];
+  const i2v = oss.filter((p) => p.meta.role === "i2v");
+  const diffusion = classPrefersTransfer(cls) ? [...transfer, ...i2v] : [...i2v, ...transfer];
+  const ossOrdered = [...warp, ...diffusion];
   const premium = policy.allowPremium ? avail.filter((p) => p.meta.kind === "premium") : [];
   const premiumFirst = (policy.premiumClasses ?? []).includes(cls);
   return premiumFirst ? [...premium, ...ossOrdered] : [...ossOrdered, ...premium];
@@ -476,6 +481,26 @@ export function makeVaceMotionProvider(
 ): MotionProvider {
   return makeMotionTransferProvider(backend, registry, VACE_1_3B_META);
 }
+
+/**
+ * THE CHEAP TIER (Phase 4, MOTION_COST_ARCHITECTURE.md): Meta Animated Drawings
+ * — single character image → auto-segment → auto-rig → retarget a BVH motion →
+ * ARAP 2D render. The ONLY OSS motion engine that runs **CPU-only** (no GPU),
+ * MIT for BOTH code and weights, commercial-clean. It suits ONIQ's storybook-
+ * illustrated stills (it is uncanny only for photoreal, which ONIQ is not). It
+ * consumes BVH motion, not a pose-video — so its driver library is BVH clips,
+ * distinct from the diffusion tier's pose-video drivers. Serves frontal /
+ * full-body / unoccluded / single stylised humanoids; other framings escalate
+ * to the diffusion tier. requiresGpu:false is the whole point.
+ */
+export const ANIMATED_DRAWINGS_META: ProviderMeta = {
+  name: "animated-drawings",
+  kind: "oss",
+  role: "pose-warp",
+  requiresGpu: false,
+  inrPerSecond: null,
+  billing: "cpu-runner",
+};
 
 /** A MotionDriverRegistry is just the drivers; helpers keep lookups honest. */
 export type MotionDriverRegistry = MotionDriver[];

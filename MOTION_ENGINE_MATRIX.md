@@ -32,5 +32,17 @@ cards were egress-blocked → **UNVERIFIED** where noted, never guessed.
 ## Pipeline split (winner)
 Character still + driver video → **DWPose pose extraction + segmentation (CPU-capable)** → OpenPose control frames → **Wan2.1-VACE 1.3B diffusion (GPU-only)** → ffmpeg audio mux (reuse ONIQ's ffmpeg). Only the diffusion needs the GPU.
 
+## Phase-4 update — tiers, not one engine
+
+The winner above (Wan2.1-VACE 1.3B) is the **diffusion tier (LEVEL 4)**, not the
+whole answer. Phase 4 added a cheaper **LEVEL 3** engine that runs on **CPU** for
+the majority of shots — **Meta Animated Drawings** (MIT code+weights,
+single-image auto-rig + BVH retarget + ARAP render), which fits ONIQ's
+storybook-illustrated art. The full 6-tier cost/quality architecture, the shot
+policy, the pose cache, and the cost breakdown are in **`MOTION_COST_ARCHITECTURE.md`**.
+Net: diffusion (this matrix's winner) is reserved for the shots CPU pose-warp
+cannot serve (non-frontal / occluded / tight-framed / hands / talking /
+photoreal), not run on every shot.
+
 ## Smallest realistic GPU
 **8 GB verified minimum, 12 GB recommended production floor.** GPU is required — this is owner-gated spend; no paid service provisioned. See `OSS_MODEL_LICENSES.md` and `src/lib/motionProvider.ts` (`VACE_1_3B_META`, `makeVaceMotionProvider`).
