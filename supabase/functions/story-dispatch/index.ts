@@ -142,19 +142,27 @@ Deno.serve(async (req) => {
     const res = await fetch(
       `${supabaseUrl}/rest/v1/story_jobs?status=eq.queued` +
         `&or=(dispatched_at.is.null,dispatched_at.lt.${staleBefore})` +
-        `&order=created_at.asc&limit=1&select=id,requested_seconds`,
+        `&order=created_at.asc&limit=1&select=id,requested_seconds,actor_refs`,
       { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
     );
     if (!res.ok) {
       console.error("story-dispatch query", res.status, await res.text());
       return json({ error: "could not read the queue" }, 502);
     }
-    const rows = (await res.json()) as { id: string; requested_seconds: number }[];
+    const rows = (await res.json()) as {
+      id: string;
+      requested_seconds: number;
+      actor_refs?: boolean;
+    }[];
     if (!Array.isArray(rows) || rows.length === 0) {
       return json({ dispatched: false, reason: "nothing queued" }, 200);
     }
 
     const jobId = rows[0].id;
+    // OWNER-ACTOR conditioning is opt-in PER JOB. The flag travels with the
+    // dispatch so the workflow can set STORY_ACTOR_REFS=on for exactly this job
+    // and no other. Default false: every ordinary job renders exactly as before.
+    const actorRefs = rows[0].actor_refs === true;
     const token = await mintJobToken(jobId, jobSecret!);
 
     // Stamped BEFORE the GitHub call, not after. If the dispatch throws or the
@@ -188,7 +196,7 @@ Deno.serve(async (req) => {
         // a gateway 404 that looked like a bug in story-callback. Supabase
         // knows its own address; making GitHub store a second copy of it was
         // both unnecessary and the one thing that went stale.
-        client_payload: { job_id: jobId, token, supabase_url: supabaseUrl },
+        client_payload: { job_id: jobId, token, supabase_url: supabaseUrl, actor_refs: actorRefs },
       }),
     });
 
