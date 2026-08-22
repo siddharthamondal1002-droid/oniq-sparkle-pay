@@ -19,6 +19,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { vfxKindFor } from "../particleField.ts";
+import { ambienceFor } from "../soundStage.ts";
 import {
   LIGHTING_PALETTE,
   SHOT_SIZES,
@@ -84,6 +85,17 @@ describe("shotDirector weather neutrality (must never change vfx)", () => {
     }
   });
 
+  it("every palette phrase and size is invisible to ambienceFor too", () => {
+    // Defence in depth: the worker feeds ambienceFor the UNDECORATED still
+    // (pinned below), but a palette word like "dusk" or "twilight" would turn
+    // into night crickets the day someone reroutes that call. Keep the whole
+    // palette silent to the audio chooser so that refactor can never make a
+    // lighting note change a film's sound.
+    for (const phrase of [...LIGHTING_PALETTE, ...SHOT_SIZES, "establishing"]) {
+      expect(ambienceFor(phrase), phrase).toBeNull();
+    }
+  });
+
   it("decoration preserves the classification of weathered stills verbatim", () => {
     const weathered = [
       "The harbour under a driving rainstorm, nets slack.",
@@ -138,5 +150,16 @@ describe("story worker carries the director pass", () => {
     expect(src).toMatch(/\$\{directedStill\}\\n\\nSetting: \$\{settingForImage\}/);
     // The undirected still must no longer reach the weather decision.
     expect(src).not.toMatch(/selectSceneWeather\(shot\.still\)/);
+  });
+
+  it("keeps the audio and emotion choosers on the UNDECORATED still", () => {
+    // The director varies the image, not the sound stage or the acting: the
+    // ambience bed and the expression register are earned by the plan's own
+    // words. Pin their inputs so a refactor cannot silently hand them the
+    // decorated text (where a lighting note could masquerade as scene words).
+    expect(src).toMatch(/ambienceFor\(`\$\{shot\.still\} \$\{shot\.narration\}`\)/);
+    expect(src).not.toMatch(/ambienceFor\([^)]*directedStill/);
+    expect(src).toMatch(/emotionFor\(\s*`\$\{shot\.still\} \$\{shot\.narration\}/);
+    expect(src).not.toMatch(/emotionFor\([^)]*directedStill/);
   });
 });
