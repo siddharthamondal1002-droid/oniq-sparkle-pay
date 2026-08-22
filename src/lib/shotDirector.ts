@@ -39,9 +39,14 @@ export const SHOT_SIZES: readonly string[] = [
 ];
 
 /**
- * Lighting notes the director may append. Every entry MUST classify as
- * vfxKindFor === null (pinned by test): lighting varies the image, never
- * the weather. Amber/golden wording is kept clear of ember vocabulary.
+ * Lighting notes the director may append. Every entry MUST be invisible to
+ * BOTH scene classifiers (pinned by test): vfxKindFor === null (lighting
+ * varies the image, never the weather) AND ambienceFor === null (never the
+ * audio bed). The second constraint is defence in depth — today the worker
+ * feeds ambienceFor the UNDECORATED still (also pinned), but "twilight" or
+ * "dusk", however natural as lighting, would turn into night crickets the
+ * day someone reroutes that call. Amber/golden wording likewise stays clear
+ * of ember vocabulary.
  */
 export const LIGHTING_PALETTE: readonly string[] = [
   "soft golden side-light",
@@ -49,8 +54,8 @@ export const LIGHTING_PALETTE: readonly string[] = [
   "warm window light",
   "backlit with a gentle rim light",
   "gentle dawn glow",
-  "low amber twilight",
-  "silver-blue dusk light",
+  "low amber late-afternoon light",
+  "silver-blue evening light",
   "bright midday clarity",
 ];
 
