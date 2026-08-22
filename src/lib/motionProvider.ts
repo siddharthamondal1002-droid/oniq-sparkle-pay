@@ -482,6 +482,141 @@ export function makeVaceMotionProvider(
   return makeMotionTransferProvider(backend, registry, VACE_1_3B_META);
 }
 
+// ── L4 VACE RUN SPEC — the exact, owner-gated GPU invocation (Phase 9) ─────────
+//
+// This is DATA + a pure arg builder. It runs NOTHING here: no torch, no CUDA, no
+// GPU, no spend. A GPU host injects a runner that executes these args OUT of
+// process (per the MotionBackend design) and returns the produced mp4. Kept in
+// code so "the exact command/backend required" is versioned, not a doc guess.
+
+export type VaceRunSpec = {
+  /** Minimum VRAM that runs the 1.3B path (GB). 8 verified, 12 the safe floor. */
+  minVramGb: number;
+  recommendedVramGb: number;
+  /** Native portrait size for the 1.3B path — no re-crop for ONIQ's 9:16. */
+  resolution: "480x832";
+  /** Where the Apache-2.0 weights live on the GPU host. */
+  ckptDir: string;
+  task: "vace-1.3B";
+};
+
+/** The verified minimum config (MOTION_ENGINE_MATRIX.md): 8 GB VRAM runs it,
+ *  12 GB is the safe production floor. Fits RTX 3060 12 GB / T4 16 GB / 4090. */
+export const VACE_1_3B_RUN: VaceRunSpec = {
+  minVramGb: 8,
+  recommendedVramGb: 12,
+  resolution: "480x832",
+  ckptDir: "./models/Wan2.1-VACE-1.3B",
+  task: "vace-1.3B",
+};
+
+/**
+ * Build the EXACT `generate.py` args for ONE shot: reference image = IDENTITY,
+ * pose-control video = MOTION, plus a MOTION-ONLY prompt. Identity comes ONLY
+ * from the reference image; the prompt describes movement, never the character's
+ * permanent biography (ACTOR ASSET ≠ PERMANENT BIOGRAPHY). There is no character/
+ * appearance parameter here BY DESIGN, so an actor's traits can never leak into
+ * the motion prompt.
+ */
+export function buildVaceArgs(a: {
+  spec: VaceRunSpec;
+  /** Path on the GPU host to the character still (identity). */
+  refImagePath: string;
+  /** Path on the GPU host to the pose-control video derived from the driver. */
+  poseControlPath: string;
+  /** Movement description only (e.g. "a person walking forward"). */
+  motionPrompt: string;
+  /** Frame count (worker-measured), and where to write the mp4. */
+  frames: number;
+  saveFile: string;
+}): string[] {
+  return [
+    "generate.py",
+    "--task", a.spec.task,
+    "--size", a.spec.resolution.replace("x", "*"),
+    "--ckpt_dir", a.spec.ckptDir,
+    "--src_ref_images", a.refImagePath,
+    "--src_video", a.poseControlPath,
+    "--frame_num", String(a.frames),
+    "--prompt", a.motionPrompt,
+    "--save_file", a.saveFile,
+  ];
+}
+
+/**
+ * The out-of-process GPU runner a real backend delegates to. `ready()` is true
+ * ONLY when a GPU host with ≥ minVramGb is actually reachable; `exec` runs the
+ * args and returns the produced mp4. No such runner exists in the CPU worker, so
+ * the backend below is unavailable there — and unavailability means the provider
+ * misses and the caller falls to the still, NEVER a fabricated clip.
+ */
+export type VaceGpuRunner = {
+  ready: () => boolean;
+  exec: (args: string[], input: MotionTransferInput) => Promise<{ videoPath: string; fps: number }>;
+};
+
+/**
+ * A real GPU motion-transfer backend (local-gpu / remote-gpu). Injecting `null`
+ * (or a runner whose `ready()` is false) yields an UNAVAILABLE backend — the
+ * fail-closed default everywhere a GPU is not provisioned. It imports no torch
+ * and provisions nothing; all GPU work is the injected runner's, out of process.
+ */
+export function gpuVaceBackend(
+  spec: VaceRunSpec,
+  runner: VaceGpuRunner | null,
+  kind: "local-gpu" | "remote-gpu" = "remote-gpu",
+): MotionBackend {
+  return {
+    kind,
+    available: () => runner?.ready() === true,
+    run: async (input) => {
+      if (!runner || !runner.ready()) {
+        return {
+          ok: false as const,
+          reason: "no GPU host configured for VACE 1.3B (>=8GB VRAM required)",
+          provider: VACE_1_3B_META.name,
+          class: "permanent" as const,
+        };
+      }
+      const args = buildVaceArgs({
+        spec,
+        refImagePath: `ref://${input.driver.id}`,
+        poseControlPath: `pose://${input.driver.id}`,
+        motionPrompt: motionOnlyPrompt(input.motionClass),
+        frames: Math.round(input.durationSeconds * input.driver.fps),
+        saveFile: `clip://${input.driver.id}.mp4`,
+      });
+      const out = await runner.exec(args, input);
+      return {
+        ok: true as const,
+        videoPath: out.videoPath,
+        durationSeconds: input.durationSeconds,
+        fps: out.fps,
+        provider: VACE_1_3B_META.name,
+        metadata: { backend: kind, resolution: spec.resolution, args },
+      };
+    },
+  };
+}
+
+/** A movement-only prompt from the classified motion — never actor biography. */
+export function motionOnlyPrompt(cls: MotionClass): string {
+  switch (cls) {
+    case "WALKING":
+      return "a person walking forward, natural gait, full body";
+    case "TALKING":
+      return "a person speaking, subtle upper-body movement";
+    case "GESTURE":
+      return "a person gesturing with the arms, natural motion";
+    case "INTERACTION":
+      return "a person interacting, natural full-body motion";
+    case "CHARACTER_MOTION":
+      return "a person moving naturally, full body";
+    default:
+      return "natural human motion";
+  }
+}
+
 /**
  * THE CHEAP TIER (Phase 4, MOTION_COST_ARCHITECTURE.md): Meta Animated Drawings
  * — single character image → auto-segment → auto-rig → retarget a BVH motion →

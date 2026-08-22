@@ -8,13 +8,22 @@ import { describe, expect, it, vi } from "vitest";
 import {
   WAN22_META,
   VEO_META,
+  VACE_1_3B_META,
+  VACE_1_3B_RUN,
+  ANIMATED_DRAWINGS_META,
+  buildVaceArgs,
   classNeedsClip,
   classifyShotMotion,
+  gpuVaceBackend,
+  makeVaceMotionProvider,
+  motionOnlyPrompt,
   runMotion,
   selectProviderOrder,
   type MotionClip,
+  type MotionDriver,
   type MotionProvider,
   type MotionRequest,
+  type VaceGpuRunner,
 } from "@/lib/motionProvider";
 
 function provider(
@@ -150,5 +159,91 @@ describe("runMotion — bounded fallback, never a still-as-clip", () => {
     expect(WAN22_META.billing).toBe("gpu-compute");
     expect(WAN22_META.requiresGpu).toBe(true);
     expect(WAN22_META.inrPerSecond).toBeNull(); // measured at deploy, never guessed
+  });
+});
+
+// ── PHASE 9 — L4 VACE readiness (no GPU here; contract + fail-closed) ──────────
+describe("L4 VACE 1.3B — command spec + backend, fail-closed without a GPU", () => {
+  const WALK: MotionDriver = {
+    id: "walk_9x16",
+    motionClass: "WALK",
+    driverVideo: "remotion/fixtures/motion-drivers/walk_9x16.mp4",
+    durationSeconds: 8,
+    fps: 30,
+    aspectRatio: "9:16",
+    source: "x",
+    license: "x",
+  };
+
+  it("min GPU config is the verified 8GB floor at native 480x832", () => {
+    expect(VACE_1_3B_RUN.minVramGb).toBe(8);
+    expect(VACE_1_3B_RUN.recommendedVramGb).toBe(12);
+    expect(VACE_1_3B_RUN.resolution).toBe("480x832");
+    expect(VACE_1_3B_META.requiresGpu).toBe(true);
+  });
+
+  it("buildVaceArgs: identity=ref image, motion=pose+prompt; NO biography param", () => {
+    const args = buildVaceArgs({
+      spec: VACE_1_3B_RUN,
+      refImagePath: "aladdin.png",
+      poseControlPath: "walk_pose.mp4",
+      motionPrompt: motionOnlyPrompt("WALKING"),
+      frames: 132,
+      saveFile: "out.mp4",
+    });
+    expect(args).toEqual([
+      "generate.py", "--task", "vace-1.3B", "--size", "480*832",
+      "--ckpt_dir", "./models/Wan2.1-VACE-1.3B",
+      "--src_ref_images", "aladdin.png", "--src_video", "walk_pose.mp4",
+      "--frame_num", "132", "--prompt", "a person walking forward, natural gait, full body",
+      "--save_file", "out.mp4",
+    ]);
+    // ACTOR ASSET ≠ PERMANENT BIOGRAPHY: the motion prompt carries movement only.
+    expect(motionOnlyPrompt("WALKING")).not.toMatch(/aladdin|boy|shirt|hair|sandal|face|skin/i);
+  });
+
+  it("data path: a READY GPU runner → makeVaceMotionProvider → MotionClip (mocked, no real GPU)", async () => {
+    const exec = vi.fn(async () => ({ videoPath: "/out/walk.mp4", fps: 30 }));
+    const runner: VaceGpuRunner = { ready: () => true, exec };
+    const provider = makeVaceMotionProvider(gpuVaceBackend(VACE_1_3B_RUN, runner), [WALK]);
+    expect(provider.available()).toBe(true);
+    const clip = await provider.generate({
+      sourceStillBase64: "AAAA", sourceMime: "image/png", motionPrompt: "walk",
+      durationSeconds: 8, aspectRatio: "9:16", motionClass: "WALKING", driverClass: "WALK",
+    });
+    expect(exec).toHaveBeenCalledOnce();
+    expect(clip).toMatchObject({ ok: true, videoPath: "/out/walk.mp4", provider: VACE_1_3B_META.name });
+  });
+
+  it("FAIL-CLOSED: no GPU host → backend unavailable → runMotion returns null (still, never a fake clip)", async () => {
+    const provider = makeVaceMotionProvider(gpuVaceBackend(VACE_1_3B_RUN, null), [WALK]);
+    expect(provider.available()).toBe(false);
+    // even if forced to run, it reports a permanent miss — no fabricated clip
+    const clip = await provider.generate({
+      sourceStillBase64: "AAAA", sourceMime: "image/png", motionPrompt: "walk",
+      durationSeconds: 8, aspectRatio: "9:16", motionClass: "WALKING", driverClass: "WALK",
+    });
+    expect(clip.ok).toBe(false);
+    const { clip: run } = await runMotion(
+      { sourceStillBase64: "AAAA", sourceMime: "image/png", motionPrompt: "walk", durationSeconds: 8, aspectRatio: "9:16", motionClass: "WALKING" },
+      [provider],
+    );
+    expect(run).toBeNull(); // caller falls to still/depth; never a torn/fake clip
+  });
+
+  it("provider ordering: CPU pose-warp (L3) leads, VACE (L4) next, Veo (L5) gated", () => {
+    const wrap = (meta: typeof VEO_META): MotionProvider => ({
+      meta,
+      available: () => true,
+      generate: async () => ({ ok: false, reason: "n/a", provider: meta.name, class: "permanent" }),
+    });
+    const ps = [wrap(VEO_META), wrap(VACE_1_3B_META), wrap(ANIMATED_DRAWINGS_META)];
+    const names = selectProviderOrder("WALKING", ps, { allowPremium: true }).map((p) => p.meta.name);
+    expect(names.indexOf(ANIMATED_DRAWINGS_META.name)).toBeLessThan(names.indexOf(VACE_1_3B_META.name));
+    expect(names.indexOf(VACE_1_3B_META.name)).toBeLessThan(names.indexOf(VEO_META.name));
+    // premium stays gated: dropping the flag removes Veo, keeps the OSS tiers
+    const noVeo = selectProviderOrder("WALKING", ps, { allowPremium: false }).map((p) => p.meta.name);
+    expect(noVeo).not.toContain(VEO_META.name);
+    expect(noVeo).toContain(VACE_1_3B_META.name);
   });
 });
