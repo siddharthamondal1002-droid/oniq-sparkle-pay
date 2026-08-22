@@ -71,6 +71,7 @@ import {
 } from '../../src/lib/parallaxPlanes.ts';
 import { vfxSeed } from '../../src/lib/particleField.ts';
 import { selectSceneWeather, weatherConsistentSetting } from '../../src/lib/sceneWeather.ts';
+import { directShots } from '../../src/lib/shotDirector.ts';
 import { emotionFor } from '../../src/lib/expressionGrammar.ts';
 import { ambienceFor, ambienceGraph, scoreFor, scoreGraph } from '../../src/lib/soundStage.ts';
 import { packNarrations, verbatimFits } from '../../src/lib/verbatimNarration.ts';
@@ -1495,6 +1496,18 @@ if (offline) {
     const shotRigs = plan.shots.map((s) => rigFor(plan, s));
     const facings = conversationFacings(shotRigs.map((rig) => ({ rig })));
 
+    // AI DIRECTOR (owner brick, 2026-08-22) — the second whole-plan pass,
+    // for the same reason as the eyeline pass above: per-shot grammar cannot
+    // see monotony, only a pass over the sequence can. Both 43-shot proof
+    // runs rendered near-identical framing and light on every shot. Each
+    // still gains a size (unless the plan already led with one) and a
+    // lighting note from a bounded, vfx-neutral palette, seeded by the job
+    // id — deterministic per job, different rhythm per film, and by
+    // construction unable to change a shot's weather (the decorated still
+    // is what selectSceneWeather reads, and every palette phrase classifies
+    // as no-vfx).
+    const directed = directShots(plan.shots.map((s) => s.still), String(job.id));
+
     const rendered = [];
     // Rung 11: the shots' emotional registers, collected for the film-level
     // score vote. Classic films push nulls and vote for silence.
@@ -1533,10 +1546,16 @@ if (offline) {
       // can never disagree. weatherConsistentSetting strips precipitation from
       // the film-wide setting string when THIS shot is dry, so a film themed
       // "…Weather" cannot wet a bright dry market shot.
-      const sceneWeather = selectSceneWeather(shot.still);
+      // The director's decorated still is THE text for this shot's image and
+      // weather alike — one text, one decision, no way to disagree.
+      const directedStill = directed[i].still;
+      console.log(
+        `  director ${i + 1}: ${directed[i].size ?? 'size kept'} | ${directed[i].lighting}`,
+      );
+      const sceneWeather = selectSceneWeather(directedStill);
       const settingForImage = weatherConsistentSetting(plan.setting ?? '', sceneWeather);
       const asks = [
-        `${shot.still}\n\nSetting: ${settingForImage}`.slice(0, 1900),
+        `${directedStill}\n\nSetting: ${settingForImage}`.slice(0, 1900),
         (
           `Gentle, family-friendly animated storybook illustration. ` +
           `${shot.narration}\n\nCharacters:\n${locks}\n\nSetting: ${settingForImage}`
