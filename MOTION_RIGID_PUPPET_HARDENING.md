@@ -118,3 +118,41 @@ the security token-mask unchanged.
 cut the ~120 s/clip and reduce the seams via better joint patches), then re-sweep;
 only after seams are measured within an explicit acceptable band consider a
 production-wiring proposal for the owner.
+
+---
+
+## Phase 12 — continuous hardening loop (iterations)
+
+Baseline (real Aladdin + zombie.bvh, CPU): render ~120 s / CPU ~115 s / RAM
+~2.0 GB / ~1.2 fps; seam metric `holes_mean` 4237 px, `components_mean` 3.62,
+`extra_comp_frac` 0.87 (`remotion/scripts/l3r_seam_score_reference.py`).
+
+**Iteration 1 — compositor per-part-bbox warp (P3, KEEP).**
+`warpAffine` is O(output size); the compositor warped each part into a full
+720×1280 canvas 14×/frame. Now each part warps into only its transformed bbox.
+- BEFORE: 120 s / 115 s CPU / 2.0 GB / 1.2 fps.
+- AFTER: **~43 s / 39 s CPU / 1.86 GB / ~3.4 fps (2.7×).**
+- Output **pixel-equivalent** to the pre-opt render (mean abs diff 0.017,
+  sub-pixel) — no quality change, hands still clean, fail-closed validation
+  unchanged. **DECISION: KEEP** (commit `5c63c288`).
+
+**Iteration 2 — uniform joint overlap 11→18 (P2, REVERT).**
+Goal: close seams / reduce hand-detach. Health gate stayed clean (far_frac ~0,
+no contamination) at 14/18/22, but the seam metric got WORSE on detachment:
+- overlap 11 (baseline): holes 4237, components 3.62, extra 0.87.
+- overlap 18: holes 4070 (slightly better) but **components 5.09, extra 0.95
+  (worse)** — symmetric dilation enlarges the DISTAL ends that fling out on
+  swing, creating more floating pieces. **DECISION: REVERT** (repo kept at
+  overlap 11). Evidence: uniform overlap is the wrong lever.
+
+**Seam fix — correct next lever (not yet implemented):** PROXIMAL-directional
+joint patches (extend each limb only toward its PARENT joint, and/or keep a small
+parent-owned disc at each joint drawn under the child) so a swung limb's joint gap
+is covered without enlarging the flying distal end. This is the highest-value
+remaining L3R item and the NEXT single action.
+
+**Loop status:** L3R still **PASS_WITH_LIMITS** — the compositor is 2.7× faster
+with identical (verified) output; the seam/detach limit is unchanged and now
+quantified with a repeatable metric. Not production-ready (seams/detach not yet
+within a measured band); router stays fail-closed; not globally enabled; not on
+main.
