@@ -36,7 +36,7 @@ const SQL = readFileSync(
   // grades, so it stays the structural mirror: which durations exist, which
   // grade each belongs to, and what is on sale. The rate itself is checked
   // against PER_MINUTE_PAISE below, and the reprice is pinned separately.
-  join(process.cwd(), "supabase/migrations/20260815000000_per_minute_pricing.sql"),
+  join(process.cwd(), "supabase/migrations/20260815051008_cf281f5c-b920-4674-b83d-2363cde85ed3.sql"),
   "utf8",
 );
 /** The migration that actually sets today's movie prices. */
@@ -247,7 +247,7 @@ describe("the per-minute rate", () => {
     // The migration that removes them, and the floor that stops a caller
     // claiming one anyway past a checkout that no longer sells it.
     const drop = readFileSync(
-      join(process.cwd(), "supabase/migrations/20260815060000_drop_thirty_seconds.sql"),
+      join(process.cwd(), "supabase/migrations/20260815052853_378b2361-213b-4d4b-a7c6-99c000d73293.sql"),
       "utf8",
     );
     expect(drop).toContain("delete from public.story_price_tiers where seconds < 60");

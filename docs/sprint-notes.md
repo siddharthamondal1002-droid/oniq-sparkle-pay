@@ -19,7 +19,7 @@ Mission run started 2026-07-29. Loop: INVESTIGATE → PLAN → IMPLEMENT → VER
   stored on the row (existing pattern). Storage RLS: SELECT authenticated, write own folder.
 
 **Plan / implemented:**
-1. Migration `20260729180000_clip_thumbnails.sql`: `clips.thumbnail_url text` +
+1. Migration `20260729173029_468595a1-71bf-449d-9269-ab5a1ca3821c.sql`: `clips.thumbnail_url text` +
    visibility check widened to `('public','moots','private')` (Phase 2 needs it).
    Applied via the repo's normal Lovable-apply flow (no direct DDL from here).
 2. `src/lib/clipThumbs.ts`: capture frame at t≈0.1s via hidden video + canvas →
@@ -436,8 +436,8 @@ protected stack).
   TURN/get-turn-credentials/FCM files.
 - New runtime dependencies: 0.
 - New migrations awaiting production apply (Lovable flow, human-approved):
-  `20260729210000_media_provenance.sql`, `20260729211000_takedown_actions.sql`,
-  `20260729212000_legal_requests_holds.sql`. Edge functions to deploy:
+  `20260729193946_e4f54bdb-e7c1-46dd-8246-bc396e6babf9.sql`, `20260729194032_25f66445-4fc1-4e7d-9f14-e6b0543dd427.sql`,
+  `20260729194121_68a11cd8-0965-48ab-84df-e9dae0bca7fd.sql`. Edge functions to deploy:
   `sign-media` (new), `delete-account` (updated with hold guard).
 
 ## Final acceptance checklist

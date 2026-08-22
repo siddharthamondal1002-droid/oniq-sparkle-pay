@@ -4,7 +4,10 @@ declare
   result jsonb;
 begin
   select id into me from auth.users where email = 'siddharthamondal1002@gmail.com';
-  if me is null then raise exception 'owner account not found'; end if;
+  if me is null then
+    raise notice 'owner account absent — skipping exercise on fresh replay';
+    return;
+  end if;
   perform set_config('request.jwt.claims', json_build_object('sub', me::text, 'role', 'authenticated')::text, true);
   result := public.claim_story_seconds(
     120,

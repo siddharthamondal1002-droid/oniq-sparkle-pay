@@ -7,8 +7,11 @@
  * IS removable is the drift, and that is what this file is — it parses the
  * migrations and asserts the two descriptions agree.
  *
- * TWO FILES, BECAUSE FUNCTIONS GET REPLACED. `20260809000000_story_jobs.sql`
- * created the quota machinery; `20260810115624_*.sql` (Story purchases)
+ * TWO FILES, BECAUSE FUNCTIONS GET REPLACED. `20260809155535_7aff51af-*.sql`
+ * created the quota machinery (production's schema_migrations records this
+ * version; a byte-identical twin `20260809000000_story_jobs.sql` was removed
+ * because replaying both broke fresh environments on duplicate policies);
+ * `20260810115624_*.sql` (Story purchases)
  * REPLACED claim_story_seconds, refund_story_seconds and story_quota_status to
  * spend the paid bucket. A test that kept parsing the first file would be
  * pinning a definition the database no longer runs — the guard would go quiet,
@@ -37,7 +40,7 @@ import {
 
 const ROOT = process.cwd();
 const JOBS_SQL = readFileSync(
-  join(ROOT, "supabase/migrations/20260809000000_story_jobs.sql"),
+  join(ROOT, "supabase/migrations/20260809155535_7aff51af-969b-4e44-bdb5-175c77d58794.sql"),
   "utf8",
 );
 const PURCHASE_SQL = readFileSync(
@@ -45,7 +48,7 @@ const PURCHASE_SQL = readFileSync(
   "utf8",
 );
 const OWNER_SQL = readFileSync(
-  join(ROOT, "supabase/migrations/20260812010000_owner_rides_free.sql"),
+  join(ROOT, "supabase/migrations/20260812044512_900f5a57-4ce7-4a47-9c9b-3dbdfaffd94c.sql"),
   "utf8",
 );
 const CLIP_SQL = readFileSync(
@@ -143,7 +146,7 @@ describe("the configured defaults are the numbers the arithmetic produced", () =
     // the mover, not the seed — checking the seed would pin a number the
     // database has deliberately stopped using.
     const drop = readFileSync(
-      join(process.cwd(), "supabase/migrations/20260815060000_drop_thirty_seconds.sql"),
+      join(process.cwd(), "supabase/migrations/20260815052853_378b2361-213b-4d4b-a7c6-99c000d73293.sql"),
       "utf8",
     );
     expect(MIN_STORY_SECONDS).toBe(60);
