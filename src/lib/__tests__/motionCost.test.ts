@@ -68,6 +68,26 @@ describe("selectMotionLevel — cheapest tier that satisfies the shot", () => {
     expect(d.level).toBe(1);
     expect(d.reason).toMatch(/not a fake clip/);
   });
+
+  it("Phase 8: an arms-against-torso shot is NOT L3-eligible → routes to L4 diffusion", () => {
+    // Phase 8 proved a part-aware mask does NOT fix the arm ARAP tear (an
+    // ARAP_LIMIT, not an occlusion/mask limit), so the arms-flush restriction
+    // stays: such a shot is caps.poseWarpEligible=false and must land at L4.
+    const elig = poseWarpEligible({ framing: "full", characterCount: 1, stylized: true, armsAgainstTorso: true });
+    expect(elig.eligible).toBe(false);
+    const caps: ShotCapabilities = { hasMeasuredRig: false, poseWarpEligible: elig.eligible };
+    const d = selectMotionLevel({ motion: "he walks through the market" }, caps, FULL);
+    expect(d.level).toBe(4); // diffusion, NOT the tearing L3 pose-warp
+    expect(d.escalation).toEqual([4, 5]);
+  });
+
+  it("Phase 8: arms-against-torso with NO L4 → honest still+camera (L1), never a torn L3 clip", () => {
+    const elig = poseWarpEligible({ framing: "full", characterCount: 1, stylized: true, armsAgainstTorso: true });
+    const caps: ShotCapabilities = { hasMeasuredRig: false, poseWarpEligible: elig.eligible };
+    const d = selectMotionLevel({ motion: "he walks" }, caps, CPU_ONLY); // pose-warp allowed but shot ineligible; no diffusion
+    expect(d.level).toBe(1); // fall back to the honest still, not a claw-armed L3
+    expect(d.reason).toMatch(/not a fake clip/);
+  });
 });
 
 describe("poseWarpEligible — L3 serves only the shots it can, fails closed", () => {
