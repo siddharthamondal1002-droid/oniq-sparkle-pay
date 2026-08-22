@@ -321,3 +321,62 @@ was on the real output, never the report. Compositor also 2.7× faster (iter 1).
 Residual is now only sub-pixel/AA-scale seam feathering. Still NOT globally
 enabled and NOT on main (router stays fail-closed) — the fix ships to the L3R
 reference engine only, pending an owner decision on any production wiring.
+
+---
+
+## Phase 13 — owner-gated finalization (iteration 9 + STOP decision)
+
+**Objective:** determine whether the last remaining seam lever (the iter-6
+deforming interior bridge) is worth applying on top of the iter-8 reference —
+without weakening fail-closed behaviour, raising cost, or destabilising the
+engine. Reference under test: `d7fcc681`.
+
+**Bounding analysis first (existing evidence, before any render).** How much of
+the remaining `holes_mean` 3590 is a defect at all?
+- Source artwork over white (U²-Net mask, no engine): **2,826 px** of enclosed
+  background — arm-torso windows, between-legs gap. Legitimate geometry.
+- Engine static-pose recomposite (1 frame): **3,064 px** — extraction adds ~240 px.
+- Walk mean 3,590 → **seam-attributable excess ≈ 526 px/frame**; per-frame min
+  (952) dips BELOW the floor because swinging limbs open/close legitimate windows.
+- Peak frame f123 (14,000 px) classified on the render: the 10,003-px region is
+  the **legitimate window behind the swung-back right arm** — pose geometry, not
+  a seam. Filling it would fabricate tissue where background belongs.
+
+**Iteration 9 — deforming bridge (gap=20) on the iter-8 baseline (paired, deterministic).**
+| metric | iter-8 baseline | + bridge gap=20 | verdict |
+|---|---|---|---|
+| holes_mean | 3589.8 | 3522.1 (−1.9%, −68 px) | noise-scale vs 3,064-px legit floor |
+| holes_max | 14000 | 13993 | noise |
+| components_mean | 3.168 | **3.463 (+9.3%)** | **WORSE — auto-revert condition** |
+| extra_comp_frac | 0.604 | **0.644 (+6.6%)** | **WORSE — auto-revert condition** |
+| detached ≥30 px (true PNG f110/f123 + full-sequence scan) | NONE | NONE | tie — regression is the bridge's own sub-30 px feathered-edge specks |
+| validation | PART_EXTRACTION_OK | PART_EXTRACTION_OK | tie |
+| runtime / RSS | 39.0 s / 1858 MB | 37.9 s / 1861 MB | tie |
+
+KEEP criteria: fails **#6** (−68 px is not materially above noise; iter-6 already
+showed this lever produces no visible worst-frame change) and **#7** (the bridge
+adds ~40 lines of similarity-transform machinery to a stable engine); automatic
+revert conditions fired on components/extra_comp_frac.
+
+**DECISION: STOP — ITERATION 8 (`d7fcc681`) REMAINS THE REFERENCE.** The
+interior-seam hypothesis is **falsified**: the remaining hole count is dominated
+by legitimate pose geometry (~85% floor), the seam-attributable excess is
+~526 px/frame of sub-pixel feathering, and the only lever that reduces it makes
+detachment metrics worse while changing nothing visible. The experimental bridge
+stays env-gated (default off) in the scratchpad only; the repo reference carries
+zero experimental levers (grep-verified).
+
+**Standing character matrix (engine `d7fcc681`, unchanged → iter-8 sweep stands;
+aladdin re-validated this phase):**
+| Character | Result |
+|---|---|
+| aladdin | **PASS** (holes 3590, no ≥30 px detachment, re-validated PART_EXTRACTION_OK) |
+| morgiana | **PASS** (holes 2001) |
+| captain | **PASS** (holes 729, components 1.42) |
+| mother | **PART_EXTRACTION_UNCERTAIN → escalate L4** (fail-closed intact) |
+
+**Production boundary:** L3R NOT globally enabled; production router unchanged
+and fail-closed; no production configuration touched; no unrelated code modified;
+GPU=0; spend ₹0. Motion suite green (26/26). **Milestone surfaced for owner
+approval:** the defect that blocked L3R is resolved and the optimisation loop is
+closed; any production wiring of L3R is an owner decision.
