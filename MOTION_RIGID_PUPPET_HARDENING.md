@@ -214,12 +214,45 @@ detachments that actually dominate the worst frames. This is a real engine
 change, the next iteration's single action — not another padding/patch sweep,
 all of which are now exhausted.
 
-**Loop status:** L3R still **PASS_WITH_LIMITS** — the compositor is 2.7× faster
-with verified-identical output (iter 1, kept); the seam/detach limit is now
-quantified AND explained (a rigid-method structural floor), with the fix
-direction narrowed by experiment: four fixed-in-still-coords padding levers
-falsified (iters 2–4), and the deforming mean-angle mechanism validated but too
-small alone (iter 5) — pointing to a deforming bridge quad / local-ARAP as the
-only remaining seam-closer. Not production-ready (seams/detach not within a
-shippable band); router stays fail-closed; not globally enabled; not on main.
-Motion suite green.
+**Iteration 6 — root-cause trace + deforming bridge (P1, diagnosis KEPT / bridge not shipped).**
+First traced the "large detachment" against the real render (RULE 1) instead of
+guessing. Connected-component analysis of the worst frame (f110): the **main body
+is ONE intact 209,717 px component**; the detachments are three small distal
+specks (2002 + 1861 + 568 px ≈ 4,400 px, ~2% of body area). FK proven sound —
+every adjacent part pair touches at its pivot (min-gap ≤0.3 px), so nothing is
+geometrically flung off. The specks are **feathered-threshold breaks at
+hard-swung joints** (the left wrist is bent **61.8°** at f110), where two blurred
+part edges meet in a thin sub-threshold valley over the white background.
+- Built the recorded deforming bridge: a patch anchored by the parent-anchor→
+  child-anchor segment, each end carried by its own part's FK. First cut used a
+  3-point affine and **blew up** (holes 4244→196,428) — the three joint anchors
+  are near-colinear along the straight limb axis, so the affine is degenerate.
+  Fixed with a **2-point similarity** (rot+uniform-scale+translation), which is
+  well-posed and stretches to span the gap.
+- Real render, best result of all six iterations: gap=20 → holes 4244→**4121
+  (−2.9%)**, holes_max 14151→**13995**, **extra_comp_frac flat 0.879**; gap=30 →
+  holes **3907 (−7.9%)** but extra 0.893. **But** the detached specks are
+  **byte-identical** (2002/1861/568) at every gap — the bridge fills interior
+  seams yet does NOT merge the distal specks, and worst-frame A/B shows **no
+  visible change**. **DECISION: not shipped** (no visible MP4 gain; RULE 1/7);
+  bridge kept env-gated (`L3R_BRIDGE_QUAD`) in the scratchpad. Repo reference clean.
+
+**Redirecting finding.** The residual specks are downstream of **aggressive
+driver amplitude** (a 62° wrist swing from applying zombie.bvh at full gain) hit
+by feathered-threshold breaks — as much a MOTION/retargeting problem as a
+compositing one. Every compositing lever (iters 2–6: overlap, proximal
+extension, static disc, mean-angle patch, deforming bridge) has now been
+exhausted; the only one that helps interior seams at all (the bridge) can't touch
+the distal specks. **Next real lever is motion-side:** clamp/retarget the driver
+so swing amplitudes stay moderate and in-plane (no 62° wrist), which prevents the
+hard-swung feathered break at its source rather than patching pixels after it.
+That is a different subsystem (`bvh_to_joint_angles` / driver retarget), the next
+iteration's single action.
+
+**Loop status:** L3R still **PASS_WITH_LIMITS** — compositor 2.7× faster with
+verified-identical output (iter 1, kept). The seam/detach limit is now fully
+characterised: main body intact, residual = ~2%-area distal specks from
+hard-swung feathered joints; five compositing levers explored (iters 2–6, one —
+the deforming bridge — the mechanistically-correct seam-reducer but below the
+ship bar); root cause redirected to driver amplitude. Not production-ready;
+router fail-closed; not globally enabled; not on main. Motion suite green.
