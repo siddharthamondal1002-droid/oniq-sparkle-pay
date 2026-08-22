@@ -1,0 +1,130 @@
+# retarget_armdamped_reference.yaml — Animated Drawings retarget config,
+# arm-damped variant. Companion to l3_animate_reference.py; see
+# MOTION_AMPLITUDE.md for the measured experiment this encodes.
+#
+# Derivation: Meta Animated Drawings (MIT) examples/config/retarget/fair1_ppf.yaml
+# with ONE change: the four elbow/hand char joints are driven by the DOWNWARD
+# trunk vector (Spine3 -> Hips) instead of the BVH arm bones, zeroing arm-swing
+# amplitude so the single-mesh ARAP deform never drags sleeve/torso geometry
+# into the measured claw/blade artifact (ARAP_LIMIT, Phase 8). Tuple order is
+# (from-joint, to-joint); (Hips, Spine3) — the upward vector — is WRONG and
+# folds the character (recorded failure, MOTION_AMPLITUDE.md).
+char_starting_location: [0.0, 0.0, -0.5]
+bvh_projection_bodypart_groups:
+- bvh_joint_names:
+  - RightShoulder
+  - RightArm
+  - RightForeArm
+  - RightHand
+  - RightHandEnd
+  - LeftShoulder
+  - LeftArm
+  - LeftForeArm
+  - LeftHand
+  - LeftHandEnd
+  method: pca
+  name: Upper Limbs
+- bvh_joint_names:
+  - RightUpLeg
+  - RightLeg
+  - RightFoot
+  - RightToeBase
+  - LeftUpLeg
+  - LeftLeg
+  - LeftFoot
+  - LeftToeBase
+  method: pca
+  name: Lower Limbs
+- bvh_joint_names:
+  - Hips
+  - Spine
+  - Spine1
+  - Spine2
+  - Spine3
+  - Neck
+  - Head
+  method: frontal
+  name: Trunk
+char_bodypart_groups:
+- bvh_depth_drivers:
+  - Hips
+  char_joints:
+  - right_shoulder
+  - left_shoulder
+  - right_hip
+  - left_hip
+  - hip
+  - torso
+  - neck
+- bvh_depth_drivers:
+  - LeftHand
+  char_joints:
+  - left_elbow
+  - left_hand
+- bvh_depth_drivers:
+  - RightHand
+  char_joints:
+  - right_elbow
+  - right_hand
+- bvh_depth_drivers:
+  - LeftFoot
+  char_joints:
+  - left_knee
+  - left_foot
+- bvh_depth_drivers:
+  - RightFoot
+  char_joints:
+  - right_knee
+  - right_foot
+char_bvh_root_offset:
+  bvh_projection_bodypart_group_for_offset: Lower Limbs
+  bvh_joints:
+  - - RightFoot
+    - RightLeg
+    - RightUpLeg
+  - - LeftFoot
+    - LeftLeg
+    - LeftUpLeg
+  char_joints:
+  - - left_foot
+    - left_knee
+    - left_hip
+  - - right_foot
+    - right_knee
+    - right_hip
+char_joint_bvh_joints_mapping:
+  left_elbow: !!python/tuple
+  - Spine3
+  - Hips
+  left_foot: !!python/tuple
+  - LeftLeg
+  - LeftFoot
+  left_hand: !!python/tuple
+  - Spine3
+  - Hips
+  left_knee: !!python/tuple
+  - LeftUpLeg
+  - LeftLeg
+  torso: !!python/tuple
+  - Hips
+  - Spine3
+  neck: !!python/tuple
+  - Hips
+  - Neck
+  right_elbow: !!python/tuple
+  - Spine3
+  - Hips
+  right_foot: !!python/tuple
+  - RightLeg
+  - RightFoot
+  right_hand: !!python/tuple
+  - Spine3
+  - Hips
+  right_knee: !!python/tuple
+  - RightUpLeg
+  - RightLeg
+char_runtime_checks:
+  - - above
+    - neck
+    - right_shoulder
+    - left_shoulder
