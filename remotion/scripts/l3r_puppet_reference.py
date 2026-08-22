@@ -9,9 +9,11 @@
 # storyfilm_l3r_shot.mp4. No colour/identity hard-coded (geometric only).
 #
 # MEASURED (2026-08-22, 4-core CPU) real Aladdin + zombie walk: extraction ~2s,
-# 149-frame 720x1280 render ~43s wall (~39s CPU, Phase-12 per-part-bbox
+# 149-frame 720x1280 render ~38s wall (~34s CPU, Phase-12 per-part-bbox
 # compositor; was ~120s), peak RSS ~1.86 GB. GPU=0, ₹0.
-# Verdict L3R = PASS_WITH_LIMITS (blades resolved; minor joint seams remain).
+# Verdict L3R = PASS_WITH_LIMITS (blades resolved; Phase-12 torso keep-largest
+# eliminated the floating ghost fragments — on the true render, meaningful
+# detachment -> 0 and seam holes -15%; residual = only sub-30px AA specks).
 # See MOTION_RIGID_PUPPET_HARDENING.md. Reference/proof only; not wired to
 # production; no media/weights in git.
 import sys, json, math, time, resource
@@ -84,9 +86,17 @@ OVERLAP={"torso":27,"head":11}
 part_alpha={}
 for i,n in enumerate(names):
     a=(label==i).astype(np.uint8)*255
-    # keep only the largest connected component of each LIMB part (drops a stray
-    # speck a thin corridor can leave); torso/head kept whole. Safe: removes, never adds.
-    if n not in ("torso","head"):
+    # Keep only the largest connected component of each part (drops a stray speck a
+    # thin corridor can leave). The TORSO is included (Phase 12): it is the fallback
+    # bucket — any silhouette pixel outside every limb corridor is assigned to it —
+    # so stray feet/hand-region pixels rode on the torso and, since the torso barely
+    # moves, rendered as ORPHAN GHOST FRAGMENTS (a ghost sandal, a sleeve bit)
+    # whenever a real limb swung away. Keeping the torso's largest component drops
+    # those mis-assigned satellites; the real sandals/hands live on the limb parts,
+    # so nothing real is lost (verified frame-by-frame on the true render: ghost
+    # fragments eliminated, seam holes -15%, meaningful detachment -> 0). Head is a
+    # clean separate blob, kept whole. Safe: removes, never adds.
+    if n!="head":
         nc,lb,st,_=cv2.connectedComponentsWithStats((a>0).astype(np.uint8),8)
         if nc>2:
             big=1+int(np.argmax(st[1:,cv2.CC_STAT_AREA])); a=np.where(lb==big,255,0).astype(np.uint8)

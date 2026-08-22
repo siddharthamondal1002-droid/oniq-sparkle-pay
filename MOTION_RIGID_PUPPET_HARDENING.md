@@ -249,10 +249,75 @@ hard-swung feathered break at its source rather than patching pixels after it.
 That is a different subsystem (`bvh_to_joint_angles` / driver retarget), the next
 iteration's single action.
 
-**Loop status:** L3R still **PASS_WITH_LIMITS** — compositor 2.7× faster with
-verified-identical output (iter 1, kept). The seam/detach limit is now fully
-characterised: main body intact, residual = ~2%-area distal specks from
-hard-swung feathered joints; five compositing levers explored (iters 2–6, one —
-the deforming bridge — the mechanistically-correct seam-reducer but below the
-ship bar); root cause redirected to driver amplitude. Not production-ready;
-router fail-closed; not globally enabled; not on main. Motion suite green.
+**Iteration 7 — driver swing-amplitude cap (P2, hypothesis FALSIFIED / REVERT).**
+Iter-6 predicted the specks came from aggressive driver amplitude (hands swing
+**103–107° p2p**, shins ~75°, feet ~70° — full-gain zombie.bvh distal channels).
+Tested directly: cap each bone's p2p by scaling its per-frame delta toward the
+bone mean (phase-preserving); distal joints capped tightest (hands 25°, feet 30°).
+- Real render: the f110 specks are **essentially unchanged** (2016/1873/572 →
+  2018/1873/572); mean detached px/frame only 1524→1409; holes got **WORSE**
+  (4244→4478, +5.5%). **Hypothesis falsified** — the specks are NOT caused by
+  distal over-swing. **DECISION: REVERT** (env-gated `L3R_SWING_CAP`, default 0).
+
+**Root cause — DEFINITIVE (iter 6–7 trace).** Dumped the worst frame from the
+**true un-quantized RGBA** (not the GIF proxy) — same detachment (210,217 main +
+[2016,1873,572]), so it is a **real render artifact, not a GIF/metric/threshold
+artifact**. Visual: the body is intact (both real sandals on the feet); the
+residual is **small floating GHOST FRAGMENTS** — a third "ghost" sandal on the
+ground, a sleeve fragment by the left elbow (character-textured, 7/13/57 px from
+the body, ~2% of area). Mechanism: rigid transforms preserve connectivity, so a
+single part cannot split — a fragment can only orphan when an **entire distal
+part is joined to its parent solely through a thin, feathered pivot overlap that
+drops out under extreme rotation**. This is why NO lever tried so far fixes it:
+compositing padding/patches/bridges (iters 2–6) add material near the joint but
+don't *guarantee* a solid parent↔child overlap, and driver amplitude (iter 7) is
+the wrong axis entirely.
+
+**Next lever (specified, source-side).** Guarantee a **solid (non-feathered)
+parent↔child overlap core** at every shared joint during extraction — e.g. the
+parent's alpha always extends a solid disc over the child's proximal end (owned
+by the parent, drawn under the child), sized so the overlap can never fall below
+threshold under any rotation. Unlike iter-4's feathered disc (which peeked and
+regressed) this is a solid connectivity guarantee, not a cosmetic pad; it must be
+tuned to add zero visible silhouette (verify on the true PNG, not the GIF). This
+is the one untried mechanism that directly prevents orphaning; it is the next
+iteration's single action.
+
+**Iteration 8 — TORSO keep-largest-component (P0, ROOT-CAUSE FIX, SHIPPED to reference).**
+Mapped each ghost fragment (f110) back to its source part: **all three were
+TORSO**. The torso is the fallback bucket (`assign[none_elig]=TORSO_I`) and was
+the ONLY part not run through keep-largest-component. So stray feet/hand-region
+silhouette pixels outside every limb corridor rode on the torso; in the still
+they sit apart from the torso mass (separated by the down legs), and since the
+torso barely moves they rendered as **orphan ghost fragments** (a ghost sandal, a
+sleeve bit) whenever a real limb swung away. (Rigid transforms preserve
+connectivity — a single kept-largest part cannot split — which is why the
+compositing/amplitude/core levers iters 2–7 never touched them.)
+- **Fix:** run keep-largest-component on the torso too (head stays whole, it is a
+  clean blob). The real sandals/hands live on the limb parts, so dropping the
+  torso's mis-assigned satellites loses nothing real. Removes, never adds.
+- **Real render (true un-quantized PNG, RULE 1):** f110 detached pieces
+  **[2016,1873,572] → NONE**; **no frame** in the 149-frame walk has any detached
+  component ≥30px (residual "extra components" are all sub-30px AA specks).
+  Whole-sequence seam metric: holes **4244→3590 (−15.4%)**, holes_max
+  14151→14000, components **3.79→3.17 (−16%)**, extra_comp_frac **0.879→0.604
+  (−31%)**. Validation still `PART_EXTRACTION_OK`; character verified complete
+  frame-by-frame (both sandals on feet, tunic/pants/hands intact); ~5% faster.
+  **DECISION: KEEP — shipped to the repo reference engine** (default, no env
+  lever). This is the first Phase-12 change to the extraction engine and the only
+  lever that eliminated the actual visible artifact.
+- **Sweep re-run (repo reference w/ fix):** aladdin PASS (holes 3590); morgiana
+  PASS (holes 2001); captain PASS (holes 729, **components 1.42** — near-single
+  component); mother still **PART_EXTRACTION_UNCERTAIN → escalate L4** (fail-closed
+  intact). Fix generalises; fail-closed unaffected.
+
+**Loop status:** L3R = **PASS_WITH_LIMITS**, materially improved. The floating
+ghost fragments — the actual visible defect — are **eliminated** (root-caused to
+torso-fallback satellites, fixed at extraction, verified on the true render, no
+detachment ≥30px anywhere in the walk, generalises across the sweep, fail-closed
+intact). Seven earlier levers (iters 2–7) were falsified by measurement before the
+real cause was found by tracing fragments to their source part; every measurement
+was on the real output, never the report. Compositor also 2.7× faster (iter 1).
+Residual is now only sub-pixel/AA-scale seam feathering. Still NOT globally
+enabled and NOT on main (router stays fail-closed) — the fix ships to the L3R
+reference engine only, pending an owner decision on any production wiring.
