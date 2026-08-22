@@ -197,6 +197,15 @@ jobs:
           #   default: 'off'. The worker's own default is 'off' too, so an unset
           #     value can never enable it.
           STORY_ACTOR_REFS: ${{ (github.event.client_payload.actor_refs && 'on') || inputs.actor_refs || 'off' }}
+          # PER-JOB clip-stage mode, payload-only (owner-authorized Veo
+          # `select` validation, 2026-08-22). story-dispatch sends
+          # client_payload.story_movie ONLY when the job row's motion_mode
+          # column — service-role-writable only — is 'select'; every ordinary
+          # production job sends nothing, this resolves to '', and the
+          # worker's clip stage stays off exactly as before. There is
+          # deliberately no manual input for this: the every-shot 'on'
+          # experiment must never become reachable from a dispatch form.
+          STORY_MOVIE: ${{ github.event.client_payload.story_movie || '' }}
           # Present only on a repository_dispatch. The token IS the credential:
           # it names one job, expires in an hour, and story-callback checks it
           # before touching the database on this runner's behalf.
