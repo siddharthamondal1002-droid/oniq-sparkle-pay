@@ -11,12 +11,14 @@ import {
   VACE_1_3B_META,
   VACE_1_3B_RUN,
   ANIMATED_DRAWINGS_META,
+  RIGID_PUPPET_META,
   buildVaceArgs,
   classNeedsClip,
   classifyShotMotion,
   gpuVaceBackend,
   makeVaceMotionProvider,
   motionOnlyPrompt,
+  rigidPuppetEligible,
   runMotion,
   selectProviderOrder,
   type MotionClip,
@@ -245,5 +247,60 @@ describe("L4 VACE 1.3B — command spec + backend, fail-closed without a GPU", (
     const noVeo = selectProviderOrder("WALKING", ps, { allowPremium: false }).map((p) => p.meta.name);
     expect(noVeo).not.toContain(VEO_META.name);
     expect(noVeo).toContain(VACE_1_3B_META.name);
+  });
+});
+
+// ── PHASE 10 — L3R rigid-part puppet (CPU, no GPU) ────────────────────────────
+describe("L3R rigid-part puppet — the zero-GPU escalation between ARAP and VACE", () => {
+  const wrap = (meta: typeof VEO_META): MotionProvider => ({
+    meta,
+    available: () => true,
+    generate: async () => ({ ok: false, reason: "n/a", provider: meta.name, class: "permanent" }),
+  });
+
+  it("meta: CPU, no GPU, cpu-runner billing (a real zero-GPU tier)", () => {
+    expect(RIGID_PUPPET_META.role).toBe("rigid-puppet");
+    expect(RIGID_PUPPET_META.requiresGpu).toBe(false);
+    expect(RIGID_PUPPET_META.billing).toBe("cpu-runner");
+  });
+
+  it("ordering: ARAP pose-warp → L3R puppet → VACE diffusion → Veo (both CPU tiers before GPU)", () => {
+    const ps = [wrap(VEO_META), wrap(VACE_1_3B_META), wrap(RIGID_PUPPET_META), wrap(ANIMATED_DRAWINGS_META)];
+    const n = selectProviderOrder("WALKING", ps, { allowPremium: true }).map((p) => p.meta.name);
+    expect(n.indexOf(ANIMATED_DRAWINGS_META.name)).toBeLessThan(n.indexOf(RIGID_PUPPET_META.name));
+    expect(n.indexOf(RIGID_PUPPET_META.name)).toBeLessThan(n.indexOf(VACE_1_3B_META.name));
+    expect(n.indexOf(VACE_1_3B_META.name)).toBeLessThan(n.indexOf(VEO_META.name));
+  });
+
+  it("eligible: single full-body character, all 14 parts extracted, in-plane, unoccluded", () => {
+    const r = rigidPuppetEligible({ singleCharacter: true, fullBody: true, allPartsExtracted: true });
+    expect(r.eligible).toBe(true);
+    expect(r.reasons).toEqual([]);
+  });
+
+  it("fail-closed: uncertain part extraction → not eligible → escalate (never a broken puppet)", () => {
+    const r = rigidPuppetEligible({ singleCharacter: true, fullBody: true, allPartsExtracted: false });
+    expect(r.eligible).toBe(false);
+    expect(r.reasons.join(" ")).toMatch(/PART_EXTRACTION_UNCERTAIN/);
+  });
+
+  it("out-of-plane / occluded / multi-character stay with diffusion (L4), not L3R", () => {
+    expect(rigidPuppetEligible({ singleCharacter: true, fullBody: true, allPartsExtracted: true, outOfPlane: true }).eligible).toBe(false);
+    expect(rigidPuppetEligible({ singleCharacter: true, fullBody: true, allPartsExtracted: true, occluded: true }).eligible).toBe(false);
+    expect(rigidPuppetEligible({ singleCharacter: false, fullBody: true, allPartsExtracted: true }).eligible).toBe(false);
+  });
+
+  it("L3R clip flows through runMotion like any provider; unavailable → still, never a fake clip", async () => {
+    const puppet: MotionProvider = {
+      meta: RIGID_PUPPET_META,
+      available: () => true,
+      generate: async (r) => ({ ok: true, videoPath: "/out/l3r.mp4", mime: "video/mp4", seconds: r.durationSeconds, provider: RIGID_PUPPET_META.name }),
+    };
+    const { clip } = await runMotion(REQ, [puppet]);
+    expect(clip).toMatchObject({ ok: true, provider: RIGID_PUPPET_META.name });
+    // if L3R is down and nothing else, caller falls to still (null), never a fake clip
+    const down: MotionProvider = { meta: RIGID_PUPPET_META, available: () => false, generate: async () => ({ ok: false, reason: "extraction uncertain", provider: RIGID_PUPPET_META.name, class: "permanent" }) };
+    const { clip: none } = await runMotion(REQ, [{ ...down, available: () => true }]);
+    expect(none).toBeNull();
   });
 });

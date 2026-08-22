@@ -125,17 +125,18 @@ export type MotionClip =
 export type ProviderMeta = {
   name: string;
   kind: "oss" | "premium";
-  /** The engine shape: pose-warp (CPU 2D auto-rig + retarget, no diffusion),
-   *  motion-transfer (diffusion driver-conditioned), i2v (image-to-video), or
-   *  premium (paid API). Sets the preference order per shot. */
-  role: "pose-warp" | "motion-transfer" | "i2v" | "premium";
+  /** The engine shape: pose-warp (CPU 2D ARAP auto-rig + retarget, no diffusion),
+   *  rigid-puppet (CPU cut-out parts + hierarchical affine — no mesh deform, so
+   *  no ARAP claw), motion-transfer (diffusion driver-conditioned), i2v
+   *  (image-to-video), or premium (paid API). Sets the preference order per shot. */
+  role: "pose-warp" | "rigid-puppet" | "motion-transfer" | "i2v" | "premium";
   /** Real money the moment it runs. */
   requiresGpu: boolean;
   /** For premium (Veo), the metered per-second cost; for OSS, GPU $/hr is
    *  separate and measured at deploy — left null until a real host exists. */
   inrPerSecond: number | null;
   /** Where the money goes — kept distinct so accounting never merges them. */
-  billing: "google-metered" | "gpu-compute" | "none";
+  billing: "google-metered" | "gpu-compute" | "cpu-runner" | "none";
 };
 
 /** Veo 3.1 Fast, DIRECT to Google. Premium. ~$0.15/s ≈ ₹12.6/s. */
@@ -211,10 +212,13 @@ export function selectProviderOrder(
   // the diffusion engines for shots it cannot serve). Among the diffusion
   // engines, ordinary action → transfer first, complex → i2v.
   const warp = oss.filter((p) => p.meta.role === "pose-warp");
+  const puppet = oss.filter((p) => p.meta.role === "rigid-puppet");
   const transfer = oss.filter((p) => p.meta.role === "motion-transfer");
   const i2v = oss.filter((p) => p.meta.role === "i2v");
   const diffusion = classPrefersTransfer(cls) ? [...transfer, ...i2v] : [...i2v, ...transfer];
-  const ossOrdered = [...warp, ...diffusion];
+  // CPU tiers lead: ARAP pose-warp, then the rigid-part puppet (the zero-GPU
+  // escalation when ARAP is unsafe — Phase 10), then the GPU diffusion engines.
+  const ossOrdered = [...warp, ...puppet, ...diffusion];
   const premium = policy.allowPremium ? avail.filter((p) => p.meta.kind === "premium") : [];
   const premiumFirst = (policy.premiumClasses ?? []).includes(cls);
   return premiumFirst ? [...premium, ...ossOrdered] : [...ossOrdered, ...premium];
@@ -636,6 +640,51 @@ export const ANIMATED_DRAWINGS_META: ProviderMeta = {
   inrPerSecond: null,
   billing: "cpu-runner",
 };
+
+/**
+ * L3R — CPU RIGID-PART PUPPET (Phase 10). Cut the character into rigid RGBA parts
+ * (head/torso/arms/forearms/hands/thighs/shins/feet) from the U²-Net mask + the
+ * auto-rig joints, then animate them with hierarchical affine transforms driven
+ * by the SAME BVH walk. Because parts are RIGID they CANNOT ARAP-stretch, so the
+ * arm/hand claw that L3 (pose-warp) produced does not occur — proven on the real
+ * Aladdin still (MOTION_RIGID_PUPPET.md). requiresGpu:false, like pose-warp; it
+ * is the preferred ZERO-GPU escalation when ARAP is unsafe AND part extraction is
+ * confident, sitting between L3 (ARAP) and L4 (VACE diffusion).
+ */
+export const RIGID_PUPPET_META: ProviderMeta = {
+  name: "rigid-part-puppet",
+  kind: "oss",
+  role: "rigid-puppet",
+  requiresGpu: false,
+  inrPerSecond: null,
+  billing: "cpu-runner",
+};
+
+/**
+ * L3R eligibility, FAIL-CLOSED. The rigid puppet needs every limb reliably
+ * separable from the single, full-body, in-plane character; a part that can't be
+ * extracted (too little foreground on its bone) is `PART_EXTRACTION_UNCERTAIN`
+ * and the shot escalates to L4 rather than shipping a broken puppet. It also
+ * only helps the case ARAP fails (in-plane articulation on a frontal figure);
+ * out-of-plane/occluded/multi-character shots still go to diffusion.
+ */
+export function rigidPuppetEligible(m: {
+  singleCharacter?: boolean;
+  fullBody?: boolean;
+  /** Every rig bone had enough foreground to become a part (the fail-closed gate). */
+  allPartsExtracted?: boolean;
+  /** Large out-of-plane limb motion the 2D puppet cannot foreshorten. */
+  outOfPlane?: boolean;
+  occluded?: boolean;
+}): { eligible: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  if (m.singleCharacter === false) reasons.push("multiple characters");
+  if (m.fullBody === false) reasons.push("not full-body (limbs off-frame)");
+  if (m.allPartsExtracted !== true) reasons.push("PART_EXTRACTION_UNCERTAIN");
+  if (m.outOfPlane === true) reasons.push("out-of-plane limb motion (needs diffusion)");
+  if (m.occluded === true) reasons.push("occluded limbs");
+  return { eligible: reasons.length === 0, reasons };
+}
 
 /** A MotionDriverRegistry is just the drivers; helpers keep lookups honest. */
 export type MotionDriverRegistry = MotionDriver[];
