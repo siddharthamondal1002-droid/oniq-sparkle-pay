@@ -1,0 +1,79 @@
+name: audit actor asset kinds
+
+# One-off registry census (post character-as-actor). The 43-shot acceptance
+# film proved one panel-styled asset was registered kind:scene
+# (mediterranean-baker — it reproduced its 2x2 grid when conditioned). This
+# audit runs the landed sheetPanel detector over EVERY attachable asset:
+# a runner can reach the public asset origin, this dev container cannot.
+# Emits a JSON verdict per asset plus a 256px thumbnail of each, committed
+# to a scratch branch so the disagreements can be inspected by eye before
+# any re-kinding. Deleted after use, like the extractors before it.
+on:
+  workflow_dispatch:
+    inputs:
+      out_branch:
+        description: Branch to commit the audit to
+        required: true
+        default: val-asset-audit
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: fetch + classify
+        run: |
+          mkdir -p audit/thumbs
+          node --input-type=module -e '
+            import { execFileSync } from "child_process";
+            import fs from "fs";
+            import { ACTOR_ASSETS, ONIQ_ASSET_ORIGIN } from "./src/data/storyActorAssets.ts";
+            import { selectSheetPanel } from "./src/lib/sheetPanel.ts";
+            const rows = [];
+            for (const a of ACTOR_ASSETS) {
+              const url = ONIQ_ASSET_ORIGIN + a.assetPath;
+              const row = { styleRefId: a.styleRefId, kind: a.kind, decision: null, error: null };
+              try {
+                const res = await fetch(url);
+                if (!res.ok) throw new Error(`fetch ${res.status}`);
+                const buf = Buffer.from(await res.arrayBuffer());
+                fs.writeFileSync("/tmp/asset.bin", buf);
+                const probe = execFileSync("ffprobe", ["-v","error","-select_streams","v:0","-show_entries","stream=width,height","-of","csv=p=0:s=x","/tmp/asset.bin"]).toString().trim();
+                const m = probe.match(/^(\d+)x(\d+)/);
+                if (!m) throw new Error("no dims");
+                const w = Number(m[1]), h = Number(m[2]);
+                const aw = Math.min(256, w), ah = Math.max(32, Math.round(h * aw / w));
+                const raw = execFileSync("ffmpeg", ["-v","error","-i","/tmp/asset.bin","-vf",`scale=${aw}:${ah}`,"-f","rawvideo","-pix_fmt","rgba","pipe:1"], { maxBuffer: aw*ah*4 + 1024 });
+                row.decision = selectSheetPanel({ width: aw, height: ah, data: new Uint8Array(raw) });
+                row.dims = `${w}x${h}`;
+                row.bytes = buf.length;
+                execFileSync("ffmpeg", ["-y","-v","error","-i","/tmp/asset.bin","-vf",`scale=${aw}:${ah}`,"-q:v","5",`audit/thumbs/${a.styleRefId}.jpg`]);
+              } catch (e) { row.error = String(e && e.message || e).slice(0, 120); }
+              rows.push(row);
+              console.log(JSON.stringify(row));
+            }
+            const flagged = rows.filter(r =>
+              (r.kind === "scene" && r.decision && r.decision.ok) ||
+              (r.kind === "sheet" && r.decision && r.decision.reason === "SHEET_NO_GRID_DETECTED"));
+            fs.writeFileSync("audit/verdicts.json", JSON.stringify({ total: rows.length, flagged: flagged.map(f => f.styleRefId), rows }, null, 2));
+            console.log(`FLAGGED (${flagged.length}): ${flagged.map(f => `${f.styleRefId}[${f.kind}]`).join(", ")}`);
+          '
+      - name: commit audit
+        run: |
+          set -e
+          git config user.name "oniq-validation-bot"
+          git config user.email "noreply@anthropic.com"
+          BR="${{ github.event.inputs.out_branch }}"
+          git checkout --orphan "$BR"
+          git rm -rf --cached . >/dev/null 2>&1 || true
+          rm -rf .github src remotion supabase public *.md *.json *.mjs *.ts *.cjs 2>/dev/null || true
+          git add -f audit
+          git commit -m "actor asset kind audit (sheetPanel detector census)"
+          git push -f origin "$BR"
