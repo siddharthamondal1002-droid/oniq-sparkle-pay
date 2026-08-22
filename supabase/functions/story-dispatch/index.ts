@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
     const res = await fetch(
       `${supabaseUrl}/rest/v1/story_jobs?status=eq.queued` +
         `&or=(dispatched_at.is.null,dispatched_at.lt.${staleBefore})` +
-        `&order=created_at.asc&limit=1&select=id,requested_seconds,actor_refs,grade`,
+        `&order=created_at.asc&limit=1&select=id,requested_seconds,actor_refs,grade,motion_mode`,
       { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
     );
     if (!res.ok) {
@@ -154,6 +154,7 @@ Deno.serve(async (req) => {
       requested_seconds: number;
       actor_refs?: boolean;
       grade?: string;
+      motion_mode?: string | null;
     }[];
     if (!Array.isArray(rows) || rows.length === 0) {
       return json({ dispatched: false, reason: "nothing queued" }, 200);
@@ -169,6 +170,13 @@ Deno.serve(async (req) => {
     // never carried conditioning), and the workflow/worker defaults remain
     // 'off' — an unset payload can never enable it anywhere else.
     const actorRefs = rows[0].actor_refs === true || rows[0].grade === "movie";
+    // PER-JOB clip-stage mode (owner-authorized Veo `select` validation,
+    // 2026-08-22). Only the literal 'select' travels — anything else,
+    // including NULL (every production job) and any unexpected value, sends
+    // nothing and the workflow's STORY_MOVIE stays off. The column is
+    // service-role-writable only (story_jobs has no client INSERT/UPDATE
+    // policy), so this can never become a user-reachable spend switch.
+    const motionMode = rows[0].motion_mode === "select" ? "select" : null;
     const token = await mintJobToken(jobId, jobSecret!);
 
     // Stamped BEFORE the GitHub call, not after. If the dispatch throws or the
@@ -202,7 +210,13 @@ Deno.serve(async (req) => {
         // a gateway 404 that looked like a bug in story-callback. Supabase
         // knows its own address; making GitHub store a second copy of it was
         // both unnecessary and the one thing that went stale.
-        client_payload: { job_id: jobId, token, supabase_url: supabaseUrl, actor_refs: actorRefs },
+        client_payload: {
+          job_id: jobId,
+          token,
+          supabase_url: supabaseUrl,
+          actor_refs: actorRefs,
+          ...(motionMode ? { story_movie: motionMode } : {}),
+        },
       }),
     });
 

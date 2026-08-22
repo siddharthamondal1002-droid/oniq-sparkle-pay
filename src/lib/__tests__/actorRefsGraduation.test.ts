@@ -42,7 +42,9 @@ describe("actor_refs graduation (movie grade default-on)", () => {
   });
 
   it("the flag still travels per job in the dispatch payload", () => {
-    expect(dispatch).toMatch(/client_payload: \{ job_id: jobId, token, supabase_url: supabaseUrl, actor_refs: actorRefs \}/);
+    expect(dispatch).toMatch(
+      /client_payload: \{\s*job_id: jobId,\s*token,\s*supabase_url: supabaseUrl,\s*actor_refs: actorRefs,/,
+    );
   });
 
   it("workflow and worker defaults remain off — only the payload enables it", () => {
