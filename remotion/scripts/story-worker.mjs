@@ -78,6 +78,14 @@ import { ambienceFor, ambienceGraph, scoreFor, scoreGraph } from '../../src/lib/
 import { packNarrations, verbatimFits } from '../../src/lib/verbatimNarration.ts';
 import { validateFilmMotion } from '../../src/lib/motionValidate.ts';
 import {
+  CLIP_ALIVENESS_MIN,
+  clipTemporallyAlive,
+  planShotMotion,
+  resolveShotMotion,
+  summarizeShotMotion,
+  temporalAliveness,
+} from '../../src/lib/motionRuntime.ts';
+import {
   TWO_SHOT_MAX_FIGURE_HEIGHT,
   centerForFacing,
   conversationFacings,
@@ -897,6 +905,41 @@ async function generateClip(shot, stillFile, shotSeconds) {
   }
 }
 
+/**
+ * Temporal-aliveness score for a generated clip, or null when it cannot be
+ * measured. Three frames — start, middle, just before the end — are decoded
+ * to a fixed 192x342 RGBA thumbnail (the sheet-adapter's rawvideo technique;
+ * the runner's system ffmpeg carries rawvideo, the compositor build does not)
+ * and the pure temporalAliveness() scores the change between them. The
+ * DECISION — is this clip actually moving, or a still in a video container —
+ * lives in motionRuntime.ts; this only decodes.
+ */
+const ALIVENESS_W = 192;
+const ALIVENESS_H = 342;
+function clipAlivenessScore(clipFile, clipSeconds) {
+  try {
+    const ffmpeg = findBin('ffmpeg');
+    const frames = [];
+    const times = [0, clipSeconds / 2, Math.max(0, clipSeconds - 0.2)];
+    for (const t of times) {
+      const raw = execFileSync(
+        ffmpeg,
+        [
+          '-v', 'error', '-ss', t.toFixed(3), '-i', clipFile,
+          '-vf', `scale=${ALIVENESS_W}:${ALIVENESS_H}`,
+          '-frames:v', '1', '-f', 'rawvideo', '-pix_fmt', 'rgba', 'pipe:1',
+        ],
+        { stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: ALIVENESS_W * ALIVENESS_H * 4 + 1024 },
+      );
+      if (raw.length !== ALIVENESS_W * ALIVENESS_H * 4) return null;
+      frames.push({ width: ALIVENESS_W, height: ALIVENESS_H, data: new Uint8Array(raw) });
+    }
+    return temporalAliveness(frames);
+  } catch {
+    return null;
+  }
+}
+
 /** ffprobe duration, because narration is the clock and estimates drift. */
 function secondsOf(file) {
   const out = execFileSync(findBin('ffprobe'), [
@@ -1528,6 +1571,16 @@ if (offline) {
     // explicitly: a ₹57 movie sale must never trigger hundreds of rupees of
     // rented generation, and the tier's cost model says runner compute, not
     // video-model seconds.
+    // Three values, still owner-only: 'on' is the original experiment with its
+    // semantics preserved byte-for-byte (every shot attempts a clip); 'select'
+    // is the spend-guarded variant — the motion-runtime contract attempts a
+    // clip ONLY for shots whose own grammar calls for character motion and
+    // which no free tier (a measured rig) already serves. Unset — every
+    // production dispatch — nothing is attempted and the film is unchanged.
+    const clipStage =
+      job.grade === 'movie' && (process.env.STORY_MOVIE === 'on' || process.env.STORY_MOVIE === 'select')
+        ? process.env.STORY_MOVIE
+        : 'off';
     const movie = job.grade === 'movie' && process.env.STORY_MOVIE === 'on';
     // RUNG 1 — the movie grade's own switch, distinct from the rented
     // experiment above: every movie job gets the extra in-house work (today:
@@ -1537,7 +1590,9 @@ if (offline) {
     if (job.grade === 'movie') {
       console.log(movie
         ? '  movie grade: RENTED clip experiment on (STORY_MOVIE=on)'
-        : '  movie grade: in-house engine');
+        : clipStage === 'select'
+          ? '  movie grade: RENTED clip experiment on, motion-selected shots only (STORY_MOVIE=select)'
+          : '  movie grade: in-house engine');
     }
 
     // One voice for the whole film. A narrator that changes between shots is
@@ -1589,6 +1644,10 @@ if (offline) {
     const directed = directShots(plan.shots.map((s) => s.still), String(job.id));
 
     const rendered = [];
+    // One entry per shot: the motion-runtime plan plus what became of any
+    // clip attempt, resolved into the explicit contract after the loop. Null
+    // for classic grade (no motion contract there, as before).
+    const motionMeta = [];
     // Rung 11: the shots' emotional registers, collected for the film-level
     // score vote. Classic films push nulls and vote for silence.
     const shotEmotions = [];
@@ -1951,26 +2010,66 @@ if (offline) {
       // failing the film: a Ken Burns shot inside a movie film is a shot,
       // not a hole, and the ep3 finding is that refusals are luck, not
       // verdicts. Sequential like every billable call here.
+      //
+      // THE MOTION CONTRACT decides per shot (motionRuntime.ts): in 'on' mode
+      // every shot attempts a clip (the original experiment, preserved); in
+      // 'select' mode only shots whose own grammar calls for character motion
+      // and which no measured rig already animates spend a clip; with the
+      // stage off (production) nothing is attempted and this block only
+      // writes the shot's motion evidence down.
+      const motionPlan = cinematic
+        ? planShotMotion(
+            {
+              motion: shot.motion,
+              dialogue: shot.dialogue,
+              vfx: shot.vfx,
+              still: shot.still,
+              narration: shot.narration,
+            },
+            { hasMeasuredRig: Boolean(shotRigs[i]), clipStage },
+          )
+        : null;
       let clip = null;
-      if (movie) {
+      let clipError = null;
+      if (motionPlan?.attemptClip) {
+        console.log(
+          `  motion ${i + 1}: ${motionPlan.motionClass}` +
+            (motionPlan.driverClass ? `/${motionPlan.driverClass}` : '') +
+            ` — clip REQUESTED (${motionPlan.reason})`,
+        );
         try {
           const got = await generateClip(shot, stillFile, seconds);
           const clipFile = path.join(assetRoot, `${stem}.clip.mp4`);
           fs.writeFileSync(clipFile, Buffer.from(got.data, 'base64'));
           const clipSeconds = secondsOf(clipFile);
-          // Two frames shy of the measured end: the composition must never
-          // seek past the last decodable frame, and the Freeze tail holds
-          // whichever frame the live part ends on.
-          const clipFrames = Math.max(1, Math.floor(clipSeconds * FPS) - 2);
-          clip = { src: `${assetDir}/${stem}.clip.mp4`, frames: clipFrames };
-          console.log(
-            `  clip ${i + 1}/${plan.shots.length}: ${clipSeconds.toFixed(1)}s of motion` +
-              (clipFrames < durationFrames ? ` (freeze tail ${durationFrames - clipFrames}f)` : ''),
-          );
+          // TEMPORAL ALIVENESS — a generated clip whose frames do not change
+          // is a still in a video container, and attaching it as "motion" is
+          // the false-PASS class MOTION_VALIDATE exists to kill. Skipped in a
+          // dry run (fixture clips loop one PNG by construction); on a real
+          // runner an unmeasurable clip is discarded, never waved through.
+          const alive = fixtureEdge ? null : clipAlivenessScore(clipFile, clipSeconds);
+          if (!fixtureEdge && (alive === null || !clipTemporallyAlive(alive))) {
+            clipError =
+              alive === null
+                ? 'clip aliveness unmeasurable — discarded (fail closed)'
+                : `clip frozen (aliveness ${alive.toFixed(2)} < ${CLIP_ALIVENESS_MIN}) — discarded`;
+            fs.rmSync(clipFile, { force: true });
+            console.log(`  clip ${i + 1}: still carries the shot (${clipError})`);
+          } else {
+            // Two frames shy of the measured end: the composition must never
+            // seek past the last decodable frame, and the Freeze tail holds
+            // whichever frame the live part ends on.
+            const clipFrames = Math.max(1, Math.floor(clipSeconds * FPS) - 2);
+            clip = { src: `${assetDir}/${stem}.clip.mp4`, frames: clipFrames };
+            console.log(
+              `  clip ${i + 1}/${plan.shots.length}: ${clipSeconds.toFixed(1)}s of motion` +
+                (alive === null ? '' : ` (aliveness ${alive.toFixed(2)})`) +
+                (clipFrames < durationFrames ? ` (freeze tail ${durationFrames - clipFrames}f)` : ''),
+            );
+          }
         } catch (err) {
-          console.log(
-            `  clip ${i + 1}: still carries the shot (${String(err?.message ?? err).slice(0, 140)})`,
-          );
+          clipError = String(err?.message ?? err).slice(0, 140);
+          console.log(`  clip ${i + 1}: still carries the shot (${clipError})`);
         }
       }
 
@@ -2176,6 +2275,7 @@ if (offline) {
         console.log(`  body ${i + 1}: ${notes.join(', ')}`);
       }
       shotEmotions.push(expression);
+      motionMeta.push(motionPlan ? { plan: motionPlan, clipError } : null);
 
       rendered.push({
         // Relative to public/, because that is what staticFile() takes. Posix
@@ -2284,6 +2384,37 @@ if (offline) {
         `have a character-motion source (clip/rig), ${motion.stillOnly} still-only, ` +
         `${motion.failed} FAIL (action calls for motion but rendered still-only)`,
     );
+    // THE MOTION CONTRACT, film-level: every movie shot's explicit outcome —
+    // VALIDATED (a clip that survived the gates), GENERATED (a measured-rig
+    // puppet), FAILED (a clip was attempted and lost), FALLBACK (motion was
+    // called for but no provider is enabled — the owner-gated state every
+    // production dispatch is in today), NOT_REQUESTED (scenery). The counts
+    // make "why did nobody move" answerable from any future log without
+    // guessing; MOTION_VALIDATE above stays the pass/fail authority.
+    if (motionMeta.some(Boolean)) {
+      const outcomes = rendered.map((s, i) =>
+        motionMeta[i]
+          ? resolveShotMotion(motionMeta[i].plan, {
+              clipAttached: Boolean(s.clip),
+              clipError: motionMeta[i].clipError,
+              hasRig: Boolean(s.character),
+            })
+          : { status: 'NOT_REQUESTED', source: 'none', provider: null, fallbackReason: null },
+      );
+      const sum = summarizeShotMotion(outcomes);
+      console.log(
+        `  MOTION_CONTRACT: ${sum.validatedClips} clip-validated, ${sum.rigSourced} rig-sourced, ` +
+          `${sum.failed} failed, ${sum.fallback} fallback, ${sum.notRequested} not-requested ` +
+          `of ${sum.total} shots`,
+      );
+      const reasons = new Map();
+      for (const o of outcomes) {
+        if (o.fallbackReason) reasons.set(o.fallbackReason, (reasons.get(o.fallbackReason) ?? 0) + 1);
+      }
+      for (const [reason, n] of reasons) {
+        console.log(`  MOTION_CONTRACT: ${n}x ${reason}`);
+      }
+    }
 
     // PREPARE is done — every still, voice and clip is on disk. The boundary is
     // logged so the expensive stages that follow have a clear start line.
