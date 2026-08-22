@@ -1,0 +1,773 @@
+{
+  "total": 67,
+  "flagged": [
+    "oaxacan-weaver-sheet",
+    "guna-yala-mola-sheet",
+    "warao-hammock-weaver-sheet",
+    "zulu-beadwork-artist-sheet",
+    "glassblower-night",
+    "armenian-stonemason-sheet",
+    "korean-potter-sheet",
+    "tibetan-monk-sheet",
+    "tea-picker-sheet"
+  ],
+  "rows": [
+    {
+      "styleRefId": "caribbean-fish-market",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1732x966",
+      "bytes": 1521247
+    },
+    {
+      "styleRefId": "oaxacan-weaver-sheet",
+      "kind": "sheet",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1165x1562",
+      "bytes": 1474658
+    },
+    {
+      "styleRefId": "jacmel-skipping-girl",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 507596
+    },
+    {
+      "styleRefId": "atitlan-maize-boy",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 508102
+    },
+    {
+      "styleRefId": "havana-balcony-musician",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 507403
+    },
+    {
+      "styleRefId": "guna-yala-mola-sheet",
+      "kind": "sheet",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 510008
+    },
+    {
+      "styleRefId": "salvador-samba-dancer",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 421367
+    },
+    {
+      "styleRefId": "zona-cafetera-coffee-picker",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 479904
+    },
+    {
+      "styleRefId": "iquitos-shaman-healer",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 510732
+    },
+    {
+      "styleRefId": "warao-hammock-weaver-sheet",
+      "kind": "sheet",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 476098
+    },
+    {
+      "styleRefId": "bolivian-aymara-sheet",
+      "kind": "sheet",
+      "decision": {
+        "ok": true,
+        "panel": {
+          "x": 98,
+          "y": 5,
+          "w": 85,
+          "h": 134
+        },
+        "grid": {
+          "cols": 3,
+          "rows": 1
+        },
+        "mass": 0.847
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1430075
+    },
+    {
+      "styleRefId": "amazon-canoe",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1332903
+    },
+    {
+      "styleRefId": "patagonian-shepherd",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1732x966",
+      "bytes": 1521371
+    },
+    {
+      "styleRefId": "diner-cook-night",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1732x966",
+      "bytes": 1564124
+    },
+    {
+      "styleRefId": "navajo-healer-hogan",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 463721
+    },
+    {
+      "styleRefId": "iglu-storytelling-grandmother",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 473689
+    },
+    {
+      "styleRefId": "hilo-tiki-carver",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 482290
+    },
+    {
+      "styleRefId": "nile-felucca-sailor",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1505778
+    },
+    {
+      "styleRefId": "ethiopian-coffee",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1165x1562",
+      "bytes": 1530618
+    },
+    {
+      "styleRefId": "zulu-beadwork-artist-sheet",
+      "kind": "sheet",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1165x1562",
+      "bytes": 1470659
+    },
+    {
+      "styleRefId": "lagos-talking-drummer",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1732x966",
+      "bytes": 1538836
+    },
+    {
+      "styleRefId": "madagascar-rice-planter",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1732x966",
+      "bytes": 1531045
+    },
+    {
+      "styleRefId": "marrakech-spice-merchant",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 488316
+    },
+    {
+      "styleRefId": "kumasi-kente-weaver",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 482110
+    },
+    {
+      "styleRefId": "zanzibar-clove-harvester",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 483071
+    },
+    {
+      "styleRefId": "madang-hoop-boy",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 465199
+    },
+    {
+      "styleRefId": "greek-fisherman",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1419640
+    },
+    {
+      "styleRefId": "glassblower-night",
+      "kind": "scene",
+      "decision": {
+        "ok": true,
+        "panel": {
+          "x": 17,
+          "y": 14,
+          "w": 206,
+          "h": 128
+        },
+        "grid": {
+          "cols": 2,
+          "rows": 1
+        },
+        "mass": 0.47
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1508105
+    },
+    {
+      "styleRefId": "woodcarver-snow",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1050x1408",
+      "bytes": 1416708
+    },
+    {
+      "styleRefId": "anatolian-tea-house",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1106x1483",
+      "bytes": 1532940
+    },
+    {
+      "styleRefId": "bavarian-ornament-painter",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1165x1562",
+      "bytes": 1558452
+    },
+    {
+      "styleRefId": "irish-pub-fiddler",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1106x1483",
+      "bytes": 1425187
+    },
+    {
+      "styleRefId": "icelandic-shepherd",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1732x966",
+      "bytes": 1366443
+    },
+    {
+      "styleRefId": "siberian-trapper",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1562x871",
+      "bytes": 1495197
+    },
+    {
+      "styleRefId": "welsh-blacksmith",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1562x871",
+      "bytes": 1467739
+    },
+    {
+      "styleRefId": "seville-flamenco-dancer",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 487371
+    },
+    {
+      "styleRefId": "lisse-tulip-farmer",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 482919
+    },
+    {
+      "styleRefId": "nazare-net-mender",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 511617
+    },
+    {
+      "styleRefId": "copenhagen-pastry-baker",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 507023
+    },
+    {
+      "styleRefId": "salzburg-woodcutter",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 461755
+    },
+    {
+      "styleRefId": "svaneti-polyphonic-singer",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 494403
+    },
+    {
+      "styleRefId": "armenian-stonemason-sheet",
+      "kind": "sheet",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1106x1483",
+      "bytes": 1372134
+    },
+    {
+      "styleRefId": "uzbek-ceramicist",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1165x1562",
+      "bytes": 1449221
+    },
+    {
+      "styleRefId": "korean-potter-sheet",
+      "kind": "sheet",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1106x1483",
+      "bytes": 1480797
+    },
+    {
+      "styleRefId": "mongolian-herder",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1292807
+    },
+    {
+      "styleRefId": "tibetan-monk-sheet",
+      "kind": "sheet",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1106x1483",
+      "bytes": 1333380
+    },
+    {
+      "styleRefId": "thai-longtail",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1824x1017",
+      "bytes": 1453550
+    },
+    {
+      "styleRefId": "balinese-dancer",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1165x1562",
+      "bytes": 1560924
+    },
+    {
+      "styleRefId": "tea-picker-sheet",
+      "kind": "sheet",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1422490
+    },
+    {
+      "styleRefId": "kashmiri-carpet-weaver",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "997x1337",
+      "bytes": 1367904
+    },
+    {
+      "styleRefId": "bagan-alms-round",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1732x966",
+      "bytes": 1372665
+    },
+    {
+      "styleRefId": "khmer-stone-carver",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1562x871",
+      "bytes": 1549930
+    },
+    {
+      "styleRefId": "singapore-hawker",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1375248
+    },
+    {
+      "styleRefId": "anatolian-shepherd",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1454473
+    },
+    {
+      "styleRefId": "mediterranean-baker",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1554732
+    },
+    {
+      "styleRefId": "chennai-bharatanatyam",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 472584
+    },
+    {
+      "styleRefId": "paro-archery-contest",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 489872
+    },
+    {
+      "styleRefId": "polynesian-outrigger",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1824x1017",
+      "bytes": 1303786
+    },
+    {
+      "styleRefId": "polynesian-wave-caller",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 478644
+    },
+    {
+      "styleRefId": "griot-spirit-night",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1645x917",
+      "bytes": 1444002
+    },
+    {
+      "styleRefId": "andean-sky-temple",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1732x966",
+      "bytes": 1372545
+    },
+    {
+      "styleRefId": "dragon-tamer-cloud",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 459866
+    },
+    {
+      "styleRefId": "nordic-rune-wizard",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 505370
+    },
+    {
+      "styleRefId": "brass-astrolabe-artifact",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1493",
+      "bytes": 475025
+    },
+    {
+      "styleRefId": "iron-forged-guardian",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 507998
+    },
+    {
+      "styleRefId": "celestial-librarian",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1999x1116",
+      "bytes": 485038
+    },
+    {
+      "styleRefId": "slavic-firebird-keeper",
+      "kind": "scene",
+      "decision": {
+        "ok": false,
+        "reason": "SHEET_NO_GRID_DETECTED"
+      },
+      "error": null,
+      "dims": "1493x1999",
+      "bytes": 472470
+    }
+  ]
+}
