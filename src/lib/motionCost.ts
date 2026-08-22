@@ -121,7 +121,7 @@ export function selectMotionLevel(
   if (premiumFirst) {
     // Hero/cinematic shot: lead with premium, keep the rest as (cheaper) backups.
     const rest = ladder.filter((l) => l !== 5);
-    const ordered = [5, ...rest];
+    const ordered: MotionLevel[] = [5, ...rest];
     return {
       level: 5,
       motionClass,
