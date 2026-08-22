@@ -103,6 +103,57 @@ export const ARAP_MOTION_GRAMMAR: Readonly<Partial<Record<MotionRequest["motionC
 };
 
 /**
+ * PRE-RENDER CHARACTER ELIGIBILITY — the measured envelope (2026-08-22,
+ * six-character ONIQ corpus, real renders). Two bounded failure classes
+ * collapsed the ARAP mesh regardless of retarget config (proven: the same
+ * characters collapse under stock AND arm-damped mappings):
+ *
+ *   1. MERGED SILHOUETTE — limbs not separated from the body in the mask
+ *      (mother 74.8% bbox fill, lampJinni 67.3% → both collapsed; every
+ *      clean walk sat at 51-57%). The armsAgainstTorso class motionCost.ts
+ *      already names, now with a measurable proxy.
+ *   2. CORE JOINT OFF-SILHOUETTE — a shoulder/hip/knee/foot localized
+ *      outside the mask (fisherman: left_shoulder+left_foot → collapsed;
+ *      magician: right_knee+right_foot → pathological render). An elbow or
+ *      hand grazing outside is fine (both clean aladdin rigs have one).
+ *
+ * On the corpus these two gates admit every clean walk and reject every
+ * collapse, so an ineligible character is a correct still-path fallback,
+ * never a garbage clip. THRESHOLDS ARE PROVISIONAL — measured on n=6;
+ * widening the corpus before trusting them harder is the recorded follow-up.
+ * Post-render, l3RenderQc (fill ≥4%) plus temporalAliveness stay mandatory:
+ * they caught 2 of 3 collapses blind, and the aliveness score alone waved
+ * all 3 through — a changing-pixel metric is necessary, never sufficient.
+ */
+export const ARAP_ELIGIBILITY = {
+  /** Above this the silhouette is a merged blob (limbs not separated). */
+  maxBboxFillPct: 65,
+  /** Joints that must sit ON the silhouette for the solve to stay sane. */
+  coreJoints: ["shoulder", "hip", "knee", "foot"],
+} as const;
+
+export function arapCharacterEligible(m: {
+  /** Foreground fraction of the character's tight bbox mask, percent. */
+  bboxFillPct: number;
+  /** Names of skeleton joints whose location falls outside the mask. */
+  jointsOutsideMask: string[];
+}): { eligible: boolean; reasons: string[] } {
+  const reasons: string[] = [];
+  if (m.bboxFillPct > ARAP_ELIGIBILITY.maxBboxFillPct) {
+    reasons.push(
+      `silhouette is a merged blob (${m.bboxFillPct.toFixed(1)}% bbox fill > ${ARAP_ELIGIBILITY.maxBboxFillPct}% — limbs not separated, ARAP collapse class)`,
+    );
+  }
+  const core = m.jointsOutsideMask.filter((j) =>
+    ARAP_ELIGIBILITY.coreJoints.some((c) => j.includes(c)),
+  );
+  if (core.length > 0) {
+    reasons.push(`core joints off the silhouette: ${core.join(", ")} (degenerate solve class)`);
+  }
+  return { eligible: reasons.length === 0, reasons };
+}
+
+/**
  * The EXACT reference-runner argv for ONE shot. The runner host resolves
  * `adDir`/`charDir` (the AD checkout and the auto-rigged character dir);
  * the motion and retarget configs and the output are explicit paths, so a

@@ -11,15 +11,18 @@ import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  runMotion,
   selectProviderOrder,
   VEO_META,
   type MotionProvider,
   type MotionRequest,
 } from "@/lib/motionProvider";
 import {
+  ARAP_ELIGIBILITY,
   ARAP_L3_META,
   ARAP_L3_RUN,
   ARAP_MOTION_GRAMMAR,
+  arapCharacterEligible,
   buildArapRenderArgs,
   makeArapL3Provider,
   type ArapCpuRunner,
@@ -191,6 +194,73 @@ describe("separation pins — nothing existing moves", () => {
     );
     expect(worker).not.toMatch(/arapProvider|arap-l3/i);
     expect(worker).toMatch(/edge\('story-clip'/);
+  });
+});
+
+describe("chaos — every breakage ends on the still path, film still renderable", () => {
+  it("broken runner + unavailable Veo: no clip, reasons recorded, caller falls back", async () => {
+    const broken: ArapCpuRunner = {
+      ready: () => true,
+      exec: () => Promise.reject(new Error("render segfault")),
+    };
+    const order = selectProviderOrder("WALKING", [makeArapL3Provider(broken), veo(false)], {
+      allowPremium: true,
+    });
+    const { clip, tried } = await runMotion(REQ, order);
+    expect(clip).toBeNull(); // the worker keeps the still/parallax renderer
+    expect(tried).toEqual([
+      { provider: ARAP_L3_META.name, reason: expect.stringMatching(/render segfault/) },
+    ]);
+  });
+
+  it("no providers at all: the order is empty and nothing is attempted", async () => {
+    const order = selectProviderOrder("WALKING", [makeArapL3Provider(null), veo(false)], {
+      allowPremium: false,
+    });
+    expect(order).toEqual([]);
+    const { clip, tried } = await runMotion(REQ, order);
+    expect(clip).toBeNull();
+    expect(tried).toEqual([]);
+  });
+});
+
+describe("character eligibility — the measured 6-character corpus verbatim", () => {
+  // Real 2026-08-22 measurements: bbox fill % of the rembg mask, and which
+  // skeleton joints the auto-rig localized outside the silhouette.
+  const CORPUS = [
+    { name: "aladdin_hand", fill: 57.0, outside: ["left_elbow"], walked: true },
+    { name: "aladdin_auto", fill: 57.0, outside: ["right_hand"], walked: true },
+    { name: "morgiana", fill: 51.7, outside: [], walked: true },
+    { name: "mother", fill: 74.8, outside: [], walked: false },
+    { name: "fisherman", fill: 53.4, outside: ["left_shoulder", "left_foot"], walked: false },
+    { name: "lampJinni", fill: 67.3, outside: [], walked: false },
+  ];
+
+  it("admits every measured clean walk and rejects every measured collapse", () => {
+    for (const c of CORPUS) {
+      const v = arapCharacterEligible({ bboxFillPct: c.fill, jointsOutsideMask: c.outside });
+      expect(v.eligible, c.name).toBe(c.walked);
+    }
+  });
+
+  it("an elbow or hand grazing outside the mask is not a rejection", () => {
+    const v = arapCharacterEligible({
+      bboxFillPct: 55,
+      jointsOutsideMask: ["left_elbow", "right_hand"],
+    });
+    expect(v.eligible).toBe(true);
+  });
+
+  it("names the reason classes so the fallback log says WHY", () => {
+    const blob = arapCharacterEligible({ bboxFillPct: 80, jointsOutsideMask: [] });
+    expect(blob.reasons[0]).toMatch(/merged blob/);
+    const joints = arapCharacterEligible({ bboxFillPct: 50, jointsOutsideMask: ["right_knee"] });
+    expect(joints.reasons[0]).toMatch(/core joints off the silhouette/);
+  });
+
+  it("pins the provisional thresholds so a drift is a decision, not an accident", () => {
+    expect(ARAP_ELIGIBILITY.maxBboxFillPct).toBe(65);
+    expect(ARAP_ELIGIBILITY.coreJoints).toEqual(["shoulder", "hip", "knee", "foot"]);
   });
 });
 
