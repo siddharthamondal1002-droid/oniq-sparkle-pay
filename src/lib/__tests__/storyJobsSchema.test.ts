@@ -7,8 +7,11 @@
  * IS removable is the drift, and that is what this file is — it parses the
  * migrations and asserts the two descriptions agree.
  *
- * TWO FILES, BECAUSE FUNCTIONS GET REPLACED. `20260809000000_story_jobs.sql`
- * created the quota machinery; `20260810115624_*.sql` (Story purchases)
+ * TWO FILES, BECAUSE FUNCTIONS GET REPLACED. `20260809155535_7aff51af-*.sql`
+ * created the quota machinery (production's schema_migrations records this
+ * version; a byte-identical twin `20260809000000_story_jobs.sql` was removed
+ * because replaying both broke fresh environments on duplicate policies);
+ * `20260810115624_*.sql` (Story purchases)
  * REPLACED claim_story_seconds, refund_story_seconds and story_quota_status to
  * spend the paid bucket. A test that kept parsing the first file would be
  * pinning a definition the database no longer runs — the guard would go quiet,
@@ -37,7 +40,7 @@ import {
 
 const ROOT = process.cwd();
 const JOBS_SQL = readFileSync(
-  join(ROOT, "supabase/migrations/20260809000000_story_jobs.sql"),
+  join(ROOT, "supabase/migrations/20260809155535_7aff51af-969b-4e44-bdb5-175c77d58794.sql"),
   "utf8",
 );
 const PURCHASE_SQL = readFileSync(
