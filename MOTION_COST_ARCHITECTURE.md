@@ -194,9 +194,21 @@ its header). This is a reference/proof script, **not** wired into production.
 - **Mock/CPU-contract proofs (done, on branch):** tier selector + escalation +
   pose-cache (extract-once-reuse) + provider ordering (CPU pose-warp leads) —
   34/34 tests.
-- **BLOCKED on a real run (owner-gated):** a real Animated-Drawings CPU walk of
-  one ONIQ still, and a real VACE-1.3B GPU clip. No claim any character actually
-  walks until those produce inspected frames. The Animated-Drawings CPU test
-  could run **without a GPU** on a machine with the (heavy) TorchServe/OpenMMLab
-  stack installed — an install decision, not a spend decision — and is the
-  cheapest next real proof.
+- **BLOCKED on a real run (owner-gated):** a real VACE-1.3B GPU clip (L4). No
+  claim any diffusion output exists until that produces inspected frames.
+
+## Phase-6 update — the auto-rig half is PROVEN (GOOD-WITH-LIMITS)
+
+Phase 5's open gap (auto-rigging an *arbitrary* still, not a pre-annotated one)
+is now closed on **CPU, ₹0**. The real Animated Drawings char-analysis stack
+(mmdet-2.28 detector + mmpose-0.29 pose, `mmcv-full` **compiled from source**
+because the OpenMMLab/PyTorch wheel hosts are network-blocked here) auto-rigged
+**3 distinct characters** from raw drawings — detector >0.998, keypoint conf
+0.87-0.91, skeletons anatomically correct on all 3 — then a **single shared walk
+driver** (`zombie.bvh`) drove them: **2 of 3 produced clean upright walks; 1
+collapsed at the ARAP mesh stage** despite a correct-looking skeleton. Pose cache
+proven at runtime (1 parse, 2 hits). Verdict **GOOD-WITH-LIMITS**: one motion
+library drives many auto-rigged characters cheaply for the majority; a minority
+need a POST-render QC gate (`l3RenderQc` in `src/lib/motionCost.ts`) that catches
+the collapse and escalates to L4. Full write-up: **`MOTION_GENERALIZATION.md`**;
+reference runner: `remotion/scripts/autorig_reference.py`. No model weights in git.

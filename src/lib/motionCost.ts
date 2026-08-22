@@ -275,3 +275,67 @@ export function makePoseCache(extractor: PoseExtractor): {
     has: (driverId) => cache.has(driverId),
   };
 }
+
+// ── L3 RENDER QC — catch the auto-rig that LOOKS fine but deforms wrong ────────
+//
+// Phase 6 measured a real limit of unattended auto-rigging: an L3 shot can pass
+// every UPSTREAM eligibility check (stylised, frontal, full-body, single,
+// unoccluded) AND get a plausible-looking skeleton (high detector + keypoint
+// confidence, joints on the right body parts) yet still COLLAPSE at the ARAP
+// mesh-deform stage for a particular character's art. In the 3-character test
+// the two figures whose auto-rig deformed cleanly filled ~8-11% of the frame and
+// stayed on-screen for the whole clip; the one that collapsed filled only ~2.3%
+// and drifted off the frame edge. `poseWarpEligible` cannot see this — it runs
+// BEFORE the render — so the tier selector needs a POST-render gate that inspects
+// the produced clip and escalates a collapsed L3 to L4 diffusion instead of
+// shipping a mangled puppet. Fails CLOSED: a doubtful render escalates.
+
+export type L3RenderStats = {
+  /** Mean % of the canvas the character silhouette occupies across all frames.
+   *  A collapsed/torn ARAP mesh renders as a tiny crumple (low value). */
+  meanFillPct: number;
+  /** The character stayed visible (non-trivial fill) in EVERY frame — false when
+   *  it shrank to nothing or walked off the canvas edge. */
+  inFrameAllFrames: boolean;
+  /** Optional: the character's foot line stayed roughly grounded (small px range).
+   *  A wildly varying foot line is another collapse tell. Omit if not measured. */
+  footLineRangePx?: number;
+  /** Canvas dimension in px, to normalize footLineRangePx. */
+  frameSizePx?: number;
+};
+
+export type L3QcVerdict = {
+  pass: boolean;
+  reasons: string[];
+  /** Where to send a failed L3 shot. Diffusion (L4) is the honest next rung; the
+   *  caller may lower it to L1 (still + camera) when no GPU is available. */
+  escalateTo: MotionLevel | null;
+};
+
+/**
+ * Post-render QC for an L3 pose-warp clip. Thresholds are set from the Phase-6
+ * measurements (clean walks ≈8-11% fill / in-frame; the collapse ≈2.3% fill /
+ * off-frame) with margin. A pass means the puppet rendered as a real, on-screen,
+ * grounded character; a fail escalates to diffusion.
+ */
+export function l3RenderQc(
+  s: L3RenderStats,
+  opts: { minMeanFillPct?: number; maxFootLineRangeFrac?: number } = {},
+): L3QcVerdict {
+  const minFill = opts.minMeanFillPct ?? 4.0; // clean ≥8%, collapse 2.3% → 4% splits them
+  const maxFootFrac = opts.maxFootLineRangeFrac ?? 0.15; // feet shouldn't roam >15% of canvas
+  const reasons: string[] = [];
+  if (!(s.meanFillPct >= minFill)) {
+    reasons.push(`character fills only ${s.meanFillPct.toFixed(1)}% of frame (< ${minFill}% — mesh likely collapsed)`);
+  }
+  if (!s.inFrameAllFrames) {
+    reasons.push("character left the frame or vanished on some frames");
+  }
+  if (s.footLineRangePx != null && s.frameSizePx) {
+    const frac = s.footLineRangePx / s.frameSizePx;
+    if (frac > maxFootFrac) {
+      reasons.push(`foot line roamed ${(frac * 100).toFixed(0)}% of canvas (> ${(maxFootFrac * 100).toFixed(0)}% — unstable deform)`);
+    }
+  }
+  return { pass: reasons.length === 0, reasons, escalateTo: reasons.length === 0 ? null : 4 };
+}

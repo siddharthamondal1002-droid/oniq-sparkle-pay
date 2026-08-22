@@ -5,6 +5,7 @@
 import { describe, expect, it } from "vitest";
 import {
   LEVELS,
+  l3RenderQc,
   makePoseCache,
   mockPoseExtractor,
   poseCachePath,
@@ -118,6 +119,25 @@ describe("pose cache — extract once per driver, reuse for every character", ()
     expect(b).toBe(c);
     expect(cache.extractionsRun()).toBe(1); // paid per DRIVER, not per character
     expect(cache.has("walk_9x16")).toBe(true);
+  });
+
+  it("post-render QC (Phase 6): clean walks pass, a collapsed auto-rig escalates to L4", () => {
+    // Real Phase-6 measurements: char2 ≈8.2% fill / in-frame, char3 ≈11.1% / in-frame
+    // rendered clean walks from ONE shared driver; char1 ≈2.3% / off-frame collapsed.
+    expect(l3RenderQc({ meanFillPct: 8.2, inFrameAllFrames: true }).pass).toBe(true);
+    expect(l3RenderQc({ meanFillPct: 11.1, inFrameAllFrames: true }).pass).toBe(true);
+    const collapsed = l3RenderQc({ meanFillPct: 2.3, inFrameAllFrames: false });
+    expect(collapsed.pass).toBe(false);
+    expect(collapsed.escalateTo).toBe(4); // diffusion, not a shipped mangled puppet
+    expect(collapsed.reasons.join(" ")).toMatch(/collapsed|left the frame/);
+  });
+
+  it("post-render QC fails closed on an unstable (roaming) foot line", () => {
+    const r = l3RenderQc(
+      { meanFillPct: 9, inFrameAllFrames: true, footLineRangePx: 123, frameSizePx: 500 },
+    );
+    expect(r.pass).toBe(false); // 123/500 = 25% > 15%
+    expect(r.escalateTo).toBe(4);
   });
 
   it("concurrent first-gets dedupe to a single extraction (no double work)", async () => {
