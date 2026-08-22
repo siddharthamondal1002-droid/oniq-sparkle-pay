@@ -48,7 +48,7 @@ const PURCHASE_SQL = readFileSync(
   "utf8",
 );
 const OWNER_SQL = readFileSync(
-  join(ROOT, "supabase/migrations/20260812010000_owner_rides_free.sql"),
+  join(ROOT, "supabase/migrations/20260812044512_900f5a57-4ce7-4a47-9c9b-3dbdfaffd94c.sql"),
   "utf8",
 );
 const CLIP_SQL = readFileSync(
@@ -146,7 +146,7 @@ describe("the configured defaults are the numbers the arithmetic produced", () =
     // the mover, not the seed — checking the seed would pin a number the
     // database has deliberately stopped using.
     const drop = readFileSync(
-      join(process.cwd(), "supabase/migrations/20260815060000_drop_thirty_seconds.sql"),
+      join(process.cwd(), "supabase/migrations/20260815052853_378b2361-213b-4d4b-a7c6-99c000d73293.sql"),
       "utf8",
     );
     expect(MIN_STORY_SECONDS).toBe(60);
