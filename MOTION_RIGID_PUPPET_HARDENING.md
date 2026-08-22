@@ -76,7 +76,7 @@ deliberately NOT applied yet so diagnostics stay intact per the directive.)
 | Character | Auto-rig | Hand health | Classification |
 |---|---|---|---|
 | aladdin (male, tunic+pants) | ok (det 0.99) | healthy (fill 0.65) | **PASS_WITH_LIMITS** (rendered + inspected) |
-| morgiana (female) | ok | healthy (fill 0.52) | **EXTRACTION_OK** (part validation passed; full render not visually inspected in this pass) |
+| morgiana (female, tunic) | ok | healthy (fill 0.52) | **PASS_WITH_LIMITS** (rendered + inspected — no blades; minor seams) |
 | captain (different silhouette) | ok | healthy (fill 0.62) | **EXTRACTION_OK** (part validation passed; not visually rendered) |
 | mother | **auto-rig found no humanoid** | empty parts | **PART_EXTRACTION_UNCERTAIN → escalate L4** |
 
