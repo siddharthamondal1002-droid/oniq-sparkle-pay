@@ -72,6 +72,7 @@ import {
 import { vfxSeed } from '../../src/lib/particleField.ts';
 import { selectSceneWeather, weatherConsistentSetting } from '../../src/lib/sceneWeather.ts';
 import { directShots } from '../../src/lib/shotDirector.ts';
+import { selectSheetPanel, scalePanel } from '../../src/lib/sheetPanel.ts';
 import { emotionFor } from '../../src/lib/expressionGrammar.ts';
 import { ambienceFor, ambienceGraph, scoreFor, scoreGraph } from '../../src/lib/soundStage.ts';
 import { packNarrations, verbatimFits } from '../../src/lib/verbatimNarration.ts';
@@ -969,6 +970,85 @@ async function fetchOwnerReference(url) {
   }
 }
 
+/**
+ * SHEET → ATTACHABLE PANEL. A character sheet reproduces its own panel
+ * layout when conditioned (measured shot 04; again on 5871421e's mis-kinded
+ * scene asset — frame evidence on val-5871421e). Instead of refusing every
+ * sheet outright, decompose it deterministically: decode a downscaled RGBA
+ * copy, let the pure sheetPanel module find the gutter grid and score the
+ * cells, then crop the ONE chosen figure panel from the original with
+ * ffmpeg. Every uncertain branch returns null and the caller's refusal is
+ * byte-identical to before — a sheet never fails a film and a guessed crop
+ * never ships.
+ */
+async function adaptSheetReference(url) {
+  const fetched = await fetchOwnerReference(url);
+  if (!fetched) return null;
+  let ffmpeg;
+  try {
+    ffmpeg = findBin('ffmpeg');
+  } catch {
+    console.log('  sheet: no ffmpeg — refusing (text-only)');
+    return null;
+  }
+  const stamp = `${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), `oniq-sheet-${stamp}-`));
+  const src = path.join(dir, 'sheet.bin');
+  const out = path.join(dir, 'panel.png');
+  try {
+    fs.writeFileSync(src, fetched.buf);
+    const dims = imageDimensions(src);
+    if (!dims || dims.w < 64 || dims.h < 64) {
+      console.log('  sheet: unreadable/too small — refusing');
+      return null;
+    }
+    // Analyze at ≤256px wide — plenty for gutter geometry, cheap to scan.
+    const aw = Math.min(256, dims.w);
+    const ah = Math.max(32, Math.round((dims.h * aw) / dims.w));
+    const raw = execFileSync(
+      ffmpeg,
+      ['-v', 'error', '-i', src, '-vf', `scale=${aw}:${ah}`, '-f', 'rawvideo', '-pix_fmt', 'rgba', 'pipe:1'],
+      { stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: aw * ah * 4 + 1024 },
+    );
+    if (raw.length !== aw * ah * 4) {
+      console.log(`  sheet: decode size ${raw.length} != ${aw * ah * 4} — refusing`);
+      return null;
+    }
+    const decision = selectSheetPanel({ width: aw, height: ah, data: new Uint8Array(raw) });
+    if (!decision.ok) {
+      console.log(`  sheet: ${decision.reason} — refusing (text-only)`);
+      return null;
+    }
+    const box = scalePanel(decision.panel, { width: aw, height: ah }, { width: dims.w, height: dims.h });
+    if (box.w < 64 || box.h < 64) {
+      console.log('  sheet: chosen panel too small at source — refusing');
+      return null;
+    }
+    execFileSync(
+      ffmpeg,
+      ['-y', '-v', 'error', '-i', src, '-vf', `crop=${box.w}:${box.h}:${box.x}:${box.y}`, '-frames:v', '1', out],
+      { stdio: 'pipe' },
+    );
+    const panelBuf = fs.readFileSync(out);
+    if (panelBuf.length === 0 || panelBuf.length > OWNER_REF_MAX_BYTES) {
+      console.log(`  sheet: panel bytes ${panelBuf.length} outside 1..${OWNER_REF_MAX_BYTES} — refusing`);
+      return null;
+    }
+    return {
+      dataUrl: `data:image/png;base64,${panelBuf.toString('base64')}`,
+      bytes: panelBuf.length,
+      panel: box,
+      grid: decision.grid,
+      mass: decision.mass,
+    };
+  } catch (err) {
+    console.log(`  sheet: adapter failed (${String(err?.message ?? err).slice(0, 100)}) — refusing`);
+    return null;
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 // PORTRAIT PRECONDITION — DEFAULT OFF, even when STORY_ACTOR_REFS is on.
 // The 2026-08-21 A/B validation measured it neutral-to-worse: reshaping the
 // reference to a padded 9:16 canvas does make Gemini return portrait reliably,
@@ -1591,8 +1671,24 @@ if (offline) {
           if (!pick.eligible) {
             // A sheet source matched by identity but reproduces its own
             // turnaround/panel layout when conditioned (measured shot 04). Do
-            // NOT substitute another actor; draw text-only and say why.
-            refAudit.reason = 'SHEET_REFERENCE_NOT_DIRECTLY_ATTACHABLE';
+            // NOT substitute another actor. The panel adapter first tries to
+            // extract ONE clean figure panel from the sheet's gutter grid;
+            // any ambiguity refuses, and the refusal below is byte-identical
+            // to the pre-adapter behavior: draw text-only and say why.
+            const adapted = await adaptSheetReference(pick.referenceUrl);
+            if (adapted) {
+              ref = adapted.dataUrl;
+              refAudit.referenceFetched = true;
+              refAudit.referenceAttached = true;
+              refAudit.referenceBytes = adapted.bytes;
+              refAudit.preconditionStrategy = 'off';
+              refAudit.sheetAdapter = 'panel-extract';
+              refAudit.sheetGrid = `${adapted.grid.cols}x${adapted.grid.rows}`;
+              refAudit.sheetPanel = `${adapted.panel.w}x${adapted.panel.h}+${adapted.panel.x}+${adapted.panel.y}`;
+              refAudit.sheetMass = adapted.mass;
+            } else {
+              refAudit.reason = 'SHEET_REFERENCE_NOT_DIRECTLY_ATTACHABLE';
+            }
           } else {
             const fetched = await fetchOwnerReference(pick.referenceUrl);
             if (fetched) {
