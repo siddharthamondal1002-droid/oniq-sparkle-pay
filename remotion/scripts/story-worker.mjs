@@ -94,7 +94,7 @@ import {
   speakerMatchesRig,
   walkFor,
 } from '../../src/lib/puppetPerformance.ts';
-import { planStory } from '../../src/lib/storyPlan.ts';
+import { MAX_STORY_SECONDS, MIN_STORY_SECONDS, planStory } from '../../src/lib/storyPlan.ts';
 import { preflight, STORY_FPS, STORY_WIDTH, STORY_HEIGHT } from '../../src/lib/storyPreflight.ts';
 import { castShot } from '../../src/lib/storyActorCasting.ts';
 import { ONIQ_ASSET_ORIGIN } from '../../src/data/storyActorAssets.ts';
@@ -1488,6 +1488,24 @@ if (offline) {
     // Deriving it server-side from `requested_seconds` closes both: nothing to
     // forge, and no second planner to drift, because this is literally the
     // function the button used to draw "30s · 4 shots".
+    // THE SELLABLE BAND, CHECKED BEFORE THE FIRST BILLABLE CALL (2026-08-22).
+    // The claim RPC already enforces 60-600s for every product job, so this
+    // guard exists for jobs that BYPASS the claim — ops-inserted validation
+    // rows and legacy shapes. It used to be preflight's alone, and preflight
+    // runs AFTER PREPARE: validation job dae3d4ee generated its whole asset
+    // budget (eight Veo clips among it) and then died on
+    // PREFLIGHT_JOB_INVALID for a 35s request — exactly the
+    // fails-after-the-money class preflight exists to prevent. Same wording
+    // as preflight so the failure reads identically wherever it lands.
+    if (
+      job.requestedSeconds < MIN_STORY_SECONDS ||
+      job.requestedSeconds > MAX_STORY_SECONDS
+    ) {
+      throw new Error(
+        `PREFLIGHT_JOB_INVALID: requested ${job.requestedSeconds}s is outside ` +
+          `the sellable band ${MIN_STORY_SECONDS}-${MAX_STORY_SECONDS}s`,
+      );
+    }
     const shots = job.shotCount || planStory(job.requestedSeconds).shots.length;
     if (!shots) {
       throw new Error(`job has neither shot_count nor requested_seconds (${job.requestedSeconds})`);
