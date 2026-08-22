@@ -148,8 +148,32 @@ def autorig(img_fn, out_dir):
     boxes.sort(key=lambda b: b[4], reverse=True)
     l, t, r, b = [round(float(x)) for x in boxes[0][:4]]
     det_score = float(boxes[0][4])
-    cropped = img[t:b, l:r]
+    # PAD the detector bbox (measured fix, generalization v2 2026-08-22): a
+    # mask cut off at the crop border gives Animated Drawings' mesh builder
+    # degenerate boundary geometry — every pathological render in the
+    # 24-character corpus (5 solver hangs at 300-900s, the mother/princess
+    # sliver collapses, the lampJinni fold) had its mask touching >=3 crop
+    # edges, and re-rendering the SAME rigs with a 24px margin fixed 8 of 10.
+    # Clean renders always sat clear of the border. Padding is cheap and
+    # mandatory; clamp to the source image so tight framings stay valid.
+    PAD = 24
+    l2, t2 = max(0, l - PAD), max(0, t - PAD)
+    r2, b2 = min(img.shape[1], r + PAD), min(img.shape[0], b + PAD)
+    cropped = img[t2:b2, l2:r2]
+    # Where the source image itself ran out, replicate-pad the shortfall so
+    # the margin is GUARANTEED — the mask must never touch the crop border.
+    cropped = cv2.copyMakeBorder(
+        cropped,
+        PAD - (t - t2), PAD - (b2 - b), PAD - (l - l2), PAD - (r2 - r),
+        cv2.BORDER_REPLICATE,
+    )
     mask = segment(cropped)
+    # Belt-and-braces for source-cut subjects: the mask boundary must be a
+    # closed contour strictly inside the crop, never on its border.
+    mask[:2, :] = 0
+    mask[-2:, :] = 0
+    mask[:, :2] = 0
+    mask[:, -2:] = 0
 
     person = [{"bbox": [0, 0, cropped.shape[1], cropped.shape[0]]}]
     t1 = time.time()

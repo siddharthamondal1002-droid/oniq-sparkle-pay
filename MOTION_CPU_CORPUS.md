@@ -92,6 +92,63 @@ Cast survey final: 9 sheet characters + 1 hand-rig assessed. Clean walks: 3
 renders, 2 distinct characters. Every failure carries a measured, named
 cause, and the gate rejected every character that failed or would fail.
 
+## GENERALIZATION v2 (2026-08-22, main 2545ef43) — the root cause found
+
+The corpus grew to 24 assessed inputs (6 MIT AD example drawings, the two
+jinn sheets, four alternate/side poses, two ep4 production stills, plus
+the v1 ten). What it found rewrites the v1 conclusions:
+
+**THE BORDER-CUT ROOT CAUSE.** Every pathological outcome — five solver
+hangs (adchar1, adchar2, ringJinni, fisherman_staff at 300 s; magician at
+900 s) and the v1 sliver/fold collapses — had its mask CUT AT THE CROP
+BORDER (>=3 edges touched; clean renders <=2; AD's own bundled rigs 0).
+The tight detector-bbox crop was the defect. Proof chain: my border-cut
+adchar2 rig hangs while AD's padded rig of the SAME drawing renders in
+41 s with the same retarget; re-rendering the SAME rigs with a 24 px
+margin fixed 8 of 10 pathological characters, including full intact walks
+from mother (74.8% fill) and princess (77.6%) — **the v1 "merged-blob
+fill > 65%" rule is FALSIFIED as a mechanism** (it proxied border-cut
+robes). autorig_reference.py now pads every crop; the eligibility gate
+enforces border non-contact, keeps core-joints-on-silhouette, adds the
+measured rig-confidence floor (0.70: clean walks >= 0.77, the crushed
+jarJinni 0.61, failed side views ~0.60), and retains fill only as a 90%
+degenerate-segmentation ceiling. Also falsified and recorded: mask
+boundary complexity as a hang predictor (perim²/area does not separate),
+and single-model segmentation — the classical mask wins on white-paper
+drawings, u2netp on painterly art; the pipeline now measures BOTH per
+character and keeps whichever holds more core joints on-silhouette
+(adchar1/2/4 go from 4-5 core joints outside to zero under classical).
+
+**Confusion matrix (padded, best-mask, real pixels).** Admitted 11:
+clean 9 — aladdin_auto, morgiana, adchar1 (the historic "char1 collapse"
+now walks), adchar2, adchar3, fisherman_staff, and WITH LIMITS the robed
+mother, princess, lampJinni (hem-sway walks; legless jinn sways — no true
+gait to give). Residual false accepts 2: adchar4 (stick figure thinner
+than the ~24 px mesh pitch — no cheap metric separates it yet; canary
+human review is the backstop) and none other; jarJinni, ringJinni,
+adchar5/6, side views, ep4s02 all correctly rejected or detector-refused.
+Safe-direction false rejects: ringJinni (marginal-but-intact, conf 0.66)
+and possibly magician (renders geometry-intact padded; conf/joints keep
+it out — recorded as UNKNOWN quality).
+
+**Frozen-path regression: 3/3 hash-identical** (aladdin hand + auto,
+morgiana) after every experiment — the proven walks never moved.
+
+**IDLE is the second pixel-passed grammar.** Derived deterministically
+from the MIT walk by `bvh_idle_reference.py` (rotations scaled toward
+frame 0, root pinned): s=0.10 FAILED the production aliveness gate (0.43 —
+correctly discarded, recorded); s=0.25 passed pixels (aliveness 0.94,
+grounded feet, stable identity, visible weight shift). WAVE remains
+excluded (near-static + blade, 0.51). TURN/REACH: UNKNOWN, not attempted.
+
+**Chaos, at the render level: 5/5 fail safely.** Empty mask, all-white
+mask, impossible joint, missing mask, malformed motion path — every one
+exits non-zero with no output file; with the provider contract's tested
+miss handling, no garbage clip has a path into a film.
+
+The acceptance standard for all of this is the owner-supplied reference
+poster, translated to measurable terms in `docs/CPU_MOTION_VISUAL_SPEC.md`.
+
 ## Standing verdicts
 
 Provider classification (this loop's Phase 11/19): **CHARACTER-DEPENDENT /
