@@ -179,6 +179,36 @@ describe("the exact official invocation, versioned", () => {
   });
 });
 
+describe("the GPU-day harness mirrors the provider and the validator", () => {
+  // remotion/scripts/wan_i2v_reference.py is what the provisioned GPU host
+  // actually runs. If it drifts from the provider's argv or the worker's
+  // aliveness gate, the benchmark stops measuring what production would do —
+  // so the constants are pinned here, where drift fails the build.
+  const harness = readFileSync(
+    join(process.cwd(), "remotion/scripts/wan_i2v_reference.py"),
+    "utf8",
+  );
+
+  it("runs the provider's exact configuration", () => {
+    expect(harness).toMatch(/MODEL_ID = "Wan-AI\/Wan2\.1-I2V-14B-480P"/);
+    expect(harness).toMatch(/TASK = "i2v-14B"/);
+    expect(harness).toMatch(/SIZE = "832\*480"/);
+    expect(harness).toMatch(/FRAME_NUM = 81/);
+    expect(harness).toMatch(/FPS = 16/);
+    expect(harness).toMatch(/"--offload_model", "True"/);
+    expect(harness).toMatch(/"--base_seed", str\(a\.seed\)/);
+  });
+
+  it("applies the worker's aliveness gate, unweakened", () => {
+    expect(harness).toMatch(/ALIVENESS_MIN = 0\.75/);
+    expect(harness).toMatch(/0\.2126 \* a\[i\] \+ 0\.7152 \* a\[i \+ 1\] \+ 0\.0722 \* a\[i \+ 2\]/);
+    expect(harness).toMatch(/STATIC_REJECTED/);
+    // Aliveness alone is never the motion verdict — the human review is.
+    expect(harness).toMatch(/ALIVE_PENDING_PIXEL_REVIEW/);
+    expect(harness).not.toMatch(/CHARACTER_MOVED"?\s*[:=]\s*(true|True)/);
+  });
+});
+
 describe("Wan is additive — the frozen modules are untouched", () => {
   it("motionProvider.ts (L3R's home) carries no Wan2.1-I2V code", () => {
     const src = readFileSync(join(process.cwd(), "src/lib/motionProvider.ts"), "utf8");
