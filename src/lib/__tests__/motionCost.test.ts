@@ -91,6 +91,20 @@ describe("poseWarpEligible — L3 serves only the shots it can, fails closed", (
     expect(poseWarpEligible({}).eligible).toBe(false);
     expect(poseWarpEligible({ framing: "unknown", stylized: true }).eligible).toBe(false);
   });
+
+  it("Phase 7: a real full-body ONIQ still at 1244px is eligible; a tiny one is not", () => {
+    const ok = poseWarpEligible({ framing: "full", characterCount: 1, stylized: true, longSidePx: 1244 });
+    expect(ok.eligible).toBe(true);
+    const tiny = poseWarpEligible({ framing: "full", characterCount: 1, stylized: true, longSidePx: 200 });
+    expect(tiny.eligible).toBe(false);
+    expect(tiny.reasons.join(" ")).toMatch(/resolution/);
+  });
+
+  it("Phase 7: arms-flush-against-torso escalates (the measured arm-tear failure mode)", () => {
+    const r = poseWarpEligible({ framing: "full", characterCount: 1, stylized: true, armsAgainstTorso: true });
+    expect(r.eligible).toBe(false);
+    expect(r.reasons.join(" ")).toMatch(/arms flush against torso/);
+  });
 });
 
 describe("pose cache — extract once per driver, reuse for every character", () => {

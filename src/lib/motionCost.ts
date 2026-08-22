@@ -177,21 +177,42 @@ export type PoseWarpEligibilityInput = {
   stylized?: boolean;
   /** ¾ / side / back facing (the auto-rigger assumes frontal). */
   nonFrontal?: boolean;
+  /** Long side of the still in px. Too small starves the detector+pose stage;
+   *  Phase 7 auto-rigged a 1244px real ONIQ still cleanly. Optional; when given
+   *  it must clear `minLongSidePx`. */
+  longSidePx?: number;
+  /**
+   * Phase-7 learning: arms hanging FLUSH against the torso. When the still's
+   * arm silhouette merges into the body, the ARAP deform over-stretches that
+   * arm into a claw as the walk driver swings it (measured on the real Aladdin
+   * still — legs/torso/identity were fine, one arm tore). Hard to detect
+   * pre-render, so this is an OPTIONAL upstream hint; the post-render
+   * `l3RenderQc` is the backstop, and a limb-tear detector is the open follow-up.
+   */
+  armsAgainstTorso?: boolean;
 };
 
 /**
  * Decide L3 eligibility, failing CLOSED. Returns the boolean plus the reasons
  * it was rejected, so the escalation log says WHY a shot went to diffusion.
  */
-export function poseWarpEligible(m: PoseWarpEligibilityInput): {
+export function poseWarpEligible(
+  m: PoseWarpEligibilityInput,
+  opts: { minLongSidePx?: number } = {},
+): {
   eligible: boolean;
   reasons: string[];
 } {
+  const minLongSide = opts.minLongSidePx ?? 384;
   const reasons: string[] = [];
   if (m.stylized === false) reasons.push("photoreal (L3 is for illustrated art)");
   if (m.nonFrontal === true) reasons.push("non-frontal framing");
   if (m.occluded === true) reasons.push("occluded / self-occluded");
   if ((m.characterCount ?? 1) > 1) reasons.push("multiple characters");
+  if (m.armsAgainstTorso === true) reasons.push("arms flush against torso (ARAP over-stretch risk)");
+  if (m.longSidePx !== undefined && m.longSidePx < minLongSide) {
+    reasons.push(`resolution ${m.longSidePx}px < ${minLongSide}px (too small to rig)`);
+  }
   const framing = m.framing ?? "unknown";
   if (!FULL_BODY_FRAMINGS.has(framing)) reasons.push(`framing "${framing}" is not full-body`);
   return { eligible: reasons.length === 0, reasons };
