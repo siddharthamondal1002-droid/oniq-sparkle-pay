@@ -165,10 +165,12 @@ describe("particlesAt", () => {
     expect(worker).toMatch(/vfx = \{ kind, seed: vfxSeed\(/);
     // "one authoritative visible-scene weather decision" (owner, 2026-08-21):
     // the SAME token gates the image prompt and the VFX, so they cannot
-    // disagree. It is decided from the shot's own scene (selectSceneWeather on
-    // shot.still), never the narration or the film-wide theme — pin that the
-    // overlay reuses that one decision rather than re-deriving from other text.
-    expect(worker).toMatch(/const sceneWeather = selectSceneWeather\(shot\.still\);/);
+    // disagree. It is decided from the shot's own scene text — since the AI
+    // Director brick, the DIRECTED still (the plan's still plus a vfx-neutral
+    // size/lighting note; shotDirector.test.ts pins the neutrality) — never
+    // the narration or the film-wide theme. Pin that the overlay reuses that
+    // one decision rather than re-deriving from other text.
+    expect(worker).toMatch(/const sceneWeather = selectSceneWeather\(directedStill\);/);
     expect(worker).toMatch(/weatherConsistentSetting\(plan\.setting/);
     expect(worker).not.toMatch(/vfxKindFor\(`\$\{shot\.still\} \$\{shot\.narration\}`\)/);
     const film = readFileSync(join(process.cwd(), "remotion/src/story/StoryFilm.tsx"), "utf8");
