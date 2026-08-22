@@ -11,6 +11,19 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// Brute-force gate: without this, an attacker gets unlimited access-token
+// guesses AND each guess spends an MSG91 verify call under our auth key. Same
+// per-IP window as send-otp (5 per 60s per isolate); a legitimate user
+// verifies once per login, so 5/min never touches a real flow.
+const RL: Map<string, number[]> = new Map();
+function rateLimited(ip: string): boolean {
+  const now = Date.now();
+  const arr = (RL.get(ip) ?? []).filter((t) => now - t < 60_000);
+  arr.push(now);
+  RL.set(ip, arr);
+  return arr.length > 5;
+}
+
 function normalizeIndian(raw: string): string | null {
   const digits = String(raw || "").replace(/\D/g, "");
   const trimmed = digits.replace(/^0+/, "").replace(/^91/, "");
@@ -24,6 +37,13 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "method not allowed" }), {
       status: 405, headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
+  if (rateLimited(ip)) {
+    return new Response(JSON.stringify({ error: "too many requests, slow down" }), {
+      status: 429, headers: { ...CORS, "Content-Type": "application/json" },
     });
   }
 
