@@ -1,0 +1,68 @@
+name: extract motion frames
+
+# ONE-OFF EVIDENCE TOOL for the owner-authorized Veo `select` character-motion
+# validation (job 98952740, 2026-08-22). Downloads the finished film from a
+# short-lived SIGNED URL (Route B holds: no Supabase key here — the URL is
+# minted by the service that owns the bucket and expires on its own), extracts
+# the frames named in the input, builds one contact sheet, and commits the lot
+# to an orphan evidence branch for frame-level inspection. Same pattern as the
+# 838bd9e6 actor-frame extractor; deleted after use like its predecessors.
+
+on:
+  workflow_dispatch:
+    inputs:
+      signed_url:
+        description: Signed URL of the validation mp4 (short-lived)
+        required: true
+      seconds:
+        description: Comma-separated timestamps (s) to extract
+        required: true
+        default: "0.5,1.5,2.5,3.5,4.5,5.5,6.5,7.5,9.0,11.0,12.5,13.2,14.0,14.8,15.6,16.4,17.2,18.0,18.8,19.6,31.0,45.0,61.0"
+      branch:
+        description: Evidence branch to commit frames to
+        required: true
+        default: val-motion-98952740
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: mask the signed url
+        run: echo "::add-mask::${{ inputs.signed_url }}"
+
+      - name: fetch the film
+        run: |
+          curl -sSf -o /tmp/film.mp4 "${{ inputs.signed_url }}"
+          ls -l /tmp/film.mp4
+          ffprobe -v error -show_entries format=duration,size -of default=nw=1 /tmp/film.mp4
+
+      - name: extract frames
+        run: |
+          mkdir -p /tmp/frames
+          IFS=',' read -ra TS <<< "${{ inputs.seconds }}"
+          for t in "${TS[@]}"; do
+            ffmpeg -v error -ss "$t" -i /tmp/film.mp4 -frames:v 1 \
+              "/tmp/frames/f_$(printf '%06.2f' "$t").png"
+          done
+          # One contact sheet across the whole set, scaled for a quick look.
+          ffmpeg -v error -pattern_type glob -i '/tmp/frames/f_*.png' \
+            -vf "scale=270:-2,tile=6x4" /tmp/frames/contact.png || true
+          ls -l /tmp/frames
+
+      - name: commit to the evidence branch
+        run: |
+          git config user.name "motion-frame-extractor"
+          git config user.email "actions@users.noreply.github.com"
+          git checkout --orphan "${{ inputs.branch }}"
+          git rm -rf --quiet . || true
+          mkdir -p frames
+          cp /tmp/frames/*.png frames/
+          git add frames
+          git commit -m "motion validation frames — job 98952740, run evidence"
+          git push -f origin "${{ inputs.branch }}"
