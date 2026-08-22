@@ -9,7 +9,8 @@
 # storyfilm_l3r_shot.mp4. No colour/identity hard-coded (geometric only).
 #
 # MEASURED (2026-08-22, 4-core CPU) real Aladdin + zombie walk: extraction ~2s,
-# 149-frame 720x1280 render ~120s wall (~115s CPU), peak RSS ~2.0 GB. GPU=0, ₹0.
+# 149-frame 720x1280 render ~43s wall (~39s CPU, Phase-12 per-part-bbox
+# compositor; was ~120s), peak RSS ~1.86 GB. GPU=0, ₹0.
 # Verdict L3R = PASS_WITH_LIMITS (blades resolved; minor joint seams remain).
 # See MOTION_RIGID_PUPPET_HARDENING.md. Reference/proof only; not wired to
 # production; no media/weights in git.
@@ -123,15 +124,25 @@ if MODE=="validate" or uncertain:
     if uncertain: sys.exit(3)
     if MODE=="validate": sys.exit(0)
 
-# ---- canvas + sprites -----------------------------------------------------------
+# ---- canvas + TIGHT per-part sprite crops (Phase 12 compositor optimization) ----
+# Each part is stored as a small RGBA crop at its own origin, not a full-canvas
+# sprite. warpAffine cost is O(output pixels), so each frame warps 14 SMALL
+# buffers into their transformed bboxes instead of 14 full 720x1280 canvases.
+# The transform math is unchanged, so the output is pixel-equivalent (verified).
 CW,CH=720,1280; ox,oy=(CW-W)//2,90
 def to_canvas(p): return np.array([p[0]+ox,p[1]+oy],float)
-sprites={}
+crop_spr={}; crop_org={}
 for n in names:
-    spr=np.zeros((CH,CW,4),np.float32)
-    spr[oy:oy+H,ox:ox+W,:3]=rgb.astype(np.float32)
-    spr[oy:oy+H,ox:ox+W,3]=part_alpha[n]*255.0
-    sprites[n]=spr
+    a=part_alpha[n]                          # HxW in still coords
+    ys2,xs2=np.where(a>0.004)
+    if len(xs2)==0:
+        crop_spr[n]=None; continue
+    x0,x1,y0,y1=xs2.min(),xs2.max()+1,ys2.min(),ys2.max()+1
+    sub=np.zeros((y1-y0,x1-x0,4),np.float32)
+    sub[:,:,:3]=rgb[y0:y1,x0:x1].astype(np.float32)
+    sub[:,:,3]=a[y0:y1,x0:x1]*255.0
+    crop_spr[n]=sub
+    crop_org[n]=(x0+ox, y0+oy)               # crop (0,0) in CANVAS coords
 Z=["thigh_l","shin_l","foot_l","thigh_r","shin_r","foot_r","torso","head",
    "upper_arm_l","forearm_l","hand_l","upper_arm_r","forearm_r","hand_r"]
 CH_=({}); [CH_.setdefault(PARENT[n],[]).append(n) for n in PARENT]
@@ -149,13 +160,29 @@ def compose(fa,rdx,rdy):
     walk("torso",0.0,None,None)
     canv=np.zeros((CH,CW,4),np.float32)
     for n in Z:
-        cr=to_canvas(PIVOT[n]); deg=math.degrees(acc[n])
-        M=cv2.getRotationMatrix2D((float(cr[0]),float(cr[1])),-deg,1.0)
-        M[0,2]+=cur[n][0]-cr[0]; M[1,2]+=cur[n][1]-cr[1]
-        w=cv2.warpAffine(sprites[n],M,(CW,CH),flags=cv2.INTER_LINEAR,borderValue=(0,0,0,0))
+        sub=crop_spr.get(n)
+        if sub is None: continue
+        ch2,cw2=sub.shape[:2]
+        # match cv2.getRotationMatrix2D(cr, -degrees(acc)) EXACTLY: rot part is
+        # [[cosθ,-sinθ],[sinθ,cosθ]] with θ=acc (rad). (Phase-12 opt must be
+        # pixel-equivalent to the pre-opt full-canvas warp.)
+        cr=to_canvas(PIVOT[n]); cs,sn=math.cos(acc[n]),math.sin(acc[n]); R=np.array([[cs,-sn],[sn,cs]])
+        t=cur[n]-R@cr                                       # full-canvas rot(about cr)+move-to-cur
+        sx,sy=crop_org[n]
+        tt=R@np.array([sx,sy])+t                            # crop-origin → canvas dest
+        # dest bbox from the 4 transformed crop corners
+        cor=np.array([[0,0],[cw2,0],[0,ch2],[cw2,ch2]],float)
+        d=(cor@R.T)+tt
+        dx0=int(math.floor(d[:,0].min())); dx1=int(math.ceil(d[:,0].max()))
+        dy0=int(math.floor(d[:,1].min())); dy1=int(math.ceil(d[:,1].max()))
+        dx0c,dy0c=max(0,dx0),max(0,dy0); dx1c,dy1c=min(CW,dx1),min(CH,dy1)
+        if dx1c<=dx0c or dy1c<=dy0c: continue
+        M=np.zeros((2,3),np.float32); M[:,:2]=R; M[0,2]=tt[0]-dx0c; M[1,2]=tt[1]-dy0c
+        w=cv2.warpAffine(sub,M,(dx1c-dx0c,dy1c-dy0c),flags=cv2.INTER_LINEAR,borderValue=(0,0,0,0))
+        reg=canv[dy0c:dy1c,dx0c:dx1c]
         al=w[:,:,3:4]/255.0
-        canv[:,:,:3]=w[:,:,:3]*al+canv[:,:,:3]*(1-al)
-        canv[:,:,3:4]=np.clip(w[:,:,3:4]+canv[:,:,3:4]*(1-al),0,255)
+        reg[:,:,:3]=w[:,:,:3]*al+reg[:,:,:3]*(1-al)
+        reg[:,:,3:4]=np.clip(w[:,:,3:4]+reg[:,:,3:4]*(1-al),0,255)
     return canv
 def flat(c):
     a=c[:,:,3:4]/255.0; return (c[:,:,:3]*a+255.0*(1-a)).astype(np.uint8)
