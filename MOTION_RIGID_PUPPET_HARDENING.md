@@ -182,15 +182,44 @@ padding fixed in still coordinates either rotates out of place (iter 3) or peeks
 out as a new component (iters 2, 4). Closing it cleanly requires geometry that
 DEFORMS with the joint angle.
 
-**Next distinct lever (recorded, larger build):** a LOCAL per-joint soft blend —
-a small ARAP/mesh patch confined to each joint region that deforms with the
-relative bone angle, over otherwise-rigid parts (a hybrid L3R + local-ARAP). This
-is the only remaining approach that can close the seam without the whole-body
-ARAP claw that failed globally (Phase 8). It is a real engine change, not a tweak,
-so it is the next iteration's single action rather than another padding sweep.
+**Iteration 5 — mean-angle articulated joint patch (P2, MARGINAL / not shipped).**
+Acting on the iter-2/3/4 finding, this lever DEFORMS with the joint instead of
+sitting fixed in still-coords: a small fg-masked patch sampled at each joint,
+drawn UNDER both parts, positioned at the joint's live FK location (`cur[child]`)
+and rotated to the AVERAGE of the parent+child bone angles — so it points into
+the wedge that opens between the two swinging bones. (Compositor blit refactored
+into a shared helper first; JBRIDGE=0 verified pixel-identical to baseline, diff
+0.0.) Real render:
+- R=24: holes 4244→**4206 (−0.9%)**, holes_max 14151→**14001 (−1.1%, better)**,
+  **extra_comp_frac 0.879 UNCHANGED**, components 3.79→3.90 (+3%).
+- R=34: holes 4154 (−2.1%) but holes_max→14589 and extra→0.893 (worse).
+- **This is the first lever that improves the seam metric WITHOUT regressing
+  detachment frequency** — the mean-angle mechanism is validated where the three
+  padding levers failed. BUT: R=24's gain is sub-1% with a small components
+  uptick, and worst-frame A/B (f40/f80/f110) shows **no visible change** — the
+  dominant worst-frame artifact is a LARGE detachment (e.g. a sandal flung off
+  the shin on a big ankle swing), a gap far wider than a pivot-centred disc can
+  span. **DECISION: not shipped** into the engine (sub-1% cosmetic gain doesn't
+  clear RULE 7's bar for changing the production-intent compositor); kept
+  env-gated (`L3R_JOINT_BRIDGE`, default 0) in the scratchpad as the
+  mechanism-validated near-miss. Repo reference stays clean.
+
+**Next distinct lever (recorded, the real build):** a DEFORMING joint bridge
+QUAD — a thin quad spanning the parent's distal bone-end to the child's proximal
+bone-end, one edge pinned to each part's transform, so it STRETCHES to cover the
+large separations a fixed disc can't (the flung sandal/hand) — and/or a LOCAL
+per-joint ARAP patch confined to the joint region. Both deform with the
+articulation (the property iter 5 proved matters) and both target the large
+detachments that actually dominate the worst frames. This is a real engine
+change, the next iteration's single action — not another padding/patch sweep,
+all of which are now exhausted.
 
 **Loop status:** L3R still **PASS_WITH_LIMITS** — the compositor is 2.7× faster
 with verified-identical output (iter 1, kept); the seam/detach limit is now
-quantified AND explained (a rigid-method structural floor, three padding levers
-falsified). Not production-ready (seams/detach not within a shippable band);
-router stays fail-closed; not globally enabled; not on main. Motion suite green.
+quantified AND explained (a rigid-method structural floor), with the fix
+direction narrowed by experiment: four fixed-in-still-coords padding levers
+falsified (iters 2–4), and the deforming mean-angle mechanism validated but too
+small alone (iter 5) — pointing to a deforming bridge quad / local-ARAP as the
+only remaining seam-closer. Not production-ready (seams/detach not within a
+shippable band); router stays fail-closed; not globally enabled; not on main.
+Motion suite green.
