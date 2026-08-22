@@ -145,14 +145,52 @@ no contamination) at 14/18/22, but the seam metric got WORSE on detachment:
   swing, creating more floating pieces. **DECISION: REVERT** (repo kept at
   overlap 11). Evidence: uniform overlap is the wrong lever.
 
-**Seam fix — correct next lever (not yet implemented):** PROXIMAL-directional
-joint patches (extend each limb only toward its PARENT joint, and/or keep a small
-parent-owned disc at each joint drawn under the child) so a swung limb's joint gap
-is covered without enlarging the flying distal end. This is the highest-value
-remaining L3R item and the NEXT single action.
+**Iteration 3 — proximal-directional child extension (P2, REVERT).**
+Extend each limb's alpha ONLY near its proximal joint (dilate by a larger kernel
+but keep the extra tissue inside a small disc around the pivot), leaving the
+distal end at overlap 11 so the flinging end isn't enlarged (iter-2's failure).
+Health gate stayed clean at every setting swept (`far_frac` ~0, `PART_EXTRACTION_OK`).
+Real render (`L3R_PROX_OVERLAP=16 L3R_PROX_RADIUS=45`):
+- holes 4244→**4128** (−2.7%) but **components 3.79→4.90, extra_comp_frac
+  0.88→0.94 (+29% detachment)**. Worst-frame (f80) visual A/B: waist seams
+  marginally better, no meaningful net gain. **Why:** a patch baked into the
+  CHILD rotates WITH the child, so it cannot cover the far side of the wedge that
+  opens when the child swings away — instead its far edge peels off as a new
+  floating piece. **DECISION: REVERT.**
+
+**Iteration 4 — parent-owned static joint disc (P2, REVERT).**
+The complementary lever: bake a small fg-masked disc into the PARENT's sprite at
+the shared joint (added AFTER the health gate, so it never affects validation).
+It moves with the parent, stays anchored at the joint, and the child (drawn on
+top) hides all of it except the exposed wedge. Real render, disc radius sweep:
+- R=24: holes 4244→4231, components 3.79→3.99 · R=34: holes 4228, components
+  4.13, **holes_max 14151→14775 (worse)** · R=44: holes 4244→**4150** (−2.2%),
+  components 3.79→4.08, extra 0.88→**0.93**, holes_max→14892.
+- Worst-frame visual A/B: the disc **does** fill the waist/hip white cracks
+  (visibly more intact torso), but the detachment metric regresses at every
+  radius and larger discs peek past the child silhouette as new pieces. No
+  radius is a clean win. **DECISION: REVERT** (kept inert, default-off, in the
+  scratchpad engine as a documented dead-end; the repo reference stays clean).
+
+**Structural finding (evidence-backed).** Three mechanistically-distinct
+still-coordinate patch levers — symmetric overlap (iter 2), proximal child
+extension (iter 3), parent joint disc (iter 4) — each trade a ~2–3% enclosed-hole
+reduction for MORE fragmentation. The residual seam/detach is therefore a
+**structural floor of rigid-part puppeting, not a tuning bug**: because parts are
+rigid, a joint seam is the relative-rotation gap between two rigid pieces, and any
+padding fixed in still coordinates either rotates out of place (iter 3) or peeks
+out as a new component (iters 2, 4). Closing it cleanly requires geometry that
+DEFORMS with the joint angle.
+
+**Next distinct lever (recorded, larger build):** a LOCAL per-joint soft blend —
+a small ARAP/mesh patch confined to each joint region that deforms with the
+relative bone angle, over otherwise-rigid parts (a hybrid L3R + local-ARAP). This
+is the only remaining approach that can close the seam without the whole-body
+ARAP claw that failed globally (Phase 8). It is a real engine change, not a tweak,
+so it is the next iteration's single action rather than another padding sweep.
 
 **Loop status:** L3R still **PASS_WITH_LIMITS** — the compositor is 2.7× faster
-with identical (verified) output; the seam/detach limit is unchanged and now
-quantified with a repeatable metric. Not production-ready (seams/detach not yet
-within a measured band); router stays fail-closed; not globally enabled; not on
-main.
+with verified-identical output (iter 1, kept); the seam/detach limit is now
+quantified AND explained (a rigid-method structural floor, three padding levers
+falsified). Not production-ready (seams/detach not within a shippable band);
+router stays fail-closed; not globally enabled; not on main. Motion suite green.
