@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
     const res = await fetch(
       `${supabaseUrl}/rest/v1/story_jobs?status=eq.queued` +
         `&or=(dispatched_at.is.null,dispatched_at.lt.${staleBefore})` +
-        `&order=created_at.asc&limit=1&select=id,requested_seconds,actor_refs`,
+        `&order=created_at.asc&limit=1&select=id,requested_seconds,actor_refs,grade`,
       { headers: { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` } },
     );
     if (!res.ok) {
@@ -153,16 +153,22 @@ Deno.serve(async (req) => {
       id: string;
       requested_seconds: number;
       actor_refs?: boolean;
+      grade?: string;
     }[];
     if (!Array.isArray(rows) || rows.length === 0) {
       return json({ dispatched: false, reason: "nothing queued" }, 200);
     }
 
     const jobId = rows[0].id;
-    // OWNER-ACTOR conditioning is opt-in PER JOB. The flag travels with the
-    // dispatch so the workflow can set STORY_ACTOR_REFS=on for exactly this job
-    // and no other. Default false: every ordinary job renders exactly as before.
-    const actorRefs = rows[0].actor_refs === true;
+    // OWNER-ACTOR conditioning GRADUATED to default-on for MOVIE grade
+    // (2026-08-22), after the 43-shot acceptance render (job 5871421e) passed
+    // visual inspection: 38/38 eligible shots conditioned with clean anatomy
+    // and no reference contamination, and the sheet-refusal path degraded
+    // gracefully to text-only draws. The per-job flag still wins for any job
+    // that set it explicitly, classic-grade jobs stay off (their pipeline
+    // never carried conditioning), and the workflow/worker defaults remain
+    // 'off' — an unset payload can never enable it anywhere else.
+    const actorRefs = rows[0].actor_refs === true || rows[0].grade === "movie";
     const token = await mintJobToken(jobId, jobSecret!);
 
     // Stamped BEFORE the GitHub call, not after. If the dispatch throws or the
