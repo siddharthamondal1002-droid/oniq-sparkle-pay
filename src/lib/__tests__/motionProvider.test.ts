@@ -18,6 +18,7 @@ import {
   gpuVaceBackend,
   makeVaceMotionProvider,
   motionOnlyPrompt,
+  rigidPartHealthy,
   rigidPuppetEligible,
   runMotion,
   selectProviderOrder,
@@ -288,6 +289,28 @@ describe("L3R rigid-part puppet — the zero-GPU escalation between ARAP and VAC
     expect(rigidPuppetEligible({ singleCharacter: true, fullBody: true, allPartsExtracted: true, outOfPlane: true }).eligible).toBe(false);
     expect(rigidPuppetEligible({ singleCharacter: true, fullBody: true, allPartsExtracted: true, occluded: true }).eligible).toBe(false);
     expect(rigidPuppetEligible({ singleCharacter: false, fullBody: true, allPartsExtracted: true }).eligible).toBe(false);
+  });
+
+  it("REGRESSION (storyfilm_l3r_shot.mp4): a pants-contaminated hand part is REJECTED", () => {
+    // The Phase-10 bug: the hand/forearm captured dark-blue PANTS pixels (a narrow
+    // triangular "blade") that rigid FK swung. Metrics of that contaminated part:
+    const contaminatedHand = { outsideCorridorFrac: 0.3, fragmentFrac: 0.31, bboxFill: 0.22 };
+    expect(rigidPartHealthy(contaminatedHand)).toBe(false);
+    // The Phase-11 corridor-limited fix (measured on the same Aladdin still):
+    const fixedHand = { outsideCorridorFrac: 0.0, fragmentFrac: 0.0, bboxFill: 0.68 };
+    expect(rigidPartHealthy(fixedHand)).toBe(true);
+    // any single failing axis fails closed
+    expect(rigidPartHealthy({ outsideCorridorFrac: 0.2, fragmentFrac: 0, bboxFill: 0.7 })).toBe(false);
+    expect(rigidPartHealthy({ outsideCorridorFrac: 0, fragmentFrac: 0.3, bboxFill: 0.7 })).toBe(false);
+    expect(rigidPartHealthy({ outsideCorridorFrac: 0, fragmentFrac: 0, bboxFill: 0.15 })).toBe(false);
+  });
+
+  it("REGRESSION: unhealthy hands → L3R ineligible → PART_EXTRACTION_UNCERTAIN (escalate, not a broken clip)", () => {
+    const r = rigidPuppetEligible({ singleCharacter: true, fullBody: true, allPartsExtracted: true, handsHealthy: false });
+    expect(r.eligible).toBe(false);
+    expect(r.reasons.join(" ")).toMatch(/PART_EXTRACTION_UNCERTAIN/);
+    // healthy hands + all else good → eligible
+    expect(rigidPuppetEligible({ singleCharacter: true, fullBody: true, allPartsExtracted: true, handsHealthy: true }).eligible).toBe(true);
   });
 
   it("L3R clip flows through runMotion like any provider; unavailable → still, never a fake clip", async () => {

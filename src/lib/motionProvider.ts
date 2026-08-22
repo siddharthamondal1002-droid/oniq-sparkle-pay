@@ -661,18 +661,46 @@ export const RIGID_PUPPET_META: ProviderMeta = {
 };
 
 /**
+ * Structural health of ONE extracted rigid part (Phase 11). This is the gate that
+ * catches the `storyfilm_l3r_shot.mp4` failure: the hand/forearm parts had
+ * captured dark-blue PANTS pixels (the hands rest at the waist), which rigid FK
+ * then swung as triangular "blade" artifacts. The checks are GEOMETRIC only — no
+ * colour, ethnicity, or identity is hard-coded, so they work from any supplied
+ * character. Thresholds are justified by the measured contrast: the contaminated
+ * parts read outsideCorridorFrac ≈ 0.26–0.32 and fragmentFrac up to 0.31, while
+ * the corridor-limited fix measures outsideCorridorFrac 0.0, fragmentFrac 0.0,
+ * bboxFill 0.58–0.87 — so these cutoffs reject the bug and pass the fix with margin.
+ */
+export type RigidPartMetrics = {
+  /** Fraction of the part's alpha lying OUTSIDE its bone corridor (contamination). */
+  outsideCorridorFrac: number;
+  /** Fraction of alpha NOT in the largest connected component (fragmentation). */
+  fragmentFrac: number;
+  /** bbox fill ratio; low ⇒ spiky/triangular geometry (the "blade"). */
+  bboxFill: number;
+};
+
+export function rigidPartHealthy(m: RigidPartMetrics): boolean {
+  return m.outsideCorridorFrac <= 0.06 && m.fragmentFrac <= 0.15 && m.bboxFill >= 0.3;
+}
+
+/**
  * L3R eligibility, FAIL-CLOSED. The rigid puppet needs every limb reliably
  * separable from the single, full-body, in-plane character; a part that can't be
- * extracted (too little foreground on its bone) is `PART_EXTRACTION_UNCERTAIN`
- * and the shot escalates to L4 rather than shipping a broken puppet. It also
- * only helps the case ARAP fails (in-plane articulation on a frontal figure);
- * out-of-plane/occluded/multi-character shots still go to diffusion.
+ * extracted (too little foreground on its bone) or whose geometry is unhealthy
+ * (`handsHealthy === false` — the Phase-11 hand-contamination gate) is
+ * `PART_EXTRACTION_UNCERTAIN` and the shot escalates to L4 rather than shipping a
+ * broken puppet. It also only helps the case ARAP fails (in-plane articulation on
+ * a frontal figure); out-of-plane/occluded/multi-character shots still go to
+ * diffusion.
  */
 export function rigidPuppetEligible(m: {
   singleCharacter?: boolean;
   fullBody?: boolean;
   /** Every rig bone had enough foreground to become a part (the fail-closed gate). */
   allPartsExtracted?: boolean;
+  /** All hand/forearm parts passed `rigidPartHealthy` (no pants/blade contamination). */
+  handsHealthy?: boolean;
   /** Large out-of-plane limb motion the 2D puppet cannot foreshorten. */
   outOfPlane?: boolean;
   occluded?: boolean;
@@ -681,6 +709,7 @@ export function rigidPuppetEligible(m: {
   if (m.singleCharacter === false) reasons.push("multiple characters");
   if (m.fullBody === false) reasons.push("not full-body (limbs off-frame)");
   if (m.allPartsExtracted !== true) reasons.push("PART_EXTRACTION_UNCERTAIN");
+  if (m.handsHealthy === false) reasons.push("PART_EXTRACTION_UNCERTAIN: hand/forearm contamination");
   if (m.outOfPlane === true) reasons.push("out-of-plane limb motion (needs diffusion)");
   if (m.occluded === true) reasons.push("occluded limbs");
   return { eligible: reasons.length === 0, reasons };
