@@ -33,6 +33,19 @@ describe("the worker runs PREFLIGHT before the expensive stage", () => {
     expect(renderAt).toBeGreaterThan(throwAt); // render is downstream of the gate
   });
 
+  it("refuses an out-of-band request BEFORE the first billable call", () => {
+    // Validation job dae3d4ee (2026-08-22) proved the gap: a 35s ops-inserted
+    // row spent its whole generation budget (eight Veo clips among it) and
+    // only THEN died on PREFLIGHT_JOB_INVALID — preflight runs after PREPARE.
+    // The claim RPC guards product jobs; this early check guards everything
+    // else. It must sit above planStory (the first step of the paid ladder).
+    const bandAt = WORKER.indexOf("job.requestedSeconds < MIN_STORY_SECONDS");
+    const planAt = WORKER.indexOf("planStory(job.requestedSeconds).shots.length");
+    expect(WORKER).toMatch(/job\.requestedSeconds < MIN_STORY_SECONDS \|\|\s*\n?\s*job\.requestedSeconds > MAX_STORY_SECONDS/);
+    expect(bandAt).toBeGreaterThan(0);
+    expect(planAt).toBeGreaterThan(bandAt);
+  });
+
   it("builds the manifest from the same plan the render loads", () => {
     expect(WORKER).toMatch(/buildPreflightManifest\(job, renderInput, rendered, publicDir\)/);
     // Probes the real files, not just existsSync — size and (for av) duration.
