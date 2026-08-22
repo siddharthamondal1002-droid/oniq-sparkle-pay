@@ -1,0 +1,10 @@
+{
+  "id": "walk_9x16",
+  "motionClass": "WALK",
+  "driverVideo": "remotion/fixtures/motion-drivers/walk_9x16.mp4",
+  "durationSeconds": 8,
+  "fps": 30,
+  "aspectRatio": "9:16",
+  "source": "PLACEHOLDER — descriptor only; no driver video is committed yet. Before real inference a permissively-licensed 9:16 walk-cycle reference (movement only, no identity) will be added and its license recorded in OSS_MODEL_LICENSES.md. driverVideo is the path that reference will occupy.",
+  "license": "TBD-PLACEHOLDER"
+}

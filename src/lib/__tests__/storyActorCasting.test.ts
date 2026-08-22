@@ -42,6 +42,39 @@ describe("matchActor — conservative, deterministic, owner-map only", () => {
   });
 });
 
+describe("ACTOR ASSET ≠ PERMANENT BIOGRAPHY — reusable reference, current description wins", () => {
+  // The product rule: an owner asset is a REUSABLE VISUAL reference, never a
+  // fixed biography. It is attached only when the CURRENT shot text already
+  // agrees with it (text-driven selection), and even then it contributes image
+  // conditioning only — 100% of the generation prompt is the current shot. So a
+  // divergent description can never make the asset impose a contradicting
+  // ethnicity/gender/age/occupation/location: it simply is not selected, and the
+  // shot falls back to text-only. These pin that a stored description cannot
+  // override a contradicting current request. (Audit 2026-08-21: no bug; guard.)
+  const FISH_MARKET = "caribbean-fish-market"; // region Jamaica, "Fishmonger woman ... coastal market"
+
+  it("a matching current description selects the asset (reuse works)", () => {
+    const m = matchActor("a Jamaican fishmonger woman arranging fresh fish at a coastal market");
+    expect(m?.actor.styleRefId).toBe(FISH_MARKET);
+  });
+
+  it("a divergent description does NOT bind that same asset (current wins, no biography lock)", () => {
+    // Same visual family could be *reused* by the owner, but the current shot
+    // says something else entirely — a different ethnicity, occupation and
+    // place. The Jamaica fishmonger asset must not latch on and make her wear
+    // the wrong identity; the matcher yields it (text-only fallback instead).
+    const m = matchActor("a middle-aged Bengali woman selling saris in a Kolkata bazaar");
+    expect(m?.actor.styleRefId).not.toBe(FISH_MARKET);
+  });
+
+  it("a bare shared subject ('woman') never latches the asset onto an unrelated occupation", () => {
+    // "woman" alone is one shared token; the two-token floor keeps it from
+    // binding a specific registered actor to a generic, unrelated description.
+    const m = matchActor("a young Japanese office worker, a woman, at her desk");
+    expect(m?.actor.styleRefId).not.toBe(FISH_MARKET);
+  });
+});
+
 describe("castShot — only relevant actors, capped, deduped", () => {
   it("returns at most `max` distinct actors, best first", () => {
     const cast = castShot(["Oaxacan weaver at her loom", "Oaxacan weaver again"], { max: 2 });

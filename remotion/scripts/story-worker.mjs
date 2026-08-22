@@ -74,6 +74,7 @@ import { selectSceneWeather, weatherConsistentSetting } from '../../src/lib/scen
 import { emotionFor } from '../../src/lib/expressionGrammar.ts';
 import { ambienceFor, ambienceGraph, scoreFor, scoreGraph } from '../../src/lib/soundStage.ts';
 import { packNarrations, verbatimFits } from '../../src/lib/verbatimNarration.ts';
+import { validateFilmMotion } from '../../src/lib/motionValidate.ts';
 import {
   TWO_SHOT_MAX_FIGURE_HEIGHT,
   centerForFacing,
@@ -2147,6 +2148,27 @@ if (offline) {
         console.log('  score: no register earned — silent');
       }
     }
+
+    // MOTION_VALIDATE — observability only, never regeneration (owner directive,
+    // 2026-08-21). Report how many shots carry a real character-motion SOURCE —
+    // a temporal clip or a measured rig puppet — versus how many are still-only.
+    // A still moved by camera and parallax is NOT a character walking or
+    // talking, and a previous run was misread as "motion PASS" on exactly that
+    // evidence. This line makes the distinction legible in every future log; it
+    // emits UNKNOWN/FAIL only (a PASS needs pixel proof this stage does not
+    // have). See src/lib/motionValidate.ts.
+    const motion = validateFilmMotion(
+      rendered.map((s, i) => ({
+        action: `${plan.shots[i]?.still ?? ''} ${plan.shots[i]?.narration ?? ''}`,
+        hasClip: Boolean(s.clip),
+        hasRig: Boolean(s.character),
+      })),
+    );
+    console.log(
+      `  MOTION_VALIDATE ${motion.verdict}: ${motion.withSource}/${motion.total} shots ` +
+        `have a character-motion source (clip/rig), ${motion.stillOnly} still-only, ` +
+        `${motion.failed} FAIL (action calls for motion but rendered still-only)`,
+    );
 
     // PREPARE is done — every still, voice and clip is on disk. The boundary is
     // logged so the expensive stages that follow have a clear start line.
