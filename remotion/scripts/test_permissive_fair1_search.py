@@ -209,8 +209,15 @@ def t17_classification_stays_open():
 
 
 @test
-def t18_the_report_records_four_routes_not_three():
-    assert "Four independent routes" in REP
+def t18_the_report_still_records_route_4():
+    """Later routes may be appended; route 4 must never be dropped or diluted.
+
+    The pin is route 4's own section, not the literal route count — that count
+    legitimately grows as routes are added.
+    """
+    n = re.search(r"^(\w+) independent routes", REP, re.M)
+    assert n, "the report must state how many routes were attempted"
+    assert n.group(1) in ("Four", "Five", "Six", "Seven", "Eight"), n.group(1)
     assert "## Route 4" in REP
     assert "ALTERNATIVE_FAIR1_WALK_BVH = NOT_FOUND" in REP
     # route 1 of the unblock list is struck through, not deleted

@@ -1,0 +1,118 @@
+{
+ "record": "100STYLE_SOURCE_PROVENANCE",
+ "version": "1.0",
+ "probe_utc": "2026-08-23T15:08:02Z",
+ "result": "ACQUISITION_BLOCKED_BY_NETWORK_POLICY",
+ "outcome_class": "FAIL_CLOSED_two_stop_conditions_met",
+ "stop_conditions_met": [
+  "license cannot be verified from the authoritative 100STYLE source",
+  "BVH cannot be downloaded"
+ ],
+ "dataset_identified": {
+  "dataset_name": "100STYLE",
+  "author": "Ian Mason (with Sebastian Starke, Taku Komura)",
+  "canonical_project_page": "https://ianxmason.github.io/100style/",
+  "canonical_alternate_page": "https://www.ianxmason.com/100style/",
+  "canonical_data_host": "https://zenodo.org/records/8127870",
+  "canonical_doi": "https://doi.org/10.5281/zenodo.8127870",
+  "identification_evidence": "WEB_SEARCH_RESULT_TITLES_AND_URLS",
+  "identification_note": "the dataset's identity and canonical URLs are established. NOTHING about its licence or contents is established from these, because none of the hosts could be read."
+ },
+ "reachability": {
+  "method": "HTTPS CONNECT through the session agent proxy; curl and WebFetch agree",
+  "control_host_proving_the_network_works": {
+   "url": "https://raw.githubusercontent.com/orangeduck/100style-retarget/master/README.md",
+   "http": 200,
+   "note": "fetched in the SAME batch as every 000 below, so the failures are policy denials, not a broken session"
+  },
+  "blocked": [
+   {"host": "ianxmason.github.io", "url": "https://ianxmason.github.io/100style/", "curl": "000", "proxy": "connect_rejected 403 at 2026-08-23T15:08:02.920Z", "would_have_supplied": "AUTHORITATIVE LICENCE + file naming + hierarchy"},
+   {"host": "www.ianxmason.com", "url": "https://www.ianxmason.com/100style/", "curl": "000", "proxy": "connect_rejected 403 at 2026-08-23T15:08:03.209Z", "would_have_supplied": "AUTHORITATIVE LICENCE (author's own domain)"},
+   {"host": "zenodo.org", "url": "https://zenodo.org/records/8127870", "curl": "000", "proxy": "connect_rejected 403 at 2026-08-23T15:08:03.463Z", "would_have_supplied": "AUTHORITATIVE LICENCE METADATA + 100STYLE.zip"},
+   {"host": "datashare.ed.ac.uk", "url": "https://datashare.ed.ac.uk/handle/10283/4135", "curl": "000", "proxy": "connect_rejected 403 at 2026-08-23T15:08:03.702Z", "would_have_supplied": "alternate authoritative host"},
+   {"host": "doi.org", "url": "https://doi.org/10.5281/zenodo.8127870", "curl": "000", "proxy": "connect_rejected 403 at 2026-08-23T15:08:03.957Z", "would_have_supplied": "DOI resolution to the authoritative record"},
+   {"host": "theorangeduck.com", "url": "https://theorangeduck.com/media/uploads/Geno/100style-retarget/bvh.zip", "curl": "000", "proxy": "connect_rejected 403 at 2026-08-23T15:08:04.213Z", "would_have_supplied": "a THIRD-PARTY RETARGETED copy — not usable, see rejected_substitutes"},
+   {"host": "web.archive.org", "url": "https://web.archive.org/web/2024/https://ianxmason.github.io/100style/", "curl": "000", "proxy": "connect_rejected 403 at 2026-08-23T15:08:04.704Z", "would_have_supplied": "an archived copy of the authoritative page"},
+   {"host": "github.com", "url": "https://github.com/ianxmason", "curl": "403", "would_have_supplied": "repository listing to locate the project page source"},
+   {"host": "arxiv.org", "url": "https://arxiv.org/abs/2201.04439", "curl": "000", "would_have_supplied": "the paper (attribution text only, NOT a data licence)"},
+   {"host": "huggingface.co", "url": "https://huggingface.co/", "curl": "000", "would_have_supplied": "possible mirror"}
+  ],
+  "reachable": [
+   {"host": "raw.githubusercontent.com", "note": "reachable, but serves no authoritative 100STYLE content"},
+   {"host": "pypi.org / files.pythonhosted.org", "note": "in the proxy noProxy list; CLOSED ROUTE by owner directive, NOT retried"}
+  ]
+ },
+ "path_guessing_policy": {
+  "rule": "no repository path was guessed to work around a 404",
+  "attempts_that_stopped_at_404": [
+   "raw.githubusercontent.com/ianxmason/ianxmason.github.io/{master,main}/index.html",
+   "raw.githubusercontent.com/ianxmason/ianxmason.github.io/{master,main}/100style/index.html",
+   "raw.githubusercontent.com/ianxmason/100STYLE/main/README.md",
+   "raw.githubusercontent.com/ianxmason/local-phases/{main,master}/README.md"
+  ],
+  "note": "these came from search-result repository names, were each tried once at the two canonical default branches, and were NOT probed further."
+ },
+ "add_repo_attempt": {
+  "target": "ianxmason/ianxmason.github.io",
+  "result": "REQUIRES_APPROVAL — unavailable in this non-interactive session",
+  "retried": false
+ },
+ "licence_status": "NOT_VERIFIED_FROM_THE_AUTHORITATIVE_SOURCE",
+ "corroborating_evidence_only": {
+  "grade": "THIRD_PARTY_REDISTRIBUTOR — corroborating, NOT the licence gate",
+  "source": "https://github.com/orangeduck/100style-retarget",
+  "readme_url": "https://raw.githubusercontent.com/orangeduck/100style-retarget/master/README.md",
+  "readme_http": 200,
+  "readme_sha256": "2984bf5f8bd7cb854b0f176cc3d4fb81378cd1acd84570b648cf9ddfa30cbd70",
+  "license_url": "https://raw.githubusercontent.com/orangeduck/100style-retarget/master/LICENSE.txt",
+  "license_http": 200,
+  "license_bytes": 18650,
+  "license_sha256": "7e7170e3cebf88a9f60c7b8421418323c09304da1af4d5e90f4da1dc1c8a2661",
+  "license_first_line": "Attribution 4.0 International",
+  "noncommercial_or_noderivatives_strings_found": 0,
+  "readme_statement_verbatim": "This version of the data is licensed under the same terms as the original dataset which is Creative Commons Attribution 4.0 International.",
+  "why_this_does_not_pass_the_gate": "the owner directive is explicit: 'Do NOT infer data rights from a GitHub code licence. The 100STYLE source itself must establish the data licence.' A redistributor restating an upstream licence is a stronger signal than a search snippet, but it is still not the upstream author's own statement. It is recorded as corroboration and nothing more."
+ },
+ "rejected_substitutes": [
+  {
+   "candidate": "orangeduck/100style-retarget BVH export",
+   "verdict": "REJECTED",
+   "reasons": [
+    "it is RETARGETED onto a different common skeleton — it is not the unedited 28-bone 100STYLE source the experiment specifies",
+    "an upstream motion-editing step by a third party breaks the 'representation change, not motion editing' guarantee before ONIQ's own adapter even starts",
+    "its SHA-256 could not be checked against any official file, so provenance would be unverifiable",
+    "it ships the Geno character, which the owner directive explicitly excludes",
+    "its download host theorangeduck.com is blocked anyway (connect_rejected 403)"
+   ],
+   "note": "this substitute was NOT used. Using it would have been working around a stop condition."
+  }
+ ],
+ "artifacts_not_produced": {
+  "100STYLE_SHA256.txt": "no file was downloaded — there is nothing to hash",
+  "100STYLE_BVH_STRUCTURE.json": "no file was parsed",
+  "100STYLE_TO_ONIQ_MAPPING.json": "channel order, rotation order, rest pose and axis convention can only come from the file; writing them without it would be inventing joints",
+  "100STYLE_ADAPTER_VALIDATION.json": "no adapter was built — it cannot be validated against a source that does not exist here",
+  "100STYLE_GAIT_VALIDATION.json": "no motion to decode",
+  "SOURCE_BVH_COMPARISON.json": "conditions C and D never ran",
+  "SOURCE_BVH_KNEE_CURVES.json": "conditions C and D never ran",
+  "SOURCE_BVH_PIXEL_DIAGNOSTICS.json": "conditions C and D never ran"
+ },
+ "adapter_built": false,
+ "experiment_run": false,
+ "conditions_run": {"A": false, "B": false, "C": false, "D": false},
+ "classification": "RIGHT_KNEE_ASYMMETRY = MEASUREMENT_OPEN",
+ "driver_unchanged": {
+  "damping": 0.5,
+  "channels": 6,
+  "bilateral": true,
+  "location": "SOURCE BVH layer"
+ },
+ "what_unblocks_this": {
+  "action": "an environment network-policy allowance",
+  "minimum_hosts": ["zenodo.org", "ianxmason.github.io"],
+  "sufficient_alternative": ["www.ianxmason.com", "datashare.ed.ac.uk"],
+  "note": "this is an owner decision about the environment, not an engineering problem. With those hosts reachable, the licence gate and the download gate both resolve in minutes and the experiment proceeds as specified.",
+  "second_route": "attach the selected *_FW.bvh directly to the session — no network allowance needed at all"
+ },
+ "cost": {"api_inr": 0, "gpu_inr": 0, "bvh_downloaded": 0, "new_images": 0}
+}
