@@ -128,6 +128,32 @@ I am not asking for a key to be pasted, and none should be. Options 1 and 3 are
 environment-configuration decisions; option 2 keeps every secret server-side and
 is the cleanest of the three.
 
+## Attempt 2 — credential grant, 2026-08-23T19:0x
+
+The owner elected option 1 (give this session a credential for the reachable
+Google host). **The credential did not reach this session.** Checked, by name
+only, never by value:
+
+- `GOOGLE_AI_API_KEY`, `GOOGLE_API_KEY`, `GEMINI_API_KEY`,
+  `GOOGLE_GENAI_API_KEY`, `GOOGLE_CLOUD_API_KEY`, `VEO_API_KEY`,
+  `LOVABLE_API_KEY` — all `SECRET_MISSING`.
+- No env var of any name matching GOOGLE/GEMINI/VEO/GENAI exists.
+- `/mnt/attach` and `/mnt/user-data/working` — both empty.
+- `/run/secrets`, `~/.config/gcloud` — absent.
+- The repo `.env` is pre-existing (mtime = container start), git-tracked, and
+  holds only Supabase **publishable** (public) keys. No provider credential.
+
+**Why, and it is the same mechanism as the earlier network-policy change:** a
+running process's environment is fixed at start and cannot be mutated from
+outside. Adding a secret to the environment configuration now **cannot** reach
+this already-running session. _(Technical fact, not inference. What IS inferred:
+that a NEW session would receive it, which depends on where the secret was
+configured.)_
+
+**No credential was requested, and none should be pasted into the transcript** —
+that would put a live key into conversation history, which is worse hygiene than
+the problem it solves.
+
 ## Per §28 — the live-test gate
 
 Everything §28 requires **before** spending is now in place: the acceptance gate
