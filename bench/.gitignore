@@ -1,0 +1,7 @@
+# The 49 benchmark renders are reproducible from the frozen dataset rule +
+# motion.yaml and are ~63MB; the EVIDENCE (gate_results*.json, render_log.txt)
+# is committed instead. One clip is kept as the test fixture.
+trim/
+*.log
+*.gif
+!b4_child_girl.gif

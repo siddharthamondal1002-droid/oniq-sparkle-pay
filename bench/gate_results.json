@@ -1,0 +1,5916 @@
+[
+ {
+  "asset": "b4_child_girl.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_child_girl.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1218549 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.031 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.08 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.0311,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.076,
+   "bytes": 1218549,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_child_girl",
+  "render_ms": 44138
+ },
+ {
+  "asset": "b4_elder_woman.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_elder_woman.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1424215 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.398 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.07 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.3975,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.066,
+   "bytes": 1424215,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_elder_woman",
+  "render_ms": 15162
+ },
+ {
+  "asset": "b4_heavy_man.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_heavy_man.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1373099 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.465 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "4 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.10 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.4654,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 4,
+   "silhouette_area_ratio": 1.097,
+   "bytes": 1373099,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_heavy_man",
+  "render_ms": 19647
+ },
+ {
+  "asset": "b4_muscular_woman.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_muscular_woman.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "962335 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.506 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "5 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.12 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.5062,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 5,
+   "silhouette_area_ratio": 1.12,
+   "bytes": 962335,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_muscular_woman",
+  "render_ms": 20559
+ },
+ {
+  "asset": "b4_short_woman.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_short_woman.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1240030 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.024 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "2 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.08 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.0238,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 2,
+   "silhouette_area_ratio": 1.083,
+   "bytes": 1240030,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_short_woman",
+  "render_ms": 14576
+ },
+ {
+  "asset": "b4_stress_hair.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_stress_hair.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1450662 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.553 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "8 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.34 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.5528,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 8,
+   "silhouette_area_ratio": 1.34,
+   "bytes": 1450662,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_stress_hair",
+  "render_ms": 13613
+ },
+ {
+  "asset": "b4_stress_robe.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_stress_robe.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1768559 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.248 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "2 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.27 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.2479,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 2,
+   "silhouette_area_ratio": 1.271,
+   "bytes": 1768559,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_stress_robe",
+  "render_ms": 18372
+ },
+ {
+  "asset": "b4_stress_thinline.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_stress_thinline.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "523605 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.365 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.08 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.3648,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.076,
+   "bytes": 523605,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_stress_thinline",
+  "render_ms": 13218
+ },
+ {
+  "asset": "b4_stress_tinyhands.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_stress_tinyhands.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1653444 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.241 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.19 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.2411,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.191,
+   "bytes": 1653444,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_stress_tinyhands",
+  "render_ms": 15242
+ },
+ {
+  "asset": "b4_stylized_kid.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_stylized_kid.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1348483 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.388 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.06 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.3879,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.059,
+   "bytes": 1348483,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_stylized_kid",
+  "render_ms": 21143
+ },
+ {
+  "asset": "b4_tall_man.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_tall_man.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1162809 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.939 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.06 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.9386,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.063,
+   "bytes": 1162809,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_tall_man",
+  "render_ms": 15206
+ },
+ {
+  "asset": "b4_teen_boy.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b4_teen_boy.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1158612 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.098 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.08 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.0978,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.083,
+   "bytes": 1158612,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b4_teen_boy",
+  "render_ms": 14955
+ },
+ {
+  "asset": "b5_layered_woman.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b5_layered_woman.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1715126 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.889 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.05 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.8885,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.053,
+   "bytes": 1715126,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b5_layered_woman",
+  "render_ms": 15141
+ },
+ {
+  "asset": "b5_older_child.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b5_older_child.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1203517 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.102 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.09 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.1022,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.092,
+   "bytes": 1203517,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b5_older_child",
+  "render_ms": 15556
+ },
+ {
+  "asset": "b5_winter_man.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/b5_winter_man.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1709068 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.077 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.15 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.0768,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.15,
+   "bytes": 1709068,
+   "width": 500,
+   "height": 500
+  },
+  "character": "b5_winter_man",
+  "render_ms": 14239
+ },
+ {
+  "asset": "m1_chef_man.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m1_chef_man.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1310037 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.318 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.12 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.3177,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.117,
+   "bytes": 1310037,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m1_chef_man",
+  "render_ms": 20130
+ },
+ {
+  "asset": "m1_dancer_woman.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m1_dancer_woman.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1024713 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.671 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "7 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.28 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.6707,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 7,
+   "silhouette_area_ratio": 1.276,
+   "bytes": 1024713,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m1_dancer_woman",
+  "render_ms": 17778
+ },
+ {
+  "asset": "m1_dev_woman.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m1_dev_woman.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1266426 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.509 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.12 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.5095,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.117,
+   "bytes": 1266426,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m1_dev_woman",
+  "render_ms": 15564
+ },
+ {
+  "asset": "m1_electrician_woman.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m1_electrician_woman.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1401196 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.222 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "8 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.25 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.2217,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 8,
+   "silhouette_area_ratio": 1.249,
+   "bytes": 1401196,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m1_electrician_woman",
+  "render_ms": 18564
+ },
+ {
+  "asset": "m1_farmer_elder.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m1_farmer_elder.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1377502 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.105 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "6 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.14 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.1048,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 6,
+   "silhouette_area_ratio": 1.141,
+   "bytes": 1377502,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m1_farmer_elder",
+  "render_ms": 18664
+ },
+ {
+  "asset": "m1_nurse_woman.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m1_nurse_woman.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1387281 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.773 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.11 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.7733,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.107,
+   "bytes": 1387281,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m1_nurse_woman",
+  "render_ms": 16908
+ },
+ {
+  "asset": "m1_office_man.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m1_office_man.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1322236 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.369 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "4 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.11 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.3685,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 4,
+   "silhouette_area_ratio": 1.111,
+   "bytes": 1322236,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m1_office_man",
+  "render_ms": 16861
+ },
+ {
+  "asset": "m1_photographer_man.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m1_photographer_man.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1317198 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.240 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.11 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.2401,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.109,
+   "bytes": 1317198,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m1_photographer_man",
+  "render_ms": 13374
+ },
+ {
+  "asset": "m1_prof_elder.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m1_prof_elder.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1549463 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.711 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.09 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.711,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.087,
+   "bytes": 1549463,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m1_prof_elder",
+  "render_ms": 14872
+ },
+ {
+  "asset": "m1_student_teen.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m1_student_teen.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1575117 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.738 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.06 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.7383,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.062,
+   "bytes": 1575117,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m1_student_teen",
+  "render_ms": 14116
+ },
+ {
+  "asset": "m2_apron_baker.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_apron_baker.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1706789 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0.871 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.05 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 0.8714,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.05,
+   "bytes": 1706789,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_apron_baker",
+  "render_ms": 19792
+ },
+ {
+  "asset": "m2_curly_artist.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_curly_artist.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1459439 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.587 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.06 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.5865,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.061,
+   "bytes": 1459439,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_curly_artist",
+  "render_ms": 18802
+ },
+ {
+  "asset": "m2_delivery_man.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_delivery_man.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1273500 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.875 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.08 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.8748,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.082,
+   "bytes": 1273500,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_delivery_man",
+  "render_ms": 15754
+ },
+ {
+  "asset": "m2_grandpa_stocky.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_grandpa_stocky.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1608326 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.366 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "8 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.24 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.3658,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 8,
+   "silhouette_area_ratio": 1.235,
+   "bytes": 1608326,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_grandpa_stocky",
+  "render_ms": 17952
+ },
+ {
+  "asset": "m2_hijabi_teacher.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_hijabi_teacher.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1513008 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0.964 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.17 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 0.9644,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.174,
+   "bytes": 1513008,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_hijabi_teacher",
+  "render_ms": 12828
+ },
+ {
+  "asset": "m2_kilt_musician.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_kilt_musician.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1230728 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.138 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "7 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.10 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.1378,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 7,
+   "silhouette_area_ratio": 1.096,
+   "bytes": 1230728,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_kilt_musician",
+  "render_ms": 21171
+ },
+ {
+  "asset": "m2_sari_scientist.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_sari_scientist.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1472299 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.676 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.17 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.6757,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.166,
+   "bytes": 1472299,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_sari_scientist",
+  "render_ms": 15547
+ },
+ {
+  "asset": "m2_streetwear_teen.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_streetwear_teen.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "987346 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.864 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.09 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.8641,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.087,
+   "bytes": 987346,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_streetwear_teen",
+  "render_ms": 15891
+ },
+ {
+  "asset": "m2_suit_woman.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_suit_woman.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1362087 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.064 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.23 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.0643,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.234,
+   "bytes": 1362087,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_suit_woman",
+  "render_ms": 13002
+ },
+ {
+  "asset": "m2_tall_basketball_teen.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_tall_basketball_teen.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "941943 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "3.204 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "7 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.27 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 3.2043,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 7,
+   "silhouette_area_ratio": 1.266,
+   "bytes": 941943,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_tall_basketball_teen",
+  "render_ms": 15615
+ },
+ {
+  "asset": "m2_wheel_free_runner.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_wheel_free_runner.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1242790 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.253 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.06 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.2527,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.064,
+   "bytes": 1242790,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_wheel_free_runner",
+  "render_ms": 16604
+ },
+ {
+  "asset": "m2_winter_man.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m2_winter_man.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1193860 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.778 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.10 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.7776,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.101,
+   "bytes": 1193860,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m2_winter_man",
+  "render_ms": 11828
+ },
+ {
+  "asset": "m3_ancient_scribe.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_ancient_scribe.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1235479 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.522 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.05 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.5216,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.053,
+   "bytes": 1235479,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_ancient_scribe",
+  "render_ms": 11964
+ },
+ {
+  "asset": "m3_artisan_weaver.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_artisan_weaver.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1179014 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.912 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "2 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.28 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.9123,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 2,
+   "silhouette_area_ratio": 1.28,
+   "bytes": 1179014,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_artisan_weaver",
+  "render_ms": 12370
+ },
+ {
+  "asset": "m3_court_scholar.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_court_scholar.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1181299 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.792 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "2 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.13 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.7925,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 2,
+   "silhouette_area_ratio": 1.129,
+   "bytes": 1181299,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_court_scholar",
+  "render_ms": 10974
+ },
+ {
+  "asset": "m3_desert_trader.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_desert_trader.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1213524 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.216 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "7 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.17 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.216,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 7,
+   "silhouette_area_ratio": 1.171,
+   "bytes": 1213524,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_desert_trader",
+  "render_ms": 11733
+ },
+ {
+  "asset": "m3_grandpa_stocky.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_grandpa_stocky.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1293193 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.748 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "6 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.13 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.7478,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 6,
+   "silhouette_area_ratio": 1.126,
+   "bytes": 1293193,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_grandpa_stocky",
+  "render_ms": 13578
+ },
+ {
+  "asset": "m3_hijabi_teacher.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_hijabi_teacher.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1014224 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.060 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.10 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.0605,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.096,
+   "bytes": 1014224,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_hijabi_teacher",
+  "render_ms": 9301
+ },
+ {
+  "asset": "m3_maritime_captain.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_maritime_captain.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1407202 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.590 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.11 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.5898,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.113,
+   "bytes": 1407202,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_maritime_captain",
+  "render_ms": 14514
+ },
+ {
+  "asset": "m3_medieval_smith.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_medieval_smith.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1539140 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.136 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.09 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.1361,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.085,
+   "bytes": 1539140,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_medieval_smith",
+  "render_ms": 14861
+ },
+ {
+  "asset": "m3_mountain_hunter.gif",
+  "ALL_MANDATORY_QA_PASS": false,
+  "verdict": "HARD_FAIL",
+  "hard_failures": [
+   "within_render_envelope"
+  ],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_mountain_hunter.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1477267 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.084 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "HARD_FAIL",
+    "detail": "4 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.13 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.0843,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 4,
+   "silhouette_area_ratio": 1.129,
+   "bytes": 1477267,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_mountain_hunter",
+  "render_ms": 12690
+ },
+ {
+  "asset": "m3_nomad_rider.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_nomad_rider.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1518147 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.355 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.10 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.3549,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.103,
+   "bytes": 1518147,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_nomad_rider",
+  "render_ms": 13624
+ },
+ {
+  "asset": "m3_suit_woman.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_suit_woman.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "964120 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "2.388 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.13 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 2.3879,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.13,
+   "bytes": 964120,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_suit_woman",
+  "render_ms": 11986
+ },
+ {
+  "asset": "m3_village_healer.gif",
+  "ALL_MANDATORY_QA_PASS": true,
+  "verdict": "ACCEPTED",
+  "hard_failures": [],
+  "warnings": [],
+  "checks": [
+   {
+    "check": "file_exists",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/paidaudit/bench/m3_village_healer.gif"
+   },
+   {
+    "check": "file_min_bytes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1547074 bytes (min 1024)"
+   },
+   {
+    "check": "file_decodes",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "129 frames / 129 entries"
+   },
+   {
+    "check": "duration_within_band",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "4.30s vs requested 4.3s band [2.15,6.88]"
+   },
+   {
+    "check": "resolution_recorded",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "500x500 (film canvas is 1080x1920)"
+   },
+   {
+    "check": "no_blank_frames",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 blank frames"
+   },
+   {
+    "check": "no_frozen_run",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "longest identical run 1/129 = 0.8% (max 10%)"
+   },
+   {
+    "check": "character_present",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "character ink present in every frame"
+   },
+   {
+    "check": "temporal_aliveness",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "1.207 (min 0.75)"
+   },
+   {
+    "check": "within_render_envelope",
+    "classification": "MEASURED",
+    "result": "PASS",
+    "detail": "0 frames touch the border"
+   },
+   {
+    "check": "silhouette_area_stable",
+    "classification": "DERIVED",
+    "result": "PASS",
+    "detail": "max/min silhouette area 1.05 (max 3.0)"
+   },
+   {
+    "check": "audio_integrity",
+    "classification": "NOT_APPLICABLE",
+    "result": "PASS",
+    "detail": "audio not requested"
+   },
+   {
+    "check": "character_reference_consistency",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "severe_anatomy_artifacts",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "dialogue_presence",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   },
+   {
+    "check": "final_assembly_integrity",
+    "classification": "OPEN",
+    "result": "PASS",
+    "detail": "no reliable automated test exists in this repository; recorded OPEN rather than claimed as a deterministic pass"
+   }
+  ],
+  "measures": {
+   "frames": 129,
+   "entries": 129,
+   "duration_s": 4.3,
+   "aliveness": 1.2072,
+   "blank_frames": 0,
+   "longest_frozen_run": 1,
+   "border_frames": 0,
+   "silhouette_area_ratio": 1.047,
+   "bytes": 1547074,
+   "width": 500,
+   "height": 500
+  },
+  "character": "m3_village_healer",
+  "render_ms": 11923
+ }
+]
