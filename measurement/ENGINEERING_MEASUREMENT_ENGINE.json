@@ -1,0 +1,52 @@
+{
+ "record": "ENGINEERING_MEASUREMENT_ENGINE",
+ "version": "1.0",
+ "read_only": true,
+ "renders_anything": false,
+ "generates_anything": false,
+ "api_spend_inr": 0,
+ "gpu_spend_inr": 0,
+ "scale_bridge": "NOT_AVAILABLE",
+ "domains": {
+  "PIXEL": "image pixels of the 500x500 render or the 253x688 rig crop",
+  "NORMALIZED": "dimensionless ratio of two same-domain measurements",
+  "BVH": "the driver's own dimensionless units",
+  "MILLIMETRE": "UNAVAILABLE \u2014 requires a scale bridge ONIQ does not have"
+ },
+ "sources": {
+  "corrected_clip": {
+   "file": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/eld/evidence/run1/sample_1.gif",
+   "sha256": "ae8124510a4a2d77e40515d2f210db52b30a805a039d3e71f934fc74d0ca4591"
+  },
+  "control_clip": {
+   "file": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/eld/evidence/diag/control.gif",
+   "sha256": "f81a5a012bc26ac37d8ace9749c6ca01ac1625a968fcc9b7677cc9e7dac24edb"
+  },
+  "driver_bvh": {
+   "file": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/eld/evidence/run1/driver_knee050.bvh",
+   "sha256": "ea15d92139654bfbbcc2e1efd0a637110bb0cd657c4b04be9341a1ab8cfb344b"
+  },
+  "source_bvh": {
+   "file": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/l3amp/AnimatedDrawings/examples/bvh/fair1/zombie.bvh",
+   "sha256": "a3b5dbc1138b1990d5448241a0a58d933674458e3a842f432e0f968be25b0592"
+  },
+  "rig_cfg": {
+   "file": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/genloop/v3/b4/m3_suit_woman/rig/char_cfg.yaml",
+   "sha256": "3aa1ae56f66a300237c66c18aa1e2603f5b5218d5ac03dea6cfa443573d8311b"
+  }
+ },
+ "window": {
+  "frame_start": 0,
+  "frame_end": 128,
+  "frames": 129
+ },
+ "invariants": [
+  "no measurement is emitted in the MILLIMETRE domain",
+  "left and right knee values are measured independently, never inferred from a combined minimum",
+  "no measurement sets productionEligible; promotion is a separate act"
+ ],
+ "measurements_corrected": 61,
+ "measurements_control": 61,
+ "measurements_proportions": 8,
+ "total_measurements": 130
+}

@@ -1,0 +1,111 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "oniq://engineering/measurement/1.0",
+ "title": "ONIQ EngineeringMeasurement",
+ "description": "One measurement taken from an asset that already exists. The engine is read-only: it renders nothing and generates nothing. measurement_domain is MANDATORY and domains are never mixed. MILLIMETRE is deliberately absent from the enum: it requires a scale bridge ONIQ does not have, so no measurement can be emitted in it. A measurement never sets productionEligible \u2014 promotion is a separate, evidence-gated act.",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "id",
+  "parameter",
+  "value",
+  "unit",
+  "measurement_domain",
+  "source_asset",
+  "source_clip",
+  "frame_start",
+  "frame_end",
+  "method",
+  "confidence",
+  "evidence_sha256",
+  "validationState"
+ ],
+ "properties": {
+  "id": {
+   "type": "string",
+   "pattern": "^MEAS-[0-9]{4}$"
+  },
+  "parameter": {
+   "type": "string",
+   "minLength": 1
+  },
+  "value": {
+   "oneOf": [
+    {
+     "type": "number"
+    },
+    {
+     "type": "string"
+    }
+   ]
+  },
+  "unit": {
+   "enum": [
+    "BVH units",
+    "IoU",
+    "deg",
+    "deg/s",
+    "deg/s^2",
+    "frame",
+    "frames",
+    "px",
+    "ratio"
+   ]
+  },
+  "measurement_domain": {
+   "enum": [
+    "PIXEL",
+    "NORMALIZED",
+    "BVH"
+   ],
+   "description": "MILLIMETRE is intentionally not permitted \u2014 see ENGINEERING_SCALE_BRIDGE_STATUS.md"
+  },
+  "source_asset": {
+   "type": "string",
+   "minLength": 1
+  },
+  "source_clip": {
+   "type": "string",
+   "minLength": 1
+  },
+  "frame_start": {
+   "type": [
+    "integer",
+    "null"
+   ]
+  },
+  "frame_end": {
+   "type": [
+    "integer",
+    "null"
+   ]
+  },
+  "method": {
+   "type": "string",
+   "minLength": 1
+  },
+  "confidence": {
+   "enum": [
+    "high",
+    "medium",
+    "low"
+   ]
+  },
+  "evidence_sha256": {
+   "type": "string",
+   "pattern": "^[0-9a-f]{64}$"
+  },
+  "validationState": {
+   "enum": [
+    "MEASURED",
+    "UNVALIDATED",
+    "OPEN",
+    "REJECTED"
+   ],
+   "description": "PROMOTED is intentionally absent \u2014 it can never be set automatically"
+  },
+  "note": {
+   "type": "string"
+  }
+ }
+}
