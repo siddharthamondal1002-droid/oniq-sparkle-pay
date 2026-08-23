@@ -1,0 +1,48 @@
+{
+  "prepared": "2026-08-23",
+  "status": "PREPARED_NOT_EXECUTED \u2014 awaits explicit owner approval (Batch-2 loop \u00a710/\u00a714)",
+  "note": "Batch 1 retained as accepted baseline per \u00a77 (neither AMP nor FOOT-PIN demonstrably superior); shared limit: trailing-leg over-curl at walk f100, unresolved. Urchin is a stress fixture and is NOT staged.",
+  "characters": [
+    {
+      "name": "basma",
+      "staged": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/genloop/v2/adoption_staging/basma.png",
+      "target": "remotion/public/sheets/basma.png",
+      "sha256": "1be5e7a2deba02dead12982df39205d53d44d8ff9588a2c3b540c4d1621549c8",
+      "bytes": 1850766,
+      "provenance": "Lovable-generated (MASTER ANATOMICAL CHARACTER GENERATION PROMPT, 7 anatomy refs), 2026-08-22; transferred via Supabase signed URL -> Actions bridge; byte-verified",
+      "verdict": "ACCEPT_WITH_LIMITS",
+      "gate": {
+        "mask": "u2netp",
+        "fillPct": 37.5,
+        "border": false,
+        "coreOutside": [],
+        "kptConfMean": 0.9086
+      },
+      "walk_aliveness": 7.09,
+      "idle_aliveness": 0.99
+    },
+    {
+      "name": "rashid",
+      "staged": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/genloop/v2/adoption_staging/rashid.png",
+      "target": "remotion/public/sheets/rashid.png",
+      "sha256": "4d46014187e37fd93bdfa115ba20c085f2dc023085f226e55931ab34833f9672",
+      "bytes": 1719683,
+      "provenance": "same generation batch as basma, same transfer route, byte-verified",
+      "verdict": "ACCEPT_WITH_LIMITS",
+      "gate": {
+        "mask": "u2netp",
+        "fillPct": 43.3,
+        "border": false,
+        "coreOutside": [],
+        "kptConfMean": 0.9011
+      },
+      "walk_aliveness": 8.63,
+      "idle_aliveness": 1.13
+    }
+  ],
+  "adoption_steps_on_approval": [
+    "cp staged pngs to remotion/public/sheets/ on a feature branch",
+    "add cast entries where the existing 11-sheet cast is registered",
+    "commit with provenance + SHA256 in the message; PR for owner review"
+  ]
+}
