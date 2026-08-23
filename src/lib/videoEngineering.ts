@@ -334,6 +334,13 @@ export type ShotIntent = {
   storyBeat?: string;
   /** Frozen-library reference ids to carry as provenance. */
   referenceIds?: readonly string[];
+  /**
+   * Character-engineering reference ids (ENG-xxx) — provenance metadata
+   * only, NEVER serialized into the prompt. Vocabulary and validation live
+   * in engineeringReference.ts (engineeringProvenanceFor, fail-closed at
+   * the point of use); this module stays import-free by design.
+   */
+  engineeringReferenceIds?: readonly string[];
 };
 
 export type IntentValidation = {

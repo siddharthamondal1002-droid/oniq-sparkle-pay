@@ -42,6 +42,7 @@ import {
   validateShotIntent,
   WEATHERS,
 } from "@/lib/videoEngineering";
+import { ENGINEERING_REFERENCE_REGISTRY } from "@/lib/engineeringReference";
 
 type PickProps = {
   label: string;
@@ -140,6 +141,13 @@ export function CinematicPanel({ intent, onChange, disabled, promptText }: Cinem
                 value={intent.referenceIds?.[0]}
                 options={SCENE_REFERENCE_REGISTRY.map((r) => r.id)}
                 onPick={(v) => set({ referenceIds: v ? [v] : undefined })}
+                disabled={disabled}
+              />
+              <Pick
+                label="Engineering reference (provenance)"
+                value={intent.engineeringReferenceIds?.[0]}
+                options={ENGINEERING_REFERENCE_REGISTRY.map((r) => r.id)}
+                onPick={(v) => set({ engineeringReferenceIds: v ? [v] : undefined })}
                 disabled={disabled}
               />
             </div>
