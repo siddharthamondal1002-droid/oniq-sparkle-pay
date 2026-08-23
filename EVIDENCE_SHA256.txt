@@ -156,3 +156,15 @@ a7767006fa293d41 montages/m2_tall_basketball_teen.png
 1c036fdd590536d1 montages/m2_wheel_free_runner.png
 5d62a419f12cbb95 montages/m2_winter_man.png
 ec5ad058a62774b0 roundM2/f100_strip.png
+
+# --- SCENE REFERENCE LIBRARY v1.0 (2026-08-23, ingestion-only tranche, zero generation) ---
+11e1c05a3de7a609fdc13139a0b63aff57ddfac80345f4f9d4a19cda4632f86c  SCN-001  'Firefly_Make me 10 more descriptive images like this 98084.png'  1536x1024  2378737  PNG  3:2  UNIQUE
+d751fafb09a776ce8f2bda0ca45c2cde3172753aae158ec52634b5c71da9fb21  SCN-002  'Firefly_Make me 10 more descriptive images like this 728799.png'  1536x1024  2980321  PNG  3:2  UNIQUE
+3ae6355f9d85cb1a562dac50638d191c78457ca13a1dc9da812f1954edca56c4  SCN-003  'ONIQ Ultra Master Scene Reference Library.png'  1264x843  1938532  PNG  1264:843  EXACT_DUPLICATE -> REGISTERED_REFERENCE:oniq_structural_9poster_grid.png
+7f7799ab1401869893bbc34797fb0ba6144ed0035d74038bddf8beca3f9b0ce4  SCN-004  'Firefly_Gemini Flash_Make me 10 descriptive images like this 98084 (1).png'  1264x843  1964545  PNG  1264:843  EXACT_DUPLICATE -> REGISTERED_REFERENCE:oniq_global_edition.png
+41c46208b398993f0f828dda89f0b2782558ad47fd96f4747a5db7f0357c3323  SCN-005  'Firefly_Gemini Flash_Make me 10 descriptive images like this 98084.png'  1264x843  1984971  PNG  1264:843  EXACT_DUPLICATE -> REGISTERED_REFERENCE:oniq_creature_colossal.png
+0e0a44663db388117f2568131389936d16a2131d82bbd3000be091c17cdb583a  SCN-006  'Firefly_Gemini Flash_Make me more images like this 964148.png'  1536x1024  2909299  PNG  3:2  UNIQUE
+57de71265a9821974b3cef49bb79cff4a1033cb795694ef68b52d05e5315975e  SCN-007  'Firefly_Gemini Flash_Make me 10 more descriptive images like this 98084.png'  1402x1122  2321187  PNG  701:561  UNIQUE
+3ae6355f9d85cb1a562dac50638d191c78457ca13a1dc9da812f1954edca56c4  SCN-008  'Global Scene Reference Library Collage.png'  1264x843  1938532  PNG  1264:843  EXACT_DUPLICATE -> REGISTERED_REFERENCE:oniq_structural_9poster_grid.png
+ee19e51e581531d85689a6dd09a8de196b86576f94787cd3c9559b4a4cea7b9f  SCN-009  'ONIQ Scene Reference Library Poster.png'  1264x843  2062535  PNG  1264:843  UNIQUE
+59ece0090ee22b9570e3f5a5bf0361ad09569e674ce09a40a777064b641a8714  SCN-010  'ONIQ Scene Reference Library Infographic.png'  1264x843  1809925  PNG  1264:843  UNIQUE

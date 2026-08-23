@@ -69,3 +69,13 @@ Nike-swoosh masters REJECT_REGEN — regens in M2).
 
 No merge, no deploy, no main changes beyond the inert registered bridge,
 PR #83/457598ad untouched, fixtures not re-baselined, grammar unchanged.
+
+## Scene reference library (2026-08-23, ingestion-only tranche)
+
+ONIQ_SCENE_REFERENCE_LIBRARY v1.0 REGISTERED + FROZEN at scene_refs/.
+10 attached sources, 10 valid, 4 exact duplicates (3 re-sends of registered
+character posters + 1 internal), 6 unique new scene masters, 9 distinct
+masters stored, 0 near-duplicates, 69/70 taxonomy categories,
+LIBRARY_GAP: 16 AIRCRAFT. Zero images generated (closed tranche,
+generation_allowed=false). Scene refs are supplementary — anatomy/motion
+standards and gates unchanged.
