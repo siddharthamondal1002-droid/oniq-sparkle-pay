@@ -1,0 +1,100 @@
+{
+ "ok": true,
+ "request": "A determined character walks through a rainy modern city street at night.",
+ "shelves": [
+  "LIGHTING",
+  "SCENE",
+  "MATERIAL",
+  "MOTION ENGINEERING",
+  "CHARACTER ENGINEERING",
+  "ANATOMY"
+ ],
+ "character": {
+  "emotionReading": {
+   "emotion": "determination",
+   "face": "set jaw, steady brow",
+   "gaze": "locked on goal",
+   "posture": "forward, planted",
+   "gesture": "fists, firm strides",
+   "bodyState": "charged",
+   "context": "purpose"
+  },
+  "identityFree": true
+ },
+ "action": "charged walking",
+ "emotion": "determination",
+ "motion": {
+  "grammar": "walking",
+  "status": "PRIMARY"
+ },
+ "scene": "urban exterior",
+ "environment": [
+  "urban street",
+  "wet pavement with reflections"
+ ],
+ "camera": {
+  "angle": "eye level",
+  "lane": "frontal/near_frontal"
+ },
+ "lens": null,
+ "composition": "rule-of-thirds composition",
+ "lighting": "practical streetlight register (advisory)",
+ "weather": "rain",
+ "time": "night",
+ "materials": [],
+ "engineeringConstraints": [
+  "temporal aliveness >= 0.75 (necessary, never sufficient — pixel review decides)",
+  "silhouette fill <= 90% and no border contact",
+  "rig confidence >= 0.7",
+  "knee damping 0.5 (both knees, six channels, BVH layer only)",
+  "CHARACTER ENGINEERING: proportion/DOF tables are REFERENCE_ONLY",
+  "MOTION ENGINEERING: walking PRIMARY; wave EXCLUDED/FALSIFIED; turn/reach UNKNOWN",
+  "ANATOMY: identity-free; no character identity fields exist",
+  "SCENE: scene references are qualitative; no fabricated measurements",
+  "LIGHTING: enforced lighting register must stay weather/ambience-invisible",
+  "MATERIAL: artistic material references never become numeric gates"
+ ],
+ "negativeConstraints": [
+  "missing limb",
+  "extra limb",
+  "merged limbs",
+  "blade artifact",
+  "spike",
+  "claw artifact",
+  "ghosting",
+  "mesh tear",
+  "texture tear",
+  "foot sliding",
+  "foot floating",
+  "identity drift",
+  "face distortion",
+  "hair explosion",
+  "clothing explosion",
+  "segmentation failure",
+  "border contact",
+  "interior-hole instability",
+  "thin-limb merge",
+  "thin-stroke failure",
+  "excessive knee curl",
+  "camera clipping",
+  "lighting inconsistency",
+  "scene continuity failure"
+ ],
+ "referenceProvenance": [
+  {
+   "reference_id": "SCN-002",
+   "reference_sha256": "d751fafb09a776ce8f2bda0ca45c2cde3172753aae158ec52634b5c71da9fb21",
+   "reference_category": "SCENES/ENVIRONMENTS"
+  },
+  {
+   "reference_id": "ENG-004",
+   "reference_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+   "reference_category": "ENGINEERING/CAMERA-LIGHTING"
+  }
+ ],
+ "fallback": {
+  "action": "STILL_PARALLAX",
+  "contract": "MOTION_CONTRACT"
+ },
+ "explicitGenerationRequired": true
+}

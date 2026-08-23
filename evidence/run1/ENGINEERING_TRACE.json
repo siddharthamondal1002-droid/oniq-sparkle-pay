@@ -1,0 +1,476 @@
+{
+ "record": "ENGINEERING_TRACE",
+ "version": "1.0",
+ "request": "A determined character walks through a rainy modern city street at night.",
+ "engineering_reference_run": {
+  "file": "ENGINEERING_REFERENCE_RUN.json",
+  "sha256": "2bc14a1c1ba555b07341c5106551900142b6412bf5343f36411509c6f1296324",
+  "reference_ids": [
+   "ENG-001",
+   "ENG-002",
+   "ENG-003",
+   "ENG-004",
+   "ENG-005-ALIAS"
+  ],
+  "reference_sha256": {
+   "ENG-001": "fc0ea82faccf3d436c8870f328657db9c5c4999ad27f602e8d8aa8c09c33fe18",
+   "ENG-002": "84588b3ad10a2a7bf9b5832e1eccfd7900c8fe7a0bd71c52c87f24e3640cfb69",
+   "ENG-003": "35c00f60678c9ed07a87b3938f2b220afb6557d5a75f0f56954a07ae6efc6356",
+   "ENG-004": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+   "ENG-005-ALIAS": "35c00f60678c9ed07a87b3938f2b220afb6557d5a75f0f56954a07ae6efc6356"
+  },
+  "index_sha256": {
+   "CAMERA_ENGINEERING_INDEX": "180f8683cd902039385fe6ab2ea18acc72996982010d83560b0d1732fa931f04",
+   "LIGHTING_ENGINEERING_INDEX": "506d361e94f4edd0b068fb6bfbfb710c27f722cdd7819b02de53a082ae2b1b0c",
+   "CAMERA_LIGHTING_MATRIX": "40ef18f588d434232622f7d1ee40adb0551c16b71a99cb9be602c9633504080e",
+   "MOTION_ENGINEERING_INDEX": "8a283e282a5a36d8ff357613b94c4ae8d09dced20212d2ebdef96e0aa35bc003",
+   "SCENE_ENGINEERING_INDEX": "dc31ee149cd5c374b440f5e1bc2e58cc30b42a29411df674ccdb4bd563d3c1e1",
+   "CHARACTER_ENGINEERING_INDEX": "9ec703e4f1f90f7aca39ca9e7c8888cf453f840d4eb15cf70cb109ffa1777fb4",
+   "EMOTION_ENGINEERING_INDEX": "7e007ab3cbb7b8b00cb472b83d2aacda33cf11e6bdd7358119d4edb5820b2971",
+   "QA_ENGINEERING_INDEX": "d85e8286a8d2bb193cd3b6fbfba1950a7e8c613f5efa1ab4800f243187b893ff",
+   "ENGINEERING_DETAILS_1000": "4bf25f2fe920082a57a1cc139fb0bf152652de60e11b60b40be344fef3196667",
+   "ENGINEERING_TAXONOMY": "042ccaec9bc112b0d9b7c8091107b617669f71c0dbb7bc8bc2707fc78e41f907"
+  },
+  "generation_allowed_for_references": false
+ },
+ "shot_plan": {
+  "file": "SHOT_PLAN.json",
+  "sha256": "d01af35f8ab6d5933256f60cdf47324b95266f8f58acb10f412316664117a4ac",
+  "emotion": "determination",
+  "motion": {
+   "grammar": "walking",
+   "status": "PRIMARY"
+  },
+  "camera": {
+   "angle": "eye level",
+   "lane": "frontal/near_frontal"
+  },
+  "lens": null,
+  "lighting": "practical streetlight register (advisory)",
+  "weather": "rain",
+  "time": "night",
+  "environment": [
+   "urban street",
+   "wet pavement with reflections"
+  ],
+  "explicit_generation_required": true,
+  "reference_provenance": [
+   {
+    "reference_id": "SCN-002",
+    "reference_sha256": "d751fafb09a776ce8f2bda0ca45c2cde3172753aae158ec52634b5c71da9fb21",
+    "reference_category": "SCENES/ENVIRONMENTS"
+   },
+   {
+    "reference_id": "ENG-004",
+    "reference_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+    "reference_category": "ENGINEERING/CAMERA-LIGHTING"
+   }
+  ]
+ },
+ "retrieval_status": {
+  "MOTION": "RESOLVED",
+  "MOTION_KNEE_CONTRACT": "RESOLVED",
+  "SCENE": "RESOLVED",
+  "ANATOMY": "RESOLVED",
+  "CAMERA": "RESOLVED",
+  "LIGHTING": "RESOLVED",
+  "CAMERA_X_LIGHTING": "RESOLVED",
+  "NEGATIVE": "RESOLVED",
+  "QA": "RESOLVED",
+  "EMOTION_ATLAS": "NOT_APPLICABLE"
+ },
+ "knee_driver": {
+  "driver_id": "b3_knee_damp.py",
+  "driver_sha256": "99dadd19c484382df9c3ab128a0bc7072011408c477b976d547103106e7c31ae",
+  "rule_ids": [
+   "ENG-0134",
+   "ENG-0153",
+   "ENG-0154",
+   "ENG-0155",
+   "ENG-0156",
+   "ENG-0299"
+  ],
+  "scale": 0.5,
+  "scale_reference": "ENG-0153",
+  "symmetry_reference": "ENG-0154",
+  "channels_reference": "ENG-0155",
+  "form_reference": "ENG-0156",
+  "knee_drive_reference": "ENG-0134",
+  "accepted_driver_file_reference": "ENG-0299",
+  "source_bvh": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/l3amp/AnimatedDrawings/examples/bvh/fair1/zombie.bvh",
+  "source_bvh_sha256": "a3b5dbc1138b1990d5448241a0a58d933674458e3a842f432e0f968be25b0592",
+  "derived_bvh_sha256": "ea15d92139654bfbbcc2e1efd0a637110bb0cd657c4b04be9341a1ab8cfb344b",
+  "damper_report": "KNEE_DAMP_OK joints=['RightLeg', 'LeftLeg'] channels=6 scale=0.5",
+  "channels_modified": "6 rotation channels on LeftLeg + RightLeg",
+  "channels_not_modified": "hips, ankles(Foot), toes, spine, arms, head, root translation, frame count, frame time",
+  "matches_registered_driver": true,
+  "registered_driver_sha256": "ea15d92139654bfbbcc2e1efd0a637110bb0cd657c4b04be9341a1ab8cfb344b"
+ },
+ "bindings": [
+  {
+   "renderer_parameter": "driver_family",
+   "value": "walk (not idle)",
+   "support": "ENFORCED",
+   "engineering_reference_ids": [
+    "ENG-0201"
+   ],
+   "note": "WALKING is the only promoted grammar; idle/turn/reach/wave are not substituted"
+  },
+  {
+   "renderer_parameter": "bvh_knee_damping",
+   "value": 0.5,
+   "support": "ENFORCED",
+   "engineering_reference_ids": [
+    "ENG-0153",
+    "ENG-0154",
+    "ENG-0155",
+    "ENG-0156",
+    "ENG-0134",
+    "ENG-0299"
+   ],
+   "note": "re-derived from the source BVH by the library rule and byte-matched to the registered accepted driver"
+  },
+  {
+   "renderer_parameter": "camera_motion",
+   "value": "none (locked/static)",
+   "support": "ENFORCED",
+   "engineering_reference_ids": [
+    "CAM-00031"
+   ],
+   "note": "the CPU renderer has a fixed camera; the selected reference agrees"
+  },
+  {
+   "renderer_parameter": "retarget_projection_planes",
+   "value": {
+    "Upper Limbs": "frontal",
+    "Lower Limbs": "sagittal",
+    "Trunk": "frontal"
+   },
+   "support": "ENFORCED",
+   "engineering_reference_ids": [
+    "CAM-00031",
+    "ENG-0134"
+   ],
+   "note": "pinned explicitly so the basis cannot be re-derived by PCA from the frame range; values are the ones the full-range PCA itself selects"
+  },
+  {
+   "renderer_parameter": "camera_lens",
+   "value": "NOT_SPECIFIED",
+   "support": "NOT_SPECIFIED",
+   "engineering_reference_ids": [
+    "CAM-00031"
+   ],
+   "note": "the atlas does not measure this; nothing is invented"
+  },
+  {
+   "renderer_parameter": "camera_height",
+   "value": "NOT_SPECIFIED",
+   "support": "NOT_SPECIFIED",
+   "engineering_reference_ids": [
+    "CAM-00031"
+   ],
+   "note": "the atlas does not measure this; nothing is invented"
+  },
+  {
+   "renderer_parameter": "camera_distance",
+   "value": "NOT_SPECIFIED",
+   "support": "NOT_SPECIFIED",
+   "engineering_reference_ids": [
+    "CAM-00031"
+   ],
+   "note": "the atlas does not measure this; nothing is invented"
+  },
+  {
+   "renderer_parameter": "camera_fov",
+   "value": "NOT_SPECIFIED",
+   "support": "NOT_SPECIFIED",
+   "engineering_reference_ids": [
+    "CAM-00031"
+   ],
+   "note": "the atlas does not measure this; nothing is invented"
+  },
+  {
+   "renderer_parameter": "lens",
+   "value": null,
+   "support": "NOT_SPECIFIED",
+   "engineering_reference_ids": [
+    "CAM-00031"
+   ],
+   "note": "lens stays null \u2014 ONIQ measures no lens control"
+  },
+  {
+   "renderer_parameter": "end_frame_idx",
+   "value": 129,
+   "support": "ENFORCED",
+   "engineering_reference_ids": [
+    "CAM-00031",
+    "QA:no-border-contact"
+   ],
+   "note": "the frame window is bounded by the MEASURED no-border-contact envelope for this character; the post-render ENVELOPE gate re-verifies it"
+  },
+  {
+   "renderer_parameter": "lighting",
+   "value": {
+    "primary": "LIT-00451",
+    "condition": "night",
+    "direction": "front",
+    "quality": "hard",
+    "secondary_axes": [
+     {
+      "id": "LIT-00751",
+      "condition": "rain light",
+      "base_panel": "LIT-P02.06",
+      "base_section": "S2 WEATHER"
+     },
+     {
+      "id": "LIT-01951",
+      "condition": "street light",
+      "base_panel": "LIT-P04.10",
+      "base_section": "S4 ARTIFICIAL SOURCES"
+     }
+    ]
+   },
+   "support": "PLAN_ONLY",
+   "engineering_reference_ids": [
+    "LIT-00451"
+   ],
+   "note": "the CPU ARAP renderer has NO lighting model: this is carried into the plan for the owner-gated paid compositing stage and is NOT executed here"
+  },
+  {
+   "renderer_parameter": "camera_x_lighting",
+   "value": {
+    "matrix_id": "CXL-00010",
+    "pair": "eye level x night",
+    "camera_panel": "CAM-P01.01",
+    "lighting_panel": "LIT-P01.10"
+   },
+   "support": "PLAN_ONLY",
+   "engineering_reference_ids": [
+    "CXL-00010"
+   ],
+   "note": "registered matrix pair carried into the plan"
+  },
+  {
+   "renderer_parameter": "scene",
+   "value": {
+    "category": "ENG-0761",
+    "subdomain": "scene-category/urban-exterior",
+    "supporting": [
+     "ENG-0550",
+     "ENG-0552",
+     "ENG-0736",
+     "ENG-0796",
+     "ENG-0797"
+    ]
+   },
+   "support": "PLAN_ONLY",
+   "engineering_reference_ids": [
+    "ENG-0761"
+   ],
+   "note": "no scene compositing on the zero-GPU path; plain canvas is rendered"
+  },
+  {
+   "renderer_parameter": "production_adoption",
+   "value": "owner-gated",
+   "support": "BLOCKED",
+   "engineering_reference_ids": [
+    "ENG-0949"
+   ],
+   "note": "knee-damped walking production adoption is owner item (a)"
+  }
+ ],
+ "renderer": {
+  "script": "/home/user/oniq-sparkle-pay/remotion/scripts/l3_animate_reference.py",
+  "script_sha256": "800ab34ef8ca8efc9d7f20f096a250d0fe2d4bdba222f3f4ab28faa4f9035ad0",
+  "character": "m3_suit_woman",
+  "character_rig": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/genloop/v3/b4/m3_suit_woman/rig",
+  "motion_cfg": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/eld/evidence/run1/motion_engineering.yaml",
+  "motion_cfg_sha256": "14c16dae465d5b4ba5107b46698f740033e81ab86e1612800a7494e87b895422",
+  "retarget_cfg": "/tmp/claude-0/-home-user-oniq-sparkle-pay/65e4b369-079b-5eca-8708-c0c1cc6772c6/scratchpad/eld/evidence/run1/retarget_engineering.yaml",
+  "retarget_cfg_sha256": "ab61ac5e0fb6f80b6986ba82d0b634b5eccee18b49383c2b40ac9e00049858f4",
+  "canvas": "500x500",
+  "gpu": false
+ },
+ "shot_plan_hash": "63a20237f40046254b1dd4fd8770c51f2f7ee18d13f181df677937a3fcea2c36",
+ "pre_render_gate_record": {
+  "mask": "u2netp",
+  "fill_pct": 42.6,
+  "border": false,
+  "coreOutside": [],
+  "jointsOutside": [],
+  "kptConfMean": 0.9178,
+  "ELIGIBLE": true,
+  "thresholds": {
+   "rig_confidence_min": 0.7,
+   "mask_fill_max_pct": 90,
+   "border_contact_allowed": false,
+   "note": "the rejected 65% fill collapse rule is NOT applied"
+  },
+  "rig_untouched": true
+ },
+ "pre_render_gates": [
+  {
+   "gate": "rig_confidence>=0.70",
+   "result": "PASS",
+   "detail": "kpt_conf_mean=0.9178",
+   "engineering_reference_ids": [
+    "QA:landmark-confidence"
+   ]
+  },
+  {
+   "gate": "mask_fill<=90",
+   "result": "PASS",
+   "detail": "fill=42.6%  (the rejected 65% collapse rule is NOT applied)",
+   "engineering_reference_ids": [
+    "QA:mask-fill"
+   ]
+  },
+  {
+   "gate": "no_border_contact_pre",
+   "result": "PASS",
+   "detail": "border=False",
+   "engineering_reference_ids": [
+    "QA:border-contact"
+   ]
+  },
+  {
+   "gate": "core_joints_on_silhouette",
+   "result": "PASS",
+   "detail": "coreOutside=[]",
+   "engineering_reference_ids": [
+    "ENG-0101",
+    "ENG-0104",
+    "ENG-0105"
+   ]
+  }
+ ],
+ "generation_authorization": {
+  "explicit_generation_required_by_plan": true,
+  "authorized": true,
+  "authorization_source": "owner instruction (ONE corrected sample)",
+  "cost": {
+   "api_inr": 0,
+   "gpu_inr": 0,
+   "gpu_used": false
+  }
+ },
+ "outputs": [
+  {
+   "file": "sample_1.gif",
+   "sha256": "ae8124510a4a2d77e40515d2f210db52b30a805a039d3e71f934fc74d0ca4591",
+   "render_seconds": "8.2",
+   "max_rss_mb": "456",
+   "bytes": 964027
+  },
+  {
+   "file": "sample_2.gif",
+   "sha256": "ae8124510a4a2d77e40515d2f210db52b30a805a039d3e71f934fc74d0ca4591",
+   "render_seconds": "8.0",
+   "max_rss_mb": "456",
+   "bytes": 964027
+  }
+ ],
+ "determinism": {
+  "same_host_pair": true,
+  "policy": "PER_HOST / PER_CPU_CLASS",
+  "rebaselined_fixtures": false
+ },
+ "result": {
+  "status": "GENERATED",
+  "output_sha256": "ae8124510a4a2d77e40515d2f210db52b30a805a039d3e71f934fc74d0ca4591"
+ },
+ "post_render_gates": {
+  "structural_validator": [
+   "FRAME_COUNT   PASS  expanded=129 configured=129 distinct_entries=129",
+   "  DURATION      PASS  4257ms vs configured 4257ms (4.26s)",
+   "  FROZEN_TAIL   PASS  longest identical run=1 frames at entry 0 (0.03s)",
+   "  EMPTY_FRAMES  PASS  0 blank entries = 0 frames (0.0% of clip)",
+   "  ENVELOPE      PASS  0 entries touch the border",
+   "  RESULT        CLIP_VALID"
+  ],
+  "structural_exit": 0,
+  "aliveness": "SAMPLE         frames  129  aliveness   6.87  min 0.75  ALIVE  [f0..f128]",
+  "aliveness_note": "necessary, never sufficient \u2014 the pixel review is mandatory"
+ },
+ "negative_catalogue": [
+  {
+   "negative_class": "limb_curl",
+   "verdict": "PASS",
+   "measurement": "min knee interior angle 140.0 deg (undamped source reaches 100.1; the 0.50 damping raises it)",
+   "engineering_reference": "ENG-0153"
+  },
+  {
+   "negative_class": "foot_slide",
+   "verdict": "PASS",
+   "measurement": "max per-frame planted-foot travel L=1.36 R=0.39 (BVH units; stance = lowest quartile of foot height)",
+   "engineering_reference": "ENG-0201"
+  },
+  {
+   "negative_class": "limb_merge",
+   "verdict": "PASS",
+   "measurement": "silhouette connected components per frame: min=1 max=1 (1 = a single coherent body; merge would still read as 1, so the legs were additionally inspected in the decoded leg-band strip)",
+   "engineering_reference": "ENG-0033"
+  },
+  {
+   "negative_class": "mesh_tear",
+   "verdict": "PASS",
+   "measurement": "no frame splits into multiple components (max=1)",
+   "engineering_reference": ""
+  },
+  {
+   "negative_class": "joint_spike",
+   "verdict": "PASS",
+   "measurement": "max |second difference| of knee angle = 2.35 deg/frame^2",
+   "engineering_reference": ""
+  },
+  {
+   "negative_class": "ghosting",
+   "verdict": "PASS",
+   "measurement": "max share of pixels with partial alpha = 0.00%",
+   "engineering_reference": ""
+  },
+  {
+   "negative_class": "drift",
+   "verdict": "PASS",
+   "measurement": "vertical centroid range 16.2px over 129 frames",
+   "engineering_reference": ""
+  },
+  {
+   "negative_class": "border_contact",
+   "verdict": "PASS",
+   "measurement": "0 frames contact the canvas border",
+   "engineering_reference": "QA:no-border-contact"
+  },
+  {
+   "negative_class": "bad_silhouette",
+   "verdict": "PASS",
+   "measurement": "per-frame fill 4.7%-5.4% (gate <=90%, the 65% collapse rule is NOT applied)",
+   "engineering_reference": "QA:mask-fill"
+  },
+  {
+   "negative_class": "frozen_or_blank_tail",
+   "verdict": "PASS",
+   "measurement": "longest identical run 1 frames; 0 blank frames",
+   "engineering_reference": ""
+  },
+  {
+   "negative_class": "bare_thin_shin_crossing_warp",
+   "verdict": "NOT_APPLICABLE",
+   "measurement": "this character's shins are trouser-covered; the measured subclass applies to bare thin ink-stroke limbs",
+   "engineering_reference": "ENG-0033"
+  },
+  {
+   "negative_class": "identity_drift",
+   "verdict": "PASS",
+   "measurement": "silhouette height 272-281px (range 9px)",
+   "engineering_reference": ""
+  }
+ ],
+ "negative_catalogue_summary": {
+  "tested": 12,
+  "pass": 11,
+  "review": 0,
+  "not_applicable": 1,
+  "fail": 0
+ }
+}

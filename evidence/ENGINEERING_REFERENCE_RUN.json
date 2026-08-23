@@ -1,0 +1,1157 @@
+{
+ "record": "ENGINEERING_REFERENCE_RUN",
+ "version": "1.0",
+ "request": "A determined character walks through a rainy modern city street at night.",
+ "engineering_taxonomy_version": "1.0",
+ "engineering_schema_version": "oniq://engineering/character-profile/1.0",
+ "engineering_reference_ids": [
+  "ENG-001",
+  "ENG-002",
+  "ENG-003",
+  "ENG-004",
+  "ENG-005-ALIAS"
+ ],
+ "engineering_reference_sha256": {
+  "ENG-001": "fc0ea82faccf3d436c8870f328657db9c5c4999ad27f602e8d8aa8c09c33fe18",
+  "ENG-002": "84588b3ad10a2a7bf9b5832e1eccfd7900c8fe7a0bd71c52c87f24e3640cfb69",
+  "ENG-003": "35c00f60678c9ed07a87b3938f2b220afb6557d5a75f0f56954a07ae6efc6356",
+  "ENG-004": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+  "ENG-005-ALIAS": "35c00f60678c9ed07a87b3938f2b220afb6557d5a75f0f56954a07ae6efc6356"
+ },
+ "index_sha256": {
+  "CAMERA_ENGINEERING_INDEX": "180f8683cd902039385fe6ab2ea18acc72996982010d83560b0d1732fa931f04",
+  "LIGHTING_ENGINEERING_INDEX": "506d361e94f4edd0b068fb6bfbfb710c27f722cdd7819b02de53a082ae2b1b0c",
+  "CAMERA_LIGHTING_MATRIX": "40ef18f588d434232622f7d1ee40adb0551c16b71a99cb9be602c9633504080e",
+  "MOTION_ENGINEERING_INDEX": "8a283e282a5a36d8ff357613b94c4ae8d09dced20212d2ebdef96e0aa35bc003",
+  "SCENE_ENGINEERING_INDEX": "dc31ee149cd5c374b440f5e1bc2e58cc30b42a29411df674ccdb4bd563d3c1e1",
+  "CHARACTER_ENGINEERING_INDEX": "9ec703e4f1f90f7aca39ca9e7c8888cf453f840d4eb15cf70cb109ffa1777fb4",
+  "EMOTION_ENGINEERING_INDEX": "7e007ab3cbb7b8b00cb472b83d2aacda33cf11e6bdd7358119d4edb5820b2971",
+  "QA_ENGINEERING_INDEX": "d85e8286a8d2bb193cd3b6fbfba1950a7e8c613f5efa1ab4800f243187b893ff",
+  "ENGINEERING_DETAILS_1000": "4bf25f2fe920082a57a1cc139fb0bf152652de60e11b60b40be344fef3196667",
+  "ENGINEERING_TAXONOMY": "042ccaec9bc112b0d9b7c8091107b617669f71c0dbb7bc8bc2707fc78e41f907"
+ },
+ "generation_allowed": false,
+ "generation_allowed_note": "FALSE for every reference asset. This run READ the frozen library; it did not and may not mutate it.",
+ "selected_character_shelf": "ENG-0101",
+ "selected_motion_shelf": "ENG-0201",
+ "selected_scene_shelf": "ENG-0761",
+ "selected_camera_shelf": "CAM-00031",
+ "selected_lighting_shelf": "LIT-00451",
+ "selected_anatomy_shelf": "ENG-0101",
+ "selected_negative_shelf": "ENG-0090",
+ "selected_qa_shelf": "ENG-0901",
+ "retrieval": {
+  "request": "A determined character walks through a rainy modern city street at night.",
+  "request_tokens_expanded": [
+   "a",
+   "at",
+   "character",
+   "city",
+   "cityscape",
+   "determined",
+   "modern",
+   "night",
+   "rain",
+   "rainy",
+   "street",
+   "through",
+   "urban",
+   "walk",
+   "walking",
+   "walks"
+  ],
+  "request_synonyms_applied": {
+   "walks": [
+    "walk",
+    "walking"
+   ],
+   "walk": [
+    "walking"
+   ],
+   "walked": [
+    "walking"
+   ],
+   "walking": [
+    "walk"
+   ],
+   "rainy": [
+    "rain"
+   ],
+   "city": [
+    "cityscape",
+    "urban"
+   ],
+   "street": [
+    "urban"
+   ]
+  },
+  "shelves": {
+   "MOTION": {
+    "selected": {
+     "id": "ENG-0201",
+     "domain": "03 MOTION / KINEMATICS",
+     "subdomain": "grammar/walking",
+     "engineering_detail": "WALKING is the PRIMARY motion grammar",
+     "purpose": "preserve a measured ONIQ behavior exactly as evidenced",
+     "input": "driver BVH + rendered clip frames",
+     "output": "motion quality verdict",
+     "validation": "accepted walk renders across M1-M3",
+     "failure_condition": "walking demoted or replaced",
+     "source_reference": "MOTION_STANDARD + 29 PRODUCTION_READY walks",
+     "evidence_class": "MEASURED",
+     "implementation_status": "ENFORCED"
+    },
+    "provenance": {
+     "id": "ENG-0201",
+     "index_file": "MOTION_ENGINEERING_INDEX.json",
+     "index_sha256": "8a283e282a5a36d8ff357613b94c4ae8d09dced20212d2ebdef96e0aa35bc003",
+     "reference_image_id": "ENG-004",
+     "reference_image_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+     "generation_allowed": false
+    },
+    "why": "the request's verb 'walks' resolves to WALKING, which the library records as the PRIMARY grammar; no other grammar is promoted, so none may be substituted",
+    "status": "RESOLVED"
+   },
+   "MOTION_KNEE_CONTRACT": {
+    "status": "RESOLVED",
+    "selected": [
+     {
+      "id": "ENG-0134",
+      "subdomain": "retarget/knee-drive",
+      "engineering_detail": "left/right knee orientation derives from the (UpLeg, Leg) thigh vector",
+      "evidence_class": "MEASURED",
+      "implementation_status": "ENFORCED"
+     },
+     {
+      "id": "ENG-0153",
+      "subdomain": "knee-damping/scale",
+      "engineering_detail": "KNEE_DAMPING = 0.50 is the accepted walking correction (source-BVH layer)",
+      "evidence_class": "MEASURED",
+      "implementation_status": "ENFORCED"
+     },
+     {
+      "id": "ENG-0154",
+      "subdomain": "knee-damping/symmetry",
+      "engineering_detail": "Damping applies to BOTH knees symmetrically \u2014 never one physical knee",
+      "evidence_class": "MEASURED",
+      "implementation_status": "ENFORCED"
+     },
+     {
+      "id": "ENG-0155",
+      "subdomain": "knee-damping/channels",
+      "engineering_detail": "Exactly six knee rotation channels are damped; nothing else",
+      "evidence_class": "MEASURED",
+      "implementation_status": "ENFORCED"
+     },
+     {
+      "id": "ENG-0156",
+      "subdomain": "knee-damping/wrap-safe",
+      "engineering_detail": "Damping is wrap-safe: r' = f0 + s * unwrap(r - f0), toward frame 0",
+      "evidence_class": "MEASURED",
+      "implementation_status": "ENFORCED"
+     },
+     {
+      "id": "ENG-0299",
+      "subdomain": "driver/knee050-file",
+      "engineering_detail": "motion_knee050.yaml + zombie_knee050.bvh are THE accepted walk driver pair, hashed on the evidence branch",
+      "evidence_class": "MEASURED",
+      "implementation_status": "ENFORCED"
+     }
+    ],
+    "provenance": {
+     "id": "ENG-0134",
+     "index_file": "ENGINEERING_DETAILS_1000.json",
+     "index_sha256": "4bf25f2fe920082a57a1cc139fb0bf152652de60e11b60b40be344fef3196667",
+     "reference_image_id": null,
+     "reference_image_sha256": null,
+     "generation_allowed": false
+    },
+    "why": "the ENFORCED knee-damping rules that govern the BVH driver: scale, symmetry, channel count, wrap-safe form, knee drive vector and the accepted driver file pair",
+    "enforced_count": 6
+   },
+   "SCENE": {
+    "selected": {
+     "id": "ENG-0761",
+     "domain": "08 ENVIRONMENT / SURFACE / PROPS",
+     "subdomain": "scene-category/urban-exterior",
+     "engineering_detail": "Scene category 'urban exterior' \u2014 covered by the frozen scene library (69/70 taxonomy coverage)",
+     "purpose": "preserve a measured ONIQ behavior exactly as evidenced",
+     "input": "scene reference + shot composition",
+     "output": "environment metadata",
+     "validation": "category present in the frozen index",
+     "failure_condition": "category cited without a frozen source",
+     "source_reference": "scene_refs manifest + SCENE_REFERENCE_INDEX",
+     "evidence_class": "MEASURED",
+     "implementation_status": "ENFORCED"
+    },
+    "provenance": {
+     "id": "ENG-0761",
+     "index_file": "SCENE_ENGINEERING_INDEX.json",
+     "index_sha256": "dc31ee149cd5c374b440f5e1bc2e58cc30b42a29411df674ccdb4bd563d3c1e1",
+     "reference_image_id": "ENG-004",
+     "reference_image_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+     "generation_allowed": false
+    },
+    "why": "scene CATEGORY vocabulary is the only admissible scene selector; coverage-limitation records are not scene choices",
+    "status": "RESOLVED",
+    "supporting": [
+     {
+      "id": "ENG-0550",
+      "subdomain": "scale/city-scale"
+     },
+     {
+      "id": "ENG-0552",
+      "subdomain": "scale/character-in-environment-scale"
+     },
+     {
+      "id": "ENG-0736",
+      "subdomain": "prop/street-furniture"
+     },
+     {
+      "id": "ENG-0796",
+      "subdomain": "weather-surface/mud-after-rain"
+     },
+     {
+      "id": "ENG-0797",
+      "subdomain": "time-surface/lit-windows-at-night"
+     }
+    ]
+   },
+   "ANATOMY": {
+    "status": "RESOLVED",
+    "selected": [
+     {
+      "id": "ENG-0101",
+      "subdomain": "landmark/root",
+      "engineering_detail": "Rig landmark 'root' is part of the measured 15-joint production skeleton",
+      "implementation_status": "ENFORCED"
+     },
+     {
+      "id": "ENG-0104",
+      "subdomain": "landmark/knee_l",
+      "engineering_detail": "Rig landmark 'knee_l' is part of the measured 15-joint production skeleton",
+      "implementation_status": "ENFORCED"
+     },
+     {
+      "id": "ENG-0105",
+      "subdomain": "landmark/knee_r",
+      "engineering_detail": "Rig landmark 'knee_r' is part of the measured 15-joint production skeleton",
+      "implementation_status": "ENFORCED"
+     },
+     {
+      "id": "ENG-0134",
+      "subdomain": "retarget/knee-drive",
+      "engineering_detail": "left/right knee orientation derives from the (UpLeg, Leg) thigh vector",
+      "implementation_status": "ENFORCED"
+     }
+    ],
+    "provenance": {
+     "id": "ENG-0101",
+     "index_file": "ENGINEERING_DETAILS_1000.json",
+     "index_sha256": "4bf25f2fe920082a57a1cc139fb0bf152652de60e11b60b40be344fef3196667",
+     "reference_image_id": null,
+     "reference_image_sha256": null,
+     "generation_allowed": false
+    },
+    "why": "MEASURED anatomy/rig constraints \u2014 the only class permitted to gate a render (ENFORCED requires MEASURED)",
+    "measured_anatomy_records_available": 12
+   },
+   "CAMERA": {
+    "selected": {
+     "id": "CAM-00031",
+     "base_panel": "CAM-P01.01",
+     "base_section": "S1 HEIGHT/ELEVATION",
+     "angle": "eye level",
+     "subject_scale": "full-figure subject scale",
+     "camera_mode": "locked/static",
+     "engineering_detail": "eye level viewpoint at full-figure subject scale, executed as a locked/static setup",
+     "visual_description": "atlas panel 'eye level' (S1 HEIGHT/ELEVATION)",
+     "camera_parameters": {
+      "lens": "NOT_SPECIFIED",
+      "height": "NOT_SPECIFIED",
+      "distance": "NOT_SPECIFIED",
+      "fov": "NOT_SPECIFIED"
+     },
+     "note": "composed combination",
+     "support": "reference",
+     "reference_image_id": "ENG-004",
+     "source_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+     "generation_allowed": false
+    },
+    "provenance": {
+     "id": "CAM-00031",
+     "index_file": "CAMERA_ENGINEERING_INDEX.json",
+     "index_sha256": "180f8683cd902039385fe6ab2ea18acc72996982010d83560b0d1732fa931f04",
+     "reference_image_id": "ENG-004",
+     "reference_image_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+     "generation_allowed": false
+    },
+    "why": "request states eye level and a frontal/near-frontal lane; a walking figure is a full-figure subject; the CPU renderer is a locked/static camera, so only locked/static is admissible",
+    "status": "RESOLVED",
+    "unspecified_by_library": [
+     "lens",
+     "height",
+     "distance",
+     "fov"
+    ],
+    "unspecified_note": "the atlas does not measure these; they stay NOT_SPECIFIED and lens stays null"
+   },
+   "LIGHTING": {
+    "selected": {
+     "id": "LIT-00451",
+     "base_panel": "LIT-P01.10",
+     "base_section": "S1 TIME OF DAY",
+     "condition": "night",
+     "direction": "front",
+     "quality": "hard",
+     "engineering_detail": "night lighting from the front at hard quality",
+     "visual_description": "atlas panel 'night' (S1 TIME OF DAY)",
+     "lighting_parameters": {
+      "color_temperature": "NOT_SPECIFIED",
+      "ratio": "NOT_SPECIFIED",
+      "intensity": "NOT_SPECIFIED"
+     },
+     "note": "composed combination",
+     "vfx_caution": null,
+     "reference_image_id": "ENG-004",
+     "source_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+     "generation_allowed": false
+    },
+    "provenance": {
+     "id": "LIT-00451",
+     "index_file": "LIGHTING_ENGINEERING_INDEX.json",
+     "index_sha256": "506d361e94f4edd0b068fb6bfbfb710c27f722cdd7819b02de53a082ae2b1b0c",
+     "reference_image_id": "ENG-004",
+     "reference_image_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+     "generation_allowed": false
+    },
+    "why": "time-of-day register selected from the request's 'night'; the atlas models weather and artificial sources as SEPARATE panels, so one record cannot carry night+rain+streetlight \u2014 the other axes are carried explicitly rather than silently merged",
+    "status": "RESOLVED",
+    "secondary_axes": [
+     {
+      "id": "LIT-00751",
+      "condition": "rain light",
+      "base_panel": "LIT-P02.06",
+      "base_section": "S2 WEATHER"
+     },
+     {
+      "id": "LIT-01951",
+      "condition": "street light",
+      "base_panel": "LIT-P04.10",
+      "base_section": "S4 ARTIFICIAL SOURCES"
+     }
+    ],
+    "unspecified_by_library": [
+     "color_temperature",
+     "ratio",
+     "intensity"
+    ]
+   },
+   "CAMERA_X_LIGHTING": {
+    "status": "RESOLVED",
+    "selected": {
+     "id": "CXL-00010",
+     "camera_panel": "CAM-P01.01",
+     "lighting_panel": "LIT-P01.10",
+     "pair": "eye level x night"
+    },
+    "provenance": {
+     "id": "CXL-00010",
+     "index_file": "CAMERA_LIGHTING_MATRIX.json",
+     "index_sha256": "40ef18f588d434232622f7d1ee40adb0551c16b71a99cb9be602c9633504080e",
+     "reference_image_id": "ENG-004",
+     "reference_image_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+     "generation_allowed": false
+    },
+    "why": "the registered matrix entry joining the selected camera panel to the selected lighting panel \u2014 taken from the 10,000-pair matrix, not composed independently",
+    "compatibility": "REGISTERED_PAIR"
+   },
+   "NEGATIVE": {
+    "status": "RESOLVED",
+    "selected": [
+     {
+      "id": "ENG-0090",
+      "subdomain": "measured/padding",
+      "failure_condition": "border figure mis-rigged without padding"
+     },
+     {
+      "id": "ENG-0100",
+      "subdomain": "anatomy/silhouette-preservation",
+      "failure_condition": "silhouette area or outline changes beyond review tolerance"
+     },
+     {
+      "id": "ENG-0220",
+      "subdomain": "failure/foot slide",
+      "failure_condition": "'foot slide' visible in any rendered frame"
+     },
+     {
+      "id": "ENG-0226",
+      "subdomain": "failure/ribbon/curl leg",
+      "failure_condition": "'ribbon/curl leg' visible in any rendered frame"
+     },
+     {
+      "id": "ENG-0228",
+      "subdomain": "failure/blade/spike artifact",
+      "failure_condition": "'blade/spike artifact' visible in any rendered frame"
+     },
+     {
+      "id": "ENG-0229",
+      "subdomain": "failure/merged-body collapse",
+      "failure_condition": "'merged-body collapse' visible in any rendered frame"
+     },
+     {
+      "id": "ENG-0233",
+      "subdomain": "measured/max-jump",
+      "failure_condition": "jump spikes past the damped envelope"
+     },
+     {
+      "id": "ENG-0234",
+      "subdomain": "measured/zero-curls",
+      "failure_condition": "curl recurrence (except bare-thin-shin class)"
+     },
+     {
+      "id": "ENG-0243",
+      "subdomain": "secondary/hair-motion",
+      "failure_condition": "hair spikes"
+     },
+     {
+      "id": "ENG-0244",
+      "subdomain": "secondary/head-stability",
+      "failure_condition": "head drift or detach"
+     },
+     {
+      "id": "ENG-0247",
+      "subdomain": "temporal/cycle-periodicity",
+      "failure_condition": "cycle drift"
+     },
+     {
+      "id": "ENG-0265",
+      "subdomain": "review/crossing-frames",
+      "failure_condition": "crossing artifacts unreviewed"
+     },
+     {
+      "id": "ENG-0307",
+      "subdomain": "gate/border-contact",
+      "failure_condition": "border contact accepted"
+     },
+     {
+      "id": "ENG-0344",
+      "subdomain": "deformation/mesh tears",
+      "failure_condition": "'mesh tears' visible in output"
+     },
+     {
+      "id": "ENG-0345",
+      "subdomain": "deformation/spikes",
+      "failure_condition": "'spikes' visible in output"
+     },
+     {
+      "id": "ENG-0347",
+      "subdomain": "deformation/merged limbs",
+      "failure_condition": "'merged limbs' visible in output"
+     },
+     {
+      "id": "ENG-0348",
+      "subdomain": "deformation/ghosting",
+      "failure_condition": "'ghosting' visible in output"
+     },
+     {
+      "id": "ENG-0354",
+      "subdomain": "deformation/edge spike",
+      "failure_condition": "'edge spike' visible in output"
+     },
+     {
+      "id": "ENG-0362",
+      "subdomain": "ghost/threshold-class",
+      "failure_condition": "ghosting misread as mesh bug"
+     },
+     {
+      "id": "ENG-0363",
+      "subdomain": "hole-def/holeCount",
+      "failure_condition": "definition drift"
+     },
+     {
+      "id": "ENG-0364",
+      "subdomain": "hole-def/maxHolePx",
+      "failure_condition": "definition drift"
+     },
+     {
+      "id": "ENG-0365",
+      "subdomain": "hole-def/holesTop3",
+      "failure_condition": "definition drift"
+     },
+     {
+      "id": "ENG-0366",
+      "subdomain": "hole-def/minBottomRowWidthPx",
+      "failure_condition": "definition drift"
+     },
+     {
+      "id": "ENG-0371",
+      "subdomain": "sil-def/fillPct",
+      "failure_condition": "definition drift"
+     },
+     {
+      "id": "ENG-0372",
+      "subdomain": "sil-def/border-scan",
+      "failure_condition": "definition drift"
+     },
+     {
+      "id": "ENG-0373",
+      "subdomain": "sil-def/component-count",
+      "failure_condition": "definition drift"
+     },
+     {
+      "id": "ENG-0374",
+      "subdomain": "sil-def/bounding-box",
+      "failure_condition": "definition drift"
+     },
+     {
+      "id": "ENG-0375",
+      "subdomain": "sil-def/height-width-ratio",
+      "failure_condition": "definition drift"
+     },
+     {
+      "id": "ENG-0400",
+      "subdomain": "mesh/stage-times",
+      "failure_condition": "stage attribution drift"
+     },
+     {
+      "id": "ENG-0577",
+      "subdomain": "framing/margin-contract",
+      "failure_condition": "border-contact rejects reappear"
+     },
+     {
+      "id": "ENG-0687",
+      "subdomain": "measured/weather-phrase-map",
+      "failure_condition": "phrase drift from the classifier"
+     },
+     {
+      "id": "ENG-0760",
+      "subdomain": "scene-category/daily-life-interior",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0761",
+      "subdomain": "scene-category/urban-exterior",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0762",
+      "subdomain": "scene-category/cityscape",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0763",
+      "subdomain": "scene-category/nature",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0764",
+      "subdomain": "scene-category/landscape",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0765",
+      "subdomain": "scene-category/rural",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0766",
+      "subdomain": "scene-category/village",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0767",
+      "subdomain": "scene-category/historical",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0768",
+      "subdomain": "scene-category/period-setting",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0769",
+      "subdomain": "scene-category/fantasy-world",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0770",
+      "subdomain": "scene-category/science-fiction-world",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0771",
+      "subdomain": "scene-category/special-location",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0772",
+      "subdomain": "scene-category/transport-hub",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0773",
+      "subdomain": "scene-category/scientific-space",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0774",
+      "subdomain": "scene-category/workplace",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0775",
+      "subdomain": "scene-category/market",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0776",
+      "subdomain": "scene-category/harbor-maritime",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0777",
+      "subdomain": "scene-category/mountain",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0778",
+      "subdomain": "scene-category/desert",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0779",
+      "subdomain": "scene-category/forest",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0780",
+      "subdomain": "scene-category/underwater",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0781",
+      "subdomain": "scene-category/festival-scene",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0782",
+      "subdomain": "scene-category/decay-ruination",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0783",
+      "subdomain": "scene-category/recreational-space",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0784",
+      "subdomain": "scene-category/entertainment-venue",
+      "failure_condition": "category cited without a frozen source"
+     },
+     {
+      "id": "ENG-0857",
+      "subdomain": "resolution/master",
+      "failure_condition": "aspect drift"
+     }
+    ],
+    "provenance": {
+     "id": "ENG-0090",
+     "index_file": "ENGINEERING_DETAILS_1000.json",
+     "index_sha256": "4bf25f2fe920082a57a1cc139fb0bf152652de60e11b60b40be344fef3196667",
+     "reference_image_id": null,
+     "reference_image_sha256": null,
+     "generation_allowed": false
+    },
+    "why": "MEASURED failure conditions that must be tested against the rendered pixels before the clip may be called valid",
+    "count": 57
+   },
+   "QA": {
+    "status": "RESOLVED",
+    "selected": [
+     {
+      "id": "ENG-0901",
+      "subdomain": "pre-render/landmark-confidence",
+      "engineering_detail": "Pre-render gate 'landmark confidence' \u2014 static check that must pass before any render is attempted",
+      "failure_condition": "render attempted past a failed gate"
+     },
+     {
+      "id": "ENG-0902",
+      "subdomain": "pre-render/silhouette-metrics",
+      "engineering_detail": "Pre-render gate 'silhouette metrics' \u2014 static check that must pass before any render is attempted",
+      "failure_condition": "render attempted past a failed gate"
+     },
+     {
+      "id": "ENG-0903",
+      "subdomain": "pre-render/limb-width-check",
+      "engineering_detail": "Pre-render gate 'limb width check' \u2014 static check that must pass before any render is attempted",
+      "failure_condition": "render attempted past a failed gate"
+     },
+     {
+      "id": "ENG-0904",
+      "subdomain": "pre-render/topology-analysis",
+      "engineering_detail": "Pre-render gate 'topology analysis' \u2014 static check that must pass before any render is attempted",
+      "failure_condition": "render attempted past a failed gate"
+     },
+     {
+      "id": "ENG-0905",
+      "subdomain": "pre-render/classification",
+      "engineering_detail": "Pre-render gate 'classification' \u2014 static check that must pass before any render is attempted",
+      "failure_condition": "render attempted past a failed gate"
+     },
+     {
+      "id": "ENG-0906",
+      "subdomain": "pre-render/border-contact",
+      "engineering_detail": "Pre-render gate 'border contact' \u2014 static check that must pass before any render is attempted",
+      "failure_condition": "render attempted past a failed gate"
+     },
+     {
+      "id": "ENG-0907",
+      "subdomain": "pre-render/fill-ceiling",
+      "engineering_detail": "Pre-render gate 'fill ceiling' \u2014 static check that must pass before any render is attempted",
+      "failure_condition": "render attempted past a failed gate"
+     },
+     {
+      "id": "ENG-0908",
+      "subdomain": "pre-render/connected-components",
+      "engineering_detail": "Pre-render gate 'connected components' \u2014 static check that must pass before any render is attempted",
+      "failure_condition": "render attempted past a failed gate"
+     },
+     {
+      "id": "ENG-0909",
+      "subdomain": "pre-render/core-joint-containment",
+      "engineering_detail": "Pre-render gate 'core-joint containment' \u2014 static check that must pass before any render is attempted",
+      "failure_condition": "render attempted past a failed gate"
+     },
+     {
+      "id": "ENG-0910",
+      "subdomain": "pre-render/camera-lane",
+      "engineering_detail": "Pre-render gate 'camera lane' \u2014 static check that must pass before any render is attempted",
+      "failure_condition": "render attempted past a failed gate"
+     },
+     {
+      "id": "ENG-0911",
+      "subdomain": "post-render/temporal-aliveness",
+      "engineering_detail": "Post-render gate 'temporal aliveness' \u2014 dynamic check on decoded output; numeric scores are never sufficient alone",
+      "failure_condition": "numeric pass without pixel review"
+     },
+     {
+      "id": "ENG-0912",
+      "subdomain": "post-render/foot-contact",
+      "engineering_detail": "Post-render gate 'foot contact' \u2014 dynamic check on decoded output; numeric scores are never sufficient alone",
+      "failure_condition": "numeric pass without pixel review"
+     },
+     {
+      "id": "ENG-0913",
+      "subdomain": "post-render/texture-deformation",
+      "engineering_detail": "Post-render gate 'texture deformation' \u2014 dynamic check on decoded output; numeric scores are never sufficient alone",
+      "failure_condition": "numeric pass without pixel review"
+     },
+     {
+      "id": "ENG-0914",
+      "subdomain": "post-render/identity-consistency",
+      "engineering_detail": "Post-render gate 'identity consistency' \u2014 dynamic check on decoded output; numeric scores are never sufficient alone",
+      "failure_condition": "numeric pass without pixel review"
+     },
+     {
+      "id": "ENG-0915",
+      "subdomain": "post-render/final-classification",
+      "engineering_detail": "Post-render gate 'final classification' \u2014 dynamic check on decoded output; numeric scores are never sufficient alone",
+      "failure_condition": "numeric pass without pixel review"
+     },
+     {
+      "id": "ENG-0916",
+      "subdomain": "post-render/silhouette-consistency",
+      "engineering_detail": "Post-render gate 'silhouette consistency' \u2014 dynamic check on decoded output; numeric scores are never sufficient alone",
+      "failure_condition": "numeric pass without pixel review"
+     },
+     {
+      "id": "ENG-0917",
+      "subdomain": "post-render/geometry-integrity",
+      "engineering_detail": "Post-render gate 'geometry integrity' \u2014 dynamic check on decoded output; numeric scores are never sufficient alone",
+      "failure_condition": "numeric pass without pixel review"
+     },
+     {
+      "id": "ENG-0918",
+      "subdomain": "post-render/pixel-review",
+      "engineering_detail": "Post-render gate 'pixel review' \u2014 dynamic check on decoded output; numeric scores are never sufficient alone",
+      "failure_condition": "numeric pass without pixel review"
+     },
+     {
+      "id": "ENG-0919",
+      "subdomain": "post-render/motion-continuity",
+      "engineering_detail": "Post-render gate 'motion continuity' \u2014 dynamic check on decoded output; numeric scores are never sufficient alone",
+      "failure_condition": "numeric pass without pixel review"
+     },
+     {
+      "id": "ENG-0920",
+      "subdomain": "post-render/frame-strip-review",
+      "engineering_detail": "Post-render gate 'frame-strip review' \u2014 dynamic check on decoded output; numeric scores are never sufficient alone",
+      "failure_condition": "numeric pass without pixel review"
+     },
+     {
+      "id": "ENG-0933",
+      "subdomain": "determinism/scope",
+      "engineering_detail": "Determinism is PER-HOST / PER-CPU-CLASS \u2014 never claim universal byte-identical output",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0934",
+      "subdomain": "determinism/same-host",
+      "engineering_detail": "Pair renders on the same host are byte-identical (measured)",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0935",
+      "subdomain": "determinism/cross-host",
+      "engineering_detail": "Container recreation moved frozen hashes by 2-26 px/frame FP noise (measured, AVX-512 host)",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0936",
+      "subdomain": "determinism/simd",
+      "engineering_detail": "CPU SIMD differences are the identified mechanism for cross-host pixel deltas",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0937",
+      "subdomain": "determinism/pixel-comparison",
+      "engineering_detail": "When CPU classes differ, compare decoded pixels \u2014 never hashes alone",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0938",
+      "subdomain": "determinism/no-auto-rebaseline",
+      "engineering_detail": "Frozen fixture hashes are NEVER automatically re-baselined",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0939",
+      "subdomain": "determinism/both-hash-sets",
+      "engineering_detail": "Both per-host hash sets are kept and labeled; neither overwrites the other",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0941",
+      "subdomain": "determinism/metadata",
+      "engineering_detail": "Engineering-layer metadata is byte-deterministic (pure constants)",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0942",
+      "subdomain": "determinism/seeded",
+      "engineering_detail": "Seeded pipeline passes (director, vfx, palette) are deterministic per (input, seed)",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0943",
+      "subdomain": "determinism/no-wallclock",
+      "engineering_detail": "Deterministic passes exclude wall-clock and RNG (same inputs, same film)",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0944",
+      "subdomain": "determinism/fixture-handling",
+      "engineering_detail": "Frozen fixtures are referenced read-only; experiments run on copies",
+      "failure_condition": "policy redefined from a poster"
+     },
+     {
+      "id": "ENG-0945",
+      "subdomain": "production/owner-approval",
+      "engineering_detail": "Production enablement requires explicit owner approval \u2014 always",
+      "failure_condition": "boundary crossed without approval"
+     },
+     {
+      "id": "ENG-0951",
+      "subdomain": "production/no-merge-deploy",
+      "engineering_detail": "No merge, no deploy, no production configuration change inside engineering loops",
+      "failure_condition": "boundary crossed without approval"
+     },
+     {
+      "id": "ENG-0952",
+      "subdomain": "production/experiment-isolation",
+      "engineering_detail": "Experiments run in isolated copies/branches/worktrees; primary checkouts stay byte-untouched",
+      "failure_condition": "boundary crossed without approval"
+     },
+     {
+      "id": "ENG-0953",
+      "subdomain": "production/audit-trail",
+      "engineering_detail": "Every action leaves an audit trail: branch, commit, hashes, config, cost, result",
+      "failure_condition": "boundary crossed without approval"
+     },
+     {
+      "id": "ENG-0954",
+      "subdomain": "production/rollback",
+      "engineering_detail": "Evidence commits are append-only; rollback is a new commit, never history rewriting",
+      "failure_condition": "boundary crossed without approval"
+     },
+     {
+      "id": "ENG-0955",
+      "subdomain": "production/no-weights",
+      "engineering_detail": "Model weights are never committed to git",
+      "failure_condition": "boundary crossed without approval"
+     },
+     {
+      "id": "ENG-0956",
+      "subdomain": "production/generation-lock",
+      "engineering_detail": "generation_allowed=false on every reference asset; reference access never equals generation",
+      "failure_condition": "boundary crossed without approval"
+     },
+     {
+      "id": "ENG-0957",
+      "subdomain": "production/identity-free",
+      "engineering_detail": "Character profiles are identity-free (no ethnicity/gender/occupation/location fields)",
+      "failure_condition": "boundary crossed without approval"
+     },
+     {
+      "id": "ENG-0958",
+      "subdomain": "production/explicit-generation",
+      "engineering_detail": "USER REQUEST -> ANALYSIS -> EXPLICIT GENERATION ACTION; no auto-render on reference match",
+      "failure_condition": "boundary crossed without approval"
+     },
+     {
+      "id": "ENG-0959",
+      "subdomain": "fallback/still-parallax",
+      "engineering_detail": "Every motion rejection resolves to the STILL/PARALLAX fallback \u2014 fail-closed, no undefined state",
+      "failure_condition": "undefined failure state"
+     },
+     {
+      "id": "ENG-0960",
+      "subdomain": "fallback/motion-contract",
+      "engineering_detail": "Every fallback carries a structured MOTION_CONTRACT reason",
+      "failure_condition": "reasonless fallback"
+     },
+     {
+      "id": "ENG-0961",
+      "subdomain": "fallback/reason-registry",
+      "engineering_detail": "Eleven enumerated rejection reasons cover the known failure surface",
+      "failure_condition": "unregistered ad-hoc reason"
+     },
+     {
+      "id": "ENG-0962",
+      "subdomain": "qa/regression-suite",
+      "engineering_detail": "regression.sh re-renders the frozen control and compares per-host hashes",
+      "failure_condition": "regression skipped after env change"
+     },
+     {
+      "id": "ENG-0963",
+      "subdomain": "qa/test-suite",
+      "engineering_detail": "The full vitest suite is the merge gate (2,300+ tests); tests are never weakened to pass",
+      "failure_condition": "threshold lowered for green"
+     },
+     {
+      "id": "ENG-0964",
+      "subdomain": "qa/lint-gate",
+      "engineering_detail": "npm run lint:ci is the blocking lint gate; --no-verify is forbidden",
+      "failure_condition": "bypassed hook"
+     },
+     {
+      "id": "ENG-0965",
+      "subdomain": "qa/typecheck",
+      "engineering_detail": "tsc --noEmit must be clean on every change",
+      "failure_condition": "type errors shipped"
+     },
+     {
+      "id": "ENG-0966",
+      "subdomain": "qa/suppression-ratchet",
+      "engineering_detail": "The lint suppression tail only ratchets down; new violations never enter it",
+      "failure_condition": "suppression grown"
+     },
+     {
+      "id": "ENG-0967",
+      "subdomain": "qa/hooks-rule",
+      "engineering_detail": "react-hooks/rules-of-hooks is a release blocker; every hook above every early return",
+      "failure_condition": "hook after early return"
+     },
+     {
+      "id": "ENG-0968",
+      "subdomain": "qa/evidence-freeze",
+      "engineering_detail": "Evidence freezes only AFTER verification \u2014 never claim success before files are verified",
+      "failure_condition": "pre-verification freeze"
+     },
+     {
+      "id": "ENG-0969",
+      "subdomain": "qa/owner-decision-registry",
+      "engineering_detail": "Standing owner decisions (a)-(f) are tracked and never decided autonomously",
+      "failure_condition": "agent decides an owner item"
+     },
+     {
+      "id": "ENG-0970",
+      "subdomain": "qa/experiment-vs-production",
+      "engineering_detail": "STRESS_TEST/experimental classifications never leak into production enablement",
+      "failure_condition": "stress case shipped"
+     },
+     {
+      "id": "ENG-0971",
+      "subdomain": "qa/pixel-review-mandatory",
+      "engineering_detail": "Pixel review is mandatory for every accepted render \u2014 real pixels decide",
+      "failure_condition": "acceptance without review"
+     },
+     {
+      "id": "ENG-0972",
+      "subdomain": "qa/honest-failure",
+      "engineering_detail": "Failures are reported honestly with evidence; INSUFFICIENT/UNRESOLVED are valid outcomes",
+      "failure_condition": "failure massaged into success"
+     },
+     {
+      "id": "ENG-0979",
+      "subdomain": "suite-history/pr83-era",
+      "engineering_detail": "Measured test-suite growth: 2,282 tests green at the Wan provider PR",
+      "failure_condition": "counts misquoted"
+     },
+     {
+      "id": "ENG-0980",
+      "subdomain": "suite-history/vg-layer",
+      "engineering_detail": "Measured test-suite growth: 2,304 tests green after the video-generator engineering layer",
+      "failure_condition": "counts misquoted"
+     },
+     {
+      "id": "ENG-0981",
+      "subdomain": "suite-history/eng-layer",
+      "engineering_detail": "Measured test-suite growth: 2,316 tests green after the character engineering layer",
+      "failure_condition": "counts misquoted"
+     },
+     {
+      "id": "ENG-0982",
+      "subdomain": "failure-stats/border-rejects",
+      "engineering_detail": "Measured failure statistics: 4 border-contact generation rejects before the margin clause (then 4/4 regen fixes)",
+      "failure_condition": "statistics invented"
+     },
+     {
+      "id": "ENG-0983",
+      "subdomain": "failure-stats/logo-rejects",
+      "engineering_detail": "Measured failure statistics: 2 brand-mark REJECT_REGEN cases (M1)",
+      "failure_condition": "statistics invented"
+     },
+     {
+      "id": "ENG-0984",
+      "subdomain": "failure-stats/hang-incidence",
+      "engineering_detail": "Measured failure statistics: 2 solver hangs in ~30 characters, both rescued by the bounded fix",
+      "failure_condition": "statistics invented"
+     },
+     {
+      "id": "ENG-0985",
+      "subdomain": "failure-stats/idle-failures",
+      "engineering_detail": "Measured failure statistics: 2 idle FROZEN failures in M3 (recorded, not tuned)",
+      "failure_condition": "statistics invented"
+     },
+     {
+      "id": "ENG-0986",
+      "subdomain": "live-verified/spend-guard",
+      "engineering_detail": "Live-verified safeguard: the motion spend guard blocked and logged correctly in production conditions",
+      "failure_condition": "safeguard assumed"
+     },
+     {
+      "id": "ENG-0987",
+      "subdomain": "live-verified/aliveness-gate",
+      "engineering_detail": "Live-verified safeguard: the aliveness gate rejected correctly on live output",
+      "failure_condition": "safeguard assumed"
+     },
+     {
+      "id": "ENG-0988",
+      "subdomain": "live-verified/fallback-path",
+      "engineering_detail": "Live-verified safeguard: the still/parallax fallback engaged correctly on live rejection",
+      "failure_condition": "safeguard assumed"
+     },
+     {
+      "id": "ENG-0989",
+      "subdomain": "audit-field/branch",
+      "engineering_detail": "Required audit field 'branch' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-0990",
+      "subdomain": "audit-field/commit",
+      "engineering_detail": "Required audit field 'commit' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-0991",
+      "subdomain": "audit-field/source-hash",
+      "engineering_detail": "Required audit field 'source-hash' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-0992",
+      "subdomain": "audit-field/input-hash",
+      "engineering_detail": "Required audit field 'input-hash' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-0993",
+      "subdomain": "audit-field/configuration",
+      "engineering_detail": "Required audit field 'configuration' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-0994",
+      "subdomain": "audit-field/cpu",
+      "engineering_detail": "Required audit field 'cpu' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-0995",
+      "subdomain": "audit-field/ram",
+      "engineering_detail": "Required audit field 'ram' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-0996",
+      "subdomain": "audit-field/render-time",
+      "engineering_detail": "Required audit field 'render-time' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-0997",
+      "subdomain": "audit-field/output-sha",
+      "engineering_detail": "Required audit field 'output-sha' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-0998",
+      "subdomain": "audit-field/pixel-result",
+      "engineering_detail": "Required audit field 'pixel-result' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-0999",
+      "subdomain": "audit-field/gate-result",
+      "engineering_detail": "Required audit field 'gate-result' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     },
+     {
+      "id": "ENG-1000",
+      "subdomain": "audit-field/cost",
+      "engineering_detail": "Required audit field 'cost' on every changed or tested artifact",
+      "failure_condition": "field omitted"
+     }
+    ],
+    "provenance": {
+     "id": "ENG-0901",
+     "index_file": "QA_ENGINEERING_INDEX.json",
+     "index_sha256": "d85e8286a8d2bb193cd3b6fbfba1950a7e8c613f5efa1ab4800f243187b893ff",
+     "reference_image_id": "ENG-004",
+     "reference_image_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+     "generation_allowed": false
+    },
+    "why": "MEASURED + ENFORCED QA gates applied before and after the render",
+    "count": 76
+   },
+   "EMOTION_ATLAS": {
+    "status": "NOT_APPLICABLE",
+    "selected": null,
+    "provenance": {
+     "id": null,
+     "index_file": "EMOTION_ENGINEERING_INDEX.json",
+     "index_sha256": "7e007ab3cbb7b8b00cb472b83d2aacda33cf11e6bdd7358119d4edb5820b2971",
+     "reference_image_id": "ENG-004",
+     "reference_image_sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+     "generation_allowed": false
+    },
+    "why": "the frozen EMOTION index is a FACIAL/expression vocabulary (neutral, happy, gaze, blink, ...). It contains no whole-body reading for 'determined', so it cannot serve this request and is NOT forced to a nearest facial label. The whole-body emotion reading is taken from the shipped 25-emotion vocabulary instead.",
+    "best_score": 0,
+    "delegated_to": "src/lib/shotPlan.ts EMOTIONS (whole-body, identity-free)"
+   }
+  }
+ }
+}

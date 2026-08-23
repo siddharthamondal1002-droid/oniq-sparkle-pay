@@ -1,0 +1,16 @@
+{
+ "mask": "u2netp",
+ "fill_pct": 42.6,
+ "border": false,
+ "coreOutside": [],
+ "jointsOutside": [],
+ "kptConfMean": 0.9178,
+ "ELIGIBLE": true,
+ "thresholds": {
+  "rig_confidence_min": 0.7,
+  "mask_fill_max_pct": 90,
+  "border_contact_allowed": false,
+  "note": "the rejected 65% fill collapse rule is NOT applied"
+ },
+ "rig_untouched": true
+}
