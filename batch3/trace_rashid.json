@@ -1,0 +1,1074 @@
+{
+ "char": "rig",
+ "frame_time": 0.0333333,
+ "projection_planes": {
+  "Upper Limbs": "x(frontal)",
+  "Lower Limbs": "z(sagittal)",
+  "Trunk": "x(frontal)"
+ },
+ "char_bone_lengths": {
+  "right": {
+   "thigh": 0.2255,
+   "shin": 0.2356
+  },
+  "left": {
+   "thigh": 0.2257,
+   "shin": 0.235
+  }
+ },
+ "frames": {
+  "40": {
+   "bvh": {
+    "right": {
+     "hip": [
+      -0.008,
+      -0.0158,
+      0.0583
+     ],
+     "knee": [
+      0.0244,
+      -0.2821,
+      0.0734
+     ],
+     "ankle": [
+      0.0097,
+      -0.5549,
+      0.0781
+     ],
+     "thighVec2d": [
+      0.0323,
+      -0.2662
+     ],
+     "shinVec2d": [
+      -0.0147,
+      -0.2728
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 170.0,
+      "deviationDeg": 10.0,
+      "bendSign": -1,
+      "crossZ": -0.012726
+     }
+    },
+    "left": {
+     "hip": [
+      0.0048,
+      -0.0182,
+      -0.0579
+     ],
+     "knee": [
+      0.0135,
+      -0.2863,
+      -0.0449
+     ],
+     "ankle": [
+      -0.0163,
+      -0.5576,
+      -0.0311
+     ],
+     "thighVec2d": [
+      0.0087,
+      -0.2682
+     ],
+     "shinVec2d": [
+      -0.0298,
+      -0.2713
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 171.87,
+      "deviationDeg": 8.13,
+      "bendSign": -1,
+      "crossZ": -0.010358
+     }
+    }
+   },
+   "char": {
+    "right": {
+     "hip": [
+      -0.0475,
+      -0.0002
+     ],
+     "knee": [
+      -0.0203,
+      -0.2241
+     ],
+     "foot": [
+      -0.033,
+      -0.4594
+     ],
+     "kneeOrientDeg": 186.92,
+     "footOrientDeg": 176.92,
+     "knee2d": {
+      "interiorAngleDeg": 170.0,
+      "deviationDeg": 10.0,
+      "bendSign": -1,
+      "crossZ": -0.009229
+     }
+    },
+    "left": {
+     "hip": [
+      0.0599,
+      -0.0002
+     ],
+     "knee": [
+      0.0673,
+      -0.2258
+     ],
+     "foot": [
+      0.0416,
+      -0.4594
+     ],
+     "kneeOrientDeg": 181.87,
+     "footOrientDeg": 173.74,
+     "knee2d": {
+      "interiorAngleDeg": 171.87,
+      "deviationDeg": 8.13,
+      "bendSign": -1,
+      "crossZ": -0.007502
+     }
+    }
+   },
+   "root": [
+    0.0068,
+    -0.0002,
+    -0.5
+   ]
+  },
+  "80": {
+   "bvh": {
+    "right": {
+     "hip": [
+      -0.0032,
+      -0.0221,
+      0.0567
+     ],
+     "knee": [
+      0.0389,
+      -0.2866,
+      0.0358
+     ],
+     "ankle": [
+      -0.0505,
+      -0.5437,
+      0.0118
+     ],
+     "thighVec2d": [
+      0.0421,
+      -0.2645
+     ],
+     "shinVec2d": [
+      -0.0894,
+      -0.2571
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 151.8,
+      "deviationDeg": 28.2,
+      "bendSign": -1,
+      "crossZ": -0.034453
+     }
+    },
+    "left": {
+     "hip": [
+      0.0015,
+      -0.0119,
+      -0.0597
+     ],
+     "knee": [
+      0.0566,
+      -0.2639,
+      -0.1346
+     ],
+     "ankle": [
+      -0.0232,
+      -0.5235,
+      -0.1653
+     ],
+     "thighVec2d": [
+      0.055,
+      -0.252
+     ],
+     "shinVec2d": [
+      -0.0797,
+      -0.2596
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 150.61,
+      "deviationDeg": 29.39,
+      "bendSign": -1,
+      "crossZ": -0.034377
+     }
+    }
+   },
+   "char": {
+    "right": {
+     "hip": [
+      0.1931,
+      -0.0099
+     ],
+     "knee": [
+      0.2286,
+      -0.2326
+     ],
+     "foot": [
+      0.1512,
+      -0.4552
+     ],
+     "kneeOrientDeg": 189.04,
+     "footOrientDeg": 160.83,
+     "knee2d": {
+      "interiorAngleDeg": 151.8,
+      "deviationDeg": 28.2,
+      "bendSign": -1,
+      "crossZ": -0.025114
+     }
+    },
+    "left": {
+     "hip": [
+      0.3006,
+      -0.0099
+     ],
+     "knee": [
+      0.3487,
+      -0.2304
+     ],
+     "foot": [
+      0.2797,
+      -0.455
+     ],
+     "kneeOrientDeg": 192.31,
+     "footOrientDeg": 162.92,
+     "knee2d": {
+      "interiorAngleDeg": 150.61,
+      "deviationDeg": 29.39,
+      "bendSign": -1,
+      "crossZ": -0.026026
+     }
+    }
+   },
+   "root": [
+    0.2474,
+    -0.0099,
+    -0.5
+   ]
+  },
+  "90": {
+   "bvh": {
+    "right": {
+     "hip": [
+      -0.0059,
+      -0.0205,
+      0.057
+     ],
+     "knee": [
+      -0.02,
+      -0.2886,
+      0.0674
+     ],
+     "ankle": [
+      -0.1539,
+      -0.5268,
+      0.0701
+     ],
+     "thighVec2d": [
+      -0.0141,
+      -0.2681
+     ],
+     "shinVec2d": [
+      -0.1339,
+      -0.2382
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 153.68,
+      "deviationDeg": 26.32,
+      "bendSign": -1,
+      "crossZ": -0.032517
+     }
+    },
+    "left": {
+     "hip": [
+      0.0048,
+      -0.0136,
+      -0.0592
+     ],
+     "knee": [
+      0.1033,
+      -0.2605,
+      -0.0976
+     ],
+     "ankle": [
+      0.1752,
+      -0.5215,
+      -0.1352
+     ],
+     "thighVec2d": [
+      0.0985,
+      -0.2469
+     ],
+     "shinVec2d": [
+      0.0719,
+      -0.261
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 173.65,
+      "deviationDeg": 6.35,
+      "bendSign": -1,
+      "crossZ": -0.007964
+     }
+    }
+   },
+   "char": {
+    "right": {
+     "hip": [
+      0.2891,
+      -0.0172
+     ],
+     "knee": [
+      0.2773,
+      -0.2424
+     ],
+     "foot": [
+      0.1619,
+      -0.4478
+     ],
+     "kneeOrientDeg": 176.98,
+     "footOrientDeg": 150.67,
+     "knee2d": {
+      "interiorAngleDeg": 153.68,
+      "deviationDeg": 26.32,
+      "bendSign": -1,
+      "crossZ": -0.023559
+     }
+    },
+    "left": {
+     "hip": [
+      0.3966,
+      -0.0172
+     ],
+     "knee": [
+      0.4802,
+      -0.2268
+     ],
+     "foot": [
+      0.5426,
+      -0.4534
+     ],
+     "kneeOrientDeg": 201.75,
+     "footOrientDeg": 195.39,
+     "knee2d": {
+      "interiorAngleDeg": 173.65,
+      "deviationDeg": 6.35,
+      "bendSign": -1,
+      "crossZ": -0.005869
+     }
+    }
+   },
+   "root": [
+    0.3434,
+    -0.0172,
+    -0.5
+   ]
+  },
+  "92": {
+   "bvh": {
+    "right": {
+     "hip": [
+      -0.006,
+      -0.0219,
+      0.0565
+     ],
+     "knee": [
+      -0.0364,
+      -0.2874,
+      0.0831
+     ],
+     "ankle": [
+      -0.1835,
+      -0.5173,
+      0.0973
+     ],
+     "thighVec2d": [
+      -0.0304,
+      -0.2656
+     ],
+     "shinVec2d": [
+      -0.1471,
+      -0.2299
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 153.93,
+      "deviationDeg": 26.07,
+      "bendSign": -1,
+      "crossZ": -0.032063
+     }
+    },
+    "left": {
+     "hip": [
+      0.0056,
+      -0.0122,
+      -0.0594
+     ],
+     "knee": [
+      0.0839,
+      -0.268,
+      -0.0833
+     ],
+     "ankle": [
+      0.1554,
+      -0.5306,
+      -0.1076
+     ],
+     "thighVec2d": [
+      0.0783,
+      -0.2558
+     ],
+     "shinVec2d": [
+      0.0715,
+      -0.2626
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 178.22,
+      "deviationDeg": 1.78,
+      "bendSign": -1,
+      "crossZ": -0.002268
+     }
+    }
+   },
+   "char": {
+    "right": {
+     "hip": [
+      0.3207,
+      -0.0194
+     ],
+     "knee": [
+      0.295,
+      -0.2435
+     ],
+     "foot": [
+      0.1681,
+      -0.442
+     ],
+     "kneeOrientDeg": 173.47,
+     "footOrientDeg": 147.39,
+     "knee2d": {
+      "interiorAngleDeg": 153.93,
+      "deviationDeg": 26.07,
+      "bendSign": -1,
+      "crossZ": -0.023358
+     }
+    },
+    "left": {
+     "hip": [
+      0.4281,
+      -0.0194
+     ],
+     "knee": [
+      0.4942,
+      -0.2352
+     ],
+     "foot": [
+      0.5559,
+      -0.4619
+     ],
+     "kneeOrientDeg": 197.02,
+     "footOrientDeg": 195.23,
+     "knee2d": {
+      "interiorAngleDeg": 178.22,
+      "deviationDeg": 1.78,
+      "bendSign": -1,
+      "crossZ": -0.001651
+     }
+    }
+   },
+   "root": [
+    0.375,
+    -0.0194,
+    -0.5
+   ]
+  },
+  "100": {
+   "bvh": {
+    "right": {
+     "hip": [
+      -0.0036,
+      -0.0317,
+      0.0519
+     ],
+     "knee": [
+      0.0573,
+      -0.2858,
+      0.1141
+     ],
+     "ankle": [
+      -0.1621,
+      -0.4478,
+      0.1309
+     ],
+     "thighVec2d": [
+      0.0609,
+      -0.2541
+     ],
+     "shinVec2d": [
+      -0.2194,
+      -0.162
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 112.96,
+      "deviationDeg": 67.04,
+      "bendSign": -1,
+      "crossZ": -0.065625
+     }
+    },
+    "left": {
+     "hip": [
+      0.0089,
+      -0.001,
+      -0.0602
+     ],
+     "knee": [
+      0.0118,
+      -0.2695,
+      -0.0536
+     ],
+     "ankle": [
+      0.0284,
+      -0.5421,
+      -0.0441
+     ],
+     "thighVec2d": [
+      0.0028,
+      -0.2685
+     ],
+     "shinVec2d": [
+      0.0166,
+      -0.2726
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 177.12,
+      "deviationDeg": 2.88,
+      "bendSign": 1,
+      "crossZ": 0.003684
+     }
+    }
+   },
+   "char": {
+    "right": {
+     "hip": [
+      0.4339,
+      -0.0126
+     ],
+     "knee": [
+      0.4864,
+      -0.232
+     ],
+     "foot": [
+      0.2969,
+      -0.3719
+     ],
+     "kneeOrientDeg": 193.48,
+     "footOrientDeg": 126.44,
+     "knee2d": {
+      "interiorAngleDeg": 112.96,
+      "deviationDeg": 67.04,
+      "bendSign": -1,
+      "crossZ": -0.048931
+     }
+    },
+    "left": {
+     "hip": [
+      0.5413,
+      -0.0126
+     ],
+     "knee": [
+      0.5437,
+      -0.2383
+     ],
+     "foot": [
+      0.558,
+      -0.4729
+     ],
+     "kneeOrientDeg": 180.61,
+     "footOrientDeg": 183.49,
+     "knee2d": {
+      "interiorAngleDeg": 177.12,
+      "deviationDeg": 2.88,
+      "bendSign": 1,
+      "crossZ": 0.002664
+     }
+    }
+   },
+   "root": [
+    0.4881,
+    -0.0126,
+    -0.5
+   ]
+  },
+  "108": {
+   "bvh": {
+    "right": {
+     "hip": [
+      -0.0022,
+      -0.028,
+      0.054
+     ],
+     "knee": [
+      0.1128,
+      -0.2653,
+      0.1054
+     ],
+     "ankle": [
+      0.1868,
+      -0.5266,
+      0.1361
+     ],
+     "thighVec2d": [
+      0.115,
+      -0.2373
+     ],
+     "shinVec2d": [
+      0.074,
+      -0.2613
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 169.94,
+      "deviationDeg": 10.06,
+      "bendSign": -1,
+      "crossZ": -0.012507
+     }
+    },
+    "left": {
+     "hip": [
+      0.0073,
+      -0.0052,
+      -0.0602
+     ],
+     "knee": [
+      -0.0061,
+      -0.2733,
+      -0.0505
+     ],
+     "ankle": [
+      -0.0248,
+      -0.5457,
+      -0.0411
+     ],
+     "thighVec2d": [
+      -0.0134,
+      -0.2681
+     ],
+     "shinVec2d": [
+      -0.0187,
+      -0.2725
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 178.94,
+      "deviationDeg": 1.06,
+      "bendSign": -1,
+      "crossZ": -0.001359
+     }
+    }
+   },
+   "char": {
+    "right": {
+     "hip": [
+      0.4826,
+      -0.0098
+     ],
+     "knee": [
+      0.581,
+      -0.2128
+     ],
+     "foot": [
+      0.6452,
+      -0.4395
+     ],
+     "kneeOrientDeg": 205.87,
+     "footOrientDeg": 195.81,
+     "knee2d": {
+      "interiorAngleDeg": 169.94,
+      "deviationDeg": 10.06,
+      "bendSign": -1,
+      "crossZ": -0.009283
+     }
+    },
+    "left": {
+     "hip": [
+      0.59,
+      -0.0098
+     ],
+     "knee": [
+      0.5787,
+      -0.2352
+     ],
+     "foot": [
+      0.5626,
+      -0.4697
+     ],
+     "kneeOrientDeg": 177.13,
+     "footOrientDeg": 176.07,
+     "knee2d": {
+      "interiorAngleDeg": 178.94,
+      "deviationDeg": 1.06,
+      "bendSign": -1,
+      "crossZ": -0.000983
+     }
+    }
+   },
+   "root": [
+    0.5369,
+    -0.0098,
+    -0.5
+   ]
+  },
+  "110": {
+   "bvh": {
+    "right": {
+     "hip": [
+      -0.0015,
+      -0.0279,
+      0.0541
+     ],
+     "knee": [
+      0.1151,
+      -0.264,
+      0.1073
+     ],
+     "ankle": [
+      0.2221,
+      -0.5106,
+      0.1563
+     ],
+     "thighVec2d": [
+      0.1166,
+      -0.2361
+     ],
+     "shinVec2d": [
+      0.107,
+      -0.2466
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 177.16,
+      "deviationDeg": 2.84,
+      "bendSign": -1,
+      "crossZ": -0.003508
+     }
+    },
+    "left": {
+     "hip": [
+      0.0068,
+      -0.0053,
+      -0.0603
+     ],
+     "knee": [
+      -0.011,
+      -0.2733,
+      -0.0539
+     ],
+     "ankle": [
+      -0.0429,
+      -0.5446,
+      -0.0489
+     ],
+     "thighVec2d": [
+      -0.0178,
+      -0.268
+     ],
+     "shinVec2d": [
+      -0.0319,
+      -0.2714
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 177.09,
+      "deviationDeg": 2.91,
+      "bendSign": -1,
+      "crossZ": -0.003725
+     }
+    }
+   },
+   "char": {
+    "right": {
+     "hip": [
+      0.4995,
+      -0.0108
+     ],
+     "knee": [
+      0.5994,
+      -0.213
+     ],
+     "foot": [
+      0.6931,
+      -0.4292
+     ],
+     "kneeOrientDeg": 206.29,
+     "footOrientDeg": 203.45,
+     "knee2d": {
+      "interiorAngleDeg": 177.16,
+      "deviationDeg": 2.84,
+      "bendSign": -1,
+      "crossZ": -0.002633
+     }
+    },
+    "left": {
+     "hip": [
+      0.6069,
+      -0.0108
+     ],
+     "knee": [
+      0.5919,
+      -0.236
+     ],
+     "foot": [
+      0.5645,
+      -0.4694
+     ],
+     "kneeOrientDeg": 176.21,
+     "footOrientDeg": 173.3,
+     "knee2d": {
+      "interiorAngleDeg": 177.09,
+      "deviationDeg": 2.91,
+      "bendSign": -1,
+      "crossZ": -0.002692
+     }
+    }
+   },
+   "root": [
+    0.5537,
+    -0.0108,
+    -0.5
+   ]
+  },
+  "120": {
+   "bvh": {
+    "right": {
+     "hip": [
+      -0.0014,
+      -0.0194,
+      0.0577
+     ],
+     "knee": [
+      0.1355,
+      -0.2498,
+      0.0398
+     ],
+     "ankle": [
+      0.0615,
+      -0.5087,
+      0.086
+     ],
+     "thighVec2d": [
+      0.1369,
+      -0.2304
+     ],
+     "shinVec2d": [
+      -0.074,
+      -0.259
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 133.32,
+      "deviationDeg": 46.68,
+      "bendSign": -1,
+      "crossZ": -0.052519
+     }
+    },
+    "left": {
+     "hip": [
+      0.0058,
+      -0.0145,
+      -0.0589
+     ],
+     "knee": [
+      -0.0605,
+      -0.2702,
+      -0.1073
+     ],
+     "ankle": [
+      -0.1906,
+      -0.5052,
+      -0.1575
+     ],
+     "thighVec2d": [
+      -0.0663,
+      -0.2558
+     ],
+     "shinVec2d": [
+      -0.1301,
+      -0.235
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 165.57,
+      "deviationDeg": 14.43,
+      "bendSign": -1,
+      "crossZ": -0.017684
+     }
+    }
+   },
+   "char": {
+    "right": {
+     "hip": [
+      0.6305,
+      -0.0361
+     ],
+     "knee": [
+      0.7458,
+      -0.23
+     ],
+     "foot": [
+      0.681,
+      -0.4565
+     ],
+     "kneeOrientDeg": 210.73,
+     "footOrientDeg": 164.05,
+     "knee2d": {
+      "interiorAngleDeg": 133.32,
+      "deviationDeg": 46.68,
+      "bendSign": -1,
+      "crossZ": -0.038664
+     }
+    },
+    "left": {
+     "hip": [
+      0.738,
+      -0.0361
+     ],
+     "knee": [
+      0.6813,
+      -0.2546
+     ],
+     "foot": [
+      0.5675,
+      -0.4601
+     ],
+     "kneeOrientDeg": 165.46,
+     "footOrientDeg": 151.03,
+     "knee2d": {
+      "interiorAngleDeg": 165.57,
+      "deviationDeg": 14.43,
+      "bendSign": -1,
+      "crossZ": -0.013214
+     }
+    }
+   },
+   "root": [
+    0.6848,
+    -0.0361,
+    -0.5
+   ]
+  },
+  "140": {
+   "bvh": {
+    "right": {
+     "hip": [
+      -0.0013,
+      -0.0122,
+      0.0597
+     ],
+     "knee": [
+      -0.0416,
+      -0.2775,
+      0.0474
+     ],
+     "ankle": [
+      -0.1417,
+      -0.5312,
+      0.0307
+     ],
+     "thighVec2d": [
+      -0.0403,
+      -0.2653
+     ],
+     "shinVec2d": [
+      -0.1001,
+      -0.2537
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 167.11,
+      "deviationDeg": 12.89,
+      "bendSign": -1,
+      "crossZ": -0.016334
+     }
+    },
+    "left": {
+     "hip": [
+      0.0023,
+      -0.0218,
+      -0.0568
+     ],
+     "knee": [
+      0.1069,
+      -0.269,
+      -0.067
+     ],
+     "ankle": [
+      0.2148,
+      -0.5199,
+      -0.0776
+     ],
+     "thighVec2d": [
+      0.1046,
+      -0.2472
+     ],
+     "shinVec2d": [
+      0.1079,
+      -0.2509
+     ],
+     "knee2d": {
+      "interiorAngleDeg": 179.68,
+      "deviationDeg": 0.32,
+      "bendSign": 1,
+      "crossZ": 0.000412
+     }
+    }
+   },
+   "char": {
+    "right": {
+     "hip": [
+      0.8022,
+      -0.0157
+     ],
+     "knee": [
+      0.7683,
+      -0.2387
+     ],
+     "foot": [
+      0.6818,
+      -0.4579
+     ],
+     "kneeOrientDeg": 171.36,
+     "footOrientDeg": 158.46,
+     "knee2d": {
+      "interiorAngleDeg": 167.11,
+      "deviationDeg": 12.89,
+      "bendSign": -1,
+      "crossZ": -0.011859
+     }
+    },
+    "left": {
+     "hip": [
+      0.9096,
+      -0.0157
+     ],
+     "knee": [
+      0.9976,
+      -0.2236
+     ],
+     "foot": [
+      1.0904,
+      -0.4395
+     ],
+     "kneeOrientDeg": 202.94,
+     "footOrientDeg": 203.27,
+     "knee2d": {
+      "interiorAngleDeg": 179.68,
+      "deviationDeg": 0.32,
+      "bendSign": 1,
+      "crossZ": 0.000298
+     }
+    }
+   },
+   "root": [
+    0.8565,
+    -0.0157,
+    -0.5
+   ]
+  }
+ }
+}
