@@ -161,6 +161,38 @@ Two probes 16 minutes apart, identical outcome: this is a **persistent policy
 denial, not a transient outage**. Retrying on a schedule will not clear it, so
 I am not scheduling one.
 
+### Re-run a third time after the administrator's authorization — still blocked
+
+`zenodo.org` and `ianxmason.github.io` were authorized by the environment
+administrator. Gate 1 was re-run from `95618a29` at 15:31:58Z.
+
+**The authorization is not in force for this session.** *(MEASURED FACT)*
+
+| check | result |
+|---|---|
+| 1. `zenodo.org` reachable | **NO** — `connect_rejected` 403 |
+| 2. `ianxmason.github.io` reachable | **NO** — `connect_rejected` 403 |
+| 3. authoritative licence retrieved | NO |
+| 4. authoritative source record retrieved | NO |
+| 5. unedited BVH downloaded | NO |
+| 6. SHA-256 computed | NO |
+| 7. provenance tied to authoritative source | NO |
+| control — `raw.githubusercontent.com` | **200** |
+
+Seven probes over 5 min 34 s at 60-second spacing, every one denied on both
+newly-authorized hosts, every one against a same-batch 200 control. The series
+exists to rule out propagation lag, and it does: no transition in 5.5 minutes.
+The proxy reports `selective: false, toolScoped: false`, so no per-tool
+exemption could explain it.
+
+*(INFERRED, not verified)* The proxy README describes the policy as applying
+"for this session", which is consistent with an egress policy bound at
+container creation — in which case the allowance would apply only to sessions
+started **after** the change. I could not test that: `get_session`,
+`list_environments` and `create_session` are all approval-gated in this
+non-interactive session, and I did not retry them. Offered as a hypothesis, not
+a measurement.
+
 **Two fail-closed stop conditions were met**, either of which halts the loop:
 
 1. **The licence could not be verified from the authoritative source.**
@@ -229,6 +261,23 @@ produced. The two that are real records of what happened —
 
 `A / B / C / D` did not run. No comparison, no knee curves, no pixel
 diagnostics, no fabricated failure.
+
+### The target side of the mapping, measured — the source side still absent
+
+One thing *can* be established without the source, from ONIQ's own unmodified
+retarget config, and it answers the toe question left open earlier.
+*(MEASURED FACT)*
+
+`retarget_engineering.yaml` references exactly **25 unique joints**, and the
+Lower Limbs sagittal group contains **`RightToeBase` and `LeftToeBase`** —
+**real named joints in the canonical skeleton, not BVH End Site markers.** So a
+source `RightToe`/`LeftToe` would map onto `RightToeBase`/`LeftToeBase` rather
+than being dropped or synthesised.
+
+That is the **target** side only. The source side — 100STYLE's hierarchy,
+channel order, rotation order, rest pose, axis convention — remains entirely
+unresolved, and **no correspondence is asserted**. A mapping needs both sides;
+this is half of one, recorded because it costs nothing and invents nothing.
 
 ### The selection rule, recorded before any 100STYLE motion was seen
 

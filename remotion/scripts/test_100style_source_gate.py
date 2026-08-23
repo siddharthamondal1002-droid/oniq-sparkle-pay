@@ -319,6 +319,103 @@ def t29_the_selection_rule_was_fixed_before_any_outcome_was_seen():
     assert "cannot later be tuned" in r["applied_note"]
 
 
+# ------------------------------------- the post-authorization gate 1 re-run
+@test
+def t31_gate1_was_re_run_after_the_authorization_not_assumed_blocked():
+    """An authorization claim must be TESTED, not disbelieved and skipped."""
+    a = [x for x in P["gate1_attempts"] if x["attempt"] == 3]
+    assert a, "the post-authorization run must be recorded as its own attempt"
+    a = a[0]
+    assert a["from_commit"] == "95618a29"
+    assert "authorized" in a["trigger"]
+    assert a["result"] == "BLOCKED"
+
+
+@test
+def t32_all_seven_gate1_checks_are_reported_individually():
+    c = P["gate1_attempts"][2]["gate1_checklist"]
+    for k in ("1_zenodo_reachable", "2_ianxmason_reachable",
+              "3_authoritative_licence_retrieved",
+              "4_authoritative_source_record_retrieved",
+              "5_unedited_bvh_downloaded", "6_sha256_computed",
+              "7_provenance_tied_to_authoritative_source"):
+        assert c[k] is False, k
+    assert c["control_raw_githubusercontent"] is True
+
+
+@test
+def t33_propagation_lag_was_ruled_out_by_a_series_not_one_probe():
+    s = P["gate1_attempts"][2]["probe_series"]
+    assert s["attempts"] >= 6, "one failed probe cannot rule out propagation lag"
+    assert s["spacing_seconds"] == 60
+    assert s["terminal_line"] == "STILL_BLOCKED_AFTER_6_ATTEMPTS"
+    # every probe must carry a live control alongside the failure
+    for r in s["results"]:
+        assert r["control"] == 200, r
+        assert r["ianxmason"] == "000", r
+    pa = P["persistence"]["post_authorization"]
+    assert pa["any_success"] is False and pa["probes"] >= 6
+
+
+@test
+def t34_the_session_binding_idea_is_labelled_inferred_not_measured():
+    ev = P["gate1_attempts"][2]["new_evidence_from_this_attempt"]
+    inferred = [e for e in ev if e.startswith("INFERRED")]
+    assert len(inferred) == 1
+    assert "NOT verified" in inferred[0]
+    assert "hypothesis" in inferred[0] and "not acted on" in inferred[0]
+    assert any(e.startswith("MEASURED FACT") for e in ev)
+    assert any(e.startswith("DERIVED MEASUREMENT") for e in ev)
+
+
+@test
+def t35_no_blocked_host_was_routed_around():
+    """The proxy README forbids routing around a policy denial."""
+    txt = json.dumps(P).lower()
+    for banned in ("theorangeduck.com", "web.archive.org/web/2024",
+                   "100style-retarget/master/bvh", "codeload", "mirror.download"):
+        assert banned not in txt or "rejected" in txt or "blocked" in txt, banned
+    assert P["rejected_substitutes"][0]["verdict"] == "REJECTED"
+    assert P["cost"]["bvh_downloaded"] == 0
+
+
+@test
+def t36_target_side_mapping_is_measured_and_source_side_is_not_asserted():
+    m = P["mapping_target_side"]
+    assert m["status"].startswith("MEASURED")
+    assert m["joint_count"] == 25 and len(set(m["joints"])) == 25
+    assert "RightToeBase" in m["joints"] and "LeftToeBase" in m["joints"]
+    t = m["toe_representation_question_answered"]
+    assert t["evidence_class"] == "MEASURED FACT"
+    assert "not BVH End Site markers" in t["answer"]
+    assert m["source_side_status"].startswith("UNRESOLVED")
+    assert "does NOT constitute a mapping" in m["note"]
+    # and it must agree with the real config rather than a copy of it
+    import yaml
+    cfg = yaml.unsafe_load((SC / "eld/evidence/run1/retarget_engineering.yaml").read_text())
+    real = set()
+    for g in cfg["bvh_projection_bodypart_groups"]:
+        real |= set(g["bvh_joint_names"])
+    assert real == set(m["joints"]), "the recorded target skeleton must match the config"
+
+
+@test
+def t37_still_no_mapping_or_adapter_artifact_exists():
+    assert not (G / "100STYLE_TO_ONIQ_MAPPING.json").exists()
+    assert not (G / "100STYLE_ADAPTER_VALIDATION.json").exists()
+    assert P["adapter_built"] is False
+    assert P["conditions_run"] == {"A": False, "B": False, "C": False, "D": False}
+
+
+@test
+def t38_the_unblock_options_are_stated_without_choosing_for_the_owner():
+    u = P["what_unblocks_this"]
+    assert len(u["owner_options"]) >= 3
+    joined = " ".join(u["owner_options"]).lower()
+    assert "new session" in joined and "attach" in joined and "administrator" in joined
+    assert "out of step" in u["status_2026_08_23"]
+
+
 @test
 def t30_decision_logic_returns_untested_not_a_forced_verdict():
     assert "`NOT_DEMONSTRATED`" in REP

@@ -13,6 +13,25 @@ endpoints `connect_rejected` 403, against a same-batch `raw.githubusercontent.co
 **persistent policy denial, not a transient outage**, so retrying on a schedule
 will not clear it.
 
+**Re-attempted again 2026-08-23T15:31:58Z**, from commit `95618a29`, after the
+owner reported that the environment administrator had authorized `zenodo.org`
+and `ianxmason.github.io`.
+
+**The authorization is not in force for this session.** Seven probes over
+5 min 34 s at 60-second spacing — `zenodo.org` (record and API) and
+`ianxmason.github.io` returned `connect_rejected` 403 on **every** attempt,
+each against a same-batch `raw.githubusercontent.com` **200**. The proxy
+reports `selective: false, toolScoped: false`, so no per-tool exemption could
+account for it. The series exists specifically to rule out propagation lag; a
+5.5-minute window with no transition rules it out.
+
+*(INFERRED, not verified — I cannot read the policy object, and the session
+tools that would let me test it are approval-gated here: the proxy README
+describes the policy as applying "for this session", which is consistent with
+an egress policy bound at container creation. If that is right, the allowance
+would apply only to sessions started after the change. Offered as a hypothesis
+for the owner, not acted on.)*
+
 ## What the gate required
 
 > Verify directly from the authoritative 100STYLE source: CC BY 4.0 […]

@@ -56,13 +56,64 @@
     "MEASURED FACT: no source BVH is attached to this session — both attachment mounts are empty and no candidate file exists anywhere on the filesystem.",
     "MEASURED FACT: the block is PERSISTENT, not transient. Two independent probes 16 minutes apart produced identical connect_rejected 403 denials on all seven authoritative endpoints, each against a same-batch 200 control."
    ]
+  },
+  {
+   "attempt": 3,
+   "utc": "2026-08-23T15:31:58Z",
+   "from_commit": "95618a29",
+   "trigger": "owner reports the environment administrator has authorized zenodo.org and ianxmason.github.io",
+   "purpose": "verify the authorization is in force for THIS session before proceeding",
+   "probe_series": {
+    "attempts": 7,
+    "window_utc": ["2026-08-23T15:31:58Z", "2026-08-23T15:37:32Z"],
+    "spacing_seconds": 60,
+    "reason_for_a_series": "rule out policy-propagation lag rather than report a single failed probe",
+    "results": [
+     {"utc": "2026-08-23T15:31:58Z", "zenodo_records": "000", "zenodo_api": "000", "ianxmason": "000", "control": 200},
+     {"utc": "2026-08-23T15:32:28Z", "zenodo_api": "000", "ianxmason": "000", "control": 200},
+     {"utc": "2026-08-23T15:33:29Z", "zenodo_api": "000", "ianxmason": "000", "control": 200},
+     {"utc": "2026-08-23T15:34:30Z", "zenodo_api": "000", "ianxmason": "000", "control": 200},
+     {"utc": "2026-08-23T15:35:30Z", "zenodo_api": "000", "ianxmason": "000", "control": 200},
+     {"utc": "2026-08-23T15:36:31Z", "zenodo_api": "000", "ianxmason": "000", "control": 200},
+     {"utc": "2026-08-23T15:37:32Z", "zenodo_api": "000", "ianxmason": "000", "control": 200}
+    ],
+    "terminal_line": "STILL_BLOCKED_AFTER_6_ATTEMPTS"
+   },
+   "proxy_relay_log": {
+    "zenodo.org:443": "connect_rejected 403 @ 15:31:58.267Z and 15:31:58.502Z",
+    "ianxmason.github.io:443": "connect_rejected 403 @ 15:31:58.762Z"
+   },
+   "proxy_state": {"enabled": true, "selective": false, "toolScoped": false, "standalone": false,
+                   "note": "the policy is not selective or tool-scoped, so no per-tool exemption could explain the denial"},
+   "gate1_checklist": {
+    "1_zenodo_reachable": false,
+    "2_ianxmason_reachable": false,
+    "3_authoritative_licence_retrieved": false,
+    "4_authoritative_source_record_retrieved": false,
+    "5_unedited_bvh_downloaded": false,
+    "6_sha256_computed": false,
+    "7_provenance_tied_to_authoritative_source": false,
+    "control_raw_githubusercontent": true
+   },
+   "result": "BLOCKED",
+   "new_evidence_from_this_attempt": [
+    "MEASURED FACT: the authorization is NOT in force for this session. 7 probes over 5 minutes 34 seconds, every one connect_rejected 403 on both newly-authorized hosts, every one against a same-batch raw.githubusercontent.com 200.",
+    "DERIVED MEASUREMENT: this is not policy-propagation lag. A 5.5-minute probe series with 60s spacing shows no transition.",
+    "INFERRED (NOT verified — I cannot read the policy object or create a session to test it): the proxy README states the policy is enforced 'for this session', which is consistent with an egress policy bound at container creation. If so, the authorization may apply only to sessions started after the change. This is a hypothesis offered to the owner, NOT a measurement, and it was not acted on."
+   ]
   }
  ],
  "persistence": {
-  "probes": 2,
-  "separation_minutes": 16,
+  "probes": 9,
+  "separation_minutes": 29,
   "identical_outcome": true,
-  "conclusion": "a persistent policy denial, not a transient outage. No retry schedule will change it; only a policy change or an attached file will."
+  "conclusion": "a persistent policy denial, not a transient outage. No retry schedule will change it; only a policy change that reaches THIS session, or an attached file, will.",
+  "post_authorization": {
+   "probes": 7,
+   "window_minutes": 5.6,
+   "any_success": false,
+   "conclusion": "the administrator's authorization of zenodo.org and ianxmason.github.io is not in force for this session's egress policy."
+  }
  },
  "dataset_identified": {
   "dataset_name": "100STYLE",
@@ -178,6 +229,24 @@
   ],
   "unresolved_fields_note": "every field above is a property of a file that was never obtained. None was invented, defaulted, or inferred."
  },
+ "mapping_target_side": {
+  "status": "MEASURED — read from ONIQ's own unmodified retarget config, nothing invented",
+  "source_of_truth": "eld/evidence/run1/retarget_engineering.yaml (bvh_projection_bodypart_groups)",
+  "joint_count": 25,
+  "joints": ["Head", "Hips", "LeftArm", "LeftFoot", "LeftForeArm", "LeftHand",
+             "LeftHandEnd", "LeftLeg", "LeftShoulder", "LeftToeBase", "LeftUpLeg",
+             "Neck", "RightArm", "RightFoot", "RightForeArm", "RightHand",
+             "RightHandEnd", "RightLeg", "RightShoulder", "RightToeBase",
+             "RightUpLeg", "Spine", "Spine1", "Spine2", "Spine3"],
+  "toe_representation_question_answered": {
+   "question": "does ONIQ have a separate toe/end-site representation, and how would a source toe joint be handled?",
+   "answer": "ONIQ carries REAL toe JOINTS — RightToeBase and LeftToeBase — in the Lower Limbs sagittal projection group. They are named joints in the canonical skeleton, not BVH End Site markers.",
+   "consequence": "a source RightToe/LeftToe would map onto RightToeBase/LeftToeBase rather than being dropped or synthesised. This is stated as the TARGET-side fact only.",
+   "evidence_class": "MEASURED FACT"
+  },
+  "source_side_status": "UNRESOLVED — the 100STYLE hierarchy, channel order, rotation order, rest pose and axis convention are properties of a file that has not been obtained. No source-side correspondence is asserted.",
+  "note": "recording the target side costs nothing and invents nothing: it is read from a config already in the repository. It does NOT constitute a mapping — a mapping needs both sides, and the source side does not exist here."
+ },
  "source_selection_rule": {
   "defined_before_any_outcome_was_seen": true,
   "rule": "a neutral, ordinary forward-walking sequence named <Style>_FW.bvh; exclude running, sidestep, backward, transition, idle and extreme stylized gaits; where several qualify, take the lexicographically first qualifying neutral style so selection is deterministic and outcome-blind",
@@ -192,7 +261,13 @@
   "location": "SOURCE BVH layer"
  },
  "what_unblocks_this": {
-  "action": "an environment network-policy allowance",
+  "action": "an environment network-policy allowance THAT REACHES THIS SESSION",
+  "status_2026_08_23": "the owner reports the hosts were authorized. This session's proxy still denies both. The allowance and the running session are out of step.",
+  "owner_options": [
+   "start a NEW session in the environment — if the policy is bound at container creation, a fresh container picks it up, and the branch claude/engineering-library-driven-walk carries all state needed to resume at gate 1",
+   "attach the selected <Style>_FW.bvh directly to a session — needs no network allowance at all and is the shortest path",
+   "have the administrator confirm the allowance applies to already-running sessions / this environment, then re-run gate 1 here"
+  ],
   "minimum_hosts": ["zenodo.org", "ianxmason.github.io"],
   "sufficient_alternative": ["www.ianxmason.com", "datashare.ed.ac.uk"],
   "note": "this is an owner decision about the environment, not an engineering problem. With those hosts reachable, the licence gate and the download gate both resolve in minutes and the experiment proceeds as specified.",
