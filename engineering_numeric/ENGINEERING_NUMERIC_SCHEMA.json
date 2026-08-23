@@ -1,0 +1,194 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "oniq://engineering/numeric-record/1.0",
+ "title": "ONIQ EngineeringNumericRecord",
+ "description": "A single character-engineering number with explicit provenance and validation state. A number existing is NEVER a reason to enforce it: productionEligible is gated by the promotion hierarchy, not by presence. Unknown category, unit or provenance FAIL CLOSED (enums are closed and additionalProperties is false).",
+ "type": "object",
+ "additionalProperties": false,
+ "required": [
+  "id",
+  "category",
+  "parameter",
+  "value",
+  "unit",
+  "status",
+  "source",
+  "provenance",
+  "validationState",
+  "productionEligible"
+ ],
+ "properties": {
+  "id": {
+   "type": "string",
+   "pattern": "^CHAR-ENG-[0-9]{4}$"
+  },
+  "category": {
+   "enum": [
+    "balance_contact",
+    "camera",
+    "center_of_mass",
+    "cinematic_compositing",
+    "cost",
+    "crossing",
+    "deformation",
+    "face",
+    "fingers",
+    "foot",
+    "forearm",
+    "gait_kinematics",
+    "gait_timing",
+    "hand",
+    "head_cranium",
+    "joints",
+    "lighting",
+    "lower_leg",
+    "motion",
+    "motion_limits",
+    "neck_shoulders",
+    "overall_proportions",
+    "pelvis_hips",
+    "reference_generation",
+    "render",
+    "scene",
+    "spine_posture",
+    "thigh",
+    "torso_ribcage",
+    "upper_arm"
+   ],
+   "description": "closed enum \u2014 an unknown category fails closed"
+  },
+  "parameter": {
+   "type": "string",
+   "minLength": 1
+  },
+  "value": {
+   "oneOf": [
+    {
+     "type": "number"
+    },
+    {
+     "const": "NOT_SPECIFIED"
+    },
+    {
+     "type": "string"
+    }
+   ],
+   "description": "NOT_SPECIFIED is a first-class value and must never be encoded as 0"
+  },
+  "unit": {
+   "enum": [
+    "BVH units",
+    "INR",
+    "IoU",
+    "NOT_SPECIFIED",
+    "boolean",
+    "channels",
+    "count",
+    "deg",
+    "frame",
+    "frames",
+    "mixed",
+    "mm",
+    "px",
+    "ratio",
+    "scale",
+    "seconds",
+    "silhouette-overlap ratio",
+    "two-leg fraction"
+   ],
+   "description": "closed enum \u2014 an unknown unit fails closed"
+  },
+  "status": {
+   "enum": [
+    "SOURCE_LOCKED",
+    "CANDIDATE_TARGET"
+   ]
+  },
+  "source": {
+   "type": "string",
+   "minLength": 1
+  },
+  "provenance": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "source_document",
+    "source_sha256",
+    "source_field",
+    "supported_by"
+   ],
+   "properties": {
+    "source_document": {
+     "type": "string"
+    },
+    "source_sha256": {
+     "type": "string",
+     "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_field": {
+     "type": "string"
+    },
+    "supported_by": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  },
+  "validationState": {
+   "enum": [
+    "MEASURED",
+    "UNVALIDATED",
+    "OPEN",
+    "REJECTED",
+    "PROMOTED"
+   ]
+  },
+  "productionEligible": {
+   "type": "boolean"
+  },
+  "note": {
+   "type": "string"
+  }
+ },
+ "allOf": [
+  {
+   "if": {
+    "properties": {
+     "status": {
+      "const": "CANDIDATE_TARGET"
+     }
+    }
+   },
+   "then": {
+    "properties": {
+     "productionEligible": {
+      "const": false
+     }
+    },
+    "description": "a CANDIDATE_TARGET can never be production eligible"
+   }
+  },
+  {
+   "if": {
+    "properties": {
+     "productionEligible": {
+      "const": true
+     }
+    }
+   },
+   "then": {
+    "properties": {
+     "validationState": {
+      "enum": [
+       "MEASURED",
+       "PROMOTED"
+      ]
+     }
+    },
+    "description": "only measured or explicitly promoted values may be eligible"
+   }
+  }
+ ]
+}

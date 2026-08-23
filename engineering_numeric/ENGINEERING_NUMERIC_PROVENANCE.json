@@ -1,0 +1,541 @@
+{
+ "record": "ENGINEERING_NUMERIC_PROVENANCE",
+ "version": "1.0",
+ "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+ "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+ "measured_facts_used_as_the_authority": {
+  "render_resolution_width": [
+   500,
+   0,
+   "render canvas width, px"
+  ],
+  "render_resolution_height": [
+   500,
+   0,
+   "render canvas height, px"
+  ],
+  "knee_channels_modified": [
+   6,
+   0,
+   "knee rotation channels damped"
+  ],
+  "knees_damped_symmetrically": [
+   1,
+   0,
+   "both knees damped by the same scale"
+  ],
+  "frames_below_120_control": [
+   9,
+   0,
+   "control frames with knee < 120 deg"
+  ],
+  "frames_below_120_corrected": [
+   0,
+   0,
+   "corrected frames with knee < 120 deg"
+  ],
+  "frames_below_140_control": [
+   27,
+   0,
+   "control frames with knee < 140 deg"
+  ],
+  "frames_below_140_corrected": [
+   0,
+   0,
+   "corrected frames with knee < 140 deg"
+  ],
+  "max_crossing_frame_control": [
+   52,
+   0,
+   "control max-crossing frame index"
+  ],
+  "max_crossing_frame_corrected": [
+   52,
+   0,
+   "corrected max-crossing frame index"
+  ],
+  "worst_corrected_iou": [
+   0.838,
+   0.001,
+   "worst centroid-aligned frame-to-frame IoU"
+  ],
+  "corrected_frames_iou_below_090": [
+   17,
+   0,
+   "corrected frames with IoU < 0.90"
+  ],
+  "control_frames_iou_below_090": [
+   11,
+   0,
+   "control frames with IoU < 0.90"
+  ],
+  "min_leg_gap_control": [
+   2,
+   0,
+   "control minimum gap between legs, px"
+  ],
+  "min_leg_gap_corrected": [
+   2,
+   0,
+   "corrected minimum gap between legs, px"
+  ],
+  "control_render_time": [
+   8.1,
+   0.05,
+   "control render wall time, s"
+  ],
+  "api_spend_inr": [
+   0,
+   0,
+   "API spend"
+  ],
+  "gpu_spend_inr": [
+   0,
+   0,
+   "GPU spend"
+  ],
+  "new_references": [
+   0,
+   0,
+   "new reference images generated"
+  ],
+  "lighting_rendered": [
+   0,
+   0,
+   "lighting was NOT rendered (plan only)"
+  ],
+  "scene_rendered": [
+   0,
+   0,
+   "scene was NOT rendered (plan only)"
+  ],
+  "compositing_executed": [
+   0,
+   0,
+   "compositing was NOT run"
+  ],
+  "cycle_frames_01": [
+   129,
+   0,
+   "configured/rendered frame window"
+  ],
+  "duration_01": [
+   4.26,
+   0.01,
+   "corrected clip duration, s"
+  ]
+ },
+ "misfiled_measured_values": {
+  "CHAR-ENG-0024": [
+   "corrected clip DURATION 4.26 s",
+   "filed as corrected_render_time; the corrected render took 8.2 s wall, 4.26 s is the clip's playing duration"
+  ],
+  "CHAR-ENG-0801": [
+   "foot-slide, left: max per-frame planted-foot travel 1.36 BVH units",
+   "filed as support_width; no support width was measured"
+  ],
+  "CHAR-ENG-0802": [
+   "foot-slide, right: max per-frame planted-foot travel 0.39 BVH units",
+   "filed as support_length; no support length was measured"
+  ],
+  "CHAR-ENG-0803": [
+   "vertical centroid drift range 16.2 px over 129 frames",
+   "filed as foot_contact_area; no contact area was measured"
+  ],
+  "CHAR-ENG-0901": [
+   "corrected MAX SILHOUETTE OVERLAP 0.906",
+   "filed as stride_length; no stride length was measured"
+  ],
+  "CHAR-ENG-0902": [
+   "corrected MIN TWO-LEG FRACTION 0.095",
+   "filed as step_length; no step length was measured"
+  ],
+  "CHAR-ENG-0903": [
+   "minimum leg gap 2 px",
+   "filed as pelvis_bob; no pelvis bob was measured"
+  ],
+  "CHAR-ENG-0904": [
+   "corrected frames with IoU < 0.90 = 17",
+   "filed as pelvis_sway; a frame COUNT is not a sway distance"
+  ],
+  "CHAR-ENG-0905": [
+   "corrected minimum knee interior angle at frame 101 = 140.0 deg",
+   "filed as knee_peak_L; it is a per-FRAME minimum across both knees, not a left-knee peak"
+  ],
+  "CHAR-ENG-0906": [
+   "corrected minimum knee interior angle at frame 100 = 140.4 deg",
+   "filed as knee_peak_R; it is frame 100, not the right knee"
+  ],
+  "CHAR-ENG-0911": [
+   "control MAX SILHOUETTE OVERLAP 0.898",
+   "filed as stride_length"
+  ],
+  "CHAR-ENG-0912": [
+   "control MIN TWO-LEG FRACTION 0.102",
+   "filed as step_length"
+  ],
+  "CHAR-ENG-0913": [
+   "minimum leg gap 2 px",
+   "filed as pelvis_bob"
+  ],
+  "CHAR-ENG-0914": [
+   "control frames with IoU < 0.90 = 11",
+   "filed as pelvis_sway"
+  ],
+  "CHAR-ENG-0915": [
+   "corrected knee angle at frame 102 = 141.0 deg",
+   "filed as knee_peak_L_02; it is frame 102"
+  ],
+  "CHAR-ENG-0916": [
+   "corrected knee angle at frame 126 = 147.2 deg",
+   "filed as knee_peak_R_02; it is frame 126"
+  ],
+  "CHAR-ENG-0925": [
+   "CONTROL knee angle at frame 101 = 112.3 deg",
+   "filed as knee_peak_L_03; it is a control-clip frame value"
+  ],
+  "CHAR-ENG-0926": [
+   "CONTROL knee angle at frame 100 = 113.1 deg",
+   "filed as knee_peak_R_03"
+  ],
+  "CHAR-ENG-0935": [
+   "CONTROL knee angle at frame 102 = 114.3 deg",
+   "filed as knee_peak_L_04"
+  ],
+  "CHAR-ENG-0936": [
+   "CONTROL knee angle at frame 126 = 115.7 deg",
+   "filed as knee_peak_R_04"
+  ],
+  "CHAR-ENG-0951": [
+   "KNEE DAMPING SCALE 0.50",
+   "filed under motion_limits as spine_flex; it is the knee damping constant and must never act as a spine limit"
+  ]
+ },
+ "not_specified_ids": [
+  "CHAR-ENG-0003"
+ ],
+ "entries": [
+  {
+   "id": "CHAR-ENG-0001",
+   "parameter": "render_resolution_width",
+   "value": 500,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: render canvas width, px = 500"
+  },
+  {
+   "id": "CHAR-ENG-0002",
+   "parameter": "render_resolution_height",
+   "value": 500,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: render canvas height, px = 500"
+  },
+  {
+   "id": "CHAR-ENG-0003",
+   "parameter": "lens_fov_height_distance",
+   "value": "NOT_SPECIFIED",
+   "validationState": "OPEN",
+   "note": "the library encodes NOT_SPECIFIED as the number 0. Lens, FOV, camera height and camera distance are NOT measured by ONIQ; a numeric 0 would read as a real value downstream. Carried as NOT_SPECIFIED, never as 0."
+  },
+  {
+   "id": "CHAR-ENG-0004",
+   "parameter": "lighting_rendered",
+   "value": 0,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: lighting was NOT rendered (plan only) = 0"
+  },
+  {
+   "id": "CHAR-ENG-0005",
+   "parameter": "scene_rendered",
+   "value": 0,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: scene was NOT rendered (plan only) = 0"
+  },
+  {
+   "id": "CHAR-ENG-0006",
+   "parameter": "compositing_executed",
+   "value": 0,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: compositing was NOT run = 0"
+  },
+  {
+   "id": "CHAR-ENG-0007",
+   "parameter": "api_spend_inr",
+   "value": 0,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: API spend = 0"
+  },
+  {
+   "id": "CHAR-ENG-0008",
+   "parameter": "gpu_spend_inr",
+   "value": 0,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: GPU spend = 0"
+  },
+  {
+   "id": "CHAR-ENG-0009",
+   "parameter": "new_references",
+   "value": 0,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: new reference images generated = 0"
+  },
+  {
+   "id": "CHAR-ENG-0010",
+   "parameter": "knee_channels_modified",
+   "value": 6,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: knee rotation channels damped = 6"
+  },
+  {
+   "id": "CHAR-ENG-0011",
+   "parameter": "knees_damped_symmetrically",
+   "value": 1,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: both knees damped by the same scale = 1"
+  },
+  {
+   "id": "CHAR-ENG-0012",
+   "parameter": "frames_below_120_control",
+   "value": 9,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: control frames with knee < 120 deg = 9"
+  },
+  {
+   "id": "CHAR-ENG-0013",
+   "parameter": "frames_below_120_corrected",
+   "value": 0,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: corrected frames with knee < 120 deg = 0"
+  },
+  {
+   "id": "CHAR-ENG-0014",
+   "parameter": "frames_below_140_control",
+   "value": 27,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: control frames with knee < 140 deg = 27"
+  },
+  {
+   "id": "CHAR-ENG-0015",
+   "parameter": "frames_below_140_corrected",
+   "value": 0,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: corrected frames with knee < 140 deg = 0"
+  },
+  {
+   "id": "CHAR-ENG-0016",
+   "parameter": "max_crossing_frame_control",
+   "value": 52,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: control max-crossing frame index = 52"
+  },
+  {
+   "id": "CHAR-ENG-0017",
+   "parameter": "max_crossing_frame_corrected",
+   "value": 52,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: corrected max-crossing frame index = 52"
+  },
+  {
+   "id": "CHAR-ENG-0018",
+   "parameter": "worst_corrected_iou",
+   "value": 0.838,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: worst centroid-aligned frame-to-frame IoU = 0.838"
+  },
+  {
+   "id": "CHAR-ENG-0019",
+   "parameter": "corrected_frames_iou_below_090",
+   "value": 17,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: corrected frames with IoU < 0.90 = 17"
+  },
+  {
+   "id": "CHAR-ENG-0020",
+   "parameter": "control_frames_iou_below_090",
+   "value": 11,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: control frames with IoU < 0.90 = 11"
+  },
+  {
+   "id": "CHAR-ENG-0021",
+   "parameter": "min_leg_gap_control",
+   "value": 2,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: control minimum gap between legs, px = 2"
+  },
+  {
+   "id": "CHAR-ENG-0022",
+   "parameter": "min_leg_gap_corrected",
+   "value": 2,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: corrected minimum gap between legs, px = 2"
+  },
+  {
+   "id": "CHAR-ENG-0023",
+   "parameter": "control_render_time",
+   "value": 8.1,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: control render wall time, s = 8.1"
+  },
+  {
+   "id": "CHAR-ENG-0024",
+   "parameter": "corrected_render_time",
+   "value": 4.26,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (corrected clip DURATION 4.26 s) but the parameter name does not describe it: filed as corrected_render_time; the corrected render took 8.2 s wall, 4.26 s is the clip's playing duration. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0801",
+   "parameter": "support_width_01",
+   "value": "1.36",
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (foot-slide, left: max per-frame planted-foot travel 1.36 BVH units) but the parameter name does not describe it: filed as support_width; no support width was measured. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0802",
+   "parameter": "support_length_01",
+   "value": "0.39",
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (foot-slide, right: max per-frame planted-foot travel 0.39 BVH units) but the parameter name does not describe it: filed as support_length; no support length was measured. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0803",
+   "parameter": "foot_contact_area_01",
+   "value": "16.2",
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (vertical centroid drift range 16.2 px over 129 frames) but the parameter name does not describe it: filed as foot_contact_area; no contact area was measured. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0851",
+   "parameter": "cycle_frames_01",
+   "value": 129,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: configured/rendered frame window = 129"
+  },
+  {
+   "id": "CHAR-ENG-0860",
+   "parameter": "duration_01",
+   "value": 4.26,
+   "validationState": "MEASURED",
+   "note": "matches measured evidence: corrected clip duration, s = 4.26"
+  },
+  {
+   "id": "CHAR-ENG-0901",
+   "parameter": "stride_length_01",
+   "value": 0.906,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (corrected MAX SILHOUETTE OVERLAP 0.906) but the parameter name does not describe it: filed as stride_length; no stride length was measured. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0902",
+   "parameter": "step_length_01",
+   "value": 0.095,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (corrected MIN TWO-LEG FRACTION 0.095) but the parameter name does not describe it: filed as step_length; no step length was measured. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0903",
+   "parameter": "pelvis_bob_01",
+   "value": 2,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (minimum leg gap 2 px) but the parameter name does not describe it: filed as pelvis_bob; no pelvis bob was measured. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0904",
+   "parameter": "pelvis_sway_01",
+   "value": 17,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (corrected frames with IoU < 0.90 = 17) but the parameter name does not describe it: filed as pelvis_sway; a frame COUNT is not a sway distance. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0905",
+   "parameter": "knee_peak_L_01",
+   "value": 140.0,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (corrected minimum knee interior angle at frame 101 = 140.0 deg) but the parameter name does not describe it: filed as knee_peak_L; it is a per-FRAME minimum across both knees, not a left-knee peak. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0906",
+   "parameter": "knee_peak_R_01",
+   "value": 140.4,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (corrected minimum knee interior angle at frame 100 = 140.4 deg) but the parameter name does not describe it: filed as knee_peak_R; it is frame 100, not the right knee. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0911",
+   "parameter": "stride_length_02",
+   "value": 0.898,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (control MAX SILHOUETTE OVERLAP 0.898) but the parameter name does not describe it: filed as stride_length. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0912",
+   "parameter": "step_length_02",
+   "value": 0.102,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (control MIN TWO-LEG FRACTION 0.102) but the parameter name does not describe it: filed as step_length. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0913",
+   "parameter": "pelvis_bob_02",
+   "value": 2,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (minimum leg gap 2 px) but the parameter name does not describe it: filed as pelvis_bob. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0914",
+   "parameter": "pelvis_sway_02",
+   "value": 11,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (control frames with IoU < 0.90 = 11) but the parameter name does not describe it: filed as pelvis_sway. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0915",
+   "parameter": "knee_peak_L_02",
+   "value": 141.0,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (corrected knee angle at frame 102 = 141.0 deg) but the parameter name does not describe it: filed as knee_peak_L_02; it is frame 102. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0916",
+   "parameter": "knee_peak_R_02",
+   "value": 147.2,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (corrected knee angle at frame 126 = 147.2 deg) but the parameter name does not describe it: filed as knee_peak_R_02; it is frame 126. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0925",
+   "parameter": "knee_peak_L_03",
+   "value": 112.3,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (CONTROL knee angle at frame 101 = 112.3 deg) but the parameter name does not describe it: filed as knee_peak_L_03; it is a control-clip frame value. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0926",
+   "parameter": "knee_peak_R_03",
+   "value": 113.1,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (CONTROL knee angle at frame 100 = 113.1 deg) but the parameter name does not describe it: filed as knee_peak_R_03. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0935",
+   "parameter": "knee_peak_L_04",
+   "value": 114.3,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (CONTROL knee angle at frame 102 = 114.3 deg) but the parameter name does not describe it: filed as knee_peak_L_04. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0936",
+   "parameter": "knee_peak_R_04",
+   "value": 115.7,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (CONTROL knee angle at frame 126 = 115.7 deg) but the parameter name does not describe it: filed as knee_peak_R_04. Not renamed, not promoted."
+  },
+  {
+   "id": "CHAR-ENG-0951",
+   "parameter": "spine_flex_01",
+   "value": 0.5,
+   "validationState": "REJECTED",
+   "note": "value traces to a real measurement (KNEE DAMPING SCALE 0.50) but the parameter name does not describe it: filed under motion_limits as spine_flex; it is the knee damping constant and must never act as a spine limit. Not renamed, not promoted."
+  }
+ ]
+}
