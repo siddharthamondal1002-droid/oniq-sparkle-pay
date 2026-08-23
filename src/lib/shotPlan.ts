@@ -91,7 +91,8 @@ export const EMOTIONS: readonly EmotionReading[] = [
 const EMOTION_FORMS: Record<string, string> = {
   exhausted: "exhaustion", tired: "exhaustion", weary: "exhaustion",
   happy: "joy", joyful: "joy", sad: "sadness", angry: "anger", furious: "anger",
-  afraid: "fear", scared: "fear", surprised: "surprise", disgusted: "disgust",
+  afraid: "fear", scared: "fear", frightened: "fear", terrified: "fear",
+  surprised: "surprise", disgusted: "disgust",
   curious: "curiosity", confused: "confusion", suspicious: "suspicion",
   relieved: "relief", determined: "determination", embarrassed: "embarrassment",
   proud: "pride", guilty: "guilt", hopeful: "hope", despairing: "despair",
@@ -193,7 +194,9 @@ export function buildShotPlan(request: string, intent: ShotIntent = {}): ShotPla
 
   const emotionReading = detectEmotion(request);
   const weather = intent.weather ?? (/\brain|rainy\b/.test(t) ? "rain" : /\bsnow\b/.test(t) ? "snow" : findTerm(t, WEATHERS));
-  const time = intent.timeOfDay ?? findTerm(t, TIMES_OF_DAY);
+  // "dawn" is common request language; the structured vocabulary's nearest
+  // period is sunrise (pre-dawn stays its own darker slot).
+  const time = intent.timeOfDay ?? (/\bdawn\b/.test(t) && !t.includes("pre-dawn") ? "sunrise" : findTerm(t, TIMES_OF_DAY));
 
   const constraints: string[] = [
     `temporal aliveness >= ${ALIVENESS_MIN} (necessary, never sufficient — pixel review decides)`,

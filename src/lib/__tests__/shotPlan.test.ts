@@ -58,6 +58,47 @@ describe("the §11 multi-category example", () => {
   });
 });
 
+describe("the remaining representative queries (final-audit pins)", () => {
+  it("curious / foggy forest / dawn", () => {
+    const p = buildShotPlan("A curious character walks through a foggy forest at dawn.");
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.emotion).toBe("curiosity");
+    expect(p.motion?.grammar).toBe("walking");
+    expect(p.weather).toBe("fog");
+    expect(p.time).toBe("sunrise");
+    expect(p.environment).toEqual(expect.arrayContaining(["forest", "atmospheric fog depth"]));
+  });
+
+  it("determined / historical marketplace / sunset", () => {
+    const p = buildShotPlan("A determined character walks through a historical marketplace at sunset.");
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.emotion).toBe("determination");
+    expect(p.motion?.grammar).toBe("walking");
+    expect(p.time).toBe("sunset");
+  });
+
+  it("frightened / industrial facility / storm — plans without a motion (standing pose)", () => {
+    const p = buildShotPlan("A frightened character stands inside a dark industrial facility during a storm.");
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.emotion).toBe("fear");
+    expect(p.motion).toBeNull();
+    expect(p.explicitGenerationRequired).toBe(true);
+  });
+
+  it("joyful / bright modern city / morning", () => {
+    const p = buildShotPlan("A joyful character walks through a bright modern city in the morning.");
+    expect(p.ok).toBe(true);
+    if (!p.ok) return;
+    expect(p.emotion).toBe("joy");
+    expect(p.motion).toEqual({ grammar: "walking", status: "PRIMARY" });
+    expect(p.time).toBe("morning");
+    expect(p.environment).toContain("urban street");
+  });
+});
+
 describe("uncertainty and grammar discipline (§12, §9)", () => {
   it("a request matching nothing yields REFERENCE_UNCERTAIN with the safe fallback, never invented constraints", () => {
     const r = buildShotPlan("qwxz 999");
