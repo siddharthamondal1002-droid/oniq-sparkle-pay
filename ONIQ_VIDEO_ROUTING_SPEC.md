@@ -25,9 +25,15 @@ routing rule:
    failing.
 4. Cheapest external model that clears the requirement: Lite no-audio → Lite
    audio → Fast. Veo 3.1 full is Cinematic only.
-5. **Runway = `UNAVAILABLE_FOR_THIS_EXPERIMENT`** — not integrated, pricing
-   unverified, domains egress-blocked. Declared slot, dropped from selection,
-   structured miss. No invented price, no invented capability.
+5. **Runway = `UNAVAILABLE_FOR_THIS_EXPERIMENT`** — but **not for the reason
+   previously reported.** A server-side adapter DOES exist
+   (`src/lib/runway.server.ts`, admin-gated, `gen4_turbo`, durations 5/10 s,
+   ratios including `1280:720` and `720:1280`, `CREDITS_PER_SECOND = 5`). My
+   earlier claim that Runway was unintegrated was wrong — I searched only
+   `supabase/functions/` and missed `src/lib/`. What blocks it is
+   `api.dev.runwayml.com` being egress-blocked and its **credit→₹ price being
+   unverifiable**, so it stays a declared-but-unavailable slot: dropped from
+   selection, structured miss, no invented price.
 
 ## Retry — bounded by spend, per shot
 
@@ -48,6 +54,10 @@ Runway is unavailable.
 1. **External acceptance has never been measured.** In-house is now measured
    (65.31 % → 100 % trimmed); the Veo Lite rate is `OPEN`, and the router's
    escalation economics depend on it.
-2. **No provider keys exist in this container** — `GOOGLE_API_KEY`,
-   `GEMINI_API_KEY`, `LOVABLE_API_KEY` and `RUNWAY_API_KEY` are all absent, so
-   the Phase-10 Lite benchmark could not run here regardless of authorisation.
+2. **Credentials are unreachable from this session, not absent from production.**
+   `GOOGLE_AI_API_KEY` and `RUNWAY_API_KEY` are configured for the deployed
+   Supabase edge functions; this container holds neither (correctly), and the
+   Supabase project host is itself egress-blocked, so the functions that DO hold
+   them cannot be invoked either. `generativelanguage.googleapis.com` is
+   reachable and answers Google's own 403 — only the credential is missing
+   there. See `ONIQ_PROVIDER_VERIFICATION.md`.
