@@ -207,3 +207,15 @@ ec97703685865547 roundM3/walks/m3_artisan_weaver.walk.gif
 ec77551e33b41fb9 roundM3/walks/m3_nomad_rider.walk.gif
 1fb7c00bbb7ce426 roundM3/walks/m3_suit_woman.walk.gif
 b2c13f0babf7f531 roundM3/walks/m3_village_healer.walk.gif
+
+# --- CHARACTER ENGINEERING REFERENCES (2026-08-23) ---
+2074a840bf0f13d3 engineering_refs/ENGINEERING_EVIDENCE_SHA256.txt
+7748880f52900ff1 engineering_refs/ENGINEERING_GATE_MAPPING.md
+317d6539b12b5dd8 engineering_refs/ENGINEERING_INTEGRATION_REPORT.md
+cec42478487228f4 engineering_refs/ENGINEERING_REFERENCE_INDEX.json
+f07819042e37276a engineering_refs/ENGINEERING_SCHEMA.json
+26992d708783b1f3 engineering_refs/ENGINEERING_TAXONOMY.md
+0c10c32a36a1035d engineering_refs/ENGINEERING_VIDEO_GENERATOR_MAPPING.md
+0bf3a7a815d99a49 engineering_refs/manifests/ENGINEERING_REFERENCE_MANIFEST.json
+fc0ea82faccf3d43 engineering_refs/masters/ENG-001__character_engineering.png
+84588b3ad10a2a7b engineering_refs/masters/ENG-002__character_engineering.png

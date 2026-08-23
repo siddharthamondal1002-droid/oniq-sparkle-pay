@@ -1,0 +1,54 @@
+{
+ "library": "ONIQ_CHARACTER_ENGINEERING_REFERENCE",
+ "version": "1.0",
+ "generation_allowed": false,
+ "references": {
+  "ENG-001": {
+   "title": "Engineering Detail Images (light sheet)",
+   "sections": [
+    "proportion & measurement system (normalized to body height 1.000)",
+    "joint landmark & confidence map (0.90+ excellent \u2026 <0.66 reject/fallback)",
+    "skeleton topology & hierarchy",
+    "degrees of freedom & joint limits (walking)",
+    "knee engineering parameters (contact 5\u00b0, down 35\u00b0, passing 80\u00b0; KNEE_DAMPING=0.50)",
+    "foot contact & ground interaction (heel/toe/full, clearance/slide/penetration/sticking)",
+    "silhouette & topology metrics (fill \u226490%, border reject; hole size alone not decisive)",
+    "limb width classification (solid \u22655px / thin 2\u20135px / stroke <2px)",
+    "clothing & hair engineering",
+    "texture deformation budget",
+    "temporal stability & motion quality",
+    "motion phase reference (walking cycle)",
+    "camera relative orientation",
+    "mesh density matrix (GRID30/40/60/80)",
+    "quality gate summary",
+    "validation pipeline (pre\u2192post render)",
+    "fallback strategies",
+    "output deliverables",
+    "engineering metadata schema (JSON)"
+   ]
+  },
+  "ENG-002": {
+   "title": "Detailed Engineering Layer (dark sheet)",
+   "sections": [
+    "anatomical measurement system",
+    "joint landmark & confidence schema",
+    "skeleton topology (canonical hierarchy)",
+    "degrees of freedom & rotation limits",
+    "knee engineering \u2014 damping & metrics (KNEE_DAMPING=0.50, do-NOT-alter list)",
+    "foot contact engineering (failure modes: floating/sliding/penetration/sticking)",
+    "silhouette & topology engineering",
+    "limb width engineering (heat map, thin-limb vs thin-stroke)",
+    "clothing & hair topology risk tables",
+    "mesh density engineering matrix",
+    "texture deformation budget",
+    "temporal engineering & stability (pop/jitter/freeze/teleport/scale/ribbon-curl)",
+    "production eligibility & classification",
+    "camera relative anatomy (frontal/near-frontal supported)",
+    "character-environment contact",
+    "output quality targets (prints 0.70 \u2014 recorded discrepancy vs measured 0.75)",
+    "engineering pipeline overview",
+    "engineering data object (JSON schema)"
+   ]
+  }
+ }
+}

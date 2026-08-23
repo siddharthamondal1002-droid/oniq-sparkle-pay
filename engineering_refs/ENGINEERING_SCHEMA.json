@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "oniq://engineering/character-profile/1.0",
+  "title": "ONIQ CharacterEngineeringProfile",
+  "description": "Machine-readable character engineering profile derived from the frozen ENG-001/ENG-002 references, reconciled against measured ONIQ evidence. Identity-free by construction: no ethnicity, gender, occupation, location or costume field exists. generation_allowed is pinned false — a profile describes structure, it never authorizes generation.",
+  "type": "object",
+  "required": ["character_id", "silhouette", "limbs", "mesh", "camera", "quality", "classification", "generation_allowed"],
+  "additionalProperties": false,
+  "properties": {
+    "character_id": { "type": "string", "minLength": 1 },
+    "proportions": {
+      "type": "object",
+      "description": "Normalized to body height = 1.000. REFERENCE_ONLY: illustrative poster values, never a gate.",
+      "additionalProperties": false,
+      "properties": {
+        "body_height": { "type": "number" }, "head_height": { "type": "number" },
+        "shoulder_width": { "type": "number" }, "torso_length": { "type": "number" },
+        "pelvis_width": { "type": "number" }, "upper_arm_length": { "type": "number" },
+        "forearm_length": { "type": "number" }, "hand_length": { "type": "number" },
+        "upper_leg_length": { "type": "number" }, "lower_leg_length": { "type": "number" },
+        "foot_length": { "type": "number" }, "foot_width": { "type": "number" },
+        "ankle_width": { "type": "number" }, "wrist_width": { "type": "number" },
+        "knee_width": { "type": "number" }
+      }
+    },
+    "landmarks": {
+      "type": "object",
+      "additionalProperties": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+    },
+    "landmark_quality": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["visibility", "confidence", "silhouette_inside", "occluded", "estimated"],
+        "properties": {
+          "visibility": { "type": "number", "minimum": 0, "maximum": 1 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "silhouette_inside": { "type": "boolean" },
+          "occluded": { "type": "boolean" },
+          "estimated": { "type": "boolean" }
+        }
+      }
+    },
+    "skeleton": {
+      "type": "object",
+      "properties": {
+        "topology": { "type": "string" },
+        "enabled_joints": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "motion": {
+      "type": "object",
+      "description": "Promotion truth lives in MOTION_PROMOTION (walking PRIMARY, idle SECONDARY, turn/reach UNPROMOTED, wave EXCLUDED).",
+      "properties": {
+        "walking": { "type": "boolean" }, "idle": { "type": "boolean" },
+        "turn": { "type": "boolean" }, "wave": { "type": "boolean" }, "reach": { "type": "boolean" }
+      }
+    },
+    "silhouette": {
+      "type": "object",
+      "required": ["fill_ratio", "border_contact", "connected_components", "holes", "hole_area_px"],
+      "properties": {
+        "fill_ratio": { "type": "number", "minimum": 0, "maximum": 100 },
+        "border_contact": { "type": "boolean" },
+        "connected_components": { "type": "integer", "minimum": 0 },
+        "holes": { "type": "integer", "minimum": 0 },
+        "hole_area_px": { "type": "number", "minimum": 0 }
+      }
+    },
+    "limbs": {
+      "type": "object",
+      "required": ["minimum_width_px", "limb_class"],
+      "properties": {
+        "minimum_width_px": { "type": "number", "minimum": 0 },
+        "limb_class": { "enum": ["SOLID_LIMB", "THIN_SOLID_LIMB", "THIN_INK_STROKE", "BARE_THIN_SHIN"] }
+      }
+    },
+    "clothing": {
+      "type": "object",
+      "properties": {
+        "occlusion": { "type": "string" }, "topology": { "type": "string" },
+        "layer_count": { "type": "integer" }, "motion_risk": { "enum": ["low", "medium", "high"] }
+      }
+    },
+    "hair": {
+      "type": "object",
+      "properties": {
+        "occlusion": { "type": "string" }, "silhouette_risk": { "enum": ["low", "medium", "high"] },
+        "topology": { "type": "string" }, "motion_risk": { "enum": ["low", "medium", "high"] }
+      }
+    },
+    "mesh": {
+      "type": "object",
+      "required": ["grid"],
+      "properties": { "grid": { "enum": [30, 40, 60, 80] } }
+    },
+    "camera": {
+      "type": "object",
+      "required": ["lane"],
+      "properties": { "lane": { "enum": ["frontal", "near_frontal", "three_quarter", "profile", "rear"] } }
+    },
+    "quality": {
+      "type": "object",
+      "required": ["aliveness", "pixel_review"],
+      "description": "aliveness gate minimum is 0.75 (measured; the ENG-002 poster's 0.70 is a recorded discrepancy). Aliveness is necessary, never sufficient — pixel_review decides.",
+      "properties": {
+        "aliveness": { "type": ["number", "null"] },
+        "pixel_review": { "enum": ["PASS", "FAIL", "PENDING"] }
+      }
+    },
+    "classification": {
+      "oneOf": [
+        { "enum": ["PRODUCTION_READY", "CONDITIONAL", "STRESS_TEST", "GATE_REJECT"] },
+        { "type": "null" }
+      ]
+    },
+    "fallback": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["action", "contract"],
+          "properties": {
+            "action": { "const": "STILL_PARALLAX" },
+            "reason": { "type": ["string", "null"] },
+            "contract": { "const": "MOTION_CONTRACT" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "generation_allowed": { "const": false }
+  }
+}

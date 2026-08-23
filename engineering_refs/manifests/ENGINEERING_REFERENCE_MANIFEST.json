@@ -1,0 +1,43 @@
+{
+ "library": "ONIQ_CHARACTER_ENGINEERING_REFERENCE",
+ "version": "1.0",
+ "frozen_at": "2026-08-23T10:25:25Z",
+ "generation_allowed": false,
+ "dedup": "exact SHA-256 vs 27 registered assets: no match; perceptual 256-bit dHash: no candidate <=40; pair hamming 110 \u2014 both kept",
+ "records": [
+  {
+   "id": "ENG-001",
+   "upload_id": "8ec58181",
+   "title": "ONIQ Advanced Character Engineering Reference Library (Engineering Detail Images)",
+   "note": "light detail sheet, 19 sections",
+   "sha256": "fc0ea82faccf3d436c8870f328657db9c5c4999ad27f602e8d8aa8c09c33fe18",
+   "bytes": 2371962,
+   "width": 1536,
+   "height": 1024,
+   "format": "PNG",
+   "dup_class": "UNIQUE",
+   "duplicate_of": null,
+   "registered_at": "2026-08-23T10:25:25Z",
+   "master_path": "engineering_refs/masters/ENG-001__character_engineering.png",
+   "source": "USER_ATTACHED",
+   "generation_allowed": false
+  },
+  {
+   "id": "ENG-002",
+   "upload_id": "6aec58ce",
+   "title": "ONIQ Advanced Character Engineering Reference Library (Detailed Engineering Layer)",
+   "note": "dark detailed layer, 18 sections",
+   "sha256": "84588b3ad10a2a7bf9b5832e1eccfd7900c8fe7a0bd71c52c87f24e3640cfb69",
+   "bytes": 2342223,
+   "width": 1536,
+   "height": 1024,
+   "format": "PNG",
+   "dup_class": "UNIQUE",
+   "duplicate_of": null,
+   "registered_at": "2026-08-23T10:25:25Z",
+   "master_path": "engineering_refs/masters/ENG-002__character_engineering.png",
+   "source": "USER_ATTACHED",
+   "generation_allowed": false
+  }
+ ]
+}

@@ -89,3 +89,12 @@ failures recorded (scribe 0.63, scholar 0.65), not tuned. Margin clause now
 4/4 on regens. ₹0 new spend. NO M4 — generation stopped by owner order
 (scene-ingestion loop §1); resumption requires explicit owner
 re-authorization.
+
+## Character engineering references (2026-08-23) — REGISTERED/FROZEN
+
+ENG-001 (fc0ea82f) + ENG-002 (84588b3a) at engineering_refs/, both UNIQUE
+(exact + perceptual dedup vs 27 registered assets), generation_allowed=false.
+Machine-readable layer + schema + gate mapping on branch
+claude/video-generator-engineering. Four poster-vs-evidence conflicts
+recorded (0.70-vs-0.75 aliveness, width-only limb classes, DOF tables,
+cm foot thresholds) — measured values stand, test-pinned.
