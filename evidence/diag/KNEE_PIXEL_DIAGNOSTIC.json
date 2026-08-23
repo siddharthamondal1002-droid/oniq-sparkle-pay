@@ -1,0 +1,87 @@
+{
+ "control": {
+  "clip": "control_undamped",
+  "frames": 129,
+  "two_leg_fraction_mean": 0.6483,
+  "two_leg_fraction_min": 0.1024,
+  "silhouette_overlap_mean": 0.3517,
+  "silhouette_overlap_max": 0.8976,
+  "min_gap_px_min": 2,
+  "knee_angle_min_deg": 112.28,
+  "knee_angle_mean_deg": 162.62,
+  "frames_below_120deg": 9,
+  "frames_below_140deg": 27,
+  "deformation_iou_min": 0.879,
+  "deformation_iou_mean": 0.9516,
+  "max_crossing_frame": 52,
+  "max_crossing_two_leg_fraction": 0.1024,
+  "max_crossing_min_gap_px": 2,
+  "worst_five_crossing_frames": [
+   52,
+   53,
+   107,
+   50,
+   106
+  ],
+  "foot_contacts": {
+   "L": [
+    12,
+    17,
+    24,
+    38
+   ],
+   "R": [
+    27,
+    29,
+    34,
+    65,
+    72
+   ]
+  }
+ },
+ "corrected": {
+  "clip": "corrected_knee050",
+  "frames": 129,
+  "two_leg_fraction_mean": 0.6625,
+  "two_leg_fraction_min": 0.0945,
+  "silhouette_overlap_mean": 0.3375,
+  "silhouette_overlap_max": 0.9055,
+  "min_gap_px_min": 2,
+  "knee_angle_min_deg": 140.01,
+  "knee_angle_mean_deg": 167.94,
+  "frames_below_120deg": 0,
+  "frames_below_140deg": 0,
+  "deformation_iou_min": 0.8376,
+  "deformation_iou_mean": 0.9511,
+  "max_crossing_frame": 52,
+  "max_crossing_two_leg_fraction": 0.0945,
+  "max_crossing_min_gap_px": 2,
+  "worst_five_crossing_frames": [
+   52,
+   48,
+   49,
+   50,
+   106
+  ],
+  "foot_contacts": {
+   "L": [
+    47,
+    57,
+    120
+   ],
+   "R": [
+    74,
+    84,
+    121,
+    126
+   ]
+  }
+ },
+ "compared_frames": [
+  48,
+  49,
+  52
+ ],
+ "crop_image": "knee_crossing_compare.png",
+ "note": "two_leg_fraction = share of lower-body rows whose silhouette reads as TWO separate runs. Lower = legs visually merged. silhouette_overlap_fraction is its complement over the same zone."
+}

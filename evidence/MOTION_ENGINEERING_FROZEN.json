@@ -1,0 +1,139 @@
+{
+ "record": "MOTION_ENGINEERING_FROZEN",
+ "version": "1.0",
+ "frozen_at": "2026-08-23",
+ "scope": "ENGINEERING MOTION VALIDATION ONLY \u2014 plain-canvas CPU render. NOT a cinematic shot.",
+ "request": "A determined character walks through a rainy modern city street at night.",
+ "character": "m3_suit_woman (M3 ACCEPT)",
+ "clip": {
+  "frames": 129,
+  "fps": "33.3ms/frame",
+  "canvas": "500x500",
+  "duration_s": 4.26,
+  "sha256": "ae8124510a4a2d77e40515d2f210db52b30a805a039d3e71f934fc74d0ca4591"
+ },
+ "knee_contract": {
+  "scale": 0.5,
+  "rule_ids": [
+   "ENG-0134",
+   "ENG-0153",
+   "ENG-0154",
+   "ENG-0155",
+   "ENG-0156",
+   "ENG-0299"
+  ],
+  "driver_id": "b3_knee_damp.py",
+  "driver_sha256": "99dadd19c484382df9c3ab128a0bc7072011408c477b976d547103106e7c31ae",
+  "source_bvh_sha256": "a3b5dbc1138b1990d5448241a0a58d933674458e3a842f432e0f968be25b0592",
+  "derived_bvh_sha256": "ea15d92139654bfbbcc2e1efd0a637110bb0cd657c4b04be9341a1ab8cfb344b",
+  "registered_driver_sha256": "ea15d92139654bfbbcc2e1efd0a637110bb0cd657c4b04be9341a1ab8cfb344b",
+  "matches_registered_driver": true,
+  "channels_modified": "6 rotation channels on LeftLeg + RightLeg",
+  "channels_not_modified": "hips, ankles(Foot), toes, spine, arms, head, root translation, frame count, frame time"
+ },
+ "enforced_bindings": [
+  {
+   "renderer_parameter": "driver_family",
+   "value": "walk (not idle)",
+   "support": "ENFORCED",
+   "engineering_reference_ids": [
+    "ENG-0201"
+   ],
+   "note": "WALKING is the only promoted grammar; idle/turn/reach/wave are not substituted"
+  },
+  {
+   "renderer_parameter": "bvh_knee_damping",
+   "value": 0.5,
+   "support": "ENFORCED",
+   "engineering_reference_ids": [
+    "ENG-0153",
+    "ENG-0154",
+    "ENG-0155",
+    "ENG-0156",
+    "ENG-0134",
+    "ENG-0299"
+   ],
+   "note": "re-derived from the source BVH by the library rule and byte-matched to the registered accepted driver"
+  },
+  {
+   "renderer_parameter": "camera_motion",
+   "value": "none (locked/static)",
+   "support": "ENFORCED",
+   "engineering_reference_ids": [
+    "CAM-00031"
+   ],
+   "note": "the CPU renderer has a fixed camera; the selected reference agrees"
+  },
+  {
+   "renderer_parameter": "retarget_projection_planes",
+   "value": {
+    "Upper Limbs": "frontal",
+    "Lower Limbs": "sagittal",
+    "Trunk": "frontal"
+   },
+   "support": "ENFORCED",
+   "engineering_reference_ids": [
+    "CAM-00031",
+    "ENG-0134"
+   ],
+   "note": "pinned explicitly so the basis cannot be re-derived by PCA from the frame range; values are the ones the full-range PCA itself selects"
+  },
+  {
+   "renderer_parameter": "end_frame_idx",
+   "value": 129,
+   "support": "ENFORCED",
+   "engineering_reference_ids": [
+    "CAM-00031",
+    "QA:no-border-contact"
+   ],
+   "note": "the frame window is bounded by the MEASURED no-border-contact envelope for this character; the post-render ENVELOPE gate re-verifies it"
+  }
+ ],
+ "knee_pixel_validation": {
+  "verdict": "PASS",
+  "basis": "decoded-pixel comparison against an undamped CONTROL render on the identical frame window, retarget config and character",
+  "control_gif_sha256": "f81a5a012bc26ac37d8ace9749c6ca01ac1625a968fcc9b7677cc9e7dac24edb",
+  "over_curl": {
+   "control_min_knee_deg": 112.28,
+   "corrected_min_knee_deg": 140.01,
+   "control_frames_below_120": 9,
+   "corrected_frames_below_120": 0,
+   "pixel_finding": "at the control's deepest-flexion frames (100,101,102,126) the control leg reads as a sharply folded hook; the knee-0.50 leg reads as a straight natural swing. Over-curl visibly removed."
+  },
+  "crossing": {
+   "verdict": "NOT_A_DEFECT_AND_NOT_FIXED_BY_DAMPING",
+   "control_two_leg_fraction_min": 0.1024,
+   "corrected_two_leg_fraction_min": 0.0945,
+   "max_crossing_frame_both": 52,
+   "finding": "leg overlap at f48-52 is legitimate near-frontal passing-phase occlusion: both feet stay distinct and correctly shaped, no smear. It is essentially IDENTICAL in the undamped control, so knee damping neither causes nor fixes it. It must not be claimed as fixed."
+  },
+  "deformation": {
+   "control_min_iou": 0.879,
+   "corrected_min_iou": 0.8376,
+   "finding": "worst corrected frame (f121) is a fast passing swing with distinct legs and coherent feet \u2014 large motion, not deformation"
+  }
+ },
+ "do_not_alter": [
+  "knee damping 0.50",
+  "six knee rotation channels",
+  "both knees symmetric",
+  "hips",
+  "ankles",
+  "feet",
+  "root",
+  "timing",
+  "BVH mapping",
+  "segmentation",
+  "ARAP",
+  "mesh topology",
+  "mesh density",
+  "camera (locked/static per CAM-00031)",
+  "character proportions",
+  "registered source + driver BVH hashes"
+ ],
+ "costs": {
+  "api_inr": 0,
+  "gpu_inr": 0,
+  "new_references": 0
+ }
+}

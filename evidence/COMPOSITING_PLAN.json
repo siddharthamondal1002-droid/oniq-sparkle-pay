@@ -1,0 +1,74 @@
+{
+ "record": "CINEMATIC_COMPOSITING_PLAN",
+ "version": "1.0",
+ "status": "PREPARED_NOT_RUN",
+ "authorization": "OWNER_GATED \u2014 NOT RUN. This stage spends real money on a paid provider. Per CLAUDE.md the provider, the account whose money is spent and any cap are OWNER decisions, and none of those are specified yet, so nothing was spent and no provider was chosen.",
+ "why_not_done_on_the_cpu_path": "the ARAP/OSMesa renderer has no lighting, weather, scene or compositing model at all. Lighting and scene were retrieved and carried as PLAN_ONLY; they were never rendered.",
+ "inputs_retrieved_and_ready": {
+  "scene_reference": {
+   "id": "SCN-002",
+   "sha256": "d751fafb09a776ce",
+   "role": "rainy modern city street at night"
+  },
+  "engineering_atlas": {
+   "id": "ENG-004",
+   "sha256": "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea"
+  },
+  "camera_x_lighting_matrix_pair": {
+   "id": "CXL-00010",
+   "camera_panel": "CAM-P01.01",
+   "lighting_panel": "LIT-P01.10",
+   "pair": "eye level x night"
+  },
+  "camera": {
+   "id": "CAM-00031",
+   "angle": "eye level",
+   "subject_scale": "full-figure subject scale",
+   "camera_mode": "locked/static",
+   "lens": null,
+   "height": "NOT_SPECIFIED",
+   "distance": "NOT_SPECIFIED",
+   "fov": "NOT_SPECIFIED"
+  },
+  "lighting_primary": {
+   "id": "LIT-00451",
+   "condition": "night",
+   "direction": "front",
+   "quality": "hard"
+  },
+  "lighting_secondary": [
+   {
+    "id": "LIT-00751",
+    "condition": "rain light"
+   },
+   {
+    "id": "LIT-01951",
+    "condition": "street light"
+   }
+  ],
+  "scene_category": {
+   "id": "ENG-0761",
+   "subdomain": "scene-category/urban-exterior"
+  },
+  "motion_plate": {
+   "file": "run1/sample_1.gif",
+   "sha256": "ae8124510a4a2d77e40515d2f210db52b30a805a039d3e71f934fc74d0ca4591",
+   "frames": 129,
+   "status": "FROZEN"
+  }
+ },
+ "open_owner_decisions": [
+  "which provider performs the compositing (Lovable credits vs the metered Google AI key vs other)",
+  "which account's money is spent",
+  "a spend cap for the one shot",
+  "whether SCN-002 \u2014 a frozen REFERENCE asset with generation_allowed=false \u2014 may be used as an actual background plate, or whether a separate production plate is required"
+ ],
+ "not_done": [
+  "no API call",
+  "no GPU",
+  "no provider selected",
+  "no money spent",
+  "no reference asset mutated",
+  "no production change"
+ ]
+}
