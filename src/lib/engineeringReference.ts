@@ -308,7 +308,7 @@ const RETRIEVAL_RULES: readonly { match: RegExp; shelves: readonly string[] }[] 
   { match: /\b(rain|rainy|fog|foggy|snow|storm|overcast|weather|mist)\b/i, shelves: ["LIGHTING", "SCENE"] },
   { match: /\b(street|city|urban|forest|village|interior|room|market|environment|scene)\b/i, shelves: ["SCENE", "MATERIAL"] },
   { match: /\b(wet|reflection|surface|material|texture)\b/i, shelves: ["MATERIAL", "LIGHTING"] },
-  { match: /\b(walk|walking|run|gait|idle|motion|foot|step)\b/i, shelves: ["MOTION ENGINEERING", "CHARACTER ENGINEERING"] },
+  { match: /\b(walk|walks|walking|run|runs|running|gait|idle|motion|foot|footstep|step|steps)\b/i, shelves: ["MOTION ENGINEERING", "CHARACTER ENGINEERING"] },
   { match: /\b(character|anatomy|body|pose|figure)\b/i, shelves: ["CHARACTER ENGINEERING", "ANATOMY"] },
   { match: /\b(emotional|emotion|expression|face|facial)\b/i, shelves: ["CHARACTER ENGINEERING", "QUALITY"] },
   { match: /\b(quality|artifact|review|gate)\b/i, shelves: ["QUALITY", "FALLBACK"] },
