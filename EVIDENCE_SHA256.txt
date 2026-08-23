@@ -168,3 +168,42 @@ d751fafb09a776ce8f2bda0ca45c2cde3172753aae158ec52634b5c71da9fb21  SCN-002  'Fire
 3ae6355f9d85cb1a562dac50638d191c78457ca13a1dc9da812f1954edca56c4  SCN-008  'Global Scene Reference Library Collage.png'  1264x843  1938532  PNG  1264:843  EXACT_DUPLICATE -> REGISTERED_REFERENCE:oniq_structural_9poster_grid.png
 ee19e51e581531d85689a6dd09a8de196b86576f94787cd3c9559b4a4cea7b9f  SCN-009  'ONIQ Scene Reference Library Poster.png'  1264x843  2062535  PNG  1264:843  UNIQUE
 59ece0090ee22b9570e3f5a5bf0361ad09569e674ce09a40a777064b641a8714  SCN-010  'ONIQ Scene Reference Library Infographic.png'  1264x843  1809925  PNG  1264:843  UNIQUE
+
+# --- ROUND M3 evidence (2026-08-23) ---
+6d4ed10c0aa5f012 roundM3/M3_FINAL_REPORT.md
+3a136d4c5b5992da roundM3/f100_strip.png
+574a80f2363e1dc4 roundM3/manifests/m3_transfer_verification.json
+f350827506dd61fe roundM3/montages/m3_ancient_scribe.png
+bf9336969bd41c3e roundM3/montages/m3_artisan_weaver.png
+0d68380c55fcfb16 roundM3/montages/m3_court_scholar.png
+9d08464fbe737280 roundM3/montages/m3_desert_trader.png
+1379a329525b1d7f roundM3/montages/m3_grandpa_stocky.png
+d62e3ee316c3ff0e roundM3/montages/m3_hijabi_teacher.png
+80699bcce34b4ffe roundM3/montages/m3_maritime_captain.png
+1abf31339d817552 roundM3/montages/m3_medieval_smith.png
+afec9d0debab6898 roundM3/montages/m3_mountain_hunter.png
+9ee14399b7217f80 roundM3/montages/m3_nomad_rider.png
+7f19f6ef1fcec45f roundM3/montages/m3_suit_woman.png
+de6bf9ece389bc75 roundM3/montages/m3_village_healer.png
+472215bad63eea51 roundM3/qc/contact_sheet.png
+bd155fef9a026cef roundM3/qc/m3_chunk1_strip.png
+8a26bb1e0cc265e1 roundM3/qc/m3_chunk2_strip.png
+6418b4a3b6f17ea9 roundM3/qc/m3_chunk3_strip.png
+a79ef75403801608 roundM3/qc/m3_chunk4_strip.png
+c6193ec79a2a84f9 roundM3/qc/m3_scribe_feet.png
+005d4d1aeb6dbb34 roundM3/qc/m3_scribe_feet2.png
+9799522dcd67362c roundM3/qc/m3_scribe_g40_vs_g80.png
+8b2ce5391fdcfc5b roundM3/qc/m3_trader_feet.png
+7f28ef538daa9032 roundM3/walks/m3_ancient_scribe.walk.gif
+71c42339aedbd0d9 roundM3/walks/m3_ancient_scribe.walk_grid80_experiment.gif
+ec97703685865547 roundM3/walks/m3_artisan_weaver.walk.gif
+734345fca1581d8e roundM3/walks/m3_court_scholar.walk.gif
+4ae8c1a5d59e1aed roundM3/walks/m3_desert_trader.walk.gif
+3cea780e53839625 roundM3/walks/m3_grandpa_stocky.walk.gif
+688b99ca8116f566 roundM3/walks/m3_hijabi_teacher.walk.gif
+35a4241dcea6da2c roundM3/walks/m3_maritime_captain.walk.gif
+760f087c4e274646 roundM3/walks/m3_medieval_smith.walk.gif
+63c9309b7721d242 roundM3/walks/m3_mountain_hunter.walk.gif
+ec77551e33b41fb9 roundM3/walks/m3_nomad_rider.walk.gif
+1fb7c00bbb7ce426 roundM3/walks/m3_suit_woman.walk.gif
+b2c13f0babf7f531 roundM3/walks/m3_village_healer.walk.gif

@@ -1,0 +1,134 @@
+[
+ {
+  "file": "m3_ancient_scribe.png",
+  "bytes": 1653075,
+  "bytes_match_manifest": true,
+  "sha256": "2121518d9b0aa91a4af2189e1c1ad7552bac4475341dfa62decbeaccef8409a6",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_artisan_weaver.png",
+  "bytes": 1217539,
+  "bytes_match_manifest": true,
+  "sha256": "b783e7ec47c4887f7df79d8c564f0f60b2be04acdde3ced0e28f0fa4e33d7b53",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_court_scholar.png",
+  "bytes": 1782932,
+  "bytes_match_manifest": true,
+  "sha256": "4105b7a572f75466418f03ee482e99e952259b3d31b93101d0eb2b17bd9fcebb",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_desert_trader.png",
+  "bytes": 1757012,
+  "bytes_match_manifest": true,
+  "sha256": "a8f8e5fdd30fa55aaaf2f2d48868ed62ff831d26c99fe51c975d318ee090dc58",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_grandpa_stocky.png",
+  "bytes": 1653625,
+  "bytes_match_manifest": true,
+  "sha256": "bdd96eb95e6f63b02685d684c95d137d08850253aaebc13047fb327bb8f18dbf",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_hijabi_teacher.png",
+  "bytes": 1526417,
+  "bytes_match_manifest": true,
+  "sha256": "3f16a5b40b445abd23de03cb6b5e4ad8b11b97585044bc331b59f4f3e9a1f61a",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_maritime_captain.png",
+  "bytes": 1725286,
+  "bytes_match_manifest": true,
+  "sha256": "379596679b2976b66c1d32590e1e1be947aa2f4bd3e0274d212b556db552419f",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_medieval_smith.png",
+  "bytes": 1239293,
+  "bytes_match_manifest": true,
+  "sha256": "57c150098d5b8d6fffb0679ae6dafe662ecce3cc651ea98683cd2663347c8287",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_mountain_hunter.png",
+  "bytes": 1246932,
+  "bytes_match_manifest": true,
+  "sha256": "419151ba38ecde57f93d52886973089db5ea557d5c88f6bae7b1be71547a3800",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_nomad_rider.png",
+  "bytes": 1289215,
+  "bytes_match_manifest": true,
+  "sha256": "7f5d7adfb33c6ebe5b7ef952a5d58ed25943d6e7cc36fd10bd6d96818acb9390",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_suit_woman.png",
+  "bytes": 1689781,
+  "bytes_match_manifest": true,
+  "sha256": "c0901cd6396461b87db2dc6f3be8ba7455ebeb238b0c7c8900a392655d22d9b2",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ },
+ {
+  "file": "m3_village_healer.png",
+  "bytes": 1328306,
+  "bytes_match_manifest": true,
+  "sha256": "95dba0635266d2d796963e46d1ea593b882de69cdc5f88e6e0ed1f1cfeb0518c",
+  "width": 1024,
+  "height": 1536,
+  "format": "PNG",
+  "decode": "OK",
+  "generator_hash": "NOT_SUPPLIED"
+ }
+]

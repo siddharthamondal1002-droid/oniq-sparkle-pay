@@ -79,3 +79,13 @@ masters stored, 0 near-duplicates, 69/70 taxonomy categories,
 LIBRARY_GAP: 16 AIRCRAFT. Zero images generated (closed tranche,
 generation_allowed=false). Scene refs are supplementary — anatomy/motion
 standards and gates unchanged.
+
+## Round M3 (2026-08-23) — CLOSED
+
+12/12 transfer-verified, 12/12 eligible, ACCEPT 11 · STRESS_FAIL 1
+(ancient_scribe: bare-thin-shin crossing warp — NEW negative subclass,
+distinct from thin-limb merge; grid80 tested and did NOT rescue). Idle
+failures recorded (scribe 0.63, scholar 0.65), not tuned. Margin clause now
+4/4 on regens. ₹0 new spend. NO M4 — generation stopped by owner order
+(scene-ingestion loop §1); resumption requires explicit owner
+re-authorization.
