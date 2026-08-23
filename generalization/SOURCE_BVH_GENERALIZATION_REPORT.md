@@ -3,7 +3,7 @@
 **`RIGHT_KNEE_ASYMMETRY = MEASUREMENT_OPEN`**
 
 Three independent routes to a second walking source have now been attempted.
-All three closed without an experiment. No evidence was invented.
+All three closed without an experiment. No evidence was invented. **No classification was upgraded** across any of the three routes, and nothing was promoted.
 
 ## The question, restated
 
