@@ -241,6 +241,95 @@ def t22_zero_spend():
                          "bvh_downloaded": 0, "new_images": 0}
 
 
+# ------------------------------------------------- the resume from gate 1
+@test
+def t23_gate1_was_actually_re_run_not_assumed_from_the_last_result():
+    a = P["gate1_attempts"]
+    assert len(a) >= 2, "a resume must re-run the gate, not cite the old outcome"
+    second = a[1]
+    assert second["from_commit"] == "9c4c26a8"
+    assert second["step_1_attached_source_bvh"]["checked"] is True
+    assert second["step_2_authoritative_acquisition"]["attempted"] is True
+    assert second["result"] == "BLOCKED"
+
+
+@test
+def t24_the_attached_bvh_check_ran_and_found_nothing():
+    s = P["gate1_attempts"][1]["step_1_attached_source_bvh"]
+    assert s["result"] == "NO_ATTACHED_SOURCE_BVH"
+    assert "BOTH EMPTY" in s["mounts_state"]
+    assert "/mnt/attach" in s["mounts_inspected"]
+    assert "/mnt/user-data/working" in s["mounts_inspected"]
+    # every .bvh it did find must be an ONIQ fixture, never mistaken for source
+    assert s["bvh_files_found"]
+    for f in s["bvh_files_found"]:
+        assert "genloop/v3/_t" in f, f
+    assert "None is a 100STYLE file" in s["bvh_files_found_note"]
+
+
+@test
+def t25_ownfixtures_were_not_promoted_into_a_source():
+    """An ONIQ test fixture must never be dressed up as the independent source."""
+    for f in P["gate1_attempts"][1]["step_1_attached_source_bvh"]["bvh_files_found"]:
+        assert "100STYLE" not in f
+    assert P["evidence_classes"]["AUTHORITATIVE_EVIDENCE"] == []
+    assert P["cost"]["bvh_downloaded"] == 0
+
+
+@test
+def t26_the_block_is_shown_to_be_persistent_not_transient():
+    p = P["persistence"]
+    assert p["probes"] >= 2 and p["identical_outcome"] is True
+    assert p["separation_minutes"] >= 10
+    assert "persistent policy denial" in p["conclusion"]
+    flat = " ".join(REP.split()).replace("**", "")
+    assert "persistent policy denial, not a transient outage" in flat
+
+
+@test
+def t27_every_file_property_stays_unresolved_rather_than_invented():
+    e = P["evidence_classes"]
+    for field in ("sha256", "file_size", "joint_hierarchy", "channel_order",
+                  "rotation_order", "rest_pose", "axis_convention",
+                  "frame_count", "frame_time"):
+        assert field in e["UNRESOLVED_FIELDS"], field
+    assert e["ASSUMPTIONS"] == [], "no assumption may stand in for a measurement"
+    assert "None was invented" in e["unresolved_fields_note"]
+
+
+@test
+def t28_evidence_classes_keep_authoritative_and_corroborating_apart():
+    e = P["evidence_classes"]
+    assert e["AUTHORITATIVE_EVIDENCE"] == []
+    assert len(e["CORROBORATING_EVIDENCE"]) >= 1
+    assert all("does NOT satisfy the gate" in c or "recorded" in c
+               for c in e["CORROBORATING_EVIDENCE"])
+    assert e["MEASURED_FACT"] and e["DERIVED_MEASUREMENT"]
+
+
+@test
+def t29_the_selection_rule_was_fixed_before_any_outcome_was_seen():
+    r = P["source_selection_rule"]
+    assert r["defined_before_any_outcome_was_seen"] is True
+    assert r["applied"] is False
+    assert "lexicographically first" in r["rule"], "the rule must be deterministic"
+    assert "_FW" in r["rule"]
+    for excluded in ("running", "sidestep", "backward", "transition", "idle"):
+        assert excluded in r["rule"], excluded
+    assert "cannot later be tuned" in r["applied_note"]
+
+
+@test
+def t30_decision_logic_returns_untested_not_a_forced_verdict():
+    assert "`NOT_DEMONSTRATED`" in REP
+    assert "`UNTESTED`" in REP
+    assert "cannot be separated on" in REP
+    assert "No conclusion is forced." in REP
+    # the adapter verdict must not be spun as exoneration
+    assert "not* evidence the adapter is innocent" in REP or \
+        "*not* evidence the adapter is innocent" in REP
+
+
 if __name__ == "__main__":
     p = f = 0
     for fn in T:

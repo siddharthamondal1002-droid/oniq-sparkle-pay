@@ -8,6 +8,62 @@
   "license cannot be verified from the authoritative 100STYLE source",
   "BVH cannot be downloaded"
  ],
+ "gate1_attempts": [
+  {
+   "attempt": 1,
+   "utc": "2026-08-23T15:08:02Z",
+   "from_commit": "8be395e4",
+   "attached_bvh_checked": false,
+   "result": "BLOCKED",
+   "note": "first run of route 5"
+  },
+  {
+   "attempt": 2,
+   "utc": "2026-08-23T15:23:52Z",
+   "from_commit": "9c4c26a8",
+   "trigger": "owner instruction to RESUME FROM GATE 1",
+   "step_1_attached_source_bvh": {
+    "checked": true,
+    "search": "<Style>_FW.bvh and any *.bvh, 100STYLE*, *.fbx modified after container start, across the whole filesystem",
+    "mounts_inspected": ["/mnt/attach", "/mnt/user-data/working"],
+    "mounts_state": "BOTH EMPTY — unchanged since container start 2026-08-10T13:03Z",
+    "bvh_files_found": [
+     "scratchpad/genloop/v3/_t3.bvh",
+     "scratchpad/genloop/v3/_t4a.bvh",
+     "scratchpad/genloop/v3/_t4b.bvh",
+     "scratchpad/genloop/v3/_t4c.bvh",
+     "scratchpad/genloop/v3/_t4d.bvh"
+    ],
+    "bvh_files_found_note": "these are ONIQ's OWN knee-regression fixtures written by test_knee_regression.py. None is a 100STYLE file and none was treated as one.",
+    "result": "NO_ATTACHED_SOURCE_BVH"
+   },
+   "step_2_authoritative_acquisition": {
+    "attempted": true,
+    "hosts": {
+     "ianxmason.github.io": "connect_rejected 403 @ 15:23:52.451Z",
+     "www.ianxmason.com": "connect_rejected 403 @ 15:23:52.704Z",
+     "zenodo.org/records/8127870": "connect_rejected 403 @ 15:23:52.988Z",
+     "zenodo.org/api/records/8127870": "connect_rejected 403 @ 15:23:53.304Z",
+     "datashare.ed.ac.uk": "connect_rejected 403 @ 15:23:53.643Z",
+     "datashare.is.ed.ac.uk": "connect_rejected 403 @ 15:23:53.892Z",
+     "doi.org": "connect_rejected 403 @ 15:23:54.128Z"
+    },
+    "control": {"host": "raw.githubusercontent.com", "http": 200},
+    "result": "BLOCKED"
+   },
+   "result": "BLOCKED",
+   "new_evidence_from_this_attempt": [
+    "MEASURED FACT: no source BVH is attached to this session — both attachment mounts are empty and no candidate file exists anywhere on the filesystem.",
+    "MEASURED FACT: the block is PERSISTENT, not transient. Two independent probes 16 minutes apart produced identical connect_rejected 403 denials on all seven authoritative endpoints, each against a same-batch 200 control."
+   ]
+  }
+ ],
+ "persistence": {
+  "probes": 2,
+  "separation_minutes": 16,
+  "identical_outcome": true,
+  "conclusion": "a persistent policy denial, not a transient outage. No retry schedule will change it; only a policy change or an attached file will."
+ },
  "dataset_identified": {
   "dataset_name": "100STYLE",
   "author": "Ian Mason (with Sebastian Starke, Taku Komura)",
@@ -100,6 +156,34 @@
  "adapter_built": false,
  "experiment_run": false,
  "conditions_run": {"A": false, "B": false, "C": false, "D": false},
+ "evidence_classes": {
+  "MEASURED_FACT": [
+   "no source BVH is attached to this session (both mounts empty, whole-filesystem scan clean)",
+   "seven authoritative 100STYLE endpoints return connect_rejected 403, twice, 16 minutes apart",
+   "raw.githubusercontent.com returns 200 in the same batches — the session's network works",
+   "orangeduck/100style-retarget LICENSE.txt is 18650 bytes, sha256 7e7170e3..., first line 'Attribution 4.0 International', 0 NonCommercial/NoDerivatives strings"
+  ],
+  "DERIVED_MEASUREMENT": [
+   "the block is persistent rather than transient (derived from the two-probe comparison)"
+  ],
+  "AUTHORITATIVE_EVIDENCE": [],
+  "CORROBORATING_EVIDENCE": [
+   "third-party redistributor states the data is CC BY 4.0 — recorded, does NOT satisfy the gate"
+  ],
+  "ASSUMPTIONS": [],
+  "UNRESOLVED_FIELDS": [
+   "sha256", "file_size", "joint_hierarchy", "channel_order", "rotation_order",
+   "rest_pose", "axis_convention", "frame_count", "frame_time", "style_name",
+   "movement_type", "selected_bvh_url", "acquisition_timestamp"
+  ],
+  "unresolved_fields_note": "every field above is a property of a file that was never obtained. None was invented, defaulted, or inferred."
+ },
+ "source_selection_rule": {
+  "defined_before_any_outcome_was_seen": true,
+  "rule": "a neutral, ordinary forward-walking sequence named <Style>_FW.bvh; exclude running, sidestep, backward, transition, idle and extreme stylized gaits; where several qualify, take the lexicographically first qualifying neutral style so selection is deterministic and outcome-blind",
+  "applied": false,
+  "applied_note": "the rule is recorded now, before any 100STYLE motion has been seen, precisely so that it cannot later be tuned to a desirable knee result. No clip was selected because no clip was obtainable."
+ },
  "classification": "RIGHT_KNEE_ASYMMETRY = MEASUREMENT_OPEN",
  "driver_unchanged": {
   "damping": 0.5,

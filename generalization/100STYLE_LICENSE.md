@@ -6,6 +6,13 @@ This is **not** a finding that 100STYLE is unsuitable. It is a finding that **I
 could not read the licence**, which under the loop's own fail-closed rule is a
 stop condition rather than a maybe.
 
+**Re-attempted 2026-08-23T15:23:52Z** on the owner's instruction to resume from
+gate 1, from commit `9c4c26a8`. Outcome identical: all seven authoritative
+endpoints `connect_rejected` 403, against a same-batch `raw.githubusercontent.com`
+200 control. Two probes, 16 minutes apart, identical result — this is a
+**persistent policy denial, not a transient outage**, so retrying on a schedule
+will not clear it.
+
 ## What the gate required
 
 > Verify directly from the authoritative 100STYLE source: CC BY 4.0 […]

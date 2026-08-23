@@ -142,6 +142,25 @@ walking motion, an **isolated** 28-bone→25-joint adapter that is a
 representation change only, and an unchanged ONIQ pipeline downstream. I agree
 with the design. It did not get past gate 1.
 
+### Resumed once, from `9c4c26a8`, and stopped in the same place
+
+Gate 1 was re-run in full on 2026-08-23T15:23:52Z.
+
+**Step 1 — attached source BVH: `NO_ATTACHED_SOURCE_BVH`.** Both attachment
+mounts (`/mnt/attach`, `/mnt/user-data/working`) are empty and unchanged since
+container start. A whole-filesystem scan for `<Style>_FW.bvh`, any `*.bvh`,
+`100STYLE*` or `*.fbx` found only ONIQ's own knee-regression fixtures
+(`_t3.bvh`, `_t4a`–`_t4d.bvh`), written by `test_knee_regression.py`. **None was
+treated as a 100STYLE file.**
+
+**Step 2 — authoritative acquisition: `BLOCKED`.** All seven endpoints
+`connect_rejected` 403; `raw.githubusercontent.com` returned 200 in the same
+batch.
+
+Two probes 16 minutes apart, identical outcome: this is a **persistent policy
+denial, not a transient outage**. Retrying on a schedule will not clear it, so
+I am not scheduling one.
+
 **Two fail-closed stop conditions were met**, either of which halts the loop:
 
 1. **The licence could not be verified from the authoritative source.**
@@ -210,6 +229,28 @@ produced. The two that are real records of what happened —
 
 `A / B / C / D` did not run. No comparison, no knee curves, no pixel
 diagnostics, no fabricated failure.
+
+### The selection rule, recorded before any 100STYLE motion was seen
+
+Written down now precisely so it cannot later be tuned to a desirable knee
+result: *a neutral, ordinary forward-walking sequence named `<Style>_FW.bvh`;
+exclude running, sidestep, backward, transition, idle and extreme stylized
+gaits; where several qualify, take the lexicographically first qualifying
+neutral style.* Deterministic and outcome-blind. **Not applied** — no clip was
+obtainable.
+
+### Decision logic, applied honestly
+
+| question | verdict | why |
+|---|---|---|
+| `SOURCE` | **NEITHER `PRESENT` NOR `ABSENT` — the untouched BVH was never obtained** | the decision requires measuring the source; there is no source |
+| `ADAPTER` | **`NOT_DEMONSTRATED`** | no adapter exists, so nothing was demonstrated in either direction. This is the correct verdict, and it is *not* evidence the adapter is innocent |
+| `DRIVER` | **NOT CLASSIFIED AS CAUSAL** | the controlled experiment that could attribute a change to the driver did not run. Correlation on one source is not causality |
+| `MOTION-SOURCE GENERALIZATION` | **`UNTESTED`** | the independent source never entered the pipeline |
+
+The causal chain `SOURCE → ADAPTER → DRIVER → RENDER` **cannot be separated on
+this evidence**, so under the loop's own acceptance condition every link stays
+OPEN or UNTESTED. No conclusion is forced.
 
 ## Categories
 
