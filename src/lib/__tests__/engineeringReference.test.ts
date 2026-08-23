@@ -5,6 +5,7 @@
  * fail-closed with a MOTION_CONTRACT reason, and the recorded
  * poster-vs-evidence discrepancies cannot silently disappear.
  */
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -14,6 +15,8 @@ import {
   CAMERA_LANES,
   DISCREPANCIES,
   ELIGIBILITY,
+  ENGINEERING_CATEGORY_MAP,
+  ENGINEERING_DETAIL_LIBRARY,
   ENGINEERING_REFERENCE_REGISTRY,
   engineeringProvenanceFor,
   FALLBACK,
@@ -22,6 +25,8 @@ import {
   LIMB_CLASSES,
   MESH_DENSITY,
   MOTION_PROMOTION,
+  retrieveReferenceShelves,
+  VISUAL_ATLAS_LIBRARY,
   WALK_PHASES,
 } from "../engineeringReference.ts";
 
@@ -125,6 +130,71 @@ describe("frozen reference provenance", () => {
     expect(ok.ok).toBe(true);
     const bad = engineeringProvenanceFor(["ENG-404"]);
     expect(bad.ok).toBe(false);
+  });
+});
+
+describe("the 1000-detail engineering library", () => {
+  const raw = readFileSync(join(__dirname, "..", "engineeringDetails.json"), "utf8");
+  const lib = JSON.parse(raw);
+
+  it("holds exactly 1000 details, 100 per domain, continuous ids", () => {
+    expect(lib.details.length).toBe(1000);
+    const perDomain = new Map<string, number>();
+    lib.details.forEach((d: { domain: string }, i: number) => {
+      perDomain.set(d.domain, (perDomain.get(d.domain) ?? 0) + 1);
+      expect(lib.details[i].id).toBe(`ENG-${String(i + 1).padStart(4, "0")}`);
+    });
+    expect(perDomain.size).toBe(10);
+    for (const n of perDomain.values()) expect(n).toBe(100);
+  });
+
+  it("never promotes an assumption to a gate: ENFORCED requires MEASURED", () => {
+    for (const d of lib.details) {
+      expect(["MEASURED", "REFERENCE", "INFERRED", "OPEN"]).toContain(d.evidence_class);
+      expect(["ENFORCED", "CANDIDATE", "REFERENCE_ONLY", "STRESS_TEST", "BLOCKED"]).toContain(d.implementation_status);
+      if (d.implementation_status === "ENFORCED") expect(d.evidence_class, d.id).toBe("MEASURED");
+    }
+  });
+
+  it("pins the owner's non-negotiables inside the data", () => {
+    const by = (sub: string) => lib.details.find((d: { subdomain: string }) => d.subdomain === sub);
+    expect(by("knee-damping/scale").implementation_status).toBe("ENFORCED");
+    expect(by("gate/fill-65-retired").evidence_class).toBe("MEASURED");
+    expect(by("grammar/wave").implementation_status).toBe("BLOCKED");
+    expect(by("coverage/covered-shin").evidence_class).toBe("OPEN");
+    expect(by("experiment/coverage-status").implementation_status).toBe("BLOCKED");
+  });
+
+  it("catalog metadata matches the shipped data file", () => {
+    expect(ENGINEERING_DETAIL_LIBRARY.total).toBe(lib.details.length);
+    const sha = createHash("sha256").update(raw).digest("hex");
+    expect(sha).toBe(ENGINEERING_DETAIL_LIBRARY.sha256);
+    for (const c of ENGINEERING_CATEGORY_MAP) {
+      for (const g of c.gates) expect(Object.keys(GATE_MAPPING)).toContain(g);
+    }
+  });
+});
+
+describe("atlas retrieval layer (reference never generates)", () => {
+  it("registry carries ENG-003/ENG-004 and the atlas metadata stays generation-locked", () => {
+    expect(ENGINEERING_REFERENCE_REGISTRY.length).toBe(4);
+    expect(VISUAL_ATLAS_LIBRARY.cameraDetails + VISUAL_ATLAS_LIBRARY.lightingDetails).toBe(10000);
+    expect(VISUAL_ATLAS_LIBRARY.cameraLightingMatrix).toBe(10000);
+    expect(VISUAL_ATLAS_LIBRARY.generationAllowed).toBe(false);
+    expect(VISUAL_ATLAS_LIBRARY.productionEnabled).toBe(false);
+  });
+
+  it("retrieves the loop's four example intents onto the right shelves", () => {
+    const s1 = retrieveReferenceShelves("Give me a low-angle cinematic shot.");
+    expect(s1).toContain("CAMERA");
+    expect(s1).toContain("LIGHTING");
+    const s2 = retrieveReferenceShelves("Night rainy street.");
+    expect(s2).toEqual(expect.arrayContaining(["LIGHTING", "SCENE", "MATERIAL"]));
+    const s3 = retrieveReferenceShelves("Emotional close-up at sunset.");
+    expect(s3).toEqual(expect.arrayContaining(["CAMERA", "LIGHTING", "CHARACTER ENGINEERING"]));
+    const s4 = retrieveReferenceShelves("Character walking through a foggy forest.");
+    expect(s4).toEqual(expect.arrayContaining(["MOTION ENGINEERING", "CHARACTER ENGINEERING", "LIGHTING", "SCENE"]));
+    expect(retrieveReferenceShelves("zzz unrelated 123")).toEqual([]);
   });
 });
 

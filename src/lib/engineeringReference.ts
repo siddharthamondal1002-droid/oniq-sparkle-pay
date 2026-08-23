@@ -257,7 +257,72 @@ export const ENGINEERING_REFERENCE_REGISTRY = [
     title: "Advanced Character Engineering Reference (Detailed Engineering Layer)",
     category: "ENGINEERING/CHARACTER",
   },
+  {
+    id: "ENG-003",
+    sha256: "35c00f60678c9ed07a87b3938f2b220afb6557d5a75f0f56954a07ae6efc6356",
+    title: "1,000 Engineering Details Reference Library (Global Edition)",
+    category: "ENGINEERING/SYSTEM",
+  },
+  {
+    id: "ENG-004",
+    sha256: "705e1c37db4fa28efe0ffab9160fbc4cb74e494994e45df5fabbb8de29fa22ea",
+    title: "Visual Engineering Reference Atlas — Camera Angles & Lighting Conditions",
+    category: "ENGINEERING/CAMERA-LIGHTING",
+  },
 ] as const;
+
+/**
+ * The camera/lighting atlas taxonomy (owner 10,000-detail loop,
+ * 2026-08-23): built programmatically from ENG-004's 100 camera panels ×
+ * 100 lighting panels, frozen on the evidence branch. Metadata only here —
+ * the indexes are analysis data, and the poster's own banner applies:
+ * REFERENCE ONLY, generation_allowed=false. Values the atlas does not
+ * specify are recorded NOT_SPECIFIED in the data, never fabricated.
+ */
+export const VISUAL_ATLAS_LIBRARY = {
+  source: "ENG-004",
+  evidenceBranchDir: "engineering_refs/",
+  cameraDetails: 5000,
+  lightingDetails: 5000,
+  cameraPanels: 100,
+  lightingPanels: 100,
+  cameraLightingMatrix: 10000,
+  indexSha256: {
+    camera: "180f8683cd902039",
+    lighting: "506d361e94f4edd0",
+    matrix: "40ef18f588d43423",
+  },
+  generationAllowed: false,
+  productionEnabled: false,
+} as const;
+
+/**
+ * §11 retrieval: map a user intent's keywords to the reference shelves the
+ * analysis layer should surface. Pure, deterministic, fail-closed (unknown
+ * words simply contribute nothing) — and retrieval NEVER generates.
+ */
+const RETRIEVAL_RULES: readonly { match: RegExp; shelves: readonly string[] }[] = [
+  { match: /\b(low.angle|high.angle|close.?up|wide|angle|shot|lens|camera|framing)\b/i, shelves: ["CAMERA"] },
+  { match: /\b(cinematic|composition|symmetry|thirds)\b/i, shelves: ["CAMERA", "LIGHTING", "SCENE"] },
+  { match: /\b(light|lighting|sunset|sunrise|golden|night|noir|rim|backlit|candle|neon|glow)\b/i, shelves: ["LIGHTING"] },
+  { match: /\b(rain|rainy|fog|foggy|snow|storm|overcast|weather|mist)\b/i, shelves: ["LIGHTING", "SCENE"] },
+  { match: /\b(street|city|urban|forest|village|interior|room|market|environment|scene)\b/i, shelves: ["SCENE", "MATERIAL"] },
+  { match: /\b(wet|reflection|surface|material|texture)\b/i, shelves: ["MATERIAL", "LIGHTING"] },
+  { match: /\b(walk|walking|run|gait|idle|motion|foot|step)\b/i, shelves: ["MOTION ENGINEERING", "CHARACTER ENGINEERING"] },
+  { match: /\b(character|anatomy|body|pose|figure)\b/i, shelves: ["CHARACTER ENGINEERING", "ANATOMY"] },
+  { match: /\b(emotional|emotion|expression|face|facial)\b/i, shelves: ["CHARACTER ENGINEERING", "QUALITY"] },
+  { match: /\b(quality|artifact|review|gate)\b/i, shelves: ["QUALITY", "FALLBACK"] },
+];
+
+export function retrieveReferenceShelves(request: string): string[] {
+  const shelves: string[] = [];
+  for (const rule of RETRIEVAL_RULES) {
+    if (rule.match.test(request)) {
+      for (const s of rule.shelves) if (!shelves.includes(s)) shelves.push(s);
+    }
+  }
+  return shelves;
+}
 
 /** User-facing category shelves of the Engineering Reference feature. */
 export const ENGINEERING_CATEGORIES = [
@@ -333,6 +398,62 @@ export type CharacterEngineeringProfile = {
   fallback: { action: string; reason: string | null; contract: "MOTION_CONTRACT" } | null;
   generation_allowed: false;
 };
+
+/**
+ * The 1000-detail engineering knowledge library (owner master loop,
+ * 2026-08-23). The full data lives in src/lib/engineeringDetails.json
+ * (ENG-0001..ENG-1000, exactly 100 per domain) and is frozen with the same
+ * content hash on the evidence branch. It is an ANALYSIS/REFERENCE surface:
+ * loading, matching or displaying a detail NEVER triggers generation —
+ * USER REQUEST → ANALYSIS → EXPLICIT GENERATION ACTION always holds.
+ * Invariant carried by the data and pinned by test: ENFORCED requires
+ * MEASURED — no assumption is ever promoted to a gate.
+ */
+export const ENGINEERING_DETAIL_LIBRARY = {
+  file: "src/lib/engineeringDetails.json",
+  sha256: "4bf25f2fe920082a57a1cc139fb0bf152652de60e11b60b40be344fef3196667",
+  total: 1000,
+  perDomain: 100,
+  domains: [
+    { id: "01", title: "CHARACTER ANATOMY", range: ["ENG-0001", "ENG-0100"] },
+    { id: "02", title: "SKELETON / JOINTS / RIGGING", range: ["ENG-0101", "ENG-0200"] },
+    { id: "03", title: "MOTION / KINEMATICS", range: ["ENG-0201", "ENG-0300"] },
+    { id: "04", title: "SEGMENTATION / SILHOUETTE / TOPOLOGY", range: ["ENG-0301", "ENG-0400"] },
+    { id: "05", title: "CLOTHING / HAIR / MATERIALS", range: ["ENG-0401", "ENG-0500"] },
+    { id: "06", title: "CAMERA / COMPOSITION / SCENE SCALE", range: ["ENG-0501", "ENG-0600"] },
+    { id: "07", title: "LIGHTING / COLOR / ATMOSPHERE", range: ["ENG-0601", "ENG-0700"] },
+    { id: "08", title: "ENVIRONMENT / SURFACE / PROPS", range: ["ENG-0701", "ENG-0800"] },
+    { id: "09", title: "RENDERING / PERFORMANCE / PIPELINE", range: ["ENG-0801", "ENG-0900"] },
+    { id: "10", title: "QA / DETERMINISM / FALLBACK / PRODUCTION", range: ["ENG-0901", "ENG-1000"] },
+  ],
+  evidenceDistribution: { MEASURED: 563, REFERENCE: 398, INFERRED: 24, OPEN: 15 },
+  statusDistribution: { ENFORCED: 434, REFERENCE_ONLY: 421, STRESS_TEST: 107, BLOCKED: 32, CANDIDATE: 6 },
+} as const;
+
+/**
+ * §17 category shelves → library domains, with the honest constraint and
+ * warning each shelf carries when surfaced in the generator UI.
+ */
+export const ENGINEERING_CATEGORY_MAP: readonly {
+  category: string;
+  domains: readonly string[];
+  gates: readonly string[];
+  warning: string;
+}[] = [
+  { category: "CHARACTER ENGINEERING", domains: ["01", "02"], gates: ["landmark_confidence", "core_joint_containment"], warning: "proportion/DOF tables are REFERENCE_ONLY" },
+  { category: "MOTION ENGINEERING", domains: ["03"], gates: ["temporal_aliveness", "pixel_review"], warning: "walking PRIMARY; wave EXCLUDED/FALSIFIED; turn/reach UNKNOWN" },
+  { category: "ANATOMY", domains: ["01"], gates: ["core_joint_containment"], warning: "identity-free; no character identity fields exist" },
+  { category: "RIGGING", domains: ["02"], gates: ["landmark_confidence"], warning: "knee damping 0.50 is the only accepted motion correction" },
+  { category: "MESH", domains: ["04"], gates: ["border_contact", "connected_components"], warning: "GRID40 default; density rescues neither ink strokes nor bare-shin warp" },
+  { category: "CLOTHING", domains: ["05"], gates: ["pixel_review"], warning: "clothing-coverage effect is OPEN — not a proven gate" },
+  { category: "CAMERA", domains: ["06"], gates: ["camera_lane"], warning: "frontal/near-frontal envelope; camera motion is provider-dependent" },
+  { category: "SCENE", domains: ["08"], gates: [], warning: "scene references are qualitative; no fabricated measurements" },
+  { category: "LIGHTING", domains: ["07"], gates: [], warning: "enforced lighting register must stay weather/ambience-invisible" },
+  { category: "MATERIAL", domains: ["05", "08"], gates: [], warning: "artistic material references never become numeric gates" },
+  { category: "RENDERING", domains: ["09"], gates: [], warning: "measured envelope only — no extrapolation" },
+  { category: "QUALITY", domains: ["10"], gates: ["temporal_aliveness", "pixel_review", "identity_preservation"], warning: "numeric scores are never sufficient; pixels decide" },
+  { category: "FALLBACK", domains: ["10"], gates: [], warning: "fail-closed STILL_PARALLAX with MOTION_CONTRACT reason, always" },
+] as const;
 
 export function engineeringProvenanceFor(
   ids: readonly string[],
