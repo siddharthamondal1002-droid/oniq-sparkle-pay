@@ -1,0 +1,28 @@
+--- AnimatedDrawings/animated_drawings/model/arap.py	2026-08-22 19:08:46.993245697 +0000
++++ AD_meshx/animated_drawings/model/arap.py	2026-08-23 08:39:39.762184041 +0000
+@@ -152,16 +152,23 @@
+ 
+         # ensure tA1xA1 matrix isn't singular and cache sparse repsentation
+         tA1xA1_dense: npt.NDArray[np.float32] = self.tA1 @ self.A1
+-        while np.linalg.det(tA1xA1_dense) == 0.0:
++        _k = 0  # identical semantics to upstream, but bounded: the float32 det can
++        while np.linalg.det(tA1xA1_dense) == 0.0 and _k < 100:  # stay 0.0 forever
++            _k += 1
+             logging.info('tA1xA1 is singular. perturbing...')
+             tA1xA1_dense += 0.00000001 * np.identity(tA1xA1_dense.shape[0])
++        import os as _os
++        if _os.environ.get('ARAP_LOG_PERTURB'): print(f'ARAP_PERTURB_A1={_k}', flush=True)
+         self.tA1xA1: csr_matrix = sp.csr_matrix(tA1xA1_dense)
+ 
+         # ensure tA2xA2 matrix isn't singular and cache sparse repsentation
+         tA2xA2_dense: npt.NDArray[np.float32] = self.tA2 @ self.A2
+-        while np.linalg.det(tA2xA2_dense) == 0.0:
++        _k = 0
++        while np.linalg.det(tA2xA2_dense) == 0.0 and _k < 100:
++            _k += 1
+             logging.info('tA2xA2 is singular. perturbing...')
+             tA2xA2_dense += 0.00000001 * np.identity(tA2xA2_dense.shape[0])
++        if _os.environ.get('ARAP_LOG_PERTURB'): print(f'ARAP_PERTURB_A2={_k}', flush=True)
+         self.tA2xA2: csr_matrix = sp.csr_matrix(tA2xA2_dense)
+ 
+         # revert np overflow warnings behavior

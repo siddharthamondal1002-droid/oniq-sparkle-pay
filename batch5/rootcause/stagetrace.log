@@ -1,0 +1,11 @@
+    0.0s  importing
+    0.9s  imported
+    0.9s  loading configs
+    0.9s  constructing
+    1.0s  mesh gen START
+    1.7s  mesh gen DONE verts=1227 tris=1484
+    1.7s  joint-to-tri START
+    3.7s  joint-to-tri DONE
+    3.7s  retarget START
+    4.9s  retarget DONE
+    4.9s  ARAP setup START
