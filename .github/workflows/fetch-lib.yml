@@ -1,0 +1,37 @@
+# Library-program evidence bridge (persistent for the owner-approved 100x100
+# generation program; removed from main when the program ends). Fetches
+# generated masters from signed URLs into a named subdir on THIS branch.
+name: Fetch library masters
+on:
+  workflow_dispatch:
+    inputs:
+      dest:
+        description: "destination subdir, e.g. m1masters"
+        required: true
+      manifest:
+        description: "one line per file: <filename> <url>"
+        required: true
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions: { contents: write }
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fetch and park
+        env:
+          MANIFEST: ${{ inputs.manifest }}
+          DEST: ${{ inputs.dest }}
+        run: |
+          case "$DEST" in *..*|/*) echo "bad dest"; exit 1;; esac
+          mkdir -p "$DEST"
+          while read -r name url; do
+            [ -z "$name" ] && continue
+            curl -fsSL "$url" -o "$DEST/$name"
+          done <<< "$MANIFEST"
+          ls -l "$DEST" && sha256sum "$DEST"/*
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "$DEST"
+          git commit -m "library masters: $DEST ($(du -cb "$DEST"/* | tail -1 | cut -f1) bytes total)"
+          git push origin HEAD
