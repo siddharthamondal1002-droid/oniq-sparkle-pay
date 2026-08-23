@@ -1,0 +1,153 @@
+{
+ "record": "FAIR1_WALK_BVH_SEARCH",
+ "version": "1.0",
+ "result": "ALTERNATIVE_FAIR1_WALK_BVH = NOT_FOUND",
+ "outcome_class": "SUCCESSFUL_RESEARCH_OUTCOME_negative_result",
+ "target_skeleton": {
+  "required_joint_count": 25,
+  "critical_chain": [
+   "LeftUpLeg->LeftLeg->LeftFoot",
+   "RightUpLeg->RightLeg->RightFoot"
+  ],
+  "source_of_requirement": "eld/evidence/run1/retarget_engineering.yaml (unmodified)"
+ },
+ "search_step_1_2_3_local": {
+  "bvh_files_scanned": 95,
+  "unique_by_sha256": 17,
+  "fair1_compatible_25_of_25": 15,
+  "distinct_source_motions_among_them": 4,
+  "derivatives_of_zombie": 11,
+  "derivative_proof": "root trajectory byte-identical to zombie.bvh for the damped/scaled variants; the idle variants are re-timed zombie, still not walking",
+  "roots_searched": [
+   "/home/user/oniq-sparkle-pay",
+   "scratchpad",
+   "/usr/lib/python3/dist-packages",
+   "/usr/local/lib/python3.11/dist-packages",
+   "node_modules"
+  ]
+ },
+ "motion_classification": {
+  "method": "decoded BVH forward kinematics: foot-height autocorrelation period, L/R cross-correlation phase offset, foot-lift amplitude, per-frame root travel. Filenames were NOT trusted.",
+  "calibration": "thresholds set against controls: zombie.bvh (the ACCEPTED walk) must classify WALKING; idle/standing clips must classify NOT WALKING",
+  "first_attempt_error": "an initial contact-alternation classifier produced a FALSE NEGATIVE on zombie.bvh itself and was discarded, not reported",
+  "results": [
+   {
+    "clip": "fair1/zombie.bvh",
+    "period": 48,
+    "ac_peak": 0.567,
+    "lr_lag": 25,
+    "antiphase_error": 0.042,
+    "foot_osc": 5.58,
+    "travel_per_frame": 0.558,
+    "verdict": "WALKING",
+    "note": "THE CURRENT SOURCE \u2014 positive control"
+   },
+   {
+    "clip": "fair1/dab.bvh",
+    "period": 8,
+    "ac_peak": 0.256,
+    "lr_lag": 0,
+    "antiphase_error": 1.0,
+    "foot_osc": 6.12,
+    "travel_per_frame": 0.437,
+    "verdict": "NOT WALKING",
+    "note": "feet move in phase, not alternating"
+   },
+   {
+    "clip": "fair1/jumping.bvh",
+    "period": 8,
+    "ac_peak": 0.911,
+    "lr_lag": 1,
+    "antiphase_error": 0.75,
+    "foot_osc": 8.91,
+    "travel_per_frame": 0.133,
+    "verdict": "NOT WALKING",
+    "note": "in-phase foot motion \u2014 jumping"
+   },
+   {
+    "clip": "fair1/wave_hello.bvh",
+    "period": 8,
+    "ac_peak": 0.962,
+    "lr_lag": 7,
+    "antiphase_error": 0.75,
+    "foot_osc": 0.04,
+    "travel_per_frame": 0.008,
+    "verdict": "NOT WALKING",
+    "note": "feet essentially static \u2014 standing"
+   },
+   {
+    "clip": "zombie_idle.bvh",
+    "period": 8,
+    "ac_peak": 0.456,
+    "lr_lag": 8,
+    "antiphase_error": 1.0,
+    "foot_osc": 0.24,
+    "travel_per_frame": 0.0,
+    "verdict": "NOT WALKING",
+    "note": "negative control"
+   }
+  ]
+ },
+ "license_verification": {
+  "family": "AnimatedDrawings fair1 BVH clips",
+  "authoritative_source_url": "https://raw.githubusercontent.com/facebookresearch/AnimatedDrawings/main/LICENSE",
+  "fetch_http_status": 200,
+  "license": "MIT License, Copyright (c) Meta Platforms, Inc. and affiliates.",
+  "license_sha256": "155419f3d7fed7028e2302e296c7b35e704e305d87e3c0fc5fb02a115c03e0b4",
+  "matches_local_clone": true,
+  "status": "VERIFIED \u2014 fetched and byte-compared against the local checkout",
+  "consequence": "the fair1 clips ARE cleanly licensed. The blocker is motion availability, not licensing."
+ },
+ "search_step_4_external": {
+  "reachable": [
+   {
+    "host": "raw.githubusercontent.com",
+    "status": 200,
+    "capability": "fetch a KNOWN file path only"
+   }
+  ],
+  "blocked": [
+   {
+    "host": "api.github.com",
+    "status": 403
+   },
+   {
+    "host": "codeload.github.com",
+    "status": 403
+   },
+   {
+    "host": "mocap.cs.cmu.edu",
+    "status": "CONNECT refused \u2014 CLOSED, not retried"
+   }
+  ],
+  "conclusion": "external SEARCH is not possible: the GitHub API and code search are denied, so only already-known paths can be fetched. Guessing repository paths is not a principled search and would risk pulling an asset whose licence and skeleton were never verified. No external download was attempted."
+ },
+ "candidates_found": 0,
+ "why_not_found": "the fair1 skeleton naming (LeftUpLeg/LeftLeg/LeftFoot, Spine1-3) is the Mixamo/HumanIK convention, and the owner excluded Mixamo for AI/ML licence ambiguity. The only cleanly-licensed fair1 corpus available here is the AnimatedDrawings set, which contains exactly one walking clip: the current source.",
+ "prohibitions_observed": [
+  "mocap.cs.cmu.edu not retried",
+  "no PyPI mirror used",
+  "no CMU file obtained indirectly",
+  "no joint renaming",
+  "no CMU retarget mapping",
+  "no damper modification",
+  "no normalization shim",
+  "no non-walking substitution",
+  "no fabricated comparison measurements"
+ ],
+ "artifacts_not_produced": {
+  "FAIR1_CANDIDATE_PROVENANCE.json": "no candidate",
+  "FAIR1_CANDIDATE_STRUCTURE.json": "no candidate",
+  "FAIR1_CANDIDATE_SHA256.txt": "no candidate",
+  "FAIR1_CANDIDATE_LICENSE.md": "no candidate"
+ },
+ "experiment_run": false,
+ "classification_unchanged": "RIGHT-KNEE-DEEPER-FLEXION remains MEASUREMENT_OPEN",
+ "cost": {
+  "api_inr": 0,
+  "gpu_inr": 0,
+  "downloads": 1,
+  "downloads_note": "one text file: the upstream MIT LICENSE, for verification only. No BVH and no media downloaded.",
+  "new_images": 0
+ }
+}
