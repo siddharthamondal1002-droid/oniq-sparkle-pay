@@ -1,0 +1,11 @@
+# ALTERNATIVE_BVH_SHA256 — ONIQ source-BVH replacement experiment
+# STATUS: NO FILE OBTAINED. No SHA-256 exists to record.
+#
+# mocap.cs.cmu.edu and www.cs.cmu.edu are denied by this session's network
+# policy (gateway answered 403 to CONNECT; recorded in the agent-proxy relay
+# failure log at 2026-08-23T13:11:47Z). pypi.org and registry.npmjs.org return
+# 200 from the same session, so the network is up and cs.cmu.edu specifically
+# is blocked.
+#
+# A hash is only meaningful for bytes actually fetched and verified against a
+# licence read from the source. Neither happened, so no hash is written here.

@@ -1,0 +1,152 @@
+{
+ "record": "ALTERNATIVE_BVH_PROVENANCE",
+ "version": "1.0",
+ "status": "BLOCKED_STOP_CONDITIONS_MET",
+ "authorized_source": {
+  "database": "Carnegie Mellon University Graphics Lab Motion Capture Database",
+  "primary": {
+   "subject": "0018",
+   "motion": "0018_Walking001",
+   "description": "walking in straight lines with increasing stride length"
+  },
+  "secondary_backup": {
+   "subject": "0007",
+   "motion": "0007_Walking001",
+   "description": "longer walking sequence"
+  },
+  "excluded_by_owner": {
+   "SFU": "database states research-only / non-commercial",
+   "Mixamo": "terms contain AI/ML restrictions; ambiguity unwanted in ONIQ evidence"
+  }
+ },
+ "attempted_urls": [
+  {
+   "url": "http://mocap.cs.cmu.edu/",
+   "http_status": 403,
+   "result": "blocked"
+  },
+  {
+   "url": "http://mocap.cs.cmu.edu/faqs.php",
+   "http_status": 403,
+   "result": "blocked"
+  },
+  {
+   "url": "https://mocap.cs.cmu.edu/",
+   "http_status": "000 (CONNECT refused)",
+   "result": "blocked"
+  },
+  {
+   "url": "https://mocap.cs.cmu.edu/faqs.php",
+   "http_status": "000 (CONNECT refused)",
+   "result": "blocked"
+  },
+  {
+   "url": "https://www.cs.cmu.edu/",
+   "http_status": "000 (CONNECT refused)",
+   "result": "blocked"
+  }
+ ],
+ "block_evidence": {
+  "layer": "session network policy / agent proxy gateway",
+  "proxy_status_endpoint": "$HTTPS_PROXY/__agentproxy/status",
+  "relay_failures": [
+   {
+    "ts": "2026-08-23T13:11:47.705Z",
+    "kind": "connect_rejected",
+    "host": "mocap.cs.cmu.edu:443"
+   },
+   {
+    "ts": "2026-08-23T13:11:47.969Z",
+    "kind": "connect_rejected",
+    "host": "mocap.cs.cmu.edu:443"
+   },
+   {
+    "ts": "2026-08-23T13:11:48.275Z",
+    "kind": "connect_rejected",
+    "host": "www.cs.cmu.edu:443"
+   }
+  ],
+  "detail": "gateway answered 403 to CONNECT (policy denial or upstream failure)",
+  "reachability_control": "pypi.org 200, registry.npmjs.org 200 \u2014 the network works; cs.cmu.edu specifically is denied by policy"
+ },
+ "steps_completed": {
+  "1_inspect_source_page": "FAILED \u2014 host unreachable",
+  "2_verify_exact_walking_file": "NOT POSSIBLE \u2014 index unreachable",
+  "3_record_source_url": "recorded as attempted URLs above",
+  "4_record_license_statement": "FAILED \u2014 the licence text could NOT be read from the source. The authorization message quotes it, but a quoted licence is not a verified licence, and step 4 requires verification from source.",
+  "5_record_filename": "NOT POSSIBLE",
+  "6_sha256": "NOT POSSIBLE \u2014 nothing downloaded",
+  "7_to_14": "NOT POSSIBLE \u2014 no file"
+ },
+ "file_downloaded": false,
+ "sha256": null,
+ "bytes": null,
+ "second_independent_blocker": {
+  "finding": "even with the file, the controlled test's 'same retarget mapping, only source BVH changes' condition cannot be met",
+  "oniq_retarget_requires_joints": 25,
+  "fair1_current_source_satisfies": 25,
+  "cmu_family_satisfies": 5,
+  "missing_from_cmu": [
+   "LeftArm",
+   "LeftFoot",
+   "LeftForeArm",
+   "LeftHand",
+   "LeftHandEnd",
+   "LeftLeg",
+   "LeftToeBase",
+   "LeftUpLeg",
+   "RightArm",
+   "RightFoot",
+   "RightForeArm",
+   "RightHand",
+   "RightHandEnd",
+   "RightLeg",
+   "RightToeBase",
+   "RightUpLeg",
+   "Spine",
+   "Spine1",
+   "Spine2",
+   "Spine3"
+  ],
+  "leg_chain_naming": {
+   "oniq_fair1": [
+    "LeftUpLeg",
+    "LeftLeg",
+    "LeftFoot",
+    "LeftToeBase"
+   ],
+   "cmu_family": [
+    "LeftHip",
+    "LeftKnee",
+    "LeftAnkle",
+    "LeftToe"
+   ]
+  },
+  "damper_probe": {
+   "command": "b3_knee_damp.py <cmu family bvh> out 0.5",
+   "result": "AssertionError: no rotation channels found for ['RightLeg', 'LeftLeg']",
+   "meaning": "the knee damper addresses the six channels BY JOINT NAME. On a CMU-family skeleton it finds zero channels and fails closed, which is correct behaviour and also proves the driver would have to be modified."
+  },
+  "evidence_basis": "measured against examples/bvh/cmu1/jumping_jacks.bvh, a CMU-derived clip already bundled with AnimatedDrawings under MIT. It is the same skeleton family as the requested subjects; it is NOT walking, so it cannot substitute for the experiment."
+ },
+ "stop_conditions_met": [
+  "If the CMU file cannot be obtained cleanly: STOP  -> MET (policy denial)",
+  "If licensing cannot be verified: STOP  -> MET (source page unreadable)",
+  "If hierarchy cannot be mapped safely: STOP  -> MET (5/25 joints)",
+  "If retargeting requires modifying the ONIQ driver: STOP  -> MET (damper fails closed)"
+ ],
+ "workarounds_deliberately_not_taken": [
+  "no third-party mirror or package-registry copy was used: its licence could not be checked against the unreachable CMU source, and using one is exactly the 'work around' the loop forbids",
+  "no retarget-config rewrite to accommodate CMU joint names",
+  "no damper joint-name remapping",
+  "no substitution of a non-walking clip for a walking experiment"
+ ],
+ "cost": {
+  "api_inr": 0,
+  "gpu_inr": 0,
+  "downloads": 0,
+  "new_images": 0
+ },
+ "committed_to_git": false,
+ "note": "No BVH was downloaded, so nothing was stored and nothing was committed. The 'do not commit the BVH' instruction is satisfied vacuously."
+}
