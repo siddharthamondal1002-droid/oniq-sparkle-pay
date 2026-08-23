@@ -1,0 +1,205 @@
+{
+ "record": "KNEE_REFERENCE_EXPERIMENT",
+ "version": "1.0",
+ "scope": "ONIQ's EXISTING source BVH. Says nothing about 100STYLE, pristine or retargeted \u2014 both remain unacquired.",
+ "source": "zombie.bvh",
+ "window_frames": 129,
+ "frame_time": 0.0333333,
+ "source_total_frames": 779,
+ "held_constant": {
+  "scale": 0.5,
+  "channels": 6,
+  "joints": [
+   "RightLeg",
+   "LeftLeg"
+  ],
+  "layer": "SOURCE BVH",
+  "clamp": null,
+  "smoothing": null,
+  "foot_pinning": null,
+  "retiming": null,
+  "amplitude_correction": null
+ },
+ "single_variable": "reference pose only",
+ "per_leg_extension_reference_frames": {
+  "LeftLeg": 102,
+  "RightLeg": 110
+ },
+ "conditions": {
+  "RAW (no driver)": {
+   "condition": "RAW (no driver)",
+   "LEFT": {
+    "min": 115.7377,
+    "frame_of_min": 126,
+    "mean": 169.0117
+   },
+   "RIGHT": {
+    "min": 112.2836,
+    "frame_of_min": 101,
+    "mean": 156.224
+   },
+   "right_minus_left_min": -3.4541,
+   "abs_asymmetry": 3.4541,
+   "frames_below_120_left": 4,
+   "frames_below_120_right": 5,
+   "deeper_side": "RIGHT"
+  },
+  "KNEE 0.50 ref=frame0": {
+   "condition": "KNEE 0.50 ref=frame0",
+   "LEFT": {
+    "min": 147.2307,
+    "frame_of_min": 126,
+    "mean": 173.9121
+   },
+   "RIGHT": {
+    "min": 140.0076,
+    "frame_of_min": 101,
+    "mean": 161.9779
+   },
+   "right_minus_left_min": -7.2231,
+   "abs_asymmetry": 7.2231,
+   "frames_below_120_left": 0,
+   "frames_below_120_right": 0,
+   "deeper_side": "RIGHT",
+   "channels_modified": {
+    "RightLeg": 3,
+    "LeftLeg": 3
+   },
+   "preservation": {
+    "max_abs_channel_diff_outside_knees": {
+     "Hips": 0.0,
+     "LeftUpLeg": 0.0,
+     "RightUpLeg": 0.0,
+     "LeftFoot": 0.0,
+     "RightFoot": 0.0,
+     "LeftToeBase": 0.0,
+     "RightToeBase": 0.0,
+     "Spine": 0.0,
+     "Neck": 0.0,
+     "Head": 0.0
+    },
+    "all_zero": true,
+    "frame_count_src": 779,
+    "frame_count_candidate": 779,
+    "frame_time_src": 0.0333333,
+    "frame_time_candidate": 0.0333333,
+    "frame_count_preserved": true,
+    "frame_time_preserved": true
+   }
+  },
+  "KNEE 0.50 ref=extension": {
+   "condition": "KNEE 0.50 ref=extension",
+   "LEFT": {
+    "min": 147.9499,
+    "frame_of_min": 126,
+    "mean": 174.5794
+   },
+   "RIGHT": {
+    "min": 144.6454,
+    "frame_of_min": 101,
+    "mean": 166.6156
+   },
+   "right_minus_left_min": -3.3045,
+   "abs_asymmetry": 3.3045,
+   "frames_below_120_left": 0,
+   "frames_below_120_right": 0,
+   "deeper_side": "RIGHT",
+   "channels_modified": {
+    "RightLeg": 3,
+    "LeftLeg": 3
+   },
+   "preservation": {
+    "max_abs_channel_diff_outside_knees": {
+     "Hips": 0.0,
+     "LeftUpLeg": 0.0,
+     "RightUpLeg": 0.0,
+     "LeftFoot": 0.0,
+     "RightFoot": 0.0,
+     "LeftToeBase": 0.0,
+     "RightToeBase": 0.0,
+     "Spine": 0.0,
+     "Neck": 0.0,
+     "Head": 0.0
+    },
+    "all_zero": true,
+    "frame_count_src": 779,
+    "frame_count_candidate": 779,
+    "frame_time_src": 0.0333333,
+    "frame_time_candidate": 0.0333333,
+    "frame_count_preserved": true,
+    "frame_time_preserved": true
+   }
+  },
+  "KNEE 0.50 ref=mean": {
+   "condition": "KNEE 0.50 ref=mean",
+   "LEFT": {
+    "min": 140.0239,
+    "frame_of_min": 126,
+    "mean": 166.7339
+   },
+   "RIGHT": {
+    "min": 135.8087,
+    "frame_of_min": 101,
+    "mean": 157.7789
+   },
+   "right_minus_left_min": -4.2152,
+   "abs_asymmetry": 4.2152,
+   "frames_below_120_left": 0,
+   "frames_below_120_right": 0,
+   "deeper_side": "RIGHT",
+   "channels_modified": {
+    "RightLeg": 3,
+    "LeftLeg": 3
+   },
+   "preservation": {
+    "max_abs_channel_diff_outside_knees": {
+     "Hips": 0.0,
+     "LeftUpLeg": 0.0,
+     "RightUpLeg": 0.0,
+     "LeftFoot": 0.0,
+     "RightFoot": 0.0,
+     "LeftToeBase": 0.0,
+     "RightToeBase": 0.0,
+     "Spine": 0.0,
+     "Neck": 0.0,
+     "Head": 0.0
+    },
+    "all_zero": true,
+    "frame_count_src": 779,
+    "frame_count_candidate": 779,
+    "frame_time_src": 0.0333333,
+    "frame_time_candidate": 0.0333333,
+    "frame_count_preserved": true,
+    "frame_time_preserved": true
+   }
+  }
+ },
+ "candidate_files": {
+  "frame0": "knee050_ref_frame0.bvh",
+  "extension": "knee050_ref_extension.bvh",
+  "mean": "knee050_ref_mean.bvh"
+ },
+ "comparison_vs_accepted_frame0_control": {
+  "frame0": {
+   "abs_asymmetry": 7.2231,
+   "delta_vs_control": 0.0,
+   "right_min": 140.0076,
+   "left_min": 147.2307,
+   "frames_below_120": 0
+  },
+  "extension": {
+   "abs_asymmetry": 3.3045,
+   "delta_vs_control": -3.9186,
+   "right_min": 144.6454,
+   "left_min": 147.9499,
+   "frames_below_120": 0
+  },
+  "mean": {
+   "abs_asymmetry": 4.2152,
+   "delta_vs_control": -3.0079,
+   "right_min": 135.8087,
+   "left_min": 140.0239,
+   "frames_below_120": 0
+  }
+ }
+}

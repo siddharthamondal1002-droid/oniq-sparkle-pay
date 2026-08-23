@@ -1,0 +1,61 @@
+{
+ "record": "100STYLE_RETARGET_SOURCE_PROVENANCE",
+ "version": "1.0",
+ "SOURCE_CLASS": "THIRD_PARTY_RETARGETED",
+ "result": "SOURCE_ACCEPTANCE_FAILED — the BVH is not obtainable from this session",
+ "probe_utc": "2026-08-23T15:49:53Z",
+ "identified": {
+  "repository": "orangeduck/100style-retarget",
+  "repository_url": "https://github.com/orangeduck/100style-retarget",
+  "readme_url": "https://raw.githubusercontent.com/orangeduck/100style-retarget/master/README.md",
+  "readme_http": 200,
+  "readme_sha256": "2984bf5f8bd7cb854b0f176cc3d4fb81378cd1acd84570b648cf9ddfa30cbd70",
+  "license_url": "https://raw.githubusercontent.com/orangeduck/100style-retarget/master/LICENSE.txt",
+  "license_http": 200,
+  "license_bytes": 18650,
+  "license_sha256": "7e7170e3cebf88a9f60c7b8421418323c09304da1af4d5e90f4da1dc1c8a2661",
+  "license_first_line": "Attribution 4.0 International",
+  "stated_data_licence": "Creative Commons Attribution 4.0 International (per the repository README)",
+  "required_attribution": "Mason, Ian; Starke, Sebastian; Komura, Taku. 'Real-Time Style Modelling of Human Locomotion via Feature-Wise Transformations and Local Motion Phases.' Proc. ACM Comput. Graph. Interact. Tech. 5(1), Art. 6, May 2022. doi:10.1145/3522618",
+  "declared_bvh_download": "https://theorangeduck.com/media/uploads/Geno/100style-retarget/bvh.zip"
+ },
+ "why_the_bvh_could_not_be_obtained": {
+  "primary": {
+   "finding": "the BVH data is DELIBERATELY NOT IN THE GIT REPOSITORY",
+   "evidence": "the repository's own .gitignore (HTTP 200) lists: bvh/*, fbx/*, *.fbm*, *.bck*, fbx.zip, bvh.zip",
+   "evidence_class": "MEASURED FACT",
+   "consequence": "no raw.githubusercontent.com path can serve it, by the author's design. This is not a path I failed to guess — the data is excluded from version control."
+  },
+  "secondary": {
+   "finding": "the only declared download host is blocked by this session's egress policy",
+   "probes": [
+    {"url": "https://theorangeduck.com/media/uploads/Geno/100style-retarget/bvh.zip", "curl": "000", "proxy": "connect_rejected 403 @ 15:49:54.149Z"},
+    {"url": "https://theorangeduck.com/", "curl": "000", "proxy": "connect_rejected 403 @ 15:49:54.478Z"},
+    {"url": "https://www.theorangeduck.com/media/uploads/Geno/100style-retarget/bvh.zip", "curl": "000", "proxy": "connect_rejected 403 @ 15:49:54.738Z"}
+   ]
+  },
+  "other_routes_checked": {
+   "codeload.github.com zip of the repo": "403 — and would not contain the data anyway per .gitignore",
+   "media.githubusercontent.com (git-lfs)": "404, and .gitattributes is 404, so the repo uses no LFS",
+   "objects.githubusercontent.com": "404 at root; the release-asset URL cannot be discovered without api.github.com, which is 403",
+   "control raw.githubusercontent.com": "200 in the same batch — the session's network works"
+  }
+ },
+ "unresolved_file_properties": [
+  "file_path_within_the_archive", "commit_or_version", "file_sha256", "file_size",
+  "skeleton_hierarchy", "joint_names", "channel_order", "rotation_order",
+  "rest_pose", "axis_convention", "frame_count", "frame_time"
+ ],
+ "unresolved_note": "every field above is a property of a file that was never obtained. None was invented, defaulted or inferred.",
+ "substitutes_refused": [
+  {"candidate": "an ONIQ test fixture (_t3.bvh, _t4a-d.bvh)", "verdict": "REFUSED — forbidden by the directive and it is ONIQ's own output, not an external source"},
+  {"candidate": "a generated or reconstructed BVH", "verdict": "REFUSED — would be manufacturing the input"},
+  {"candidate": "an FBX conversion", "verdict": "REFUSED — same host, same block, and a second conversion layer"},
+  {"candidate": "Geno.fbx or any third-party character asset", "verdict": "REFUSED — excluded by owner directive"},
+  {"candidate": "an unknown mirror", "verdict": "REFUSED — provenance could not be established"}
+ ],
+ "hard_provenance_rule": "MET — the exact BVH could not be located, so route 5B's external-source arm STOPPED at source acceptance. No substitute was used.",
+ "pristine_100style_status": "100STYLE_PRISTINE_SOURCE = UNTESTED",
+ "third_party_retargeted_status": "UNTESTED — the file could not be acquired, so nothing about it was measured either",
+ "cost": {"api_inr": 0, "gpu_inr": 0, "bvh_downloaded": 0, "new_images": 0}
+}

@@ -1,0 +1,243 @@
+{
+ "record": "KNEE_CAUSE_ORDERING",
+ "version": "1.0",
+ "scope": "the source ONIQ ALREADY HAS. This says nothing about 100STYLE, pristine or retargeted \u2014 both remain unacquired.",
+ "source_file": "zombie.bvh",
+ "driver_file": "zombie_knee050.bvh",
+ "source_frames": 779,
+ "source_frame_time": 0.0333333,
+ "priority_order_from_the_directive": [
+  "1 joint mapping",
+  "2 rotation order",
+  "3 axis/sign conversion",
+  "4 rest-pose handling",
+  "5 coordinate conversion",
+  "6 driver interpretation",
+  "7 only then a bounded motion correction"
+ ],
+ "checks": [
+  {
+   "check": "1_joint_mapping",
+   "missing_joints": [],
+   "parents": {
+    "LeftUpLeg": "Hips",
+    "LeftLeg": "LeftUpLeg",
+    "LeftFoot": "LeftLeg",
+    "RightUpLeg": "Hips",
+    "RightLeg": "RightUpLeg",
+    "RightFoot": "RightLeg"
+   },
+   "chains_are_mirror_parented": true,
+   "verdict": "NOT_THE_CAUSE",
+   "reason": "both leg chains exist and are parented identically under mirrored parents, so a mapping swap or a missing joint cannot explain a left/right difference"
+  },
+  {
+   "check": "2_rotation_order",
+   "euler_order_per_joint": {
+    "LeftUpLeg": [
+     "Xrotation",
+     "Yrotation",
+     "Zrotation"
+    ],
+    "LeftLeg": [
+     "Xrotation",
+     "Yrotation",
+     "Zrotation"
+    ],
+    "LeftFoot": [
+     "Xrotation",
+     "Yrotation",
+     "Zrotation"
+    ],
+    "RightUpLeg": [
+     "Xrotation",
+     "Yrotation",
+     "Zrotation"
+    ],
+    "RightLeg": [
+     "Xrotation",
+     "Yrotation",
+     "Zrotation"
+    ],
+    "RightFoot": [
+     "Xrotation",
+     "Yrotation",
+     "Zrotation"
+    ]
+   },
+   "left_and_right_share_the_same_order": true,
+   "verdict": "NOT_THE_CAUSE",
+   "reason": "identical Euler order on both sides, so a per-side rotation-order error cannot explain the asymmetry"
+  },
+  {
+   "check": "3_axis_sign_conversion",
+   "pairs": [
+    {
+     "left": "LeftUpLeg",
+     "right": "RightUpLeg",
+     "offset_left": [
+      2.33857,
+      0.0,
+      -0.68318
+     ],
+     "offset_right": [
+      -2.33857,
+      0.0,
+      -0.68318
+     ],
+     "mirror_error": 0.0
+    },
+    {
+     "left": "LeftLeg",
+     "right": "RightLeg",
+     "offset_left": [
+      0.0,
+      0.0,
+      -10.74496
+     ],
+     "offset_right": [
+      0.0,
+      0.0,
+      -10.74496
+     ],
+     "mirror_error": 0.0
+    },
+    {
+     "left": "LeftFoot",
+     "right": "RightFoot",
+     "offset_left": [
+      0.0,
+      0.0,
+      -10.93085
+     ],
+     "offset_right": [
+      0.0,
+      0.0,
+      -10.93085
+     ],
+     "mirror_error": 0.0
+    }
+   ],
+   "worst_mirror_error": 0.0,
+   "skeleton_is_exactly_mirror_symmetric": true,
+   "verdict": "NOT_THE_CAUSE",
+   "reason": "the rest skeleton mirrors exactly in X, so no axis or sign conversion difference exists between the sides"
+  },
+  {
+   "check": "4_rest_pose_handling",
+   "pairs": [
+    {
+     "left": "LeftUpLeg",
+     "right": "RightUpLeg",
+     "frame0_left": [
+      -6.043,
+      1.7069,
+      2.9203
+     ],
+     "frame0_right": [
+      -15.1304,
+      1.0672,
+      -2.8595
+     ],
+     "abs_diff_max": 9.0874
+    },
+    {
+     "left": "LeftLeg",
+     "right": "RightLeg",
+     "frame0_left": [
+      1.2763,
+      0.0,
+      0.0
+     ],
+     "frame0_right": [
+      12.2683,
+      0.0,
+      0.0
+     ],
+     "abs_diff_max": 10.992
+    },
+    {
+     "left": "LeftFoot",
+     "right": "RightFoot",
+     "frame0_left": [
+      -5.2588,
+      0.9797,
+      4.8866
+     ],
+     "frame0_right": [
+      -4.2579,
+      0.8079,
+      4.6097
+     ],
+     "abs_diff_max": 1.0009
+    }
+   ],
+   "worst_frame0_difference_deg": 10.992,
+   "verdict": "MOTION_NOT_REST_POSE",
+   "reason": "frame 0 already differs between the sides. In a walk that is EXPECTED \u2014 frame 0 is a moment of a gait, not a T-pose \u2014 so this is evidence the difference lives in the MOTION DATA, not in rest-pose handling"
+  },
+  {
+   "check": "5_coordinate_conversion",
+   "root_joint": "Hips",
+   "root_channels": [
+    "Xposition",
+    "Yposition",
+    "Zposition",
+    "Xrotation",
+    "Yrotation",
+    "Zrotation"
+   ],
+   "single_file_no_cross_space_conversion": true,
+   "verdict": "NOT_APPLICABLE",
+   "reason": "source and measurement are the same BVH space. No conversion between coordinate systems happens here, so none can be wrong. This check only becomes live when an external source is adapted, which is exactly the blocked experiment.",
+   "hips_present": true
+  },
+  {
+   "check": "6_driver_interpretation",
+   "joints_modified_by_driver": {
+    "RightLeg": 31.35695,
+    "LeftLeg": 39.3268
+   },
+   "joints_bit_identical_count": 25,
+   "modifies_only_the_two_knee_joints": true,
+   "verdict": "CONTRACT_CLEAN",
+   "reason": "the driver changes channels on LeftLeg and RightLeg and nothing else \u2014 hips, ankles, feet, root and timing are bit-identical, so the driver cannot be introducing a left/right difference elsewhere"
+  }
+ ],
+ "asymmetry_in_raw_source": {
+  "clip": "RAW SOURCE zombie.bvh (pre-driver)",
+  "frames": 779,
+  "LEFT": {
+   "min": 100.0701,
+   "mean": 163.5546,
+   "frame_of_min": 668
+  },
+  "RIGHT": {
+   "min": 105.0178,
+   "mean": 159.0368,
+   "frame_of_min": 644
+  },
+  "right_minus_left_min": 4.9477,
+  "right_minus_left_mean": -4.5178,
+  "right_is_deeper": false
+ },
+ "asymmetry_after_driver": {
+  "clip": "DRIVER OUTPUT zombie_knee050.bvh",
+  "frames": 779,
+  "LEFT": {
+   "min": 139.3969,
+   "mean": 171.2959,
+   "frame_of_min": 668
+  },
+  "RIGHT": {
+   "min": 136.3747,
+   "mean": 163.5327,
+   "frame_of_min": 644
+  },
+  "right_minus_left_min": -3.0222,
+  "right_minus_left_mean": -7.7632,
+  "right_is_deeper": true
+ },
+ "representation_causes_excluded": true,
+ "conclusion": "a representation cause is still open \u2014 see the SUSPECT verdicts above"
+}
