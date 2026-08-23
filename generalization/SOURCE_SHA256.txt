@@ -1,0 +1,13 @@
+# SOURCE_SHA256 — ONIQ independent source-BVH generalization loop
+# CANDIDATE: LAFAN1 (Ubisoft La Forge Animation Dataset)
+# STATUS: REJECTED AT THE LICENSE GATE. NO BVH OBTAINED.
+#
+e11244310739afea404794c9405967a13abdbe7e2492052e94d7c81fe27c8b66  license.txt  (LAFAN1 authoritative licence, CC BY-NC-ND 4.0, fetched HTTP 200)
+#
+# The dataset archive was NOT downloaded. raw.githubusercontent.com returns a
+# 134-byte git-lfs POINTER for lafan1/lafan1.zip, declaring:
+#   oid sha256:ea918082b500a5d158e9d3aa39039df04cd42e25f5c02fe8f7e88e8e9365a977
+#   size 144051503
+# That oid is the DATASET AUTHOR'S declared hash, transcribed from the pointer.
+# It is NOT a hash of bytes this session possesses and must never be presented
+# as verification of a file we hold. No BVH hash exists to record.

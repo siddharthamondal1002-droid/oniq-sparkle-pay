@@ -1,0 +1,97 @@
+{
+ "record": "SOURCE_DATASET_PROVENANCE",
+ "version": "1.0",
+ "candidate": "LAFAN1 \u2014 Ubisoft La Forge Animation Dataset",
+ "status": "REJECTED_AT_LICENSE_GATE",
+ "identity_verified": true,
+ "authoritative_source": {
+  "repository": "ubisoft/ubisoft-laforge-animation-dataset",
+  "readme_url": "https://raw.githubusercontent.com/ubisoft/ubisoft-laforge-animation-dataset/master/README.md",
+  "readme_http": 200,
+  "license_url": "https://raw.githubusercontent.com/ubisoft/ubisoft-laforge-animation-dataset/master/license.txt",
+  "license_http": 200,
+  "paper": "Robust Motion In-betweening, SIGGRAPH 2020 (Harvey et al.)",
+  "dataset_description_from_readme": "5 subjects, 77 sequences, 496,672 motion frames at 30fps (~4.6 hours), all sequences in BVH format"
+ },
+ "license": {
+  "name": "Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International",
+  "short": "CC BY-NC-ND 4.0",
+  "verified_from": "license.txt in the official repository, fetched HTTP 200",
+  "license_text_sha256": "e11244310739afea404794c9405967a13abdbe7e2492052e94d7c81fe27c8b66",
+  "verification_status": "VERIFIED \u2014 and it verifies as INCOMPATIBLE",
+  "operative_clauses": [
+   {
+    "section": "2(a)(1)(A)",
+    "text": "reproduce and Share the Licensed Material, in whole or in part, for NonCommercial purposes only"
+   },
+   {
+    "section": "1 (NonCommercial)",
+    "text": "not primarily intended for or directed towards commercial advantage or monetary compensation"
+   },
+   {
+    "section": "1 (Adapted Material)",
+    "text": "material ... derived from or based upon the Licensed Material and in which the Licensed Material is translated, altered, arranged, transformed, or otherwise modified"
+   }
+  ]
+ },
+ "incompatibility": [
+  {
+   "clause": "NonCommercial",
+   "finding": "ONIQ is a commercial product \u2014 Razorpay payment integration (src/lib/razorpay.ts), a published Story price chart (src/lib/storyPricing.ts), a cost model, margin targets and Creator Program payouts. NC excludes this use."
+  },
+  {
+   "clause": "NoDerivatives",
+   "finding": "this loop's own adapter design converts the EXTERNAL SOURCE SKELETON to the ONIQ CANONICAL 25-JOINT SKELETON. That is precisely 'Adapted Material' \u2014 translated, altered, transformed. ND prohibits sharing Adapted Material."
+  },
+  {
+   "clause": "owner precedent",
+   "finding": "the owner excluded SFU because its database states research-only / non-commercial use. LAFAN1's CC BY-NC-ND is the same class and strictly more restrictive (it adds NoDerivatives). Applying the owner's own stated standard, LAFAN1 must be excluded too."
+  }
+ ],
+ "second_independent_blocker": {
+  "issue": "the data is not retrievable in this session",
+  "evidence": {
+   "url": "https://raw.githubusercontent.com/ubisoft/ubisoft-laforge-animation-dataset/master/lafan1/lafan1.zip",
+   "http": 200,
+   "bytes_returned": 134,
+   "content": "git-lfs pointer, not data",
+   "declared_oid": "ea918082b500a5d158e9d3aa39039df04cd42e25f5c02fe8f7e88e8e9365a977",
+   "declared_size": 144051503
+  },
+  "why": "git-lfs media requires the LFS API; api.github.com and codeload.github.com return 403 in this session. Only raw file paths resolve.",
+  "note": "this blocker is secondary. The licence gate alone is decisive, and no download was attempted beyond the pointer that proved unavailability."
+ },
+ "file_downloaded": false,
+ "bvh_obtained": false,
+ "bvh_sha256": null,
+ "adapter_built": false,
+ "adapter_note": "experimental_source_bvh_adapter/ was NOT created. An adapter is only warranted once a source passes the licence and availability gates. Building one for a licence-blocked dataset would be scaffolding a path that cannot lawfully be taken.",
+ "prohibitions_observed": [
+  "CMU not used and not retried",
+  "no PyPI mirror",
+  "Mixamo not used",
+  "SFU not used",
+  "no guessed repository URLs \u2014 only the documented canonical LAFAN1 repository path was requested, and 404s were not probed around",
+  "no production change",
+  "no retarget change",
+  "no knee-driver change"
+ ],
+ "artifacts_not_produced": {
+  "SOURCE_SKELETON.json": "requires the BVH",
+  "SOURCE_TO_ONIQ_MAPPING.json": "requires the source skeleton",
+  "ADAPTER_VALIDATION.json": "requires an adapter and a source",
+  "SOURCE_GAIT_VALIDATION.json": "requires the BVH",
+  "SOURCE_BVH_COMPARISON.json": "requires clips C and D",
+  "SOURCE_BVH_KNEE_CURVES.json": "requires clips C and D",
+  "SOURCE_BVH_PIXEL_DIAGNOSTICS.json": "requires clips C and D"
+ },
+ "experiment_run": false,
+ "classification": "RIGHT_KNEE_ASYMMETRY = MEASUREMENT_OPEN",
+ "cost": {
+  "api_inr": 0,
+  "gpu_inr": 0,
+  "bvh_downloaded": 0,
+  "new_images": 0,
+  "downloads_note": "three text fetches for verification only: README.md, license.txt and a 134-byte git-lfs pointer. No motion data."
+ }
+}
