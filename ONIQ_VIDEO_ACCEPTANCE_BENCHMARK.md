@@ -210,3 +210,21 @@ Lite 720p no-audio at the verified $0.03/s. `MAX_ATTEMPTS = 2` per shot.
 moves measured first-pass acceptance from **65.31 % to 100 %**, which drops the
 in-house floor from **₹107 to ₹72 per accepted minute** — and that single change
 is what makes **₹99 viable**. No provider change comes close to that.
+
+---
+
+## CORRECTION 2026-08-23 — the external columns above are superseded
+
+Every "external" figure on this page assumes **Veo 3.1 Lite 720p no-audio at
+$0.03/s**. The first live clip proved the shipped path is
+`veo-3.1-fast-generate-preview` **with audio** at **$0.10/s** — 3.33× higher —
+because `story-clip` sends no `generateAudio` parameter and Veo 3.1 generates
+audio by default.
+
+At ₹149 the real headroom is **5.6 external seconds, not 22.9**.
+
+**The in-house numbers on this page are unaffected** — 65.31 % measured
+acceptance, 100 % trimmed, the ₹107 → ₹72 floor, and therefore the ₹99 and ₹49
+verdicts all stand, because none of them depends on the provider rate. Only the
+external-seconds tables move. Corrected tables and the owner decision are in
+`ONIQ_VEO_TIER_AND_AUDIO_FINDING.md`.

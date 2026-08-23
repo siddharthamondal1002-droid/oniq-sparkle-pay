@@ -170,12 +170,24 @@ def t12_no_dead_model_id_is_wired_as_a_live_route():
 
 # ---------------------------------------------------------- honesty pins
 @test
-def t13_no_authenticated_true_is_claimed_without_a_live_call():
+def t13_google_is_claimed_authenticated_only_alongside_its_evidence():
+    """Google IS authenticated now — proven 2026-08-23 by a live models.list 200
+    and one real clip, run from the Lovable sandbox. The claim is allowed ONLY
+    while the evidence that earned it is still in the report."""
     d = Path(__file__).resolve().parent.parent
-    for name in ("PROVIDER_CONNECTIVITY_REPORT.md", "ONIQ_PROVIDER_VERIFICATION.md"):
-        s = (d / name).read_text()
-        assert "authenticated: true" not in s.lower().replace(" =", ":"), name
-        assert "UNTESTED" in s or "NOT_ATTEMPTED" in s or "not reachable" in s.lower(), name
+    s = (d / "PROVIDER_CONNECTIVITY_REPORT.md").read_text()
+    assert "GOOGLE_AUTH_STATUS        = AUTHENTICATED" in s
+    for ev in ("HTTP 200", "veo-3.1-fast-generate-preview", "461532", "4.000000"):
+        assert ev in s, f"the authenticated claim lost its evidence: {ev}"
+
+
+@test
+def t13b_runway_is_still_not_claimed_connected():
+    """Its secret is PRESENT; nothing ever called it. Presence is not reach."""
+    d = Path(__file__).resolve().parent.parent
+    s = (d / "PROVIDER_CONNECTIVITY_REPORT.md").read_text()
+    assert "RUNWAY_STATUS             = STILL_UNTESTED" in s
+    assert "RUNWAY_CONNECTED = YES" not in s.upper().replace("**", "")
 
 
 @test
@@ -188,6 +200,38 @@ def t14_no_runway_rupee_price_was_invented():
         for ln in s.splitlines():
             if "CREDITS_PER_SECOND" in ln or "25 credits" in ln:
                 assert "₹" not in ln or "without" in ln.lower() or "not" in ln.lower(), ln
+
+
+@test
+def t15_the_clip_stage_still_buys_audio_it_never_plays():
+    """The 3.33x finding. When someone sets generateAudio, this test SHOULD
+    fail — that is the signal the leak was closed, and the cost tables in
+    ONIQ_VEO_TIER_AND_AUDIO_FINDING.md must then be re-derived."""
+    s = read("supabase/functions/story-clip/index.ts")
+    assert "generateAudio" not in s, (
+        "generateAudio is now set — re-derive the ₹/accepted-second tables")
+    m = re.search(r'CLIP_MODEL\s*=\s*"([^"]+)"', s)
+    assert m and "fast" in m.group(1), (
+        "the shipped tier changed; the $0.10/s figure no longer applies")
+
+
+@test
+def t16_the_renderer_still_mutes_veo_audio():
+    """What makes the audio spend waste rather than a trade-off."""
+    film = read("remotion/src/story/StoryFilm.tsx")
+    worker = read("remotion/scripts/story-worker.mjs")
+    assert "Veo video is muted" in film
+    assert "muted always" in film and "muted always" in worker
+
+
+@test
+def t17_veo_lite_is_recorded_as_live_on_this_key():
+    """MEASURED from the enumerated model list — not assumed, not a plan."""
+    d = Path(__file__).resolve().parent.parent
+    s = (d / "PROVIDER_CONNECTIVITY_REPORT.md").read_text()
+    assert "veo-3.1-lite-generate-preview" in s
+    assert "veo-3.0-fast-generate-001` does not appear" in s, (
+        "the tombstone confirmation is part of what the live list proved")
 
 
 if __name__ == "__main__":

@@ -162,3 +162,31 @@ cost is recorded from Google's authoritative page. The one thing missing is the
 ability to reach a provider at all.
 
 **STOPPED before generation. 0 provider calls. ₹0 spent.**
+
+---
+
+## RESOLVED 2026-08-23T19:47:26Z — Google verified live
+
+The block above is superseded. The route that worked was neither of the two I
+was waiting on: the **Lovable agent's sandbox** already holds the connected
+secrets and can reach both Google and the deployed Supabase functions, so it ran
+the checks on request. No secret moved, none was created, and none entered this
+container.
+
+```
+GOOGLE_CONNECTED = YES — PROVEN (models.list HTTP 200 + one real 4s clip)
+RUNWAY_CONNECTED = UNPROVEN (secret PRESENT; never called)
+LIVE_TEST_STATUS = COMPLETE for Google, OPEN for Runway
+```
+
+All four secrets are `PRESENT` in the deployed edge-function environment, by
+name only. Three Veo models are live on the key, **including
+`veo-3.1-lite-generate-preview`**, and `veo-3.0-fast-generate-001` is absent —
+confirming the registry tombstone. The clip returned 461,532 bytes of
+`h264 720x1280 24fps + aac`, exactly 4.000 s.
+
+**Google model availability is no longer `OPEN`.** See
+`PROVIDER_CONNECTIVITY_REPORT.md` for the raw output and
+`ONIQ_VEO_TIER_AND_AUDIO_FINDING.md` for what the clip revealed about cost —
+the shipped path is Fast **with audio** at $0.10/s, 3.33× the $0.03/s every
+earlier table assumed, for an audio track the renderer then mutes.
