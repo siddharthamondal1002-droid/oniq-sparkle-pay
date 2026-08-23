@@ -98,3 +98,16 @@ Machine-readable layer + schema + gate mapping on branch
 claude/video-generator-engineering. Four poster-vs-evidence conflicts
 recorded (0.70-vs-0.75 aliveness, width-only limb classes, DOF tables,
 cm foot thresholds) — measured values stand, test-pinned.
+
+## Engineering knowledge base + camera/lighting atlas (2026-08-23) — FROZEN
+
+ENG-003 (1000-details poster, 35c00f60) + ENG-004 (camera/lighting atlas,
+705e1c37) registered; re-sent poster recorded as ALIAS of ENG-003.
+ENGINEERING_DETAILS_1000.json: exactly 1000 authored details (100x10),
+ENFORCED=>MEASURED invariant validated. Atlas taxonomies: 5,000 camera +
+5,000 lighting programmatic combinations + 10,000-pair camera-x-lighting
+matrix, all panel-traceable, NOT_SPECIFIED where the atlas gives no number.
+Regression re-verified per-host determinism (this-host hashes byte-matched;
+no re-baseline). Clothing-coverage experiment: BLOCKED — owner approval
+required (no same-character multi-coverage fixture exists). ₹0, zero
+generation, production unchanged.
