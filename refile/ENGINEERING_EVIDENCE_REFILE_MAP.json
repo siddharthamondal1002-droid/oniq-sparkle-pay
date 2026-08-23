@@ -1,0 +1,379 @@
+{
+ "record": "ENGINEERING_EVIDENCE_REFILE_MAP",
+ "version": "1.0",
+ "rule": "original evidence is immutable; corrections are SEPARATE derived records that point back via derivedFromOriginalId",
+ "source_library": "ENGINEERING_NUMERIC_LIBRARY.json",
+ "source_library_sha256": "36b4933b0bfdd6403240f3ac71a5cba8669cd74de19ad8bdacbb447ad13487de",
+ "originals_preserved": 22,
+ "derived_created": 15,
+ "no_derived_record": 7,
+ "originals": [
+  {
+   "originalId": "CHAR-ENG-0024",
+   "originalParameter": "corrected_render_time",
+   "originalValue": 4.26,
+   "originalUnit": "seconds",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (corrected clip DURATION 4.26 s) but the parameter name does not describe it: filed as corrected_render_time; the corrected render took 8.2 s wall, 4.26 s is the clip's playing duration. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0801",
+   "originalParameter": "support_width_01",
+   "originalValue": "1.36",
+   "originalUnit": "BVH units",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (foot-slide, left: max per-frame planted-foot travel 1.36 BVH units) but the parameter name does not describe it: filed as support_width; no support width was measured. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0802",
+   "originalParameter": "support_length_01",
+   "originalValue": "0.39",
+   "originalUnit": "BVH units",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (foot-slide, right: max per-frame planted-foot travel 0.39 BVH units) but the parameter name does not describe it: filed as support_length; no support length was measured. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0803",
+   "originalParameter": "foot_contact_area_01",
+   "originalValue": "16.2",
+   "originalUnit": "px",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (vertical centroid drift range 16.2 px over 129 frames) but the parameter name does not describe it: filed as foot_contact_area; no contact area was measured. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0901",
+   "originalParameter": "stride_length_01",
+   "originalValue": 0.906,
+   "originalUnit": "silhouette-overlap ratio",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (corrected MAX SILHOUETTE OVERLAP 0.906) but the parameter name does not describe it: filed as stride_length; no stride length was measured. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0902",
+   "originalParameter": "step_length_01",
+   "originalValue": 0.095,
+   "originalUnit": "two-leg fraction",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (corrected MIN TWO-LEG FRACTION 0.095) but the parameter name does not describe it: filed as step_length; no step length was measured. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0903",
+   "originalParameter": "pelvis_bob_01",
+   "originalValue": 2,
+   "originalUnit": "px",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (minimum leg gap 2 px) but the parameter name does not describe it: filed as pelvis_bob; no pelvis bob was measured. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0904",
+   "originalParameter": "pelvis_sway_01",
+   "originalValue": 17,
+   "originalUnit": "frames",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (corrected frames with IoU < 0.90 = 17) but the parameter name does not describe it: filed as pelvis_sway; a frame COUNT is not a sway distance. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0911",
+   "originalParameter": "stride_length_02",
+   "originalValue": 0.898,
+   "originalUnit": "silhouette-overlap ratio",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (control MAX SILHOUETTE OVERLAP 0.898) but the parameter name does not describe it: filed as stride_length. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0912",
+   "originalParameter": "step_length_02",
+   "originalValue": 0.102,
+   "originalUnit": "two-leg fraction",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (control MIN TWO-LEG FRACTION 0.102) but the parameter name does not describe it: filed as step_length. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0913",
+   "originalParameter": "pelvis_bob_02",
+   "originalValue": 2,
+   "originalUnit": "px",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (minimum leg gap 2 px) but the parameter name does not describe it: filed as pelvis_bob. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0914",
+   "originalParameter": "pelvis_sway_02",
+   "originalValue": 11,
+   "originalUnit": "frames",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (control frames with IoU < 0.90 = 11) but the parameter name does not describe it: filed as pelvis_sway. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0905",
+   "originalParameter": "knee_peak_L_01",
+   "originalValue": 140.0,
+   "originalUnit": "deg",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (corrected minimum knee interior angle at frame 101 = 140.0 deg) but the parameter name does not describe it: filed as knee_peak_L; it is a per-FRAME minimum across both knees, not a left-knee peak. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0916",
+   "originalParameter": "knee_peak_R_02",
+   "originalValue": 147.2,
+   "originalUnit": "deg",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (corrected knee angle at frame 126 = 147.2 deg) but the parameter name does not describe it: filed as knee_peak_R_02; it is frame 126. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0925",
+   "originalParameter": "knee_peak_L_03",
+   "originalValue": 112.3,
+   "originalUnit": "deg",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (CONTROL knee angle at frame 101 = 112.3 deg) but the parameter name does not describe it: filed as knee_peak_L_03; it is a control-clip frame value. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0936",
+   "originalParameter": "knee_peak_R_04",
+   "originalValue": 115.7,
+   "originalUnit": "deg",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (CONTROL knee angle at frame 126 = 115.7 deg) but the parameter name does not describe it: filed as knee_peak_R_04. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0906",
+   "originalParameter": "knee_peak_R_01",
+   "originalValue": 140.4,
+   "originalUnit": "deg",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (corrected minimum knee interior angle at frame 100 = 140.4 deg) but the parameter name does not describe it: filed as knee_peak_R; it is frame 100, not the right knee. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0915",
+   "originalParameter": "knee_peak_L_02",
+   "originalValue": 141.0,
+   "originalUnit": "deg",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (corrected knee angle at frame 102 = 141.0 deg) but the parameter name does not describe it: filed as knee_peak_L_02; it is frame 102. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0926",
+   "originalParameter": "knee_peak_R_03",
+   "originalValue": 113.1,
+   "originalUnit": "deg",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (CONTROL knee angle at frame 100 = 113.1 deg) but the parameter name does not describe it: filed as knee_peak_R_03. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0935",
+   "originalParameter": "knee_peak_L_04",
+   "originalValue": 114.3,
+   "originalUnit": "deg",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (CONTROL knee angle at frame 102 = 114.3 deg) but the parameter name does not describe it: filed as knee_peak_L_04. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0951",
+   "originalParameter": "spine_flex_01",
+   "originalValue": 0.5,
+   "originalUnit": "scale",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "value traces to a real measurement (KNEE DAMPING SCALE 0.50) but the parameter name does not describe it: filed under motion_limits as spine_flex; it is the knee damping constant and must never act as a spine limit. Not renamed, not promoted.",
+   "immutable": true
+  },
+  {
+   "originalId": "CHAR-ENG-0003",
+   "originalParameter": "lens_fov_height_distance",
+   "originalValue": "NOT_SPECIFIED",
+   "originalUnit": "NOT_SPECIFIED",
+   "originalStatus": "SOURCE_LOCKED",
+   "originalProvenance": {
+    "source_document": "e29ea316-ONIQ_1000_character_engineering_numbers_REPORT_UPDATED.json",
+    "source_sha256": "953b6d3883a3a87f23cd5662027e64230f4ccf99c17701123bfb4b3d558f8fc3",
+    "source_field": "records[]",
+    "supported_by": null
+   },
+   "rejectionReason": "the library encodes NOT_SPECIFIED as the number 0. Lens, FOV, camera height and camera distance are NOT measured by ONIQ; a numeric 0 would read as a real value downstream. Carried as NOT_SPECIFIED, never as 0.",
+   "immutable": true
+  }
+ ],
+ "not_refiled": [
+  {
+   "originalId": "CHAR-ENG-0024",
+   "reason": "4.26 s is the corrected clip's playing duration. The corrected render took 8.2 s wall. Duration is already correctly filed at CHAR-ENG-0860, so this is a duplicate of a correct record under a wrong name.",
+   "derivedRecordCreated": false
+  },
+  {
+   "originalId": "CHAR-ENG-0906",
+   "reason": "140.4 deg is the per-frame minimum across BOTH knees at frame 100. Frame 100 is not the extremum of either knee, so no per-knee parameter reproduces this value. NO derived record is created \u2014 the number is real but names nothing ONIQ measures.",
+   "derivedRecordCreated": false
+  },
+  {
+   "originalId": "CHAR-ENG-0915",
+   "reason": "141.0 deg is the per-frame minimum across both knees at frame 102. Not an extremum of either knee. NO derived record.",
+   "derivedRecordCreated": false
+  },
+  {
+   "originalId": "CHAR-ENG-0926",
+   "reason": "113.1 deg is the control per-frame minimum across both knees at frame 100. Not an extremum. NO derived record.",
+   "derivedRecordCreated": false
+  },
+  {
+   "originalId": "CHAR-ENG-0935",
+   "reason": "114.3 deg is the control per-frame minimum across both knees at frame 102. Not an extremum. NO derived record.",
+   "derivedRecordCreated": false
+  },
+  {
+   "originalId": "CHAR-ENG-0951",
+   "reason": "0.50 is the KNEE DAMPING CONSTANT, filed under motion_limits as spine_flex. It must never act as a spine limit. Already correctly held as an ENFORCED engineering rule at ENG-0153, so no new derived record is minted here.",
+   "derivedRecordCreated": false
+  },
+  {
+   "originalId": "CHAR-ENG-0003",
+   "reason": "NOT_SPECIFIED encoded as the number 0, and four independent quantities (lens, FOV, height, distance) conflated into one record. ONIQ measures none of them, so there is nothing to derive. Stays OPEN.",
+   "derivedRecordCreated": false
+  }
+ ]
+}

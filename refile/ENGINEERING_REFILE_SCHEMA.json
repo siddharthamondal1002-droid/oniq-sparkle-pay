@@ -1,0 +1,155 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "oniq://engineering/refile/1.0",
+ "title": "ONIQ evidence re-filing",
+ "description": "Original evidence is IMMUTABLE. A correction is a SEPARATE derived record that points back via derivedFromOriginalId. A derived record never replaces, renames or deletes its original.",
+ "$defs": {
+  "OriginalEvidenceRecord": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "originalId",
+    "originalParameter",
+    "originalValue",
+    "originalUnit",
+    "originalStatus",
+    "originalProvenance",
+    "rejectionReason",
+    "immutable"
+   ],
+   "properties": {
+    "originalId": {
+     "type": "string",
+     "pattern": "^CHAR-ENG-[0-9]{4}$"
+    },
+    "originalParameter": {
+     "type": "string"
+    },
+    "originalValue": {},
+    "originalUnit": {
+     "type": "string"
+    },
+    "originalStatus": {
+     "type": "string"
+    },
+    "originalProvenance": {
+     "type": "object"
+    },
+    "rejectionReason": {
+     "type": "string"
+    },
+    "immutable": {
+     "const": true
+    }
+   }
+  },
+  "DerivedMeasurementRecord": {
+   "type": "object",
+   "additionalProperties": false,
+   "required": [
+    "derivedId",
+    "derivedFromOriginalId",
+    "sourceOriginalId",
+    "correctedParameter",
+    "value",
+    "unit",
+    "measurementDomain",
+    "measurementMethod",
+    "sourceClip",
+    "sourceFrames",
+    "evidenceSha256",
+    "validationState",
+    "derivationReason",
+    "productionEligible"
+   ],
+   "properties": {
+    "derivedId": {
+     "type": "string",
+     "pattern": "^CHAR-DER-[0-9]{4}$"
+    },
+    "derivedFromOriginalId": {
+     "type": "string",
+     "pattern": "^CHAR-ENG-[0-9]{4}$"
+    },
+    "sourceOriginalId": {
+     "type": "string"
+    },
+    "correctedParameter": {
+     "type": "string"
+    },
+    "value": {},
+    "unit": {
+     "type": "string"
+    },
+    "measurementDomain": {
+     "enum": [
+      "PIXEL",
+      "NORMALIZED",
+      "BVH"
+     ]
+    },
+    "measurementMethod": {
+     "type": "string"
+    },
+    "sourceClip": {
+     "type": "string"
+    },
+    "sourceFrames": {
+     "type": "array"
+    },
+    "evidenceSha256": {
+     "type": "string",
+     "pattern": "^[0-9a-f]{64}$"
+    },
+    "validationState": {
+     "enum": [
+      "MEASURED",
+      "UNVALIDATED",
+      "OPEN",
+      "REJECTED"
+     ]
+    },
+    "derivationReason": {
+     "type": "string"
+    },
+    "reproducesOriginalValue": {
+     "type": "boolean"
+    },
+    "originalValue": {},
+    "productionEligible": {
+     "const": false
+    },
+    "kneeSide": {
+     "enum": [
+      "LEFT",
+      "RIGHT"
+     ]
+    },
+    "frame": {
+     "type": "integer"
+    },
+    "clip": {
+     "enum": [
+      "CONTROL",
+      "CORRECTED"
+     ]
+    },
+    "measurementType": {
+     "enum": [
+      "MIN_INTERIOR_ANGLE",
+      "MEAN_INTERIOR_ANGLE",
+      "MAX_INTERIOR_ANGLE",
+      "ANGULAR_VELOCITY",
+      "ANGULAR_ACCELERATION"
+     ]
+    },
+    "sideCorrection": {
+     "type": [
+      "string",
+      "null"
+     ]
+    }
+   }
+  }
+ }
+}

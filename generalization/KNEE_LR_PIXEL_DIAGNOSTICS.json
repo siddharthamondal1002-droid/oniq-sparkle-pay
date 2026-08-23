@@ -1,0 +1,157 @@
+{
+ "record": "KNEE_LR_PIXEL_DIAGNOSTICS",
+ "version": "1.0",
+ "crops": {
+  "curl": "KNEE_LR_PIXEL_curl.png",
+  "crossing": "KNEE_LR_PIXEL_crossing.png"
+ },
+ "frames_inspected": {
+  "right_knee_deep": 101,
+  "left_knee_deep": 126,
+  "crossing": "per-character max-crossing frame",
+  "neighbours": "f100/f102 around max flexion"
+ },
+ "characters": {
+  "m3_suit_woman": {
+   "pixel_verdict": "PASS",
+   "over_curl_note": "control shows the right leg sharply folded at f101 and the left at f126; corrected reads as a straight natural swing at both. Feet distinct.",
+   "crossing_classification": "LEGITIMATE_PASSING_PHASE_OCCLUSION",
+   "crossing_note": "narrow column at f52, both shoes distinct, no smear",
+   "control_clip_sha256": "f81a5a012bc26ac37d8ace9749c6ca01ac1625a968fcc9b7677cc9e7dac24edb",
+   "corrected_clip_sha256": "ae8124510a4a2d77e40515d2f210db52b30a805a039d3e71f934fc74d0ca4591",
+   "pixel_metrics": {
+    "control": {
+     "frames": 129,
+     "two_leg_fraction_min": 0.1024,
+     "silhouette_overlap_max": 0.8976,
+     "leg_gap_min": 2,
+     "max_crossing_frame": 52,
+     "silhouette_height_mean": 279.0,
+     "silhouette_width_mean": 84.6,
+     "border_contact_frames": 0,
+     "iou_min": 0.879,
+     "frames_iou_below_090": 11
+    },
+    "corrected": {
+     "frames": 129,
+     "two_leg_fraction_min": 0.0945,
+     "silhouette_overlap_max": 0.9055,
+     "leg_gap_min": 2,
+     "max_crossing_frame": 52,
+     "silhouette_height_mean": 279.9,
+     "silhouette_width_mean": 82.6,
+     "border_contact_frames": 0,
+     "iou_min": 0.8376,
+     "frames_iou_below_090": 17
+    }
+   }
+  },
+  "b4_child_girl": {
+   "pixel_verdict": "PASS",
+   "over_curl_note": "BARE LEGS. Control shows a pronounced right-leg fold at f101 and left at f126; corrected is visibly straighter. No thin-shin warp appeared.",
+   "crossing_classification": "LEGITIMATE_PASSING_PHASE_OCCLUSION",
+   "crossing_note": "legs stay visibly separate with a real gap; two-leg fraction 0.197-0.198, the highest of the four",
+   "control_clip_sha256": "3e88f04e8f2cf59c439b634d51ebf4b2d749c548905197338935ef064fc7cb62",
+   "corrected_clip_sha256": "dbef80235a43218717a4543a05d8cef673a3fc9d8227971deb953c2a47a6fe04",
+   "pixel_metrics": {
+    "control": {
+     "frames": 129,
+     "two_leg_fraction_min": 0.1984,
+     "silhouette_overlap_max": 0.8016,
+     "leg_gap_min": 2,
+     "max_crossing_frame": 67,
+     "silhouette_height_mean": 279.0,
+     "silhouette_width_mean": 89.6,
+     "border_contact_frames": 0,
+     "iou_min": 0.8772,
+     "frames_iou_below_090": 2
+    },
+    "corrected": {
+     "frames": 129,
+     "two_leg_fraction_min": 0.1969,
+     "silhouette_overlap_max": 0.8031,
+     "leg_gap_min": 2,
+     "max_crossing_frame": 69,
+     "silhouette_height_mean": 279.6,
+     "silhouette_width_mean": 88.2,
+     "border_contact_frames": 0,
+     "iou_min": 0.8593,
+     "frames_iou_below_090": 6
+    }
+   }
+  },
+  "b4_heavy_man": {
+   "pixel_verdict": "PASS",
+   "over_curl_note": "control folds are present and corrected is straighter, though the heavy trouser silhouette makes the change less legible than on the bare-legged or slim characters.",
+   "crossing_classification": "LEGITIMATE_PASSING_PHASE_OCCLUSION",
+   "crossing_note": "two-leg fraction 0.000 in control is GARMENT WIDTH, not a motion defect: wide dark trousers never show a gap in the leg zone, yet both boots stay distinct and correctly shaped with no smear or tear",
+   "control_clip_sha256": "74ff5565bac94730dd5c03c1b898e674d6d142bbbc4a53d50f0cdfeb5d8e1565",
+   "corrected_clip_sha256": "bbbb5df4eb9fe53248c17af108fb9e123c81c63728ba3c90e79a975afb1d135b",
+   "pixel_metrics": {
+    "control": {
+     "frames": 129,
+     "two_leg_fraction_min": 0.0,
+     "silhouette_overlap_max": 1.0,
+     "leg_gap_min": 0,
+     "max_crossing_frame": 117,
+     "silhouette_height_mean": 273.6,
+     "silhouette_width_mean": 118.7,
+     "border_contact_frames": 4,
+     "iou_min": 0.9251,
+     "frames_iou_below_090": 0
+    },
+    "corrected": {
+     "frames": 129,
+     "two_leg_fraction_min": 0.0161,
+     "silhouette_overlap_max": 0.9839,
+     "leg_gap_min": 2,
+     "max_crossing_frame": 112,
+     "silhouette_height_mean": 273.7,
+     "silhouette_width_mean": 117.9,
+     "border_contact_frames": 4,
+     "iou_min": 0.9083,
+     "frames_iou_below_090": 0
+    }
+   }
+  },
+  "b4_tall_man": {
+   "pixel_verdict": "PASS",
+   "over_curl_note": "control shows a hard right-leg fold at f101 and left at f126; corrected is clearly straighter at both.",
+   "crossing_classification": "LEGITIMATE_PASSING_PHASE_OCCLUSION",
+   "crossing_note": "legs distinct with visible separation, feet clean",
+   "control_clip_sha256": "2c5591fd121cf9f766df6ce204cb1d237ee906e6c986980a2860d0973556cffb",
+   "corrected_clip_sha256": "b6a16fb504af8aa14463446dff92ce5da9e29fea7ccce2a4e356b3149f90ab4a",
+   "pixel_metrics": {
+    "control": {
+     "frames": 129,
+     "two_leg_fraction_min": 0.1288,
+     "silhouette_overlap_max": 0.8712,
+     "leg_gap_min": 2,
+     "max_crossing_frame": 52,
+     "silhouette_height_mean": 287.9,
+     "silhouette_width_mean": 86.8,
+     "border_contact_frames": 0,
+     "iou_min": 0.9023,
+     "frames_iou_below_090": 0
+    },
+    "corrected": {
+     "frames": 129,
+     "two_leg_fraction_min": 0.1288,
+     "silhouette_overlap_max": 0.8712,
+     "leg_gap_min": 2,
+     "max_crossing_frame": 51,
+     "silhouette_height_mean": 289.2,
+     "silhouette_width_mean": 85.8,
+     "border_contact_frames": 0,
+     "iou_min": 0.8673,
+     "frames_iou_below_090": 4
+    }
+   }
+  }
+ },
+ "summary": {
+  "pixel_PASS": 4,
+  "pixel_FAIL": 0,
+  "unknown": 0
+ }
+}

@@ -1,0 +1,50 @@
+{
+ "record": "KNEE_LR_MEASUREMENT_VALIDATION",
+ "version": "1.0",
+ "method": "per-side landmark identification then independent interior-angle computation; the two knee landmarks are verified distinct before use",
+ "driver_sha256": "ea15d92139654bfbbcc2e1efd0a637110bb0cd657c4b04be9341a1ab8cfb344b",
+ "tolerance": "exact to 4 dp against the diagnostic source; no tolerance band needed",
+ "landmark_separation": [
+  {
+   "frame": 101,
+   "left_minus_right_norm": 7.0405
+  },
+  {
+   "frame": 126,
+   "left_minus_right_norm": 5.8754
+  }
+ ],
+ "per_frame": [
+  {
+   "frame": 101,
+   "LEFT": 179.636,
+   "RIGHT": 140.008,
+   "per_frame_min": 140.008,
+   "min_belongs_to": "RIGHT"
+  },
+  {
+   "frame": 126,
+   "LEFT": 147.231,
+   "RIGHT": 157.217,
+   "per_frame_min": 147.231,
+   "min_belongs_to": "LEFT"
+  },
+  {
+   "frame": 100,
+   "LEFT": 179.173,
+   "RIGHT": 140.439,
+   "per_frame_min": 140.439,
+   "min_belongs_to": "RIGHT"
+  },
+  {
+   "frame": 102,
+   "LEFT": 179.443,
+   "RIGHT": 141.027,
+   "per_frame_min": 141.027,
+   "min_belongs_to": "RIGHT"
+  }
+ ],
+ "swap_test": "a LEFT/RIGHT label swap would report LEFT min 140.008 and RIGHT min 147.231; the regression test asserts LEFT=147.2307@f126 and RIGHT=140.0076@f101, so a swap fails it",
+ "verdict": "VALIDATED \u2014 the engine distinguishes the two physical knees, and the per-frame minimum alternates sides, which is exactly why a per-frame minimum can never be read as a left or right value",
+ "pixel_evidence": "KNEE_LR_PIXEL_curl.png"
+}
