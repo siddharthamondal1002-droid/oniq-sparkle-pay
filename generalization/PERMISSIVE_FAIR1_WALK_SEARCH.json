@@ -1,0 +1,171 @@
+{
+ "record": "PERMISSIVE_FAIR1_WALK_SEARCH",
+ "version": "1.0",
+ "result": "ALTERNATIVE_FAIR1_WALK_BVH = NOT_FOUND",
+ "outcome_class": "SUCCESSFUL_RESEARCH_OUTCOME_negative_result",
+ "search_capability": {
+  "web_search": "available and used",
+  "queries_run": [
+   "BVH walking animation dataset MIT license LeftUpLeg LeftLeg LeftFoot skeleton github",
+   "CC0 public domain walking motion capture BVH file download free commercial use",
+   "github repository BVH motion capture files Apache-2.0 OR BSD OR CC0 license walk cycle animation data included"
+  ],
+  "licence_evidence_rule": "search snippets were NEVER used as licence evidence; every licence claim below was checked by fetching the repository's own LICENSE/README"
+ },
+ "candidates": [
+  {
+   "rank": "P3",
+   "id": "CreativeInquiry/BVH-Examples",
+   "file": "data/walk-cycle.bvh",
+   "verdict": "REJECTED",
+   "reason": "NO LICENSE file at any canonical path (LICENSE, LICENSE.md, LICENSE.txt on master and main all 404). Unknown licence.",
+   "evidence": "authoritative fetch attempted, all 404",
+   "probed_further": false,
+   "note": "further path probing would be guessing repository paths, which is forbidden"
+  },
+  {
+   "rank": "P3",
+   "id": "omimo/PyMO",
+   "file": "demos/data/AV_8Walk_Meredith_HVHA_Rep1.bvh",
+   "verdict": "REJECTED",
+   "reason": "repository LICENSE is MIT (fetched HTTP 200) but the README scopes it explicitly: 'This CODE is available under the MIT license'. The BVH is third-party mocap with NO documented origin, credit or data licence. A repository's MIT file does not relicense data it redistributes.",
+   "repo_license": "MIT (code)",
+   "repo_license_sha256": "b065610fb3534cbb0f1bef047516bd818cb16bc28035130ade989a01f83ca1ad",
+   "data_license": "UNSTATED",
+   "data_provenance": "UNDOCUMENTED",
+   "note": "this is the exact trap the loop warned about \u2014 do not infer a data licence from a repository licence or a filename"
+  },
+  {
+   "rank": "P2",
+   "id": "jbrd/usdBVHAnim",
+   "verdict": "REJECTED",
+   "reason": "Apache-2.0 CODE (an OpenUSD plug-in). It ingests LAFAN1, which is CLOSED on CC BY-NC-ND. Not a data corpus."
+  },
+  {
+   "rank": "P2",
+   "id": "facebookresearch/fairmotion",
+   "verdict": "REJECTED",
+   "reason": "BSD-3-Clause CODE \u2014 a loading/processing tool. Ships no walking corpus."
+  },
+  {
+   "rank": "P2",
+   "id": "akjava/BVH-Motion-Creator",
+   "verdict": "REJECTED",
+   "reason": "Apache-2.0 CODE that bundles CMU Graphics Lab data. CMU is a CLOSED route and was not retried; the same code-vs-data distinction applies regardless."
+  },
+  {
+   "rank": "P3",
+   "id": "Bandai Namco Research mocap",
+   "verdict": "REJECTED",
+   "reason": "Rejected on TWO independent grounds, either of which is sufficient. (1) Licence could NOT be verified authoritatively from this container: LICENSE fetches returned 404 and further path attempts would be guessing repository paths, which is forbidden. (2) At search-snippet level the terms read as Creative Commons Attribution-NonCommercial-NoDerivatives \u2014 the same NonCommercial + NoDerivatives class that closed LAFAN1.",
+   "licence_evidence_level": "SNIPPET_ONLY_NOT_AUTHORITATIVE",
+   "licence_verified": false,
+   "note": "the snippet is recorded as the reason it was NOT pursued, never as licence evidence for acceptance. An unverified licence is a rejection, not a maybe."
+  },
+  {
+   "rank": "P3",
+   "id": "Rokoko free motion library",
+   "verdict": "REJECTED",
+   "reason": "terms not verifiable without account/ToS acceptance; licence uncertain.",
+   "licence_evidence_level": "UNVERIFIABLE",
+   "licence_verified": false
+  },
+  {
+   "rank": "CLOSED",
+   "id": "CMU Graphics Lab",
+   "verdict": "NOT RETRIED",
+   "reason": "closed by the previous loop on four stop conditions"
+  }
+ ],
+ "p0_candidates": 0,
+ "p1_candidates": 0,
+ "systematic_finding": "Every permissively-licensed result is a CODE repository. The permissive licence covers the tool, not the motion data, and the bundled data is either third-party from a CLOSED route (CMU, LAFAN1) or carries no stated data licence at all. No repository was found that supplies BOTH a walking BVH AND an authoritative data licence permitting commercial use.",
+ "root_cause": "the fair1 joint naming (LeftUpLeg/LeftLeg/LeftFoot, Spine1-3) is the Mixamo/HumanIK convention. The large corpora using it are Mixamo (excluded by owner directive for AI/ML licence ambiguity) and academic sets under NC/ND terms. Permissive walking mocap in this exact skeleton is not, on this evidence, publicly available.",
+ "gates_reached": {
+  "license_gate": "FAILED for every candidate",
+  "skeleton_gate": "NOT REACHED \u2014 no candidate passed the licence gate",
+  "motion_gate": "NOT REACHED"
+ },
+ "sources": [
+  {
+   "label": "omimo/PyMO",
+   "url": "https://github.com/omimo/PyMO",
+   "markdown": "[omimo/PyMO](https://github.com/omimo/PyMO)",
+   "licence_fetch": "https://raw.githubusercontent.com/omimo/PyMO/master/LICENSE",
+   "licence_fetch_status": 200,
+   "licence_sha256": "b065610fb3534cbb0f1bef047516bd818cb16bc28035130ade989a01f83ca1ad",
+   "evidence_level": "AUTHORITATIVE_FETCH"
+  },
+  {
+   "label": "CreativeInquiry/BVH-Examples",
+   "url": "https://github.com/CreativeInquiry/BVH-Examples",
+   "markdown": "[CreativeInquiry/BVH-Examples](https://github.com/CreativeInquiry/BVH-Examples)",
+   "licence_fetch": "https://raw.githubusercontent.com/CreativeInquiry/BVH-Examples/{master,main}/LICENSE",
+   "licence_fetch_status": 404,
+   "evidence_level": "NO_LICENCE_FOUND"
+  },
+  {
+   "label": "jbrd/usdBVHAnim",
+   "url": "https://github.com/jbrd/usdBVHAnim",
+   "markdown": "[jbrd/usdBVHAnim](https://github.com/jbrd/usdBVHAnim)",
+   "evidence_level": "CODE_REPOSITORY_NOT_A_CORPUS"
+  },
+  {
+   "label": "facebookresearch/fairmotion",
+   "url": "https://github.com/facebookresearch/fairmotion",
+   "markdown": "[facebookresearch/fairmotion](https://github.com/facebookresearch/fairmotion)",
+   "evidence_level": "CODE_REPOSITORY_NOT_A_CORPUS"
+  },
+  {
+   "label": "akjava/BVH-Motion-Creator",
+   "url": "https://github.com/akjava/BVH-Motion-Creator",
+   "markdown": "[akjava/BVH-Motion-Creator](https://github.com/akjava/BVH-Motion-Creator)",
+   "evidence_level": "CODE_REPOSITORY_NOT_A_CORPUS"
+  },
+  {
+   "label": "Bandai Namco Research motion dataset",
+   "url": null,
+   "markdown": null,
+   "licence_fetch_status": 404,
+   "evidence_level": "REPOSITORY_PATH_UNRESOLVED",
+   "note": "no verified URL is cited because the canonical path could not be resolved by authoritative fetch, and guessing further paths is forbidden. Recording a URL I did not successfully fetch would be manufacturing a citation."
+  },
+  {
+   "label": "Rokoko free motion library",
+   "url": "https://www.rokoko.com/",
+   "markdown": "[Rokoko free motion library](https://www.rokoko.com/)",
+   "evidence_level": "UNVERIFIABLE_WITHOUT_ACCOUNT"
+  }
+ ],
+ "citation_rule": "every source consulted is cited above as a markdown link. Where evidence_level is not AUTHORITATIVE_FETCH, the source was NOT used as licence evidence — it is recorded only to show what was looked at and why it was set aside.",
+ "downloads": {
+  "bvh_downloaded": 0,
+  "text_fetched": [
+   "omimo/PyMO LICENSE",
+   "omimo/PyMO README.md",
+   "CreativeInquiry/BVH-Examples LICENSE probes (404)"
+  ],
+  "note": "no motion data was downloaded; no SHA-256 of any BVH exists to record"
+ },
+ "artifacts_not_produced": {
+  "FAIR1_WALK_CANDIDATE_PROVENANCE.json": "no valid candidate",
+  "FAIR1_WALK_CANDIDATE_LICENSE.md": "no valid candidate",
+  "FAIR1_WALK_CANDIDATE_STRUCTURE.json": "no valid candidate",
+  "FAIR1_WALK_CANDIDATE_SHA256.txt": "no valid candidate",
+  "FAIR1_WALK_CANDIDATE_MOTION.json": "no valid candidate"
+ },
+ "experiment_run": false,
+ "classification": "RIGHT_KNEE_ASYMMETRY = MEASUREMENT_OPEN",
+ "driver_unchanged": {
+  "damping": 0.5,
+  "channels": 6,
+  "bilateral": true,
+  "location": "SOURCE BVH layer"
+ },
+ "cost": {
+  "api_inr": 0,
+  "gpu_inr": 0,
+  "bvh_downloaded": 0,
+  "new_images": 0
+ }
+}
