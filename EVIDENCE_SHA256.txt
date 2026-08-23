@@ -45,3 +45,13 @@ cf3ff07529c6ea15 batch3/trace_basma.json
 ec2e3101bb465068 batch3/urchin_knee050.gif
 ea15d92139654bfb batch3/zombie_knee050.bvh
 e24974d0936c2ed5 batch3/zombie_knee075.bvh
+0544d8f0b4ccfc4c refs/ANATOMY_MANIFEST.sha256
+696c21ac77b06873 refs/ad_rig_bone_hierarchy.jpg
+e8f3269614af3292 refs/ad_skeleton_15joint_mapping.jpg
+d8d941c0876df627 refs/anatomical_tpose_3view.jpg
+a7497e3bd243d2f8 refs/oniq_motion_guide_dark.png
+378d4c07daac9eec refs/oniq_motion_guide_light.png
+9b7053cf27344a56 refs/stylized_turnaround_4view.jpg
+f1dbb415fc2bb0e3 refs/stylized_turnaround_4view_dup.jpg
+3c2d8db2cec5179e refs/walk_cycle_figure_dynamics.jpg
+b9d66e63644f1dff refs/walk_cycle_frame_strips.jpg
