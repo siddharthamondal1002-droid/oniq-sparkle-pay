@@ -614,6 +614,72 @@ The second application is a no-op `UPDATE` to the values already there. The
 owner's file sorts last, so on a fresh database it has the final say — the safe
 way round.
 
+### 9d. FIRST LIVE SEARCH — the estimate under-reserves, measured
+
+Rung 3 was climbed on 2026-08-24 and one real `smart-scout` search was run as a
+smoke test. It succeeded, settled, and immediately falsified something this
+document had been asserting: that `worstCaseUsd()` is a worst case.
+
+```
+request  cf859373-…   capability SEARCH   model claude-opus-5   SETTLED/ACCEPTED
+estimated_usd  0.445625        <- the reservation
+actual_usd     0.530683        <- what Anthropic actually charged
+overrun        0.085058  (+19.1%)
+
+detail: searchCount 6   inputTokens 99,321   outputTokens 4,295
+        cacheHits 1     terminationReason BUDGET_TOKENS
+```
+
+**The reserve is not an upper bound.** Against reserves of 11 hops / 48,000
+input / 3,500 output:
+
+|               | reserved | actual     | ratio         |
+| ------------- | -------- | ---------- | ------------- |
+| search hops   | 11       | 6          | 0.55x (under) |
+| input tokens  | 48,000   | **99,321** | **2.07x**     |
+| output tokens | 3,500    | 4,295      | 1.23x         |
+
+The mechanism is structural, not a fluke: **each web-search hop feeds its
+results back into the context**, so input tokens grow with hop count while the
+flat 48,000 reserve does not. `terminationReason BUDGET_TOKENS` confirms it —
+the call stopped on tokens with 5 of its 11 hops unused. Reserving fewer hops
+than used would have been safe; reserving half the tokens was not.
+
+Three consequences, and they are not equally bad:
+
+1. **The $0.50 request ceiling did not bind the real charge.** One search cost
+   **$0.5307**. This is §2's documented behaviour — admission bounds the
+   _reservation_, settlement records the _invoice_ and never clamps it — but in
+   practice it means the per-request ceiling is advisory for SEARCH rather than
+   binding.
+2. **The daily $20.00 ceiling still binds real money**, because
+   `committed = reserved + settled` and settlement writes the actual. The day
+   rollup reads `settled_usd 0.530683, request_count 1`. This is the protection
+   that actually holds, and it held.
+3. **Capacity is lower than the estimate implied.** At the measured actual,
+   $20.00/day is roughly **37 searches fleet-wide**, not the ~44 the
+   reservation arithmetic suggested.
+
+**Nothing was changed in response.** The three ways to close the gap are all
+decisions that are not an agent's to make:
+
+- raise `request_usd_cap` — the owner's money;
+- cut `SCOUT_MAX_SEARCHES` or the token budget — changes answer quality;
+- accept that actuals may exceed the per-request ceiling, relying on the daily
+  cap as the real bound.
+
+Raising the input reserve to cover observed usage is **not** a free fix: it
+pushes the modelled worst case above $0.50, at which point admission would
+refuse every `smart-scout` search with `over-request-cap`. That is the trap —
+making the estimate honest, on its own, converts a silent overrun into a
+visible outage.
+
+This is **one measurement**, n=1. The mechanism is understood well enough to
+expect it to recur, but the distribution — how often, how far over — is not
+characterised, and should not be guessed at from a single row. The ledger now
+records every search, so that question is answerable by waiting rather than by
+estimating, which is the first time that has been true.
+
 ### 9c. One paid path the ledger does not cover — Google Maps in `smart-scout`
 
 Found while auditing rung 3, and reported rather than acted on.
