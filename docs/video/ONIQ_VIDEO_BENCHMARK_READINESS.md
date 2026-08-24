@@ -137,21 +137,82 @@ The seven motion classes are mirrored from `src/lib/motionProvider.ts`:
 
 ## 8. The gate that protects the first paid probe
 
-`firstProbePreflight()` requires **all nine**, with no override:
+`firstProbePreflight()` requires **all eleven**, with no override:
 
 ```
 credentialsPresent · providerConfigured · generationAllowed · spendCapsConfigured
 jobBudgetAvailable · dailyBudgetAvailable · attemptAvailable
 manifestFrozen · evaluationVersionFrozen
+ledgerAdmissionSucceeded · benchmarkAuthorizationPresent
 ```
+
+The last two are the ones that make the gate real rather than advisory:
+
+- **`ledgerAdmissionSucceeded`** — `admit_provider_spend` has already returned
+  ok. Not "the caps look fine": budget headroom read a moment ago is a guess,
+  a reservation under a row lock is a commitment, and only the second survives
+  a concurrent worker.
+- **`benchmarkAuthorizationPresent`** — a human authorised _this run_. Distinct
+  from `generationAllowed`, which says the capability may spend at all. A
+  standing capability switch is not standing permission to start a specific
+  paid experiment.
 
 Anything missing → `NO_PROVIDER_CALL` plus the list of blockers. An **absent**
 precondition counts as unmet — omission is not permission, the same rule
 `chooseTier()` applies to its routing gate.
 
-`generationAllowed` is listed separately on purpose. Credentials existing, caps
-being configured and the benchmark being ready are **not** authorisation. Only
-the owner may set `enabled = true`, and today it is **false**.
+### READY is not AUTHORIZED
+
+Three states, and moving between them takes a person, not a condition:
+
+| State                            | Meaning                                                |
+| -------------------------------- | ------------------------------------------------------ |
+| `READY_FOR_CREDENTIALS`          | ONIQ's own house is in order. **Today's state.**       |
+| `READY_FOR_CONTROLLED_PROBE`     | credentials exist, VIDEO enabled — still not "go"      |
+| `AUTHORIZED_FOR_LIVE_GENERATION` | a human said go **and** the ledger holds a reservation |
+
+Credentials appearing does not authorise. Valid caps do not authorise. Static
+provider readiness does not authorise. Only the owner may set `enabled = true`,
+and today it is **false**.
+
+## 8a. The first probe, frozen
+
+Declared in `FIRST_PROBE`, **not executed**:
+
+|                       |                                                                  |
+| --------------------- | ---------------------------------------------------------------- |
+| probe id              | `probe-2026-08-24-lite-8s-v1` (immutable — a change is a new id) |
+| surface / tier        | `google-ai-studio` / LITE                                        |
+| model                 | `veo-3.1-lite-generate-preview`                                  |
+| duration / resolution | 8s / 720p                                                        |
+| audio mode            | `VEO_NATIVE_AUDIO` (this surface cannot decline audio)           |
+| input                 | text-to-video — **no** starting frame, so no contaminated sheet  |
+| estimated spend       | **$0.40**, against the $1.00 request ceiling                     |
+| evaluator             | owner, `eval-v1`                                                 |
+
+Lite rather than Fast because the first live call tests the **plumbing** —
+credentials, operation polling, media retrieval, a real settled number. None of
+that needs the expensive tier, and buying quality evidence before the pipe is
+proven is how a benchmark becomes an outage with a receipt.
+
+`checkProbeSizing()` refuses `OVER_REQUEST_CAP`, `UNPRICED`,
+`NON_POSITIVE_DURATION` and `CONTAMINATED_INPUT`. If a provider's smallest
+request will not fit under the ceiling, **the probe is refused — the cap is
+never raised to fit it.** That would be moving the owner's ceiling to
+accommodate an agent's experiment.
+
+## 8b. Evidence: four facts, never `success: true`
+
+`ProbeEvidence` keeps `requestAccepted`, `generationCompleted`,
+`outputRetrieved` and `acceptedByEvaluator` as separate booleans. A request can
+be accepted and never complete; a generation can complete and never be
+retrievable; a clip can be retrieved and be rejected. Collapsing them makes
+cost-per-accepted-second unknowable.
+
+`actualUsd` starts null and is **never** back-filled from the estimate. Audio
+fields start null and are filled from a probe of the media — `validateEvidence`
+rejects a record claiming `audioPresent` with no `audioFormat`, because that is
+the request talking, not the file.
 
 ## 9. The spend path, when it eventually runs
 

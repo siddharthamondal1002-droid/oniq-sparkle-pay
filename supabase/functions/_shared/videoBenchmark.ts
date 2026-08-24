@@ -19,6 +19,7 @@
 // manifest meaningful.
 
 import type { AudioMode, ProviderSurface } from "./videoAudio.ts";
+import type { VideoOutcomeKind } from "./videoProvider.ts";
 
 // ------------------------------------------------------------------- status
 /**
@@ -31,8 +32,16 @@ export type BenchmarkStatus =
   | "NOT_READY"
   /** Everything ONIQ controls is done. Waiting on credentials. */
   | "READY_FOR_CREDENTIALS"
-  /** Credentials exist and VIDEO is enabled. Waiting on a human to say go. */
+  /**
+   * Credentials exist and VIDEO is enabled. STILL NOT PERMISSION — this is
+   * "everything is in place", not "go". A human has not authorised this run.
+   */
   | "READY_FOR_CONTROLLED_PROBE"
+  /**
+   * A human authorised THIS run and the ledger has reserved for it. The only
+   * state in which a provider request may leave the box.
+   */
+  | "AUTHORIZED_FOR_LIVE_GENERATION"
   /** A real run happened and produced scored, unblinded evidence. */
   | "LIVE_EVIDENCE_COLLECTED";
 
@@ -435,6 +444,19 @@ export type ProbePreconditions = {
   attemptAvailable: boolean;
   manifestFrozen: boolean;
   evaluationVersionFrozen: boolean;
+  /**
+   * `admit_provider_spend` has ALREADY RETURNED ok. Not "the caps look fine" —
+   * the reservation exists, under a row lock, with a request_id. Budget
+   * headroom read a moment ago is a guess; an admission is a commitment, and
+   * only the second one survives a concurrent worker.
+   */
+  ledgerAdmissionSucceeded: boolean;
+  /**
+   * A human authorised THIS benchmark run. Distinct from `generationAllowed`,
+   * which says the capability may spend at all: a standing capability switch is
+   * not standing permission to start a specific paid experiment.
+   */
+  benchmarkAuthorizationPresent: boolean;
 };
 
 export type ProbeVerdict =
@@ -451,6 +473,8 @@ export function firstProbePreflight(p: Partial<ProbePreconditions>): ProbeVerdic
     ["attemptAvailable", "attempt ceiling reached"],
     ["manifestFrozen", "benchmark corpus manifest is not frozen"],
     ["evaluationVersionFrozen", "evaluation version is not frozen"],
+    ["ledgerAdmissionSucceeded", "no ledger reservation — admission has not returned ok"],
+    ["benchmarkAuthorizationPresent", "no explicit authorisation for this benchmark run"],
   ];
   // An ABSENT precondition counts as unmet. Omission is not permission — the
   // same rule chooseTier() applies to its routing gate.
@@ -471,5 +495,197 @@ export function benchmarkStatus(p: Partial<ProbePreconditions>): BenchmarkStatus
     return "READY_FOR_CREDENTIALS";
   }
   if (p.generationAllowed !== true) return "READY_FOR_CREDENTIALS";
-  return "READY_FOR_CONTROLLED_PROBE";
+  // READY IS NOT AUTHORIZED. Everything above is ONIQ's own house being in
+  // order; the last two are a person deciding to spend money and the ledger
+  // actually holding a reservation for it. Credentials appearing, caps being
+  // valid and adapters being ready must never add up to permission on their own.
+  if (p.benchmarkAuthorizationPresent !== true || p.ledgerAdmissionSucceeded !== true) {
+    return "READY_FOR_CONTROLLED_PROBE";
+  }
+  return "AUTHORIZED_FOR_LIVE_GENERATION";
+}
+
+// -------------------------------------------------------------- probe contract
+/**
+ * THE SMALLEST USEFUL FIRST PAID PROBE, frozen so it can be repeated.
+ *
+ * Every field is pinned because "we ran it and it looked fine" is not a result
+ * anyone can check later. A probe whose prompt drifts with production, or whose
+ * model is "whatever the router picked", produces a number that cannot be
+ * compared with the next one.
+ *
+ * NOT EXECUTED. This is a declaration of what would run, sized to fit inside
+ * the owner's $1.00 request ceiling with room to spare.
+ */
+export type ProbeContract = {
+  /** Immutable. Changing any field below means a NEW id, never an edit. */
+  probeId: string;
+  surface: ProviderSurface;
+  tier: "LITE" | "FAST";
+  model: string;
+  seconds: number;
+  resolution: "720p";
+  audioMode: AudioMode;
+  promptVersion: string;
+  prompt: string;
+  inputAssetVersion: string;
+  evaluationVersion: string;
+  jobId: string;
+  expectedOutput: string;
+  acceptanceEvaluator: string;
+};
+
+/**
+ * The proposed first probe: the CHEAPEST cell, at the shortest duration the
+ * surface generates, on the surface ONIQ already calls.
+ *
+ * Lite rather than Fast because the first live call is testing the PLUMBING —
+ * that credentials work, that an operation polls to completion, that media can
+ * be retrieved, that the ledger settles a real number. None of that needs the
+ * expensive tier, and buying quality evidence before the pipe is proven is how
+ * a benchmark becomes an outage with a receipt.
+ */
+export const FIRST_PROBE: ProbeContract = {
+  probeId: "probe-2026-08-24-lite-8s-v1",
+  surface: "google-ai-studio",
+  tier: "LITE",
+  model: "veo-3.1-lite-generate-preview",
+  seconds: 8,
+  resolution: "720p",
+  // The Developer API cannot be asked to skip audio, so this is what is bought.
+  audioMode: "VEO_NATIVE_AUDIO",
+  promptVersion: "probe-prompt-v1",
+  prompt: "A woman in a plain coat turns her head to look at the camera, then looks away.",
+  // Deliberately no starting frame: the corpus does not exist, and the
+  // contaminated design sheets must never become the first live input.
+  inputAssetVersion: "none-text-to-video-v1",
+  evaluationVersion: "eval-v1",
+  jobId: "probe-2026-08-24-lite-8s-v1",
+  expectedOutput: "one 8-second 720p clip, audio presence to be measured not assumed",
+  acceptanceEvaluator: "owner",
+};
+
+/** Why a probe may not be attempted, independent of the preflight gate. */
+export type ProbeSizingProblem =
+  "OVER_REQUEST_CAP" | "UNPRICED" | "NON_POSITIVE_DURATION" | "CONTAMINATED_INPUT";
+
+/**
+ * Does this probe fit inside the request ceiling?
+ *
+ * `usdPerSecond` is passed in rather than looked up, so this module still
+ * restates no price. If a provider's smallest request cannot fit under the cap,
+ * the answer is to REFUSE THE PROBE — never to raise the cap to fit it. That
+ * would be moving the owner's ceiling to accommodate an agent's experiment.
+ */
+export function checkProbeSizing(
+  probe: ProbeContract,
+  usdPerSecond: number | null,
+  requestUsdCap: number,
+): { ok: boolean; estimatedUsd: number | null; problems: ProbeSizingProblem[] } {
+  const problems: ProbeSizingProblem[] = [];
+  if (!(probe.seconds > 0) || !Number.isFinite(probe.seconds)) {
+    problems.push("NON_POSITIVE_DURATION");
+  }
+  if (CONTAMINATED_SOURCE_PATTERNS.some((p) => probe.inputAssetVersion.toLowerCase().includes(p))) {
+    problems.push("CONTAMINATED_INPUT");
+  }
+  if (usdPerSecond === null || !Number.isFinite(usdPerSecond) || usdPerSecond <= 0) {
+    problems.push("UNPRICED");
+    return { ok: false, estimatedUsd: null, problems };
+  }
+  // Rounded to the ledger's own precision so the figure compared against the
+  // ceiling is the figure that would be reserved.
+  const estimatedUsd = Math.round(usdPerSecond * probe.seconds * 1e6) / 1e6;
+  if (estimatedUsd > requestUsdCap) problems.push("OVER_REQUEST_CAP");
+  return { ok: problems.length === 0, estimatedUsd, problems };
+}
+
+// -------------------------------------------------------------- live evidence
+/**
+ * What a real probe must record. Every field starts null and is filled by
+ * OBSERVATION.
+ *
+ * The separated facts below exist because `success: true` destroys the
+ * distinctions the economics depend on. A request can be accepted and never
+ * complete; a generation can complete and never be retrievable; a clip can be
+ * retrieved and be rejected. Those are four different numbers and folding them
+ * together makes cost-per-accepted-second unknowable.
+ */
+export type ProbeEvidence = {
+  probeId: string;
+  provider: string;
+  surface: ProviderSurface;
+  tier: "LITE" | "FAST";
+  model: string;
+  requestTimestamp: string;
+  /** Hash of the frozen parameters, so a silently changed probe is detectable. */
+  requestParametersHash: string;
+  estimatedUsd: number;
+  reservedUsd: number;
+  /** null until settlement. NEVER back-filled from the estimate. */
+  actualUsd: number | null;
+  durationSeconds: number | null;
+  /** Measured from the media, never inferred from the request. */
+  audioPresent: boolean | null;
+  audioFormat: string | null;
+  audioDurationSeconds: number | null;
+  audioSampleRateHz: number | null;
+  outputReference: string | null;
+  providerRequestId: string | null;
+  providerStatus: string | null;
+  failureClass: VideoOutcomeKind | null;
+  /** null until a human scores it. Not a default, not a computation. */
+  accepted: boolean | null;
+  rejectionReason: string | null;
+  evaluationVersion: string;
+  /** The four separate facts. */
+  requestAccepted: boolean;
+  generationCompleted: boolean;
+  outputRetrieved: boolean;
+  acceptedByEvaluator: boolean | null;
+};
+
+/** Fields that must never appear in an evidence record. */
+export const FORBIDDEN_EVIDENCE_FIELDS: readonly string[] = [
+  "apiKey",
+  "api_key",
+  "authorization",
+  "bearer",
+  "serviceRoleKey",
+  "credentials",
+] as const;
+
+export type EvidenceProblem =
+  | "SECRET_PRESENT"
+  | "ACTUAL_BACKFILLED_FROM_ESTIMATE"
+  | "ACCEPTANCE_BEFORE_OUTPUT"
+  | "ECONOMICS_BEFORE_ACCEPTANCE"
+  | "AUDIO_ASSUMED_NOT_MEASURED";
+
+/**
+ * Reject an evidence record that has drawn a conclusion it has not earned.
+ */
+export function validateEvidence(e: ProbeEvidence): {
+  valid: boolean;
+  problems: EvidenceProblem[];
+} {
+  const problems: EvidenceProblem[] = [];
+  const blob = JSON.stringify(e).toLowerCase();
+  if (FORBIDDEN_EVIDENCE_FIELDS.some((f) => blob.includes(f.toLowerCase()))) {
+    problems.push("SECRET_PRESENT");
+  }
+  // Acceptance is a judgement about a clip. No clip, no judgement.
+  if (!e.outputRetrieved && (e.accepted !== null || e.acceptedByEvaluator !== null)) {
+    problems.push("ACCEPTANCE_BEFORE_OUTPUT");
+  }
+  // Cost-per-accepted-second cannot exist before acceptance does.
+  if (e.accepted === null && e.actualUsd !== null && e.acceptedByEvaluator !== null) {
+    problems.push("ECONOMICS_BEFORE_ACCEPTANCE");
+  }
+  // A retrieved clip whose audio was never probed must say UNKNOWN (null),
+  // not inherit what the request asked for.
+  if (e.outputRetrieved && e.audioPresent !== null && e.audioFormat === null) {
+    problems.push("AUDIO_ASSUMED_NOT_MEASURED");
+  }
+  return { valid: problems.length === 0, problems };
 }

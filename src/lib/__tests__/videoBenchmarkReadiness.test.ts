@@ -20,8 +20,13 @@ import {
   providerConfigStatus,
   requireProviderConfiguration,
 } from "../../../supabase/functions/_shared/videoProvider.ts";
+import { VIDEO_RATES } from "../../../supabase/functions/_shared/videoRouting.ts";
 import {
   BENCHMARK_MATRIX,
+  FIRST_PROBE,
+  checkProbeSizing,
+  validateEvidence,
+  type ProbeEvidence,
   MOTION_CLASSES,
   GENERATIVE_MOTION_CLASSES,
   benchmarkStatus,
@@ -413,6 +418,8 @@ describe("the gate that protects the first paid probe", () => {
     attemptAvailable: true,
     manifestFrozen: true,
     evaluationVersionFrozen: true,
+    ledgerAdmissionSucceeded: true,
+    benchmarkAuthorizationPresent: true,
   };
 
   it("allows only when every precondition holds", () => {
@@ -440,6 +447,20 @@ describe("the gate that protects the first paid probe", () => {
     if (!v.allowed) expect(v.blockers.join(" ")).toMatch(/generation_allowed is false/);
   });
 
+  it("requires a real ledger reservation, not merely available headroom", () => {
+    // Headroom read a moment ago is a guess; a reservation is a commitment, and
+    // only the second survives a concurrent worker.
+    const v = firstProbePreflight({ ...ALL, ledgerAdmissionSucceeded: false });
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) expect(v.blockers.join(" ")).toMatch(/no ledger reservation/);
+  });
+
+  it("requires authorisation for THIS run, separately from the capability switch", () => {
+    const v = firstProbePreflight({ ...ALL, benchmarkAuthorizationPresent: false });
+    expect(v.allowed).toBe(false);
+    if (!v.allowed) expect(v.blockers.join(" ")).toMatch(/no explicit authorisation/);
+  });
+
   it("reports today's real state as READY_FOR_CREDENTIALS, not ready to probe", () => {
     const today = {
       manifestFrozen: true,
@@ -450,7 +471,18 @@ describe("the gate that protects the first paid probe", () => {
     };
     expect(benchmarkStatus(today)).toBe("READY_FOR_CREDENTIALS");
     expect(benchmarkStatus({ manifestFrozen: false })).toBe("NOT_READY");
-    expect(benchmarkStatus(ALL)).toBe("READY_FOR_CONTROLLED_PROBE");
+    expect(benchmarkStatus(ALL)).toBe("AUTHORIZED_FOR_LIVE_GENERATION");
+  });
+
+  it("keeps READY and AUTHORIZED as different states", () => {
+    // Everything technically in place, but nobody said go, and nothing is
+    // reserved. That is READY — never AUTHORIZED.
+    expect(benchmarkStatus({ ...ALL, benchmarkAuthorizationPresent: false })).toBe(
+      "READY_FOR_CONTROLLED_PROBE",
+    );
+    expect(benchmarkStatus({ ...ALL, ledgerAdmissionSucceeded: false })).toBe(
+      "READY_FOR_CONTROLLED_PROBE",
+    );
   });
 });
 
@@ -469,9 +501,122 @@ describe("the benchmark matrix and its spend path", () => {
   });
 
   it("restates no prices — rates stay in one module", () => {
-    const src = read("supabase/functions/_shared/videoBenchmark.ts");
+    const raw = read("supabase/functions/_shared/videoBenchmark.ts");
+    // Comments stripped: a comment SAYING where the rates live is exactly the
+    // documentation we want, and flagging it would punish the right behaviour.
+    // What must not appear is a rate in the code.
+    const src = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    // No price VALUE. Receiving a rate as a parameter is the opposite of
+    // restating one, so `checkProbeSizing(probe, usdPerSecond, cap)` is fine;
+    // a literal 0.05 living in this file is not.
     expect(src).not.toMatch(/0\.0[358]\b/);
-    expect(src).not.toMatch(/usdPerSecond/);
+    // And it must not grow its own rate table or import one.
+    expect(src).not.toMatch(/VIDEO_RATES|usdPerSecondWithAudio|usdPerSecondVideoOnly/);
+  });
+
+  it("sizes the first probe from the rate table, and it fits the $1.00 ceiling", () => {
+    // The rate is looked up HERE, from the one module that owns it, and handed
+    // in — which is why the benchmark module can stay price-free.
+    const rate = VIDEO_RATES.find(
+      (r) => r.surface === FIRST_PROBE.surface && r.model === FIRST_PROBE.model,
+    );
+    expect(rate, "the first probe's model must be priced").toBeTruthy();
+    const sized = checkProbeSizing(FIRST_PROBE, rate!.usdPerSecondWithAudio, 1.0);
+    expect(sized.problems).toEqual([]);
+    expect(sized.ok).toBe(true);
+    // 8s of Lite with audio at the owner-supplied rate.
+    expect(sized.estimatedUsd).toBe(0.4);
+    expect(sized.estimatedUsd!).toBeLessThanOrEqual(1.0);
+  });
+
+  it("refuses a probe that will not fit, rather than implying the cap should move", () => {
+    // 8s of Fast is $0.80 — still fits. 30s does not, and the answer is REFUSE.
+    const long = { ...FIRST_PROBE, seconds: 30 };
+    const over = checkProbeSizing(long, 0.1, 1.0);
+    expect(over.ok).toBe(false);
+    expect(over.problems).toContain("OVER_REQUEST_CAP");
+    // Unpriced is refused before any arithmetic is attempted.
+    const unpriced = checkProbeSizing(FIRST_PROBE, null, 1.0);
+    expect(unpriced.problems).toContain("UNPRICED");
+    expect(unpriced.estimatedUsd).toBeNull();
+  });
+
+  it("freezes every field the first probe needs to be repeatable", () => {
+    for (const k of [
+      "probeId",
+      "surface",
+      "tier",
+      "model",
+      "seconds",
+      "resolution",
+      "audioMode",
+      "promptVersion",
+      "prompt",
+      "inputAssetVersion",
+      "evaluationVersion",
+      "jobId",
+      "expectedOutput",
+      "acceptanceEvaluator",
+    ] as const) {
+      expect(FIRST_PROBE[k], k).toBeTruthy();
+    }
+    // Never the contaminated sheets, not even as the first live input.
+    expect(FIRST_PROBE.inputAssetVersion).not.toMatch(/sheets\/cut|character-?sheet/i);
+    expect(
+      checkProbeSizing({ ...FIRST_PROBE, inputAssetVersion: "sheets/cut/x" }, 0.05, 1).problems,
+    ).toContain("CONTAMINATED_INPUT");
+  });
+
+  it("keeps the four provider-response facts separate, never success=true", () => {
+    const base: ProbeEvidence = {
+      probeId: FIRST_PROBE.probeId,
+      provider: "google",
+      surface: FIRST_PROBE.surface,
+      tier: "LITE",
+      model: FIRST_PROBE.model,
+      requestTimestamp: "2026-08-24T00:00:00Z",
+      requestParametersHash: "a".repeat(64),
+      estimatedUsd: 0.4,
+      reservedUsd: 0.4,
+      actualUsd: null,
+      durationSeconds: null,
+      audioPresent: null,
+      audioFormat: null,
+      audioDurationSeconds: null,
+      audioSampleRateHz: null,
+      outputReference: null,
+      providerRequestId: null,
+      providerStatus: null,
+      failureClass: null,
+      accepted: null,
+      rejectionReason: null,
+      evaluationVersion: "eval-v1",
+      requestAccepted: false,
+      generationCompleted: false,
+      outputRetrieved: false,
+      acceptedByEvaluator: null,
+    };
+    expect(validateEvidence(base).valid).toBe(true);
+
+    // A judgement about a clip that was never retrieved.
+    expect(validateEvidence({ ...base, accepted: true }).problems).toContain(
+      "ACCEPTANCE_BEFORE_OUTPUT",
+    );
+    // Audio claimed without being measured.
+    expect(
+      validateEvidence({ ...base, outputRetrieved: true, audioPresent: true }).problems,
+    ).toContain("AUDIO_ASSUMED_NOT_MEASURED");
+    // A secret must never reach an evidence record.
+    expect(
+      validateEvidence({ ...base, providerStatus: "authorization: Bearer x" }).problems,
+    ).toContain("SECRET_PRESENT");
+  });
+
+  it("never back-fills actual cost from the estimate", () => {
+    const src = read("supabase/functions/_shared/videoBenchmark.ts");
+    // actualUsd must be nullable and documented as settlement-only.
+    expect(src).toMatch(/actualUsd: number \| null/);
+    expect(src).toMatch(/NEVER back-filled from the estimate/);
   });
 
   it("carries no FX and no INR", () => {
