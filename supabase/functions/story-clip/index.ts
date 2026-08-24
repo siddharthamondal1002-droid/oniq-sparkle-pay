@@ -25,6 +25,7 @@
 // passed). This function reports; the caller decides.
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
+import { classifyProviderError, recordFailure } from "../_shared/providerError.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -165,7 +166,10 @@ async function start(key: string, body: Record<string, unknown>): Promise<Respon
     return json({ error: "The video model is unavailable." }, 502);
   }
   if (res.status === 400) {
-    const reason = await res.clone().text().catch(() => "");
+    const reason = await res
+      .clone()
+      .text()
+      .catch(() => "");
     for (const field of ["resolution", "durationSeconds"]) {
       if (new RegExp(field, "i").test(reason) && field in params) {
         const { [field]: _dropped, ...rest } = params;
@@ -180,6 +184,24 @@ async function start(key: string, body: Record<string, unknown>): Promise<Respon
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     console.error("story-clip start upstream", res.status, detail.slice(0, 300));
+    const cls = classifyProviderError(res.status, detail, res.headers);
+    recordFailure(CLIP_MODEL, cls);
+
+    // Quota exhaustion used to arrive here as a bare 502 — indistinguishable
+    // from a real fault, so the worker's ladder would retry against a daily
+    // wall. Measured 2026-08-24: 18 consecutive 429 RESOURCE_EXHAUSTED in
+    // 0.1–0.4s. 503 + retryable:false tells the worker to stop, not back off.
+    if (cls.kind === "PROVIDER_QUOTA_EXHAUSTED" || cls.kind === "PROVIDER_RATE_LIMITED") {
+      return json(
+        {
+          error: cls.userMessage,
+          kind: cls.kind,
+          retryable: cls.retryable,
+          retryAfterSeconds: cls.retryAfterSeconds,
+        },
+        503,
+      );
+    }
     // The filter can refuse at SUBMIT time too. Surface it as the same 422
     // the worker's refusal ladder listens for.
     if (/third.party|prohibited|safety|filtered/i.test(detail)) {
@@ -277,8 +299,7 @@ function firstVideo(
     r.generateVideoResponse?.generatedSamples?.[0]?.video ?? r.generatedVideos?.[0]?.video;
   if (!video) return null;
   const uri = typeof video.uri === "string" ? video.uri : undefined;
-  const data =
-    typeof video.bytesBase64Encoded === "string" ? video.bytesBase64Encoded : undefined;
+  const data = typeof video.bytesBase64Encoded === "string" ? video.bytesBase64Encoded : undefined;
   if (!uri && !data) return null;
   const mime = typeof video.mimeType === "string" ? video.mimeType : "video/mp4";
   return { mime, uri, data };
