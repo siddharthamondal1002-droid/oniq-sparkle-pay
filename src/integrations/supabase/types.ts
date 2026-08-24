@@ -5234,6 +5234,37 @@ export type Database = {
         }
         Relationships: []
       }
+      search_spend_daily_metrics: {
+        Row: {
+          avg_input_tokens: number | null
+          avg_output_tokens: number | null
+          avg_searches: number | null
+          cache_hit_rate: number | null
+          charged_usd: number | null
+          day: string | null
+          max_searches: number | null
+          model: string | null
+          provider: string | null
+          released: number | null
+          requests: number | null
+          search_type: string | null
+          settled: number | null
+          settled_without_known_cost: number | null
+          still_reserved: number | null
+          total_searches: number | null
+        }
+        Relationships: []
+      }
+      search_termination_mix: {
+        Row: {
+          charged_usd: number | null
+          day: string | null
+          requests: number | null
+          search_type: string | null
+          termination_reason: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_booking_price: {
