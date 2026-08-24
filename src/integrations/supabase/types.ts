@@ -3660,6 +3660,153 @@ export type Database = {
           },
         ]
       }
+      provider_budget_config: {
+        Row: {
+          capability: string
+          daily_usd_cap: number
+          enabled: boolean
+          job_usd_cap: number
+          max_attempts_per_job: number
+          request_usd_cap: number
+          updated_at: string
+        }
+        Insert: {
+          capability: string
+          daily_usd_cap: number
+          enabled?: boolean
+          job_usd_cap: number
+          max_attempts_per_job?: number
+          request_usd_cap: number
+          updated_at?: string
+        }
+        Update: {
+          capability?: string
+          daily_usd_cap?: number
+          enabled?: boolean
+          job_usd_cap?: number
+          max_attempts_per_job?: number
+          request_usd_cap?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      provider_spend_day: {
+        Row: {
+          capability: string
+          day: string
+          request_count: number
+          reserved_usd: number
+          settled_usd: number
+        }
+        Insert: {
+          capability: string
+          day: string
+          request_count?: number
+          reserved_usd?: number
+          settled_usd?: number
+        }
+        Update: {
+          capability?: string
+          day?: string
+          request_count?: number
+          reserved_usd?: number
+          settled_usd?: number
+        }
+        Relationships: []
+      }
+      provider_spend_job: {
+        Row: {
+          attempts: number
+          capability: string
+          created_at: string
+          job_id: string
+          reserved_usd: number
+          settled_usd: number
+        }
+        Insert: {
+          attempts?: number
+          capability: string
+          created_at?: string
+          job_id: string
+          reserved_usd?: number
+          settled_usd?: number
+        }
+        Update: {
+          attempts?: number
+          capability?: string
+          created_at?: string
+          job_id?: string
+          reserved_usd?: number
+          settled_usd?: number
+        }
+        Relationships: []
+      }
+      provider_spend_ledger: {
+        Row: {
+          actual_usd: number | null
+          attempt: number
+          capability: string
+          created_at: string
+          day: string
+          detail: Json | null
+          estimated_usd: number
+          id: string
+          job_id: string | null
+          model: string
+          outcome: string | null
+          provider: string
+          request_id: string
+          settled_at: string | null
+          state: string
+          unit: string
+          units_actual: number | null
+          units_reserved: number
+          user_id: string | null
+        }
+        Insert: {
+          actual_usd?: number | null
+          attempt?: number
+          capability: string
+          created_at?: string
+          day?: string
+          detail?: Json | null
+          estimated_usd: number
+          id?: string
+          job_id?: string | null
+          model: string
+          outcome?: string | null
+          provider: string
+          request_id: string
+          settled_at?: string | null
+          state?: string
+          unit: string
+          units_actual?: number | null
+          units_reserved: number
+          user_id?: string | null
+        }
+        Update: {
+          actual_usd?: number | null
+          attempt?: number
+          capability?: string
+          created_at?: string
+          day?: string
+          detail?: Json | null
+          estimated_usd?: number
+          id?: string
+          job_id?: string | null
+          model?: string
+          outcome?: string | null
+          provider?: string
+          request_id?: string
+          settled_at?: string | null
+          state?: string
+          unit?: string
+          units_actual?: number | null
+          units_reserved?: number
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       quiz_attempts: {
         Row: {
           answer_sheet: Json | null
@@ -3809,114 +3956,6 @@ export type Database = {
           name?: string
           rating?: number | null
           review_count?: number | null
-        }
-        Relationships: []
-      }
-      search_budget_config: {
-        Row: {
-          daily_usd_cap: number
-          enabled: boolean
-          id: boolean
-          request_usd_cap: number
-          updated_at: string
-        }
-        Insert: {
-          daily_usd_cap: number
-          enabled?: boolean
-          id?: boolean
-          request_usd_cap?: number
-          updated_at?: string
-        }
-        Update: {
-          daily_usd_cap?: number
-          enabled?: boolean
-          id?: boolean
-          request_usd_cap?: number
-          updated_at?: string
-        }
-        Relationships: []
-      }
-      search_spend_day: {
-        Row: {
-          day: string
-          request_count: number
-          reserved_usd: number
-          settled_usd: number
-        }
-        Insert: {
-          day: string
-          request_count?: number
-          reserved_usd?: number
-          settled_usd?: number
-        }
-        Update: {
-          day?: string
-          request_count?: number
-          reserved_usd?: number
-          settled_usd?: number
-        }
-        Relationships: []
-      }
-      search_spend_ledger: {
-        Row: {
-          actual_usd: number | null
-          cache_hits: number | null
-          created_at: string
-          day: string
-          estimated_usd: number
-          id: string
-          input_tokens: number | null
-          llm_calls: number | null
-          model: string | null
-          output_tokens: number | null
-          provider: string
-          request_id: string
-          search_count: number | null
-          search_type: string | null
-          settled_at: string | null
-          state: string
-          termination_reason: string | null
-          user_id: string | null
-        }
-        Insert: {
-          actual_usd?: number | null
-          cache_hits?: number | null
-          created_at?: string
-          day?: string
-          estimated_usd: number
-          id?: string
-          input_tokens?: number | null
-          llm_calls?: number | null
-          model?: string | null
-          output_tokens?: number | null
-          provider: string
-          request_id: string
-          search_count?: number | null
-          search_type?: string | null
-          settled_at?: string | null
-          state?: string
-          termination_reason?: string | null
-          user_id?: string | null
-        }
-        Update: {
-          actual_usd?: number | null
-          cache_hits?: number | null
-          created_at?: string
-          day?: string
-          estimated_usd?: number
-          id?: string
-          input_tokens?: number | null
-          llm_calls?: number | null
-          model?: string | null
-          output_tokens?: number | null
-          provider?: string
-          request_id?: string
-          search_count?: number | null
-          search_type?: string | null
-          settled_at?: string | null
-          state?: string
-          termination_reason?: string | null
-          user_id?: string | null
         }
         Relationships: []
       }
@@ -5234,34 +5273,26 @@ export type Database = {
         }
         Relationships: []
       }
-      search_spend_daily_metrics: {
+      provider_spend_daily_metrics: {
         Row: {
-          avg_input_tokens: number | null
-          avg_output_tokens: number | null
-          avg_searches: number | null
-          cache_hit_rate: number | null
+          accepted: number | null
+          avg_attempts: number | null
+          capability: string | null
           charged_usd: number | null
           day: string | null
-          max_searches: number | null
+          failed: number | null
+          filtered: number | null
           model: string | null
           provider: string | null
+          rejected: number | null
           released: number | null
           requests: number | null
-          search_type: string | null
           settled: number | null
           settled_without_known_cost: number | null
           still_reserved: number | null
-          total_searches: number | null
-        }
-        Relationships: []
-      }
-      search_termination_mix: {
-        Row: {
-          charged_usd: number | null
-          day: string | null
-          requests: number | null
-          search_type: string | null
-          termination_reason: string | null
+          unit: string | null
+          units: number | null
+          usd_per_accepted_unit: number | null
         }
         Relationships: []
       }
@@ -5305,13 +5336,17 @@ export type Database = {
         Args: { _content_id: string; _content_type: string; _reason?: string }
         Returns: undefined
       }
-      admit_search_spend: {
+      admit_provider_spend: {
         Args: {
+          _capability: string
+          _detail?: Json
           _estimated_usd: number
-          _model?: string
+          _job_id?: string
+          _model: string
           _provider: string
           _request_id: string
-          _search_type?: string
+          _unit: string
+          _units: number
           _user_id?: string
         }
         Returns: Json
@@ -5847,8 +5882,12 @@ export type Database = {
         Args: { _post_id: string; _post_type: string }
         Returns: undefined
       }
+      record_provider_outcome: {
+        Args: { _detail?: Json; _outcome: string; _request_id: string }
+        Returns: Json
+      }
       refund_story_seconds: { Args: { _job_id: string }; Returns: Json }
-      release_search_spend: { Args: { _request_id: string }; Returns: Json }
+      release_provider_spend: { Args: { _request_id: string }; Returns: Json }
       remove_group_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: undefined
@@ -5897,16 +5936,13 @@ export type Database = {
         Args: { _attempt: string; _provider_payout_id: string }
         Returns: Json
       }
-      settle_search_spend: {
+      settle_provider_spend: {
         Args: {
           _actual_usd?: number
-          _cache_hits?: number
-          _input_tokens?: number
-          _llm_calls?: number
-          _output_tokens?: number
+          _detail?: Json
+          _outcome?: string
           _request_id: string
-          _search_count?: number
-          _termination_reason?: string
+          _units_actual?: number
         }
         Returns: Json
       }
