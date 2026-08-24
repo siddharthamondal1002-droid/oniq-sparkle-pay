@@ -21,6 +21,7 @@ import {
   USD_DECIMALS,
   validateBudgetCaps,
   providerBudgetStatus,
+  effectiveJobSpendCap,
 } from "../../../supabase/functions/_shared/financialLedger.ts";
 import {
   chooseTier,
@@ -249,6 +250,74 @@ describe("the owner's configured VIDEO ceilings", () => {
       .map((m) => m[1])
       .filter((c, i, a) => a.indexOf(c) === i);
     expect(capabilities).toEqual(["VIDEO"]);
+  });
+
+  it("distinguishes the CONFIGURED ceiling from what the retry ladder can reach", () => {
+    const request = Number(OWNER_CAPS.request); // 1.00
+    const job = Number(OWNER_CAPS.job); // 5.00
+    const attempts = 3;
+
+    // The permanent answer to "why is the $5 job cap unreachable?".
+    // It is a backstop, not a budget the ladder is expected to consume.
+    expect(effectiveJobSpendCap(request, job, attempts)).toBe(3.0);
+    expect(job).toBe(5.0); // the configured ceiling is unchanged, and stays
+    expect(effectiveJobSpendCap(request, job, attempts)).toBeLessThan(job);
+  });
+
+  it("proves a future retry increase can never bypass the job ceiling", () => {
+    const request = Number(OWNER_CAPS.request);
+    const job = Number(OWNER_CAPS.job);
+    // Hypothetical configurations only — production stays at 3 attempts.
+    expect(effectiveJobSpendCap(request, job, 3)).toBe(3.0);
+    expect(effectiveJobSpendCap(request, job, 4)).toBe(4.0);
+    expect(effectiveJobSpendCap(request, job, 5)).toBe(5.0); // ladder meets ceiling
+    expect(effectiveJobSpendCap(request, job, 6)).toBe(5.0); // ceiling binds
+    expect(effectiveJobSpendCap(request, job, 10)).toBe(5.0); // still binds
+    // Whatever the ladder becomes, the job ceiling is the upper bound.
+    for (const a of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+      expect(effectiveJobSpendCap(request, job, a)).toBeLessThanOrEqual(job);
+    }
+  });
+
+  it("and the daily ceiling still bounds the whole fleet above that", () => {
+    const daily = Number(OWNER_CAPS.daily);
+    expect(effectiveJobSpendCap(1, 5, 3)).toBeLessThanOrEqual(daily);
+    expect(Number(OWNER_CAPS.job)).toBeLessThanOrEqual(daily);
+  });
+
+  it("computes exposure at the ledger's own precision, with no float dust", () => {
+    // 0.1 * 3 is 0.30000000000000004 in IEEE-754; a figure quoted to a human
+    // must not carry that.
+    expect(effectiveJobSpendCap(0.1, 99, 3)).toBe(0.3);
+    expect(effectiveJobSpendCap(0.03, 99, 60)).toBe(1.8);
+    expect(roundUsd(effectiveJobSpendCap(1, 5, 3))).toBe(3.0);
+    // Non-finite in, non-finite out — never a fabricated number.
+    expect(Number.isNaN(effectiveJobSpendCap(NaN, 5, 3))).toBe(true);
+    expect(Number.isNaN(effectiveJobSpendCap(1, Infinity, 3))).toBe(true);
+    expect(Number.isNaN(effectiveJobSpendCap(1, 5, 2.5))).toBe(true);
+  });
+
+  it("is explanatory only — enforcement stays in PostgreSQL", () => {
+    const src = read("supabase/functions/_shared/financialLedger.ts");
+    // The helper must never be wired into an admission decision.
+    expect(src).toMatch(/PostgreSQL remains authoritative/);
+    // And the real ceilings are still checked by the database function.
+    expect(INVARIANTS_SQL).toMatch(/_estimated_usd > cfg\.request_usd_cap/);
+    expect(INVARIANTS_SQL).toMatch(/cfg\.job_usd_cap - job_committed/);
+    expect(INVARIANTS_SQL).toMatch(/job_row\.attempts >= cfg\.max_attempts_per_job/);
+  });
+
+  it("does NOT require the job ceiling to be reachable", () => {
+    // A backstop above the ladder is legal and deliberate. If validation ever
+    // demanded job <= request * attempts, this configuration would be rejected.
+    expect(
+      validateBudgetCaps({
+        requestUsdCap: 1,
+        jobUsdCap: 5,
+        dailyUsdCap: 50,
+        maxAttemptsPerJob: 3,
+      }).valid,
+    ).toBe(true);
   });
 
   it("verifies its own write rather than trusting the insert to have landed", () => {

@@ -57,6 +57,83 @@ attempt is. A $0.001 model retried forever is still an outage.
 A day cap alone cannot stop one film eating the day, and neither can stop a
 single shot retrying forever.
 
+### The four controls, precisely
+
+| Control                | Kind  | Bounds                                      |
+| ---------------------- | ----- | ------------------------------------------- |
+| `request_usd_cap`      | money | what ONE attempt may **reserve**            |
+| `job_usd_cap`          | money | committed (reserved + settled) for ONE job  |
+| `daily_usd_cap`        | money | committed across ALL jobs, per day          |
+| `max_attempts_per_job` | count | how many attempts one job's ladder may make |
+
+### Configured ceiling vs currently reachable exposure
+
+**These are different numbers, and the difference is deliberate.**
+
+```
+effective_job_exposure = min(job_usd_cap, request_usd_cap × max_attempts_per_job)
+```
+
+For the configuration in force — request **$1.00**, job **$5.00**, daily
+**$50.00**, attempts **3**:
+
+```
+min($5.00, $1.00 × 3) = $3.00
+```
+
+So the retry ladder can reserve at most **$3.00** against a job ceiling of
+**$5.00**.
+
+> **A job ceiling may be higher than the maximum currently reachable spend
+> because the job ceiling is an independent financial backstop. Increasing the
+> retry ladder in the future must never bypass the job ceiling.**
+
+The $2.00 gap is **not** wasted, **not** an accounting bug, and **not**
+something to "fix" by lowering the job cap or raising the attempt count — both
+are owner policy decisions. The $5.00 is retained deliberately as the absolute
+per-job backstop, so that a future change to retry policy runs into a ceiling
+that is already there rather than one nobody set.
+
+Proved on PostgreSQL 16.13, both directions:
+
+```
+attempts = 3  (production)   attempt 4 -> job-attempts-exhausted
+                             job committed 3.000000, ceiling 5.0000 unreached
+                             THE LADDER BINDS
+
+attempts = 10 (hypothetical) attempt 6 -> job-cap-reached
+                             job committed 5.000000, 5 of 10 attempts used
+                             THE MONEY BINDS
+```
+
+`effectiveJobSpendCap()` in `_shared/financialLedger.ts` states this in code and
+`videoCaps.test.ts` regression-tests it at 3, 4, 5, 6 and 10 attempts — where
+the answers are $3, $4, $5, $5, $5. It is **explanatory only**: PostgreSQL's
+`admit_provider_spend` holds the row locks and makes the real decision, and no
+spend is ever routed through the helper.
+
+### What the ceilings bound is ADMISSION, not the provider's invoice
+
+Measured, same instance: admission caps what each attempt may **reserve**, but
+`settle_provider_spend` records the provider's **actual** charge with no
+ceiling. A $1.00 reservation settled at a reported $3.00 charges $3.00 —
+because refusing to record a real invoice would be fabricating a cheaper one,
+and this ledger's first rule is that unknown or inconvenient costs never become
+smaller than they are.
+
+The protection is that an overspend is immediately visible to the **next**
+admission, since `committed = reserved + settled`:
+
+```
+reserve 1.00, settle actual 3.00   -> job settled 3.000000
+next attempt at 1.00               -> admitted   (committed 4.00 <= 5.00)
+next attempt at 2.01               -> over-request-cap
+```
+
+So the ladder self-corrects and stops early. Read `effective_job_exposure` as
+"the most the retry ladder may **ask for**", never as a guarantee about what a
+provider will bill.
+
 ### Exactly equal to a ceiling is ADMITTED
 
 The same rule at all three: a ceiling is the most that may be spent, not the
@@ -264,28 +341,33 @@ and with `max_attempts_per_job = 3` instead: 3 admitted, 5 refused
 `job-attempts-exhausted`. The day-ceiling proof (including the control that
 removes `for update` and reaches **250% of cap**) is unchanged from §6.
 
-## 7. Not activated — `CAP_VALUES_UNSET`
+## 7. Configured, and still not activated
 
-No capability row is seeded. `enabled` is false. `provider_budget_status('VIDEO')`
-returns `SPEND_CAP_UNSET`. There is deliberately **no default** for any ceiling,
-so nothing can spend until the owner supplies numbers.
+**VIDEO caps are set. VIDEO generation is off.** Those are two decisions and the
+owner has made only the first.
 
-The three values the owner must decide, and the only place they belong:
+|                          |                                               |
+| ------------------------ | --------------------------------------------- |
+| `request_usd_cap`        | **$1.00**                                     |
+| `job_usd_cap`            | **$5.00**                                     |
+| `daily_usd_cap`          | **$50.00**                                    |
+| `max_attempts_per_job`   | **3**                                         |
+| `enabled`                | **false**                                     |
+| `provider_budget_status` | `CAPABILITY_DISABLED`, `capsConfigured: true` |
 
-```sql
-insert into public.provider_budget_config
-  (capability, request_usd_cap, job_usd_cap, daily_usd_cap,
-   max_attempts_per_job, enabled)
-values
-  ('VIDEO', <VIDEO_REQUEST_USD_CAP>, <VIDEO_JOB_USD_CAP>, <VIDEO_DAILY_USD_CAP>,
-   3, false);
-```
+Owner directive of 2026-08-24, recorded in
+`supabase/migrations/20260824170000_video_spend_ceilings.sql`. That migration
+inserts `enabled = false` and its `ON CONFLICT` clause deliberately omits
+`enabled`, so re-running it can neither switch generation on nor switch it off
+behind an owner who set it.
 
-Constraints on the owner's answer: each must be finite and strictly positive,
-and `request ≤ job ≤ daily`. `enabled` stays `false` until the owner separately
-authorises generation — inserting the caps is not the same decision as turning
-generation on.
+There is still **no default** on any ceiling. A capability the owner has not
+configured stays `SPEND_CAP_UNSET` — refused, never unlimited.
 
-An agent must not pick these numbers. They decide how much of the owner's money
-a runaway can spend, which is a business decision under
-`CLAUDE.md § Business decisions are the owner's`.
+An agent must not pick these numbers, change them, or turn generation on. They
+decide how much of the owner's money a runaway can spend, which is a business
+decision under `CLAUDE.md § Business decisions are the owner's`.
+
+**What is still required to generate:** an explicit owner instruction to set
+`enabled = true`, plus live provider credentials, plus benchmark evidence for
+`chooseTier()` — which refuses on all three counts today.

@@ -86,6 +86,63 @@ export function roundUsd(v: number): number {
   return Math.round(v * USD_SCALE) / USD_SCALE;
 }
 
+// -------------------------------------------------- ceiling vs reachable spend
+/**
+ * FOUR CONTROLS, AND THEY ARE NOT THE SAME KIND OF THING.
+ *
+ *   request_usd_cap       per-ATTEMPT ceiling on what may be RESERVED
+ *   job_usd_cap           per-JOB ceiling on committed (reserved + settled)
+ *   daily_usd_cap         per-DAY ceiling on committed, across all jobs
+ *   max_attempts_per_job  a COUNT. Not money. Bounds the retry ladder no
+ *                         matter how cheap an individual attempt is.
+ *
+ * WHY THIS FUNCTION EXISTS. With the owner's 2026-08-24 configuration —
+ * request $1.00, job $5.00, daily $50.00, attempts 3 — a job's retry ladder
+ * can reserve at most 3 x $1.00 = $3.00, so the $5.00 job ceiling is never
+ * reached by retries alone. That is NOT an accounting bug and NOT a wasted
+ * $2.00, and the next engineer to notice the gap needs to find this comment
+ * rather than "fix" it.
+ *
+ * A JOB CEILING MAY SIT ABOVE THE MAXIMUM CURRENTLY REACHABLE SPEND, BECAUSE
+ * THE JOB CEILING IS AN INDEPENDENT FINANCIAL BACKSTOP. Raising the retry
+ * ladder later must never bypass it: at attempts = 6 the reachable figure is
+ * still $5.00, because the job ceiling — not the ladder — binds.
+ *
+ * ---------------------------------------------------------------------------
+ * THIS IS EXPLANATORY, NOT ENFORCEMENT. PostgreSQL remains authoritative:
+ * `admit_provider_spend` holds the row locks and makes the real decision. This
+ * function exists so a human (or a preflight, or a dashboard) can state what
+ * the configuration MEANS without re-deriving it, and so the meaning is
+ * regression-tested. Never route a spend decision through it.
+ * ---------------------------------------------------------------------------
+ *
+ * AND IT BOUNDS RESERVATIONS, NOT REALITY. Measured on PostgreSQL 16.13:
+ * admission caps what each attempt may RESERVE, but `settle_provider_spend`
+ * records the provider's ACTUAL charge with no ceiling — a $1.00 reservation
+ * settled at a reported $3.00 charges $3.00, because refusing to record a real
+ * invoice would be fabricating a cheaper one. The protection is that the
+ * overspend is immediately visible to the NEXT admission (committed =
+ * reserved + settled), so the ladder self-corrects and stops early. Read this
+ * value as "the most the retry ladder may ASK FOR", never as a guarantee about
+ * what a provider will bill.
+ */
+export function effectiveJobSpendCap(
+  requestUsdCap: number,
+  jobUsdCap: number,
+  maxAttemptsPerJob: number,
+): number {
+  if (
+    !Number.isFinite(requestUsdCap) ||
+    !Number.isFinite(jobUsdCap) ||
+    !Number.isInteger(maxAttemptsPerJob)
+  ) {
+    return NaN;
+  }
+  // roundUsd, not raw multiplication: 0.1 * 3 is 0.30000000000000004, and a
+  // figure quoted to a human must not carry float dust.
+  return Math.min(jobUsdCap, roundUsd(requestUsdCap * maxAttemptsPerJob));
+}
+
 // ------------------------------------------------------------ budget status
 /**
  * Is a capability configured to spend at all?
