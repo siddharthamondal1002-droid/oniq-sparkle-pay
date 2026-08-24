@@ -43,7 +43,12 @@
  * character/appearance parameter in the arg builder.
  */
 
-import type { MotionClip, MotionProvider, MotionRequest, ProviderMeta } from "./motionProvider.ts";
+import type {
+  MotionClip,
+  MotionProvider,
+  MotionRequest,
+  ProviderMeta,
+} from "./motionProvider.ts";
 
 /** ARAP pose-warp, CPU-only OSS. Costed in CPU-runner seconds, not rupees:
  *  ~69-78 s of 4-core CPU per ~12.5 s clip was the measured reference figure;
@@ -93,86 +98,50 @@ export const ARAP_L3_RUN: ArapL3RunSpec = {
  * ONLY classes with a real-pixel PASS are present; asking for anything else
  * is a structured permanent miss, and the still path carries the shot.
  */
-export const ARAP_MOTION_GRAMMAR: Readonly<Partial<Record<MotionRequest["motionClass"], string>>> =
-  {
-    WALKING: "examples/bvh/fair1/zombie.bvh",
-    // Unspecified character motion gets IDLE — the safe subtle in-place life,
-    // never a guessed walk. The driver is derived at run time by
-    // remotion/scripts/bvh_idle_reference.py (rotations scaled 0.25 toward
-    // frame 0, root pinned) — s=0.10 failed the aliveness gate (0.43,
-    // recorded falsification); s=0.25 passed real pixels (0.94, grounded
-    // feet, stable identity, no artifacts).
-    CHARACTER_MOTION:
-      "derived://bvh_idle_reference.py?src=examples/bvh/fair1/zombie.bvh&scale=0.25",
-  };
+export const ARAP_MOTION_GRAMMAR: Readonly<Partial<Record<MotionRequest["motionClass"], string>>> = {
+  WALKING: "examples/bvh/fair1/zombie.bvh",
+};
 
 /**
- * PRE-RENDER CHARACTER ELIGIBILITY — the measured envelope, revised by the
- * 24-character generalization-v2 corpus (2026-08-22, real renders).
+ * PRE-RENDER CHARACTER ELIGIBILITY — the measured envelope (2026-08-22,
+ * six-character ONIQ corpus, real renders). Two bounded failure classes
+ * collapsed the ARAP mesh regardless of retarget config (proven: the same
+ * characters collapse under stock AND arm-damped mappings):
  *
- * THE v2 ROOT-CAUSE RESULT. v1's headline rule — "bbox fill > 65% is a
- * merged-blob collapse class" — was FALSIFIED as a mechanism: mother
- * (74.8%) and princess (77.6%) render intact walks once the crop carries a
- * margin. The real cause of the v1 collapses AND every solver hang
- * (5 characters, 300-900 s with zero output) was the mask being CUT AT THE
- * CROP BORDER: all pathological rigs touched >=3 crop edges, all clean
- * ones <=2, AD's own bundled rigs 0 — and re-rendering the SAME rigs with
- * a 24 px margin fixed 8 of 10 (adchar2 was proven twice: my border-cut
- * rig hung, AD's padded rig of the same drawing rendered in 41 s).
- * autorig_reference.py now pads every crop; this gate ENFORCES that
- * contract rather than proxying it with fill.
+ *   1. MERGED SILHOUETTE — limbs not separated from the body in the mask
+ *      (mother 74.8% bbox fill, lampJinni 67.3% → both collapsed; every
+ *      clean walk sat at 51-57%). The armsAgainstTorso class motionCost.ts
+ *      already names, now with a measurable proxy.
+ *   2. CORE JOINT OFF-SILHOUETTE — a shoulder/hip/knee/foot localized
+ *      outside the mask (fisherman: left_shoulder+left_foot → collapsed;
+ *      magician: right_knee+right_foot → pathological render). An elbow or
+ *      hand grazing outside is fine (both clean aladdin rigs have one).
  *
- * What remains, measured:
- *   - CORE JOINT OFF-SILHOUETTE (under the better of the classical/rembg
- *     masks) still marks degenerate rigs. An elbow/hand grazing outside is
- *     fine — both clean aladdin rigs have one.
- *   - RIG CONFIDENCE separates the residual bad renders: every clean walk
- *     has kpt_conf_mean >= 0.77; the crushed jarJinni sits at 0.61,
- *     adchar6 0.59, the failed side-views ~0.60. Floor: 0.70 (admits the
- *     marginal-but-intact lampJinni at 0.74; rejects marginal ringJinni at
- *     0.66 — a safe-direction false reject).
- *   - A NEAR-TOTAL fill (>90%) still means broken segmentation (the
- *     classical mask returns 100% on painterly art) — kept as a
- *     degenerate-mask ceiling, not a silhouette-shape rule.
- *
- * KNOWN RESIDUAL FALSE ACCEPT (1 of 11 admitted in the corpus): adchar4 —
- * a bent stick figure whose limbs are far thinner than the ~24 px ARAP
- * mesh grid — passes every metric (conf 0.82, joints inside) and renders
- * badly. No reliable cheap metric separates it yet (its mean stroke width
- * ~25 px vs clean adchar2's ~28 px); it is documented, and the canary's
- * human pixel review is the backstop. Post-render, l3RenderQc plus
- * temporalAliveness stay mandatory: aliveness alone scored every collapse
- * "alive" — a changing-pixel metric is necessary, never sufficient.
+ * On the corpus these two gates admit every clean walk and reject every
+ * collapse, so an ineligible character is a correct still-path fallback,
+ * never a garbage clip. THRESHOLDS ARE PROVISIONAL — measured on n=6;
+ * widening the corpus before trusting them harder is the recorded follow-up.
+ * Post-render, l3RenderQc (fill ≥4%) plus temporalAliveness stay mandatory:
+ * they caught 2 of 3 collapses blind, and the aliveness score alone waved
+ * all 3 through — a changing-pixel metric is necessary, never sufficient.
  */
 export const ARAP_ELIGIBILITY = {
-  /** Above this the mask is degenerate segmentation, not a silhouette. */
-  maxBboxFillPct: 90,
+  /** Above this the silhouette is a merged blob (limbs not separated). */
+  maxBboxFillPct: 65,
   /** Joints that must sit ON the silhouette for the solve to stay sane. */
   coreJoints: ["shoulder", "hip", "knee", "foot"],
-  /** Minimum pose-model mean keypoint confidence (measured separator). */
-  minKptConfMean: 0.7,
 } as const;
 
 export function arapCharacterEligible(m: {
-  /** Foreground fraction of the character's padded crop mask, percent. */
+  /** Foreground fraction of the character's tight bbox mask, percent. */
   bboxFillPct: number;
   /** Names of skeleton joints whose location falls outside the mask. */
   jointsOutsideMask: string[];
-  /** Pose-model mean keypoint confidence for the rig (0..1). */
-  kptConfMean: number;
-  /** True when the mask touches any crop border — the padding contract
-   *  autorig_reference.py guarantees was violated upstream. */
-  maskTouchesBorder: boolean;
 }): { eligible: boolean; reasons: string[] } {
   const reasons: string[] = [];
-  if (m.maskTouchesBorder) {
-    reasons.push(
-      "mask touches the crop border (padding contract violated — the measured solver-hang/collapse class)",
-    );
-  }
   if (m.bboxFillPct > ARAP_ELIGIBILITY.maxBboxFillPct) {
     reasons.push(
-      `mask fills ${m.bboxFillPct.toFixed(1)}% of the crop (> ${ARAP_ELIGIBILITY.maxBboxFillPct}% — degenerate segmentation, not a silhouette)`,
+      `silhouette is a merged blob (${m.bboxFillPct.toFixed(1)}% bbox fill > ${ARAP_ELIGIBILITY.maxBboxFillPct}% — limbs not separated, ARAP collapse class)`,
     );
   }
   const core = m.jointsOutsideMask.filter((j) =>
@@ -180,11 +149,6 @@ export function arapCharacterEligible(m: {
   );
   if (core.length > 0) {
     reasons.push(`core joints off the silhouette: ${core.join(", ")} (degenerate solve class)`);
-  }
-  if (m.kptConfMean < ARAP_ELIGIBILITY.minKptConfMean) {
-    reasons.push(
-      `rig confidence ${m.kptConfMean.toFixed(2)} < ${ARAP_ELIGIBILITY.minKptConfMean} (hallucinated-joint class — jarJinni/side-view band)`,
-    );
   }
   return { eligible: reasons.length === 0, reasons };
 }
@@ -258,7 +222,7 @@ export function makeArapL3Provider(runner: ArapCpuRunner | null): MotionProvider
       if (!driver) {
         return {
           ok: false,
-          reason: `no pixel-proven ARAP driver for ${req.motionClass} (grammar is evidence-gated; WALKING and derived IDLE today)`,
+          reason: `no pixel-proven ARAP driver for ${req.motionClass} (grammar is evidence-gated; WALKING only today)`,
           provider: ARAP_L3_META.name,
           class: "permanent",
         };

@@ -41,13 +41,7 @@ const veo = (available: boolean): MotionProvider => ({
   meta: VEO_META,
   available: () => available,
   generate: () =>
-    Promise.resolve({
-      ok: true,
-      data: "QUJD",
-      mime: "video/mp4",
-      seconds: 4,
-      provider: VEO_META.name,
-    }),
+    Promise.resolve({ ok: true, data: "QUJD", mime: "video/mp4", seconds: 4, provider: VEO_META.name }),
 });
 
 describe("provider identity and recorded facts", () => {
@@ -69,20 +63,12 @@ describe("provider identity and recorded facts", () => {
     expect(ARAP_L3_RUN.retargetConfig).toBe("remotion/scripts/retarget_armdamped_reference.yaml");
     expect(ARAP_L3_RUN.mask).toBe("rembg-u2netp");
     expect(ARAP_L3_RUN.numpyPin).toBe("1.26.4");
-    expect(ARAP_L3_RUN.env).toEqual({
-      PYOPENGL_PLATFORM: "osmesa",
-      MESA_GL_VERSION_OVERRIDE: "3.3",
-    });
+    expect(ARAP_L3_RUN.env).toEqual({ PYOPENGL_PLATFORM: "osmesa", MESA_GL_VERSION_OVERRIDE: "3.3" });
   });
 
-  it("the grammar carries ONLY pixel-proven motion (WALKING + derived IDLE)", () => {
-    expect(Object.keys(ARAP_MOTION_GRAMMAR)).toEqual(["WALKING", "CHARACTER_MOTION"]);
+  it("the grammar carries ONLY pixel-proven motion (WALKING today)", () => {
+    expect(Object.keys(ARAP_MOTION_GRAMMAR)).toEqual(["WALKING"]);
     expect(ARAP_MOTION_GRAMMAR.WALKING).toBe("examples/bvh/fair1/zombie.bvh");
-    // IDLE's driver is DERIVED, deterministically, from the MIT walk clip —
-    // the generator script is versioned, the media is not.
-    expect(ARAP_MOTION_GRAMMAR.CHARACTER_MOTION).toBe(
-      "derived://bvh_idle_reference.py?src=examples/bvh/fair1/zombie.bvh&scale=0.25",
-    );
   });
 });
 
@@ -202,7 +188,10 @@ describe("separation pins — nothing existing moves", () => {
   });
 
   it("the worker has no ARAP path — the provider is default OFF everywhere", () => {
-    const worker = readFileSync(join(process.cwd(), "remotion/scripts/story-worker.mjs"), "utf8");
+    const worker = readFileSync(
+      join(process.cwd(), "remotion/scripts/story-worker.mjs"),
+      "utf8",
+    );
     expect(worker).not.toMatch(/arapProvider|arap-l3/i);
     expect(worker).toMatch(/edge\('story-clip'/);
   });
@@ -235,118 +224,43 @@ describe("chaos — every breakage ends on the still path, film still renderable
   });
 });
 
-describe("character eligibility — the measured generalization-v2 corpus verbatim", () => {
-  // Real 2026-08-22 measurements after the padding fix: best-mask fill %,
-  // joints the auto-rig localized outside that mask, pose-model mean
-  // keypoint confidence, and the PADDED-render pixel outcome. adchar4 is
-  // the documented residual false accept (thin stick figure below the ARAP
-  // mesh pitch) — the gate admits it and the render is bad; the canary's
-  // human pixel review is the recorded backstop.
+describe("character eligibility — the measured 6-character corpus verbatim", () => {
+  // Real 2026-08-22 measurements: bbox fill % of the rembg mask, and which
+  // skeleton joints the auto-rig localized outside the silhouette.
   const CORPUS = [
-    {
-      name: "aladdin_auto",
-      fill: 57.0,
-      outside: ["right_hand"],
-      conf: 0.86,
-      admit: true,
-      clean: true,
-    },
-    { name: "morgiana", fill: 51.7, outside: [], conf: 0.87, admit: true, clean: true },
-    { name: "adchar1", fill: 51.1, outside: [], conf: 0.9, admit: true, clean: true },
-    { name: "adchar2", fill: 27.9, outside: [], conf: 0.91, admit: true, clean: true },
-    { name: "adchar3", fill: 33.1, outside: [], conf: 0.87, admit: true, clean: true },
-    { name: "fisherman_staff", fill: 51.6, outside: [], conf: 0.79, admit: true, clean: true },
-    { name: "mother", fill: 74.8, outside: [], conf: 0.81, admit: true, clean: true },
-    { name: "princess", fill: 77.6, outside: [], conf: 0.86, admit: true, clean: true },
-    { name: "lampJinni", fill: 67.3, outside: [], conf: 0.74, admit: true, clean: true },
-    { name: "adchar4", fill: 34.9, outside: [], conf: 0.82, admit: true, clean: false }, // residual
-    { name: "jarJinni", fill: 53.5, outside: [], conf: 0.61, admit: false, clean: false },
-    { name: "ringJinni", fill: 55.0, outside: [], conf: 0.66, admit: false, clean: false },
-    {
-      name: "adchar6",
-      fill: 40.2,
-      outside: ["right_knee", "left_foot"],
-      conf: 0.59,
-      admit: false,
-      clean: false,
-    },
-    {
-      name: "aladdin_side",
-      fill: 50.6,
-      outside: ["right_shoulder", "left_hip"],
-      conf: 0.6,
-      admit: false,
-      clean: false,
-    },
-    { name: "degenerate_mask", fill: 100.0, outside: [], conf: 0.9, admit: false, clean: false },
+    { name: "aladdin_hand", fill: 57.0, outside: ["left_elbow"], walked: true },
+    { name: "aladdin_auto", fill: 57.0, outside: ["right_hand"], walked: true },
+    { name: "morgiana", fill: 51.7, outside: [], walked: true },
+    { name: "mother", fill: 74.8, outside: [], walked: false },
+    { name: "fisherman", fill: 53.4, outside: ["left_shoulder", "left_foot"], walked: false },
+    { name: "lampJinni", fill: 67.3, outside: [], walked: false },
   ];
 
-  it("reproduces the measured corpus decisions, residual false accept included", () => {
+  it("admits every measured clean walk and rejects every measured collapse", () => {
     for (const c of CORPUS) {
-      const v = arapCharacterEligible({
-        bboxFillPct: c.fill,
-        jointsOutsideMask: c.outside,
-        kptConfMean: c.conf,
-        maskTouchesBorder: false,
-      });
-      expect(v.eligible, c.name).toBe(c.admit);
-      if (v.eligible) {
-        // Every rejection is a safe still-path fallback; every admission is
-        // a clean walk EXCEPT the one documented residual (adchar4).
-        expect(c.clean || c.name === "adchar4", c.name).toBe(true);
-      }
+      const v = arapCharacterEligible({ bboxFillPct: c.fill, jointsOutsideMask: c.outside });
+      expect(v.eligible, c.name).toBe(c.walked);
     }
-  });
-
-  it("a border-touching mask is rejected outright — the measured hang/collapse class", () => {
-    const v = arapCharacterEligible({
-      bboxFillPct: 50,
-      jointsOutsideMask: [],
-      kptConfMean: 0.9,
-      maskTouchesBorder: true,
-    });
-    expect(v.eligible).toBe(false);
-    expect(v.reasons[0]).toMatch(/padding contract violated/);
   });
 
   it("an elbow or hand grazing outside the mask is not a rejection", () => {
     const v = arapCharacterEligible({
       bboxFillPct: 55,
       jointsOutsideMask: ["left_elbow", "right_hand"],
-      kptConfMean: 0.85,
-      maskTouchesBorder: false,
     });
     expect(v.eligible).toBe(true);
   });
 
   it("names the reason classes so the fallback log says WHY", () => {
-    const degenerate = arapCharacterEligible({
-      bboxFillPct: 100,
-      jointsOutsideMask: [],
-      kptConfMean: 0.9,
-      maskTouchesBorder: false,
-    });
-    expect(degenerate.reasons[0]).toMatch(/degenerate segmentation/);
-    const joints = arapCharacterEligible({
-      bboxFillPct: 50,
-      jointsOutsideMask: ["right_knee"],
-      kptConfMean: 0.9,
-      maskTouchesBorder: false,
-    });
+    const blob = arapCharacterEligible({ bboxFillPct: 80, jointsOutsideMask: [] });
+    expect(blob.reasons[0]).toMatch(/merged blob/);
+    const joints = arapCharacterEligible({ bboxFillPct: 50, jointsOutsideMask: ["right_knee"] });
     expect(joints.reasons[0]).toMatch(/core joints off the silhouette/);
-    const conf = arapCharacterEligible({
-      bboxFillPct: 50,
-      jointsOutsideMask: [],
-      kptConfMean: 0.55,
-      maskTouchesBorder: false,
-    });
-    expect(conf.reasons[0]).toMatch(/hallucinated-joint class/);
   });
 
-  it("pins the measured thresholds so a drift is a decision, not an accident", () => {
-    expect(ARAP_ELIGIBILITY.maxBboxFillPct).toBe(90);
+  it("pins the provisional thresholds so a drift is a decision, not an accident", () => {
+    expect(ARAP_ELIGIBILITY.maxBboxFillPct).toBe(65);
     expect(ARAP_ELIGIBILITY.coreJoints).toEqual(["shoulder", "hip", "knee", "foot"]);
-    expect(ARAP_ELIGIBILITY.minKptConfMean).toBe(0.7);
   });
 });
 
@@ -358,7 +272,9 @@ describe("the committed retarget config IS the measured one", () => {
 
   it("drives all four elbow/hand joints with the DOWNWARD trunk vector", () => {
     for (const joint of ["left_elbow", "left_hand", "right_elbow", "right_hand"]) {
-      const m = cfg.match(new RegExp(`  ${joint}: !!python/tuple\\n  - (\\w+)\\n  - (\\w+)`));
+      const m = cfg.match(
+        new RegExp(`  ${joint}: !!python/tuple\\n  - (\\w+)\\n  - (\\w+)`),
+      );
       expect(m, joint).not.toBeNull();
       // (from, to) = (Spine3, Hips): the vector points DOWN the trunk so the
       // arms hang. The reversed tuple is the recorded folded-character failure.
