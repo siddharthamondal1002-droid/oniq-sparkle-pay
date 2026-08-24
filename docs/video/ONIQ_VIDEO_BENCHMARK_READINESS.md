@@ -249,11 +249,20 @@ clamped to the reservation.
 See ONIQ_AI_FINANCIAL_CONTROL §2 for why $5.00 is deliberately above the $3.00
 the retry ladder can reach.
 
+These ceilings were **applied to the production database on 2026-08-24** and
+read back independently; until that day they existed only in the repository and
+bounded nothing. See ONIQ_AI_FINANCIAL_CONTROL §8.
+
 ## 11. What is actually left
 
-- **live provider credentials** — all absent
-- **live Supabase access** — no service-role key, so nothing is applied to production
+- **live provider credentials** — absent from this container; `GOOGLE_AI_API_KEY`
+  is present in the Lovable sandbox (presence only — never read, never printed)
 - **a clean corpus** — schema only; no assets created
 - **benchmark execution** — needs credentials plus authorisation
 - **Agent Platform live probe** — never attempted
 - **explicit VIDEO enablement** — the owner's decision, still not made
+- **SEARCH ceilings** — unset, so SEARCH admission refuses; an owner decision,
+  and a prerequisite for deploying the four searching edge functions
+  (ONIQ_AI_FINANCIAL_CONTROL §8a)
+- **edge-function deploy** — the ledger callers ship separately from a web
+  publish and are still on pre-guard builds

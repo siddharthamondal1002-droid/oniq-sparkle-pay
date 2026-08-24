@@ -371,3 +371,58 @@ decision under `CLAUDE.md § Business decisions are the owner's`.
 **What is still required to generate:** an explicit owner instruction to set
 `enabled = true`, plus live provider credentials, plus benchmark evidence for
 `chooseTier()` — which refuses on all three counts today.
+
+## 8. Applied to the production database — 2026-08-24
+
+Until this date the controls in this document existed **only in the repository**.
+Every table, function and ceiling described above was absent from the production
+database: `to_regclass` returned null for `provider_budget_config`,
+`provider_spend_ledger`, `provider_spend_job` and `provider_spend_day`. The
+owner's approved ceilings were protecting nothing, and a document headed
+IMPLEMENTED AND VERIFIED was true of PostgreSQL 16 on a scratch machine and
+false of the system that spends the money. **A migration in `main` is not a
+control in force.**
+
+All five `20260824*` migrations were applied verbatim on 2026-08-24 via the
+Lovable agent, which owns Supabase migration history — applying the DDL directly
+would have left `supabase_migrations` out of step with the schema. Read back
+independently afterwards, not taken on report:
+
+```
+capability | request_usd_cap | job_usd_cap | daily_usd_cap | max_attempts | enabled
+VIDEO      | 1.0000          | 5.0000      | 50.0000       | 3            | false
+
+provider_budget_status('VIDEO')
+{"capability":"VIDEO","capsConfigured":true,"generationAllowed":false,
+ "requestUsdCap":1,"jobUsdCap":5,"dailyUsdCap":50,"maxAttemptsPerJob":3,
+ "reason":"CAPABILITY_DISABLED"}
+```
+
+`enabled` is **false**, as it was in the file. Nothing was generated and no
+provider was called.
+
+### 8a. SEARCH is now `SPEND_CAP_UNSET` — and that is a live trap
+
+The ledger migration drops `search_spend_*` after carrying its rows across, so
+SEARCH is a capability of the general ledger like any other. It has **no row**
+in `provider_budget_config`:
+
+```
+provider_budget_status('SEARCH')
+{"capability":"SEARCH","capsConfigured":false,"generationAllowed":false,
+ "reason":"SPEND_CAP_UNSET"}
+```
+
+That is §3 working as designed — an unconfigured capability is refused, never
+unlimited. But `searchGuard.ts` fails closed on it, and four **live** edge
+functions call it: `smart-scout`, `ting`, `health-scan`, `hotel-scout`.
+
+Nothing is broken today, because edge functions do not deploy with a web publish
+and the versions in production still predate the guard (it landed today in
+`3cec33fa` / `3a2419de`). The trap is in the ordering: **deploying those four
+edge functions before a SEARCH row exists would refuse every search in
+production.** The correct sequence is SEARCH ceilings first, edge deploy second.
+
+Those ceilings are dollar limits on the owner's spend, so an agent does not pick
+them — `CLAUDE.md § Business decisions are the owner's`. They are an open
+question to the owner, not a blocked task with a sensible default.
