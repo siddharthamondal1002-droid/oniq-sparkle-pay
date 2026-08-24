@@ -516,3 +516,63 @@ describe("deploying a searching edge function cannot reach a provider", () => {
     }
   });
 });
+
+// ================================================ the enablement flip
+/**
+ * SEARCH ON — owner directive of 2026-08-24, recorded in
+ * `20260824193000_search_enabled.sql`.
+ *
+ * Two migrations, two decisions, and the split is the point. The ceilings
+ * migration omits `enabled` so a re-run can never switch spending on behind
+ * the owner; this one sets it, because flipping the capability on IS its whole
+ * purpose — the same shape as the 2026-08-13 movie-on/classic-off flip.
+ */
+describe("the SEARCH enablement flip", () => {
+  const ENABLE_SQL = read("supabase/migrations/20260824193000_search_enabled.sql");
+
+  it("sets enabled on SEARCH, and touches no money", () => {
+    expect(ENABLE_SQL).toMatch(/update public\.provider_budget_config/i);
+    expect(ENABLE_SQL).toMatch(/set\s+enabled\s*=\s*true/i);
+    expect(ENABLE_SQL).toMatch(/where capability = 'SEARCH'/i);
+    // The enablement migration owns the flag, never the ceilings.
+    const update = ENABLE_SQL.slice(
+      ENABLE_SQL.search(/update public\.provider_budget_config/i),
+      ENABLE_SQL.indexOf(";", ENABLE_SQL.search(/update public\.provider_budget_config/i)),
+    );
+    for (const cap of ["request_usd_cap", "job_usd_cap", "daily_usd_cap", "max_attempts_per_job"]) {
+      expect(update, `the flip must not write ${cap}`).not.toMatch(new RegExp(`${cap}\\s*=`));
+    }
+  });
+
+  it("refuses to enable over ceilings that are not the owner's", () => {
+    // Turning spending on over a wrong, missing or unusable budget is the one
+    // ordering mistake this flip could make, so it is checked BEFORE the
+    // update rather than after it.
+    const guardEnds = ENABLE_SQL.search(/update public\.provider_budget_config/i);
+    const preflight = ENABLE_SQL.slice(0, guardEnds);
+    expect(preflight).toMatch(/refusing to enable SEARCH: no budget row/);
+    expect(preflight).toMatch(/refusing to enable SEARCH: ceilings are/);
+    expect(preflight).toMatch(/is_spendable_usd/);
+    expect(preflight).toMatch(/0\.50.*2\.00.*20\.00/s);
+  });
+
+  it("refuses to carry VIDEO along", () => {
+    expect(ENABLE_SQL).toMatch(/VIDEO was enabled by the SEARCH flip/);
+    expect(ENABLE_SQL).toMatch(/a capability other than SEARCH is enabled/);
+  });
+
+  it("sorts after the ceilings migration, so it can never run first", () => {
+    const stamp = (p: string) => p.replace(/^.*migrations\//, "").slice(0, 14);
+    expect(
+      stamp("supabase/migrations/20260824193000_search_enabled.sql") > stamp(OWNER_MIGRATION),
+    ).toBe(true);
+  });
+
+  it("leaves VIDEO's own enablement to VIDEO's own decision", () => {
+    // Nothing anywhere in the migration set enables VIDEO.
+    expect(VIDEO_CEILINGS_SQL).toMatch(
+      /'VIDEO'\s*,\s*1\.00\s*,\s*5\.00\s*,\s*50\.00\s*,\s*3\s*,\s*false/,
+    );
+    expect(ENABLE_SQL).not.toMatch(/where capability = 'VIDEO'[\s\S]{0,80}enabled\s*=\s*true/i);
+  });
+});

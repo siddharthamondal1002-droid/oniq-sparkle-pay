@@ -518,14 +518,21 @@ that a money ceiling would have.
 
 Three states get conflated, and each conflation has its own way of being wrong:
 
-| State                                                       | SEARCH today                          |
-| ----------------------------------------------------------- | ------------------------------------- |
-| **REPOSITORY CONFIGURATION** — a migration exists in `main` | **$0.50 / $2.00 / $20.00 · disabled** |
-| **PRODUCTION DATABASE** — the row is in the live database   | **$0.50 / $2.00 / $20.00 · disabled** |
-| **PRODUCTION ENABLEMENT** — spending is permitted           | **DISABLED** — `enabled = false`      |
+| State                                                       | SEARCH today                            |
+| ----------------------------------------------------------- | --------------------------------------- |
+| **REPOSITORY CONFIGURATION** — a migration exists in `main` | **$0.50 / $2.00 / $20.00 · ENABLED**    |
+| **PRODUCTION DATABASE** — the row is in the live database   | **$0.50 / $2.00 / $20.00 · ENABLED**    |
+| **PRODUCTION ENABLEMENT** — spending is permitted           | **ENABLED**, owner directive 2026-08-24 |
 
 The same three states for VIDEO: repository **$1.00 / $5.00 / $50.00 · 3
-attempts · disabled**, production database identical, enablement **disabled**.
+attempts · disabled**, production database identical, enablement **DISABLED**.
+VIDEO's enablement is its own decision and has not been made.
+
+**SEARCH being enabled does not mean SEARCH is spending.** The four searching
+edge functions live in production predate the guard and never call the ledger,
+so until rung 3 is climbed this flag changes no production behaviour. What it
+changes is what happens _when_ they are deployed: admitted against the
+ceilings, rather than refused `capability-disabled`.
 
 **A row is not a live capability.** SEARCH is configured and refuses everything;
 `provider_budget_status('SEARCH')` says `CAPABILITY_DISABLED`, which is a
@@ -547,10 +554,14 @@ The safe order, and why each rung has to come before the next:
    every production search into a fail-closed refusal — correct behaviour by
    the ledger's rules, and a user-visible outage caused by shipping rungs out
    of order. Deploy them **after** enablement, not before.
-4. **explicit SEARCH enablement** — a separate owner decision, not made.
+4. **explicit SEARCH enablement** ← _done._ Owner directive of 2026-08-24,
+   recorded in `20260824193000_search_enabled.sql`. `provider_budget_status`
+   now answers `CONFIGURED` with `generationAllowed: true`.
 
 Rung 3 before rung 4 is the specific mistake this ladder exists to prevent, and
-it is not hypothetical: it is what "just deploy the guard" would have done.
+it is not hypothetical: it is what "just deploy the guard" would have done. The
+rungs were climbed 1, 2, 4, 3 — enablement before deploy — precisely so that
+the deploy lands into a capability that admits rather than one that refuses.
 
 ### 9a. Why a deploy cannot leak spend, structurally
 
