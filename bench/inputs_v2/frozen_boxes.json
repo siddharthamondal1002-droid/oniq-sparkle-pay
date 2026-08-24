@@ -1,0 +1,48 @@
+{
+ "benchmark_input_version": "ONIQ-VEO-INPUTS-v2",
+ "rule": "These crop boxes were produced by column-extent detection and then VERIFIED VISUALLY at full size. The frozen artefact is the BOX, not the detector \u2014 re-running a heuristic is not a frozen input.",
+ "source": "remotion/public/sheets/cut/<name>.png",
+ "canvas": [
+  720,
+  1280
+ ],
+ "backdrop": [
+  34,
+  38,
+  48
+ ],
+ "boxes": {
+  "aladdin": [
+   139,
+   42,
+   547,
+   1244
+  ],
+  "morgiana": [
+   208,
+   53,
+   448,
+   854
+  ],
+  "princess": [
+   265,
+   62,
+   504,
+   871
+  ],
+  "lampJinni": [
+   157,
+   15,
+   670,
+   867
+  ]
+ },
+ "rejected": {
+  "captain": "residual title text + ground plate",
+  "magician": "head portraits only",
+  "fisherman": "coloured panel + title",
+  "jarJinni": "title + palette strip",
+  "aliBaba": "portraits, hand study, axe \u2014 no clean full body",
+  "mother": "portrait + hand"
+ }
+}
