@@ -42,9 +42,12 @@ export type RefusalReason =
   | "guard-unavailable"
   | "unpriced-model"
   | "zero-estimate"
+  | "non-finite-estimate"
+  | "invalid-units"
   | "no-model"
   | "invalid-estimate"
   | "no-budget-configured"
+  | "invalid-budget-configuration"
   | "capability-disabled"
   | "over-request-cap"
   | "job-cap-reached"
@@ -54,6 +57,145 @@ export type RefusalReason =
   | "duplicate-request"
   | "admission-unavailable"
   | (string & {});
+
+// ------------------------------------------------------------ money precision
+/**
+ * The ledger's money columns are `numeric(12, 6)` — micro-dollar precision,
+ * exact decimal. JavaScript's are binary floats, and the drift is real at the
+ * exact rates ONIQ uses:
+ *
+ *   0.03 * 60 === 1.7999999999999998
+ *   0.1  * 3  === 0.30000000000000004
+ *
+ * Sent as-is, the second would be REFUSED against a $0.30 ceiling it exactly
+ * equals, and the first would reserve a hair under what it should. Rounding to
+ * the column's own precision removes the class: the number that reaches
+ * Postgres is exactly the number the column can hold, so the comparison happens
+ * in `numeric` against the value that was intended.
+ *
+ * Rounding, not ceiling: at micro-dollar granularity a ceiling turns
+ * 0.30000000000000004 into 0.300001 and manufactures a spurious over-cap case,
+ * while the maximum under-reservation from rounding is $0.0000005 — below what
+ * the column can represent at all.
+ */
+export const USD_DECIMALS = 6;
+const USD_SCALE = 10 ** USD_DECIMALS;
+
+export function roundUsd(v: number): number {
+  if (!Number.isFinite(v)) return NaN;
+  return Math.round(v * USD_SCALE) / USD_SCALE;
+}
+
+// ------------------------------------------------------------ budget status
+/**
+ * Is a capability configured to spend at all?
+ *
+ * Distinct from admission, which answers "may THIS request spend?". This is
+ * what a worker preflight or a health check asks, and its honest answer is a
+ * REASON rather than a boolean — because "no" has three very different causes
+ * and only one of them is a decision anybody made.
+ */
+export type BudgetStatusReason =
+  /** No config row. NOT "unlimited", NOT "zero". The owner has not set caps. */
+  | "SPEND_CAP_UNSET"
+  /** Caps exist and someone deliberately switched the capability off. */
+  | "CAPABILITY_DISABLED"
+  /** A row exists but its ceilings are unusable (ordering, NaN, non-positive). */
+  | "INVALID_BUDGET_CONFIGURATION"
+  /** Configured and on. */
+  | "CONFIGURED"
+  /** The ledger could not be reached. Fail closed, same as everything else. */
+  | "STATUS_UNAVAILABLE";
+
+export type BudgetStatus = {
+  capability: Capability;
+  generationAllowed: boolean;
+  reason: BudgetStatusReason;
+  capsConfigured: boolean;
+  requestUsdCap?: number;
+  jobUsdCap?: number;
+  dailyUsdCap?: number;
+  maxAttemptsPerJob?: number;
+};
+
+/**
+ * Validate a cap triple the way the database does, for callers that hold one in
+ * memory (a config loader, a preflight, a test). Mirrors
+ * `provider_budget_config`'s CHECK constraints exactly; the database remains
+ * the authority and this never substitutes for it.
+ */
+export function validateBudgetCaps(caps: {
+  requestUsdCap: unknown;
+  jobUsdCap: unknown;
+  dailyUsdCap: unknown;
+  maxAttemptsPerJob?: unknown;
+}): { valid: boolean; problems: string[] } {
+  const problems: string[] = [];
+  const named: Array<[string, unknown]> = [
+    ["requestUsdCap", caps.requestUsdCap],
+    ["jobUsdCap", caps.jobUsdCap],
+    ["dailyUsdCap", caps.dailyUsdCap],
+  ];
+  for (const [name, raw] of named) {
+    if (typeof raw !== "number") problems.push(`${name} is not a number`);
+    else if (!Number.isFinite(raw)) problems.push(`${name} is not finite`);
+    else if (!(raw > 0)) problems.push(`${name} must be greater than zero`);
+  }
+  if (problems.length === 0) {
+    const r = caps.requestUsdCap as number;
+    const j = caps.jobUsdCap as number;
+    const d = caps.dailyUsdCap as number;
+    // A request cap above the job cap lets one call exceed the whole job; a job
+    // cap above the daily cap lets one job exceed the whole day. Either way the
+    // smaller ceiling is decorative.
+    if (r > j) problems.push("requestUsdCap must not exceed jobUsdCap");
+    if (j > d) problems.push("jobUsdCap must not exceed dailyUsdCap");
+  }
+  const a = caps.maxAttemptsPerJob;
+  if (a !== undefined) {
+    if (typeof a !== "number" || !Number.isInteger(a)) {
+      problems.push("maxAttemptsPerJob is not an integer");
+    } else if (a < 1 || a > 10) {
+      problems.push("maxAttemptsPerJob must be between 1 and 10");
+    }
+  }
+  return { valid: problems.length === 0, problems };
+}
+
+/** Ask the ledger whether a capability may spend. Unreachable ⇒ refuse. */
+export async function providerBudgetStatus(
+  rpc: ServiceRpc | null,
+  capability: Capability,
+): Promise<BudgetStatus> {
+  const closed = (reason: BudgetStatusReason): BudgetStatus => ({
+    capability,
+    generationAllowed: false,
+    reason,
+    capsConfigured: false,
+  });
+  if (!rpc) return closed("STATUS_UNAVAILABLE");
+  try {
+    const { data, error } = await rpc("provider_budget_status", { _capability: capability });
+    if (error) return closed("STATUS_UNAVAILABLE");
+    const d = (data ?? {}) as Record<string, unknown>;
+    const reason = typeof d.reason === "string" ? (d.reason as BudgetStatusReason) : undefined;
+    if (!reason) return closed("STATUS_UNAVAILABLE");
+    return {
+      capability,
+      // Trust the ledger's verdict, never re-derive it from the numbers: a
+      // caller that recomputes "allowed" locally is a second policy.
+      generationAllowed: d.generationAllowed === true,
+      reason,
+      capsConfigured: d.capsConfigured === true,
+      requestUsdCap: num(d.requestUsdCap),
+      jobUsdCap: num(d.jobUsdCap),
+      dailyUsdCap: num(d.dailyUsdCap),
+      maxAttemptsPerJob: num(d.maxAttemptsPerJob),
+    };
+  } catch {
+    return closed("STATUS_UNAVAILABLE");
+  }
+}
 
 // ------------------------------------------------------------ rpc plumbing
 /** How long admission may take before the request is refused. */
