@@ -30,17 +30,17 @@ server-side from an environment that holds the secret. No key was printed.
 
 ### The parameter does not exist here
 
-| parameter sent | model | HTTP | Google's message |
-| --- | --- | --- | --- |
-| `generateAudio: false` | lite | **400** | ``\`generateAudio\` isn't supported by this model.`` |
-| `generateAudio: false` | fast | **400** | ``\`generateAudio\` isn't supported by this model.`` |
-| `generate_audio` | lite | **400** | not supported |
-| `audioGeneration` | lite | **400** | not supported |
-| `enableAudio` | lite | **400** | not supported |
-| `addAudio` | lite | **400** | not supported |
-| `withAudio` | lite | **400** | not supported |
-| `generateSpeech` | lite | **400** | not supported |
-| `sampleCount: 1` | lite | **200** | accepted — control, proves the probe shape was valid |
+| parameter sent         | model | HTTP    | Google's message                                     |
+| ---------------------- | ----- | ------- | ---------------------------------------------------- |
+| `generateAudio: false` | lite  | **400** | ``\`generateAudio\` isn't supported by this model.`` |
+| `generateAudio: false` | fast  | **400** | ``\`generateAudio\` isn't supported by this model.`` |
+| `generate_audio`       | lite  | **400** | not supported                                        |
+| `audioGeneration`      | lite  | **400** | not supported                                        |
+| `enableAudio`          | lite  | **400** | not supported                                        |
+| `addAudio`             | lite  | **400** | not supported                                        |
+| `withAudio`            | lite  | **400** | not supported                                        |
+| `generateSpeech`       | lite  | **400** | not supported                                        |
+| `sampleCount: 1`       | lite  | **200** | accepted — control, proves the probe shape was valid |
 
 **₹0 was spent on the eight rejections.** A 400 at request validation never
 reaches generation, which is exactly why the parameter was probed before the
@@ -76,9 +76,9 @@ declined on the Gemini API, then the no-audio rates may not be reachable on
 ONIQ's current API surface at all** — in which case the real rates are:
 
 | tier | rate ONIQ can actually get here | rate the pricing model assumed |
-| --- | --- | --- |
-| Lite | **$0.05/s** (audio) | $0.03/s (no audio) |
-| Fast | **$0.10/s** (audio) | $0.08/s (no audio) |
+| ---- | ------------------------------- | ------------------------------ |
+| Lite | **$0.05/s** (audio)             | $0.03/s (no audio)             |
+| Fast | **$0.10/s** (audio)             | $0.08/s (no audio)             |
 
 `DERIVED, not measured.` I have not seen a billing statement. It follows from
 Google's own tiering plus the measured fact that audio always comes back, but
