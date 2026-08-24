@@ -39,6 +39,16 @@ const ROOT = process.cwd();
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
 const LEDGER_SQL = read("supabase/migrations/20260824120000_provider_spend_ledger.sql");
 const INVARIANTS_SQL = read("supabase/migrations/20260824150000_provider_budget_invariants.sql");
+const CEILINGS_SQL = read("supabase/migrations/20260824170000_video_spend_ceilings.sql");
+
+/**
+ * THE OWNER'S THREE NUMBERS — directive of 2026-08-24.
+ *
+ * Mirrored here so drift in either direction fails the build: a migration
+ * edited away from what the owner authorised, or a test quietly re-pointed at
+ * whatever the migration happens to say.
+ */
+const OWNER_CAPS = { request: "1.00", job: "5.00", daily: "50.00" } as const;
 
 const VALID = { requestUsdCap: 1, jobUsdCap: 2, dailyUsdCap: 5, maxAttemptsPerJob: 3 };
 
@@ -146,9 +156,14 @@ describe("a missing cap is never unlimited", () => {
     expect(INVARIANTS_SQL).toMatch(/'generationAllowed', false/);
   });
 
-  it("no capability row is seeded, so a fresh database cannot spend", () => {
+  it("the schema migrations seed nothing — a ceiling is a decision, not a default", () => {
+    // The owner's values arrive in their own dated migration (below). These two
+    // define structure only, so a schema change can never smuggle in a budget.
     expect(LEDGER_SQL).not.toMatch(/insert into public\.provider_budget_config/);
     expect(INVARIANTS_SQL).not.toMatch(/insert into public\.provider_budget_config/);
+    // And no ceiling may acquire a DEFAULT, which is the other way a number
+    // nobody chose becomes the number in force.
+    expect(LEDGER_SQL).not.toMatch(/(request|job|daily)_usd_cap\s+numeric\([^)]*\)[^,]*default/i);
   });
 
   it("an unreachable ledger reports STATUS_UNAVAILABLE and forbids generation", async () => {
@@ -176,6 +191,71 @@ describe("a missing cap is never unlimited", () => {
     expect(s.reason).toBe("SPEND_CAP_UNSET");
     expect(s.capsConfigured).toBe(false);
     expect(s.dailyUsdCap).toBeUndefined();
+  });
+});
+
+// ====================================================== configured ceilings
+describe("the owner's configured VIDEO ceilings", () => {
+  it("stores exactly 1.00 / 5.00 / 50.00 for VIDEO, in USD", () => {
+    // One insert, one capability, the owner's three numbers in cap order.
+    const values = CEILINGS_SQL.match(
+      /values\s*\n?\s*\(\s*'VIDEO'\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*(\d+)\s*,\s*(true|false)\s*\)/i,
+    );
+    expect(values, "the VIDEO ceilings insert must be present and parseable").toBeTruthy();
+    const [, request, job, daily, attempts, enabled] = values!;
+    expect(request).toBe(OWNER_CAPS.request);
+    expect(job).toBe(OWNER_CAPS.job);
+    expect(daily).toBe(OWNER_CAPS.daily);
+    expect(attempts).toBe("3");
+    // The whole point: caps configured, generation still off.
+    expect(enabled.toLowerCase()).toBe("false");
+  });
+
+  it("is a well-ordered, spendable triple by the same rules the database applies", () => {
+    const caps = {
+      requestUsdCap: Number(OWNER_CAPS.request),
+      jobUsdCap: Number(OWNER_CAPS.job),
+      dailyUsdCap: Number(OWNER_CAPS.daily),
+      maxAttemptsPerJob: 3,
+    };
+    expect(validateBudgetCaps(caps).valid).toBe(true);
+    expect(caps.requestUsdCap).toBeGreaterThan(0);
+    expect(caps.requestUsdCap).toBeLessThanOrEqual(caps.jobUsdCap);
+    expect(caps.jobUsdCap).toBeLessThanOrEqual(caps.dailyUsdCap);
+    for (const v of Object.values(caps)) expect(Number.isFinite(v)).toBe(true);
+  });
+
+  it("configures the ceilings WITHOUT enabling generation, even on re-run", () => {
+    // ON CONFLICT must update the three ceilings and must NOT carry `enabled`.
+    // A migration that re-asserted enabled could flip generation on for an
+    // owner who had deliberately turned it off.
+    const conflict = CEILINGS_SQL.slice(CEILINGS_SQL.search(/on conflict/i));
+    const setClause = conflict.slice(0, conflict.indexOf(";"));
+    expect(setClause).toMatch(/request_usd_cap\s*=\s*excluded\.request_usd_cap/);
+    expect(setClause).toMatch(/job_usd_cap\s*=\s*excluded\.job_usd_cap/);
+    expect(setClause).toMatch(/daily_usd_cap\s*=\s*excluded\.daily_usd_cap/);
+    expect(setClause, "ON CONFLICT must never touch `enabled`").not.toMatch(/\benabled\s*=/);
+  });
+
+  it("carries no FX, no INR, and no second currency", () => {
+    expect(CEILINGS_SQL).not.toMatch(/usdInr|inrPerUsd|fxRate|exchangeRate|_inr\b|₹/i);
+    expect(CEILINGS_SQL).toMatch(/USD/);
+  });
+
+  it("targets VIDEO and nothing else", () => {
+    const capabilities = [
+      ...CEILINGS_SQL.matchAll(/'(SEARCH|TEXT|IMAGE|VIDEO|VIDEO_AUDIO|TTS|OTHER)'/g),
+    ]
+      .map((m) => m[1])
+      .filter((c, i, a) => a.indexOf(c) === i);
+    expect(capabilities).toEqual(["VIDEO"]);
+  });
+
+  it("verifies its own write rather than trusting the insert to have landed", () => {
+    // A no-op insert would leave the ledger fail-closed, not overspending — but
+    // the ceilings in force would not be the ceilings the owner set.
+    expect(CEILINGS_SQL).toMatch(/raise exception/i);
+    expect(CEILINGS_SQL).toMatch(/is_spendable_usd/);
   });
 });
 
