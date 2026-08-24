@@ -1,7 +1,7 @@
 # ONIQ_VEO_AUDIO_COST_REPORT
 
 **Status** RESOLVED — the "leak" is not closable on this surface, and the waste
-is elsewhere · **Date** 2026-08-24
+is elsewhere · **Date** 2026-08-24 · **All figures USD**
 
 ---
 
@@ -31,13 +31,15 @@ VEO_NATIVE_AUDIO costs exactly what the same shot would have cost muted.
 
 ## 3. The two ways to actually reduce the audio bill
 
-| Route                               | Effect                                                                                   | Whose call                               |
-| ----------------------------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------- |
-| Move ONIQ's video to **Vertex AI**  | `generateAudio:false` becomes sendable; Lite drops $0.05 → $0.03/s, Fast $0.10 → $0.08/s | **OWNER** — provider and account change  |
-| Generate **fewer external seconds** | in-house at ₹0.64/finished second vs ₹4.78/s for Lite                                    | engineering, already the routing default |
+| Route                                                         | Effect                                                                                                   | Whose call                               |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| Move ONIQ's video to the **Gemini Enterprise Agent Platform** | `generateAudio:false` becomes sendable; Lite $0.05 → **$0.03/s (−40%)**, Fast $0.10 → **$0.08/s (−20%)** | **OWNER** — provider and account change  |
+| Generate **fewer external seconds**                           | in-house is roughly two orders of magnitude cheaper per second than any external tier                    | engineering, already the routing default |
 
-The second is worth roughly 7× more per second than the first, which is why the
-routing work in this loop targets it.
+The absolute saving from a surface move is $0.02/s on either tier, so it is
+worth twice as much in percentage terms on Lite as on Fast. Generating fewer
+external seconds is worth far more than either — but the two compose, and a
+Lite-heavy mix is exactly where a surface move pays best.
 
 ## 4. Filtered generations
 
@@ -56,7 +58,7 @@ So both economics are carried, and the conservative one is what reserves:
 |                          | 8 s Lite, 2 filtered attempts | 8 s Fast, 2 filtered attempts |
 | ------------------------ | ----------------------------- | ----------------------------- |
 | LOWER_BOUND (not billed) | $0.00                         | $0.00                         |
-| CONSERVATIVE (billed)    | $0.80 (₹76.55)                | $1.60 (₹153.09)               |
+| CONSERVATIVE (billed)    | **$0.80**                     | **$1.60**                     |
 
 `FILTERED_OUTPUT_BILLING = "UNKNOWN"` is a constant in `_shared/videoRouting.ts`
 and asserted by test, so it cannot quietly become "free".

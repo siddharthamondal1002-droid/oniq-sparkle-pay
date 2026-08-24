@@ -13,7 +13,7 @@
 //       Enterprise Agent Platform mode, not in Gemini Developer API mode.');
 //   }
 //
-// The Vertex converter, twenty lines later, maps it through:
+// The Agent Platform converter, twenty lines later, maps it through:
 //
 //   setValueByPath(parentObject, ['parameters', 'generateAudio'], fromGenerateAudio);
 //
@@ -30,8 +30,9 @@
 //     generated. Discarding it is therefore the only actual waste, which is
 //     exactly the invariant: never pay for audio and then throw it away.
 //  3. THE CHEAPER VIDEO-ONLY TIER IS A DIFFERENT SURFACE. Reaching it means
-//     moving ONIQ's video calls to Vertex AI — a provider-and-account change,
-//     which is an OWNER DECISION under CLAUDE.md, not an engineering one.
+//     moving ONIQ's video calls to the Gemini Enterprise Agent Platform — a
+//     provider-and-account change, and therefore an OWNER DECISION under
+//     CLAUDE.md, not an engineering one.
 //
 // ============================================================================
 // WHY ONIQ MUTES TODAY, AND WHY THAT IS NOT SIMPLY A BUG
@@ -52,7 +53,17 @@
 
 export type AudioMode = "VIDEO_ONLY" | "ONIQ_SOUND" | "VEO_NATIVE_AUDIO";
 
-export type ProviderSurface = "google-ai-studio" | "google-vertex" | "runway" | "lovable-gateway";
+/**
+ * WHICH GOOGLE SURFACE, in Google's own words.
+ *
+ * `google-agent-platform` is what the SDK's error string calls it — "Gemini
+ * Enterprise Agent Platform" — and it is the same thing the SDK's internal
+ * converter still names `...ToVertex` and the client option still spells
+ * `vertexai: true`. One product, two names, and the error message is the one a
+ * reader will actually hit, so that is the one used here.
+ */
+export type ProviderSurface =
+  "google-ai-studio" | "google-agent-platform" | "runway" | "lovable-gateway";
 
 /**
  * Can this surface be told whether to generate audio?
@@ -62,7 +73,7 @@ export type ProviderSurface = "google-ai-studio" | "google-vertex" | "runway" | 
  */
 export const SURFACE_SUPPORTS_AUDIO_PARAM: Record<ProviderSurface, boolean> = {
   "google-ai-studio": false,
-  "google-vertex": true,
+  "google-agent-platform": true,
   runway: false,
   "lovable-gateway": false,
 };

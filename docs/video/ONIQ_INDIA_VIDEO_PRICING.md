@@ -5,13 +5,43 @@ proposed as final · **Date** 2026-08-24
 
 ---
 
+## 0. This is the one document that is denominated in INR, and why
+
+ONIQ sells in rupees, so a customer price is an INR figure and there is no way
+to discuss one otherwise. That makes this document a **reporting-time**
+artefact under the currency discipline: every provider cost in it has been
+converted from its canonical USD value, once, at a rate stated below.
+
+> **FX source** Alpha Vantage realtime `CURRENCY_EXCHANGE_RATE` USD→INR
+> **FX timestamp** 2026-08-24T01:58:55Z
+> **Rate** 1 USD = 95.68329394 INR
+
+That rate is **not stored anywhere**, is not in the ledger, and does not
+influence `chooseTier()`, provider routing, spend ceilings, acceptance
+arithmetic or provider selection — all of which are USD-only by construction
+and guarded by `src/lib/__tests__/currencyDiscipline.test.ts`. **Re-verify the
+rate before quoting any figure below on another date**: at a different rate the
+cost columns move and the conclusions can change, while the USD costs in
+ONIQ_VIDEO_COST_MODEL do not.
+
+The canonical USD figures behind this document:
+
+|                                     | USD     |
+| ----------------------------------- | ------- |
+| Lite, generated second              | $0.05   |
+| Fast, generated second              | $0.10   |
+| 60 s in-house, accepted @65.31%     | ≈ $0.90 |
+| 60 s in-house + 10 s Lite, accepted | ≈ $1.87 |
+
+---
+
 ## 1. Why no price is chosen here
 
 Three inputs a price needs, and their state:
 
 | Input                                | State                                                     |
 | ------------------------------------ | --------------------------------------------------------- |
-| in-house cost per accepted second    | **MEASURED** — ₹1.437 (65.31% acceptance)                 |
+| in-house cost per accepted second    | **MEASURED** — ≈ $0.0150 (₹1.437) at 65.31% acceptance    |
 | Lite / Fast acceptance               | **NOT MEASURED** — benchmark blocked                      |
 | Google price, independently verified | **NOT VERIFIED** — egress blocked; owner-supplied only    |
 | Runway economics                     | **UNVERIFIED** — 0 successful calls, credit price unknown |
@@ -26,9 +56,9 @@ cover expected accepted generation cost, not theoretical best-case cost._
 From ONIQ_VIDEO_COST_MODEL:
 
 - **₹99 does not cover an all-in-house 60-second film.** Net ₹78.56 against
-  ₹86.22 expected accepted cost — a **loss of ₹7.66** before margin.
+  ₹86.22 (≈ $0.90) expected accepted cost — a **loss of ₹7.66** before margin.
 - **₹149 does not cover a 60-second film with 10 seconds of Lite.** Net ₹119.75
-  against ₹179.35 expected accepted cost — a **loss of ₹59.60**.
+  against ₹179.35 (≈ $1.87) expected accepted cost — a **loss of ₹59.60**.
 - ₹149 **does** cover all-in-house: ₹119.75 net against ₹86.22 leaves ₹33.53,
   or 22.5% of price. Below the house's 26%-net-of-GST standard, so even that is
   not comfortable.

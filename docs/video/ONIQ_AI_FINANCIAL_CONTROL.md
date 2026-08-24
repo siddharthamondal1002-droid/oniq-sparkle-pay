@@ -4,6 +4,16 @@
 
 ---
 
+## 0. The ledger is USD
+
+Every money column is USD: `daily_usd_cap`, `request_usd_cap`, `job_usd_cap`,
+`estimated_usd`, `actual_usd`, `reserved_usd`, `settled_usd`, `charged_usd`,
+`usd_per_accepted_unit`. There is **no INR column and no stored FX rate**, and
+`src/lib/__tests__/currencyDiscipline.test.ts` fails the build if either
+appears. An FX rate is a second, independently-moving number; letting one into
+admission would mean a request could be refused on a day when nothing about the
+provider or the budget changed.
+
 ## 1. One ledger, many capabilities
 
 ```
@@ -77,7 +87,7 @@ led.estimated_usd)`. Never zero, never a fabricated refund.
 | ------------- | ------------------------- | ---------------------------------------------- |
 | Where         | `provider_spend_ledger`   | `claim_story_seconds` / `refund_story_seconds` |
 | Charged when  | the provider generates    | the film is accepted                           |
-| Failed output | **still charged to ONIQ** | **₹0 to the user**                             |
+| Failed output | **still charged to ONIQ** | **nothing to the user**                        |
 
 The user flow is QUOTE → RESERVE USER CREDITS → GENERATE → QA → ACCEPT → COMMIT,
 with RELEASE on failure. The two ledgers never net against each other: ONIQ

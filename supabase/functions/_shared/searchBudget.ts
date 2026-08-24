@@ -3,10 +3,15 @@
 // TWO SEPARATE PROBLEMS, both measured on 2026-08-24:
 //
 // 1. DEPTH. smart-scout allowed `max_uses: 11` Anthropic web searches per
-//    query on claude-opus-5, measured at ₹15.76–₹38.24/query. `max_uses` alone
-//    is not a budget: it bounds searches and nothing else, while the trace
-//    found TOKENS are 72% of the cost at the cap, because results re-enter
-//    context on every hop.
+//    query on claude-opus-5, measured at $0.165-$0.400 per query. `max_uses`
+//    alone is not a budget: it bounds searches and nothing else, while the
+//    trace found TOKENS are 72% of the cost at the cap, because results
+//    re-enter context on every hop.
+//
+//    USD, deliberately. Anthropic publishes in USD, the ledger settles in USD,
+//    and an FX rate is a second independently-moving number that has no place
+//    in a budget decision. Any INR presentation is a reporting-time conversion
+//    carrying its own source and timestamp.
 //
 // 2. BREADTH. The only spend control was a module-scope `Map` — 10/min PER
 //    ISOLATE, reset on cold start. Fleet-wide spend was unbounded. The fix has

@@ -56,8 +56,13 @@ USER REQUEST
 - Fast only if Lite does not and Fast's measured acceptance does.
 - **Runway never**, while its provenance is `UNVERIFIED`.
 
-The comparison is on cost per **accepted** second: a tier at half the price that
-fails twice as often is not cheaper.
+The comparison is on `usd_per_accepted_second`: a tier at half the price that
+fails twice as often is not cheaper. Lite at 40% acceptance ($0.2450/accepted s)
+is worse than Fast at 90% ($0.1233/accepted s), and only this metric says so.
+
+**No FX rate enters tier selection.** `chooseTier()` takes acceptance evidence
+and a quality bar; it takes no rate, and `currencyDiscipline.test.ts` asserts
+that no routing signature can be handed one.
 
 ## 4. Failure classification, and the one class that escalates
 

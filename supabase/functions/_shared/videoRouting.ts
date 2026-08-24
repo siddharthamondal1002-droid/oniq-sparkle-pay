@@ -22,11 +22,28 @@ import type { AudioMode, ProviderSurface } from "./videoAudio.ts";
 //
 // THE SURFACE IS PART OF THE PRICE. Veo's published table has a video-only
 // column and a with-audio column, but the video-only column is only REACHABLE
-// where `generateAudio` can be sent, and that is Vertex, not the Gemini
-// Developer API ONIQ calls today (see videoAudio.ts for the SDK evidence).
-// `usdPerSecondVideoOnly: null` means "this tier exists in the table and cannot
-// be bought from here", which is a different and more useful statement than a
-// missing row.
+// where `generateAudio` can be sent, and that is the Agent Platform, not the
+// Gemini Developer API ONIQ calls today (see videoAudio.ts for the SDK
+// evidence). `usdPerSecondVideoOnly: null` means "this tier exists in the table
+// and cannot be bought from here", which is a different and more useful
+// statement than a missing row.
+//
+// ============================================================================
+// CURRENCY DISCIPLINE (owner directive, 2026-08-24)
+// ============================================================================
+//
+// EVERY FIGURE IN THIS MODULE IS USD, AND THERE IS NO FX RATE ANYWHERE IN IT.
+// Google's published USD price is the canonical provider-cost input; an FX rate
+// is a second, independently-moving number, and letting one into a routing
+// decision means the router's answer changes on a day when nothing about the
+// providers changed. Tier selection, spend ceilings, acceptance arithmetic and
+// provider selection are all USD-only by construction.
+//
+// If an INR figure is needed for a report, it is converted AT REPORTING TIME,
+// from a separately verified rate, and printed with its source and timestamp
+// beside it. `src/lib/__tests__/currencyDiscipline.test.ts` fails the build if
+// an FX rate, an INR symbol or an INR-denominated field appears in this module,
+// the ledger module, or the ledger migration.
 
 export type RateProvenance =
   /** Supplied by the owner, who sees the actual bill. */
@@ -63,9 +80,9 @@ export const VIDEO_RATES: VideoRate[] = [
     usdPerSecondVideoOnly: null,
     provenance: "OWNER_SUPPLIED_2026_08_24",
     note:
-      "The video-only column is Vertex's. On the Gemini Developer API " +
-      "`generateAudio` is rejected by the API itself, so only the with-audio " +
-      "rate can actually be bought.",
+      "The video-only column is the Agent Platform's. On the Gemini Developer " +
+      "API `generateAudio` is rejected by the API itself, so only the " +
+      "with-audio rate can actually be bought.",
   },
   {
     surface: "google-ai-studio",
@@ -78,7 +95,7 @@ export const VIDEO_RATES: VideoRate[] = [
     note: "Same surface constraint as Lite. This is the model story-clip runs today.",
   },
   {
-    surface: "google-vertex",
+    surface: "google-agent-platform",
     provider: "google",
     model: "veo-3.1-lite",
     resolution: "720p",
@@ -86,11 +103,12 @@ export const VIDEO_RATES: VideoRate[] = [
     usdPerSecondVideoOnly: 0.03,
     provenance: "OWNER_SUPPLIED_2026_08_24",
     note:
-      "NOT THE SURFACE ONIQ CALLS. Reaching $0.03/s means moving video to " +
-      "Vertex — a provider-and-account change, and therefore an owner decision.",
+      "NOT THE SURFACE ONIQ CALLS. Reaching $0.03/s means moving video to the " +
+      "Gemini Enterprise Agent Platform — a provider-and-account change, and " +
+      "therefore an owner decision.",
   },
   {
-    surface: "google-vertex",
+    surface: "google-agent-platform",
     provider: "google",
     model: "veo-3.1-fast",
     resolution: "720p",
@@ -362,5 +380,108 @@ export function filteredCostBounds(
     // If it does. This is the figure that must reserve and the figure that
     // must appear in any price built on this pipeline.
     conservativeUsd: per * filteredAttempts,
+  };
+}
+
+// ============================================================================
+// THE THREE CANONICAL USD METRICS
+// ============================================================================
+//
+// These are the only cost figures allowed to influence a routing decision, and
+// all three are USD. There is deliberately no INR equivalent in this module:
+// see CURRENCY DISCIPLINE at the top.
+
+/** USD for one GENERATED second at the rate that will actually be billed. */
+export function usdPerGeneratedSecond(
+  model: string,
+  audio: AudioMode,
+  surface = ACTIVE_VIDEO_SURFACE,
+): number {
+  return videoUsd(model, 1, audio, surface);
+}
+
+/** USD for one ATTEMPT — one submitted generation of `seconds` seconds. */
+export function usdPerAttempt(
+  model: string,
+  seconds: number,
+  audio: AudioMode,
+  surface = ACTIVE_VIDEO_SURFACE,
+): number {
+  return videoUsd(model, seconds, audio, surface);
+}
+
+/**
+ * USD for one ACCEPTED second — the figure the whole routing decision rests on.
+ *
+ *   usd per accepted second = usd per generated second x E[attempts] / P(accept)
+ *
+ * A tier at half the price that fails twice as often is not cheaper, and only
+ * this number says so. Returns null when acceptance has not been MEASURED:
+ * substituting a hopeful default is how a benchmark gets skipped.
+ */
+export function usdPerAcceptedSecond(
+  model: string,
+  audio: AudioMode,
+  acceptance: number | null,
+  maxAttempts = 3,
+  surface = ACTIVE_VIDEO_SURFACE,
+): number | null {
+  if (acceptance === null || !(acceptance > 0) || acceptance > 1) return null;
+  return (
+    (usdPerGeneratedSecond(model, audio, surface) * expectedAttempts(acceptance, maxAttempts)) /
+    acceptance
+  );
+}
+
+/** Expected attempts for a ladder that stops succeeding-or-at-`maxAttempts`. */
+export function expectedAttempts(acceptance: number, maxAttempts = 3): number {
+  if (!(acceptance > 0) || acceptance > 1) return maxAttempts;
+  let expected = 0;
+  let stillFailing = 1;
+  for (let k = 1; k <= maxAttempts; k++) {
+    expected += k * stillFailing * acceptance;
+    stillFailing *= 1 - acceptance;
+  }
+  return expected + maxAttempts * stillFailing;
+}
+
+// ============================================================================
+// SURFACE COMPARISON — USD ONLY
+// ============================================================================
+/**
+ * What the two Google surfaces cost for the same work, in USD.
+ *
+ * The comparison that matters is not Lite-vs-Fast; it is the SAME tier on two
+ * surfaces, because one of them can decline audio and the other cannot. No FX
+ * appears here and none should: this is a provider-cost comparison, and the
+ * decision it informs (whether to move ONIQ's video calls) does not depend on
+ * what a dollar is worth in rupees today.
+ */
+export type SurfaceComparison = {
+  seconds: number;
+  geminiApiUsd: number;
+  agentPlatformVideoOnlyUsd: number;
+  differenceUsd: number;
+  /** Fraction saved, 0..1. Not a percentage — the caller formats. */
+  reduction: number;
+};
+
+export function compareGoogleSurfaces(seconds: number, tier: "lite" | "fast"): SurfaceComparison {
+  const api = VIDEO_RATES.find((r) => r.surface === "google-ai-studio" && r.model.includes(tier));
+  const ap = VIDEO_RATES.find(
+    (r) => r.surface === "google-agent-platform" && r.model.includes(tier),
+  );
+  if (!api?.usdPerSecondWithAudio || !ap?.usdPerSecondVideoOnly) {
+    throw new Error(`cannot compare ${tier}: a rate is missing`);
+  }
+  const geminiApiUsd = api.usdPerSecondWithAudio * seconds;
+  const agentPlatformVideoOnlyUsd = ap.usdPerSecondVideoOnly * seconds;
+  const differenceUsd = geminiApiUsd - agentPlatformVideoOnlyUsd;
+  return {
+    seconds,
+    geminiApiUsd,
+    agentPlatformVideoOnlyUsd,
+    differenceUsd,
+    reduction: differenceUsd / geminiApiUsd,
   };
 }

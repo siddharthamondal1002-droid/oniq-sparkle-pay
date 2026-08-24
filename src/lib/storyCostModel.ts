@@ -56,6 +56,34 @@ export const UNIT = {
    */
   runnerMinutesPerFinishedMinute: 9,
   usdPerRunnerMinute: 0.008,
+  /**
+   * THE ONE STORED FX RATE IN THE REPOSITORY, AND IT LIVES ON THIS SIDE OF A
+   * LINE (owner directive, 2026-08-24).
+   *
+   * The PUBLISHED PRICE chart is denominated in rupees because ONIQ sells in
+   * rupees, so this model has to cross the currency boundary somewhere. That
+   * makes it a PRICING artefact — the owner's — and not a provider-cost input.
+   *
+   * The rule it must obey: an FX rate may never influence provider routing,
+   * spend ceilings, acceptance arithmetic or provider selection. Those all live
+   * in `supabase/functions/_shared/{financialLedger,videoRouting}.ts`, they are
+   * USD-only by construction, and `src/lib/__tests__/currencyDiscipline.test.ts`
+   * fails the build if any of them imports this module or acquires an FX rate
+   * of its own. That test also proves it can fail, by injection.
+   *
+   * TWO THINGS THE OWNER SHOULD KNOW ABOUT THIS PARTICULAR NUMBER:
+   *
+   *  1. IT IS STALE. 84 against a realtime 95.68 (Alpha Vantage,
+   *     2026-08-24T01:58:55Z) understates every USD-derived line by 13.9%.
+   *  2. IT IS UNSOURCED. There is no rate provider, no timestamp and no
+   *     refresh behind it — which is exactly why the discipline says not to
+   *     persist one. It survives here only because the price chart cannot be
+   *     re-derived without the owner, and `paid_pricing_enabled` is false.
+   *
+   * Its blast radius is small: it multiplies ONE term, the render-compute line
+   * below. The dominant cost, ₹31.50 per finished minute of stills and voices,
+   * is owner-MEASURED in rupees and touches no FX at all.
+   */
   inrPerUsd: 84,
   /** Razorpay 2% + 18% GST on the fee, as a fraction of price. */
   paymentFeeOfPrice: 0.0236,

@@ -82,7 +82,7 @@ const VIDEO_REQ = {
 describe("the audio parameter, verified against Google's own SDK", () => {
   it("records that the Gemini Developer API cannot be told to skip audio", () => {
     expect(SURFACE_SUPPORTS_AUDIO_PARAM["google-ai-studio"]).toBe(false);
-    expect(SURFACE_SUPPORTS_AUDIO_PARAM["google-vertex"]).toBe(true);
+    expect(SURFACE_SUPPORTS_AUDIO_PARAM["google-agent-platform"]).toBe(true);
     expect(AI_STUDIO_REJECTED_VIDEO_PARAMS).toContain("generateAudio");
   });
 
@@ -117,14 +117,14 @@ describe("NO PROVIDER AUDIO GENERATED THEN DISCARDED", () => {
   it("reports VIDEO_ONLY as NOT achievable here, so nobody thinks they bought the cheap tier", () => {
     expect(resolveAudioMode("VIDEO_ONLY", "google-ai-studio").achievable).toBe(false);
     // On a surface that can be told, it is achievable and nothing is billed.
-    const vertex = resolveAudioMode("VIDEO_ONLY", "google-vertex");
+    const vertex = resolveAudioMode("VIDEO_ONLY", "google-agent-platform");
     expect(vertex.achievable).toBe(true);
     expect(vertex.providerAudioBilled).toBe(false);
     expect(vertex.discardReason).toBeUndefined();
   });
 
   it("NATIVE AUDIO IS PRESERVED WHEN REQUESTED, on both surfaces", () => {
-    for (const surface of ["google-ai-studio", "google-vertex"] as const) {
+    for (const surface of ["google-ai-studio", "google-agent-platform"] as const) {
       const r = resolveAudioMode("VEO_NATIVE_AUDIO", surface);
       expect(r.preserveProviderAudio, surface).toBe(true);
       expect(r.discardReason, surface).toBeUndefined();
@@ -211,8 +211,8 @@ describe("NO UNPRICED MODEL CAN GENERATE", () => {
   });
 
   it("uses the cheaper video-only rate where it is actually reachable", () => {
-    expect(videoUsd("veo-3.1-lite", 8, "VIDEO_ONLY", "google-vertex")).toBeCloseTo(0.24, 6);
-    expect(videoUsd("veo-3.1-fast", 8, "VIDEO_ONLY", "google-vertex")).toBeCloseTo(0.64, 6);
+    expect(videoUsd("veo-3.1-lite", 8, "VIDEO_ONLY", "google-agent-platform")).toBeCloseTo(0.24, 6);
+    expect(videoUsd("veo-3.1-fast", 8, "VIDEO_ONLY", "google-agent-platform")).toBeCloseTo(0.64, 6);
   });
 
   it("records the video-only column as UNREACHABLE here rather than omitting it", () => {
@@ -515,7 +515,9 @@ describe("NO PRODUCTION ACTIVATION YET", () => {
 
   it("the movie price tiers stay inactive — this loop prices nothing", () => {
     // storyCostModel is the only thing that justifies a published price, and
-    // no video rate from videoRouting has been wired into it.
-    expect(read("src/lib/storyCostModel.ts")).not.toMatch(/videoRouting|usdPerSecondWithAudio/);
+    // no video rate from videoRouting has been wired into it. Comments are
+    // stripped — the chart names those modules to explain the boundary it must
+    // not cross, and explaining a boundary is not crossing it.
+    expect(code("src/lib/storyCostModel.ts")).not.toMatch(/videoRouting|usdPerSecondWithAudio/);
   });
 });

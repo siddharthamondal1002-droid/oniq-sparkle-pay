@@ -87,7 +87,7 @@ acceptances would invent a figure.
 
 ## 9. Results
 
-| motion class | Lite acceptance  | Fast acceptance  | Lite ₹/accepted s | Fast ₹/accepted s |
+| motion class | Lite acceptance  | Fast acceptance  | Lite $/accepted s | Fast $/accepted s |
 | ------------ | ---------------- | ---------------- | ----------------- | ----------------- |
 | all ten      | **NOT MEASURED** | **NOT MEASURED** | —                 | —                 |
 

@@ -17,7 +17,8 @@ if (getValueByPath(fromObject, ['generateAudio']) !== undefined) {
 }
 ```
 
-Twenty lines later, `generateVideosConfigToVertex` maps it straight through:
+Twenty lines later, the Agent Platform converter (`generateVideosConfigToVertex`,
+still named for the product's earlier name) maps it straight through:
 
 ```text
 setValueByPath(parentObject, ['parameters', 'generateAudio'], fromGenerateAudio);
@@ -43,8 +44,10 @@ read off the same converter:
    generated. **Discarding it is the only actual waste**, which is exactly the
    invariant: never pay for audio and then throw it away.
 3. **The cheaper video-only tier is a different surface.** Reaching $0.03/s
-   means moving ONIQ's video calls to Vertex AI — a provider-and-account
-   change, and therefore an **owner decision** under CLAUDE.md.
+   means moving ONIQ's video calls to the **Gemini Enterprise Agent Platform**
+   — a provider-and-account change, and therefore an **owner decision** under
+   CLAUDE.md. (Same product the SDK's converter still calls `...ToVertex`; the
+   error message's name is the one a reader actually hits.)
 
 ---
 
@@ -159,5 +162,6 @@ steps.
   Veo quota is exhausted and this session holds no Google key, so the media
   verification in §6 is implemented and unit-tested but **not yet run against
   real output**. That is the first thing to do when generation is re-enabled.
-- **Whether to move to Vertex** — the only route to a video-only tier — is an
-  owner decision, not taken here.
+- **Whether to move to the Gemini Enterprise Agent Platform** — the only route
+  to a video-only tier — is an owner decision, not taken here. In USD it is
+  worth $0.02 per generated second: 40% off Lite, 20% off Fast.
