@@ -3,6 +3,15 @@
 Found 2026-08-23 from the first live clip. **Owner decision required. Nothing
 was changed.**
 
+> **SUPERSEDED IN PART, 2026-08-24.** The recommendation below — set
+> `generateAudio: false`, described here as costing "nothing it currently uses"
+> — **cannot be carried out.** Live probing proved the parameter is rejected by
+> both Veo 3.1 models on the Gemini API (HTTP 400), that six alternate
+> spellings are also rejected, and that Lite returns an AAC track anyway. The
+> leak is real; the fix named here is not available. See
+> `ONIQ_VEO_AUDIO_COST_LEAK_REPORT.md`. The rate comparison and the
+> external-seconds tables below still stand.
+
 ---
 
 ## The finding

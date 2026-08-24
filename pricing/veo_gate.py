@@ -22,7 +22,7 @@ DURATION_MIN_RATIO = 0.5
 DURATION_MAX_RATIO = 1.6
 VIDEO_MIN_BYTES = 1024
 FROZEN_RUN_MAX = 0.10      # fraction of the clip that may be a held frame
-BLANK_FRAC_MAX = 0.001     # a frame this uniform is blank
+MOTION_EPS = 0.0004        # calibrated: see the note below
 
 OPEN_CHECKS = [
     "character_reference_consistency",
@@ -58,9 +58,18 @@ def gate(m, requested_seconds=4.0):
         f"{d:.3f}s vs {requested_seconds}s requested (ratio {ratio:.2f})")
 
     # --- motion -----------------------------------------------------------
+    # MOTION_EPS calibration, measured 2026-08-24 on reference clips at the
+    # same 64x114 greyscale scale this gate uses:
+    #   static / blank h264  -> every frame pair is EXACTLY 0.000000
+    #   genuine motion       -> minimum observed 0.001549
+    # Any epsilon strictly inside (0, 0.001549) separates them. 0.0004 sits
+    # ~4x below the lowest real motion and safely above float noise. The first
+    # draft used 0.002, which scored a genuinely moving reference clip at 0.032
+    # aliveness and hard-failed it -- that would have depressed BOTH models'
+    # acceptance and corrupted the comparison.
     diffs = m.get("frame_diffs") or []
     n = m.get("frame_count", 0)
-    alive = (sum(1 for x in diffs if x > 0.002) / len(diffs)) if diffs else 0.0
+    alive = (sum(1 for x in diffs if x > MOTION_EPS) / len(diffs)) if diffs else 0.0
     add("temporal_aliveness", alive >= CLIP_ALIVENESS_MIN, "MEASURED",
         f"{alive:.3f} of frames move (min {CLIP_ALIVENESS_MIN})")
 
