@@ -5630,6 +5630,7 @@ export type Database = {
         Returns: boolean
       }
       is_minor_account: { Args: { _uid: string }; Returns: boolean }
+      is_spendable_usd: { Args: { v: number }; Returns: boolean }
       join_channel: { Args: { _conversation_id: string }; Returns: undefined }
       leave_group: { Args: { _conversation_id: string }; Returns: undefined }
       list_public_channels: {
@@ -5802,6 +5803,7 @@ export type Database = {
           username: string
         }[]
       }
+      provider_budget_status: { Args: { _capability: string }; Returns: Json }
       public_moment_card: {
         Args: { _post_id: string }
         Returns: {
