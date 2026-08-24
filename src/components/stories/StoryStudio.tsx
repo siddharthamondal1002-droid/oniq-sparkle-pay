@@ -67,6 +67,8 @@ import { PLATE_TYPES, checkPlate, uploadPlate } from "@/lib/storyPlate";
 import { payForPlan } from "@/lib/razorpay";
 import { PROGRESS, SETTLED, latestOpenJob, readJobRow } from "./storyJobsClient";
 import { PlanSheet, sayLeft } from "./PlanSheet";
+import { CinematicPanel } from "./CinematicPanel";
+import { attachIntentToPrompt, type ShotIntent } from "@/lib/videoEngineering";
 
 /**
  * Lengths offered as one tap. Anything between the bounds is still allowed.
@@ -235,6 +237,10 @@ export function StoryStudio() {
   // Ting. The toggle only arms when the text's spoken length fits the
   // purchased seconds; the claim RPC re-checks the same band server-side.
   const [verbatim, setVerbatim] = useState(false);
+  // Cinematic controls (engineering mode). Empty by default, which keeps the
+  // outgoing request byte-for-byte what it was before the panel existed.
+  // Excluded in verbatim mode: there the prompt IS the narration.
+  const [shotIntent, setShotIntent] = useState<ShotIntent>({});
   const [newCastName, setNewCastName] = useState("");
   const [newCastLock, setNewCastLock] = useState("");
   // THE PLATE — one image the film opens on, in place of the still the
@@ -412,9 +418,17 @@ export function StoryStudio() {
     setJobError(null);
     setJobStatus(null);
     try {
+      // The cinematic intent rides the prompt itself — the one channel the
+      // whole pipeline already reads (plan seed, palette, plot). Verbatim
+      // excludes it (the prompt is the narration there), and the attach is
+      // fail-closed: invalid picks or a full prompt send the user's words
+      // untouched.
+      const intentAttach = verbatim
+        ? null
+        : attachIntentToPrompt(prompt.trim(), shotIntent);
       const { data, error: rpcError } = await supabase.rpc("claim_story_seconds", {
         _requested_seconds: plan_.seconds,
-        _prompt: prompt.trim(),
+        _prompt: intentAttach?.applied ? intentAttach.prompt : prompt.trim(),
         // Always movie. Classic is withdrawn, and naming the grade is what
         // makes an old database render the right thing too: its default is
         // still 'classic', so omitting this would quietly build the withdrawn
@@ -502,7 +516,7 @@ export function StoryStudio() {
     } finally {
       setSubmitting(false);
     }
-  }, [plan_.seconds, plan_.shots.length, prompt, verbatim, cast, pickedCast]);
+  }, [plan_.seconds, plan_.shots.length, prompt, verbatim, shotIntent, cast, pickedCast]);
 
   const blocked = refusal ?? localBlock;
   const canGenerate = !submitting && !loadingQuota && blocked === null && prompt.trim().length >= 8;
@@ -590,6 +604,13 @@ export function StoryStudio() {
           was cut. Only the text above gets narrated.
         </p>
       ) : null}
+
+      <CinematicPanel
+        intent={shotIntent}
+        onChange={setShotIntent}
+        disabled={verbatim}
+        promptText={prompt}
+      />
 
       {/* THE PLATE. Sits under the prompt because it answers the same
           question — what the film opens on — and because that is where it was
