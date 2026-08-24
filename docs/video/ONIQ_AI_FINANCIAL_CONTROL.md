@@ -518,11 +518,14 @@ that a money ceiling would have.
 
 Three states get conflated, and each conflation has its own way of being wrong:
 
-| State                                                                   | SEARCH today                 |
-| ----------------------------------------------------------------------- | ---------------------------- |
-| **repository configuration** — a migration exists in `main`             | yes, `20260824190000`        |
-| **production database configuration** — the row is in the live database | yes, read back independently |
-| **production capability enablement** — spending is permitted            | **NO** — `enabled = false`   |
+| State                                                       | SEARCH today                          |
+| ----------------------------------------------------------- | ------------------------------------- |
+| **REPOSITORY CONFIGURATION** — a migration exists in `main` | **$0.50 / $2.00 / $20.00 · disabled** |
+| **PRODUCTION DATABASE** — the row is in the live database   | **$0.50 / $2.00 / $20.00 · disabled** |
+| **PRODUCTION ENABLEMENT** — spending is permitted           | **DISABLED** — `enabled = false`      |
+
+The same three states for VIDEO: repository **$1.00 / $5.00 / $50.00 · 3
+attempts · disabled**, production database identical, enablement **disabled**.
 
 **A row is not a live capability.** SEARCH is configured and refuses everything;
 `provider_budget_status('SEARCH')` says `CAPABILITY_DISABLED`, which is a
@@ -548,3 +551,82 @@ The safe order, and why each rung has to come before the next:
 
 Rung 3 before rung 4 is the specific mistake this ladder exists to prevent, and
 it is not hypothetical: it is what "just deploy the guard" would have done.
+
+### 9a. Why a deploy cannot leak spend, structurally
+
+Audited 2026-08-24, and the guarantee is structural rather than a matter of
+each function remembering to behave:
+
+- `withProviderSpendGuard` reaches `run()` — the callback holding the provider
+  call — **only after `admission.ok` is true**. `capability-disabled` returns
+  `ok: false`, so a disabled capability never enters the callback.
+- All four searching functions place their Anthropic call **inside** that
+  callback, and each reads `.admitted` before touching `guarded.value`.
+  `searchCaps.test.ts` asserts both by character offset, so a future edit that
+  hoisted a provider call above the guard fails the build.
+- **No searching function references `provider_budget_config`.** `enabled`
+  lives in the database, so shipping code cannot flip it. Deploy and enable
+  stay two separate acts, which is what makes rung 3 and rung 4 different rungs
+  rather than the same one.
+
+### 9b. Two migration files, and both stay
+
+Applying `20260824190000` produced a second file — Lovable's applied-ledger
+copy `20260824171654_ef84b816-….sql`. They are the same SQL: 5052 vs 5051
+bytes, with `cmp` reporting **EOF rather than a mismatch**, so the applied copy
+is the owner's file minus its final newline.
+
+The duplicate is deliberate and must not be tidied away. The two files make
+**different claims**: the owner's says what the repository intends, the applied
+record says what actually ran against the live database. Deleting the second
+would destroy the only in-repo evidence of the apply and collapse the very
+distinction §9 exists to keep.
+
+The real risk of a duplicate is drift — someone edits one and not the other —
+so `searchCaps.test.ts` fails the build if their content diverges, if either is
+deleted, or if either gains an `enabled =` in its `ON CONFLICT`.
+
+Verified on a fresh database, all 317 migrations applied in Supabase's
+lexicographic order:
+
+| Property                                        | Result                                             |
+| ----------------------------------------------- | -------------------------------------------------- |
+| ordering                                        | applied record (#316) runs **before** owner (#317) |
+| each file alone                                 | both yield `0.50 / 2.00 / 20.00 / disabled`        |
+| both together                                   | one SEARCH row, the owner's numbers, disabled      |
+| idempotence: 8 further applies, mixed order     | unchanged, still exactly one row                   |
+| re-run with `enabled` set true by an owner      | stays **true** — a re-run cannot switch it off     |
+| re-run over a tampered ceiling (`request=0.25`) | repaired to `0.50`                                 |
+| re-run with VIDEO moved to `job=6.00`           | **raises** `VIDEO ceilings changed …`              |
+
+The second application is a no-op `UPDATE` to the values already there. The
+owner's file sorts last, so on a fresh database it has the final say — the safe
+way round.
+
+### 9c. One paid path the ledger does not cover — Google Maps in `smart-scout`
+
+Found while auditing rung 3, and reported rather than acted on.
+
+`smart-scout/index.ts` calls the Google Geocoding API (`ADDRESS_DESCRIPTORS`)
+**before** the spend guard opens — the fetch is at line ~129, the guard at
+~236. It is guarded only by the presence of `GOOGLE_MAPS_API_KEY` and by the
+caller supplying coordinates, with a 2.5s timeout and a silent fallback.
+
+Three things are true and should not be conflated:
+
+1. **It is outside the ledger.** No `admit_provider_spend`, so no request, job
+   or daily ceiling applies to it. `search_spend` never covered it either — it
+   is a Maps SKU, not the SEARCH capability.
+2. **It is not new, and deploying does not introduce it.** The block dates from
+   `024cf9c3` (2026-07-19); the deployed `smart-scout` already contains it. So
+   it is not a reason to hold rung 3, and holding rung 3 does not stop it.
+3. **It is unaffected by SEARCH being disabled.** A refused SEARCH admission
+   happens _after_ this call. Today, a request carrying coordinates can spend
+   Maps quota and then be refused a search.
+
+Whether a Maps ceiling is wanted — and at what figure — is a decision about
+which paid APIs the owner's money funds, so it is the owner's under `CLAUDE.md
+§ Business decisions are the owner's`. Nothing here was changed. It is recorded
+so that "SEARCH is fully bounded" is never read as "ONIQ's search path spends
+nothing without a ceiling", which is a stronger claim than the evidence
+supports.

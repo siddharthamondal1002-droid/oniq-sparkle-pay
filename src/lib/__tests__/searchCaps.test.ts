@@ -31,7 +31,11 @@ import {
 
 const ROOT = process.cwd();
 const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
-const SEARCH_CEILINGS_SQL = read("supabase/migrations/20260824190000_search_spend_ceilings.sql");
+const OWNER_MIGRATION = "supabase/migrations/20260824190000_search_spend_ceilings.sql";
+/** Lovable's applied-ledger copy. Deployment evidence — never delete it. */
+const APPLIED_MIGRATION =
+  "supabase/migrations/20260824171654_ef84b816-c74c-4932-81ec-ecc11761d7da.sql";
+const SEARCH_CEILINGS_SQL = read(OWNER_MIGRATION);
 const VIDEO_CEILINGS_SQL = read("supabase/migrations/20260824170000_video_spend_ceilings.sql");
 const LEDGER_SQL = read("supabase/migrations/20260824120000_provider_spend_ledger.sql");
 const INVARIANTS_SQL = read("supabase/migrations/20260824150000_provider_budget_invariants.sql");
@@ -343,5 +347,172 @@ describe("the four searching edge functions remain fail-closed", () => {
     );
     expect(r.admitted).toBe(false);
     expect(called, "no provider call may happen without a reservation").toBe(false);
+  });
+});
+
+// ================================================== migration lineage
+/**
+ * TWO FILES NOW WRITE THE SAME SEARCH ROW, AND BOTH MUST STAY.
+ *
+ *   20260824190000_search_spend_ceilings.sql        the owner's authority
+ *   20260824171654_ef84b816-….sql                   Lovable's applied record
+ *
+ * The second is what Lovable wrote when it applied the first to production.
+ * It is deployment evidence: it says what actually ran against the live
+ * database, which is a different claim from what the repository intends. A
+ * tidy-up that deleted it would destroy the only in-repo record of the apply
+ * and leave the two claims indistinguishable again.
+ *
+ * The risk a duplicate creates is drift — someone edits one and not the other.
+ * These tests make that a build failure instead of a silent divergence.
+ */
+describe("migration lineage: the owner's file and the applied record", () => {
+  const ownerSql = read(OWNER_MIGRATION);
+  const appliedSql = read(APPLIED_MIGRATION);
+  /** Trailing-newline differences are not divergence; content differences are. */
+  const norm = (s: string) => s.replace(/\n*$/, "\n");
+
+  it("both files exist — neither may be deleted as a cosmetic tidy-up", () => {
+    expect(ownerSql.length).toBeGreaterThan(0);
+    expect(appliedSql.length).toBeGreaterThan(0);
+  });
+
+  it("are identical in content, modulo the trailing newline", () => {
+    // Measured at audit time: 5052 vs 5051 bytes, `cmp` reporting EOF rather
+    // than a mismatch — the applied copy is the owner's file without its final
+    // newline. Anything else is real drift and must fail here.
+    expect(norm(appliedSql)).toBe(norm(ownerSql));
+  });
+
+  it("write the same three ceilings and the same disabled flag", () => {
+    const parse = (sql: string) =>
+      sql.match(
+        /values\s*\n?\s*\(\s*'SEARCH'\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*(true|false)\s*\)/i,
+      );
+    for (const [label, sql] of [
+      ["owner", ownerSql],
+      ["applied", appliedSql],
+    ] as const) {
+      const m = parse(sql);
+      expect(m, `${label} migration must carry a parseable SEARCH insert`).toBeTruthy();
+      const [, request, job, daily, enabled] = m!;
+      expect(request, label).toBe(OWNER_SEARCH_CAPS.request);
+      expect(job, label).toBe(OWNER_SEARCH_CAPS.job);
+      expect(daily, label).toBe(OWNER_SEARCH_CAPS.daily);
+      expect(enabled.toLowerCase(), label).toBe("false");
+    }
+  });
+
+  it("neither can enable SEARCH on a re-run", () => {
+    for (const [label, sql] of [
+      ["owner", ownerSql],
+      ["applied", appliedSql],
+    ] as const) {
+      const conflict = sql.slice(sql.search(/on conflict/i));
+      const setClause = conflict.slice(0, conflict.indexOf(";"));
+      expect(setClause, `${label}: ON CONFLICT must not touch enabled`).not.toMatch(
+        /\benabled\s*=/,
+      );
+    }
+  });
+
+  it("apply in a deterministic order, applied-record first", () => {
+    // Supabase applies migrations in lexicographic filename order, so the
+    // ordering is a property of the names and can be asserted without a
+    // database. 171654 < 190000, so the applied record runs first and the
+    // owner's file runs second as a no-op UPDATE to the same values.
+    const stamp = (p: string) => p.replace(/^.*migrations\//, "").slice(0, 14);
+    expect(stamp(APPLIED_MIGRATION) < stamp(OWNER_MIGRATION)).toBe(true);
+    // Whichever runs last, the owner's file is the one that gets the final say
+    // on a fresh database — which is the safe way round.
+    expect(stamp(OWNER_MIGRATION)).toBe("20260824190000");
+  });
+});
+
+// ============================================ one budget system, not two
+describe("there is exactly one spend ledger", () => {
+  const SHIPPED = [
+    "supabase/functions/_shared/financialLedger.ts",
+    "supabase/functions/_shared/searchGuard.ts",
+    "supabase/functions/_shared/searchBudget.ts",
+    "supabase/functions/smart-scout/index.ts",
+    "supabase/functions/ting/index.ts",
+    "supabase/functions/health-scan/index.ts",
+    "supabase/functions/hotel-scout/index.ts",
+  ];
+
+  it("no shipped code calls the superseded search-only spend API", () => {
+    const dead =
+      /admit_search_spend|settle_search_spend|release_search_spend|search_spend_ledger|search_spend_day|search_budget_config/;
+    for (const p of SHIPPED) {
+      expect(read(p), `${p} must not use the dropped search-only API`).not.toMatch(dead);
+    }
+  });
+
+  it("every spend RPC in shipped code is a provider_* one", () => {
+    const calls = SHIPPED.flatMap((p) => [
+      ...read(p).matchAll(/rpc\(\s*"([a-z_]*(?:spend|budget)[a-z_]*)"/g),
+    ]).map((m) => m[1]);
+    expect(calls.length, "the ledger RPCs must be reachable at all").toBeGreaterThan(0);
+    expect([...new Set(calls)].sort()).toEqual([
+      "admit_provider_spend",
+      "provider_budget_status",
+      "release_provider_spend",
+      "settle_provider_spend",
+    ]);
+  });
+
+  it("searchGuard reserves against the unified ledger under capability SEARCH", () => {
+    const src = read("supabase/functions/_shared/searchGuard.ts");
+    expect(src).toMatch(/withProviderSpendGuard/);
+    expect(src).toMatch(/capability:\s*"SEARCH"/);
+  });
+});
+
+// ==================================== deploying cannot bypass the guard
+describe("deploying a searching edge function cannot reach a provider", () => {
+  const SEARCH_FNS = [
+    "supabase/functions/smart-scout/index.ts",
+    "supabase/functions/hotel-scout/index.ts",
+    "supabase/functions/ting/index.ts",
+    "supabase/functions/health-scan/index.ts",
+  ];
+
+  it("no searching function writes to the budget config — deploying cannot enable SEARCH", () => {
+    // `enabled` lives in the database. Shipping code can never flip it, which
+    // is why "deploy" and "enable" stay two separate acts.
+    for (const p of SEARCH_FNS) {
+      const src = read(p);
+      expect(src, p).not.toMatch(/provider_budget_config/);
+      expect(src, p).not.toMatch(/\benabled\s*[:=]\s*true/);
+    }
+  });
+
+  it("every Anthropic call sits after the guard opens, never before it", () => {
+    for (const p of SEARCH_FNS) {
+      const src = read(p);
+      const guardAt = src.indexOf("withSearchSpendGuard(");
+      expect(guardAt, `${p} must open the guard`).toBeGreaterThan(-1);
+      // The provider call belongs inside the guard's callback. If one ever
+      // appears earlier in the file it is outside the reservation, and a
+      // refused admission would not stop it.
+      for (const m of src.matchAll(/api\.anthropic\.com/g)) {
+        expect(m.index!, `${p}: Anthropic call at ${m.index} precedes the guard`).toBeGreaterThan(
+          guardAt,
+        );
+      }
+    }
+  });
+
+  it("each one reads the refusal before touching the guarded value", () => {
+    for (const p of SEARCH_FNS) {
+      const src = read(p);
+      const checkedAt = src.indexOf(".admitted");
+      const usedAt = src.indexOf("guarded.value");
+      expect(checkedAt, `${p} must check .admitted`).toBeGreaterThan(-1);
+      if (usedAt > -1) {
+        expect(checkedAt, `${p} must check admission before using the value`).toBeLessThan(usedAt);
+      }
+    }
   });
 });
