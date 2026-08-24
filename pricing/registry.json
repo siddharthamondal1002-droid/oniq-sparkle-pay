@@ -1,94 +1,96 @@
 {
-  "registry_version": 2,
-  "supersedes": {
-    "version": 1,
-    "what_was_wrong": "v1 carried $0.15/generated second for Veo 3.1 Fast, which appears in src/lib/motionProvider.ts:8, :142 and supabase/functions/story-clip/index.ts:17, :36. No such rate appears on Google's published tier table. It also carried a fixed FX of 84 INR/USD (src/lib/storyCostModel.ts:59) with no source or date.",
-    "status": "STALE — do not use"
+ "registry_version": 3,
+ "supersedes": {
+  "version": 2,
+  "what_was_wrong": "v2 carried BOTH a 'video only' and a 'with audio' rate for each Veo tier, taken from the Vertex AI pricing page. ONIQ does not use Vertex. On the AI Studio / Gemini API surface it actually uses there is NO video-only tier at all: every Veo row is labelled 'video with audio price (default)' and is a single rate. So $0.03/s Lite and $0.08/s Fast are NOT REACHABLE by ONIQ, and every table built on them understated cost.",
+  "status": "STALE \u2014 Vertex rates, wrong surface"
+ },
+ "fx": {
+  "pair": "USD/INR",
+  "rate": 95.68329394,
+  "source": "Alpha Vantage CURRENCY_EXCHANGE_RATE realtime quote",
+  "verified_at": "2026-08-24T01:58:55Z",
+  "note": "NOT hard-coded from memory. The repo's storyCostModel.UNIT.inrPerUsd = 84 is 13.9% below this and understates every provider cost denominated in USD. (unchanged in v3)",
+  "caveat": "A spot rate moves. Any price ladder derived from it must be re-checked before activation, and should carry FX headroom rather than being set at the edge of viability."
+ },
+ "entries": [
+  {
+   "provider": "google",
+   "model": "veo-3.1-lite-generate-preview",
+   "resolution": "720p",
+   "audio": true,
+   "usd_per_generated_second": 0.05,
+   "currency": "USD",
+   "source": "https://ai.google.dev/gemini-api/docs/pricing",
+   "verified_at": "2026-08-24",
+   "note": "THE ONLY Lite rate available on ONIQ's surface. Audio is bundled and cannot be declined \u2014 generateAudio and six alternate spellings all return HTTP 400."
   },
-  "fx": {
-    "pair": "USD/INR",
-    "rate": 95.68329394,
-    "source": "Alpha Vantage CURRENCY_EXCHANGE_RATE realtime quote",
-    "verified_at": "2026-08-24T01:58:55Z",
-    "note": "NOT hard-coded from memory. The repo's storyCostModel.UNIT.inrPerUsd = 84 is 13.9% below this and understates every provider cost denominated in USD.",
-    "caveat": "A spot rate moves. Any price ladder derived from it must be re-checked before activation, and should carry FX headroom rather than being set at the edge of viability."
+  {
+   "provider": "google",
+   "model": "veo-3.1-fast-generate-preview",
+   "resolution": "720p",
+   "audio": true,
+   "usd_per_generated_second": 0.1,
+   "currency": "USD",
+   "source": "https://ai.google.dev/gemini-api/docs/pricing",
+   "verified_at": "2026-08-24",
+   "note": "The currently shipped CLIP_MODEL."
   },
-  "entries": [
-    {
-      "provider": "google",
-      "model": "veo-3.1-fast-generate-preview",
-      "resolution": "720p",
-      "audio": true,
-      "usd_per_generated_second": 0.1,
-      "currency": "USD",
-      "source": "https://cloud.google.com/vertex-ai/generative-ai/pricing/",
-      "verified_at": "2026-08-23",
-      "note": "THE CURRENTLY SHIPPED PATH. story-clip sends no generateAudio parameter, so Veo 3.1 generates audio by default and this is the rate actually being paid."
-    },
-    {
-      "provider": "google",
-      "model": "veo-3.1-fast-generate-preview",
-      "resolution": "720p",
-      "audio": false,
-      "usd_per_generated_second": 0.08,
-      "currency": "USD",
-      "source": "https://cloud.google.com/vertex-ai/generative-ai/pricing/",
-      "verified_at": "2026-08-23"
-    },
-    {
-      "provider": "google",
-      "model": "veo-3.1-lite-generate-preview",
-      "resolution": "720p",
-      "audio": false,
-      "usd_per_generated_second": 0.03,
-      "currency": "USD",
-      "source": "https://cloud.google.com/vertex-ai/generative-ai/pricing/",
-      "verified_at": "2026-08-23",
-      "note": "Confirmed LIVE on the production key 2026-08-23 by models.list enumeration."
-    },
-    {
-      "provider": "google",
-      "model": "veo-3.1-lite-generate-preview",
-      "resolution": "720p",
-      "audio": true,
-      "usd_per_generated_second": 0.05,
-      "currency": "USD",
-      "source": "https://cloud.google.com/vertex-ai/generative-ai/pricing/",
-      "verified_at": "2026-08-23"
-    },
-    {
-      "provider": "google",
-      "model": "veo-3.1-generate-preview",
-      "resolution": "720p",
-      "audio": true,
-      "usd_per_generated_second": 0.4,
-      "currency": "USD",
-      "source": "https://cloud.google.com/vertex-ai/generative-ai/pricing/",
-      "verified_at": "2026-08-23",
-      "note": "Standard tier. Live on the key but not a candidate — 13x Lite."
-    },
-    {
-      "provider": "runway",
-      "model": "gen4_turbo",
-      "resolution": "720p",
-      "audio": false,
-      "usd_per_generated_second": null,
-      "currency": null,
-      "source": null,
-      "verified_at": null,
-      "status": "PRICING_OPEN",
-      "note": "src/lib/runway.server.ts records CREDITS_PER_SECOND = 5. A credit rate is not a price. runwayml.com is egress-blocked from the audit container and the API host was never reached, so no USD or INR figure exists and none is invented."
-    }
-  ],
-  "in_house": {
-    "inr_per_finished_minute": 37.55,
-    "source": "src/lib/storyCostModel.ts, measured",
-    "note": "Denominated in INR already, so the FX correction does not move it. This is why the in-house floor is unaffected by the FX and audio findings."
+  {
+   "provider": "google",
+   "model": "veo-3.1-generate-preview",
+   "resolution": "720p",
+   "audio": true,
+   "usd_per_generated_second": 0.4,
+   "currency": "USD",
+   "source": "https://ai.google.dev/gemini-api/docs/pricing",
+   "verified_at": "2026-08-24",
+   "note": "Standard tier. 8x Lite; not a candidate."
   },
-  "do_not_mix": {
-    "rule": "Three different numbers must never be conflated.",
-    "generated_cost": "USD or INR per second the provider bills, whether or not the output is kept.",
-    "accepted_cost": "Cost per second ONIQ actually ships, which includes spend on rejected attempts. Always >= generated cost.",
-    "customer_price": "GST-inclusive INR the user pays. Set from accepted cost plus margin, never from generated cost."
+  {
+   "provider": "runway",
+   "model": "gen4_turbo",
+   "resolution": "720p",
+   "audio": false,
+   "usd_per_generated_second": null,
+   "currency": null,
+   "source": null,
+   "verified_at": null,
+   "status": "PRICING_OPEN",
+   "note": "CREDITS_PER_SECOND = 5 in src/lib/runway.server.ts is a credit rate, not a price. Host never reached, credit price never verified, no INR figure invented."
   }
+ ],
+ "in_house": {
+  "inr_per_finished_minute": 37.55,
+  "source": "src/lib/storyCostModel.ts, measured",
+  "note": "Denominated in INR already, so the FX correction does not move it. This is why the in-house floor is unaffected by the FX and audio findings."
+ },
+ "do_not_mix": {
+  "rule": "Three different numbers must never be conflated.",
+  "generated_cost": "USD or INR per second the provider bills, whether or not the output is kept.",
+  "accepted_cost": "Cost per second ONIQ actually ships, which includes spend on rejected attempts. Always >= generated cost.",
+  "customer_price": "GST-inclusive INR the user pays. Set from accepted cost plus margin, never from generated cost."
+ },
+ "surface": {
+  "api": "Google AI Studio / Gemini API (generativelanguage.googleapis.com)",
+  "why_it_matters": "Vertex AI publishes separate video-only and with-audio prices. AI Studio does not. ONIQ calls AI Studio, so only the with-audio rate exists for it.",
+  "verified_at": "2026-08-24",
+  "source": "https://ai.google.dev/gemini-api/docs/pricing (HTTP 200, no redirect)",
+  "verbatim": "Veo 3.1 Lite video with audio price (default) \u2014 $0.05 (720p) / $0.08 (1080p); Veo 3.1 Fast video with audio price (default) \u2014 $0.10 (720p) / $0.12 (1080p) / $0.30 (4k); Veo 3.1 Standard \u2014 $0.40 (720p and 1080p) / $0.60 (4k)",
+  "video_only_tier_exists": false
+ },
+ "filtered_generations": {
+  "classification": "NOT_BILLED",
+  "basis": "DOCUMENTED, not reconciled against an invoice.",
+  "quotes": [
+   "You will only be charged if your video is successfully generated. \u2014 ai.google.dev/gemini-api/docs/pricing",
+   "You will not be charged if your video is blocked from generating. \u2014 ai.google.dev/gemini-api/docs/veo"
+  ],
+  "caveat": "Both statements sit beside the audio-processing case and neither says 'RAI-filtered output'. The shape matches (done:true, zero samples), but the billing view was not reachable, so the 21-vs-17 generation count for 2026-08-24 was never checked. Economics therefore carry BOTH a lower bound (filtered free) and a conservative bound (filtered billed).",
+  "detectable_via": [
+   "raiMediaFilteredCount",
+   "raiMediaFilteredReasons"
+  ],
+  "oniq_currently_detects_it": false
+ }
 }

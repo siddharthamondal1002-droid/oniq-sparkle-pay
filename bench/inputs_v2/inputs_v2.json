@@ -1,0 +1,156 @@
+{
+ "benchmark_input_version": "ONIQ-VEO-INPUTS-v2",
+ "rule": "front pose only, no captions, no labels, no second pose, plain neutral backdrop, 720x1280. Frozen before generation.",
+ "items": [
+  {
+   "character": "aladdin",
+   "source_size": [
+    1600,
+    1244
+   ],
+   "figure_runs_detected": 2,
+   "crop_box": [
+    139,
+    42,
+    547,
+    1244
+   ],
+   "output": "aladdin.png"
+  },
+  {
+   "character": "morgiana",
+   "source_size": [
+    1600,
+    894
+   ],
+   "figure_runs_detected": 6,
+   "crop_box": [
+    208,
+    53,
+    448,
+    854
+   ],
+   "output": "morgiana.png"
+  },
+  {
+   "character": "princess",
+   "source_size": [
+    1600,
+    894
+   ],
+   "figure_runs_detected": 2,
+   "crop_box": [
+    265,
+    62,
+    504,
+    871
+   ],
+   "output": "princess.png"
+  },
+  {
+   "character": "captain",
+   "source_size": [
+    1600,
+    894
+   ],
+   "figure_runs_detected": 3,
+   "crop_box": [
+    164,
+    14,
+    765,
+    894
+   ],
+   "output": "captain.png"
+  },
+  {
+   "character": "magician",
+   "source_size": [
+    1600,
+    894
+   ],
+   "figure_runs_detected": 4,
+   "crop_box": [
+    58,
+    18,
+    301,
+    877
+   ],
+   "output": "magician.png"
+  },
+  {
+   "character": "fisherman",
+   "source_size": [
+    1600,
+    894
+   ],
+   "figure_runs_detected": 4,
+   "crop_box": [
+    80,
+    20,
+    460,
+    875
+   ],
+   "output": "fisherman.png"
+  },
+  {
+   "character": "lampJinni",
+   "source_size": [
+    1600,
+    894
+   ],
+   "figure_runs_detected": 3,
+   "crop_box": [
+    157,
+    15,
+    670,
+    867
+   ],
+   "output": "lampJinni.png"
+  },
+  {
+   "character": "jarJinni",
+   "source_size": [
+    1600,
+    894
+   ],
+   "figure_runs_detected": 5,
+   "crop_box": [
+    14,
+    0,
+    859,
+    894
+   ],
+   "output": "jarJinni.png"
+  },
+  {
+   "character": "aliBaba",
+   "source_size": [
+    1600,
+    894
+   ],
+   "figure_runs_detected": 5,
+   "crop_box": [
+    49,
+    5,
+    499,
+    851
+   ],
+   "output": "aliBaba.png"
+  },
+  {
+   "character": "mother",
+   "source_size": [
+    1600,
+    894
+   ],
+   "figure_runs_detected": 4,
+   "crop_box": [
+    83,
+    21,
+    289,
+    874
+   ],
+   "output": "mother.png"
+  }
+ ]
+}

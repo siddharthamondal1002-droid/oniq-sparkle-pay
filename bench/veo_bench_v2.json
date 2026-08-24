@@ -1,0 +1,83 @@
+{
+  "benchmark": "ONIQ-VEO-LITE-VS-FAST-v2",
+  "benchmark_input_version": "ONIQ-VEO-INPUTS-v2",
+  "frozen_at": "2026-08-24",
+  "frozen_before_any_v2_result": true,
+  "supersedes": "ONIQ-VEO-LITE-VS-FAST-v1 — inputs were contaminated; see below",
+
+  "why_v2_exists": [
+    "v1 fed Veo the raw two-pose design sheets from remotion/public/sheets/cut/. Both models rendered the sheet's caption text into the world as scenery.",
+    "The contamination was UNEQUAL: aladdin.png carries no text at all, princess.png carries a title plus four FRONT/SIDE VIEW labels. So v1's cases were not even contaminated consistently, which is a second and independent reason its absolute quality numbers cannot be used.",
+    "v1's relative Lite-vs-Fast comparison remains usable, because both models received byte-identical frames per case. v1's ABSOLUTE quality numbers do not."
+  ],
+
+  "input_construction": {
+    "method": "Front pose isolated from the ONIQ sheet by column-extent detection, placed on a plain neutral backdrop at 720x1280.",
+    "verified": "Every retained input was inspected visually at full size, not merely produced by the script.",
+    "characters_retained": ["aladdin", "morgiana", "princess", "lampJinni"],
+    "characters_rejected": {
+      "captain": "residual title text and a ground-shadow plate survive the crop",
+      "magician": "sheet contains head portraits, not an isolated full-body pose",
+      "fisherman": "figure sits on a coloured panel; title text survives",
+      "jarJinni": "title text plus a colour-swatch strip",
+      "aliBaba": "sheet is three head portraits, a hand study and an axe — no clean full-body pose exists on it",
+      "mother": "head portrait plus a hand study"
+    },
+    "rejection_rule": "A character was retained ONLY if visual inspection confirmed: one pose, no caption, no label, no second figure, no prop study, no palette strip. Six of ten failed that and were dropped rather than cleaned up approximately.",
+    "known_minor_residue": "aladdin retains a small pale artefact near the feet; lampJinni retains its lamp and two small specks. Both were judged not to constitute text or a second figure. Recorded rather than hidden."
+  },
+
+  "controls": {
+    "duration_seconds": 4,
+    "resolution": "720p",
+    "aspect_ratio": "9:16",
+    "start_frame": "byte-identical file for both models, per case",
+    "prompt": "byte-identical string for both models, per case",
+    "audio": "NOT selectable on this API surface — generateAudio and six alternate spellings all return HTTP 400. Both models return an AAC track regardless. Identical for both, so it does not bias the comparison.",
+    "gate": "one implementation, cannot see which model produced a row",
+    "retries": "NONE. A failure is the measurement."
+  },
+
+  "models": { "A": "veo-3.1-lite-generate-preview", "B": "veo-3.1-fast-generate-preview" },
+
+  "cases": [
+    { "id": "c01_walk", "class": "ordinary walking", "character": "aladdin",
+      "prompt": "The boy walks forward at a steady, even pace. Full body stays in frame. Natural arm swing.",
+      "adherence_test": "centroid_x_displacement" },
+    { "id": "c02_talking", "class": "talking", "character": "morgiana",
+      "prompt": "The woman speaks directly to camera. Her lips move naturally as she talks. Small, calm head movements.",
+      "adherence_test": "UNMEASURABLE" },
+    { "id": "c03_closeup", "class": "close-up", "character": "princess",
+      "prompt": "Slow push in on her face. She blinks once and her expression softens slightly.",
+      "adherence_test": "subject_scale_increase" },
+    { "id": "c04_turning", "class": "turning", "character": "aladdin",
+      "prompt": "He turns his upper body to face left, then holds the new position steadily.",
+      "adherence_test": "silhouette_width_change" },
+    { "id": "c05_two_person", "class": "two-person interaction", "character": "morgiana",
+      "prompt": "Two people stand facing each other. One gestures while speaking; the other listens and nods once.",
+      "adherence_test": "UNMEASURABLE" },
+    { "id": "c06_hand", "class": "hand movement", "character": "princess",
+      "prompt": "She raises one hand and slowly opens her fingers, palm toward camera.",
+      "adherence_test": "UNMEASURABLE" },
+    { "id": "c07_lower_body", "class": "lower-body movement", "character": "aladdin",
+      "prompt": "He steps forward with one leg, the knee bending clearly, then plants his foot and settles.",
+      "adherence_test": "lower_half_motion_dominant" },
+    { "id": "c08_camera", "class": "camera movement", "character": "lampJinni",
+      "prompt": "The camera arcs slowly to the right around the standing figure, who remains still.",
+      "adherence_test": "global_motion_present" },
+    { "id": "c09_environment", "class": "environmental motion", "character": "lampJinni",
+      "prompt": "Smoke and loose cloth drift and curl in the air around the figure, who stays still.",
+      "adherence_test": "motion_off_subject" },
+    { "id": "c10_knee_regression", "class": "ONIQ regression — knee/leg articulation", "character": "aladdin",
+      "prompt": "Full-body side view. He walks with a clear, correct walking cycle; both knees bend and straighten naturally.",
+      "adherence_test": "centroid_x_displacement",
+      "why_this_case": "The documented in-house failure mode. The ARAP CPU path over-curls the knee (batch-3 diagnostic, root cause = source BVH). It is the class in-house is known to lose, so it is the class most likely to justify paying an external provider at all." }
+  ],
+
+  "stated_limits": [
+    "Four characters across ten classes, not ten characters. Character is therefore NOT a controlled variable across classes — but it IS controlled within each case, which is what the Lite-vs-Fast comparison needs.",
+    "One generation per model per case. n=10 per model cannot separate a two-clip difference. Conclusions are PROVISIONAL, never 'model X is better'.",
+    "Prompt adherence is measured only where a defensible automatic test exists. Three classes are marked UNMEASURABLE rather than given a test that would pass on mere pixel change.",
+    "Human visual assessment will be labelled NON_BLIND unless it demonstrably was blind. The v1 review was NOT blind and must never be described as such."
+  ]
+}

@@ -90,9 +90,16 @@ if __name__ == "__main__":
     print(f"FX {FX:.4f} INR/USD — {REG['fx']['source']}, {REG['fx']['verified_at']}")
     print(f"in-house ₹{INHOUSE_INR_PER_S:.4f}/finished second "
           f"(₹{REG['in_house']['inr_per_finished_minute']}/min, INR-denominated: FX does not move it)\n")
-    for label, sub, aud in (("Lite  video-only", "lite", False),
-                            ("Lite  + audio", "lite", True),
-                            ("Fast  video-only", "fast", False),
-                            ("Fast  + audio  (SHIPPED)", "fast", True)):
-        s = inr_per_generated_second(sub, aud)
-        print(f"{label:26s} ${rate(sub, aud):.2f}/s  ₹{s:7.3f}/generated s  ₹{s*60:8.2f}/generated min")
+    print(f"surface: {REG['surface']['api']}")
+    print(f"video-only tier exists on this surface: {REG['surface']['video_only_tier_exists']}\n")
+    for label, sub in (("Lite  (audio bundled)", "lite"),
+                       ("Fast  (audio bundled, SHIPPED)", "fast"),
+                       ("Standard", "veo-3.1-generate")):
+        s = inr_per_generated_second(sub, True)
+        print(f"{label:32s} ${rate(sub, True):.2f}/s  ₹{s:7.3f}/generated s  ₹{s*60:8.2f}/generated min")
+    # asking for a rate this surface does not sell must RAISE, not guess
+    try:
+        rate("lite", False)
+        print("\nBUG: a video-only Lite rate was returned; none exists on AI Studio")
+    except KeyError:
+        print("\nvideo-only rates correctly unavailable (KeyError) — they are Vertex-only")

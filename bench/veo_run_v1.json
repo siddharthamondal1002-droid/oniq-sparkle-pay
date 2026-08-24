@@ -1,0 +1,18 @@
+{
+ "benchmark": "ONIQ-VEO-LITE-VS-FAST-v1",
+ "run_at": "2026-08-24T02:27:39Z",
+ "attempted": 20, "produced_a_file": 16, "generation_failures": 4,
+ "note": "A = veo-3.1-lite-generate-preview, B = veo-3.1-fast-generate-preview",
+ "rows": [
+  {"case":"c01_walk","A":{"ok":false,"err":"no samples","wall":32.0},"B":{"ok":false,"err":"no samples","wall":32.0}},
+  {"case":"c02_talking","A":{"ok":true,"wall":42.3,"frames":96,"static_run":24,"blank":0,"dur":4.0},"B":{"ok":true,"wall":42.4,"frames":96,"static_run":7,"blank":0,"dur":4.0}},
+  {"case":"c03_closeup","A":{"ok":true,"wall":32.6,"frames":96,"static_run":8,"blank":0,"dur":4.0},"B":{"ok":true,"wall":43.3,"frames":96,"static_run":8,"blank":0,"dur":4.0}},
+  {"case":"c04_turning","A":{"ok":true,"wall":43.0,"frames":96,"static_run":8,"blank":0,"dur":4.0},"B":{"ok":true,"wall":42.6,"frames":96,"static_run":1,"blank":0,"dur":4.0}},
+  {"case":"c05_two_person","A":{"ok":true,"wall":42.5,"frames":96,"static_run":8,"blank":0,"dur":4.0},"B":{"ok":true,"wall":42.3,"frames":96,"static_run":11,"blank":0,"dur":4.0}},
+  {"case":"c06_hand","A":{"ok":true,"wall":32.8,"frames":96,"static_run":8,"blank":0,"dur":4.0},"B":{"ok":true,"wall":43.0,"frames":96,"static_run":5,"blank":0,"dur":4.0}},
+  {"case":"c07_lower_body","A":{"ok":true,"wall":32.6,"frames":96,"static_run":24,"blank":0,"dur":4.0},"B":{"ok":true,"wall":52.9,"frames":96,"static_run":8,"blank":0,"dur":4.0}},
+  {"case":"c08_camera","A":{"ok":false,"err":"no samples","wall":32.0},"B":{"ok":false,"err":"no samples","wall":31.9}},
+  {"case":"c09_environment","A":{"ok":true,"wall":42.9,"frames":96,"static_run":1,"blank":0,"dur":4.0},"B":{"ok":true,"wall":43.1,"frames":96,"static_run":1,"blank":0,"dur":4.0}},
+  {"case":"c10_knee_regression","A":{"ok":true,"wall":32.6,"frames":96,"static_run":15,"blank":0,"dur":4.0},"B":{"ok":true,"wall":42.6,"frames":96,"static_run":1,"blank":0,"dur":4.0}}
+ ]
+}

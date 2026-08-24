@@ -61,9 +61,23 @@ def t04_runway_is_unpriced_and_says_so():
 
 
 @test
-def t05_lite_is_cheaper_than_fast_at_matching_audio_settings():
-    assert C.rate("lite", False) < C.rate("fast", False)
+def t05_lite_is_cheaper_than_fast_on_the_surface_oniq_uses():
     assert C.rate("lite", True) < C.rate("fast", True)
+
+
+@test
+def t05b_no_video_only_rate_is_reachable_on_ai_studio():
+    """AI Studio sells one rate per Veo tier, audio bundled. The $0.03/$0.08
+    video-only rates are Vertex-only. Asking for one must RAISE rather than
+    return a number ONIQ cannot actually buy — every earlier table that used
+    $0.03 understated cost by 67%."""
+    assert C.REG["surface"]["video_only_tier_exists"] is False
+    for m in ("lite", "fast"):
+        try:
+            C.rate(m, False)
+        except KeyError:
+            continue
+        raise AssertionError(f"{m} returned a video-only rate; none exists on AI Studio")
 
 
 # ------------------------------------------------------- the three quantities
