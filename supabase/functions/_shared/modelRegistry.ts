@@ -43,10 +43,51 @@ export type ModelStatus = "current" | "deprecated" | "shutdown" | "unknown";
  * left `null`/`[]` with a note, NOT invented. `capabilityMatrix.test.ts` pins
  * the video envelope against story-clip's own constants so it cannot drift.
  */
-export type Modality = "text" | "text-to-image" | "image-to-video" | "text-to-speech";
+export type Modality = "text" | "text-to-image" | "image-to-video" | "text-to-speech" | "retrieval";
+
+/**
+ * What a retrieval provider is FOR. smart-scout currently serves all of these
+ * from one Opus-5-plus-web_search call; naming them separately is the first
+ * step to routing them separately.
+ */
+export type RetrievalKind =
+  | "GENERAL_SEARCH"
+  | "PRODUCT_SEARCH"
+  | "PRICE_COMPARISON"
+  | "LOCAL_SEARCH"
+  | "NEWS_SEARCH"
+  | "IMAGE_SEARCH"
+  | "VIDEO_SEARCH"
+  | "GEOCODE";
+
+/**
+ * THE DISTINCTION THAT MATTERS, and the one ONIQ currently loses.
+ *
+ * `RETRIEVES` returns sources it did not author — a URL, a price, a
+ * lat/long. Provenance survives, so a downstream layer can record
+ * `source`, `retrieved_at` and `raw_price`.
+ *
+ * `MODEL_MEDIATED` means a model read the page and told you what it said.
+ * The answer may be perfectly correct and still has no verifiable
+ * provenance, because the value was authored by the model, not extracted
+ * from a document ONIQ holds. smart-scout is MODEL_MEDIATED today.
+ */
+export type RetrievalFidelity = "RETRIEVES" | "MODEL_MEDIATED";
 
 export type Capabilities = {
   modality: Modality;
+  /** Retrieval only: what this provider can look up. null = not retrieval. */
+  retrievalKinds?: RetrievalKind[] | null;
+  /** Retrieval only: whether results carry verifiable provenance. */
+  retrievalFidelity?: RetrievalFidelity | null;
+  /** Retrieval only: can the CALLER pin which domains are searched? */
+  domainRestriction?: boolean | null;
+  /**
+   * Retrieval only: USD per query at the provider's published rate, or null
+   * when unpriced/unverified. Never guessed — an unpriced provider is a
+   * provider ONIQ cannot budget for.
+   */
+  usdPerQuery?: number | null;
   /** Discrete clip durations the provider accepts, in seconds. null = not video. */
   durationsSec: number[] | null;
   /** Aspect ratios the provider emits. [] = unconstrained or unrecorded. */
@@ -90,7 +131,8 @@ export const TEXT_PRIMARY: ModelEntry = {
   id: "claude-sonnet-4-6",
   provider: "anthropic",
   keyEnv: "ANTHROPIC_API_KEY",
-  usedBy: "_shared/llm.ts callClaude, callers that pass model:'claude-sonnet-4-6' (translate, health-scan)",
+  usedBy:
+    "_shared/llm.ts callClaude, callers that pass model:'claude-sonnet-4-6' (translate, health-scan)",
   status: "current",
   shutdownOn: null,
   // CORRECTED 2026-08-20 against the live client: this is NOT the callClaude

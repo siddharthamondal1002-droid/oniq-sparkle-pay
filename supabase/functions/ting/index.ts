@@ -1,5 +1,44 @@
 // Ting edge function — Gemini primary, Anthropic (Claude) fallback + web search
 import { langInstruction, callGemini, type ClaudeMessage } from "../_shared/llm.ts";
+import type { SearchBudget } from "../_shared/searchBudget.ts";
+import {
+  attachmentTokenCeiling,
+  refusalMessage,
+  requestIdFrom,
+  serviceRoleRpc,
+  withSearchSpendGuard,
+} from "../_shared/searchGuard.ts";
+
+// --- spend shape of ONE Ting turn -------------------------------------------
+//
+// TING HAD NO SEARCH CEILING AT ALL. `tools: [{ type: "web_search_20250305",
+// name: "web_search" }]` with no `max_uses` lets one chat turn run as many
+// billed searches as the model wants, on claude-opus-5. That is not a ceiling
+// anyone chose; it is the absence of one, and it cannot be reserved for.
+// TING_MAX_SEARCHES exists so the reservation can describe the call.
+const TING_MODEL = "claude-opus-5";
+const TING_MAX_SEARCHES = 5;
+const TING_MAX_TOKENS = 1024;
+// 30 messages x 4,000 chars is the validated ceiling above; ~3 chars/token is a
+// deliberately pessimistic conversion so the bound stays above the real count.
+const TING_HISTORY_TOKEN_RESERVE = (30 * 4000) / 3;
+
+function tingBudget(search: boolean, attachmentTokens: number): SearchBudget {
+  return {
+    maxSearches: search ? TING_MAX_SEARCHES : 0,
+    maxProviderCalls: 1,
+    maxLlmCalls: 1,
+    // Search results re-enter context on every hop, so a searching turn
+    // reserves room for them; a non-searching turn does not need to.
+    maxInputTokens:
+      TING_HISTORY_TOKEN_RESERVE + attachmentTokens + (search ? TING_MAX_SEARCHES * 3_600 : 0),
+    maxOutputTokens: TING_MAX_TOKENS,
+    maxWallClockMs: 120_000,
+    maxEstimatedUsd: 0.5,
+  };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,7 +51,6 @@ const SYSTEM =
   "ONIQ is a super app (chat, payments, food, rides, clips, learn) built in Kolkata. " +
   "Answer in the user's language. When you used web search, mention your sources briefly.";
 
-
 // --- rate limit (per-isolate; resets on cold start) ---
 const rlBuckets = new Map<string, number[]>();
 function _subFromAuth(req: Request): string {
@@ -20,13 +58,22 @@ function _subFromAuth(req: Request): string {
   const t = h.startsWith("Bearer ") ? h.slice(7) : "";
   const p = t.split(".");
   if (p.length !== 3) return "anon";
-  try { return JSON.parse(atob(p[1].replace(/-/g,"+").replace(/_/g,"/"))).sub || "anon"; } catch { return "anon"; }
+  try {
+    return JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/"))).sub || "anon";
+  } catch {
+    return "anon";
+  }
 }
 function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   const now = Date.now();
   const arr = (rlBuckets.get(id) ?? []).filter((t) => now - t < windowMs);
-  if (arr.length >= limit) { rlBuckets.set(id, arr); return false; }
-  arr.push(now); rlBuckets.set(id, arr); return true;
+  if (arr.length >= limit) {
+    rlBuckets.set(id, arr);
+    return false;
+  }
+  arr.push(now);
+  rlBuckets.set(id, arr);
+  return true;
 }
 
 Deno.serve(async (req) => {
@@ -39,14 +86,12 @@ Deno.serve(async (req) => {
     const key = Deno.env.get("ANTHROPIC_API_KEY");
     if (!key) return json({ configured: false }, 200);
 
-
     const body = await req.json().catch(() => ({}));
     const messages = Array.isArray(body?.messages) ? body.messages : null;
     const search = body?.search !== false; // default on
     const lang = typeof body?.lang === "string" ? body.lang : "";
     const attachment = body?.attachment as
-      | { kind: "image" | "pdf" | "text"; mime?: string; data?: string; text?: string }
-      | undefined;
+      { kind: "image" | "pdf" | "text"; mime?: string; data?: string; text?: string } | undefined;
 
     if (!messages || messages.length < 1 || messages.length > 30) {
       return json({ error: "messages must be 1–30 items" }, 400);
@@ -66,9 +111,10 @@ Deno.serve(async (req) => {
     }
 
     // Attach file to the last user message if present.
-    const outMessages: Array<{ role: string; content: unknown }> = messages.map(
-      (m: any) => ({ role: m.role, content: m.content }),
-    );
+    const outMessages: Array<{ role: string; content: unknown }> = messages.map((m: any) => ({
+      role: m.role,
+      content: m.content,
+    }));
     if (attachment && outMessages.length > 0) {
       const last = outMessages[outMessages.length - 1];
       if (last.role === "user") {
@@ -111,48 +157,123 @@ Deno.serve(async (req) => {
 
     {
       const payload: Record<string, unknown> = {
-        model: "claude-opus-5",
-        max_tokens: 1024,
+        model: TING_MODEL,
+        max_tokens: TING_MAX_TOKENS,
         system: systemPrompt,
         messages: outMessages,
       };
       if (search) {
-        payload.tools = [{ type: "web_search_20250305", name: "web_search" }];
+        payload.tools = [
+          { type: "web_search_20250305", name: "web_search", max_uses: TING_MAX_SEARCHES },
+        ];
       }
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-api-key": key,
-          "anthropic-version": "2023-06-01",
+      const attachmentTokens = attachment
+        ? attachmentTokenCeiling(
+            attachment.kind,
+            attachment.kind === "text" ? attachment.text : attachment.data,
+          )
+        : 0;
+      const uid = _subFromAuth(req);
+      const rpc = serviceRoleRpc();
+
+      // ---- SPEND GUARD ----------------------------------------------------
+      const guarded = await withSearchSpendGuard(
+        rpc,
+        {
+          requestId: requestIdFrom(body?.requestId),
+          provider: "anthropic",
+          model: TING_MODEL,
+          searchType: search ? "ting-search" : "ting-chat",
+          userId: UUID_RE.test(uid) ? uid : undefined,
+          budget: tingBudget(search, attachmentTokens),
         },
-        body: JSON.stringify(payload),
-      });
+        async () => {
+          const r = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-api-key": key,
+              "anthropic-version": "2023-06-01",
+            },
+            body: JSON.stringify(payload),
+          });
+          const text = await r.text().catch(() => "");
+          let parsedBody: any = null;
+          try {
+            parsedBody = text ? JSON.parse(text) : null;
+          } catch {
+            /* keep null */
+          }
+          return {
+            value: { status: r.status, ok: r.ok, body: parsedBody, text },
+            usage: r.ok ? parsedBody?.usage : null,
+            stopReason: r.ok ? parsedBody?.stop_reason : null,
+            terminationReason: r.ok ? undefined : ("PROVIDER_ERROR" as const),
+          };
+        },
+      );
+
+      if (!guarded.admitted) {
+        console.warn(`Ting: spend guard refused (${guarded.reason})`);
+        return json({ error: refusalMessage(guarded.reason), blocked: guarded.reason }, 200);
+      }
+      const res = guarded.value;
 
       if (res.status === 401) return json({ configured: false }, 200);
       if (res.ok) {
-        data = await res.json();
+        data = res.body;
         console.info("Ting answered via Claude Opus 5 (primary)");
       } else {
-        const t = await res.text().catch(() => "");
-        console.error("anthropic error", res.status, t);
+        console.error("anthropic error", res.status, res.text.slice(0, 200));
         if (!hasAttachment) {
           const geminiMsgs: ClaudeMessage[] = outMessages.map((m) => ({
             role: m.role as "user" | "assistant",
             content: typeof m.content === "string" ? m.content : "",
           }));
-          const g = await callGemini({ system: systemPrompt, messages: geminiMsgs, maxTokens: 1024 });
-          if (g.ok) {
+          // The fallback is a SECOND billable call, on a different key, and it
+          // needs its own reservation. gemini-3.6-flash has no verified rate in
+          // MODEL_RATES, so this refuses with "unpriced-model" and Ting returns
+          // the primary failure instead. That is deliberate: an unpriced
+          // provider resolving to free is the bug the ledger exists to stop.
+          // Adding a verified Google rate to MODEL_RATES re-enables it.
+          const fb = await withSearchSpendGuard(
+            rpc,
+            {
+              requestId: requestIdFrom(null),
+              provider: "google",
+              model: "gemini-3.6-flash",
+              searchType: "ting-fallback",
+              userId: UUID_RE.test(uid) ? uid : undefined,
+              budget: tingBudget(false, attachmentTokens),
+            },
+            async () => {
+              const g = await callGemini({
+                system: systemPrompt,
+                messages: geminiMsgs,
+                maxTokens: TING_MAX_TOKENS,
+              });
+              return {
+                value: g,
+                neverCalled: !g.ok && g.reason === "gemini not configured",
+                usage: g.ok ? g.data?.usage : null,
+                terminationReason: g.ok ? undefined : ("PROVIDER_ERROR" as const),
+              };
+            },
+          );
+          if (!fb.admitted) {
+            console.warn(`Ting: Gemini fallback not admitted (${fb.reason})`);
+          } else if (fb.value.ok) {
             console.info("Ting answered via Gemini (fallback)");
-            data = g.data;
+            data = fb.value.data;
             servedBy = "gemini";
           } else {
-            console.warn(`Ting: Gemini fallback also failed (${g.reason})`);
+            console.warn(`Ting: Gemini fallback also failed (${fb.value.reason})`);
           }
         }
         if (!data) {
-          if (res.status === 429) return json({ error: "Ting is a bit busy — try again in a moment 🐢" }, 429);
+          if (res.status === 429)
+            return json({ error: "Ting is a bit busy — try again in a moment 🐢" }, 429);
           return json({ error: "Ting glitched — try again" }, 502);
         }
       }

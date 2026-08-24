@@ -122,6 +122,25 @@ export type StoryShotInput = {
     src: string;
     /** Usable clip length in composition frames, measured by the worker. */
     frames: number;
+    /**
+     * KEEP THE PROVIDER'S OWN SOUNDTRACK ON THIS SHOT.
+     *
+     * Absent or false = muted, which stays the default for a very concrete
+     * reason: ONIQ Stories are narration-as-clock, and the shot's TTS dialogue
+     * is already concatenated into that narration wav. Unmuting a narrated
+     * shot does not enrich it — it lays a second, unsynchronised voice reading
+     * different words over the first.
+     *
+     * The worker sets this true only for a shot the audio router put in
+     * VEO_NATIVE_AUDIO: no ONIQ narration, no ONIQ dialogue, and sound the
+     * scene genuinely needs frame-locked to the picture (speech, an explosion,
+     * footsteps). On that shot the native track is the whole point, and Veo
+     * generated it whether ONIQ used it or not — on the Gemini Developer API
+     * there is no parameter to decline it — so discarding it is pure waste.
+     */
+    preserveAudio?: boolean;
+    /** Gain for the preserved native track, under any ONIQ bed. Default 1. */
+    audioVolume?: number;
   };
   /**
    * A rigged character standing in this shot, breathing and speaking.
@@ -202,8 +221,9 @@ export type StoryShotInput = {
    * (ambienceFor) and synthesized deterministically by the worker. Plays
    * UNDER the narration at AMBIENT_GAIN with faded edges; absent for
    * scenes whose words earn no air, and for every classic film. Unlike
-   * the particle overlay this DOES ride under clips — Veo video is muted
-   * always, so the bed is the only sound a clip shot has.
+   * the particle overlay this DOES ride under clips — a clip is muted unless
+   * its shot was routed to VEO_NATIVE_AUDIO, so on most clips the bed is the
+   * only sound the shot has.
    */
   ambience?: {
     /** Path under remotion/public, same addressing as `still`. */
@@ -358,10 +378,13 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
       {shot.clip ? (
         <>
           <Sequence durationInFrames={clipFrames}>
-            {/* MUTED, unconditionally — Veo writes its own soundtrack and the
-                narration below is the film's only voice. */}
+            {/* Muted by DEFAULT, not unconditionally. See `preserveAudio`:
+                a narrated shot cannot carry a second voice, but a shot the
+                audio router put in VEO_NATIVE_AUDIO exists precisely so its
+                generated sound reaches the film. */}
             <OffthreadVideo
-              muted
+              muted={!shot.clip.preserveAudio}
+              volume={shot.clip.preserveAudio ? (shot.clip.audioVolume ?? 1) : undefined}
               src={src(shot.clip.src)}
               style={{ width: "100%", height: "100%", objectFit: "cover" }}
             />
@@ -369,6 +392,9 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
           {tailSpan > 0 ? (
             <Sequence from={clipFrames}>
               <AbsoluteFill style={{ transform: `scale(${tailZoom})` }}>
+                {/* The tail is ONE HELD FRAME. Always muted, whatever the
+                    shot's audio mode: a frozen frame with a running audio
+                    track would replay the clip's sound under a still image. */}
                 <Freeze frame={Math.max(0, clipFrames - 1)}>
                   <OffthreadVideo
                     muted
@@ -482,7 +508,9 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
           embers and rain pass in front of people, which is what puts the
           person IN the weather. Never over a clip — Veo scenes carry their
           own air. */}
-      {!shot.clip && shot.vfx ? <ParticleOverlay kind={shot.vfx.kind} seed={shot.vfx.seed} /> : null}
+      {!shot.clip && shot.vfx ? (
+        <ParticleOverlay kind={shot.vfx.kind} seed={shot.vfx.seed} />
+      ) : null}
 
       {/* Mounted INSIDE the shot so it starts with it. Episode 1 shipped as a
           4:47 silent slideshow with every mp3 generated and none referenced,
@@ -490,8 +518,9 @@ const StoryShot: React.FC<{ shot: StoryShotInput; durationInFrames: number }> = 
       {shot.audio ? <Audio src={src(shot.audio)} /> : null}
       {/* Rung 8: the scene's air, UNDER the narration at a fixed gain with
           faded edges — one constant and two fades, nothing cleverer, because
-          both ep3 audio bugs were mixing surprises. Plays under clips too:
-          Veo video is muted always, so this is the only sound a clip has. */}
+          both ep3 audio bugs were mixing surprises. Plays under clips too —
+          and on a VEO_NATIVE_AUDIO shot it sits under the clip's own track,
+          which is why that track carries its own `audioVolume`. */}
       {shot.ambience ? (
         <Audio
           src={src(shot.ambience.src)}
@@ -549,9 +578,7 @@ const EndFade: React.FC<{ totalFrames: number; fps: number }> = ({ totalFrames, 
   const frame = useCurrentFrame();
   const opacity = endFadeAt(frame, totalFrames, fps);
   if (opacity <= 0) return null;
-  return (
-    <AbsoluteFill style={{ backgroundColor: "#05040a", opacity, pointerEvents: "none" }} />
-  );
+  return <AbsoluteFill style={{ backgroundColor: "#05040a", opacity, pointerEvents: "none" }} />;
 };
 
 export const StoryFilm: React.FC<StoryFilmProps> = ({
@@ -593,10 +620,7 @@ export const StoryFilm: React.FC<StoryFilmProps> = ({
           spans every cut, breathing in with the title and out with the
           closing fade. Under the beds, which are under the voice. */}
       {score ? (
-        <Audio
-          src={src(score.src)}
-          volume={(f) => scoreVolumeAt(f, totalFrames, usedFps)}
-        />
+        <Audio src={src(score.src)} volume={(f) => scoreVolumeAt(f, totalFrames, usedFps)} />
       ) : null}
       {/* The ONIQ mark rides ABOVE every shot, outside all camera transforms,
           so it is burned into every frame of the export. Subtle by design:

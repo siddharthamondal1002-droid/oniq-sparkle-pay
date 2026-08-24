@@ -3,6 +3,35 @@
 // casual Indian-English/Hinglish request, search the live web across verified
 // booking sites, and return a decisive best-value pick with visible sources.
 import { langInstruction, callClaude, type ClaudeMessage } from "../_shared/llm.ts";
+import type { SearchBudget } from "../_shared/searchBudget.ts";
+import {
+  refusalMessage,
+  requestIdFrom,
+  serviceRoleRpc,
+  withSearchSpendGuard,
+} from "../_shared/searchGuard.ts";
+
+// --- spend shape of ONE stay-scout query ------------------------------------
+// Identical call shape to smart-scout (opus-5, 11 searches, 3.5k output, cached
+// system prompt), so the reservation is derived the same way and for the same
+// reasons. Depth stays at the production value of 11.
+const STAY_MODEL = "claude-opus-5";
+const STAY_MAX_SEARCHES = 11;
+const STAY_MAX_TOKENS = 3500;
+const STAY_SYSTEM_CACHE_TOKENS = 1300;
+const STAY_INPUT_TOKEN_RESERVE = 48_000;
+
+const STAY_BUDGET: SearchBudget = {
+  maxSearches: STAY_MAX_SEARCHES,
+  maxProviderCalls: 1,
+  maxLlmCalls: 1,
+  maxInputTokens: STAY_INPUT_TOKEN_RESERVE,
+  maxOutputTokens: STAY_MAX_TOKENS,
+  maxWallClockMs: 180_000,
+  maxEstimatedUsd: 0.5,
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -43,13 +72,22 @@ function _subFromAuth(req: Request): string {
   const t = h.startsWith("Bearer ") ? h.slice(7) : "";
   const p = t.split(".");
   if (p.length !== 3) return "anon";
-  try { return JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/"))).sub || "anon"; } catch { return "anon"; }
+  try {
+    return JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/"))).sub || "anon";
+  } catch {
+    return "anon";
+  }
 }
 function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   const now = Date.now();
   const arr = (rlBuckets.get(id) ?? []).filter((t) => now - t < windowMs);
-  if (arr.length >= limit) { rlBuckets.set(id, arr); return false; }
-  arr.push(now); rlBuckets.set(id, arr); return true;
+  if (arr.length >= limit) {
+    rlBuckets.set(id, arr);
+    return false;
+  }
+  arr.push(now);
+  rlBuckets.set(id, arr);
+  return true;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -59,12 +97,15 @@ Deno.serve(async (req) => {
   try {
     const authFail = await requireAuth(req);
     if (authFail) return authFail;
-    if (!_rateLimit(_subFromAuth(req), 8)) return friendly("slow down bestie 😅 — try again in a moment");
+    if (!_rateLimit(_subFromAuth(req), 8))
+      return friendly("slow down bestie 😅 — try again in a moment");
 
     const body = await req.json().catch(() => ({}));
     const query = typeof body?.query === "string" ? body.query.trim().slice(0, 300) : "";
-    const checkin = typeof body?.checkin === "string" && ISO_DATE.test(body.checkin) ? body.checkin : "";
-    const checkout = typeof body?.checkout === "string" && ISO_DATE.test(body.checkout) ? body.checkout : "";
+    const checkin =
+      typeof body?.checkin === "string" && ISO_DATE.test(body.checkin) ? body.checkin : "";
+    const checkout =
+      typeof body?.checkout === "string" && ISO_DATE.test(body.checkout) ? body.checkout : "";
     const lang = typeof body?.lang === "string" ? body.lang.slice(0, 20) : "";
     let guests = Number.isFinite(body?.guests) ? Math.floor(Number(body.guests)) : 2;
     if (guests < 1 || guests > 12) guests = 2;
@@ -72,7 +113,8 @@ Deno.serve(async (req) => {
     if (budget < 0 || budget > 1000000) budget = 0;
 
     if (!query) return friendly("where you staying? drop a city or area 🏨");
-    if (!Deno.env.get("ANTHROPIC_API_KEY")) return friendly("stay scout isn't configured yet — try again later");
+    if (!Deno.env.get("ANTHROPIC_API_KEY"))
+      return friendly("stay scout isn't configured yet — try again later");
 
     const dateLine = checkin
       ? `Stay dates: check-in ${checkin}${checkout ? `, check-out ${checkout}` : ""}. Quote nightly rates for THESE dates where the sites show them.`
@@ -101,22 +143,56 @@ Deno.serve(async (req) => {
       { role: "user", content: `Scout stays in India for: ${query}` },
     ] as ClaudeMessage[];
 
-    const claudeRes = await callClaude({
-      system,
-      messages,
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 11 }],
-      maxTokens: 3500,
-      timeoutMs: 180000,
-      cacheSystem: true,
-      model: "claude-opus-5",
-    });
+    // ---- SPEND GUARD — see smart-scout for the full reasoning. -------------
+    const rpc = serviceRoleRpc();
+    const uid = _subFromAuth(req);
+
+    const guarded = await withSearchSpendGuard(
+      rpc,
+      {
+        requestId: requestIdFrom(body?.requestId),
+        provider: "anthropic",
+        model: STAY_MODEL,
+        searchType: "hotel-scout",
+        userId: UUID_RE.test(uid) ? uid : undefined,
+        budget: STAY_BUDGET,
+        cacheWriteTokens: STAY_SYSTEM_CACHE_TOKENS,
+      },
+      async () => {
+        const res = await callClaude({
+          system,
+          messages,
+          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: STAY_MAX_SEARCHES }],
+          maxTokens: STAY_MAX_TOKENS,
+          timeoutMs: STAY_BUDGET.maxWallClockMs,
+          cacheSystem: true,
+          model: STAY_MODEL,
+          allowFallback: false,
+        });
+        return {
+          value: res,
+          neverCalled: !res.ok && res.reason === "not configured",
+          usage: res.ok ? res.data?.usage : null,
+          stopReason: res.ok ? res.data?.stop_reason : null,
+          terminationReason: res.ok ? undefined : ("PROVIDER_ERROR" as const),
+        };
+      },
+    );
+
+    if (!guarded.admitted) {
+      console.warn(`hotel-scout: spend guard refused (${guarded.reason})`);
+      return friendly(refusalMessage(guarded.reason), { blocked: guarded.reason });
+    }
+    const claudeRes = guarded.value;
 
     if (!claudeRes.ok) {
       const reason = claudeRes.reason ?? "";
       console.error("hotel-scout callClaude failed:", reason);
-      if (/timeout/i.test(reason)) return friendly("stay scout took too long — try a tighter search 🐢");
+      if (/timeout/i.test(reason))
+        return friendly("stay scout took too long — try a tighter search 🐢");
       if (/http 429/.test(reason)) return friendly("rate limit hit — try again in a moment 🐢");
-      if (/http 40[02]/.test(reason)) return friendly("AI credits exhausted — top up to keep scouting");
+      if (/http 40[02]/.test(reason))
+        return friendly("AI credits exhausted — top up to keep scouting");
       return friendly("stay scout glitched — try again");
     }
 
@@ -137,16 +213,24 @@ Deno.serve(async (req) => {
       }
     }
 
-    const cleaned = textOut.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+    const cleaned = textOut
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
     let parsed: any = null;
     if (start >= 0 && end > start) {
-      try { parsed = JSON.parse(cleaned.slice(start, end + 1)); }
-      catch (e) { console.error("hotel-scout parse error", e, cleaned.slice(0, 400)); }
+      try {
+        parsed = JSON.parse(cleaned.slice(start, end + 1));
+      } catch (e) {
+        console.error("hotel-scout parse error", e, cleaned.slice(0, 400));
+      }
     }
     if (!parsed || !Array.isArray(parsed.results)) {
-      return friendly("couldn't structure those stays — try naming the city or hotel", { raw: textOut.slice(0, 400) });
+      return friendly("couldn't structure those stays — try naming the city or hotel", {
+        raw: textOut.slice(0, 400),
+      });
     }
 
     parsed.results.sort((a: any, b: any) => {

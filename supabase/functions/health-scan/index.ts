@@ -1,4 +1,39 @@
 // health-scan — Claude vision/document for medical reports (auth + rate-limited)
+import type { SearchBudget } from "../_shared/searchBudget.ts";
+import {
+  attachmentTokenCeiling,
+  refusalMessage,
+  requestIdFrom,
+  serviceRoleRpc,
+  withSearchSpendGuard,
+} from "../_shared/searchGuard.ts";
+
+// --- spend shape of ONE report scan -----------------------------------------
+// claude-sonnet-4-6 was the one model in the fleet MODEL_RATES could not price;
+// its published rate ($3/$15 per MTok, verified 2026-08-24) is now recorded, so
+// this call can be reserved instead of being exempt from the ledger.
+const SCAN_MODEL = "claude-sonnet-4-6";
+const SCAN_MAX_SEARCHES = 4;
+const SCAN_MAX_TOKENS = 1400;
+// System prompt + the wrapper text, generously.
+const SCAN_PROMPT_TOKEN_RESERVE = 2_000;
+
+function scanBudget(kind: "image" | "pdf", data: string): SearchBudget {
+  return {
+    maxSearches: SCAN_MAX_SEARCHES,
+    maxProviderCalls: 1,
+    maxLlmCalls: 1,
+    // The attachment IS the input here — reserving a flat number would be
+    // reserving for a request nobody is making.
+    maxInputTokens: SCAN_PROMPT_TOKEN_RESERVE + attachmentTokenCeiling(kind, data),
+    maxOutputTokens: SCAN_MAX_TOKENS,
+    maxWallClockMs: 120_000,
+    maxEstimatedUsd: 0.5,
+  };
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -19,13 +54,22 @@ function _subFromAuth(req: Request): string {
   const t = h.startsWith("Bearer ") ? h.slice(7) : "";
   const p = t.split(".");
   if (p.length !== 3) return "anon";
-  try { return JSON.parse(atob(p[1].replace(/-/g,"+").replace(/_/g,"/"))).sub || "anon"; } catch { return "anon"; }
+  try {
+    return JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/"))).sub || "anon";
+  } catch {
+    return "anon";
+  }
 }
 function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   const now = Date.now();
   const arr = (rlBuckets.get(id) ?? []).filter((t) => now - t < windowMs);
-  if (arr.length >= limit) { rlBuckets.set(id, arr); return false; }
-  arr.push(now); rlBuckets.set(id, arr); return true;
+  if (arr.length >= limit) {
+    rlBuckets.set(id, arr);
+    return false;
+  }
+  arr.push(now);
+  rlBuckets.set(id, arr);
+  return true;
 }
 
 function json(payload: unknown, status = 200) {
@@ -71,44 +115,95 @@ Deno.serve(async (req: Request) => {
     if (kind === "image") {
       parts.push({ type: "image", source: { type: "base64", media_type: mime, data } });
     } else {
-      parts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data } });
+      parts.push({
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data },
+      });
     }
     parts.push({
       type: "text",
-      text: (note ? `Context from user: ${note}\n\n` : "") +
+      text:
+        (note ? `Context from user: ${note}\n\n` : "") +
         "Please read this medical report and provide a plain-language summary as instructed.",
     });
 
     const payload = {
-      model: "claude-sonnet-4-6",
-      max_tokens: 1400,
+      model: SCAN_MODEL,
+      max_tokens: SCAN_MAX_TOKENS,
       system: SYSTEM,
       messages: [{ role: "user", content: parts }],
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 4 }],
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: SCAN_MAX_SEARCHES }],
     };
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": key,
-        "anthropic-version": "2023-06-01",
+    // ---- SPEND GUARD -------------------------------------------------------
+    const uid = _subFromAuth(req);
+    const guarded = await withSearchSpendGuard(
+      serviceRoleRpc(),
+      {
+        requestId: requestIdFrom(body?.requestId),
+        provider: "anthropic",
+        model: SCAN_MODEL,
+        searchType: "health-scan",
+        userId: UUID_RE.test(uid) ? uid : undefined,
+        budget: scanBudget(kind, data),
       },
-      body: JSON.stringify(payload),
-    });
+      async () => {
+        const r = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-api-key": key,
+            "anthropic-version": "2023-06-01",
+          },
+          body: JSON.stringify(payload),
+        });
+        const text = await r.text().catch(() => "");
+        let parsedBody: { usage?: unknown; stop_reason?: unknown; content?: unknown } | null = null;
+        try {
+          parsedBody = text ? JSON.parse(text) : null;
+        } catch {
+          /* keep null — a body we cannot read is still a call we made */
+        }
+        return {
+          value: { status: r.status, ok: r.ok, body: parsedBody, text },
+          usage: r.ok ? (parsedBody?.usage as never) : null,
+          stopReason: r.ok ? (parsedBody?.stop_reason as string) : null,
+          terminationReason: r.ok ? undefined : ("PROVIDER_ERROR" as const),
+        };
+      },
+    );
+
+    if (!guarded.admitted) {
+      console.warn(`health-scan: spend guard refused (${guarded.reason})`);
+      const msg =
+        guarded.reason === "over-request-cap"
+          ? "that report is too large to scan — try a smaller or clearer file"
+          : refusalMessage(guarded.reason);
+      return json({ error: msg, blocked: guarded.reason }, 200);
+    }
+
+    const res = guarded.value;
     if (res.status === 401) return json({ configured: false }, 200);
     if (res.status === 429) return json({ error: "AI is busy — try again in a moment 🐢" }, 429);
     if (!res.ok) {
-      const t = await res.text().catch(() => "");
-      console.error("anthropic error", res.status, t);
+      console.error("anthropic error", res.status, res.text.slice(0, 200));
       return json({ error: "scan glitched — try again" }, 502);
     }
-    const out = await res.json();
-    const blocks: Array<{ type?: string; text?: string; content?: unknown }> = Array.isArray(out?.content) ? out.content : [];
+    const out = res.body as Record<string, unknown> | null;
+    const blocks: Array<{ type?: string; text?: string; content?: unknown }> = Array.isArray(
+      out?.content,
+    )
+      ? out.content
+      : [];
     let reply = "";
     const sources: string[] = [];
     const seen = new Set<string>();
-    const push = (u: unknown) => { if (typeof u === "string" && /^https?:\/\//i.test(u) && !seen.has(u)) { seen.add(u); sources.push(u); } };
+    const push = (u: unknown) => {
+      if (typeof u === "string" && /^https?:\/\//i.test(u) && !seen.has(u)) {
+        seen.add(u);
+        sources.push(u);
+      }
+    };
     for (const b of blocks) {
       if (b?.type === "text" && typeof b.text === "string") reply += (reply ? "\n\n" : "") + b.text;
       if (b?.type === "web_search_tool_result") {

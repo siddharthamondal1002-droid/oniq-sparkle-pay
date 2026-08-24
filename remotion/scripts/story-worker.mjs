@@ -70,6 +70,7 @@ import {
   planeCoverage,
 } from '../../src/lib/parallaxPlanes.ts';
 import { vfxSeed } from '../../src/lib/particleField.ts';
+import { inferAudioMode, resolveAudioMode } from '../../supabase/functions/_shared/videoAudio.ts';
 import { selectSceneWeather, weatherConsistentSetting } from '../../src/lib/sceneWeather.ts';
 import { directShots } from '../../src/lib/shotDirector.ts';
 import { selectSheetPanel, scalePanel } from '../../src/lib/sheetPanel.ts';
@@ -861,28 +862,67 @@ async function fetchPlate(objectName) {
 
 const CLIP_POLL_MS = 10_000;
 const CLIP_WAIT_MS = 6 * 60_000;
-async function generateClip(shot, stillFile, shotSeconds) {
+
+/**
+ * WHICH AUDIO ARCHITECTURE THIS SHOT WANTS.
+ *
+ * The hard case first: a shot with ONIQ narration or ONIQ-voiced dialogue
+ * cannot also carry Veo's voice track — narration is the film's clock and the
+ * dialogue is already inside that wav, so a native voice would be a second
+ * person reading different words over the first. Only a shot with no ONIQ
+ * voice is free to take the provider's sound, and then only if the scene has
+ * something that must be frame-locked to the picture.
+ */
+function audioPlanFor(shot) {
+  return inferAudioMode({
+    hasNarration: Boolean(shot?.narration && String(shot.narration).trim()),
+    hasOniqDialogue: Boolean(shot?.dialogue?.line),
+    hasOniqAmbience: Boolean(shot?.ambience?.src),
+    promptText: [shot?.motion, shot?.vfx, shot?.dialogue?.line, shot?.still]
+      .filter(Boolean)
+      .join(' '),
+  });
+}
+
+async function generateClip(shot, stillFile, shotSeconds, shotId) {
   const prompt = composeVideoPrompt(shot).slice(0, 1900);
   const imageBase64 = fs.readFileSync(stillFile).toString('base64');
   // Veo's menu is 4, 6 or 8 seconds — no 10, no extend. Ask for the longest
   // that the narration can use; the composition freezes the last frame under
   // whatever narration outlasts it.
   const ask = shotSeconds >= 6.5 ? 8 : shotSeconds >= 4.5 ? 6 : 4;
+  const routed = audioPlanFor(shot);
   for (let attempt = 1; ; attempt++) {
     try {
+      // One reservation per ATTEMPT, one attempt ladder per SHOT. The ledger
+      // counts attempts against the shot, so a shot that keeps failing runs
+      // out of attempts rather than out of patience.
+      const requestId = `${shotId}-a${attempt}`;
       const started = await edge('story-clip', {
         action: 'start',
         prompt,
         imageBase64,
         imageMime: 'image/png',
         seconds: ask,
+        shotId,
+        requestId,
+        audioMode: routed.mode,
       });
       const t0 = Date.now();
       for (;;) {
         if (Date.now() - t0 > CLIP_WAIT_MS) throw new Error('clip: timed out');
         await new Promise((r) => setTimeout(r, CLIP_POLL_MS));
-        const got = await edge('story-clip', { action: 'poll', operation: started.operation });
-        if (got.done) return got;
+        // requestId/seconds/audioMode travel to poll so settlement can price
+        // the clip at the rate that was actually billed. Without them a
+        // finished generation is billed by Google and recorded nowhere.
+        const got = await edge('story-clip', {
+          action: 'poll',
+          operation: started.operation,
+          requestId: started.requestId ?? requestId,
+          seconds: started.seconds ?? ask,
+          audioMode: routed.mode,
+        });
+        if (got.done) return { ...got, audioRouting: routed };
       }
     } catch (err) {
       const msg = String(err?.message ?? err);
@@ -2056,7 +2096,7 @@ if (offline) {
             ` — clip REQUESTED (${motionPlan.reason})`,
         );
         try {
-          const got = await generateClip(shot, stillFile, seconds);
+          const got = await generateClip(shot, stillFile, seconds, `${job.id}:${stem}`);
           const clipFile = path.join(assetRoot, `${stem}.clip.mp4`);
           fs.writeFileSync(clipFile, Buffer.from(got.data, 'base64'));
           const clipSeconds = secondsOf(clipFile);
@@ -2078,10 +2118,23 @@ if (offline) {
             // seek past the last decodable frame, and the Freeze tail holds
             // whichever frame the live part ends on.
             const clipFrames = Math.max(1, Math.floor(clipSeconds * FPS) - 2);
-            clip = { src: `${assetDir}/${stem}.clip.mp4`, frames: clipFrames };
+            // KEEP THE SOUND ONIQ ALREADY PAID FOR, when the shot can use it.
+            // Veo generates audio on this surface whether ONIQ asks or not —
+            // there is no parameter to decline it — so a shot the router put
+            // in VEO_NATIVE_AUDIO gets its native track through to the film
+            // instead of having it thrown away.
+            const routed = got.audioRouting ?? audioPlanFor(shot);
+            const resolved = resolveAudioMode(routed.mode, 'google-ai-studio');
+            clip = {
+              src: `${assetDir}/${stem}.clip.mp4`,
+              frames: clipFrames,
+              preserveAudio: resolved.preserveProviderAudio,
+            };
             console.log(
               `  clip ${i + 1}/${plan.shots.length}: ${clipSeconds.toFixed(1)}s of motion` +
                 (alive === null ? '' : ` (aliveness ${alive.toFixed(2)})`) +
+                ` [audio ${routed.mode}${resolved.preserveProviderAudio ? ' KEPT' : ' dropped'}` +
+                `: ${resolved.discardReason ?? routed.because}]` +
                 (clipFrames < durationFrames ? ` (freeze tail ${durationFrames - clipFrames}f)` : ''),
             );
           }

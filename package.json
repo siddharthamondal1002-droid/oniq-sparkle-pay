@@ -18,7 +18,8 @@
     "format": "prettier --write .",
     "test": "vitest run",
     "check:deps": "node scripts/check-deps-exist.mjs",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:diagnose": "node scripts/test-diagnose.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",

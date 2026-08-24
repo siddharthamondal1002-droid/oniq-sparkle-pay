@@ -127,10 +127,17 @@ describe("two-axis country model (Phase 1)", () => {
     expect(src).not.toMatch(/from\s+"@\/integrations\/supabase/);
     expect(src).not.toMatch(/\.from\(/);
     // and no migration mentions it
+    //
+    // ONE assertion over 310 files, not 310 assertions. The previous form
+    // allocated a full lowercased copy of every migration (1.8 MB in total)
+    // and built a vitest assertion per file, which made this the second
+    // slowest test in the suite at ~5.9s under load — over the 5s default
+    // timeout, so it failed as a timeout rather than an assertion. The regex
+    // is case-insensitive and short-circuits, and naming the offending files
+    // in the failure keeps the diagnostic exactly as useful.
     const dir = "supabase/migrations";
-    for (const f of readdirSync(dir)) {
-      expect(read(join(dir, f)).toLowerCase(), f).not.toContain("current_region");
-    }
+    const offenders = readdirSync(dir).filter((f) => /current_region/i.test(read(join(dir, f))));
+    expect(offenders, "migrations must not persist currentRegion").toEqual([]);
   });
 
   it("detection is country-code only — no GPS, no coordinates", () => {
