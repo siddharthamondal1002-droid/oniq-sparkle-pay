@@ -144,8 +144,7 @@ handed a gate saying caps are configured and generation is allowed.
 ### Money is rounded to the column, not to the nearest hope
 
 Every column money actually flows through — `estimated_usd`, `actual_usd`,
-`reserved_usd`, `settled_usd` — is 6 decimal places, so `roundUsd()` rounds to
-6. (The three ceilings are `numeric(10,4)`: a cap is a round number someone
+`reserved_usd`, `settled_usd` — is 6 decimal places, so `roundUsd()` rounds to 6. (The three ceilings are `numeric(10,4)`: a cap is a round number someone
 types, not an accumulated figure. `numeric` comparison is exact across
 precisions, so a 6dp estimate tested against a 4dp cap needs no coercion.)
 
