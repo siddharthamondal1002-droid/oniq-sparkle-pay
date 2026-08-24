@@ -576,3 +576,63 @@ describe("the SEARCH enablement flip", () => {
     expect(ENABLE_SQL).not.toMatch(/where capability = 'VIDEO'[\s\S]{0,80}enabled\s*=\s*true/i);
   });
 });
+
+// ============================================ OVER_CAP is recorded, not hidden
+/**
+ * On 2026-08-24 the first real SEARCH request settled at $0.530683 against a
+ * $0.50 ceiling. The ledger recorded the true figure — settlement never clamps,
+ * because a clamped invoice is a fabricated one — but the row was
+ * indistinguishable from a compliant settlement. An overrun nobody can see is
+ * an overrun nobody fixes.
+ */
+describe("an overrun is marked, and never disguised", () => {
+  const OVER_CAP_SQL = read("supabase/migrations/20260824200000_ledger_over_cap.sql");
+
+  it("adds the flag and the ceiling that was in force, not just the flag", () => {
+    // Judging a historical settlement against a cap that has since moved is how
+    // an audit reaches a confidently wrong answer.
+    expect(OVER_CAP_SQL).toMatch(/add column if not exists over_cap boolean/i);
+    expect(OVER_CAP_SQL).toMatch(/add column if not exists request_cap_usd_at_settle/i);
+  });
+
+  it("still records the true charge — the flag is a receipt, not a clamp", () => {
+    const fn = OVER_CAP_SQL.slice(
+      OVER_CAP_SQL.search(/create or replace function public\.settle_provider_spend/i),
+    );
+    // The charge is the actual, exactly as before.
+    expect(fn).toMatch(/charge := coalesce\(_actual_usd, led\.estimated_usd\)/);
+    // Nothing anywhere reduces it to the cap.
+    expect(fn).not.toMatch(/least\s*\(\s*charge/i);
+    expect(fn).not.toMatch(/charge\s*:=\s*.*cap/i);
+  });
+
+  it("guards the comparison against an unusable ceiling", () => {
+    // `charge > 'NaN'` is FALSE in PostgreSQL, so an unusable cap would read as
+    // "not over cap" — the friendliest possible lie.
+    const fn = OVER_CAP_SQL.slice(
+      OVER_CAP_SQL.search(/create or replace function public\.settle_provider_spend/i),
+    );
+    expect(fn).toMatch(/is_spendable_usd\(cap\)/);
+    expect(fn).toMatch(/cap is not null/);
+  });
+
+  it("does not become an admission control", () => {
+    // It must change no decision. Admission still lives in admit_provider_spend.
+    const fn = OVER_CAP_SQL.slice(
+      OVER_CAP_SQL.search(/create or replace function public\.settle_provider_spend/i),
+    );
+    expect(fn).not.toMatch(/return jsonb_build_object\('ok', false, 'reason', 'over-/);
+    expect(OVER_CAP_SQL).toMatch(/never a control|not a control/i);
+  });
+
+  it("stays service-role only", () => {
+    expect(OVER_CAP_SQL).toMatch(
+      /revoke all on function public\.settle_provider_spend[\s\S]{0,120}from anon, authenticated/i,
+    );
+  });
+
+  it("surfaces the overruns for reading", () => {
+    expect(OVER_CAP_SQL).toMatch(/create or replace view public\.provider_spend_over_cap/i);
+    expect(OVER_CAP_SQL).toMatch(/over_by_usd/);
+  });
+});
