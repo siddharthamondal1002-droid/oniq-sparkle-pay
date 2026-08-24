@@ -14,22 +14,22 @@ segmentation ceiling.
 
 ## Input requirements (poster §1 → pre-render gate)
 
-| requirement | enforcement | status |
-|---|---|---|
-| clean cutout / well-segmented | dual-mask selection (classical vs rembg u2netp, pick by core-joints-on-silhouette); fill ≤ 90% ceiling | ENFORCED, measured |
-| full/near-full body, frontal | drawn-humanoid detector must fire (side/back views fail detection — measured: morgiana_side, ep4s02) | ENFORCED by pipeline |
-| usable silhouette, margins | mask must NOT touch the crop border — autorig pads every crop 24 px (the v2 root-cause fix: all 5 solver hangs and the sliver collapses were border-cut masks; padded re-renders fixed 8 of 10) | ENFORCED, measured |
-| stable rig | core joints (shoulder/hip/knee/foot) on silhouette AND kpt_conf_mean ≥ 0.70 (clean walks ≥ 0.77; jarJinni 0.61 / side views ~0.60 all bad) | ENFORCED, measured |
+| requirement                   | enforcement                                                                                                                                                                                     | status               |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| clean cutout / well-segmented | dual-mask selection (classical vs rembg u2netp, pick by core-joints-on-silhouette); fill ≤ 90% ceiling                                                                                          | ENFORCED, measured   |
+| full/near-full body, frontal  | drawn-humanoid detector must fire (side/back views fail detection — measured: morgiana_side, ep4s02)                                                                                            | ENFORCED by pipeline |
+| usable silhouette, margins    | mask must NOT touch the crop border — autorig pads every crop 24 px (the v2 root-cause fix: all 5 solver hangs and the sliver collapses were border-cut masks; padded re-renders fixed 8 of 10) | ENFORCED, measured   |
+| stable rig                    | core joints (shoulder/hip/knee/foot) on silhouette AND kpt_conf_mean ≥ 0.70 (clean walks ≥ 0.77; jarJinni 0.61 / side views ~0.60 all bad)                                                      | ENFORCED, measured   |
 
 ## Positive motion (poster §2) — WALKING, the primary grammar
 
-| requirement | evidence |
-|---|---|
-| natural gait, alternating legs | pixel-inspected on 9 padded corpus renders (aladdin×2, morgiana, adchar1-3, fisherman_staff, mother, princess — robed characters read as hem-sway walks, marked WITH LIMITS) |
-| arm hang (downward trunk vector) | the arm-damped retarget — 0/5 artifact frames vs stock 4/5 (MOTION_AMPLITUDE.md) |
-| identity / clothing / hair stable | STRUCTURAL: ARAP warps the source texture itself — there is no generative path for identity drift; per-frame appearance is the source pixels deformed |
-| grounded feet, no sliding | foot-line range measured ≤ 24 px across the corpus (l3RenderQc bound: 15% of frame = 75 px) — coarse proxy; per-step contact analysis UNKNOWN |
-| continuous temporal motion | temporalAliveness ≥ 0.75 (production floor), measured 5.0-12.1 on clean corpus walks |
+| requirement                       | evidence                                                                                                                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| natural gait, alternating legs    | pixel-inspected on 9 padded corpus renders (aladdin×2, morgiana, adchar1-3, fisherman_staff, mother, princess — robed characters read as hem-sway walks, marked WITH LIMITS) |
+| arm hang (downward trunk vector)  | the arm-damped retarget — 0/5 artifact frames vs stock 4/5 (MOTION_AMPLITUDE.md)                                                                                             |
+| identity / clothing / hair stable | STRUCTURAL: ARAP warps the source texture itself — there is no generative path for identity drift; per-frame appearance is the source pixels deformed                        |
+| grounded feet, no sliding         | foot-line range measured ≤ 24 px across the corpus (l3RenderQc bound: 15% of frame = 75 px) — coarse proxy; per-step contact analysis UNKNOWN                                |
+| continuous temporal motion        | temporalAliveness ≥ 0.75 (production floor), measured 5.0-12.1 on clean corpus walks                                                                                         |
 
 ## Negative catalogue (poster §3) — each mapped to a measured guard
 
@@ -60,13 +60,13 @@ segmentation ceiling.
 
 ## Motion grammar status (poster §6)
 
-| grammar | status |
-|---|---|
-| WALKING | PASS — 9 corpus characters on real pixels |
-| IDLE | in progress — s=0.10 synthetic driver FAILED the aliveness gate (0.43, correctly discarded); s=0.25 single-variable retry rendered, pixel verdict pending |
-| TURN | UNKNOWN — no MIT driver clip; not attempted |
-| WAVE | FAILED and recorded — wave_hello projects near-static (0.51) with a sleeve blade; excluded from the provider grammar |
-| REACH | UNKNOWN — not attempted |
+| grammar | status                                                                                                                                                    |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| WALKING | PASS — 9 corpus characters on real pixels                                                                                                                 |
+| IDLE    | in progress — s=0.10 synthetic driver FAILED the aliveness gate (0.43, correctly discarded); s=0.25 single-variable retry rendered, pixel verdict pending |
+| TURN    | UNKNOWN — no MIT driver clip; not attempted                                                                                                               |
+| WAVE    | FAILED and recorded — wave_hello projects near-static (0.51) with a sleeve blade; excluded from the provider grammar                                      |
+| REACH   | UNKNOWN — not attempted                                                                                                                                   |
 
 The provider grammar (`ARAP_MOTION_GRAMMAR`) carries ONLY pixel-passed
 motions; today that is WALKING alone.

@@ -19,13 +19,22 @@ function _subFromAuth(req: Request): string {
   const t = h.startsWith("Bearer ") ? h.slice(7) : "";
   const p = t.split(".");
   if (p.length !== 3) return "anon";
-  try { return JSON.parse(atob(p[1].replace(/-/g,"+").replace(/_/g,"/"))).sub || "anon"; } catch { return "anon"; }
+  try {
+    return JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/"))).sub || "anon";
+  } catch {
+    return "anon";
+  }
 }
 function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   const now = Date.now();
   const arr = (rlBuckets.get(id) ?? []).filter((t) => now - t < windowMs);
-  if (arr.length >= limit) { rlBuckets.set(id, arr); return false; }
-  arr.push(now); rlBuckets.set(id, arr); return true;
+  if (arr.length >= limit) {
+    rlBuckets.set(id, arr);
+    return false;
+  }
+  arr.push(now);
+  rlBuckets.set(id, arr);
+  return true;
 }
 
 function json(payload: unknown, status = 200) {
@@ -71,11 +80,15 @@ Deno.serve(async (req: Request) => {
     if (kind === "image") {
       parts.push({ type: "image", source: { type: "base64", media_type: mime, data } });
     } else {
-      parts.push({ type: "document", source: { type: "base64", media_type: "application/pdf", data } });
+      parts.push({
+        type: "document",
+        source: { type: "base64", media_type: "application/pdf", data },
+      });
     }
     parts.push({
       type: "text",
-      text: (note ? `Context from user: ${note}\n\n` : "") +
+      text:
+        (note ? `Context from user: ${note}\n\n` : "") +
         "Please read this medical report and provide a plain-language summary as instructed.",
     });
 
@@ -104,11 +117,20 @@ Deno.serve(async (req: Request) => {
       return json({ error: "scan glitched — try again" }, 502);
     }
     const out = await res.json();
-    const blocks: Array<{ type?: string; text?: string; content?: unknown }> = Array.isArray(out?.content) ? out.content : [];
+    const blocks: Array<{ type?: string; text?: string; content?: unknown }> = Array.isArray(
+      out?.content,
+    )
+      ? out.content
+      : [];
     let reply = "";
     const sources: string[] = [];
     const seen = new Set<string>();
-    const push = (u: unknown) => { if (typeof u === "string" && /^https?:\/\//i.test(u) && !seen.has(u)) { seen.add(u); sources.push(u); } };
+    const push = (u: unknown) => {
+      if (typeof u === "string" && /^https?:\/\//i.test(u) && !seen.has(u)) {
+        seen.add(u);
+        sources.push(u);
+      }
+    };
     for (const b of blocks) {
       if (b?.type === "text" && typeof b.text === "string") reply += (reply ? "\n\n" : "") + b.text;
       if (b?.type === "web_search_tool_result") {

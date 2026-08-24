@@ -12,7 +12,6 @@ const SYSTEM =
   "ONIQ is a super app (chat, payments, food, rides, clips, learn) built in Kolkata. " +
   "Answer in the user's language. When you used web search, mention your sources briefly.";
 
-
 // --- rate limit (per-isolate; resets on cold start) ---
 const rlBuckets = new Map<string, number[]>();
 function _subFromAuth(req: Request): string {
@@ -20,13 +19,22 @@ function _subFromAuth(req: Request): string {
   const t = h.startsWith("Bearer ") ? h.slice(7) : "";
   const p = t.split(".");
   if (p.length !== 3) return "anon";
-  try { return JSON.parse(atob(p[1].replace(/-/g,"+").replace(/_/g,"/"))).sub || "anon"; } catch { return "anon"; }
+  try {
+    return JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/"))).sub || "anon";
+  } catch {
+    return "anon";
+  }
 }
 function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   const now = Date.now();
   const arr = (rlBuckets.get(id) ?? []).filter((t) => now - t < windowMs);
-  if (arr.length >= limit) { rlBuckets.set(id, arr); return false; }
-  arr.push(now); rlBuckets.set(id, arr); return true;
+  if (arr.length >= limit) {
+    rlBuckets.set(id, arr);
+    return false;
+  }
+  arr.push(now);
+  rlBuckets.set(id, arr);
+  return true;
 }
 
 Deno.serve(async (req) => {
@@ -39,14 +47,12 @@ Deno.serve(async (req) => {
     const key = Deno.env.get("ANTHROPIC_API_KEY");
     if (!key) return json({ configured: false }, 200);
 
-
     const body = await req.json().catch(() => ({}));
     const messages = Array.isArray(body?.messages) ? body.messages : null;
     const search = body?.search !== false; // default on
     const lang = typeof body?.lang === "string" ? body.lang : "";
     const attachment = body?.attachment as
-      | { kind: "image" | "pdf" | "text"; mime?: string; data?: string; text?: string }
-      | undefined;
+      { kind: "image" | "pdf" | "text"; mime?: string; data?: string; text?: string } | undefined;
 
     if (!messages || messages.length < 1 || messages.length > 30) {
       return json({ error: "messages must be 1–30 items" }, 400);
@@ -66,9 +72,10 @@ Deno.serve(async (req) => {
     }
 
     // Attach file to the last user message if present.
-    const outMessages: Array<{ role: string; content: unknown }> = messages.map(
-      (m: any) => ({ role: m.role, content: m.content }),
-    );
+    const outMessages: Array<{ role: string; content: unknown }> = messages.map((m: any) => ({
+      role: m.role,
+      content: m.content,
+    }));
     if (attachment && outMessages.length > 0) {
       const last = outMessages[outMessages.length - 1];
       if (last.role === "user") {
@@ -142,7 +149,11 @@ Deno.serve(async (req) => {
             role: m.role as "user" | "assistant",
             content: typeof m.content === "string" ? m.content : "",
           }));
-          const g = await callGemini({ system: systemPrompt, messages: geminiMsgs, maxTokens: 1024 });
+          const g = await callGemini({
+            system: systemPrompt,
+            messages: geminiMsgs,
+            maxTokens: 1024,
+          });
           if (g.ok) {
             console.info("Ting answered via Gemini (fallback)");
             data = g.data;
@@ -152,7 +163,8 @@ Deno.serve(async (req) => {
           }
         }
         if (!data) {
-          if (res.status === 429) return json({ error: "Ting is a bit busy — try again in a moment 🐢" }, 429);
+          if (res.status === 429)
+            return json({ error: "Ting is a bit busy — try again in a moment 🐢" }, 429);
           return json({ error: "Ting glitched — try again" }, 502);
         }
       }

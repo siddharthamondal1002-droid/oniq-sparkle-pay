@@ -43,13 +43,22 @@ function _subFromAuth(req: Request): string {
   const t = h.startsWith("Bearer ") ? h.slice(7) : "";
   const p = t.split(".");
   if (p.length !== 3) return "anon";
-  try { return JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/"))).sub || "anon"; } catch { return "anon"; }
+  try {
+    return JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/"))).sub || "anon";
+  } catch {
+    return "anon";
+  }
 }
 function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   const now = Date.now();
   const arr = (rlBuckets.get(id) ?? []).filter((t) => now - t < windowMs);
-  if (arr.length >= limit) { rlBuckets.set(id, arr); return false; }
-  arr.push(now); rlBuckets.set(id, arr); return true;
+  if (arr.length >= limit) {
+    rlBuckets.set(id, arr);
+    return false;
+  }
+  arr.push(now);
+  rlBuckets.set(id, arr);
+  return true;
 }
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -59,12 +68,15 @@ Deno.serve(async (req) => {
   try {
     const authFail = await requireAuth(req);
     if (authFail) return authFail;
-    if (!_rateLimit(_subFromAuth(req), 8)) return friendly("slow down bestie 😅 — try again in a moment");
+    if (!_rateLimit(_subFromAuth(req), 8))
+      return friendly("slow down bestie 😅 — try again in a moment");
 
     const body = await req.json().catch(() => ({}));
     const query = typeof body?.query === "string" ? body.query.trim().slice(0, 300) : "";
-    const checkin = typeof body?.checkin === "string" && ISO_DATE.test(body.checkin) ? body.checkin : "";
-    const checkout = typeof body?.checkout === "string" && ISO_DATE.test(body.checkout) ? body.checkout : "";
+    const checkin =
+      typeof body?.checkin === "string" && ISO_DATE.test(body.checkin) ? body.checkin : "";
+    const checkout =
+      typeof body?.checkout === "string" && ISO_DATE.test(body.checkout) ? body.checkout : "";
     const lang = typeof body?.lang === "string" ? body.lang.slice(0, 20) : "";
     let guests = Number.isFinite(body?.guests) ? Math.floor(Number(body.guests)) : 2;
     if (guests < 1 || guests > 12) guests = 2;
@@ -72,7 +84,8 @@ Deno.serve(async (req) => {
     if (budget < 0 || budget > 1000000) budget = 0;
 
     if (!query) return friendly("where you staying? drop a city or area 🏨");
-    if (!Deno.env.get("ANTHROPIC_API_KEY")) return friendly("stay scout isn't configured yet — try again later");
+    if (!Deno.env.get("ANTHROPIC_API_KEY"))
+      return friendly("stay scout isn't configured yet — try again later");
 
     const dateLine = checkin
       ? `Stay dates: check-in ${checkin}${checkout ? `, check-out ${checkout}` : ""}. Quote nightly rates for THESE dates where the sites show them.`
@@ -114,9 +127,11 @@ Deno.serve(async (req) => {
     if (!claudeRes.ok) {
       const reason = claudeRes.reason ?? "";
       console.error("hotel-scout callClaude failed:", reason);
-      if (/timeout/i.test(reason)) return friendly("stay scout took too long — try a tighter search 🐢");
+      if (/timeout/i.test(reason))
+        return friendly("stay scout took too long — try a tighter search 🐢");
       if (/http 429/.test(reason)) return friendly("rate limit hit — try again in a moment 🐢");
-      if (/http 40[02]/.test(reason)) return friendly("AI credits exhausted — top up to keep scouting");
+      if (/http 40[02]/.test(reason))
+        return friendly("AI credits exhausted — top up to keep scouting");
       return friendly("stay scout glitched — try again");
     }
 
@@ -137,16 +152,24 @@ Deno.serve(async (req) => {
       }
     }
 
-    const cleaned = textOut.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+    const cleaned = textOut
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
     let parsed: any = null;
     if (start >= 0 && end > start) {
-      try { parsed = JSON.parse(cleaned.slice(start, end + 1)); }
-      catch (e) { console.error("hotel-scout parse error", e, cleaned.slice(0, 400)); }
+      try {
+        parsed = JSON.parse(cleaned.slice(start, end + 1));
+      } catch (e) {
+        console.error("hotel-scout parse error", e, cleaned.slice(0, 400));
+      }
     }
     if (!parsed || !Array.isArray(parsed.results)) {
-      return friendly("couldn't structure those stays — try naming the city or hotel", { raw: textOut.slice(0, 400) });
+      return friendly("couldn't structure those stays — try naming the city or hotel", {
+        raw: textOut.slice(0, 400),
+      });
     }
 
     parsed.results.sort((a: any, b: any) => {

@@ -14,15 +14,15 @@ ALL SIX painterly crops (it only ever worked on white-paper drawings), so the
 silhouette mask is rembg u2netp, the fix proven on the Aladdin fixture.
 Renders: zombie-walk driver, arm-damped retarget, ~500x500, 200 frames.
 
-| character | adversarial trait | det | kpt mean/min | bbox fill | core joints off-mask | walk verdict (pixels) |
-|---|---|---|---|---|---|---|
-| aladdin (hand-rig) | control | — | — | 57.0% | none (elbow only) | **PASS** 0 artifacts |
-| aladdin (auto-rig) | full-auto cross-check | 0.995 | 0.86/0.57 | 57.0% | none (hand only) | **PASS** 0 artifacts |
-| morgiana | different style, akimbo arm | 0.992 | 0.87/0.67 | 51.7% | none | **PASS** 0 artifacts |
-| mother | long robe, clasped hands, long sleeves | 0.991 | 0.81/0.54 | 74.8% | none | **FAIL** — edge-on sliver collapse |
-| fisherman | elderly thin, raised arm | 0.983 | 0.78/0.39 | 53.4% | left_shoulder, left_foot | **FAIL** — crushed strip |
-| magician | dark robes + staff prop | 0.894 | 0.77/0.54 | 60.2% | right_knee, right_foot | **FAIL** — pathological solve (300s+600s timeouts, no output) |
-| lampJinni | nonhuman, no legs (smoke tail) | 0.998 | 0.74/0.47 | 67.3% | none | **FAIL** — body halved/folded |
+| character          | adversarial trait                      | det   | kpt mean/min | bbox fill | core joints off-mask     | walk verdict (pixels)                                         |
+| ------------------ | -------------------------------------- | ----- | ------------ | --------- | ------------------------ | ------------------------------------------------------------- |
+| aladdin (hand-rig) | control                                | —     | —            | 57.0%     | none (elbow only)        | **PASS** 0 artifacts                                          |
+| aladdin (auto-rig) | full-auto cross-check                  | 0.995 | 0.86/0.57    | 57.0%     | none (hand only)         | **PASS** 0 artifacts                                          |
+| morgiana           | different style, akimbo arm            | 0.992 | 0.87/0.67    | 51.7%     | none                     | **PASS** 0 artifacts                                          |
+| mother             | long robe, clasped hands, long sleeves | 0.991 | 0.81/0.54    | 74.8%     | none                     | **FAIL** — edge-on sliver collapse                            |
+| fisherman          | elderly thin, raised arm               | 0.983 | 0.78/0.39    | 53.4%     | left_shoulder, left_foot | **FAIL** — crushed strip                                      |
+| magician           | dark robes + staff prop                | 0.894 | 0.77/0.54    | 60.2%     | right_knee, right_foot   | **FAIL** — pathological solve (300s+600s timeouts, no output) |
+| lampJinni          | nonhuman, no legs (smoke tail)         | 0.998 | 0.74/0.47    | 67.3%     | none                     | **FAIL** — body halved/folded                                 |
 
 Rig success rate: 7/7 produced a skeleton; walk success rate on pixels:
 **3/7 clean, 4/7 fail** (2 distinct characters clean; aladdin counted once).

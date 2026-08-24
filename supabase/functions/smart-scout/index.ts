@@ -15,13 +15,22 @@ function _subFromAuth(req: Request): string {
   const t = h.startsWith("Bearer ") ? h.slice(7) : "";
   const p = t.split(".");
   if (p.length !== 3) return "anon";
-  try { return JSON.parse(atob(p[1].replace(/-/g,"+").replace(/_/g,"/"))).sub || "anon"; } catch { return "anon"; }
+  try {
+    return JSON.parse(atob(p[1].replace(/-/g, "+").replace(/_/g, "/"))).sub || "anon";
+  } catch {
+    return "anon";
+  }
 }
 function _rateLimit(id: string, limit: number, windowMs = 60000): boolean {
   const now = Date.now();
   const arr = (rlBuckets.get(id) ?? []).filter((t) => now - t < windowMs);
-  if (arr.length >= limit) { rlBuckets.set(id, arr); return false; }
-  arr.push(now); rlBuckets.set(id, arr); return true;
+  if (arr.length >= limit) {
+    rlBuckets.set(id, arr);
+    return false;
+  }
+  arr.push(now);
+  rlBuckets.set(id, arr);
+  return true;
 }
 
 // User-visible errors go back as HTTP 200 with { error } so
@@ -35,7 +44,8 @@ Deno.serve(async (req) => {
   try {
     const authFail = await requireAuth(req);
     if (authFail) return authFail;
-    if (!_rateLimit(_subFromAuth(req), 10)) return friendly("slow down bestie 😅 — try again in a moment");
+    if (!_rateLimit(_subFromAuth(req), 10))
+      return friendly("slow down bestie 😅 — try again in a moment");
 
     const body = await req.json().catch(() => ({}));
     const query = typeof body?.query === "string" ? body.query.trim().slice(0, 300) : "";
@@ -43,7 +53,7 @@ Deno.serve(async (req) => {
     const imageMime = typeof body?.imageMime === "string" ? body.imageMime : "image/jpeg";
     const language = typeof body?.language === "string" ? body.language.slice(0, 20) : "auto";
     const lang = typeof body?.lang === "string" ? body.lang : "";
-    const loc = (body?.location && typeof body.location === "object") ? body.location : null;
+    const loc = body?.location && typeof body.location === "object" ? body.location : null;
     const locLabel = typeof loc?.label === "string" ? loc.label.slice(0, 200) : "";
     const locPin = typeof loc?.pin === "string" ? loc.pin.slice(0, 10) : "";
     const locLat = Number.isFinite(loc?.lat) ? Number(loc.lat) : null;
@@ -54,7 +64,8 @@ Deno.serve(async (req) => {
 
     if (!query && !imageBase64) return friendly("give me a product name, a place, or a photo 📸");
 
-    if (!Deno.env.get("ANTHROPIC_API_KEY")) return friendly("scout isn't configured yet — try again later");
+    if (!Deno.env.get("ANTHROPIC_API_KEY"))
+      return friendly("scout isn't configured yet — try again later");
 
     // Optional enrichment: Google Address Descriptors (GA in India, free tier of
     // Geocoding Essentials). Adds ranked nearby landmarks + spatial relationships
@@ -69,26 +80,31 @@ Deno.serve(async (req) => {
         const gt = setTimeout(() => ac.abort(), 2500);
         const gRes = await fetch(
           `https://maps.googleapis.com/maps/api/geocode/json?latlng=${locLat},${locLon}` +
-          `&extra_computations=ADDRESS_DESCRIPTORS&key=${encodeURIComponent(googleKey)}`,
+            `&extra_computations=ADDRESS_DESCRIPTORS&key=${encodeURIComponent(googleKey)}`,
           { signal: ac.signal },
         );
         clearTimeout(gt);
         if (gRes.ok) {
           const gJson = await gRes.json();
-          const desc = gJson?.address_descriptor
-            ?? gJson?.results?.[0]?.address_descriptor;
+          const desc = gJson?.address_descriptor ?? gJson?.results?.[0]?.address_descriptor;
           const landmarks: any[] = Array.isArray(desc?.landmarks) ? desc.landmarks : [];
           const areas: any[] = Array.isArray(desc?.areas) ? desc.areas : [];
-          const lmBits = landmarks.slice(0, 3).map((l) => {
-            const name = l?.display_name?.text ?? l?.name ?? "";
-            const rel = l?.spatial_relationship ?? "";
-            return name ? (rel ? `${rel.toLowerCase().replace(/_/g, " ")} ${name}` : name) : "";
-          }).filter(Boolean);
-          const areaBits = areas.slice(0, 2).map((a) => {
-            const name = a?.display_name?.text ?? a?.name ?? "";
-            const cont = a?.containment ?? "";
-            return name ? (cont === "WITHIN" ? `within ${name}` : name) : "";
-          }).filter(Boolean);
+          const lmBits = landmarks
+            .slice(0, 3)
+            .map((l) => {
+              const name = l?.display_name?.text ?? l?.name ?? "";
+              const rel = l?.spatial_relationship ?? "";
+              return name ? (rel ? `${rel.toLowerCase().replace(/_/g, " ")} ${name}` : name) : "";
+            })
+            .filter(Boolean);
+          const areaBits = areas
+            .slice(0, 2)
+            .map((a) => {
+              const name = a?.display_name?.text ?? a?.name ?? "";
+              const cont = a?.containment ?? "";
+              return name ? (cont === "WITHIN" ? `within ${name}` : name) : "";
+            })
+            .filter(Boolean);
           const parts = [...lmBits, ...areaBits];
           if (parts.length) landmarkContext = parts.join("; ");
           else console.log("smart-scout: address_descriptors returned no landmarks/areas");
@@ -99,7 +115,9 @@ Deno.serve(async (req) => {
         console.log("smart-scout: address_descriptors skipped:", (e as Error)?.message ?? e);
       }
     } else if (!googleKey) {
-      console.log("smart-scout: GOOGLE_MAPS_API_KEY not set — skipping Address Descriptors enrichment");
+      console.log(
+        "smart-scout: GOOGLE_MAPS_API_KEY not set — skipping Address Descriptors enrichment",
+      );
     }
 
     const locBits: string[] = [];
@@ -107,7 +125,8 @@ Deno.serve(async (req) => {
     if (locPin) locBits.push(`PIN ${locPin}`);
     else if (pinInQuery) locBits.push(`PIN ${pinInQuery}`);
     if (landmarkContext) locBits.push(`nearby: ${landmarkContext}`);
-    if (locLat != null && locLon != null) locBits.push(`(${locLat.toFixed(4)}, ${locLon.toFixed(4)})`);
+    if (locLat != null && locLon != null)
+      locBits.push(`(${locLat.toFixed(4)}, ${locLon.toFixed(4)})`);
     const locationLine = locBits.length
       ? `USER'S CURRENT LOCATION CONTEXT: ${locBits.join(" · ")}. When the query is location-sensitive (restaurants, salons, clinics, local services, groceries with delivery), scope results to THIS neighbourhood / PIN code, not just the city.`
       : "USER'S LOCATION: not shared — infer from the query text if it mentions a place, otherwise treat as pan-India.";
@@ -115,7 +134,8 @@ Deno.serve(async (req) => {
     const system =
       "You are ONIQ's price & deal scout for India — a purchaser-centric buying assistant, not a neutral list-dumper. Search the live web and help the user actually decide. " +
       "SCOPE — the query can be either (A) a PRODUCT to buy across shopping apps (Amazon.in, Flipkart, Meesho, JioMart, Myntra, Croma, Reliance Digital, Blinkit, Zepto, Tata Neu, Ajio, Nykaa, brand's own site), or (B) a LOCAL SERVICE / place (restaurants, salons, gyms, clinics, tuition, repair, groceries with delivery, etc.). Detect which kind of query it is and adapt: for products, hunt live prices across the shopping apps above; for local services, use Zomato, Swiggy, Google Maps, JustDial, MagicBricks, Urban Company, Practo etc. and surface price-range / rating / distance instead of a single INR number. Never refuse a query for being services-not-products or vice-versa — do the right search for the query. " +
-      locationLine + " " +
+      locationLine +
+      " " +
       "LANGUAGE UNDERSTANDING — Indian users mix languages freely. Parse Hindi, Bengali, Tamil, Telugu, Marathi, Gujarati, Kannada, Malayalam, Punjabi, Odia, Assamese, Urdu, plus Hinglish / Benglish / other Roman-script transliterations, plus pure English. Understand colloquial item names: atta = wheat flour, chawal = rice, dal = lentils, tel = oil, chini = sugar, doodh = milk, sabun = soap; brand shorthand like MI → Xiaomi, 'Bajaj ka mixer', 'Aashirvaad atta', 'Amul butter'. Understand vernacular price phrasing: 'kitne ka', 'koto', 'sasta', 'mehnga', 'under 500', '10k ke andar'. NORMALISE to standard English for the actual web search, but preserve the user's original phrasing in the 'product' field alongside the normalised name. " +
       "PER-STORE / PER-VENDOR SEARCHES — for products, run TARGETED searches by name per major shopping app before concluding it's unavailable, e.g. '<product> price Amazon.in', '<product> Flipkart', '<product> JioMart', etc. Prefer product-listing pages over blogs and unverifiable resellers. " +
       "VERIFIED SOURCE PREFERENCE — strongly prefer results from recognisable, verified retailer/business domains (major e-commerce platforms, official brand sites, well-known local business listing sites). For each result, populate 'source_domain' with the actual retailer domain the price/info came from (e.g. 'amazon.in', 'flipkart.com', 'zomato.com') so the user can judge trust. Set 'verified' to true only when the source domain is a well-known Indian retailer/aggregator; otherwise false. Never hide where a price came from. " +
@@ -169,10 +189,13 @@ Deno.serve(async (req) => {
     if (!claudeRes.ok) {
       const reason = claudeRes.reason ?? "";
       console.error("smart-scout callClaude failed:", reason);
-      if (/timeout/i.test(reason)) return friendly("scout took too long — try a more specific query 🐢");
+      if (/timeout/i.test(reason))
+        return friendly("scout took too long — try a more specific query 🐢");
       if (/http 429/.test(reason)) return friendly("rate limit hit — try again in a moment 🐢");
-      if (/http 402/.test(reason)) return friendly("AI credits exhausted — top up to keep scouting");
-      if (/http 400/.test(reason)) return friendly("AI credits exhausted — top up to keep scouting");
+      if (/http 402/.test(reason))
+        return friendly("AI credits exhausted — top up to keep scouting");
+      if (/http 400/.test(reason))
+        return friendly("AI credits exhausted — top up to keep scouting");
       return friendly(`scout glitched — try again`);
     }
 
@@ -201,11 +224,16 @@ Deno.serve(async (req) => {
     const end = cleaned.lastIndexOf("}");
     let parsed: any = null;
     if (start >= 0 && end > start) {
-      try { parsed = JSON.parse(cleaned.slice(start, end + 1)); }
-      catch (e) { console.error("smart-scout parse error", e, cleaned.slice(0, 400)); }
+      try {
+        parsed = JSON.parse(cleaned.slice(start, end + 1));
+      } catch (e) {
+        console.error("smart-scout parse error", e, cleaned.slice(0, 400));
+      }
     }
     if (!parsed || !Array.isArray(parsed.results)) {
-      return friendly("scout couldn't structure the results — try a more specific query", { raw: textOut.slice(0, 400) });
+      return friendly("scout couldn't structure the results — try a more specific query", {
+        raw: textOut.slice(0, 400),
+      });
     }
 
     parsed.results.sort((a: any, b: any) => {

@@ -43,12 +43,7 @@
  * character/appearance parameter in the arg builder.
  */
 
-import type {
-  MotionClip,
-  MotionProvider,
-  MotionRequest,
-  ProviderMeta,
-} from "./motionProvider.ts";
+import type { MotionClip, MotionProvider, MotionRequest, ProviderMeta } from "./motionProvider.ts";
 
 /** ARAP pose-warp, CPU-only OSS. Costed in CPU-runner seconds, not rupees:
  *  ~69-78 s of 4-core CPU per ~12.5 s clip was the measured reference figure;
@@ -98,16 +93,18 @@ export const ARAP_L3_RUN: ArapL3RunSpec = {
  * ONLY classes with a real-pixel PASS are present; asking for anything else
  * is a structured permanent miss, and the still path carries the shot.
  */
-export const ARAP_MOTION_GRAMMAR: Readonly<Partial<Record<MotionRequest["motionClass"], string>>> = {
-  WALKING: "examples/bvh/fair1/zombie.bvh",
-  // Unspecified character motion gets IDLE — the safe subtle in-place life,
-  // never a guessed walk. The driver is derived at run time by
-  // remotion/scripts/bvh_idle_reference.py (rotations scaled 0.25 toward
-  // frame 0, root pinned) — s=0.10 failed the aliveness gate (0.43,
-  // recorded falsification); s=0.25 passed real pixels (0.94, grounded
-  // feet, stable identity, no artifacts).
-  CHARACTER_MOTION: "derived://bvh_idle_reference.py?src=examples/bvh/fair1/zombie.bvh&scale=0.25",
-};
+export const ARAP_MOTION_GRAMMAR: Readonly<Partial<Record<MotionRequest["motionClass"], string>>> =
+  {
+    WALKING: "examples/bvh/fair1/zombie.bvh",
+    // Unspecified character motion gets IDLE — the safe subtle in-place life,
+    // never a guessed walk. The driver is derived at run time by
+    // remotion/scripts/bvh_idle_reference.py (rotations scaled 0.25 toward
+    // frame 0, root pinned) — s=0.10 failed the aliveness gate (0.43,
+    // recorded falsification); s=0.25 passed real pixels (0.94, grounded
+    // feet, stable identity, no artifacts).
+    CHARACTER_MOTION:
+      "derived://bvh_idle_reference.py?src=examples/bvh/fair1/zombie.bvh&scale=0.25",
+  };
 
 /**
  * PRE-RENDER CHARACTER ELIGIBILITY — the measured envelope, revised by the

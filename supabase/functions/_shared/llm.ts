@@ -125,20 +125,29 @@ export const BOARD_LABEL: Record<string, string> = {
 export const BOARD_CURRICULUM: Record<string, string> = {
   cbse: "CBSE (follows NCERT textbooks and syllabus).",
   icse: "ICSE (follows the CISCE syllabus; expect broader English + humanities depth).",
-  igcse: "IGCSE (follows Cambridge International; use British spelling and Cambridge-style problem framing).",
+  igcse:
+    "IGCSE (follows Cambridge International; use British spelling and Cambridge-style problem framing).",
   college: "College-level (Indian UG/PG; align with standard Indian university syllabi).",
   jee: "JEE (Joint Entrance Examination) aspirant — NCERT foundation with JEE-level application, multi-concept problem-solving, and speed/accuracy focus.",
   neet: "NEET aspirant — NCERT-based, MCQ exam pattern, precise factual recall alongside conceptual understanding, especially in Biology.",
   clat: "CLAT / law entrance aspirant — legal reasoning through principle-and-fact application, reading comprehension, current affairs awareness, logical and quantitative reasoning at entrance-exam level.",
-  govt_exam: "General competitive/government exam aspirant — this covers COMMON foundational ground shared across most Indian competitive exams (general knowledge & current affairs, quantitative aptitude, reasoning, English) at a prelims/tier-1 level. Be explicit when relevant that specific exams (UPSC/SSC/Banking/Railways/State PSCs etc.) have their own detailed official syllabi and specialized paper patterns beyond this general scope — do not claim to replicate any single exam's complete syllabus.",
-  govt_railway: "Railway Recruitment (RRB) aspirant — General Awareness, elementary Mathematics, General Intelligence & Reasoning, and General Science, in the pattern of RRB NTPC/Group-D style exams. Specific RRB notifications vary by post and year — this is common foundational prep.",
-  govt_banking: "Banking exam (IBPS/SBI PO & Clerk style) aspirant — Quantitative Aptitude, Reasoning Ability, English Language, Banking & General Awareness, and basic Computer Knowledge. Specific bank exams vary in pattern — this is common foundational prep.",
-  govt_police: "Police recruitment (Constable/Sub-Inspector style) aspirant — General Knowledge & Current Affairs, Reasoning, Numerical/Quantitative Ability, and General English/Hindi. State police exam patterns vary — this is common foundational prep, not a substitute for physical efficiency tests or state-specific rules.",
-  govt_judiciary: "Judicial Services (State Civil Judge exam) aspirant — a LAW GRADUATE-level track: Constitutional Law, Civil Procedure Code (CPC), Criminal Procedure Code (CrPC), IPC/Bharatiya Nyaya Sanhita, Evidence Act, Contract Law, and current legal affairs, at entry-level judiciary depth. Each state's Judicial Service exam (via its High Court/PSC) has its own specific syllabus and pattern — this is common legal foundational prep, not a replication of any one state's official syllabus.",
-  govt_ssc: "SSC (CGL/CHSL/MTS style) aspirant — General Awareness, Quantitative Aptitude, English Language & Comprehension, and General Intelligence & Reasoning. Specific SSC tiers/patterns vary by year — this is common foundational prep.",
-  govt_psc: "State Public Service Commission (PSC) aspirant — General Studies, current affairs, and reasoning/aptitude at a UPSC-adjacent state civil services level. Each state PSC (and UPSC itself) has its own syllabus, prelims/mains structure, and optional subjects — this is common foundational prep, not a replication of any specific state's official syllabus.",
+  govt_exam:
+    "General competitive/government exam aspirant — this covers COMMON foundational ground shared across most Indian competitive exams (general knowledge & current affairs, quantitative aptitude, reasoning, English) at a prelims/tier-1 level. Be explicit when relevant that specific exams (UPSC/SSC/Banking/Railways/State PSCs etc.) have their own detailed official syllabi and specialized paper patterns beyond this general scope — do not claim to replicate any single exam's complete syllabus.",
+  govt_railway:
+    "Railway Recruitment (RRB) aspirant — General Awareness, elementary Mathematics, General Intelligence & Reasoning, and General Science, in the pattern of RRB NTPC/Group-D style exams. Specific RRB notifications vary by post and year — this is common foundational prep.",
+  govt_banking:
+    "Banking exam (IBPS/SBI PO & Clerk style) aspirant — Quantitative Aptitude, Reasoning Ability, English Language, Banking & General Awareness, and basic Computer Knowledge. Specific bank exams vary in pattern — this is common foundational prep.",
+  govt_police:
+    "Police recruitment (Constable/Sub-Inspector style) aspirant — General Knowledge & Current Affairs, Reasoning, Numerical/Quantitative Ability, and General English/Hindi. State police exam patterns vary — this is common foundational prep, not a substitute for physical efficiency tests or state-specific rules.",
+  govt_judiciary:
+    "Judicial Services (State Civil Judge exam) aspirant — a LAW GRADUATE-level track: Constitutional Law, Civil Procedure Code (CPC), Criminal Procedure Code (CrPC), IPC/Bharatiya Nyaya Sanhita, Evidence Act, Contract Law, and current legal affairs, at entry-level judiciary depth. Each state's Judicial Service exam (via its High Court/PSC) has its own specific syllabus and pattern — this is common legal foundational prep, not a replication of any one state's official syllabus.",
+  govt_ssc:
+    "SSC (CGL/CHSL/MTS style) aspirant — General Awareness, Quantitative Aptitude, English Language & Comprehension, and General Intelligence & Reasoning. Specific SSC tiers/patterns vary by year — this is common foundational prep.",
+  govt_psc:
+    "State Public Service Commission (PSC) aspirant — General Studies, current affairs, and reasoning/aptitude at a UPSC-adjacent state civil services level. Each state PSC (and UPSC itself) has its own syllabus, prelims/mains structure, and optional subjects — this is common foundational prep, not a replication of any specific state's official syllabus.",
   nios: "National Institute of Open Schooling — the national open-schooling board, offering Secondary (Class 10) and Senior Secondary (Class 12) via distance/open learning, broadly aligned to NCF and comparable in recognition to CBSE. Content should track standard NCERT-equivalent depth unless the student's specific NIOS subject material genuinely diverges.",
-  up_board: "Uttar Pradesh Madhyamik Shiksha Parishad (UPMSP) — state board for Uttar Pradesh, increasingly NCERT-aligned textbooks.",
+  up_board:
+    "Uttar Pradesh Madhyamik Shiksha Parishad (UPMSP) — state board for Uttar Pradesh, increasingly NCERT-aligned textbooks.",
   bihar_board: "Bihar School Examination Board (BSEB) — largely NCERT-based textbooks.",
   rajasthan_board: "Board of Secondary Education, Rajasthan (RBSE/BSER) — largely NCERT-aligned.",
   mp_board: "Madhya Pradesh Board of Secondary Education (MPBSE) — largely NCERT-aligned.",
@@ -149,24 +158,46 @@ export const BOARD_CURRICULUM: Record<string, string> = {
   jk_board: "Jammu and Kashmir Board of School Education (JKBOSE) — largely NCERT-aligned.",
   jharkhand_board: "Jharkhand Academic Council (JAC) — largely NCERT-aligned.",
   chhattisgarh_board: "Chhattisgarh Board of Secondary Education (CGBSE) — largely NCERT-aligned.",
-  maharashtra_board: "Maharashtra State Board of Secondary and Higher Secondary Education (MSBSHSE) — distinct state textbooks (Balbharati); transitioning toward NCERT-aligned pattern from 2025-26.",
-  tn_board: "Tamil Nadu State Board (Directorate of Government Examinations) — distinct state textbooks (Tamil Nadu Textbook Corporation), covers both Class 10 (Secondary) and Class 12 (Higher Secondary) under one directorate.",
-  kerala_board: "Kerala state board — Class 10 (SSLC) administered by the Kerala Board of Public Examinations/Pareeksha Bhavan, Class 12 by the Directorate of Higher Secondary Education (DHSE). Distinct state textbooks (Kerala SCERT). When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
-  wb_board: "West Bengal state board — Class 10 (Madhyamik) administered by WBBSE, Class 12 by WBCHSE. Distinct state textbooks. When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
-  gujarat_board: "Gujarat Secondary and Higher Secondary Education Board (GSEB) — distinct state textbooks (GCERT), Gujarati/English medium, NCERT-influenced.",
-  karnataka_board: "Karnataka School Examination and Assessment Board (KSEAB) — administers SSLC (Class 10) and 2nd PUC (Class 12), own textbooks, NCERT-influenced.",
-  ap_board: "Andhra Pradesh state board — Class 10 (SSC) administered by BSEAP, Class 12 by BIEAP (Board of Intermediate Education). Distinct AP SCERT textbooks. When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
-  telangana_board: "Telangana state board — Class 10 (SSC) administered by BSE Telangana, Class 12 by TSBIE (Board of Intermediate Education). Distinct SCERT textbooks for classes 6-10, NCERT for 11-12. When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
+  maharashtra_board:
+    "Maharashtra State Board of Secondary and Higher Secondary Education (MSBSHSE) — distinct state textbooks (Balbharati); transitioning toward NCERT-aligned pattern from 2025-26.",
+  tn_board:
+    "Tamil Nadu State Board (Directorate of Government Examinations) — distinct state textbooks (Tamil Nadu Textbook Corporation), covers both Class 10 (Secondary) and Class 12 (Higher Secondary) under one directorate.",
+  kerala_board:
+    "Kerala state board — Class 10 (SSLC) administered by the Kerala Board of Public Examinations/Pareeksha Bhavan, Class 12 by the Directorate of Higher Secondary Education (DHSE). Distinct state textbooks (Kerala SCERT). When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
+  wb_board:
+    "West Bengal state board — Class 10 (Madhyamik) administered by WBBSE, Class 12 by WBCHSE. Distinct state textbooks. When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
+  gujarat_board:
+    "Gujarat Secondary and Higher Secondary Education Board (GSEB) — distinct state textbooks (GCERT), Gujarati/English medium, NCERT-influenced.",
+  karnataka_board:
+    "Karnataka School Examination and Assessment Board (KSEAB) — administers SSLC (Class 10) and 2nd PUC (Class 12), own textbooks, NCERT-influenced.",
+  ap_board:
+    "Andhra Pradesh state board — Class 10 (SSC) administered by BSEAP, Class 12 by BIEAP (Board of Intermediate Education). Distinct AP SCERT textbooks. When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
+  telangana_board:
+    "Telangana state board — Class 10 (SSC) administered by BSE Telangana, Class 12 by TSBIE (Board of Intermediate Education). Distinct SCERT textbooks for classes 6-10, NCERT for 11-12. When asked for a specific class, use the correctly-administering body's actual syllabus for that class.",
   ib: "International Baccalaureate — MYP (Middle Years Programme, roughly grades 6-10) and DP (Diploma Programme, grades 11-12). Distinct international curriculum, not NCERT-based. Map the requested class level to the appropriate IB programme content.",
 };
 
-export const VALID_CLASS_LEVELS = ["5","6","7","8","9","10","11","12","ug","pg","drop","aspirant"] as const;
+export const VALID_CLASS_LEVELS = [
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+  "ug",
+  "pg",
+  "drop",
+  "aspirant",
+] as const;
 
 export function gradeString(classLevel: string): string {
   if (classLevel === "ug") return "an undergraduate (UG) student";
   if (classLevel === "pg") return "a postgraduate (PG) student";
   if (classLevel === "drop") return "a drop-year aspirant (dedicated entrance-exam prep year)";
-  if (classLevel === "aspirant") return "an aspirant preparing for competitive exams (not tied to a school class)";
+  if (classLevel === "aspirant")
+    return "an aspirant preparing for competitive exams (not tied to a school class)";
   return `a class ${classLevel} student`;
 }
 
@@ -220,9 +251,7 @@ export type CallClaudeOpts = {
   noRetry?: boolean;
 };
 
-export type CallClaudeResult =
-  | { ok: true; data: any }
-  | { ok: false; reason: string };
+export type CallClaudeResult = { ok: true; data: any } | { ok: false; reason: string };
 
 // ---------------------------------------------------------------------------
 // Gemini fallback — used ONLY when Anthropic returns a specific billing/credit
@@ -321,9 +350,16 @@ function sanitizeJsonSchemaForGemini(schema: unknown): unknown {
   if (Array.isArray(schema)) return schema.map(sanitizeJsonSchemaForGemini);
   const out: Record<string, unknown> = {};
   const skip = new Set([
-    "$schema", "$id", "$ref", "$defs", "definitions",
-    "additionalProperties", "additionalItems", "patternProperties",
-    "exclusiveMinimum", "exclusiveMaximum",
+    "$schema",
+    "$id",
+    "$ref",
+    "$defs",
+    "definitions",
+    "additionalProperties",
+    "additionalItems",
+    "patternProperties",
+    "exclusiveMinimum",
+    "exclusiveMaximum",
   ]);
   for (const [k, v] of Object.entries(schema as Record<string, unknown>)) {
     if (skip.has(k)) continue;
@@ -371,7 +407,8 @@ function translateGeminiResponseToAnthropic(gem: any): any {
         type: "tool_use",
         id: `toolu_gemini_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
         name: p.functionCall.name,
-        input: (p.functionCall.args && typeof p.functionCall.args === "object") ? p.functionCall.args : {},
+        input:
+          p.functionCall.args && typeof p.functionCall.args === "object" ? p.functionCall.args : {},
       });
     } else if (p && typeof p.text === "string" && p.text.length > 0) {
       content.push({ type: "text", text: p.text });
@@ -401,9 +438,7 @@ function translateGeminiResponseToAnthropic(gem: any): any {
   };
 }
 
-export async function callGemini(
-  opts: CallClaudeOpts,
-): Promise<CallClaudeResult> {
+export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult> {
   const timeoutMs = opts.timeoutMs ?? 12000;
   const key = Deno.env.get("GOOGLE_AI_API_KEY");
   if (!key) {
@@ -435,7 +470,11 @@ export async function callGemini(
     });
     const text = await res.text().catch(() => "");
     let parsed: any = null;
-    try { parsed = text ? JSON.parse(text) : null; } catch { /* keep null */ }
+    try {
+      parsed = text ? JSON.parse(text) : null;
+    } catch {
+      /* keep null */
+    }
     if (!res.ok || !parsed) {
       console.warn(`callGemini: http ${res.status} body=${text.slice(0, 200)}`);
       return { ok: false, reason: `gemini http ${res.status}` };
@@ -486,7 +525,9 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
 
   const timeoutMs = opts.timeoutMs ?? 12000;
 
-  const attempt = async (): Promise<{ status: number; body: any; text?: string } | { error: string }> => {
+  const attempt = async (): Promise<
+    { status: number; body: any; text?: string } | { error: string }
+  > => {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
@@ -502,7 +543,11 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
       });
       const text = await res.text().catch(() => "");
       let body: any = null;
-      try { body = text ? JSON.parse(text) : null; } catch { /* keep null */ }
+      try {
+        body = text ? JSON.parse(text) : null;
+      } catch {
+        /* keep null */
+      }
       return { status: res.status, body, text };
     } catch (e) {
       return { error: (e as Error)?.name === "AbortError" ? "timeout" : String(e).slice(0, 120) };
