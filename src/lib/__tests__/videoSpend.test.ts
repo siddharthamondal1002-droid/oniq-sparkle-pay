@@ -299,6 +299,13 @@ describe("NO SILENT FAST ESCALATION", () => {
   });
 });
 
+/** Every precondition satisfied, so the tests below isolate the QUALITY half. */
+const OPEN_GATE = {
+  generationAllowed: true,
+  spendCapsConfigured: true,
+  providerAvailable: true,
+};
+
 describe("NO RUNWAY SELECTION WHILE UNVERIFIED", () => {
   it("is never chosen, even when both Google tiers miss the bar", () => {
     const c = chooseTier(
@@ -310,6 +317,7 @@ describe("NO RUNWAY SELECTION WHILE UNVERIFIED", () => {
         benchmarkId: "v2",
       },
       0.65,
+      OPEN_GATE,
     );
     expect(c.tier).toBeNull();
     expect(c.reason).toMatch(/runway is unverified/i);
@@ -333,8 +341,12 @@ describe("NO RUNWAY SELECTION WHILE UNVERIFIED", () => {
 
   it("prefers the cheaper tier when it clears the bar, and only then escalates", () => {
     const ev = { motionClass: "walking", blind: false, benchmarkId: "v3" };
-    expect(chooseTier({ ...ev, liteAcceptance: 0.7, fastAcceptance: 0.9 }, 0.65).tier).toBe("LITE");
-    expect(chooseTier({ ...ev, liteAcceptance: 0.4, fastAcceptance: 0.9 }, 0.65).tier).toBe("FAST");
+    expect(
+      chooseTier({ ...ev, liteAcceptance: 0.7, fastAcceptance: 0.9 }, 0.65, OPEN_GATE).tier,
+    ).toBe("LITE");
+    expect(
+      chooseTier({ ...ev, liteAcceptance: 0.4, fastAcceptance: 0.9 }, 0.65, OPEN_GATE).tier,
+    ).toBe("FAST");
   });
 });
 

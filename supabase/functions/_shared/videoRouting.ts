@@ -10,6 +10,7 @@
 // what to do when it comes back wrong.
 
 import type { AudioMode, ProviderSurface } from "./videoAudio.ts";
+import { roundUsd } from "./financialLedger.ts";
 
 // ============================================================================
 // PRICE BOOK
@@ -167,7 +168,10 @@ export function videoUsd(
   const videoOnly = rate.usdPerSecondVideoOnly;
   const perSecond = wantsVideoOnly && videoOnly !== null ? videoOnly : rate.usdPerSecondWithAudio;
   if (perSecond === null) throw new Error(`no usable rate for ${model} on ${surface}`);
-  return perSecond * seconds;
+  // Rounded to the ledger column's own precision. `0.03 * 60` is
+  // 1.7999999999999998 in binary float; sent raw it under-reserves, and
+  // `0.1 * 3` would be REFUSED against a $0.30 ceiling it exactly equals.
+  return roundUsd(perSecond * seconds);
 }
 
 // ============================================================================
@@ -181,6 +185,27 @@ export type TierChoice = {
   model: string | null;
   /** Null when nothing is selectable — the caller must not generate. */
   reason: string;
+};
+
+/**
+ * The preconditions that have nothing to do with quality, and everything to do
+ * with whether ONIQ is allowed to generate at all.
+ *
+ * PASSING THIS IS NOT OPTIONAL IN EFFECT. `chooseTier` refuses when it is
+ * absent, because "the caller did not say" and "the caller checked and it is
+ * fine" are different states and only one of them may generate. A default of
+ * "allowed" would make forgetting the gate the permissive path, which is the
+ * shape of every spend bug this ledger exists to prevent.
+ */
+export type RoutingGate = {
+  /** provider_budget_status(...).generationAllowed */
+  generationAllowed: boolean;
+  /** The three VIDEO ceilings are configured and internally consistent. */
+  spendCapsConfigured: boolean;
+  /** The provider's health breaker is not open. */
+  providerAvailable: boolean;
+  /** Why, when one of the above is false. Surfaced in the refusal. */
+  reason?: string;
 };
 
 /**
@@ -212,8 +237,32 @@ export type TierEvidence = {
 export function chooseTier(
   ev: TierEvidence | null,
   qualityBar: number,
+  gate?: RoutingGate,
   surface = ACTIVE_VIDEO_SURFACE,
 ): TierChoice {
+  // ---- preconditions, before any quality question is even asked -----------
+  if (!gate) {
+    return {
+      tier: null,
+      model: null,
+      reason: "no routing gate supplied — preconditions unknown, refusing",
+    };
+  }
+  if (!gate.spendCapsConfigured) {
+    return {
+      tier: null,
+      model: null,
+      reason: gate.reason ?? "VIDEO spend caps are not configured",
+    };
+  }
+  if (!gate.generationAllowed) {
+    return { tier: null, model: null, reason: gate.reason ?? "generation is not allowed" };
+  }
+  if (!gate.providerAvailable) {
+    return { tier: null, model: null, reason: gate.reason ?? "provider unavailable" };
+  }
+
+  // ---- and only then, the evidence ---------------------------------------
   if (!ev) {
     return { tier: null, model: null, reason: "no benchmark evidence for this motion class" };
   }
@@ -474,9 +523,13 @@ export function compareGoogleSurfaces(seconds: number, tier: "lite" | "fast"): S
   if (!api?.usdPerSecondWithAudio || !ap?.usdPerSecondVideoOnly) {
     throw new Error(`cannot compare ${tier}: a rate is missing`);
   }
-  const geminiApiUsd = api.usdPerSecondWithAudio * seconds;
-  const agentPlatformVideoOnlyUsd = ap.usdPerSecondVideoOnly * seconds;
-  const differenceUsd = geminiApiUsd - agentPlatformVideoOnlyUsd;
+  // Rounded to ledger precision for the same reason videoUsd is: 0.03 * 60 is
+  // 1.7999999999999998 in binary float, and a comparison table that reports
+  // that number invites someone to reconcile it against an invoice that says
+  // 1.80.
+  const geminiApiUsd = roundUsd(api.usdPerSecondWithAudio * seconds);
+  const agentPlatformVideoOnlyUsd = roundUsd(ap.usdPerSecondVideoOnly * seconds);
+  const differenceUsd = roundUsd(geminiApiUsd - agentPlatformVideoOnlyUsd);
   return {
     seconds,
     geminiApiUsd,
