@@ -3812,6 +3812,114 @@ export type Database = {
         }
         Relationships: []
       }
+      search_budget_config: {
+        Row: {
+          daily_usd_cap: number
+          enabled: boolean
+          id: boolean
+          request_usd_cap: number
+          updated_at: string
+        }
+        Insert: {
+          daily_usd_cap: number
+          enabled?: boolean
+          id?: boolean
+          request_usd_cap?: number
+          updated_at?: string
+        }
+        Update: {
+          daily_usd_cap?: number
+          enabled?: boolean
+          id?: boolean
+          request_usd_cap?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      search_spend_day: {
+        Row: {
+          day: string
+          request_count: number
+          reserved_usd: number
+          settled_usd: number
+        }
+        Insert: {
+          day: string
+          request_count?: number
+          reserved_usd?: number
+          settled_usd?: number
+        }
+        Update: {
+          day?: string
+          request_count?: number
+          reserved_usd?: number
+          settled_usd?: number
+        }
+        Relationships: []
+      }
+      search_spend_ledger: {
+        Row: {
+          actual_usd: number | null
+          cache_hits: number | null
+          created_at: string
+          day: string
+          estimated_usd: number
+          id: string
+          input_tokens: number | null
+          llm_calls: number | null
+          model: string | null
+          output_tokens: number | null
+          provider: string
+          request_id: string
+          search_count: number | null
+          search_type: string | null
+          settled_at: string | null
+          state: string
+          termination_reason: string | null
+          user_id: string | null
+        }
+        Insert: {
+          actual_usd?: number | null
+          cache_hits?: number | null
+          created_at?: string
+          day?: string
+          estimated_usd: number
+          id?: string
+          input_tokens?: number | null
+          llm_calls?: number | null
+          model?: string | null
+          output_tokens?: number | null
+          provider: string
+          request_id: string
+          search_count?: number | null
+          search_type?: string | null
+          settled_at?: string | null
+          state?: string
+          termination_reason?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          actual_usd?: number | null
+          cache_hits?: number | null
+          created_at?: string
+          day?: string
+          estimated_usd?: number
+          id?: string
+          input_tokens?: number | null
+          llm_calls?: number | null
+          model?: string | null
+          output_tokens?: number | null
+          provider?: string
+          request_id?: string
+          search_count?: number | null
+          search_type?: string | null
+          settled_at?: string | null
+          state?: string
+          termination_reason?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       security_incidents: {
         Row: {
           affected_count: number | null
@@ -5166,6 +5274,17 @@ export type Database = {
         Args: { _content_id: string; _content_type: string; _reason?: string }
         Returns: undefined
       }
+      admit_search_spend: {
+        Args: {
+          _estimated_usd: number
+          _model?: string
+          _provider: string
+          _request_id: string
+          _search_type?: string
+          _user_id?: string
+        }
+        Returns: Json
+      }
       allowance_period_start: { Args: { _user: string }; Returns: string }
       api_budget_day: { Args: never; Returns: string }
       api_budget_left: {
@@ -5698,6 +5817,7 @@ export type Database = {
         Returns: undefined
       }
       refund_story_seconds: { Args: { _job_id: string }; Returns: Json }
+      release_search_spend: { Args: { _request_id: string }; Returns: Json }
       remove_group_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: undefined
@@ -5744,6 +5864,19 @@ export type Database = {
       }
       settle_creator_payout: {
         Args: { _attempt: string; _provider_payout_id: string }
+        Returns: Json
+      }
+      settle_search_spend: {
+        Args: {
+          _actual_usd?: number
+          _cache_hits?: number
+          _input_tokens?: number
+          _llm_calls?: number
+          _output_tokens?: number
+          _request_id: string
+          _search_count?: number
+          _termination_reason?: string
+        }
         Returns: Json
       }
       settle_watermark_purchase: {
