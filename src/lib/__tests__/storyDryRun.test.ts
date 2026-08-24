@@ -287,6 +287,11 @@ describe("fixture answers match the keys the worker reads", () => {
           .toString("latin1"),
       ).toBe("ftyp");
     },
+    // EXPLICIT TIMEOUT. This is the only test in the suite that shells out to
+    // ffmpeg, and at ~1.3s idle it had the LEAST headroom of any test against
+    // vitest's 5s default — it would tip at 3.7x contention, sooner than the
+    // two tests that actually did. Declaring the cost, not weakening the check.
+    60_000,
   );
 
   it("an unhandled function returns null so the seam stays honest", async () => {

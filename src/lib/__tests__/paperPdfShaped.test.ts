@@ -159,7 +159,13 @@ describe("a Hindi paper produces a real PDF", () => {
     const back = await PDFDocument.load(bytes);
     expect(back.getPageCount()).toBe(1);
     expect(bytes.byteLength).toBeGreaterThan(50_000);
-  });
+    // EXPLICIT TIMEOUT, not a weakened assertion. Embedding an entire
+    // Devanagari font with `subset: false` and re-parsing the document is
+    // genuinely expensive: ~0.8s on an idle machine, measured at 17.1s under
+    // worker oversubscription. Vitest's 5s default made that a TIMEOUT
+    // reported as STACK_TRACE_ERROR — a failure that named nothing and
+    // vanished on a quiet re-run. A test this costly must declare its cost.
+  }, 60_000);
 
   it("measures Devanagari width by the font, never by character count", async () => {
     // Advance widths bear no relation to codepoint count once conjuncts form,
