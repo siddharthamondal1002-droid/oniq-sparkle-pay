@@ -17,6 +17,7 @@
 // AUTH IS NOT MODELLED HERE ON PURPOSE. A body is safe to log, compare and
 // snapshot; a URL with a key in it is not. The transport applies credentials.
 
+import { classifyProviderError } from "./providerError.ts";
 import {
   AI_STUDIO_VIDEO_PARAMS,
   type AudioMode,
@@ -41,18 +42,73 @@ export type VideoOutcomeKind =
   | "PENDING"
   /** Responsible-AI refusal, named by the provider. */
   | "SAFETY_REFUSAL"
-  /** done, no error, no sample — generated then filtered. */
-  | "EMPTY_RESULT"
+  /** done, no error, no sample — generated then filtered. Possibly still billed. */
+  | "EMPTY_OUTPUT"
   /** The provider said no in a way that is about the request. */
   | "INVALID_REQUEST"
   /** The provider is unwell: 5xx, breaker open. */
   | "PROVIDER_FAILURE"
-  /** Quota/rate wall. Distinct from PROVIDER_FAILURE: waiting does not help. */
+  /**
+   * A wall with a clock on it — a daily/project quota. Waiting minutes does not
+   * help, so this must never be retried inside a job.
+   */
   | "QUOTA_EXHAUSTED"
+  /**
+   * A per-minute limit. SEPARATE FROM QUOTA_EXHAUSTED on purpose: this one does
+   * clear on its own, and conflating them either hammers a wall or gives up on
+   * a blip. `providerError.ts` splits them on the body, not the 429.
+   */
+  | "RATE_LIMITED"
+  /** Credentials were rejected. Not a fault to retry — a fault to fix. */
+  | "AUTHENTICATION_FAILURE"
+  /**
+   * ONIQ's own side is not set up: a missing env var, no project, no location.
+   * Detected BEFORE any socket opens, so it can never cost money.
+   */
+  | "CONFIGURATION_FAILURE"
   /** No answer in time. AMBIGUOUS — the work may have happened and be billed. */
   | "TIMEOUT"
   /** The clip generated but could not be fetched. Also billed. */
-  | "DOWNLOAD_FAILURE";
+  | "MEDIA_RETRIEVAL_FAILURE"
+  /**
+   * Genuinely unrecognised. Kept distinct from PROVIDER_FAILURE so "we do not
+   * know what this was" never masquerades as a diagnosis.
+   */
+  | "UNKNOWN_PROVIDER_FAILURE";
+
+/** Every outcome kind, for exhaustiveness tests. */
+export const VIDEO_OUTCOME_KINDS: readonly VideoOutcomeKind[] = [
+  "GENERATED",
+  "PENDING",
+  "SAFETY_REFUSAL",
+  "EMPTY_OUTPUT",
+  "INVALID_REQUEST",
+  "PROVIDER_FAILURE",
+  "QUOTA_EXHAUSTED",
+  "RATE_LIMITED",
+  "AUTHENTICATION_FAILURE",
+  "CONFIGURATION_FAILURE",
+  "TIMEOUT",
+  "MEDIA_RETRIEVAL_FAILURE",
+  "UNKNOWN_PROVIDER_FAILURE",
+] as const;
+
+/**
+ * Did this attempt reach the provider, and might it therefore be BILLED?
+ *
+ * The ledger cares about exactly this. A configuration failure never left the
+ * box and may be released; a timeout may well have generated a clip ONIQ is
+ * being charged for, so it must SETTLE.
+ */
+export function mayHaveBeenBilled(kind: VideoOutcomeKind): boolean {
+  return (
+    kind !== "CONFIGURATION_FAILURE" &&
+    kind !== "AUTHENTICATION_FAILURE" &&
+    kind !== "RATE_LIMITED" &&
+    kind !== "QUOTA_EXHAUSTED" &&
+    kind !== "INVALID_REQUEST"
+  );
+}
 
 /** Did the returned media carry an audio track? */
 export type AudioPresence = "PRESENT" | "ABSENT" | "UNKNOWN";
@@ -112,7 +168,6 @@ export interface VideoProvider {
 
 // --------------------------------------------------------------- shared bits
 const SAFETY = /third.?party|prohibited|safety|filtered|violat|blocked|responsible ai/i;
-const QUOTA = /RESOURCE_EXHAUSTED|quota/i;
 
 function textOf(body: unknown): string {
   if (typeof body === "string") return body;
@@ -123,15 +178,43 @@ function textOf(body: unknown): string {
   }
 }
 
-/** HTTP status → outcome, for the parts both Google surfaces share. */
+/**
+ * HTTP status → ONIQ outcome, for the parts both Google surfaces share.
+ *
+ * The transport judgement is DELEGATED to `providerError.ts` rather than
+ * re-implemented here. That module already knows the one distinction that
+ * matters and cost ONIQ a benchmark to learn — a daily quota and a per-minute
+ * rate limit both arrive as HTTP 429 and need opposite handling. Duplicating
+ * its regexes here would mean two taxonomies drifting apart, and the one in the
+ * generation path would be the one nobody updated.
+ *
+ * Returns null when the response is a success and the body decides the outcome.
+ */
 function classifyHttp(status: number, detail: string): VideoOutcomeKind | null {
-  if (status === 429 || QUOTA.test(detail)) return "QUOTA_EXHAUSTED";
-  if (status >= 500) return "PROVIDER_FAILURE";
-  if (status === 401 || status === 403) return "PROVIDER_FAILURE";
-  if (status === 400) return SAFETY.test(detail) ? "SAFETY_REFUSAL" : "INVALID_REQUEST";
-  if (status === 404) return "PROVIDER_FAILURE";
-  if (status < 200 || status >= 300) return "PROVIDER_FAILURE";
-  return null;
+  if (status >= 200 && status < 300) return null;
+
+  const cls = classifyProviderError(status, detail);
+  switch (cls.kind) {
+    case "PROVIDER_QUOTA_EXHAUSTED":
+      return "QUOTA_EXHAUSTED";
+    case "PROVIDER_RATE_LIMITED":
+      return "RATE_LIMITED";
+    case "AUTH_FAILED":
+      return "AUTHENTICATION_FAILURE";
+    case "CONTENT_FILTERED":
+      return "SAFETY_REFUSAL";
+    case "INVALID_REQUEST":
+      // A 400 naming a safety reason is a refusal about the CONTENT, not a
+      // malformed request, and the two must not share a denominator.
+      return SAFETY.test(detail) ? "SAFETY_REFUSAL" : "INVALID_REQUEST";
+    case "MODEL_UNAVAILABLE":
+    case "NETWORK_FAILURE":
+      return "PROVIDER_FAILURE";
+    case "TIMEOUT":
+      return "TIMEOUT";
+    default:
+      return "UNKNOWN_PROVIDER_FAILURE";
+  }
 }
 
 /** Pull the first generated video out of a Veo operation response. */
@@ -172,7 +255,7 @@ function normalizeOperation(body: unknown): VideoGenerationOutcome {
   if (!video) {
     // done, no error, no sample. Generated then removed by the RAI pass —
     // a refusal, not a fault, and possibly still billed.
-    return { kind: "EMPTY_RESULT", audio: "UNKNOWN", detail: textOf(op.response).slice(0, 300) };
+    return { kind: "EMPTY_OUTPUT", audio: "UNKNOWN", detail: textOf(op.response).slice(0, 300) };
   }
   // AUDIO STAYS UNKNOWN. The only honest source is a probe of the actual
   // stream; the request parameter cannot establish it on either surface, and
@@ -362,4 +445,30 @@ export function providerConfigStatus(
 ): { configured: boolean; missing: string[] } {
   const missing = provider.configRequirements().filter((name) => !isPresent(name));
   return { configured: missing.length === 0, missing };
+}
+
+/**
+ * The configuration gate, as an OUTCOME rather than a thrown error.
+ *
+ * A missing environment variable must produce a typed refusal, never a request
+ * that goes out and fails at the far end. Two reasons, and the second is the
+ * expensive one:
+ *
+ *   1. An unconfigured surface cannot succeed, so calling it is pure latency.
+ *   2. A request that LEAVES THE BOX may be billed. A failure ONIQ can predict
+ *      for free must never become a failure ONIQ pays to discover.
+ *
+ * `detail` names the missing variables. Names are safe; values never appear.
+ */
+export function requireProviderConfiguration(
+  provider: VideoProvider,
+  isPresent: (name: string) => boolean,
+): VideoGenerationOutcome | null {
+  const { configured, missing } = providerConfigStatus(provider, isPresent);
+  if (configured) return null;
+  return {
+    kind: "CONFIGURATION_FAILURE",
+    audio: "UNKNOWN",
+    detail: `PROVIDER_CONFIGURATION_MISSING: ${missing.join(", ")}`,
+  };
 }

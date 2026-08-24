@@ -459,9 +459,9 @@ describe("provider abstraction keeps surface facts out of story composition", ()
     }
   });
 
-  it("separates EMPTY_RESULT from a provider failure — they are not the same denominator", () => {
+  it("separates EMPTY_OUTPUT from a provider failure — they are not the same denominator", () => {
     const filtered = { done: true, response: { generateVideoResponse: { generatedSamples: [] } } };
-    expect(gemini.normalizePoll(200, filtered).kind).toBe("EMPTY_RESULT");
+    expect(gemini.normalizePoll(200, filtered).kind).toBe("EMPTY_OUTPUT");
     const failed = { done: true, error: { message: "internal" } };
     expect(gemini.normalizePoll(200, failed).kind).toBe("PROVIDER_FAILURE");
     const refused = { done: true, error: { message: "blocked by safety" } };
