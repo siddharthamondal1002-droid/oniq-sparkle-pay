@@ -55,7 +55,7 @@ function fakeRpc(admit: Record<string, unknown> | Error) {
   const calls: Array<{ fn: string; args: Record<string, unknown> }> = [];
   const rpc = async (fn: string, args: Record<string, unknown>) => {
     calls.push({ fn, args });
-    if (fn === "admit_search_spend") {
+    if (fn === "admit_provider_spend") {
       if (admit instanceof Error) throw admit;
       return { data: admit, error: null };
     }
@@ -78,8 +78,8 @@ describe("NO PROVIDER CALL WITHOUT A VALID SPEND RESERVATION", () => {
     const r = await withSearchSpendGuard(rpc, SPEC, run);
     expect(r.admitted).toBe(true);
     expect(run).toHaveBeenCalledTimes(1);
-    expect(calls[0].fn).toBe("admit_search_spend");
-    expect(calls[1].fn).toBe("settle_search_spend");
+    expect(calls[0].fn).toBe("admit_provider_spend");
+    expect(calls[1].fn).toBe("settle_provider_spend");
   });
 
   it("NEVER runs the callback when the ledger refuses", async () => {
@@ -162,7 +162,7 @@ describe("NO MISSING CONFIGURATION BECOMES UNLIMITED SPEND", () => {
     };
     const r = await withSearchSpendGuard(rpc, { ...SPEC, budget: empty }, run);
     expect(r.admitted).toBe(false);
-    if (!r.admitted) expect(r.reason).toBe("zero-reservation");
+    if (!r.admitted) expect(r.reason).toBe("zero-estimate");
     expect(run).not.toHaveBeenCalled();
   });
 });
@@ -182,12 +182,14 @@ describe("NO UNKNOWN COST BECOMES ZERO", () => {
       stopReason: "end_turn",
     }));
     expect(r.admitted).toBe(true);
-    const settle = calls.find((c) => c.fn === "settle_search_spend")!;
+    const settle = calls.find((c) => c.fn === "settle_provider_spend")!;
     // 3 searches ($0.03) + 12k in ($0.06) + 800 out ($0.02) + 1.3k cache read ($0.00065)
     expect(settle.args._actual_usd as number).toBeCloseTo(0.11065, 6);
-    expect(settle.args._search_count).toBe(3);
-    expect(settle.args._cache_hits).toBe(1);
-    expect(settle.args._termination_reason).toBe("COMPLETED");
+    const d1 = settle.args._detail as Record<string, unknown>;
+    expect(d1.searchCount).toBe(3);
+    expect(d1.cacheHits).toBe(1);
+    expect(d1.terminationReason).toBe("COMPLETED");
+    expect(settle.args._outcome).toBe("ACCEPTED");
   });
 
   it("leaves actual NULL when the provider reported nothing — the estimate stands", async () => {
@@ -197,10 +199,13 @@ describe("NO UNKNOWN COST BECOMES ZERO", () => {
       usage: null,
       terminationReason: "PROVIDER_ERROR" as const,
     }));
-    const settle = calls.find((c) => c.fn === "settle_search_spend")!;
+    const settle = calls.find((c) => c.fn === "settle_provider_spend")!;
     expect(settle.args._actual_usd).toBeNull();
-    expect(settle.args._termination_reason).toBe("PROVIDER_ERROR");
-    expect(calls.some((c) => c.fn === "release_search_spend")).toBe(false);
+    expect((settle.args._detail as Record<string, unknown>).terminationReason).toBe(
+      "PROVIDER_ERROR",
+    );
+    expect(settle.args._outcome).toBe("FAILED");
+    expect(calls.some((c) => c.fn === "release_provider_spend")).toBe(false);
   });
 
   it("charges the cache WRITE — the miss is not free", async () => {
@@ -209,10 +214,10 @@ describe("NO UNKNOWN COST BECOMES ZERO", () => {
       value: "ok",
       usage: { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 10_000 },
     }));
-    const settle = calls.find((c) => c.fn === "settle_search_spend")!;
+    const settle = calls.find((c) => c.fn === "settle_provider_spend")!;
     // 10k written x $5/MTok x 1.25
     expect(settle.args._actual_usd as number).toBeCloseTo(0.0625, 6);
-    expect(settle.args._cache_hits).toBe(0);
+    expect((settle.args._detail as Record<string, unknown>).cacheHits).toBe(0);
   });
 
   it("SETTLES, never releases, when the callback throws after admission", async () => {
@@ -222,10 +227,13 @@ describe("NO UNKNOWN COST BECOMES ZERO", () => {
         throw new Error("socket hung up");
       }),
     ).rejects.toThrow(/socket hung up/);
-    const settle = calls.find((c) => c.fn === "settle_search_spend")!;
+    const settle = calls.find((c) => c.fn === "settle_provider_spend")!;
     expect(settle.args._actual_usd).toBeNull();
-    expect(settle.args._termination_reason).toBe("PROVIDER_ERROR");
-    expect(calls.some((c) => c.fn === "release_search_spend")).toBe(false);
+    // Nothing is known about a throw, so nothing is claimed: outcome FAILED,
+    // no fabricated detail.
+    expect(settle.args._outcome).toBe("FAILED");
+    expect(settle.args._detail).toBeNull();
+    expect(calls.some((c) => c.fn === "release_provider_spend")).toBe(false);
   });
 
   it("releases ONLY when the callback states nothing left the box", async () => {
@@ -234,8 +242,8 @@ describe("NO UNKNOWN COST BECOMES ZERO", () => {
       value: "not configured",
       neverCalled: true,
     }));
-    expect(calls.some((c) => c.fn === "release_search_spend")).toBe(true);
-    expect(calls.some((c) => c.fn === "settle_search_spend")).toBe(false);
+    expect(calls.some((c) => c.fn === "release_provider_spend")).toBe(true);
+    expect(calls.some((c) => c.fn === "settle_provider_spend")).toBe(false);
   });
 
   it("never puts a credential in an rpc payload", async () => {
@@ -328,7 +336,11 @@ describe("refusals are legible and never leak the ceiling", () => {
       "disabled",
       "guard-unavailable",
       "unpriced-model",
-      "zero-reservation",
+      "zero-estimate",
+      "no-model",
+      "job-cap-reached",
+      "job-attempts-exhausted",
+      "capability-disabled",
       "admission-unavailable",
       "something-new",
     ]) {

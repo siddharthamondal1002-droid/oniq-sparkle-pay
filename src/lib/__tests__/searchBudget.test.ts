@@ -14,17 +14,17 @@ import {
   DEFAULT_SEARCH_BUDGET,
   MODEL_RATES,
   USD_PER_WEB_SEARCH,
-  admitSearchSpend,
   estimateSearchUsd,
   newCounters,
-  releaseSearchSpend,
-  settleSearchSpend,
   shouldStop,
   worstCaseUsd,
 } from "../../../supabase/functions/_shared/searchBudget.ts";
 
-const MIGRATION = readFileSync(
-  join(process.cwd(), "supabase/migrations/20260824050000_search_spend_guard.sql"),
+// The CENTRAL ledger. 20260824050000 built a search-only one; this supersedes
+// it, and asserting against the superseded file would be checking a migration
+// that no longer governs anything.
+const LEDGER = readFileSync(
+  join(process.cwd(), "supabase/migrations/20260824120000_provider_spend_ledger.sql"),
   "utf8",
 );
 
@@ -141,137 +141,82 @@ describe("shouldStop", () => {
   });
 });
 
-describe("admission — the guard itself", () => {
-  const okRpc = async () => ({
-    data: { ok: true, reason: "admitted", remainingUsd: 4.9 },
-    error: null,
-  });
-
-  it("admits when the ledger says yes", async () => {
-    const a = await admitSearchSpend(okRpc, {
-      requestId: "r1",
-      estimatedUsd: 0.08,
-      provider: "anthropic",
-    });
-    expect(a.ok).toBe(true);
-    expect(a.remainingUsd).toBe(4.9);
-  });
-
-  it("REFUSES when the database errors — a guard that opens on failure is not a guard", async () => {
-    const a = await admitSearchSpend(
-      async () => ({ data: null, error: { message: "connection lost" } }),
-      { requestId: "r2", estimatedUsd: 0.08, provider: "anthropic" },
-    );
-    expect(a.ok).toBe(false);
-    expect(a.reason).toBe("admission-unavailable");
-  });
-
-  it("REFUSES when the RPC throws", async () => {
-    const a = await admitSearchSpend(
-      async () => {
-        throw new Error("boom");
-      },
-      { requestId: "r3", estimatedUsd: 0.08, provider: "anthropic" },
-    );
-    expect(a.ok).toBe(false);
-    expect(a.reason).toBe("admission-unavailable");
-  });
-
-  it("propagates a refusal reason unchanged", async () => {
-    const a = await admitSearchSpend(
-      async () => ({
-        data: { ok: false, reason: "daily-cap-reached", remainingUsd: 0 },
-        error: null,
-      }),
-      { requestId: "r4", estimatedUsd: 0.08, provider: "anthropic" },
-    );
-    expect(a.ok).toBe(false);
-    expect(a.reason).toBe("daily-cap-reached");
-  });
-
-  it("passes every telemetry field through on settle, and never a secret", async () => {
-    let sent: Record<string, unknown> = {};
-    await settleSearchSpend(
-      async (_fn, args) => {
-        sent = args;
-        return { data: {}, error: null };
-      },
-      "r5",
-      {
-        searchCount: 3,
-        llmCalls: 1,
-        inputTokens: 900,
-        outputTokens: 400,
-        cacheHits: 1,
-        terminationReason: "SUFFICIENT_EVIDENCE",
-      },
-    );
-    expect(sent._search_count).toBe(3);
-    expect(sent._termination_reason).toBe("SUFFICIENT_EVIDENCE");
-    // Unknown actual cost is recorded as unknown, not back-filled.
-    expect(sent._actual_usd).toBeNull();
-    expect(JSON.stringify(sent)).not.toMatch(/sk-|api[_-]?key|authorization/i);
-  });
-
-  it("swallows settle/release failures rather than throwing into the request path", async () => {
-    const bad = async () => {
-      throw new Error("down");
-    };
-    await expect(
-      settleSearchSpend(bad, "r6", {
-        searchCount: 0,
-        llmCalls: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        cacheHits: 0,
-        terminationReason: "COMPLETED",
-      }),
-    ).resolves.toBeUndefined();
-    await expect(releaseSearchSpend(bad, "r6")).resolves.toBeUndefined();
-  });
-});
-
-describe("the migration enforces what the module assumes", () => {
+describe("the central ledger enforces what the module assumes", () => {
   it("fails closed when no budget row is configured", () => {
-    expect(MIGRATION).toMatch(/no-budget-configured/);
-    expect(MIGRATION).toMatch(/FAIL CLOSED/i);
+    expect(LEDGER).toMatch(/no-budget-configured/);
+    expect(LEDGER).toMatch(/FAIL CLOSED/i);
+  });
+
+  it("ships with generation OFF — enabled defaults to false", () => {
+    expect(LEDGER).toMatch(/enabled\s+boolean\s+not null default false/);
+    expect(LEDGER).toMatch(/capability-disabled/);
   });
 
   it("takes a row lock so concurrent workers cannot both spend the same budget", () => {
-    expect(MIGRATION).toMatch(/from public\.search_spend_day where day = today for update/);
+    expect(LEDGER).toMatch(/where day = today and capability = _capability for update/);
+    // The job row is locked too, or two retries of the same shot could both
+    // pass an attempt check that neither had yet incremented.
+    expect(LEDGER).toMatch(/from public\.provider_spend_job where job_id = _job_id for update/);
   });
 
   it("counts reservations against the cap, not just settled spend", () => {
-    expect(MIGRATION).toMatch(/committed\s*:=\s*day_row\.reserved_usd \+ day_row\.settled_usd/);
+    expect(LEDGER).toMatch(/committed\s*:=\s*day_row\.reserved_usd \+ day_row\.settled_usd/);
+    expect(LEDGER).toMatch(/job_committed\s*:=\s*job_row\.reserved_usd \+ job_row\.settled_usd/);
+  });
+
+  it("bounds retries in the database, not in a caller's loop", () => {
+    expect(LEDGER).toMatch(/job-attempts-exhausted/);
+    expect(LEDGER).toMatch(/max_attempts_per_job\s+integer\s+not null default 3/);
+  });
+
+  it("has three ceilings — request, job and day", () => {
+    for (const reason of ["over-request-cap", "job-cap-reached", "daily-cap-reached"]) {
+      expect(LEDGER, reason).toMatch(new RegExp(reason));
+    }
+  });
+
+  it("refuses a zero reservation — an unpriced call is not a free call", () => {
+    expect(LEDGER).toMatch(/zero-estimate/);
   });
 
   it("is idempotent per request id", () => {
-    expect(MIGRATION).toMatch(/duplicate-request/);
-    expect(MIGRATION).toMatch(/search_spend_ledger_request_uk/);
+    expect(LEDGER).toMatch(/duplicate-request/);
+    expect(LEDGER).toMatch(/provider_spend_ledger_request_uk/);
   });
 
-  it("does not invent a business budget — the cap has no default", () => {
-    expect(MIGRATION).toMatch(/daily_usd_cap\s+numeric\(10, 4\) not null\b(?!\s+default)/);
+  it("does not invent a business budget — no money column has a default", () => {
+    expect(LEDGER).toMatch(/daily_usd_cap\s+numeric\(10, 4\) not null\b(?!\s+default)/);
+    expect(LEDGER).toMatch(/request_usd_cap numeric\(10, 4\) not null\b(?!\s+default)/);
+    expect(LEDGER).toMatch(/job_usd_cap\s+numeric\(10, 4\) not null\b(?!\s+default)/);
   });
 
   it("never exposes the ledger or the ceiling to a client", () => {
-    expect(MIGRATION).toMatch(
-      /revoke all on public\.search_budget_config from anon, authenticated/,
+    expect(LEDGER).toMatch(/revoke all on public\.provider_budget_config from anon, authenticated/);
+    expect(LEDGER).toMatch(
+      /revoke all on public\.provider_spend_ledger\s+from anon, authenticated/,
     );
-    expect(MIGRATION).toMatch(
-      /revoke all on public\.search_spend_ledger\s+from anon, authenticated/,
-    );
-    expect(MIGRATION).toMatch(/revoke all on function public\.admit_search_spend/);
+    expect(LEDGER).toMatch(/revoke all on function public\.admit_provider_spend/);
   });
 
   it("keeps an unknown provider cost unknown instead of zeroing it", () => {
-    expect(MIGRATION).toMatch(/charge\s*:=\s*coalesce\(_actual_usd, led\.estimated_usd\)/);
+    expect(LEDGER).toMatch(/charge\s*:=\s*coalesce\(_actual_usd, led\.estimated_usd\)/);
   });
 
   it("uses the house security-definer + fixed search_path shape", () => {
-    const defs = MIGRATION.match(/security definer/g) ?? [];
-    expect(defs.length).toBe(3);
-    const paths = MIGRATION.match(/set search_path = public/g) ?? [];
-    expect(paths.length).toBe(3);
+    // admit, settle, release, record_outcome.
+    const defs = LEDGER.match(/security definer/g) ?? [];
+    expect(defs.length).toBe(4);
+    const paths = LEDGER.match(/set search_path = public/g) ?? [];
+    expect(paths.length).toBe(4);
+  });
+
+  it("supersedes the search-only ledger rather than running two of them", () => {
+    // Two accounting systems is two places for the check to drift from the
+    // spend. The old tables are carried over and dropped, in that order.
+    expect(LEDGER).toMatch(
+      /insert into public\.provider_spend_ledger[\s\S]*from public\.search_spend_ledger/,
+    );
+    expect(LEDGER).toMatch(/drop table if exists public\.search_spend_ledger/);
+    expect(LEDGER).toMatch(/drop function if exists public\.admit_search_spend/);
   });
 });

@@ -12,9 +12,10 @@
 //    ISOLATE, reset on cold start. Fleet-wide spend was unbounded. The fix has
 //    to be durable and atomic, which means the database, not this file.
 //
-// This module owns the ESTIMATE and the SHAPE. The ceiling lives in Postgres
-// (`admit_search_spend`) because only the database can make check-then-spend
-// atomic across isolates.
+// This module owns the ESTIMATE and the SHAPE for SEARCH. The ceiling lives in
+// Postgres (`admit_provider_spend`) because only the database can make
+// check-then-spend atomic across isolates — and it is shared with every other
+// capability ONIQ pays for, so there is one ledger rather than one per feature.
 
 /** Authoritative, verified 2026-08-24 from platform.claude.com pricing. */
 export const USD_PER_WEB_SEARCH = 10 / 1000;
@@ -248,89 +249,14 @@ export function shouldStop(
 }
 
 // ------------------------------------------------------------ admission
-export type Admission = {
-  ok: boolean;
-  reason: string;
-  remainingUsd?: number;
-  dailyCapUsd?: number;
-};
-
-type Rpc = (
-  fn: string,
-  args: Record<string, unknown>,
-) => Promise<{ data: unknown; error: unknown }>;
-
-/**
- * Reserve budget BEFORE the provider call. Any failure — including a database
- * error — refuses admission. A spend guard that opens when it cannot reach its
- * own ledger is not a guard.
- */
-export async function admitSearchSpend(
-  rpc: Rpc,
-  args: {
-    requestId: string;
-    estimatedUsd: number;
-    provider: string;
-    model?: string;
-    searchType?: string;
-    userId?: string;
-  },
-): Promise<Admission> {
-  try {
-    const { data, error } = await rpc("admit_search_spend", {
-      _request_id: args.requestId,
-      _estimated_usd: args.estimatedUsd,
-      _provider: args.provider,
-      _model: args.model ?? null,
-      _search_type: args.searchType ?? null,
-      _user_id: args.userId ?? null,
-    });
-    if (error) return { ok: false, reason: "admission-unavailable" };
-    const d = (data ?? {}) as Record<string, unknown>;
-    return {
-      ok: d.ok === true,
-      reason: typeof d.reason === "string" ? d.reason : "unknown",
-      remainingUsd: typeof d.remainingUsd === "number" ? d.remainingUsd : undefined,
-      dailyCapUsd: typeof d.dailyCapUsd === "number" ? d.dailyCapUsd : undefined,
-    };
-  } catch {
-    return { ok: false, reason: "admission-unavailable" };
-  }
-}
-
-export type Telemetry = {
-  searchCount: number;
-  llmCalls: number;
-  inputTokens: number;
-  outputTokens: number;
-  cacheHits: number;
-  terminationReason: TerminationReason;
-  actualUsd?: number;
-};
-
-export async function settleSearchSpend(rpc: Rpc, requestId: string, t: Telemetry): Promise<void> {
-  try {
-    await rpc("settle_search_spend", {
-      _request_id: requestId,
-      _actual_usd: t.actualUsd ?? null,
-      _search_count: t.searchCount,
-      _llm_calls: t.llmCalls,
-      _input_tokens: t.inputTokens,
-      _output_tokens: t.outputTokens,
-      _cache_hits: t.cacheHits,
-      _termination_reason: t.terminationReason,
-    });
-  } catch {
-    // Settlement is best-effort. A lost settle leaves the reservation standing,
-    // which over-counts spend — the safe direction to fail.
-  }
-}
-
-/** ONLY when the provider was never called. */
-export async function releaseSearchSpend(rpc: Rpc, requestId: string): Promise<void> {
-  try {
-    await rpc("release_search_spend", { _request_id: requestId });
-  } catch {
-    // Same reasoning as settle: a lost release over-counts, never under-counts.
-  }
-}
+//
+// GONE, DELIBERATELY. This module used to carry admitSearchSpend /
+// settleSearchSpend / releaseSearchSpend, each calling a search-only SQL
+// function. The accounting now lives in _shared/financialLedger.ts, which every
+// capability shares, and searchGuard.ts is the SEARCH adapter over it.
+//
+// Leaving the old wrappers here would have left two sets of names for one
+// ledger — which is how a check drifts away from the spend it is supposed to
+// gate. What stays in this file is what is genuinely search-specific: the
+// published rates, the depth budget, and turning provider-reported usage into
+// dollars.

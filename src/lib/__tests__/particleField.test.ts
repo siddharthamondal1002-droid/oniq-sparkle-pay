@@ -174,7 +174,10 @@ describe("particlesAt", () => {
     expect(worker).toMatch(/weatherConsistentSetting\(plan\.setting/);
     expect(worker).not.toMatch(/vfxKindFor\(`\$\{shot\.still\} \$\{shot\.narration\}`\)/);
     const film = readFileSync(join(process.cwd(), "remotion/src/story/StoryFilm.tsx"), "utf8");
-    expect(film).toMatch(/\{!shot\.clip && shot\.vfx \? <ParticleOverlay/);
+    // Whitespace-tolerant: the invariant is that the overlay is GATED on
+    // `!shot.clip` (a Veo scene carries its own air), not that prettier chose
+    // to keep the ternary on one line.
+    expect(film).toMatch(/\{!shot\.clip && shot\.vfx \?\s*\(?\s*<ParticleOverlay/);
   });
 
   /**

@@ -1,37 +1,37 @@
-// searchGuard — the seam every billable search/AI call goes through.
+// searchGuard — the SEARCH adapter over the central financial ledger.
 //
-// WHY A WRAPPER AND NOT THREE CALLS AT EACH SITE. The invariant is "no provider
-// call without a valid spend reservation". Three separate calls at each site
-// (admit, then fetch, then settle) can be got wrong four different ways —
-// forget the admit, ignore its verdict, forget the settle, release after a call
-// actually happened. Here the provider call is a CALLBACK: it cannot run before
-// admission because admission gates the callback, and it cannot skip settlement
-// because settlement is on the way out.
+// This used to be a standalone spend guard with its own tables and its own
+// admission SQL. It is now one capability adapter on `financialLedger`, because
+// video needed the same reserve-call-measure-settle discipline and two copies
+// of check-then-spend is two places for the check to drift from the spend.
 //
-// The default direction on every ambiguity is to CHARGE. A reservation only
-// comes back when the callback says, explicitly, that nothing left the box.
+// WHAT STAYED HERE: everything specific to SEARCH — turning searches, tokens
+// and cache reads into dollars, and turning an upload's byte count into an
+// input-token bound. What LEFT: the accounting, the row lock, the ceilings.
+//
+// The exported surface is unchanged, so smart-scout, hotel-scout, ting and
+// health-scan did not have to be touched to move underneath them.
 
 import {
   type SearchBudget,
   type TerminationReason,
   actualUsdFromUsage,
-  admitSearchSpend,
   type ProviderUsage,
   readUsage,
-  releaseSearchSpend,
-  settleSearchSpend,
   worstCaseUsd,
 } from "./searchBudget.ts";
+import {
+  type GuardedResult,
+  type RefusalReason,
+  type ServiceRpc,
+  refusalMessage as ledgerRefusalMessage,
+  requestIdFrom,
+  serviceRoleRpc,
+  withProviderSpendGuard,
+} from "./financialLedger.ts";
 
-/** How long admission may take before the request is refused. */
-const RPC_TIMEOUT_MS = 5000;
-
-// This module is imported by vitest (which runs on Node) as well as by the edge
-// functions (which run on Deno), because the coverage tests read and exercise
-// it. `| undefined` is load-bearing: it forces the typeof guard in
-// serviceRoleRpc, so "no Deno runtime" resolves to null — no ledger, no
-// admission — rather than throwing.
-declare const Deno: { env: { get(key: string): string | undefined } } | undefined;
+export { requestIdFrom, serviceRoleRpc };
+export type { GuardedResult, ServiceRpc };
 
 // --- attachment input bounds -------------------------------------------------
 //
@@ -52,8 +52,7 @@ export const IMAGE_TOKEN_CEILING = 8_000;
  * PDF of the same size bills as a handful of page images and costs far less —
  * so a large text PDF may be refused for a spend it would not actually have
  * incurred. That is the safe direction, and the owner can widen it by raising
- * `search_budget_config.request_usd_cap`. Making this tighter needs a real page
- * count, which means parsing the PDF, which is not free either.
+ * the SEARCH capability's `request_usd_cap`.
  */
 export const PDF_TOKENS_PER_BYTE = 0.25;
 
@@ -79,59 +78,7 @@ export function attachmentTokenCeiling(
   return Math.ceil(b64OrText.length / 3);
 }
 
-export type ServiceRpc = (
-  fn: string,
-  args: Record<string, unknown>,
-) => Promise<{ data: unknown; error: unknown }>;
-
-/**
- * Service-role PostgREST adapter for the guard's three functions.
- *
- * Returns null when the service role is not configured. A null is NOT a licence
- * to proceed unguarded — every caller must refuse the request, because
- * "configuration missing" resolving to "spend freely" is precisely the bug the
- * ledger exists to make impossible.
- *
- * Never logs, echoes, or returns the key. Errors carry an HTTP status and the
- * function name and nothing else.
- */
-export function serviceRoleRpc(): ServiceRpc | null {
-  if (typeof Deno === "undefined") return null;
-  const url = Deno.env.get("SUPABASE_URL");
-  const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (!url || !key) return null;
-  return async (fn, args) => {
-    const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(), RPC_TIMEOUT_MS);
-    try {
-      const res = await fetch(`${url}/rest/v1/rpc/${fn}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          apikey: key,
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify(args),
-        signal: ac.signal,
-      });
-      const text = await res.text().catch(() => "");
-      if (!res.ok) return { data: null, error: { message: `${fn} http ${res.status}` } };
-      let data: unknown = null;
-      try {
-        data = text ? JSON.parse(text) : null;
-      } catch {
-        return { data: null, error: { message: `${fn} unparseable response` } };
-      }
-      return { data, error: null };
-    } catch (e) {
-      const why = (e as Error)?.name === "AbortError" ? "timeout" : "network";
-      return { data: null, error: { message: `${fn} ${why}` } };
-    } finally {
-      clearTimeout(t);
-    }
-  };
-}
-
+// --- the seam ----------------------------------------------------------------
 /** What the guarded callback hands back. */
 export type ProviderRun<T> = {
   /** The callback's own result, returned to the caller untouched. */
@@ -150,10 +97,6 @@ export type ProviderRun<T> = {
   /** Overrides the derived reason (e.g. "PROVIDER_ERROR"). */
   terminationReason?: TerminationReason;
 };
-
-export type GuardedResult<T> =
-  | { admitted: true; value: T; reservedUsd: number; actualUsd: number | null }
-  | { admitted: false; reason: string; remainingUsd?: number };
 
 export type GuardSpec = {
   requestId: string;
@@ -177,13 +120,34 @@ export function classifyTermination(
   return "COMPLETED";
 }
 
+/** Operator-facing refusal → the one line a user should see. */
+export function refusalMessage(reason: RefusalReason): string {
+  switch (reason) {
+    case "daily-cap-reached":
+      return "today's search budget is used up — back tomorrow 🌙";
+    case "over-request-cap":
+      return "that search is too big to run — try a narrower query";
+    case "duplicate-request":
+      return "that search is already running — hang tight";
+    case "no-budget-configured":
+    case "capability-disabled":
+    case "guard-unavailable":
+    case "unpriced-model":
+    case "zero-estimate":
+    case "no-model":
+      return "search isn't configured yet — try again later";
+    default:
+      return ledgerRefusalMessage(reason).replace(/that's|that isn't/, "search is");
+  }
+}
+
 /**
- * Reserve, call, settle. The only path to a billable provider call.
+ * Reserve, call, settle — the SEARCH capability's entry point.
  *
- * Refusal reasons come straight from the ledger and are meant to be shown to
- * operators, not users: "no-budget-configured", "disabled", "daily-cap-reached",
+ * Refusal reasons come from the ledger and are meant for operators, not users:
+ * "no-budget-configured", "capability-disabled", "daily-cap-reached",
  * "over-request-cap", "duplicate-request", "admission-unavailable", plus
- * "unpriced-model" and "guard-unavailable" raised here.
+ * "unpriced-model" raised here when no published rate exists for the model.
  */
 export async function withSearchSpendGuard<T>(
   rpc: ServiceRpc | null,
@@ -201,88 +165,48 @@ export async function withSearchSpendGuard<T>(
   }
   if (!(reservedUsd > 0)) {
     // A zero reservation would let an unbounded call through on a technicality.
-    return { admitted: false, reason: "zero-reservation" };
+    return { admitted: false, reason: "zero-estimate" };
   }
 
-  const admission = await admitSearchSpend(rpc, {
-    requestId: spec.requestId,
-    estimatedUsd: reservedUsd,
-    provider: spec.provider,
-    model: spec.model,
-    searchType: spec.searchType,
-    userId: spec.userId,
-  });
-  if (!admission.ok) {
-    return { admitted: false, reason: admission.reason, remainingUsd: admission.remainingUsd };
-  }
-
-  let outcome: ProviderRun<T>;
-  try {
-    outcome = await run();
-  } catch (e) {
-    // The callback threw AFTER a reservation existed. We do not know whether
-    // the provider was reached, so the reservation is charged, not returned.
-    await settleSearchSpend(rpc, spec.requestId, {
-      searchCount: 0,
-      llmCalls: 1,
-      inputTokens: 0,
-      outputTokens: 0,
-      cacheHits: 0,
-      terminationReason: "PROVIDER_ERROR",
-    });
-    throw e;
-  }
-
-  if (outcome.neverCalled === true) {
-    await releaseSearchSpend(rpc, spec.requestId);
-    return { admitted: true, value: outcome.value, reservedUsd, actualUsd: 0 };
-  }
-
-  const m = readUsage(outcome.usage);
-  const actualUsd = outcome.usage ? actualUsdFromUsage(spec.model, m) : null;
-  await settleSearchSpend(rpc, spec.requestId, {
-    searchCount: m.searches,
-    llmCalls: 1,
-    inputTokens: m.inputTokens + m.cacheReadTokens + m.cacheWriteTokens,
-    outputTokens: m.outputTokens,
-    cacheHits: m.cacheReadTokens > 0 ? 1 : 0,
-    terminationReason:
-      outcome.terminationReason ?? classifyTermination(m.searches, spec.budget, outcome.stopReason),
-    // undefined ⇒ the ledger charges the estimate. Never 0.
-    actualUsd: actualUsd ?? undefined,
-  });
-  return { admitted: true, value: outcome.value, reservedUsd, actualUsd };
-}
-
-/**
- * A stable id for one guarded request.
- *
- * A client-supplied id is honoured because reusing one is REFUSED
- * ("duplicate-request"), which fails in the safe direction — a retry with the
- * same id cannot double-reserve. A fresh uuid is the fallback.
- */
-export function requestIdFrom(raw: unknown): string {
-  if (typeof raw === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(raw)) return raw;
-  return crypto.randomUUID();
-}
-
-/** Operator-facing refusal → the one line a user should see. */
-export function refusalMessage(reason: string): string {
-  switch (reason) {
-    case "daily-cap-reached":
-      return "today's search budget is used up — back tomorrow 🌙";
-    case "over-request-cap":
-      return "that search is too big to run — try a narrower query";
-    case "duplicate-request":
-      return "that search is already running — hang tight";
-    case "no-budget-configured":
-    case "disabled":
-    case "guard-unavailable":
-    case "unpriced-model":
-    case "zero-reservation":
-      return "search isn't configured yet — try again later";
-    default:
-      // "admission-unavailable" and anything new. Fail closed, say so plainly.
-      return "search is unavailable right now — try again in a moment";
-  }
+  return withProviderSpendGuard(
+    rpc,
+    {
+      requestId: spec.requestId,
+      capability: "SEARCH",
+      provider: spec.provider,
+      model: spec.model,
+      unit: "search+tokens",
+      units: spec.budget.maxSearches,
+      estimatedUsd: reservedUsd,
+      userId: spec.userId,
+      detail: { searchType: spec.searchType },
+    },
+    async () => {
+      const outcome = await run();
+      if (outcome.neverCalled === true) {
+        return { value: outcome.value, neverCalled: true, outcome: "NOT_CALLED" as const };
+      }
+      const m = readUsage(outcome.usage);
+      const actualUsd = outcome.usage ? actualUsdFromUsage(spec.model, m) : null;
+      const termination =
+        outcome.terminationReason ??
+        classifyTermination(m.searches, spec.budget, outcome.stopReason);
+      return {
+        value: outcome.value,
+        // undefined ⇒ the ledger charges the estimate. Never 0.
+        actualUsd: actualUsd ?? undefined,
+        unitsActual: m.searches,
+        outcome: termination === "PROVIDER_ERROR" ? ("FAILED" as const) : ("ACCEPTED" as const),
+        detail: {
+          searchType: spec.searchType,
+          searchCount: m.searches,
+          llmCalls: 1,
+          inputTokens: m.inputTokens + m.cacheReadTokens + m.cacheWriteTokens,
+          outputTokens: m.outputTokens,
+          cacheHits: m.cacheReadTokens > 0 ? 1 : 0,
+          terminationReason: termination,
+        },
+      };
+    },
+  );
 }

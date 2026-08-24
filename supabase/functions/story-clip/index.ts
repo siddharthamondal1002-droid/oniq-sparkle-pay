@@ -14,10 +14,15 @@
 //          it base64, exactly the shape story-still returns an image.
 //
 // JOB TOKEN ONLY — deliberately stricter than story-still. A clip is the most
-// expensive single call in the product (~$0.15 a second, list), and the only
-// legitimate caller is the worker holding a job-scoped capability token. A
-// user JWT gets 401: there is no in-app surface that generates loose clips,
-// and accepting one would be a spend path outside the claim's cost guard.
+// expensive single call in the product, and the only legitimate caller is the
+// worker holding a job-scoped capability token. A user JWT gets 401: there is
+// no in-app surface that generates loose clips, and accepting one would be a
+// spend path outside the ledger.
+//
+// (The old note here said "~$0.15 a second, list". That was the price of a tier
+// ONIQ had stopped calling, and the whole movie-grade chart was built on it.
+// Rates now live in _shared/videoRouting.ts, each with its provenance and its
+// SURFACE attached, and this function reads them rather than restating one.)
 //
 // NO RETRY HERE, one level down from the house rule: the WORKER retries a
 // filter refusal exactly once, because episode 3 measured Veo's third-party
@@ -26,6 +31,21 @@
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
 import { classifyProviderError, recordFailure } from "../_shared/providerError.ts";
+import {
+  admitProviderSpend,
+  refusalMessage,
+  requestIdFrom,
+  serviceRoleRpc,
+  settleProviderSpend,
+  type ServiceRpc,
+} from "../_shared/financialLedger.ts";
+import { type AudioMode, resolveAudioMode } from "../_shared/videoAudio.ts";
+import {
+  ACTIVE_VIDEO_SURFACE,
+  classifyVideoFailure,
+  escalationFor,
+  videoUsd,
+} from "../_shared/videoRouting.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -123,6 +143,8 @@ Deno.serve(async (req) => {
   }
 });
 
+const AUDIO_MODES: ReadonlySet<string> = new Set(["VIDEO_ONLY", "ONIQ_SOUND", "VEO_NATIVE_AUDIO"]);
+
 async function start(key: string, body: Record<string, unknown>): Promise<Response> {
   const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
   if (!prompt) return json({ error: "No prompt." }, 400);
@@ -150,6 +172,78 @@ async function start(key: string, body: Record<string, unknown>): Promise<Respon
       }),
     });
 
+  // ---- AUDIO MODE -------------------------------------------------------
+  //
+  // NOTE WHAT IS *NOT* HERE: a `generateAudio` parameter. On this surface the
+  // Gemini Developer API rejects it outright (verified against Google's own
+  // SDK — see videoAudio.ts), so audio mode changes what ONIQ DOES WITH the
+  // result, never what it asks for. Recording the decision is the point: a
+  // discarded native track must arrive with a reason attached.
+  const requestedAudio: AudioMode = AUDIO_MODES.has(String(body?.audioMode))
+    ? (body.audioMode as AudioMode)
+    : "ONIQ_SOUND";
+  const audio = resolveAudioMode(requestedAudio, ACTIVE_VIDEO_SURFACE);
+
+  // ---- FINANCIAL ADMISSION ----------------------------------------------
+  //
+  // Nothing below reaches Veo without a reservation. `rpc` null means the
+  // service role is not configured, and an unreachable ledger is not
+  // permission to spend — it is a refusal.
+  const rpc = serviceRoleRpc();
+  if (!rpc) {
+    console.error("story-clip: no service role — cannot reserve, refusing");
+    return json({ error: refusalMessage("guard-unavailable"), blocked: "guard-unavailable" }, 503);
+  }
+
+  let reservedUsd: number;
+  try {
+    // The BILLED shape, not the requested one: on a surface that cannot
+    // decline audio, every clip is a with-audio clip whatever the mode says.
+    reservedUsd = videoUsd(CLIP_MODEL, durationSeconds, audio.effective, ACTIVE_VIDEO_SURFACE);
+  } catch (e) {
+    // No verified rate. An unpriced model does not get to generate.
+    console.error("story-clip: unpriced model", String(e).slice(0, 160));
+    return json({ error: refusalMessage("unpriced-model"), blocked: "unpriced-model" }, 503);
+  }
+
+  const requestId = requestIdFrom(body?.requestId);
+  // The shot, not the film: the retry ladder and the per-shot ceiling are
+  // scoped to one shot, so one bad shot cannot eat the film's budget.
+  const jobId = typeof body?.shotId === "string" ? body.shotId.slice(0, 120) : undefined;
+
+  const admission = await admitProviderSpend(rpc, {
+    requestId,
+    capability: "VIDEO",
+    provider: "google",
+    model: CLIP_MODEL,
+    unit: audio.providerAudioBilled ? "video_seconds_with_audio" : "video_seconds",
+    units: durationSeconds,
+    estimatedUsd: reservedUsd,
+    jobId,
+    detail: {
+      audioRequested: audio.requested,
+      audioEffective: audio.effective,
+      audioAchievable: audio.achievable,
+      providerAudioBilled: audio.providerAudioBilled,
+      discardReason: audio.discardReason ?? null,
+      surface: ACTIVE_VIDEO_SURFACE,
+      seconds: durationSeconds,
+    },
+  });
+  if (!admission.ok) {
+    console.warn(`story-clip: spend guard refused (${admission.reason})`);
+    return json(
+      {
+        error: refusalMessage(admission.reason),
+        blocked: admission.reason,
+        // The worker's ladder needs to tell "out of attempts" from "out of
+        // money" — one means move on to the still, the other means stop.
+        retryable: admission.reason === "admission-unavailable",
+      },
+      503,
+    );
+  }
+
   // Const since the fallback went: nothing reassigns this now.
   const model = CLIP_MODEL;
   let params: Record<string, unknown> = {
@@ -158,11 +252,23 @@ async function start(key: string, body: Record<string, unknown>): Promise<Respon
     resolution: "720p",
   };
   let res = await submit(model, params);
+
+  // A request LEFT THE BOX. From here every exit settles — never releases —
+  // because a submitted generation may have been served and billed even when
+  // the answer that came back is a failure. Releasing here would be inventing
+  // a refund.
+  const settleFailed = (cls: string, detail: string) =>
+    settleProviderSpend(rpc, requestId, {
+      outcome: cls === "CONTENT_FILTERED" ? "FILTERED" : "FAILED",
+      detail: { failureClass: cls, detail: detail.slice(0, 300) },
+    });
+
   if (res.status === 404) {
     // The id itself is gone or renamed. There is no live fallback to try (see
     // the note beside CLIP_MODEL), and retrying the same id is pointless, so
     // say so plainly instead of burning the clock.
     console.error("story-clip start: model id 404", model);
+    await settleFailed("PROVIDER_OUTAGE", "model id 404");
     return json({ error: "The video model is unavailable." }, 502);
   }
   if (res.status === 400) {
@@ -180,12 +286,24 @@ async function start(key: string, body: Record<string, unknown>): Promise<Respon
     }
   }
 
-  if (res.status === 401 || res.status === 403) return json({ configured: false }, 200);
+  if (res.status === 401 || res.status === 403) {
+    await settleFailed("PROVIDER_OUTAGE", `auth ${res.status}`);
+    return json({ configured: false }, 200);
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     console.error("story-clip start upstream", res.status, detail.slice(0, 300));
     const cls = classifyProviderError(res.status, detail, res.headers);
     recordFailure(CLIP_MODEL, cls);
+
+    // WHY THE FAILURE HAPPENED DECIDES WHAT HAPPENS NEXT, and "try the more
+    // expensive tier" is the answer to exactly one failure class. A
+    // responsible-AI refusal is about the request, not the model: the
+    // 2026-08-24 run had the same two prompts return empty on BOTH Lite and
+    // Fast, so escalating would have paid twice for the same refusal.
+    const videoClass = classifyVideoFailure({ httpStatus: res.status, detail });
+    const next = escalationFor(videoClass, { failedOnOtherTier: body?.failedOnOtherTier === true });
+    await settleFailed(videoClass, detail);
 
     // Quota exhaustion used to arrive here as a bare 502 — indistinguishable
     // from a real fault, so the worker's ladder would retry against a daily
@@ -198,6 +316,8 @@ async function start(key: string, body: Record<string, unknown>): Promise<Respon
           kind: cls.kind,
           retryable: cls.retryable,
           retryAfterSeconds: cls.retryAfterSeconds,
+          failureClass: videoClass,
+          next,
         },
         503,
       );
@@ -205,32 +325,87 @@ async function start(key: string, body: Record<string, unknown>): Promise<Respon
     // The filter can refuse at SUBMIT time too. Surface it as the same 422
     // the worker's refusal ladder listens for.
     if (/third.party|prohibited|safety|filtered/i.test(detail)) {
-      return json({ error: `That shot was refused (${detail.slice(0, 160)}).` }, 422);
+      return json(
+        {
+          error: `That shot was refused (${detail.slice(0, 160)}).`,
+          failureClass: videoClass,
+          next,
+        },
+        422,
+      );
     }
-    return json({ error: "Could not start that clip." }, 502);
+    return json({ error: "Could not start that clip.", failureClass: videoClass, next }, 502);
   }
 
   const data = await res.json().catch(() => ({}));
   const operation = typeof data?.name === "string" ? data.name : "";
   if (!OPERATION_SHAPE.test(operation)) {
     console.error("story-clip start: no operation name", JSON.stringify(data).slice(0, 300));
+    await settleFailed("UNKNOWN", "no operation name in reply");
     return json({ error: "Could not start that clip." }, 502);
   }
-  return json({ configured: true, operation });
+  // The reservation stays RESERVED until poll settles it — the cost is not
+  // known until the generation finishes. A worker that dies mid-generation
+  // leaves it standing, which OVER-counts spend: the safe direction.
+  return json({
+    configured: true,
+    operation,
+    requestId,
+    seconds: durationSeconds,
+    audio: {
+      requested: audio.requested,
+      effective: audio.effective,
+      achievable: audio.achievable,
+      providerAudioBilled: audio.providerAudioBilled,
+      preserveProviderAudio: audio.preserveProviderAudio,
+      discardReason: audio.discardReason ?? null,
+      note: audio.note,
+    },
+  });
 }
 
 async function poll(key: string, body: Record<string, unknown>): Promise<Response> {
   const operation = typeof body?.operation === "string" ? body.operation : "";
+  // The reservation start() took. Without it a finished generation would be
+  // billed by Google and recorded nowhere.
+  const requestId = typeof body?.requestId === "string" ? body.requestId : "";
+  const rpc: ServiceRpc | null = serviceRoleRpc();
+  const settle = async (
+    outcome: "ACCEPTED" | "FAILED" | "FILTERED",
+    detail: Record<string, unknown>,
+    actualUsd?: number,
+    seconds?: number,
+  ) => {
+    if (!rpc || !requestId) return;
+    await settleProviderSpend(rpc, requestId, { outcome, detail, actualUsd, unitsActual: seconds });
+  };
   // The shape check is a guard, not pedantry: this string becomes a URL path
   // under our API key, and a caller who could name an arbitrary path could
   // aim the key at any endpoint on the host.
   if (!OPERATION_SHAPE.test(operation)) return json({ error: "No such operation." }, 400);
 
+  // What start() reserved for. Passed back by the worker so settlement can
+  // price the clip at the rate that was actually billed.
+  const seconds = DURATIONS.has(Number(body?.seconds)) ? Number(body.seconds) : 8;
+  const audioMode: AudioMode = AUDIO_MODES.has(String(body?.audioMode))
+    ? (body.audioMode as AudioMode)
+    : "ONIQ_SOUND";
+  const billedAudio = resolveAudioMode(audioMode, ACTIVE_VIDEO_SURFACE);
+
   const res = await fetch(`${API}/${operation}?key=${encodeURIComponent(key)}`);
-  if (res.status === 401 || res.status === 403) return json({ configured: false }, 200);
+  if (res.status === 401 || res.status === 403) {
+    await settle("FAILED", { failureClass: "PROVIDER_OUTAGE", detail: `auth ${res.status}` });
+    return json({ configured: false }, 200);
+  }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
     console.error("story-clip poll upstream", res.status, detail.slice(0, 300));
+    // The GENERATION may still have happened and still have been billed —
+    // only the status check failed. Charging the estimate is the safe reading.
+    await settle("FAILED", {
+      failureClass: classifyVideoFailure({ httpStatus: res.status, detail }),
+      detail: detail.slice(0, 300),
+    });
     return json({ error: "Could not check on that clip." }, 502);
   }
 
@@ -244,12 +419,21 @@ async function poll(key: string, body: Record<string, unknown>): Promise<Respons
   if (op.error) {
     const msg = op.error.message ?? "generation failed";
     console.error("story-clip operation error", msg.slice(0, 300));
+    const cls = classifyVideoFailure({ detail: msg });
+    const next = escalationFor(cls, { failedOnOtherTier: body?.failedOnOtherTier === true });
+    await settle(cls === "CONTENT_FILTERED" ? "FILTERED" : "FAILED", {
+      failureClass: cls,
+      detail: msg.slice(0, 300),
+    });
     // A refusal is a 422 the worker may retry ONCE (sampling-flaky, measured);
     // anything else is a real failure.
     if (/third.party|prohibited|safety|filtered|violat/i.test(msg)) {
-      return json({ error: `That shot was refused (${msg.slice(0, 160)}).` }, 422);
+      return json(
+        { error: `That shot was refused (${msg.slice(0, 160)}).`, failureClass: cls, next },
+        422,
+      );
     }
-    return json({ error: "That clip failed to generate." }, 502);
+    return json({ error: "That clip failed to generate.", failureClass: cls, next }, 502);
   }
 
   const video = firstVideo(op.response);
@@ -258,11 +442,55 @@ async function poll(key: string, body: Record<string, unknown>): Promise<Respons
     // count of what the responsible-AI pass removed. Refusal, not failure.
     const filtered = JSON.stringify(op.response ?? {}).slice(0, 300);
     console.error("story-clip: done with no video", filtered);
-    return json({ error: `That shot was refused (no video in reply).` }, 422);
+    // WHETHER GOOGLE BILLS THIS IS UNKNOWN (see FILTERED_OUTPUT_BILLING). The
+    // generation ran; the responsible-AI pass removed the sample. Settling at
+    // the estimate is the conservative reading and the only one that cannot
+    // silently understate a filter-heavy prompt set.
+    await settle("FILTERED", {
+      failureClass: "CONTENT_FILTERED",
+      billingKnown: false,
+      detail: filtered,
+    });
+    return json(
+      {
+        error: `That shot was refused (no video in reply).`,
+        failureClass: "CONTENT_FILTERED",
+        next: escalationFor("CONTENT_FILTERED"),
+      },
+      422,
+    );
   }
 
+  const measuredUsd = (() => {
+    try {
+      return videoUsd(CLIP_MODEL, seconds, billedAudio.effective, ACTIVE_VIDEO_SURFACE);
+    } catch {
+      // Unpriced ⇒ undefined ⇒ the ledger charges the estimate. Never 0.
+      return undefined;
+    }
+  })();
+  const acceptedDetail = {
+    audioRequested: billedAudio.requested,
+    audioEffective: billedAudio.effective,
+    providerAudioBilled: billedAudio.providerAudioBilled,
+    preserveProviderAudio: billedAudio.preserveProviderAudio,
+    discardReason: billedAudio.discardReason ?? null,
+    mime: video.mime,
+  };
+
   if (video.data) {
-    return json({ configured: true, done: true, mime: video.mime, data: video.data });
+    // PROVIDER outcome, not product acceptance. Technical/motion/audio QA runs
+    // in the worker minutes later and records its verdict through
+    // record_provider_outcome — which is what makes cost-per-ACCEPTED-second a
+    // measured number rather than a hopeful one.
+    await settle("ACCEPTED", acceptedDetail, measuredUsd, seconds);
+    return json({
+      configured: true,
+      done: true,
+      mime: video.mime,
+      data: video.data,
+      audio: acceptedDetail,
+    });
   }
 
   // The URI form: a files/...:download link on the same host, fetched with
@@ -275,6 +503,13 @@ async function poll(key: string, body: Record<string, unknown>): Promise<Respons
   const dl = await fetch(uri, { headers: { "x-goog-api-key": key } });
   if (!dl.ok) {
     console.error("story-clip download", dl.status);
+    // The clip was GENERATED and billed; only the download failed.
+    await settle(
+      "FAILED",
+      { failureClass: "PROVIDER_OUTAGE", detail: `download ${dl.status}` },
+      measuredUsd,
+      seconds,
+    );
     return json({ error: "Could not fetch the finished clip." }, 502);
   }
   const bytes = new Uint8Array(await dl.arrayBuffer());
@@ -283,7 +518,14 @@ async function poll(key: string, body: Record<string, unknown>): Promise<Respons
   for (let i = 0; i < bytes.length; i += CHUNK) {
     bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
   }
-  return json({ configured: true, done: true, mime: "video/mp4", data: btoa(bin) });
+  await settle("ACCEPTED", acceptedDetail, measuredUsd, seconds);
+  return json({
+    configured: true,
+    done: true,
+    mime: "video/mp4",
+    data: btoa(bin),
+    audio: acceptedDetail,
+  });
 }
 
 /** The first generated video in a Veo operation response, whatever its shape. */
