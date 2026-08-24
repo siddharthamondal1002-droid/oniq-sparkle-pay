@@ -40,35 +40,118 @@ exchange rate exists; the ledger only ever adds up dollars.
 
 ## 2. Three ceilings, not one
 
-| Ceiling                                | Stops                                   |
-| -------------------------------------- | --------------------------------------- |
-| `request_usd_cap`                      | one pathological call                   |
-| `job_usd_cap` + `max_attempts_per_job` | one film / one shot ladder running away |
-| `daily_usd_cap`                        | the fleet                               |
+**Owner directive, 2026-08-24.** The three VIDEO caps the owner refers to are
+these, and they are **spend ceilings in USD** — not motion-class acceptance
+thresholds, not quality bars, not benchmark scores:
+
+| Owner's name  | Column            | Stops                      |
+| ------------- | ----------------- | -------------------------- |
+| `VIDEO_CAP_1` | `request_usd_cap` | one pathological call      |
+| `VIDEO_CAP_2` | `job_usd_cap`     | one film / one shot ladder |
+| `VIDEO_CAP_3` | `daily_usd_cap`   | the whole fleet, for a day |
+
+`max_attempts_per_job` is a **separate invariant**: a count, not money. It
+bounds how many times a shot may be attempted regardless of how cheap each
+attempt is. A $0.001 model retried forever is still an outage.
 
 A day cap alone cannot stop one film eating the day, and neither can stop a
 single shot retrying forever.
 
+### Exactly equal to a ceiling is ADMITTED
+
+The same rule at all three: a ceiling is the most that may be spent, not the
+first amount that may not. Measured — request cap $1.00, estimate $1.00 →
+admitted; $1.01 → `over-request-cap`. Job committed reaching exactly $2.00
+against a $2.00 job cap → admitted; the next cent → `job-cap-reached`.
+
+### request ≤ job ≤ daily, enforced at write time
+
+A request cap above the job cap lets one call exceed the whole job; a job cap
+above the daily cap lets one job exceed the whole day. Either way the smaller
+ceiling is decorative. `provider_budget_config_cap_ordering` **rejects** such a
+row rather than silently normalising it, and `admit_provider_spend` re-checks
+the same predicate and refuses `invalid-budget-configuration` — because a row
+written before the constraint existed would still be sitting there.
+
 ## 3. Fail closed, everywhere
 
-| Condition                           | Verdict                  |
-| ----------------------------------- | ------------------------ |
-| no config row for the capability    | `no-budget-configured`   |
-| `enabled = false` (**the default**) | `capability-disabled`    |
-| estimate is 0                       | `zero-estimate`          |
-| estimate is null/negative           | `invalid-estimate`       |
-| no model id                         | `no-model`               |
-| estimate over the request cap       | `over-request-cap`       |
-| job spend over the job cap          | `job-cap-reached`        |
-| attempts spent                      | `job-attempts-exhausted` |
-| day committed over the day cap      | `daily-cap-reached`      |
-| request id seen before              | `duplicate-request`      |
-| ledger unreachable                  | `admission-unavailable`  |
-| service role missing                | `guard-unavailable`      |
-| model unpriced                      | `unpriced-model`         |
+| Condition                           | Verdict                        |
+| ----------------------------------- | ------------------------------ |
+| no config row for the capability    | `no-budget-configured`         |
+| `enabled = false` (**the default**) | `capability-disabled`          |
+| estimate is 0                       | `zero-estimate`                |
+| estimate is null/negative           | `invalid-estimate`             |
+| estimate is NaN / ±Infinity         | `non-finite-estimate`          |
+| units are NaN / negative            | `invalid-units`                |
+| stored caps unusable or misordered  | `invalid-budget-configuration` |
+| no model id                         | `no-model`                     |
+| estimate over the request cap       | `over-request-cap`             |
+| job spend over the job cap          | `job-cap-reached`              |
+| attempts spent                      | `job-attempts-exhausted`       |
+| day committed over the day cap      | `daily-cap-reached`            |
+| request id seen before              | `duplicate-request`            |
+| ledger unreachable                  | `admission-unavailable`        |
+| service role missing                | `guard-unavailable`            |
+| model unpriced                      | `unpriced-model`               |
 
 `enabled` defaulting to **false** is `generation_allowed=false` expressed as a
 schema default rather than a flag someone has to remember to set.
+
+### The NaN ceiling — a real hole, now closed
+
+PostgreSQL's `numeric` accepts `'NaN'` and `'Infinity'` and orders them **above
+every real number**. Measured on PostgreSQL 16.13:
+
+```
+'NaN'::numeric > 0        -> t
+'NaN'::numeric = 'NaN'    -> t
+'Infinity'::numeric > 0   -> t
+```
+
+So the obvious `check (daily_usd_cap > 0)` **accepts a NaN cap**. Once stored,
+admission computes `remaining := NaN - committed` = NaN, tests
+`_estimated_usd > NaN`, gets FALSE — and admits **every** request. That is
+"missing cap = unlimited spend" wearing a different hat, which is the single
+failure mode this ledger exists to make impossible.
+
+`is_spendable_usd(numeric)` is the one place that answers "is this a real,
+spendable amount of money?". The NaN test comes first and is an **equality**
+test, because any ordering test waves NaN straight past. It is `immutable` +
+`strict` so it can sit inside a CHECK constraint, and `admit_provider_spend`
+applies the same equality tests to the incoming estimate — a NaN estimate
+happens to fail closed today through the ordering accident, and an accident is
+not a control.
+
+### `provider_budget_status(capability)` — a reason, not a boolean
+
+Admission answers "may **this** request spend?". A UI, a worker preflight and a
+health check need a different question — "is this capability configured to
+spend at all?" — and its honest answer is a named state:
+
+| State                 | Meaning                                       |
+| --------------------- | --------------------------------------------- |
+| `SPEND_CAP_UNSET`     | no config row. **Not** "unlimited", not "$0". |
+| `CAPABILITY_DISABLED` | caps configured, `enabled = false`            |
+| `CONFIGURED`          | caps configured and enabled                   |
+
+Measured, VIDEO, today:
+`{"reason": "SPEND_CAP_UNSET", "generationAllowed": false, "capsConfigured": false}`.
+
+The TypeScript mirror is `providerBudgetStatus()` / `validateBudgetCaps()` in
+`_shared/financialLedger.ts`, and `chooseTier()` refuses outright unless it is
+handed a gate saying caps are configured and generation is allowed.
+
+### Money is rounded to the column, not to the nearest hope
+
+Every column money actually flows through — `estimated_usd`, `actual_usd`,
+`reserved_usd`, `settled_usd` — is 6 decimal places, so `roundUsd()` rounds to
+6. (The three ceilings are `numeric(10,4)`: a cap is a round number someone
+types, not an accumulated figure. `numeric` comparison is exact across
+precisions, so a 6dp estimate tested against a 4dp cap needs no coercion.)
+
+This is not cosmetic: `0.03 * 60 === 1.7999999999999998` and
+`0.1 * 3 === 0.30000000000000004` in IEEE-754. Rounding — not ceiling — because
+a ceiling turns `0.1*3` into `0.300001` and quietly overcharges every estimate.
 
 ## 4. Settlement rules
 
@@ -132,7 +215,78 @@ the same instance: 10 concurrent admissions against a $1.00 cap → 4 admitted,
 reserved exactly 1.000000; the same function with `for update` removed → 10
 admitted, **250% of cap**.
 
-## 7. Not activated
+## 6a. Invariants migration — measured, same PostgreSQL 16.13 instance
 
-No capability row is seeded. `enabled` is false. Nothing can spend until the
-owner sets the numbers, and there is deliberately no default for any of them.
+`20260824150000_provider_budget_invariants.sql` applied cleanly on top of the
+ledger migration. **Eleven** invalid configurations were attempted and all
+eleven were rejected at write time:
+
+```
+NaN cap / Infinity cap / zero cap / negative cap        -> caps_spendable
+request > job / job > daily / request > daily           -> cap_ordering
+max_attempts_per_job = 0 / = 999                        -> attempts_sane
+non-numeric cap                                         -> type error
+unknown capability                                      -> capability check
+request = job = daily                                   -> ACCEPTED (legal)
+```
+
+Ceiling boundaries, config request $1.00 / job $2.00 / daily $5.00, attempts 3:
+
+```
+estimate 0.99                {"ok": true}
+estimate 1.00 (EQUAL)        {"ok": true}                       <- admitted
+estimate 1.01                {"ok": false, "over-request-cap"}
+job committed exactly 2.00   {"ok": true}
+next cent                    {"ok": false, "job-cap-reached"}
+5 x 1.00 in one day          all admitted; the sixth  {"daily-cap-reached"}
+estimate 'NaN'               {"ok": false, "non-finite-estimate"}
+units 'NaN'                  {"ok": false, "invalid-units"}
+```
+
+Attempt accounting, and the double-charge questions:
+
+```
+reserve -> release           attempts=1  reserved=0.000000   (money back, attempt NOT)
+retries consume 2 and 3; the 4th  {"ok": false, "job-attempts-exhausted"}
+settle once                  chargedUsd 0.40
+settle again                 {"already-settled"}
+release after settle         {"already-settled"}   reserved=0 settled=0.400000
+record_provider_outcome REJECTED   settled_usd unchanged at 0.400000
+```
+
+Concurrency at the **job** ceiling — 8 workers entering together on one shot,
+$0.50 each, job cap $2.00:
+
+```
+admitted = 4        job.reserved = 2.000000     INVARIANT HELD
+```
+
+and with `max_attempts_per_job = 3` instead: 3 admitted, 5 refused
+`job-attempts-exhausted`. The day-ceiling proof (including the control that
+removes `for update` and reaches **250% of cap**) is unchanged from §6.
+
+## 7. Not activated — `CAP_VALUES_UNSET`
+
+No capability row is seeded. `enabled` is false. `provider_budget_status('VIDEO')`
+returns `SPEND_CAP_UNSET`. There is deliberately **no default** for any ceiling,
+so nothing can spend until the owner supplies numbers.
+
+The three values the owner must decide, and the only place they belong:
+
+```sql
+insert into public.provider_budget_config
+  (capability, request_usd_cap, job_usd_cap, daily_usd_cap,
+   max_attempts_per_job, enabled)
+values
+  ('VIDEO', <VIDEO_REQUEST_USD_CAP>, <VIDEO_JOB_USD_CAP>, <VIDEO_DAILY_USD_CAP>,
+   3, false);
+```
+
+Constraints on the owner's answer: each must be finite and strictly positive,
+and `request ≤ job ≤ daily`. `enabled` stays `false` until the owner separately
+authorises generation — inserting the caps is not the same decision as turning
+generation on.
+
+An agent must not pick these numbers. They decide how much of the owner's money
+a runaway can spend, which is a business decision under
+`CLAUDE.md § Business decisions are the owner's`.

@@ -34,7 +34,7 @@ USER REQUEST
   → IN-HOUSE ELIGIBILITY        levels 0–3 short-circuit here, at no provider cost
   → PROVIDER HEALTH             providerError breaker (HEALTHY/DEGRADED/QUOTA_EXHAUSTED)
   → FINANCIAL ADMISSION         admit_provider_spend (request / job / day)
-  → MODEL SELECTION             videoRouting.chooseTier(evidence, bar)
+  → MODEL SELECTION             videoRouting.chooseTier(evidence, bar, gate, surface)
   → AUDIO MODE                  videoAudio.resolveAudioMode(mode, surface)
   → GENERATION                  story-clip start → poll
   → TECHNICAL QA                aliveness floor, duration, streams
@@ -48,8 +48,17 @@ USER REQUEST
 
 ## 3. Tier selection
 
-`chooseTier(evidence, qualityBar)`:
+`chooseTier(evidence, qualityBar, gate, surface)`:
 
+- **No gate → no tier.** `RoutingGate` carries `capsConfigured` and
+  `generationAllowed`, which come from `provider_budget_status()`. Calling
+  `chooseTier` without one returns _"no routing gate supplied — preconditions
+  unknown, refusing"_. An absent precondition is not a satisfied one, and the
+  previous signature let a caller skip the question by not asking it.
+- **Caps unset → no tier**, with reason `SPEND_CAP_UNSET`. Which is today's
+  state: the owner has not set `request_usd_cap` / `job_usd_cap` /
+  `daily_usd_cap` for VIDEO, so routing refuses before it ever reaches price.
+- **`generationAllowed = false` → no tier.**
 - **No evidence for the motion class → no tier.** "Lite is probably fine" is how
   a benchmark gets skipped.
 - Lite if its **measured** acceptance clears the bar.

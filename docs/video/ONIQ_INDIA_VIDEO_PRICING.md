@@ -115,8 +115,10 @@ document.
 1. Google price independently verified for the AI Studio surface.
 2. The frozen clean benchmark run → Lite and Fast acceptance per motion class.
 3. A production distribution of how many seconds actually route to level 5.
-4. The owner's three numbers: `daily_usd_cap`, `request_usd_cap`, `job_usd_cap`
-   for VIDEO.
+4. The owner's three numbers — `request_usd_cap` (VIDEO_CAP_1), `job_usd_cap`
+   (VIDEO_CAP_2), `daily_usd_cap` (VIDEO_CAP_3) for VIDEO. Status today:
+   **`CAP_VALUES_UNSET`**. They are USD spend ceilings, not quality thresholds,
+   and no agent may choose them.
 
 With (1)–(3), `usd_per_accepted_unit` stops being a formula and becomes a
 measurement, and the tier budgets fall out of it.

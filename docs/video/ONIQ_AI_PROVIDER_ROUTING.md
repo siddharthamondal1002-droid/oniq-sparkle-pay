@@ -62,7 +62,47 @@ exists today. Until it does, "Claude for text" is honestly labelled as **an
 inherited default with a verified price**, which is strictly better than an
 unpriced alternative but is not evidence of superiority.
 
-## 7. What is enforced now
+## 7. The VIDEO provider seam — `_shared/videoProvider.ts`
+
+`story-clip` currently knows, in its own body, that Veo lives at
+`generativelanguage.googleapis.com`, that an operation name looks like
+`models/x/operations/y`, and that a finished clip arrives as base64 **or** a
+`files/…` URI. All true — and all true of **one surface**. The moment a second
+surface is on the table those stop being facts about "video" and become facts
+about a provider.
+
+`interface VideoProvider` is that seam: `capabilities()`,
+`configRequirements()`, `buildStartBody()`, `normalizeStart()`,
+`normalizePoll()`.
+
+**Everything in the file is pure.** Building a request body and normalising a
+response are functions of their arguments; nothing opens a socket, reads a
+secret or spends a cent. That is what makes provider readiness testable without
+credentials — the Agent Platform adapter is proved correct in _shape_ long
+before anyone decides to pay for it. Auth is deliberately not modelled: a body
+is safe to log and snapshot, a URL with a key in it is not.
+
+|                 | `GeminiDeveloperApiProvider`      | `GoogleAgentPlatformProvider`                                                     |
+| --------------- | --------------------------------- | --------------------------------------------------------------------------------- |
+| Surface         | `google-ai-studio` — **active**   | `google-agent-platform` — **static readiness only**                               |
+| `generateAudio` | never emitted; the API rejects it | emitted, `true` only for `VEO_NATIVE_AUDIO`                                       |
+| VIDEO_ONLY tier | unpurchasable                     | purchasable — this is what makes $0.03/s reachable                                |
+| Config needed   | `GOOGLE_AI_API_KEY`               | `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION`, `GOOGLE_APPLICATION_CREDENTIALS` |
+
+`configRequirements()` returns environment variable **names**, never values, and
+`providerConfigStatus(provider, isPresent)` reports which names are missing — so
+an operator can act on a gap without anyone printing a secret.
+
+No live call has been made on the Agent Platform surface, no credential for it
+exists in this environment, and nothing in that class should be read as evidence
+the integration works end to end. Migrating to it is a **provider-and-payment
+decision**, and therefore the owner's.
+
+`audio` on every outcome is `UNKNOWN` until the media is probed. The request
+parameter cannot establish it on either surface, and on the Developer API the
+parameter does not exist at all.
+
+## 8. What is enforced now
 
 - Every billable caller is either guarded or on a frozen, reasoned list
   (`searchSpendCoverage.test.ts`).
