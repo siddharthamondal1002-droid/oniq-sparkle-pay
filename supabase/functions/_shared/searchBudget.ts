@@ -19,14 +19,34 @@
 /** Authoritative, verified 2026-08-24 from platform.claude.com pricing. */
 export const USD_PER_WEB_SEARCH = 10 / 1000;
 
-/** USD per input/output token, by model id. Cache reads are 0.1x input. */
+/**
+ * USD per input/output token, by model id. Cache reads are 0.1x input.
+ *
+ * Every rate here is copied from platform.claude.com/docs/en/about-claude/pricing.
+ * A model ONIQ calls but that is ABSENT from this table is not "free" and not
+ * "probably about the same" — estimateSearchUsd throws, admission refuses, and
+ * the owner has to add a verified rate. That is the point: an unpriced model is
+ * one nobody can budget for.
+ *
+ * `claude-sonnet-4-6` verified 2026-08-24: $3/MTok in, $15/MTok out. It is the
+ * model health-scan runs on, and it was the one model in the fleet this table
+ * could not price.
+ */
 export const MODEL_RATES: Record<string, { inUsd: number; outUsd: number }> = {
   "claude-opus-5": { inUsd: 5 / 1e6, outUsd: 25 / 1e6 },
   "claude-sonnet-5": { inUsd: 2 / 1e6, outUsd: 10 / 1e6 },
+  "claude-sonnet-4-6": { inUsd: 3 / 1e6, outUsd: 15 / 1e6 },
   "claude-haiku-4-5": { inUsd: 1 / 1e6, outUsd: 5 / 1e6 },
 };
 
 export const CACHE_READ_MULTIPLIER = 0.1;
+
+/**
+ * 5-minute cache WRITE is 1.25x base input — it is not free, and it is what
+ * `cacheSystem: true` pays on the first call of every cache window. Leaving it
+ * out understated settlement on exactly the calls that miss the cache.
+ */
+export const CACHE_WRITE_5M_MULTIPLIER = 1.25;
 
 /**
  * A complete budget. `maxSearches` alone was the old control and it was not
@@ -67,6 +87,7 @@ export type CostInputs = {
   inputTokens: number;
   outputTokens: number;
   cachedInputTokens?: number;
+  cacheWriteInputTokens?: number;
 };
 
 /**
@@ -78,22 +99,91 @@ export function estimateSearchUsd(c: CostInputs): number {
   const rate = MODEL_RATES[c.model];
   if (!rate) throw new Error(`no published rate for model ${c.model}`);
   const cached = c.cachedInputTokens ?? 0;
+  const written = c.cacheWriteInputTokens ?? 0;
   return (
     c.searches * USD_PER_WEB_SEARCH +
     cached * rate.inUsd * CACHE_READ_MULTIPLIER +
+    written * rate.inUsd * CACHE_WRITE_5M_MULTIPLIER +
     c.inputTokens * rate.inUsd +
     c.outputTokens * rate.outUsd
   );
 }
 
 /** Worst case for a budget — what admission must reserve. */
-export function worstCaseUsd(model: string, b: SearchBudget, cachedInputTokens = 0): number {
+export function worstCaseUsd(
+  model: string,
+  b: SearchBudget,
+  cachedInputTokens = 0,
+  cacheWriteInputTokens = 0,
+): number {
   return estimateSearchUsd({
     model,
     searches: b.maxSearches,
     inputTokens: b.maxInputTokens,
     outputTokens: b.maxOutputTokens,
     cachedInputTokens,
+    cacheWriteInputTokens,
+  });
+}
+
+/**
+ * Anthropic's `usage` block, as far as billing is concerned.
+ *
+ * `input_tokens` EXCLUDES both cache figures — Anthropic reports the three
+ * separately and they are priced at three different rates, so adding them up
+ * as one number would misprice every cached call.
+ */
+export type ProviderUsage = {
+  input_tokens?: unknown;
+  output_tokens?: unknown;
+  cache_read_input_tokens?: unknown;
+  cache_creation_input_tokens?: unknown;
+  server_tool_use?: { web_search_requests?: unknown } | null;
+};
+
+export type MeasuredUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  searches: number;
+};
+
+function nonNegInt(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
+
+/** Read a provider usage block. Missing fields are 0 COUNTS, never 0 COST. */
+export function readUsage(u: ProviderUsage | null | undefined): MeasuredUsage {
+  const uu = (u ?? {}) as ProviderUsage;
+  return {
+    inputTokens: nonNegInt(uu.input_tokens),
+    outputTokens: nonNegInt(uu.output_tokens),
+    cacheReadTokens: nonNegInt(uu.cache_read_input_tokens),
+    cacheWriteTokens: nonNegInt(uu.cache_creation_input_tokens),
+    searches: nonNegInt(uu.server_tool_use?.web_search_requests),
+  };
+}
+
+/**
+ * What the call ACTUALLY cost, from what the provider reported it used.
+ *
+ * This is a DERIVED actual, not a provider-quoted invoice line: Anthropic
+ * reports token counts and search counts, not dollars, so the dollars come from
+ * multiplying measured counts by published rates. It is exact given both, and
+ * it is why settlement can pass a real `actualUsd` instead of leaving the
+ * reservation to stand. Returns null when the model is unpriced — a null here
+ * means "unknown", and the ledger then charges the ESTIMATE, never zero.
+ */
+export function actualUsdFromUsage(model: string, m: MeasuredUsage): number | null {
+  if (!MODEL_RATES[model]) return null;
+  return estimateSearchUsd({
+    model,
+    searches: m.searches,
+    inputTokens: m.inputTokens,
+    outputTokens: m.outputTokens,
+    cachedInputTokens: m.cacheReadTokens,
+    cacheWriteInputTokens: m.cacheWriteTokens,
   });
 }
 

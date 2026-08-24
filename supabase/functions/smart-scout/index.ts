@@ -2,13 +2,61 @@
 // Purchaser-centric: decisive best-value pick, verified retailer preference,
 // visible source domains, and location-aware (street + PIN, not just city).
 import { langInstruction, callClaude, type ClaudeMessage } from "../_shared/llm.ts";
+import type { SearchBudget } from "../_shared/searchBudget.ts";
+import {
+  refusalMessage,
+  requestIdFrom,
+  serviceRoleRpc,
+  withSearchSpendGuard,
+} from "../_shared/searchGuard.ts";
+
+// --- spend shape of ONE scout query -----------------------------------------
+//
+// The reservation has to describe the call we are ACTUALLY about to make, so
+// these numbers and the `tools` block below must stay in step. Depth is left at
+// the production value of 11: this change adds a ceiling, it does not quietly
+// re-tune the product. Tuning depth is a decision for the owner to take against
+// the `search_count` column this now records, not one to smuggle in here.
+const SCOUT_MODEL = "claude-opus-5";
+const SCOUT_MAX_SEARCHES = 11;
+const SCOUT_MAX_TOKENS = 3500;
+// Cached system prompt: ~5.1k chars ≈ 1.3k tokens. Charged at 1.25x on the
+// first call of each 5-minute cache window.
+const SCOUT_SYSTEM_CACHE_TOKENS = 1300;
+// An attached photo is extra input. Anthropic downscales images before billing,
+// so this is a ceiling rather than a function of the upload's byte count.
+const IMAGE_TOKEN_ALLOWANCE = 8000;
+// 40,286 input tokens were measured on 2026-08-24 at the 11-search cap; search
+// results re-enter context on every hop, which is why input dominates. 48k is
+// that measurement plus ~20%. If a call exceeds it the call still happens and
+// settlement records the REAL cost — the reservation bounds admission, not the
+// provider.
+const SCOUT_INPUT_TOKEN_RESERVE = 48_000;
+
+function scoutBudget(hasImage: boolean): SearchBudget {
+  return {
+    maxSearches: SCOUT_MAX_SEARCHES,
+    maxProviderCalls: 1,
+    maxLlmCalls: 1,
+    maxInputTokens: SCOUT_INPUT_TOKEN_RESERVE + (hasImage ? IMAGE_TOKEN_ALLOWANCE : 0),
+    maxOutputTokens: SCOUT_MAX_TOKENS,
+    maxWallClockMs: 180_000,
+    maxEstimatedUsd: 0.5,
+  };
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // --- rate limit (per-isolate; resets on cold start) ---
+// Kept as a cheap first line against one client hammering a single isolate. It
+// is NOT the spend control — it never was. It bounds one isolate's burst and
+// resets on every cold start, which is why the durable ledger above exists.
 const rlBuckets = new Map<string, number[]>();
 function _subFromAuth(req: Request): string {
   const h = req.headers.get("Authorization") ?? "";
@@ -176,15 +224,62 @@ Deno.serve(async (req) => {
       { role: "user", content: userContent as unknown as string },
     ] as ClaudeMessage[];
 
-    const claudeRes = await callClaude({
-      system,
-      messages,
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 11 }],
-      maxTokens: 3500,
-      timeoutMs: 180000,
-      cacheSystem: true,
-      model: "claude-opus-5",
-    });
+    // ---- SPEND GUARD -------------------------------------------------------
+    // Nothing below this line reaches Anthropic without a reservation in the
+    // ledger. `rpc` being null means the service role is not configured, and
+    // the guard refuses on it — an unreachable ledger is not permission to
+    // spend.
+    const rpc = serviceRoleRpc();
+    const budget = scoutBudget(Boolean(imageBase64));
+    const uid = _subFromAuth(req);
+
+    const guarded = await withSearchSpendGuard(
+      rpc,
+      {
+        requestId: requestIdFrom(body?.requestId),
+        provider: "anthropic",
+        model: SCOUT_MODEL,
+        searchType: "smart-scout",
+        userId: UUID_RE.test(uid) ? uid : undefined,
+        budget,
+        cacheWriteTokens: SCOUT_SYSTEM_CACHE_TOKENS,
+      },
+      async () => {
+        const res = await callClaude({
+          system,
+          messages,
+          tools: [
+            { type: "web_search_20250305", name: "web_search", max_uses: SCOUT_MAX_SEARCHES },
+          ],
+          maxTokens: SCOUT_MAX_TOKENS,
+          timeoutMs: budget.maxWallClockMs,
+          cacheSystem: true,
+          model: SCOUT_MODEL,
+          // A tool-less Gemini answer to a "find live prices" prompt is a
+          // fabricated price list with fabricated `verified` domains. Fail
+          // instead. See allowFallback in _shared/llm.ts.
+          allowFallback: false,
+        });
+        // "not configured" is the ONLY reason we know no request left the box —
+        // callClaude checks the key before it fetches. A timeout or a 5xx may
+        // well have been served and billed, so those settle, they do not
+        // release.
+        const neverCalled = !res.ok && res.reason === "not configured";
+        return {
+          value: res,
+          neverCalled,
+          usage: res.ok ? res.data?.usage : null,
+          stopReason: res.ok ? res.data?.stop_reason : null,
+          terminationReason: res.ok ? undefined : ("PROVIDER_ERROR" as const),
+        };
+      },
+    );
+
+    if (!guarded.admitted) {
+      console.warn(`smart-scout: spend guard refused (${guarded.reason})`);
+      return friendly(refusalMessage(guarded.reason), { blocked: guarded.reason });
+    }
+    const claudeRes = guarded.value;
 
     if (!claudeRes.ok) {
       const reason = claudeRes.reason ?? "";

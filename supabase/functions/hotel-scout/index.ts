@@ -3,6 +3,35 @@
 // casual Indian-English/Hinglish request, search the live web across verified
 // booking sites, and return a decisive best-value pick with visible sources.
 import { langInstruction, callClaude, type ClaudeMessage } from "../_shared/llm.ts";
+import type { SearchBudget } from "../_shared/searchBudget.ts";
+import {
+  refusalMessage,
+  requestIdFrom,
+  serviceRoleRpc,
+  withSearchSpendGuard,
+} from "../_shared/searchGuard.ts";
+
+// --- spend shape of ONE stay-scout query ------------------------------------
+// Identical call shape to smart-scout (opus-5, 11 searches, 3.5k output, cached
+// system prompt), so the reservation is derived the same way and for the same
+// reasons. Depth stays at the production value of 11.
+const STAY_MODEL = "claude-opus-5";
+const STAY_MAX_SEARCHES = 11;
+const STAY_MAX_TOKENS = 3500;
+const STAY_SYSTEM_CACHE_TOKENS = 1300;
+const STAY_INPUT_TOKEN_RESERVE = 48_000;
+
+const STAY_BUDGET: SearchBudget = {
+  maxSearches: STAY_MAX_SEARCHES,
+  maxProviderCalls: 1,
+  maxLlmCalls: 1,
+  maxInputTokens: STAY_INPUT_TOKEN_RESERVE,
+  maxOutputTokens: STAY_MAX_TOKENS,
+  maxWallClockMs: 180_000,
+  maxEstimatedUsd: 0.5,
+};
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -114,15 +143,47 @@ Deno.serve(async (req) => {
       { role: "user", content: `Scout stays in India for: ${query}` },
     ] as ClaudeMessage[];
 
-    const claudeRes = await callClaude({
-      system,
-      messages,
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 11 }],
-      maxTokens: 3500,
-      timeoutMs: 180000,
-      cacheSystem: true,
-      model: "claude-opus-5",
-    });
+    // ---- SPEND GUARD — see smart-scout for the full reasoning. -------------
+    const rpc = serviceRoleRpc();
+    const uid = _subFromAuth(req);
+
+    const guarded = await withSearchSpendGuard(
+      rpc,
+      {
+        requestId: requestIdFrom(body?.requestId),
+        provider: "anthropic",
+        model: STAY_MODEL,
+        searchType: "hotel-scout",
+        userId: UUID_RE.test(uid) ? uid : undefined,
+        budget: STAY_BUDGET,
+        cacheWriteTokens: STAY_SYSTEM_CACHE_TOKENS,
+      },
+      async () => {
+        const res = await callClaude({
+          system,
+          messages,
+          tools: [{ type: "web_search_20250305", name: "web_search", max_uses: STAY_MAX_SEARCHES }],
+          maxTokens: STAY_MAX_TOKENS,
+          timeoutMs: STAY_BUDGET.maxWallClockMs,
+          cacheSystem: true,
+          model: STAY_MODEL,
+          allowFallback: false,
+        });
+        return {
+          value: res,
+          neverCalled: !res.ok && res.reason === "not configured",
+          usage: res.ok ? res.data?.usage : null,
+          stopReason: res.ok ? res.data?.stop_reason : null,
+          terminationReason: res.ok ? undefined : ("PROVIDER_ERROR" as const),
+        };
+      },
+    );
+
+    if (!guarded.admitted) {
+      console.warn(`hotel-scout: spend guard refused (${guarded.reason})`);
+      return friendly(refusalMessage(guarded.reason), { blocked: guarded.reason });
+    }
+    const claudeRes = guarded.value;
 
     if (!claudeRes.ok) {
       const reason = claudeRes.reason ?? "";

@@ -249,9 +249,25 @@ export type CallClaudeOpts = {
   // story-plot's plan orchestrator (owner P0, 2026-08-21), where a 45s spine
   // silently became a ~90s spine here and starved the fallback engine.
   noRetry?: boolean;
+  // Set false to FORBID the Gemini billing-exhaustion fallback. Default
+  // (undefined) keeps the fallback for every existing caller.
+  //
+  // Two reasons a caller turns it off, both of which apply to the search
+  // scouts. First, translateToolsToGemini SKIPS Anthropic server tools, so a
+  // web_search request silently becomes a no-search request — the model then
+  // answers a "find live prices" prompt from memory and fills in
+  // `verified: true` source domains that were never consulted. Second, Gemini
+  // bills a DIFFERENT key at rates this codebase does not price, so a spend
+  // reservation taken against Anthropic rates no longer describes the spend.
+  allowFallback?: boolean;
 };
 
-export type CallClaudeResult = { ok: true; data: any } | { ok: false; reason: string };
+// `provider` says which engine actually answered. It exists because the
+// fallback used to be invisible to callers: a Gemini answer and an Anthropic
+// answer came back in the same shape, and nothing downstream could tell that
+// the web_search tool had been dropped on the way.
+export type CallClaudeResult =
+  { ok: true; data: any; provider: "anthropic" | "gemini" } | { ok: false; reason: string };
 
 // ---------------------------------------------------------------------------
 // Gemini fallback — used ONLY when Anthropic returns a specific billing/credit
@@ -483,7 +499,7 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
     console.info(
       `callGemini: ok model=${GEMINI_FALLBACK_MODEL} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
     );
-    return { ok: true, data: translated };
+    return { ok: true, data: translated, provider: "gemini" };
   } catch (e) {
     const reason = (e as Error)?.name === "AbortError" ? "timeout" : String(e).slice(0, 120);
     console.warn(`callGemini: fetch failed (${reason})`);
@@ -587,9 +603,15 @@ export async function callClaude(opts: CallClaudeOpts): Promise<CallClaudeResult
           `callClaude: prompt-cache usage cache_creation=${cw ?? 0} cache_read=${cr ?? 0} input=${usage?.input_tokens ?? 0} output=${usage?.output_tokens ?? 0}`,
         );
       }
-      return { ok: true, data: r.body };
+      return { ok: true, data: r.body, provider: "anthropic" };
     }
     // Specific, detectable billing-exhaustion → Gemini fallback.
+    if (opts.allowFallback === false && isAnthropicBillingExhaustion(r.status, r.body)) {
+      console.warn(
+        `callClaude: Anthropic billing exhausted and fallback is forbidden for this caller — failing instead of answering from a tool-less model key=${mask(key)}`,
+      );
+      return { ok: false, reason: `http ${r.status}` };
+    }
     if (isAnthropicBillingExhaustion(r.status, r.body)) {
       console.warn(
         `callClaude: Anthropic billing exhausted (http 400 credit_balance) — falling back to Gemini key=${mask(key)}`,
