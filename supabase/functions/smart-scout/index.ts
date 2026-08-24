@@ -13,12 +13,25 @@ import {
 // --- spend shape of ONE scout query -----------------------------------------
 //
 // The reservation has to describe the call we are ACTUALLY about to make, so
-// these numbers and the `tools` block below must stay in step. Depth is left at
-// the production value of 11: this change adds a ceiling, it does not quietly
-// re-tune the product. Tuning depth is a decision for the owner to take against
-// the `search_count` column this now records, not one to smuggle in here.
-const SCOUT_MODEL = "claude-opus-5";
-const SCOUT_MAX_SEARCHES = 11;
+// these numbers and the `tools` block below must stay in step.
+//
+// HAIKU 4.5 ECONOMIC EXPERIMENT — owner directive, 2026-08-24.
+//
+// The control, and it is a real settled invoice rather than a model:
+//
+//     claude-opus-5   6 searches   reserved $0.445625   ACTUAL $0.530683
+//     over the $0.50 request ceiling by $0.030683      ECONOMIC GATE: FAIL
+//
+// Two things were wrong and only one of them was the model. The reservation
+// was ALSO optimistic: it assumed 48,000 input tokens and the call used
+// 99,321. The old constant was calibrated on a 40,286-token measurement plus
+// 20%, and that sample simply was not representative.
+const SCOUT_MODEL = "claude-haiku-4-5";
+// Six is the depth the control request actually consumed (of 11 permitted), so
+// this preserves observed behaviour while removing the unused headroom that
+// made the ladder unbounded. Enforced server-side via `max_uses`: the sixth
+// search is the last, and the answer is synthesised from what was gathered.
+const SCOUT_MAX_SEARCHES = 6;
 const SCOUT_MAX_TOKENS = 3500;
 // Cached system prompt: ~5.1k chars ≈ 1.3k tokens. Charged at 1.25x on the
 // first call of each 5-minute cache window.
@@ -26,20 +39,32 @@ const SCOUT_SYSTEM_CACHE_TOKENS = 1300;
 // An attached photo is extra input. Anthropic downscales images before billing,
 // so this is a ceiling rather than a function of the upload's byte count.
 const IMAGE_TOKEN_ALLOWANCE = 8000;
-// 40,286 input tokens were measured on 2026-08-24 at the 11-search cap; search
-// results re-enter context on every hop, which is why input dominates. 48k is
-// that measurement plus ~20%. If a call exceeds it the call still happens and
-// settlement records the REAL cost — the reservation bounds admission, not the
-// provider.
-const SCOUT_INPUT_TOKEN_RESERVE = 48_000;
+
+// THE RESERVE NOW SCALES WITH SEARCH DEPTH, because that is the mechanism.
+// Every web-search hop feeds its results back into context, so input tokens
+// grow with hop count; a flat reserve cannot track that and will always be
+// wrong in the expensive direction. Measured on the control request: 6 hops
+// produced 99,321 input tokens.
+const SCOUT_BASE_INPUT_TOKENS = 20_000; // system + query + product context
+const SCOUT_TOKENS_PER_SEARCH = 14_000; // results re-entering context per hop
+// 20,000 + 6 x 14,000 = 104,000, above the 99,321 actually observed.
+//
+// Output is reserved ABOVE `max_tokens` deliberately: the control request
+// billed 4,295 output tokens against a 3,500 `max_tokens`, so reserving at
+// max_tokens is demonstrably optimistic. Reserving what was measured, plus
+// room, is the point of the exercise.
+const SCOUT_OUTPUT_TOKEN_RESERVE = 6_000;
 
 function scoutBudget(hasImage: boolean): SearchBudget {
   return {
     maxSearches: SCOUT_MAX_SEARCHES,
     maxProviderCalls: 1,
     maxLlmCalls: 1,
-    maxInputTokens: SCOUT_INPUT_TOKEN_RESERVE + (hasImage ? IMAGE_TOKEN_ALLOWANCE : 0),
-    maxOutputTokens: SCOUT_MAX_TOKENS,
+    maxInputTokens:
+      SCOUT_BASE_INPUT_TOKENS +
+      SCOUT_MAX_SEARCHES * SCOUT_TOKENS_PER_SEARCH +
+      (hasImage ? IMAGE_TOKEN_ALLOWANCE : 0),
+    maxOutputTokens: SCOUT_OUTPUT_TOKEN_RESERVE,
     maxWallClockMs: 180_000,
     maxEstimatedUsd: 0.5,
   };
