@@ -261,8 +261,10 @@ bounded nothing. See ONIQ_AI_FINANCIAL_CONTROL §8.
 - **benchmark execution** — needs credentials plus authorisation
 - **Agent Platform live probe** — never attempted
 - **explicit VIDEO enablement** — the owner's decision, still not made
-- **SEARCH ceilings** — unset, so SEARCH admission refuses; an owner decision,
-  and a prerequisite for deploying the four searching edge functions
-  (ONIQ_AI_FINANCIAL_CONTROL §8a)
+- **explicit SEARCH enablement** — likewise. SEARCH ceilings are now set
+  ($0.50 / $2.00 / $20.00, owner directive 2026-08-24) and applied, but
+  `enabled = false`, so admission answers `CAPABILITY_DISABLED`
 - **edge-function deploy** — the ledger callers ship separately from a web
-  publish and are still on pre-guard builds
+  publish and are still on pre-guard builds. Deliberately **not** deployed:
+  doing so before SEARCH is enabled would fail every production search closed
+  (ONIQ_AI_FINANCIAL_CONTROL §9)

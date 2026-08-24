@@ -343,6 +343,20 @@ removes `for update` and reaches **250% of cap**) is unchanged from §6.
 
 ## 7. Configured, and still not activated
 
+**Both configured capabilities, in one place.** Owner directives of 2026-08-24.
+Every ceiling below is in the production database and **neither capability may
+spend a cent**, because configuring a budget and permitting spend are separate
+decisions and only the first has been made:
+
+| Capability | request | job   | daily  | attempts | enabled   |
+| ---------- | ------- | ----- | ------ | -------- | --------- |
+| **SEARCH** | $0.50   | $2.00 | $20.00 | 3        | **false** |
+| **VIDEO**  | $1.00   | $5.00 | $50.00 | 3        | **false** |
+
+No other capability has a row, so `TEXT`, `IMAGE`, `VIDEO_AUDIO`, `TTS` and
+`OTHER` all read `SPEND_CAP_UNSET` and are refused. See §8b for SEARCH and §8c
+for the measurements; the rest of this section is VIDEO.
+
 **VIDEO caps are set. VIDEO generation is off.** Those are two decisions and the
 owner has made only the first.
 
@@ -401,11 +415,11 @@ provider_budget_status('VIDEO')
 `enabled` is **false**, as it was in the file. Nothing was generated and no
 provider was called.
 
-### 8a. SEARCH is now `SPEND_CAP_UNSET` — and that is a live trap
+### 8a. SEARCH was `SPEND_CAP_UNSET` — the trap, and how it was closed
 
 The ledger migration drops `search_spend_*` after carrying its rows across, so
-SEARCH is a capability of the general ledger like any other. It has **no row**
-in `provider_budget_config`:
+SEARCH is a capability of the general ledger like any other. On the morning of
+2026-08-24 it had **no row** in `provider_budget_config`:
 
 ```
 provider_budget_status('SEARCH')
@@ -417,12 +431,120 @@ That is §3 working as designed — an unconfigured capability is refused, never
 unlimited. But `searchGuard.ts` fails closed on it, and four **live** edge
 functions call it: `smart-scout`, `ting`, `health-scan`, `hotel-scout`.
 
-Nothing is broken today, because edge functions do not deploy with a web publish
-and the versions in production still predate the guard (it landed today in
-`3cec33fa` / `3a2419de`). The trap is in the ordering: **deploying those four
+Nothing was broken, because edge functions do not deploy with a web publish and
+the versions in production still predate the guard (it landed the same day in
+`3cec33fa` / `3a2419de`). The trap was in the ordering: **deploying those four
 edge functions before a SEARCH row exists would refuse every search in
-production.** The correct sequence is SEARCH ceilings first, edge deploy second.
+production.** The correct sequence is SEARCH ceilings first, edge deploy second,
+and §9 keeps it.
 
 Those ceilings are dollar limits on the owner's spend, so an agent does not pick
-them — `CLAUDE.md § Business decisions are the owner's`. They are an open
-question to the owner, not a blocked task with a sensible default.
+them — `CLAUDE.md § Business decisions are the owner's`. They were an open
+question to the owner, not a blocked task with a sensible default. The owner
+answered the same day; §8b is the answer.
+
+### 8b. SEARCH ceilings — owner directive, 2026-08-24
+
+|                                |                                |
+| ------------------------------ | ------------------------------ |
+| `request_usd_cap`              | **$0.50**                      |
+| `job_usd_cap`                  | **$2.00**                      |
+| `daily_usd_cap`                | **$20.00**                     |
+| `max_attempts_per_job`         | 3 (schema default — see below) |
+| effective current job exposure | **$1.50**                      |
+| `enabled`                      | **false**                      |
+
+Recorded in `supabase/migrations/20260824190000_search_spend_ceilings.sql`,
+mirrored in `src/lib/__tests__/searchCaps.test.ts` so drift in either direction
+fails the build.
+
+**The owner supplied these numbers; the table they replaced did not.** This
+needs saying because of a coincidence that would otherwise erase the
+distinction: the dropped `search_budget_config` shipped a `request_usd_cap`
+DEFAULT of **0.50**, the same figure the owner chose. Two numbers that agree by
+accident are the easiest place in a codebase for an authority to be quietly
+swapped, because afterwards nothing looks different. The directive is the
+authority. The migration writes literals and never selects from anything, and a
+test asserts that.
+
+**No attempt count was authorised, so none was invented.** The migration omits
+`max_attempts_per_job` and takes the column default of 3. The consequence,
+stated rather than left to be discovered:
+
+```
+effective job exposure = min(job_usd_cap, request_usd_cap x attempts)
+                       = min(2.00, 0.50 x 3) = 1.50
+```
+
+So $2.00 is a backstop **above** what the ladder can reach — the same shape as
+VIDEO's $5.00 over $3.00, and for the same reason (§2). Raising attempts to
+"use" the ceiling would be an agent spending more of the owner's money to
+consume headroom, which is not what headroom is for.
+
+### 8c. Measured against PostgreSQL 16.13, from the migration files
+
+| #   | Property                                                | Result                                                               |
+| --- | ------------------------------------------------------- | -------------------------------------------------------------------- |
+| 2   | `0 < 0.50 <= 2.00 <= 20.00`                             | holds                                                                |
+| 3   | NaN / +Inf / -Inf / 0 / negative as a **ceiling**       | all rejected; write blocked by `provider_budget_config_cap_ordering` |
+| 3   | NaN / +Inf / -Inf / 0 / negative as an **estimate**     | `non-finite-estimate`, `zero-estimate`, `invalid-estimate`           |
+| 4   | $0.50 request                                           | **admitted**                                                         |
+| 4   | $0.51 and $0.500001                                     | `over-request-cap`                                                   |
+| 5   | 4 x $0.50 on one job                                    | $2.00 exactly; 5th `job-cap-reached`                                 |
+| 5   | $0.01 onto a job already at $2.00                       | `job-cap-reached`                                                    |
+| 6   | 60 requests of $0.50 in a day                           | 40 admitted, day committed exactly $20.00                            |
+| 7   | 3 x $0.001 on one job                                   | ladder exhausted at $0.003 of $2.00 — refused on **count**           |
+| 8   | release after those 3 attempts                          | money $0.003 → $0.002, attempts stay 3; next admission still refused |
+| 9   | settle $3.00 against a $0.50 reservation                | recorded as **$3.00**, unclamped                                     |
+| 9   | next admission on that job                              | `job-cap-reached` — the overspend self-corrects                      |
+| 10  | settle twice / release after settle / settle unknown id | `already-settled`, `already-settled`, `unknown-request`              |
+| 11  | 12 concurrent workers, one job                          | exactly **4** admitted, $2.00 committed                              |
+| 11  | 60 concurrent workers, own jobs                         | exactly **40** admitted, $20.00 committed                            |
+| 13  | any admission while `enabled = false`                   | `capability-disabled`, including $0.01                               |
+
+`'NaN'::numeric > 0` is **TRUE** in PostgreSQL, which is why `is_spendable_usd`
+tests by equality rather than by comparison (§3, "The NaN ceiling").
+
+One correction, recorded because the first result was wrong in a way that
+flattered the system: the initial run set `max_attempts_per_job = 99`, the
+invariants migration refuses anything outside 1..10, the UPDATE failed, and the
+ladder therefore stopped at `job-attempts-exhausted` after **$1.50**. That
+measured a real invariant — but not the $2.00 money ceiling it was labelled as.
+Re-run at the maximum legal 10 attempts, where money binds first, it gives the
+$2.00 figures above. An attempt ceiling stopping the ladder is not evidence
+that a money ceiling would have.
+
+## 9. Deployment ladder — four rungs, and SEARCH is on the first
+
+Three states get conflated, and each conflation has its own way of being wrong:
+
+| State                                                                   | SEARCH today                 |
+| ----------------------------------------------------------------------- | ---------------------------- |
+| **repository configuration** — a migration exists in `main`             | yes, `20260824190000`        |
+| **production database configuration** — the row is in the live database | yes, read back independently |
+| **production capability enablement** — spending is permitted            | **NO** — `enabled = false`   |
+
+**A row is not a live capability.** SEARCH is configured and refuses everything;
+`provider_budget_status('SEARCH')` says `CAPABILITY_DISABLED`, which is a
+different refusal from `SPEND_CAP_UNSET` and deliberately distinguishable from
+outside.
+
+The safe order, and why each rung has to come before the next:
+
+1. **database configuration** ← _done._ Before this, admission answered
+   `SPEND_CAP_UNSET`.
+2. **application publish** — _not required by this change._ No frontend code
+   queries the spend tables; `src/integrations/supabase/types.ts` declares them
+   but that is compile-time only, and it has already been regenerated so the
+   repo's types match the live schema (the dropped `search_spend_*` names are
+   gone from it).
+3. **edge-function deploy** — **BLOCKED, deliberately.** The four searching
+   functions in production predate the guard and do not call the ledger. The
+   builds in `main` do. Deploying them while SEARCH is disabled would turn
+   every production search into a fail-closed refusal — correct behaviour by
+   the ledger's rules, and a user-visible outage caused by shipping rungs out
+   of order. Deploy them **after** enablement, not before.
+4. **explicit SEARCH enablement** — a separate owner decision, not made.
+
+Rung 3 before rung 4 is the specific mistake this ladder exists to prevent, and
+it is not hypothetical: it is what "just deploy the guard" would have done.
