@@ -89,10 +89,27 @@ describe("parseRetryAfter", () => {
   });
 
   it("reads an HTTP-date value", () => {
+    // BOTH clock readings are fixed. Previously the test took one reading and
+    // let the parser take the other, so the assertion window (50 < got <= 61)
+    // was really a 10-second budget for everything in between — a load
+    // measurement wearing an assertion's clothes. Now it is exact.
+    const now = Date.UTC(2026, 7, 24, 12, 0, 0);
+    const when = new Date(now + 60_000).toUTCString();
+    expect(parseRetryAfter(new Headers({ "retry-after": when }), now)).toBe(60);
+  });
+
+  it("does not go negative on a Retry-After that has already passed", () => {
+    const now = Date.UTC(2026, 7, 24, 12, 0, 0);
+    const past = new Date(now - 60_000).toUTCString();
+    expect(parseRetryAfter(new Headers({ "retry-after": past }), now)).toBe(0);
+  });
+
+  it("still defaults to the real clock when no reading is injected", () => {
+    // The production callers pass no `now`, so the default must stay live.
     const when = new Date(Date.now() + 60_000).toUTCString();
     const got = parseRetryAfter(new Headers({ "retry-after": when }));
-    expect(got).toBeGreaterThan(50);
-    expect(got).toBeLessThanOrEqual(61);
+    expect(got).not.toBeNull();
+    expect(got).toBeGreaterThan(0);
   });
 
   it("returns null rather than guessing when absent or unparseable", () => {

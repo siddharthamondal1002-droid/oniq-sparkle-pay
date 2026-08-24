@@ -45,14 +45,20 @@ const CAPACITY_MESSAGE = "Video generation is temporarily at capacity. Please tr
  * Parse `Retry-After`, which may be seconds or an HTTP date.
  * Returns null when absent or unparseable — never a guessed number.
  */
-export function parseRetryAfter(headers: Headers | null): number | null {
+export function parseRetryAfter(headers: Headers | null, now = Date.now()): number | null {
   const raw = headers?.get("retry-after");
   if (!raw) return null;
   const secs = Number(raw);
   if (Number.isFinite(secs) && secs >= 0) return Math.ceil(secs);
   const when = Date.parse(raw);
   if (Number.isFinite(when)) {
-    return Math.max(0, Math.ceil((when - Date.now()) / 1000));
+    // `now` is injectable for the same reason breakerState() and recordFailure()
+    // take it: an HTTP-date Retry-After is a DIFFERENCE between two clock
+    // readings, so a test that takes one reading and lets the function take
+    // the other is measuring the machine's load, not the parser. Measured: the
+    // assertion window here was 10 seconds wide, and this suite has been seen
+    // running with per-suite times 2.5x inflated under worker oversubscription.
+    return Math.max(0, Math.ceil((when - now) / 1000));
   }
   return null;
 }
