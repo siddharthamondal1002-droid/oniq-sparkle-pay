@@ -1,0 +1,88 @@
+{
+  "benchmark": "ONIQ-VEO-LITE-VS-FAST-v1",
+  "frozen_at": "2026-08-24",
+  "frozen_before_any_result": true,
+  "rule": "Cases are fixed before generation. Nothing may be added, removed or reworded after a result is seen. A changed set becomes v2.",
+  "controls": {
+    "duration_seconds": 4,
+    "resolution": "720p",
+    "aspect_ratio": "9:16",
+    "generate_audio": false,
+    "start_frame": "identical file for both models, per case",
+    "prompt": "identical string for both models, per case",
+    "downstream": "same acceptance gate, same thresholds, both models"
+  },
+  "models": {
+    "A": "veo-3.1-lite-generate-preview",
+    "B": "veo-3.1-fast-generate-preview",
+    "note": "Labels A/B are used during visual assessment so the assessor does not know which model produced which clip (Phase 8). The mapping is recorded here and must not be revealed in the assessment sheet."
+  },
+  "cases": [
+    {
+      "id": "c01_walk",
+      "class": "ordinary walking",
+      "character": "aladdin",
+      "prompt": "The man walks forward at a steady, even pace. Full body stays in frame. Natural arm swing."
+    },
+    {
+      "id": "c02_talking",
+      "class": "talking",
+      "character": "morgiana",
+      "prompt": "The woman speaks directly to camera. Her lips move naturally as she talks. Small, calm head movements."
+    },
+    {
+      "id": "c03_closeup",
+      "class": "close-up",
+      "character": "princess",
+      "prompt": "Slow push in on her face. She blinks once and her expression softens slightly."
+    },
+    {
+      "id": "c04_turning",
+      "class": "turning",
+      "character": "captain",
+      "prompt": "He turns his upper body to face left, then holds the new position steadily."
+    },
+    {
+      "id": "c05_two_person",
+      "class": "two-person interaction",
+      "character": "aladdin+morgiana",
+      "prompt": "Two people stand facing each other. One gestures while speaking; the other listens and nods once."
+    },
+    {
+      "id": "c06_hand",
+      "class": "hand movement",
+      "character": "magician",
+      "prompt": "He raises one hand and slowly opens his fingers, palm toward camera."
+    },
+    {
+      "id": "c07_lower_body",
+      "class": "lower-body movement",
+      "character": "fisherman",
+      "prompt": "He steps forward with one leg, the knee bending clearly, then plants his foot and settles."
+    },
+    {
+      "id": "c08_camera",
+      "class": "camera movement",
+      "character": "lampJinni",
+      "prompt": "The camera arcs slowly to the right around the standing figure, who remains still."
+    },
+    {
+      "id": "c09_environment",
+      "class": "environmental motion",
+      "character": "jarJinni",
+      "prompt": "Smoke and loose cloth drift and curl in the air around the figure, who stays still."
+    },
+    {
+      "id": "c10_knee_regression",
+      "class": "ONIQ regression case — knee/leg articulation",
+      "character": "aliBaba",
+      "prompt": "Full-body side view. He walks with a clear, correct walking cycle; both knees bend and straighten naturally.",
+      "why_this_case": "This is the documented in-house failure mode. The ARAP CPU path over-curls the knee (batch-3 knee-chain diagnostic, root cause = source BVH) and one character was recorded STRESS_TEST-FAIL(legs). It is the shot class in-house is known to lose, so it is the class most likely to justify paying an external provider at all."
+    }
+  ],
+  "limits_stated_up_front": [
+    "Start frames are ONIQ character cut-outs composited onto a plain backdrop, NOT full production scene stills. The benchmark therefore measures model motion behaviour on genuine ONIQ character art; it does not measure the full still-generation pipeline.",
+    "One generation per model per case. With n=10 per model, a difference of one or two clips is not statistically separable — the acceptance figures are indicative, not precise.",
+    "Automated gate and human visual assessment are reported separately and never merged into a single quality score."
+  ]
+}
