@@ -832,3 +832,48 @@ which paid APIs the owner's money funds, so it is the owner's under `CLAUDE.md
 so that "SEARCH is fully bounded" is never read as "ONIQ's search path spends
 nothing without a ceiling", which is a stronger claim than the evidence
 supports.
+
+### 9d. The fleet is on Haiku, and the Anthropic account is out of credit
+
+Owner directive, 2026-08-25: "change all to haiku". All four searching edge
+functions — `smart-scout`, `ting`, `health-scan`, `hotel-scout` — name
+`claude-haiku-4-5` and were deployed at `3e6932d3`.
+
+Two of the three follow-up proof requests returned `PROVIDER_ERROR`. That is
+**not** a Haiku incompatibility and not a guard refusal. The edge-function log
+gives the reason verbatim:
+
+```
+ting: anthropic error 400 — "Your credit balance is too low to access the
+      Anthropic API."
+hotel-scout: {"error":"AI credits exhausted — top up to keep scouting"}
+```
+
+The same error accounts for the single `PROVIDER_ERROR` inside the 51-request
+battery. So the correct reading is: **the Anthropic account ran dry partway
+through the battery**, and every search-shaped feature in ONIQ has been
+unavailable since. The Haiku change is deployed and its economics are measured;
+what is not measured is `ting` and `hotel-scout` against a real invoice,
+because neither ever reached the model.
+
+Three things this leaves standing, none of them fixed here:
+
+1. **`ting` has no working fallback under this outage.** Its Gemini path exists
+   but the spend guard refused it as `unpriced-model` — there is no rate for
+   `gemini-3.6-flash` in `MODEL_RATES`, and the guard fails closed rather than
+   admitting an unpriced call. Pricing that model is a decision about which
+   account's money answers a search when Anthropic is dry, so it is the
+   owner's under `CLAUDE.md § Business decisions are the owner's`.
+2. **`_shared/llm.ts` still defaults to Opus.** Line ~532 reads
+   `model: opts.model ?? "claude-opus-5"`. All four searching functions pass
+   `model` explicitly, so the directive is satisfied where it was aimed — but
+   any future caller that forgets the field silently buys Opus. Changing the
+   default would re-tier every _non-search_ `callClaude` caller at once, which
+   is a spend decision, not an implementation detail. Flagged, not changed.
+3. **`hotel-scout` has the widest unproven exposure.** 11 hops, a strict JSON
+   schema and a cross-check requirement, on the smallest model, with zero
+   quality evidence. Its reservation ($0.315625) is the only thing verified
+   about it.
+
+`health-scan` was skipped deliberately: the Lovable agent had no real medical
+report and was told not to invent one.
