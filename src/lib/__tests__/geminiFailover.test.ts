@@ -17,6 +17,7 @@
 import { describe, expect, it } from "vitest";
 import type { ServiceRpc } from "../../../supabase/functions/_shared/financialLedger.ts";
 import {
+  GEMINI_CACHE_DISCOUNT_UNPRICED,
   GEMINI_FAILOVER_MODEL,
   GEMINI_FAILOVER_MODEL_AVAILABLE,
   GEMINI_PRICING_PROVENANCE,
@@ -1189,5 +1190,34 @@ describe("a response that never searched is rejected whole", () => {
     ];
     expect(dropUnbackedRows(rows, nothingGrounded).kept).toHaveLength(0);
     expect(requireGroundingEvidence({}).ok).toBe(false);
+  });
+});
+
+// ============================================ the forced-search gate, live path
+describe("callGemini refuses an ungrounded answer to a search request", () => {
+  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+  const { join } = require("node:path") as typeof import("node:path");
+  const LLM = readFileSync(join(process.cwd(), "supabase/functions/_shared/llm.ts"), "utf8");
+
+  it("checks grounding evidence before returning ok", () => {
+    // Not just that the tool was SENT — that a query was actually issued.
+    expect(LLM).toMatch(
+      /if \(opts\.requireSearch\)[\s\S]{0,300}requireGroundingEvidence\(candidate\)/,
+    );
+    expect(LLM).toMatch(/return \{ ok: false, reason: evidence\.reason \}/);
+  });
+
+  it("leaves non-search callers untouched", () => {
+    // ting's chat turns have no sourcing contract and must not be gated.
+    expect(LLM).toMatch(/if \(opts\.requireSearch\) \{/);
+  });
+});
+
+describe("Gemini cached input is knowingly over-charged, not guessed at", () => {
+  it("records that the cache discount is unpriced", () => {
+    // A real gemini-3.6-flash call reported cachedContentTokenCount: 575.
+    // Folding it in at full input rate settles above Google's charge, which
+    // is the safe direction; inventing a discount is not.
+    expect(GEMINI_CACHE_DISCOUNT_UNPRICED).toBe(true);
   });
 });

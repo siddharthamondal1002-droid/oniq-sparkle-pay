@@ -1025,3 +1025,165 @@ is one generation call against the chosen id and its own published rate.
 Three rows fail, and the first is not a gap in evidence but a negative
 result: the model does not answer. `GEMINI_FAILOVER_ENABLED` stays unset, and
 `GEMINI_FAILOVER_MODEL_AVAILABLE` is false independently of it.
+
+## 11. Resolving the Gemini blockers — what measurement found
+
+Owner loop, 2026-08-25: resolve the blockers at `4130b97f`, do not stop at the
+first 404, do not substitute a model without verifying it, do not enable an
+ungrounded search fallback.
+
+Three of the four blockers resolved. The fourth did not, and it is not a gap in
+evidence — it is a measured negative.
+
+### 11a. The model was found by calling, not by reading
+
+Six candidates against ONIQ's own key, cheapest first:
+
+| id                      | result                                                    |
+| ----------------------- | --------------------------------------------------------- |
+| `gemini-3.5-flash-lite` | **200, real text**                                        |
+| `gemini-3.1-flash-lite` | 200, real text                                            |
+| `gemini-2.5-flash-lite` | 404 — "no longer available to new users"                  |
+| `gemini-3.5-flash`      | 200 but EMPTY content, MAX_TOKENS after 13 thought tokens |
+| `gemini-2.5-flash`      | 404 — "…use gemini-3.6-flash"                             |
+| `gemini-3.6-flash`      | 200 but EMPTY content, MAX_TOKENS after 12 thought tokens |
+
+Two things worth keeping. The 404s came only from the generation call — the
+free metadata lookup returns a healthy 200 for a model that cannot be called.
+And a 200 is not a success: two models returned empty content because thinking
+consumed the whole output budget before any text existed.
+
+### 11b. The pricing "contradiction" was a misreading
+
+Last loop recorded grounding as unpriceable because two sources gave $14 per
+1,000 and $35 per 1,000. They are not contradictory — they are two schemes:
+
+| generation | free allowance      | then                      |
+| ---------- | ------------------- | ------------------------- |
+| Gemini 3.x | 5,000 prompts/month | **$14 per 1,000 queries** |
+| Gemini 2.x | 1,500 requests/day  | **$35 per 1,000 prompts** |
+
+So the rate is per-model, not one constant. Free allowances are deliberately
+NOT modelled: reserving as if every query bills over-reserves inside a free
+tier, which is the safe direction, and an allowance shared across a whole
+Google project is not something one edge function can account for.
+
+Token rates: `gemini-3.5-flash-lite` is **$0.30 / $2.50** per MTok — 3x and
+6.25x the model originally named. All of it remains corroborated-secondary;
+no Google page is reachable from this container.
+
+### 11c. Two things the response shape forces
+
+**Google returns a redirect, not a merchant URL.** A grounding chunk carries
+`title: "bigbasket.com"` and a `uri` on `vertexaisearch.cloud.google.com`.
+`source_domain` is recoverable from the title; a direct product URL is not
+returned at all, and Google's terms require serving the redirect unmodified.
+So ONIQ can honour `source_domain` but cannot honour `url` as a direct listing
+link the way the Anthropic path does.
+
+**Grounded queries are billable and Google does not count them.** Verified
+against a real response: `usageMetadata` carries no search or grounding field
+of any kind. The count has to come from `webSearchQueries.length`, which the
+translator now reports in Anthropic's `server_tool_use` shape so the existing
+settlement path prices it with no special case.
+
+`google_search` also has no `max_uses`. On the Anthropic path the hop ceiling
+is enforced by the provider; here it is only an input to the reservation, so
+the Gemini leg reserves 2x its hop budget and settles on what Google reports.
+
+### 11d. The finding that decided it — schema compliance is not sourcing
+
+Three scout-shaped queries to `gemini-3.5-flash-lite`, ONIQ's real smart-scout
+system prompt, `google_search` attached:
+
+```
+HTTP 200                       3 of 3
+webSearchQueries: []           3 of 3
+grounding chunks: 0            3 of 3
+result rows returned           13
+rows backed by a real source   0
+responses parsing as JSON      3 of 3
+```
+
+The tool was accepted and never invoked. The model returned confident
+amazon.in / flipkart.com / blinkit.com / bigbasket.com / croma.com prices
+entirely from memory, every row carrying `source_domain` as though scouted,
+and **every response was schema-valid**.
+
+That last part is the lesson. A validator checking shape would have passed
+thirteen fabricated prices straight to a user. Only comparing claims against
+retrieved evidence catches it.
+
+Two controls, because one is not enough:
+
+- `dropUnbackedRows` removes any row whose `source_domain` never appeared in
+  `groundingChunks`. A price shown next to a retailer's name IS a claim that
+  the retailer charges it.
+- `requireGroundingEvidence` rejects the WHOLE response when no query was
+  issued. Row-filtering alone would empty the table and return a technically
+  honest zero-row answer, conflating "found nothing" with "never looked".
+
+The measurement is recorded in code as `GROUNDING_FABRICATION_EVIDENCE` so the
+gate is not later mistaken for paranoia and quietly relaxed.
+
+### 11e. The non-lite models search sometimes, which is worse
+
+`gemini-3.5-flash-lite` never searched, so at least it failed uniformly. The
+non-lite models are inconsistent, and the pattern of the inconsistency is the
+problem.
+
+Same probe, same payload, `maxOutputTokens` raised to 8,000:
+
+| model                   | 1kg salt             | 1L cooking oil     | Galaxy M35 phone     |
+| ----------------------- | -------------------- | ------------------ | -------------------- |
+| `gemini-3.5-flash`      | searched (6 queries) | **did not search** | searched (5 queries) |
+| `gemini-3.6-flash`      | **did not search**   | **did not search** | searched (3 queries) |
+| `gemini-3.5-flash-lite` | did not search       | did not search     | did not search       |
+
+Across all 9 calls on 3 models:
+
+```
+calls that issued any query        3 of 9
+result rows returned               37
+rows naming a source retrieved      1
+rows naming a source NEVER retrieved   36  (97%)
+```
+
+**The models skip searching precisely on the commodity items they "know" —
+salt, cooking oil — and search on the one with volatile pricing.** They are
+most confident exactly where they are most stale, and they populate
+`source_domain` either way. For a price scout that is the worst available
+failure mode.
+
+Two more findings from the same run:
+
+- On `gemini-3.5-flash`, the two responses that DID ground came back as
+  **malformed JSON**. In this sample, grounding and a clean schema did not
+  co-occur in a single call.
+- `thoughtsTokenCount` is present and large on the non-lite models — 1,947 on
+  one call, 3,012–3,495 on others, roughly half of total tokens. The
+  thinking-token accounting added earlier is load-bearing, not theoretical.
+  There is still no grounding count anywhere in `usageMetadata`.
+
+### 11f. Verdict — BLOCKED, and not for want of engineering
+
+Every engineering blocker was resolved. The tool translates, the fail-closed
+gate rejects a search request with no search mechanism, the validator drops
+unbacked rows, the attestation gate rejects a response that never searched,
+grounding is priced per query, thinking tokens are counted, and the whole thing
+reserves and settles inside the unchanged $0.50 ceiling.
+
+What did not clear is the RULE this loop set: _"Declare success only when
+Gemini can perform the SAME source-grounded search contract as the Claude
+path."_ It cannot. With the validator in place a Gemini scout answer is empty
+or near-empty on the majority of queries — correct, and useless. Without it,
+users get fabricated prices attributed to real retailers.
+
+The remaining blocker is external in the sense PHASE 11 means: it is Google
+model behaviour on the owner's account, not something ONIQ can engineer around
+without weakening source integrity. The one route left is PHASE 4's option C —
+ONIQ runs the searches itself through a provider it controls and passes the
+results to Gemini as tool results. That needs a search provider ONIQ does not
+have, which is new credentials and new spend, and therefore the owner's call.
+
+Production stays **disabled**. `GEMINI_FAILOVER_ENABLED` is unset.

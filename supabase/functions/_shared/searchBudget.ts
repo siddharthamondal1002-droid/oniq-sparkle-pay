@@ -159,6 +159,19 @@ export const SEARCH_UNIT_USD_BY_MODEL: Record<string, number | null> = {
  */
 export const GROUNDING_QUERY_HEADROOM = 2;
 
+/**
+ * Google reports `cachedContentTokenCount` — seen at 575 on a real
+ * gemini-3.6-flash call — and bills cached input BELOW the normal input rate.
+ *
+ * ONIQ does not price it separately, deliberately. The translator folds the
+ * whole prompt into `input_tokens` at the full rate, so a cached call settles
+ * ABOVE what Google charges. That is the safe direction, and the alternative —
+ * inventing a Gemini cache discount from an unreachable pricing page — is the
+ * kind of guess that put the fleet over cap in the first place. Worth revising
+ * only when a primary Google page can be read.
+ */
+export const GEMINI_CACHE_DISCOUNT_UNPRICED = true;
+
 /** Thrown when a model is priced for tokens but not for the searches asked of it. */
 export const UNPRICED_SEARCH_UNIT = "unpriced-search-unit";
 

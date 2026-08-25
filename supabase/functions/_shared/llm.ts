@@ -1,5 +1,5 @@
 import { geminiOutputTokens } from "./searchBudget.ts";
-import { readGrounding, translateSearchTools } from "./geminiSearch.ts";
+import { readGrounding, requireGroundingEvidence, translateSearchTools } from "./geminiSearch.ts";
 
 // Shared Anthropic (Claude) client for ONIQ edge functions.
 // Reuses the same secret + model that the ting function already relies on.
@@ -563,6 +563,24 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
     console.info(
       `callGemini: ok model=${geminiModel} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
     );
+    // FORCED-SEARCH GATE. A caller that needs live sources must not receive an
+    // answer the model produced from memory. Measured across 9 real calls on
+    // 3 models: only 3 issued any query at all, and 36 of 37 result rows named
+    // a source that had never been retrieved. The models skip searching
+    // precisely on the commodity items they "know" — most confident exactly
+    // where most stale — and fill source_domain regardless.
+    if (opts.requireSearch) {
+      const candidate = Array.isArray((parsed as any)?.candidates)
+        ? (parsed as any).candidates[0]
+        : null;
+      const evidence = requireGroundingEvidence(candidate);
+      if (!evidence.ok) {
+        console.warn(
+          `callGemini: refusing an ungrounded answer to a search request (${evidence.reason})`,
+        );
+        return { ok: false, reason: evidence.reason };
+      }
+    }
     return { ok: true, data: translated, provider: "gemini" };
   } catch (e) {
     const reason = (e as Error)?.name === "AbortError" ? "timeout" : String(e).slice(0, 120);
