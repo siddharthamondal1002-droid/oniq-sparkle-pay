@@ -43,7 +43,68 @@ export const MODEL_RATES: Record<string, { inUsd: number; outUsd: number }> = {
   "claude-sonnet-5": { inUsd: 2 / 1e6, outUsd: 10 / 1e6 },
   "claude-sonnet-4-6": { inUsd: 3 / 1e6, outUsd: 15 / 1e6 },
   "claude-haiku-4-5": { inUsd: 1 / 1e6, outUsd: 5 / 1e6 },
+  // Google, added 2026-08-25 for the Anthropic-credit-exhaustion failover.
+  // $0.10 / MTok in, $0.40 / MTok out. See GEMINI_PRICING_PROVENANCE below —
+  // this rate is corroborated but was NOT read from a primary Google page,
+  // because every Google documentation host is egress-blocked here.
+  "gemini-2.5-flash-lite": { inUsd: 0.1 / 1e6, outUsd: 0.4 / 1e6 },
 };
+
+/** The stable id. NOT `-preview-09-2025`, which Google shut down 2026-03-31. */
+export const GEMINI_FAILOVER_MODEL = "gemini-2.5-flash-lite";
+
+/**
+ * How the Gemini rate above was established, recorded because it is weaker
+ * evidence than every Anthropic rate in this table and a future reader must
+ * not mistake the two.
+ *
+ * `platform.claude.com` is reachable from the build container, so the Anthropic
+ * rates were read off the published pricing page. `ai.google.dev`,
+ * `cloud.google.com`, `docs.cloud.google.com` and `developers.googleblog.com`
+ * are ALL blocked by the network egress proxy, so no primary Google page could
+ * be opened. Two independently-worded web searches returned $0.10/$0.40 per
+ * MTok, both attributing it to Google's own GA announcement, and the owner
+ * stated the same two figures in the directive. That is three agreeing
+ * secondary readings, not one primary one.
+ */
+export const GEMINI_PRICING_PROVENANCE = "corroborated-secondary" as const;
+
+/**
+ * USD per web search, BY MODEL. `null` means "ONIQ cannot price a search on
+ * this model", which is not the same as free.
+ *
+ * Anthropic bills its server-side `web_search_20250305` tool at a flat
+ * $10/1,000. Google bills Grounding with Google Search separately from tokens,
+ * and the figure could not be established: the two searches that returned a
+ * number disagreed ($14 per 1,000 vs $35 per 1,000), the free allowance and
+ * the per-query-vs-per-prompt counting rule differ by model generation, and
+ * no primary Google page was reachable to settle it.
+ *
+ * So a Gemini call that SEARCHES is refused rather than reserved against a
+ * guessed rate. A Gemini call that does not search is priced exactly, because
+ * tokens are the whole bill. This is the difference between "we have not
+ * priced this model" and "this model cannot do this priced thing".
+ */
+export const SEARCH_UNIT_USD_BY_MODEL: Record<string, number | null> = {
+  "claude-opus-5": USD_PER_WEB_SEARCH,
+  "claude-sonnet-5": USD_PER_WEB_SEARCH,
+  "claude-sonnet-4-6": USD_PER_WEB_SEARCH,
+  "claude-haiku-4-5": USD_PER_WEB_SEARCH,
+  "gemini-2.5-flash-lite": null,
+};
+
+/** Thrown when a model is priced for tokens but not for the searches asked of it. */
+export const UNPRICED_SEARCH_UNIT = "unpriced-search-unit";
+
+/**
+ * Per-search rate for a model. `undefined` (model absent) falls back to the
+ * Anthropic rate so pre-existing behaviour for unlisted Claude ids is
+ * unchanged; an EXPLICIT `null` means unpriceable.
+ */
+export function searchUnitUsdFor(model: string): number | null {
+  const v = SEARCH_UNIT_USD_BY_MODEL[model];
+  return v === undefined ? USD_PER_WEB_SEARCH : v;
+}
 
 export const CACHE_READ_MULTIPLIER = 0.1;
 
@@ -104,10 +165,17 @@ export type CostInputs = {
 export function estimateSearchUsd(c: CostInputs): number {
   const rate = MODEL_RATES[c.model];
   if (!rate) throw new Error(`no published rate for model ${c.model}`);
+  // A search this model has no published search rate for cannot be reserved.
+  // Only raised when searches are actually requested: a zero-search call on
+  // such a model is fully priced by its token rates.
+  const perSearch = searchUnitUsdFor(c.model);
+  if (c.searches > 0 && perSearch === null) {
+    throw new Error(`${UNPRICED_SEARCH_UNIT}: no published per-search rate for ${c.model}`);
+  }
   const cached = c.cachedInputTokens ?? 0;
   const written = c.cacheWriteInputTokens ?? 0;
   return (
-    c.searches * USD_PER_WEB_SEARCH +
+    c.searches * (perSearch ?? 0) +
     cached * rate.inUsd * CACHE_READ_MULTIPLIER +
     written * rate.inUsd * CACHE_WRITE_5M_MULTIPLIER +
     c.inputTokens * rate.inUsd +
