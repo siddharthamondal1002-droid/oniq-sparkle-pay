@@ -16,7 +16,19 @@
 // point at. An adapter that cannot price its call does not get to guess.
 
 // ------------------------------------------------------------ capabilities
-export type Capability = "SEARCH" | "TEXT" | "IMAGE" | "VIDEO" | "VIDEO_AUDIO" | "TTS" | "OTHER";
+export type Capability =
+  | "SEARCH"
+  | "TEXT"
+  | "IMAGE"
+  | "VIDEO"
+  | "VIDEO_AUDIO"
+  | "TTS"
+  // GPU is time-billed, not unit-billed: a worker costs from boot to
+  // termination whether it computes or wedges. It is its own capability so
+  // its ceiling moves independently of SEARCH's, which happens to share the
+  // same number and nothing else.
+  | "GPU"
+  | "OTHER";
 
 /**
  * What each capability counts. These strings are recorded on every ledger row

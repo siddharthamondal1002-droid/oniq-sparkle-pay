@@ -1520,3 +1520,107 @@ documented price, evidence normalisation against a real response shape, whether
 Serper reports `credits` consumed per call, the 3×3 micro battery, hotel-scout's
 special gate, and every actual-cost figure. `GEMINI_FAILOVER_ENABLED` stays
 unset.
+
+## 15. RunPod GPU layer — the A5000 has no price to quote
+
+Owner loop, 2026-08-25: validate RunPod on RTX A5000 24GB, scale-to-zero, no
+always-on GPU, no production worker until every gate passes.
+
+Phases 1–3 ran against RunPod's own API. Phase 4 did not, and the loop's own
+instruction is why.
+
+### 15a. Nothing was billing, and the target GPU is unavailable
+
+```
+GET /v1/pods        200   []      0 pods
+GET /v1/endpoints   200   []      0 serverless endpoints, 0 workers
+```
+
+Authentication works and **nothing was quietly running** — the first thing
+worth knowing about a GPU account.
+
+`NVIDIA RTX A5000` is in the catalogue at `memoryInGb 24`, `secureCloud true`,
+and its `lowestPrice` is **null for both on-demand and spot**. A null price is
+RunPod saying it has none to allocate. So the A5000 is **not currently
+provisionable**, and the **$0.27/hour figure this loop opened with was never
+confirmed by the API** — it must not be used as a reservation input.
+
+Cheapest available at ≥16GB, live from the same response:
+
+| GPU              | VRAM     | $/h       | cloud                  |
+| ---------------- | -------- | --------- | ---------------------- |
+| RTX 4000 Ada SFF | 20GB     | $0.18     | community only         |
+| RTX A4500        | 20GB     | $0.19     | secure + community     |
+| Tesla V100       | 16GB     | $0.19     | community only         |
+| **RTX 3090**     | **24GB** | **$0.22** | **secure + community** |
+| RTX 4090         | 24GB     | $0.34     | secure + community     |
+
+**The three cheapest are not substitutes.** The parked workload this layer
+exists for — WAN 2.1 I2V-14B, task #113 — needs 24–40GB. A 20GB card bought to
+save two cents produces a job that cannot run, discovered at runtime, after
+paying for the boot. The V100 is additionally Volta, without bf16.
+
+The like-for-like replacement is **RTX 3090 24GB at $0.22/h on Secure Cloud** —
+*cheaper* than the A5000's unconfirmed $0.27. RTX 4090 at $0.34/h buys
+materially more throughput.
+
+**Nothing was provisioned.** Phase 2 says of an unavailable A5000: "do not
+automatically provision it; report the alternative and price." Which GPU ONIQ
+rents is a spend decision under `CLAUDE.md § Business decisions are the
+owner's`.
+
+### 15b. Why GPU money needed its own machinery
+
+Every other line in this ledger is billed per unit consumed: a failed token
+call cost almost nothing. **A GPU is billed per second of wall clock from
+boot to termination**, computing or idling or wedged. That inverts the risk.
+The dangerous failure is not an expensive job — it is a cheap job whose worker
+never stopped. $0.22/hour is $0.015 for four minutes and **$158 for a month**.
+
+Three consequences, all implemented:
+
+1. **`GPU` is its own ledger capability.** It happens to share the SEARCH
+   ceiling's number ($0.50, the owner's figure) and nothing else; collapsing
+   them would mean a change to one silently moved the other.
+2. **A reservation is a TIME budget** — the full `maxRuntimeSeconds`, never an
+   expected runtime. At admission a job that finishes in 20 seconds and one
+   that wedges for 900 are indistinguishable, and only one is affordable to be
+   wrong about. 900s at $0.22/h is $0.055.
+3. **Termination is unconditional.** `withGpuWorker` terminates in a `finally`,
+   because the expensive failure is an exception thrown between provisioning
+   and cleanup. When termination itself fails the worker id comes back as
+   `orphan` — a lost worker must be loud, never swallowed.
+
+### 15c. The caller cannot choose what it costs
+
+Admission refuses, in this order, and VRAM is checked **before** price:
+
+| condition                             | refusal                   |
+| ------------------------------------- | ------------------------- |
+| GPU not on the server-side allow-list | `gpu-type-not-allowed`    |
+| VRAM below what the workload needs    | `insufficient-vram`       |
+| runtime above the ceiling             | `runtime-exceeds-ceiling` |
+| price null — the A5000's exact state  | `gpu-unpriced`            |
+| reservation above the job cap         | `over-job-cap`            |
+
+A runtime above the ceiling is **refused, not clamped**: clamping would let a
+caller ask for a week and be told yes. "Give me 8× H100" is a $30/hour sentence
+typed by someone who does not pay the bill, and the allow-list is why it cannot
+be typed at all.
+
+### 15d. Verdict
+
+**BLOCKED at PHASE 4**, on GPU availability, by the loop's own rule.
+
+Built and green (2,814 tests): provider-neutral `GpuProvider` contract, the
+bounded `GpuJob` model, GPU as a separate ledger capability, time-based
+reservation and billed-seconds settlement, the admission matrix above,
+unconditional termination with orphan surfacing, and the no-idle-cost
+invariant.
+
+Not done, and honestly not done: no worker was provisioned, so there is no
+startup time, no inference measurement, no VRAM peak, no actual billing, no
+20-job reliability run, and no cost-per-job. **Total RunPod spend this loop:
+$0.00.**
+
+The unblock is one decision — which GPU to rent when the A5000 has none free.
