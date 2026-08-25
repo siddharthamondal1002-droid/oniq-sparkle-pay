@@ -1,4 +1,5 @@
 import { geminiOutputTokens } from "./searchBudget.ts";
+import { readGrounding, translateSearchTools } from "./geminiSearch.ts";
 
 // Shared Anthropic (Claude) client for ONIQ edge functions.
 // Reuses the same secret + model that the ting function already relies on.
@@ -249,6 +250,10 @@ export type CallClaudeOpts = {
   // object to callGemini, so honouring `model` there would post a Claude id to
   // Google. Absent, callGemini uses GEMINI_FALLBACK_MODEL as before.
   geminiModel?: string;
+  // Set true when the caller CANNOT accept an answer from model memory — a
+  // price scout, a stay scout. callGemini then refuses unless a real search
+  // tool made it through translation.
+  requireSearch?: boolean;
   // When true, make EXACTLY ONE attempt: skip the built-in retry on a
   // timeout/network error and on a retryable 5xx. Default (undefined) keeps the
   // retry for every existing caller. Set by a caller that owns its own retry
@@ -475,6 +480,12 @@ function translateGeminiResponseToAnthropic(gem: any): any {
       // settlement path prices it with no special case.
       server_tool_use: { web_search_requests: geminiGroundedQueryCount(cand) },
     },
+    // NOT an Anthropic field. Anthropic returns its sources as
+    // `web_search_tool_result` content blocks; Google returns them in
+    // `groundingMetadata`, which has no equivalent here. Callers that must
+    // validate a claimed source against a retrieved one need the retrieved
+    // set, and dropping it would leave them with nothing to check against.
+    _oniqGrounding: readGrounding(cand),
   };
 }
 
@@ -493,6 +504,24 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
     return { ok: false, reason: "gemini not configured" };
   }
 
+  // SEARCH TOOLS TRANSLATE, THEY DO NOT VANISH. `translateToolsToGemini`
+  // below handles function declarations, and it SKIPS every Anthropic server
+  // tool — which is how a "find live prices, cite your sources" request used
+  // to reach Gemini with no search at all. `translateSearchTools` maps
+  // web_search_20250305 onto Google's google_search, and refuses any other
+  // server tool rather than dropping it.
+  const search = translateSearchTools(opts.tools);
+  if (!search.ok) {
+    console.warn(`callGemini: refusing — ${search.reason}`);
+    return { ok: false, reason: search.reason };
+  }
+  if (opts.requireSearch && !search.searchRequired) {
+    // The fail-closed assertion. A caller that needs live sources must not be
+    // answered from the model's memory.
+    console.warn("callGemini: refusing — search required but no search tool present");
+    return { ok: false, reason: "search-required-without-search-tool" };
+  }
+
   const { tools, allowedFunctionNames } = translateToolsToGemini(opts.tools);
   const toolConfig = translateToolChoiceToGemini(opts.toolChoice, allowedFunctionNames);
 
@@ -501,8 +530,12 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
     contents: translateMessagesToGemini(opts.messages),
     generationConfig: { maxOutputTokens: opts.maxTokens ?? 1024 },
   };
-  if (tools) body.tools = tools;
-  if (toolConfig) body.toolConfig = toolConfig;
+  // Google rejects google_search alongside functionDeclarations, so a request
+  // that needs search sends search. ONIQ's scouts send no function tools.
+  const merged = [...search.tools, ...(tools ?? [])];
+  if (search.searchRequired) body.tools = search.tools;
+  else if (merged.length > 0) body.tools = merged;
+  if (toolConfig && !search.searchRequired) body.toolConfig = toolConfig;
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(key)}`;
 

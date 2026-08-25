@@ -1082,3 +1082,47 @@ describe("thinking tokens reach settlement", () => {
     ).toBe(49);
   });
 });
+
+// ============================================ the live path, not just the module
+/**
+ * Source-level guards on `callGemini` itself.
+ *
+ * A translation module that nothing calls is decoration. The bug being fixed
+ * lived in the REQUEST BUILDER — `translateToolsToGemini` skipped Anthropic
+ * server tools, so the tools array reaching Google was empty while the system
+ * prompt still demanded citations.
+ */
+describe("callGemini sends search instead of dropping it", () => {
+  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+  const { join } = require("node:path") as typeof import("node:path");
+  const LLM = readFileSync(join(process.cwd(), "supabase/functions/_shared/llm.ts"), "utf8");
+
+  it("runs opts.tools through translateSearchTools before building the body", () => {
+    expect(LLM).toMatch(/const search = translateSearchTools\(opts\.tools\)/);
+    expect(LLM).toMatch(/if \(search\.searchRequired\) body\.tools = search\.tools/);
+  });
+
+  it("refuses rather than proceeding when translation fails", () => {
+    expect(LLM).toMatch(
+      /if \(!search\.ok\)[\s\S]{0,160}return \{ ok: false, reason: search\.reason \}/,
+    );
+  });
+
+  it("carries the fail-closed assertion for callers that need live sources", () => {
+    expect(LLM).toMatch(/opts\.requireSearch && !search\.searchRequired/);
+    expect(LLM).toMatch(/search-required-without-search-tool/);
+  });
+
+  it("surfaces the retrieved sources so a caller can validate claims", () => {
+    // Without the retrieved set there is nothing to check a claimed
+    // source_domain against.
+    expect(LLM).toMatch(/_oniqGrounding: readGrounding\(cand\)/);
+  });
+
+  it("reports grounded query count in Anthropic's usage shape", () => {
+    // So the existing settlement path prices it with no special case.
+    expect(LLM).toMatch(
+      /server_tool_use: \{ web_search_requests: geminiGroundedQueryCount\(cand\) \}/,
+    );
+  });
+});
