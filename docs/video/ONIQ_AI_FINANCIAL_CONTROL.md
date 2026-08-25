@@ -968,6 +968,42 @@ with itself in the ledger instead of reserving twice. And `callGemini` took a
 forwards an Anthropic caller's whole opts object — honouring `model` there
 would have posted a Claude id to `generativelanguage.googleapis.com`.
 
+### 10f. The model does not answer — measured, not assumed
+
+The loop asked for `gemini-2.5-flash-lite` specifically. Since no Google
+documentation host is reachable, availability was checked the only way left:
+against ONIQ's own key, through the Lovable sandbox. Two calls, and they
+disagree.
+
+```
+GET  /v1beta/models/gemini-2.5-flash-lite            -> 200
+     models/gemini-2.5-flash-lite, version 001, thinking: true
+
+POST /v1beta/models/gemini-2.5-flash-lite:generateContent -> 404 NOT_FOUND
+     "This model models/gemini-2.5-flash-lite is no longer available to new
+      users. Please update your code to use models/gemini-3.5-flash-lite for
+      the latest features and improvements."
+```
+
+**Catalogue presence is not availability.** The free metadata lookup — the
+cheap check, the one that costs nothing and feels like proof — passes for a
+model that cannot be called. Only the generation call separates them. Any
+future model id must clear the generation check before it is priced.
+
+This also re-frames the rate. $0.10/$0.40 is a real published figure for a
+model this account cannot call, which makes it more dangerous in the table
+than no figure at all: it looks priced and ready. So availability became a
+SECOND lock, `GEMINI_FAILOVER_MODEL_AVAILABLE = false`, deliberately NOT
+readable from the environment — an operator setting `GEMINI_FAILOVER_ENABLED`
+must not be able to start calling a 404. It is checked before the owner's flag
+and has its own test.
+
+Google's suggested replacement is `gemini-3.5-flash-lite`. Substituting it is
+**not** an engineering call: it picks a different model at a different,
+unverified price, which is the owner's under `CLAUDE.md § Business decisions
+are the owner's`. Nothing was substituted. What a decision to move would need
+is one generation call against the chosen id and its own published rate.
+
 ### 10e. The gate it fails
 
 | §10 requirement                         | State                                          |
@@ -986,5 +1022,6 @@ would have posted a Claude id to `generativelanguage.googleapis.com`.
 | real-cost evidence recorded             | **NOT MET** — no live invoice                  |
 | audit documentation updated             | met — this section                             |
 
-Two rows are missing and one of them cannot be closed from this container at
-all. `GEMINI_FAILOVER_ENABLED` stays unset, which reads as off.
+Three rows fail, and the first is not a gap in evidence but a negative
+result: the model does not answer. `GEMINI_FAILOVER_ENABLED` stays unset, and
+`GEMINI_FAILOVER_MODEL_AVAILABLE` is false independently of it.

@@ -24,7 +24,12 @@
 // existing charge-the-estimate behaviour, because the request may have been
 // served.
 
-import { GEMINI_FAILOVER_MODEL, type SearchBudget, searchUnitUsdFor } from "./searchBudget.ts";
+import {
+  GEMINI_FAILOVER_MODEL,
+  GEMINI_FAILOVER_MODEL_AVAILABLE,
+  type SearchBudget,
+  searchUnitUsdFor,
+} from "./searchBudget.ts";
 import type { GuardedResult, ServiceRpc } from "./financialLedger.ts";
 import { type GuardSpec, type ProviderRun, withSearchSpendGuard } from "./searchGuard.ts";
 
@@ -103,6 +108,7 @@ export function classifyClaudeFailure(a: ClaudeAttempt): ClaudeFailureClass {
 export type FailoverBlock =
   | "not-credit-exhaustion"
   | "failover-disabled"
+  | "model-unavailable"
   | "gemini-not-configured"
   | "search-request-unpriceable-on-gemini";
 
@@ -113,6 +119,12 @@ export type FailoverEnv = {
   enabled: boolean;
   /** Whether GOOGLE_AI_API_KEY is present. */
   configured: boolean;
+  /**
+   * Whether the model actually answers on ONIQ's key — measured, not assumed.
+   * Production always takes this from GEMINI_FAILOVER_MODEL_AVAILABLE; it is a
+   * field so the ladder below it can still be exercised by tests.
+   */
+  modelAvailable: boolean;
 };
 
 /**
@@ -144,6 +156,13 @@ export function failoverDecision(
   env: FailoverEnv,
 ): FailoverDecision {
   if (cls !== FAILOVER_TRIGGER) return { eligible: false, block: "not-credit-exhaustion" };
+  // TWO LOCKS, checked in this order. `modelAvailable` is a MEASURED
+  // engineering fact; `enabled` is the owner's business decision. On
+  // 2026-08-25 the model 404'd on generateContent for ONIQ's key — "no longer
+  // available to new users" — while its metadata lookup returned a healthy
+  // 200. Flipping the owner's flag must not start calling a model that cannot
+  // answer, so availability is separate and comes first.
+  if (!env.modelAvailable) return { eligible: false, block: "model-unavailable" };
   if (!env.enabled) return { eligible: false, block: "failover-disabled" };
   if (!env.configured) return { eligible: false, block: "gemini-not-configured" };
   if (budget.maxSearches > 0 && searchUnitUsdFor(GEMINI_FAILOVER_MODEL) === null) {
@@ -157,6 +176,9 @@ export function failoverEnvFrom(get: (k: string) => string | undefined): Failove
   return {
     enabled: get("GEMINI_FAILOVER_ENABLED") === "true",
     configured: Boolean(get("GOOGLE_AI_API_KEY")),
+    // Not readable from the environment on purpose: availability is something
+    // ONIQ measured against the provider, not something an operator asserts.
+    modelAvailable: GEMINI_FAILOVER_MODEL_AVAILABLE,
   };
 }
 

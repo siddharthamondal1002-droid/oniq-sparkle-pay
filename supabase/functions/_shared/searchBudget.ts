@@ -70,6 +70,37 @@ export const GEMINI_FAILOVER_MODEL = "gemini-2.5-flash-lite";
 export const GEMINI_PRICING_PROVENANCE = "corroborated-secondary" as const;
 
 /**
+ * MEASURED 2026-08-25: this model is NOT callable on ONIQ's Google key.
+ *
+ * A free metadata lookup passes — `GET /v1beta/models/gemini-2.5-flash-lite`
+ * returns 200 with version 001 and `thinking: true`. The generation call does
+ * not:
+ *
+ *   POST .../gemini-2.5-flash-lite:generateContent  →  404 NOT_FOUND
+ *   "This model models/gemini-2.5-flash-lite is no longer available to new
+ *    users. Please update your code to use models/gemini-3.5-flash-lite for
+ *    the latest features and improvements."
+ *
+ * Two things to take from that. First, **catalogue presence is not
+ * availability** — the cheap check that looked like proof was a false
+ * positive, and only the generation call distinguishes them. Second, the rate
+ * above is a real published rate for a model this account cannot call, which
+ * makes it more dangerous than no rate at all: it looks priced and ready.
+ *
+ * So availability is a SEPARATE, explicitly measured fact, and the failover
+ * has two locks rather than one. `GEMINI_FAILOVER_ENABLED` is the owner's
+ * business decision; this constant is an engineering fact. Flipping the flag
+ * alone cannot start calling a 404.
+ *
+ * Turning this true requires re-running the generation check against whatever
+ * id is chosen — NOT the metadata lookup. Choosing a different model
+ * (`gemini-3.5-flash-lite` is what Google suggests) is a provider-and-price
+ * decision and belongs to the owner under `CLAUDE.md § Business decisions are
+ * the owner's`, together with verifying that model's own rate.
+ */
+export const GEMINI_FAILOVER_MODEL_AVAILABLE = false;
+
+/**
  * USD per web search, BY MODEL. `null` means "ONIQ cannot price a search on
  * this model", which is not the same as free.
  *

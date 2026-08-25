@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest";
 import type { ServiceRpc } from "../../../supabase/functions/_shared/financialLedger.ts";
 import {
   GEMINI_FAILOVER_MODEL,
+  GEMINI_FAILOVER_MODEL_AVAILABLE,
   GEMINI_PRICING_PROVENANCE,
   MODEL_RATES,
   SEARCH_UNIT_USD_BY_MODEL,
@@ -163,7 +164,12 @@ const CREDIT_EXHAUSTED = {
   },
 };
 
-const ON = { enabled: true, configured: true };
+/**
+ * The ladder with both locks open. Production NEVER looks like this today —
+ * GEMINI_FAILOVER_MODEL_AVAILABLE is false because the model 404s on ONIQ's
+ * key. This exists so the mechanism below the lock is still provable.
+ */
+const ON = { enabled: true, configured: true, modelAvailable: true };
 
 /** A Gemini leg that answers, reporting Google-shaped usage. */
 const geminiOk =
@@ -305,6 +311,28 @@ describe("every non-trigger failure class refuses to fail over", () => {
     expect(failoverDecision("CREDIT_EXHAUSTION", SEARCH_BUDGET, ON)).toEqual({
       eligible: false,
       block: "search-request-unpriceable-on-gemini",
+    });
+  });
+
+  it("the MODEL-AVAILABILITY lock blocks before the owner's gate is consulted", () => {
+    // Measured 2026-08-25: POST gemini-2.5-flash-lite:generateContent returns
+    // 404 "no longer available to new users" on ONIQ's key, while the free
+    // metadata lookup returns 200. Catalogue presence is not availability.
+    expect(GEMINI_FAILOVER_MODEL_AVAILABLE).toBe(false);
+    expect(
+      failoverDecision("CREDIT_EXHAUSTION", CHAT_BUDGET, { ...ON, modelAvailable: false }),
+    ).toEqual({ eligible: false, block: "model-unavailable" });
+  });
+
+  it("production reads availability from the measured constant, not the environment", () => {
+    // An operator setting GEMINI_FAILOVER_ENABLED=true must NOT be able to
+    // start calling a model that returns 404.
+    const live = failoverEnvFrom(() => "true");
+    expect(live.enabled).toBe(true);
+    expect(live.modelAvailable).toBe(false);
+    expect(failoverDecision("CREDIT_EXHAUSTION", CHAT_BUDGET, live)).toEqual({
+      eligible: false,
+      block: "model-unavailable",
     });
   });
 
