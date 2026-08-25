@@ -1835,3 +1835,58 @@ was `ModuleNotFoundError`; the cause was a directory permission on the test rig.
 Chasing the symptom produced four wrong fixes and some collateral damage to the
 container's system packages — the clean virtualenv above is what should have
 been built first.
+
+### 16h. A second place money can be spent from: GitHub Actions
+
+Owner decision, 2026-08-25: make GitHub Actions the execution environment for
+GPU validation. Recorded here rather than only in the worker repository, because
+a **new path by which ONIQ can spend provider money** belongs in this ledger
+regardless of which repository the code lives in.
+
+The reasoning is sound and worth stating plainly: Actions runners reach Docker
+Hub, `download.pytorch.org` and `runpod.io`; the agent's container reaches none
+of them. Moving execution beats weakening a check.
+
+What that buys, and what it costs: CI can now hold a RunPod provisioning
+credential. The gates that make that acceptable are, in order of how much they
+matter:
+
+1. **`workflow_dispatch` only.** No push trigger, no schedule, no
+   `pull_request`. A merge must never be able to rent a GPU. Verified by
+   parsing the file, not by reading it.
+2. **Default mode is read-only** and costs $0.00. Spending additionally
+   requires typing `SPEND` into an input.
+3. **`cancel-in-progress: false`.** Cancelling a run that holds a worker is
+   precisely how an orphan is created — the cleanup step never runs.
+4. **The orphan sweep runs `if: always()`** and fails the run. A sweep that
+   cannot reach the API reports `None`, never `0`; "cannot confirm terminated"
+   and "confirmed terminated" must never be the same value.
+5. **CI cannot create an endpoint**, only verify one. `min_workers 0` /
+   `max_workers 1` is checked against the live endpoint before any job is sent,
+   and refused otherwise. Verifying a configuration is a much smaller privilege
+   than authoring one.
+6. **R2 credentials are not GitHub secrets.** They live in the RunPod
+   endpoint's environment. CI submits jobs and never touches the bucket, so
+   spreading the storage keys across two systems would buy nothing.
+
+Every decision that can spend sits in `validation/admission.py`, which has no
+network and is therefore tested — 26 tests, and they encode findings this ledger
+already paid for: reservations round **up** (a cent too little silently defeats
+the ceiling), the reservation is the **full** runtime rather than an expected
+one, a **null price means no capacity rather than free** (§15a, the A5000), and
+an unavailable 3090 **raises with alternatives instead of substituting**. There
+is deliberately no default price argument, so `$0.22/h` cannot be reached by
+forgetting one — it appears nowhere in the code.
+
+**None of it has run.** Commit `a8b6e8c` exists only in an ephemeral container:
+the repository is not in this session's authorized set, so the git proxy will
+not inject a credential for it. A GitHub integration asking for `a8b6e8c` will
+therefore return 404 correctly — the commit was never pushed, which is a
+different failure from an access problem and has a different fix.
+
+The RunPod payload shapes in `runpod_client.py` were written **without ever
+reaching RunPod**. A wrong field name there does not raise; it yields a null
+price, which reads as "no capacity", which reads as "the 3090 is unavailable".
+The read-only discover mode exists to correct that file for free, and should be
+expected to find at least one error. **GPU production remains DISABLED. RunPod
+spend $0.00.**
