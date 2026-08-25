@@ -1935,3 +1935,92 @@ unaffected by any of this.
 The rewrite itself was **not started** — "check" asks what is true, and this
 section is the answer. **RunPod spend $0.00. R2 spend $0.00. GPU production
 remains DISABLED.**
+
+### 16j. Rebuild loop, 2026-08-25 — the worker is an artifact, and the parser met real bytes
+
+Owner loop: rebuild the worker from §§16c–16h in its own repository, drive
+CI green, discover with zero spend, quote the 3090 live, gate the money, and
+stop at the spend gate unless both approvals exist. They do not, so this
+section ends BLOCKED at Phase 8 — by design, not by failure.
+
+**The worker exists as pushed history now.** `oniq-gpu-worker` holds three
+commits ending at `f059f53`; nothing was recovered from Lovable or anywhere
+else — rebuilt from this ledger's record, per the loop's rule. 140 tests
+(worker suite + harness suite; the target was 65). `worker-ci` run 3 is
+green on GitHub's runner, which is a normal host for every CDN this
+container cannot reach: the image builds, `torch.version.cuda == "12.1"`,
+all imports resolve and `runpod.serverless.start` is present, the runtime
+user is uid 10001 with `/app` read-only, and the payload is exactly the five
+COPY'd files. That closes §16g's recorded gap — **torch now verified under
+the non-root user**, in the built image rather than a simulation.
+`torch.cuda.is_available()` printed FALSE on the CPU runner and was not
+gated, per §16d.
+
+Two CI failures on the way, both worth their lesson: the Dockerfile gate
+tripped on its own documentation (the comment saying there is no `COPY . .`
+contains the string it forbids), and run 2 passed all 134 tests as uid 10001
+and then crashed — pytest chdir-ing back, on exit, into the runner-owned
+checkout that uid 10001 cannot enter. The permission model doing its job,
+shaped exactly like a test failure.
+
+**Discovery ran blocked, then through the authorized fallback.**
+`gpu-validation.yml` (workflow_dispatch only; discover mode default, $0)
+fails at its first guard: `RUNPOD_API_KEY` is not a secret on the repository
+— Actions can reach RunPod but cannot authenticate, and adding the key is an
+owner action. The keyless run's orphan sweep failed with "cannot confirm
+zero" — None never became 0, as specified. The read-only Lovable fallback
+(§16h's sandbox, the channel that gathered §15's figures) was then used
+once: three requests, raw bodies verbatim, 1.6 Lovable credits, $0 provider
+spend, nothing created or modified.
+
+**The parser lost to real bytes, exactly as §16h predicted.** Two field
+findings, both committed verbatim as regression fixtures in the worker repo:
+
+- RunPod's `id` carries the canonical full name (`NVIDIA GeForce RTX 3090`);
+  `displayName` is the short name (`RTX 3090`). The parser matched on
+  displayName and would have read the 3090 as permanently unavailable — the
+  exact predicted shape: a wrong field does not raise, it reads as "no
+  capacity".
+- `securePrice` is a **list price, not capacity**: the A5000 now shows
+  `securePrice 0.27` — the figure §15 said was never API-confirmed appears
+  after all, as a rack rate — while its `lowestPrice` stays null for both
+  on-demand and spot: still not provisionable. Availability now additionally
+  requires a non-null `lowestPrice`, so a list price can never admit a card
+  the provider cannot allocate.
+
+**Live RTX 3090, quoted 2026-08-25 ~12:08 UTC** (the only figures that may
+feed a reservation, and only until the pre-spend recheck re-quotes them):
+
+| field              | live value                   |
+| ------------------ | ---------------------------- |
+| id                 | `NVIDIA GeForce RTX 3090`    |
+| VRAM               | 24 GB                        |
+| secureCloud        | true                         |
+| securePrice        | **$0.50/h**                  |
+| communityPrice     | $0.22/h                      |
+| lowestPrice, 1 GPU | $0.22/h (on-demand and spot) |
+| account pods       | 0                            |
+| account endpoints  | 0 — none exists yet          |
+
+The $0.22/h this workstream carried as "the 3090's price" was the
+**community** rate. The live Secure Cloud rate is $0.50/h — 2.3× it. The
+ban on reusing stale prices was worth exactly that factor.
+
+**Financial gate, on live numbers:** reservation = CEIL($0.50 × 900/3600,
+$0.01) = **$0.13** for the full ceiling window, under the $0.50 job cap →
+admitted. Every later phase re-quotes before it may spend.
+
+**Phase 8 verdict: BLOCKED — DO NOT SPEND.** The literal `SPEND` input was
+not given, and the `gpu-spend` approval cannot exist because the GitHub
+environment itself has not been created. Owner actions before any spend run:
+
+1. `RUNPOD_API_KEY` as an Actions secret on `oniq-gpu-worker`;
+2. the `gpu-spend` environment with required reviewers — that reviewer
+   click is the second half of the gate;
+3. the serverless endpoint, min 0 / max 1, RTX 3090, Secure Cloud, with the
+   three `R2_*` variables in its environment;
+4. scoped R2 credentials for the `oniq-gpu` bucket.
+
+Phases 9–15 were not reached, on purpose. **RunPod spend $0.00. R2 spend
+$0.00. Lovable: 1.6 credits, the authorized read-only fallback. GPU
+production remains DISABLED.**
