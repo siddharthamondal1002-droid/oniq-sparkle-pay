@@ -213,3 +213,63 @@ export function searchCapabilityFor(tools: unknown, budget: SearchBudget): Searc
 export function groundedQueriesToReserve(budget: SearchBudget): number {
   return budget.maxSearches * GROUNDING_QUERY_HEADROOM;
 }
+
+// ------------------------------------------------- the attestation gate
+/**
+ * MEASURED 2026-08-25, and the reason this gate exists.
+ *
+ * Three scout-shaped queries were sent to `gemini-3.5-flash-lite` with
+ * `tools: [{google_search: {}}]` and ONIQ's real smart-scout system prompt.
+ * All three returned HTTP 200. All three returned `webSearchQueries: []` and
+ * ZERO grounding chunks — the tool was accepted and never invoked. And all
+ * three returned a full, confident, schema-valid price table:
+ *
+ *   rows returned      13
+ *   rows with a source the model had actually consulted      0
+ *
+ * amazon.in, flipkart.com, blinkit.com, bigbasket.com and croma.com prices,
+ * every one from memory, every one carrying `source_domain` as though scouted.
+ *
+ * The lesson worth keeping is that **schema compliance is not sourcing**. The
+ * JSON parsed perfectly on all three; a validator that only checked shape
+ * would have passed 13 fabricated prices straight through to a user. Only
+ * comparing claims against retrieved evidence catches it.
+ *
+ * `dropUnbackedRows` alone would empty the table and return a technically
+ * honest zero-row answer. That is not enough: a response where the model
+ * never searched at all is not a weak answer to a search request, it is not
+ * an answer to a search request. It is rejected whole.
+ */
+export const GROUNDING_FABRICATION_EVIDENCE = {
+  model: "gemini-3.5-flash-lite",
+  queries: 3,
+  rowsReturned: 13,
+  rowsBacked: 0,
+  groundedQueriesIssued: 0,
+} as const;
+
+export type GroundingVerdict =
+  | { ok: true; grounding: GroundingRead }
+  | {
+      ok: false;
+      reason: "no-grounding-evidence" | "insufficient-sources";
+      grounding: GroundingRead;
+    };
+
+/**
+ * Does this response carry enough retrieved evidence to answer a search
+ * request at all?
+ *
+ * `minSources` defaults to 1 — merely "the model actually searched". Callers
+ * with a cross-check requirement pass 2.
+ */
+export function requireGroundingEvidence(candidate: unknown, minSources = 1): GroundingVerdict {
+  const grounding = readGrounding(candidate);
+  if (grounding.queryCount === 0 && grounding.domains.size === 0) {
+    return { ok: false, reason: "no-grounding-evidence", grounding };
+  }
+  if (grounding.domains.size < minSources) {
+    return { ok: false, reason: "insufficient-sources", grounding };
+  }
+  return { ok: true, grounding };
+}

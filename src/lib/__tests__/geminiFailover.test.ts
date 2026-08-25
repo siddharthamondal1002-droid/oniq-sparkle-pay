@@ -42,8 +42,10 @@ import {
   withCreditExhaustionFailover,
 } from "../../../supabase/functions/_shared/geminiFailover.ts";
 import {
+  GROUNDING_FABRICATION_EVIDENCE,
   crossCheckSatisfied,
   dropUnbackedRows,
+  requireGroundingEvidence,
   groundedQueriesToReserve,
   readGrounding,
   searchCapabilityFor,
@@ -1124,5 +1126,68 @@ describe("callGemini sends search instead of dropping it", () => {
     expect(LLM).toMatch(
       /server_tool_use: \{ web_search_requests: geminiGroundedQueryCount\(cand\) \}/,
     );
+  });
+});
+
+// ============================================ the measured fabrication, and the gate
+/**
+ * The finding that decided this loop.
+ *
+ * Three scout-shaped queries to gemini-3.5-flash-lite, ONIQ's real system
+ * prompt, google_search attached. All 200. All `webSearchQueries: []`. Zero
+ * grounding chunks. Thirteen result rows, every one carrying a source_domain
+ * the model had never consulted, and all three responses parsed as valid JSON.
+ */
+describe("a response that never searched is rejected whole", () => {
+  it("records what was measured, so the gate is not mistaken for paranoia", () => {
+    expect(GROUNDING_FABRICATION_EVIDENCE).toEqual({
+      model: "gemini-3.5-flash-lite",
+      queries: 3,
+      rowsReturned: 13,
+      rowsBacked: 0,
+      groundedQueriesIssued: 0,
+    });
+  });
+
+  it("rejects the exact shape that came back: 200, no queries, no chunks", () => {
+    const v = requireGroundingEvidence({
+      groundingMetadata: { webSearchQueries: [], groundingChunks: [] },
+      content: { parts: [{ text: '{"results":[{"source_domain":"amazon.in"}]}' }] },
+    });
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.reason).toBe("no-grounding-evidence");
+  });
+
+  it("rejects a response with no groundingMetadata at all", () => {
+    expect(requireGroundingEvidence({}).ok).toBe(false);
+  });
+
+  it("accepts a response that did search", () => {
+    const v = requireGroundingEvidence(REAL_CANDIDATE);
+    expect(v.ok).toBe(true);
+    expect(v.ok === true && [...v.grounding.domains]).toEqual(["bigbasket.com"]);
+  });
+
+  it("enforces a cross-check requirement as a distinct failure", () => {
+    // hotel-scout needs two independent sources. One is not "a bit weak", it
+    // is a different answer to a different question.
+    const v = requireGroundingEvidence(REAL_CANDIDATE, 2);
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.reason).toBe("insufficient-sources");
+  });
+
+  it("row-filtering alone would NOT have been enough", () => {
+    // dropUnbackedRows empties the table and returns a technically honest
+    // zero-row answer. The gate above is what distinguishes "found nothing"
+    // from "never looked".
+    const nothingGrounded = readGrounding({
+      groundingMetadata: { webSearchQueries: [], groundingChunks: [] },
+    });
+    const rows = [
+      { source_domain: "amazon.in", price_inr: 28 },
+      { source_domain: "flipkart.com", price_inr: 30 },
+    ];
+    expect(dropUnbackedRows(rows, nothingGrounded).kept).toHaveLength(0);
+    expect(requireGroundingEvidence({}).ok).toBe(false);
   });
 });
