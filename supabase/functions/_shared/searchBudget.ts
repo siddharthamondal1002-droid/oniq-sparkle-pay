@@ -261,6 +261,24 @@ export function actualUsdFromUsage(model: string, m: MeasuredUsage): number | nu
   });
 }
 
+/**
+ * Billable OUTPUT tokens from a Gemini `usageMetadata` block.
+ *
+ * Exported so the ledger's arithmetic can be tested against real response
+ * shapes rather than asserted from memory about a vendor's counting rules.
+ */
+export function geminiOutputTokens(usage: {
+  promptTokenCount?: unknown;
+  candidatesTokenCount?: unknown;
+  totalTokenCount?: unknown;
+}): number {
+  const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
+  const prompt = n(usage?.promptTokenCount);
+  const candidates = n(usage?.candidatesTokenCount);
+  const total = n(usage?.totalTokenCount);
+  return Math.max(candidates, total > prompt ? total - prompt : 0);
+}
+
 // ------------------------------------------------------------ termination
 export type TerminationReason =
   | "SUFFICIENT_EVIDENCE"

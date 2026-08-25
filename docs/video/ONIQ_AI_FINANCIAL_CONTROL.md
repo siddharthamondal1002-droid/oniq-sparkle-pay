@@ -877,3 +877,114 @@ Three things this leaves standing, none of them fixed here:
 
 `health-scan` was skipped deliberately: the Lovable agent had no real medical
 report and was told not to invent one.
+
+## 10. A second provider, and why it is still switched off
+
+Owner loop, 2026-08-25: add a financially bounded Gemini 2.5 Flash-Lite
+failover for Anthropic credit exhaustion, and do not blindly enable it.
+
+The failover is built, tested and merged. It is **DISABLED**, and this section
+says exactly which gate it fails, because "implemented" and "safe to switch on"
+are different claims and the second one is not yet true.
+
+### 10a. The rate is corroborated, not read
+
+`gemini-2.5-flash-lite` enters `MODEL_RATES` at **$0.10 / MTok input, $0.40 /
+MTok output**. Three sources agree on those two figures: two independently
+worded web searches, both attributing them to Google's own GA announcement, and
+the owner's directive.
+
+None of them is a primary read. `ai.google.dev`, `cloud.google.com`,
+`docs.cloud.google.com` and `developers.googleblog.com` are **all blocked by
+this container's network egress proxy**, so Google's pricing page could not be
+opened at all. Every Anthropic rate in the same table was read off
+`platform.claude.com`, which is reachable. That asymmetry is recorded in the
+code as `GEMINI_PRICING_PROVENANCE = "corroborated-secondary"` and asserted by
+a test, so nobody later reads the two kinds of rate as equally established.
+
+### 10b. What is deliberately NOT priced, and what follows from it
+
+Google bills **Grounding with Google Search separately from tokens**, and that
+rate could not be established. The searches that returned a number disagreed —
+**$14 per 1,000** in one summary, **$35 per 1,000** in a forum thread title —
+and the free allowance and the per-query-versus-per-prompt counting rule differ
+by model generation. No primary page was reachable to settle it.
+
+So `SEARCH_UNIT_USD_BY_MODEL` carries an **explicit `null`** for Gemini, and
+`estimateSearchUsd` throws rather than reserve tokens-only for a call that
+would also be billed per query. This is not the same as leaving the model
+unpriced: the model IS priced, for the thing it can be priced for.
+
+Two consequences point the same way, and both are load-bearing:
+
+1. **Financial.** A grounded Gemini call cannot be reserved honestly. A
+   reservation covering only tokens would under-reserve every hop — the exact
+   defect §8f and the 51-request battery existed to remove.
+2. **Integrity.** `translateToolsToGemini` in `_shared/llm.ts` silently DROPS
+   Anthropic server tools, `web_search_20250305` included. A scouting prompt
+   would therefore reach Gemini with **no search at all**, while its system
+   prompt still demanded `source_domain`, a working `url`, and a cross-check
+   against two independent sources. A model asked for citations it cannot look
+   up invents them. Answering a price query from memory and presenting it as
+   scouted is worse than returning nothing.
+
+**A request that searches therefore cannot fail over.** smart-scout,
+hotel-scout and a searching ting turn all fail honestly instead, and the user
+is told search is unavailable. That is a real limitation and it is the correct
+one.
+
+### 10c. One trigger, ten non-triggers
+
+Anthropic rejects a credit-exhausted request **before serving it**, so no
+tokens are generated and nothing is billed. That is why this class, uniquely,
+may RELEASE the Claude reservation rather than settle it — the provider refused
+the work, we are not guessing.
+
+Every other way a request can fail is an enumerated non-trigger with its own
+test: guard refusal, over-cap, under-reserved, schema failure, application
+error, malformed request, safety refusal, user cancellation, validation
+failure, and any other provider error (429, 5xx, timeout, unreadable body).
+Failing over on a guard refusal would let a request the ceiling rejected simply
+run somewhere else, and the ceiling would stop meaning anything.
+
+The classifier is narrow on purpose: status 400 **and**
+`error.type === "invalid_request_error"` **and** a message naming the credit
+balance. A bare 400 is our own malformed payload, and failing over on it would
+spend Google's money to paper over an ONIQ bug.
+
+### 10d. A live trap this loop closed on the way past
+
+`ting`'s Gemini fallback trigger was `else` on `!res.ok` — **any** Anthropic
+failure bought a second billable call on a second key. It had never fired only
+because `gemini-3.6-flash` carried no rate, which means **pricing any Google
+model would have switched it on by accident**. This loop prices one, so the
+trigger had to be fixed in the same change. It is now gated on the classified
+failure class, the owner's flag, a source-free request, and no attachment.
+
+Two smaller fixes came with it. The fallback's request id is now DERIVED from
+the primary (`<id>-gx`) rather than freshly minted, so a client retry collides
+with itself in the ledger instead of reserving twice. And `callGemini` took a
+`geminiModel` option distinct from `model`, because `callGeminiFallback`
+forwards an Anthropic caller's whole opts object — honouring `model` there
+would have posted a Claude id to `generativelanguage.googleapis.com`.
+
+### 10e. The gate it fails
+
+| §10 requirement                         | State                                          |
+| --------------------------------------- | ---------------------------------------------- |
+| model verified                          | **NOT MET** — no primary Google page reachable |
+| pricing authoritative                   | **NOT MET** — corroborated secondary only      |
+| financial reservation tested            | met — 51 tests                                 |
+| settlement tested                       | met                                            |
+| credit-exhaustion classification tested | met                                            |
+| Gemini fallback tested                  | met                                            |
+| no guard bypass                         | met — ten non-triggers, each tested            |
+| no double-spend path                    | met — separate ids, no overlap, retry collides |
+| structured output tests pass            | met                                            |
+| existing suite green                    | met — 2693 pass                                |
+| lint:ci / tsc                           | met                                            |
+| real-cost evidence recorded             | **NOT MET** — no live invoice                  |
+| audit documentation updated             | met — this section                             |
+
+Two rows are missing and one of them cannot be closed from this container at
+all. `GEMINI_FAILOVER_ENABLED` stays unset, which reads as off.

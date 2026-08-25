@@ -1,3 +1,5 @@
+import { geminiOutputTokens } from "./searchBudget.ts";
+
 // Shared Anthropic (Claude) client for ONIQ edge functions.
 // Reuses the same secret + model that the ting function already relies on.
 // Never throws; always returns a discriminated union.
@@ -454,7 +456,17 @@ function translateGeminiResponseToAnthropic(gem: any): any {
     stop_sequence: null,
     usage: {
       input_tokens: usage.promptTokenCount ?? 0,
-      output_tokens: usage.candidatesTokenCount ?? 0,
+      // THINKING TOKENS ARE BILLED AS OUTPUT. Gemini 2.5 models think by
+      // default and report `thoughtsTokenCount`; reading `candidatesTokenCount`
+      // alone would settle a Gemini call BELOW what Google charged for it —
+      // the under-counting defect this ledger exists to prevent, arriving from
+      // the other side.
+      //
+      // `totalTokenCount - promptTokenCount` is right under either convention:
+      // if thoughts sit outside candidates it picks them up, and if they are
+      // already inside it equals candidates. The max() keeps candidates as the
+      // floor for any response that omits a total.
+      output_tokens: geminiOutputTokens(usage),
     },
   };
 }

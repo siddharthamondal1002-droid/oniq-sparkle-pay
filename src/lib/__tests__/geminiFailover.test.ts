@@ -24,6 +24,7 @@ import {
   type SearchBudget,
   USD_PER_WEB_SEARCH,
   estimateSearchUsd,
+  geminiOutputTokens,
   searchUnitUsdFor,
   worstCaseUsd,
 } from "../../../supabase/functions/_shared/searchBudget.ts";
@@ -752,5 +753,51 @@ describe("callGemini's model is separate from callClaude's", () => {
   it("leaves the Anthropic default exactly as it was", () => {
     expect(LLM).toMatch(/model: opts\.model \?\? "claude-opus-5"/);
     expect(LLM).toMatch(/const GEMINI_FALLBACK_MODEL = "gemini-3\.6-flash"/);
+  });
+});
+
+// ==================================================== Gemini thinking tokens
+/**
+ * Gemini 2.5 models think by default, and thinking tokens are billed as
+ * OUTPUT. The translator read `candidatesTokenCount` alone, which would settle
+ * a Gemini call BELOW what Google charged for it — the same under-counting
+ * defect the Haiku battery removed, arriving from the other side.
+ */
+describe("Gemini output tokens include thinking", () => {
+  it("picks up thoughts that sit OUTSIDE candidates", () => {
+    // prompt 1,000 + candidates 200 + thoughts 800 = total 2,000.
+    expect(
+      geminiOutputTokens({
+        promptTokenCount: 1_000,
+        candidatesTokenCount: 200,
+        totalTokenCount: 2_000,
+      }),
+    ).toBe(1_000);
+  });
+
+  it("equals candidates when thoughts are already inside them", () => {
+    expect(
+      geminiOutputTokens({
+        promptTokenCount: 1_000,
+        candidatesTokenCount: 500,
+        totalTokenCount: 1_500,
+      }),
+    ).toBe(500);
+  });
+
+  it("falls back to candidates when no total is reported", () => {
+    expect(geminiOutputTokens({ promptTokenCount: 10, candidatesTokenCount: 7 })).toBe(7);
+    expect(geminiOutputTokens({})).toBe(0);
+  });
+
+  it("never returns less than candidates — under-counting is the one direction barred", () => {
+    // A malformed total below prompt must not produce a negative or a zero.
+    expect(
+      geminiOutputTokens({
+        promptTokenCount: 5_000,
+        candidatesTokenCount: 300,
+        totalTokenCount: 100,
+      }),
+    ).toBe(300);
   });
 });
