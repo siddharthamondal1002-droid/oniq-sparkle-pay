@@ -514,6 +514,60 @@ Re-run at the maximum legal 10 attempts, where money binds first, it gives the
 $2.00 figures above. An attempt ceiling stopping the ladder is not evidence
 that a money ceiling would have.
 
+### 8d. HAIKU 4.5 — the single-request gate, measured
+
+Owner directive of 2026-08-24, run 2026-08-25. One real authenticated
+`smart-scout` search, after switching the model and rebuilding the reservation.
+
+|                      | RESERVED  | ACTUAL        | over cap           | terminated on     |
+| -------------------- | --------- | ------------- | ------------------ | ----------------- |
+| **OPUS 5** (control) | $0.445625 | **$0.530683** | **YES** +$0.030683 | `BUDGET_TOKENS`   |
+| **HAIKU 4.5**        | $0.195625 | **$0.126595** | no                 | `BUDGET_SEARCHES` |
+
+**The gate passes**: $0.126595 <= $0.50, with 74.7% of the ceiling unused.
+Measured reduction against the control is **76.1%** — and it is now measured,
+not the 65.6% projected from repricing the control's tokens.
+
+**The reservation is honest for the first time.** Opus reserved $0.085058 LESS
+than it spent; Haiku reserved $0.069030 MORE. That inversion is the whole
+point, and the token detail shows why the new reserve holds:
+
+```
+input   74,017 of 104,000 reserved   (71% used)
+output   1,716 of   6,000 reserved   (29% used)
+hops          6 of       6 reserved  (100%)
+```
+
+Read the termination reasons together — they are the mechanism, not trivia.
+Opus stopped on `BUDGET_TOKENS` with **5 of its 11 hops unused**: it ran out of
+context before it ran out of permission, so the flat token reserve was the
+binding constraint and it was set too low. Haiku stopped on `BUDGET_SEARCHES`
+at exactly 6 of 6: the **depth cap** bound, which is the control that was
+actually chosen and sized. A ceiling you picked binding in place of one you
+mis-estimated is what "under control" looks like.
+
+Capacity follows: $20.00/day is roughly **157 searches** at the measured
+actual, against ~37 under Opus.
+
+`over_cap` marking works as specified in §10 — the Opus control backfilled to
+`true` with `request_cap_usd_at_settle = 0.5000` and `over_by_usd = 0.030683`,
+its `actual_usd` untouched at $0.530683; the Haiku row reads `false`. Exactly
+one row appears in `provider_spend_over_cap`, and it is the one that deserves
+to.
+
+**This is n=1 and the distribution is not yet characterised.** P95, P99 and the
+quality verdict need the request battery; nothing here licenses calling Haiku
+production-ready. `ting`, `health-scan` and `hotel-scout` still run their
+original models and were deliberately left alone so this experiment moved one
+variable.
+
+**A note on the day rollup.** The container clock jumped ~8 hours mid-session,
+so the control and the Haiku request landed on different UTC days:
+`2026-08-24 settled $0.530683` and `2026-08-25 settled $0.126595`, one request
+each. The per-request measurement is unaffected — but the daily totals are not
+a running sum across the two, and reading them as one would understate what a
+single day can hold.
+
 ## 9. Deployment ladder — four rungs, and SEARCH is on the first
 
 Three states get conflated, and each conflation has its own way of being wrong:
