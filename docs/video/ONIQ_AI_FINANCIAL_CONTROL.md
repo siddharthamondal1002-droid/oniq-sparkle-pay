@@ -2024,3 +2024,40 @@ environment itself has not been created. Owner actions before any spend run:
 Phases 9–15 were not reached, on purpose. **RunPod spend $0.00. R2 spend
 $0.00. Lovable: 1.6 credits, the authorized read-only fallback. GPU
 production remains DISABLED.**
+
+### 16k. Phase-8 resume, 2026-08-25 — the machinery is tested; the gates stay the owner's
+
+Owner superloop: resume from `f059f53`, spend-gated, nothing rebuilt.
+What changed, and what deliberately did not:
+
+- **Phases 9–19 exist as tested code now.** The spend path moved out of
+  workflow heredocs into `validation/spend_run.py`, where every decision
+  runs offline against fakes: preflight (auth, exactly one endpoint, 3090
+  by id, min 0 / max 1, R2 env NAMES verified with values redacted, live
+  re-quote, re-admission), the one-job sequence with its Phase-12 re-quote
+  immediately before submit, the Phase-14 proof in which an HTTP 200, a
+  CUDA-capable image, and a `gpu_name` string are each insufficient alone,
+  cost-never-above-reservation, termination in which UNKNOWN is never
+  success, the forceable failure cases, the 5/20 batteries, and economics
+  that refuse an empty row set. 176 tests, still run as uid 10001 against
+  a read-only `/app`. The CUDA proof op is now a real `F.conv2d`.
+- **One gate is new, because GitHub would otherwise fake it.** Referencing
+  a nonexistent environment silently creates it UNPROTECTED — the
+  gpu-spend approval would become a no-op nobody clicked. Preflight now
+  reads the environment back through the API and stops on missing,
+  unprotected, or unverifiable: unverified protection is not protection.
+- **Each battery escalation is its own approval.** The spend dispatch
+  takes `through_phase` (16 = one job, default; 17/18/19 add the
+  batteries), so a single SPEND never silently authorizes twenty-six jobs.
+- **Re-measured, not remembered:** a fresh discover dispatch at 13:37 UTC
+  shows `RUNPOD_API_KEY` still absent from the repository, so the first
+  Phase-8 box is still unchecked and every box after it is unreachable.
+  No Lovable call was needed or made this loop.
+
+**STATUS: BLOCKED — DO NOT SPEND.** The dispatch that ends the block is
+the owner's, in Actions → gpu-validation: mode `spend`, type `SPEND`,
+`through_phase` 16 first (~$0.13 reserved at the last live quote), then
+approve the gpu-spend gate when the run pauses. Preflight can be exercised
+for free at any time (mode `spend`, `spend` left empty) and will name the
+first gate that fails. **RunPod spend $0.00. R2 spend $0.00. GPU
+production remains DISABLED.**
