@@ -1890,3 +1890,48 @@ price, which reads as "no capacity", which reads as "the 3090 is unavailable".
 The read-only discover mode exists to correct that file for free, and should be
 expected to find at least one error. **GPU production remains DISABLED. RunPod
 spend $0.00.**
+
+### 16i. Check, 2026-08-25 — the repository blocker is gone; the code stays lost
+
+Owner prompt: "check". A fresh container, so everything below is re-measured,
+not remembered.
+
+**What changed since §16h.** `oniq-gpu-worker` now exists on GitHub and is in
+this session's authorized set — both halves of §16b's blocker are gone in one
+move. Measured to the edge of what can be measured without mutating anything:
+
+| probe                                        | result                                     |
+| -------------------------------------------- | ------------------------------------------ |
+| `git ls-remote` against the worker repo      | answers; **zero refs** — the repo is empty |
+| `git push --dry-run` of a local probe commit | accepted, `[new branch]`, exit 0           |
+| actual pushes made                           | **none** — the probe commit was deleted    |
+
+So the next loop can push the worker, which no previous loop could.
+
+**What did not change.** The four egress denials of §16a hold verbatim — all
+four host groups still end in `CONNECT tunnel failed, response 403`, and
+`registry-1.docker.io` still answers while its blob CDN does not.
+`RUNPOD_API_KEY`, the R2 keys and `SERPER_API_KEY` are all still absent from
+the environment. §16h's decision — Actions as the execution environment —
+therefore remains the only route that reaches RunPod.
+
+**The code is lost; the record is not.** Commit `a8b6e8c` is confirmed
+unrecoverable: the container that held it is gone, this clone holds no such
+object, and the empty remote never received it. The worker must be
+**rewritten, not recovered**. What survives is everything this ledger paid to
+learn: the five-file layout and four env vars (§16c), the installed-vs-available
+CUDA distinction (§16d), the separate `oniq-gpu` bucket (§16e), the non-root
+runtime with its exact pins (§16g), and the six CI gates plus the 26
+admission-test findings (§16h). A rewrite starts from those sections, not from
+zero.
+
+**ONIQ-side gates, re-run at `5a61aae`** (identical to `origin/main`; the
+previous working branch was merged and deleted): `lint:ci` 0 · `check:deps` 0 ·
+`format:check:changed` clean · `tsc --noEmit` 0 · tests **2813 passed, 1
+skipped, 0 failed** across 186 files · the lint workflow green on `main` at
+HEAD. One PR open, #83 (Wan2.1 motion provider), untouched since 2026-08-23 and
+unaffected by any of this.
+
+The rewrite itself was **not started** — "check" asks what is true, and this
+section is the answer. **RunPod spend $0.00. R2 spend $0.00. GPU production
+remains DISABLED.**
