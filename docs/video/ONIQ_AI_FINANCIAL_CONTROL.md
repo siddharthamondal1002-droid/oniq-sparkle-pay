@@ -1786,3 +1786,52 @@ orphan count — and none of those numbers will be estimated to fill a table.
 Production stays **DISABLED**. Nineteen of the twenty-four Phase 46 gates are
 unmet, and four of the five that are met are the ONIQ-side ones (tests, lint,
 tsc, git) that were never in doubt.
+
+### 16g. The non-root runtime, and how it was actually checked
+
+Owner superloop, 2026-08-25, Section D: close the one hardening finding §16c
+raised — the worker ran as root — and change nothing else.
+
+`USER oniq:oniq` (uid/gid 10001) now sits between the last `COPY` and `CMD`.
+The placement is the substance: everything above it builds as root, everything
+below executes as `oniq`, so `/app` and site-packages end up root-owned and
+merely **readable** by the process running the handler. A compromised job cannot
+rewrite the code it is running.
+
+That only works because the worker writes nowhere except a `mkdtemp` directory
+under `TMPDIR`. Two supporting details are load-bearing rather than cosmetic:
+
+- **`PYTHONDONTWRITEBYTECODE=1`** — without it Python would try to drop
+  `__pycache__` into a directory this user cannot write.
+- **`HOME=/home/oniq`** — a non-root process with no home is a class of late,
+  confusing failure. A library deciding to cache under `~` discovers the problem
+  at runtime, on a rented GPU, instead of at build time.
+
+**Measured, not asserted.** The image cannot be built here, so the check was run
+the closest honest way: a real uid-10001 user, a root-owned mode-755 `/app`, and
+a clean virtualenv holding the image's exact pins — `runpod==1.7.7`,
+`pillow==11.0.0`, `boto3==1.35.76`.
+
+| check                                     | result                                                   |
+| ----------------------------------------- | -------------------------------------------------------- |
+| test suite as uid 10001, read-only `/app` | **39/39**                                                |
+| runtime user can write to `/app`          | **no** — `Permission denied`                             |
+| `__pycache__` written into `/app`         | **none**                                                 |
+| `mkdtemp` + `Cleanup.run()`               | temp dir owned by 10001, removed, `ok=True`              |
+| `pillow` / `boto3` / `runpod` import      | all three                                                |
+| `runpod.serverless.start` present         | yes                                                      |
+| R2 client constructs as non-root          | yes                                                      |
+| missing credentials                       | `storage-not-configured`, naming variables, never values |
+| writes to `$HOME` at import               | **none**                                                 |
+
+**Not verified: `torch` under this user.** It needs the built image, and saying
+otherwise would be the exact substitution this ledger exists to prevent.
+
+One process note worth keeping. The first attempt at the dependency check failed
+four times in a row with a different missing module each time, which looked like
+a broken worker and was not: `pip` was installing into `/root/.local`, and
+mode-700 `/root` makes those packages invisible to any other user. The symptom
+was `ModuleNotFoundError`; the cause was a directory permission on the test rig.
+Chasing the symptom produced four wrong fixes and some collateral damage to the
+container's system packages — the clean virtualenv above is what should have
+been built first.
