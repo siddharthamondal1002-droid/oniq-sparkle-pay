@@ -467,8 +467,21 @@ function translateGeminiResponseToAnthropic(gem: any): any {
       // already inside it equals candidates. The max() keeps candidates as the
       // floor for any response that omits a total.
       output_tokens: geminiOutputTokens(usage),
+      // GROUNDED QUERIES ARE A BILLABLE UNIT AND GOOGLE DOES NOT COUNT THEM
+      // FOR US. `usageMetadata` carries no search/grounding field at all —
+      // verified against a real grounded response on 2026-08-25 — so the
+      // count has to come from `webSearchQueries`, which lists the queries the
+      // model actually ran. Reported in Anthropic's shape so the existing
+      // settlement path prices it with no special case.
+      server_tool_use: { web_search_requests: geminiGroundedQueryCount(cand) },
     },
   };
+}
+
+/** Grounded queries Google reports running. Each one is separately billed. */
+function geminiGroundedQueryCount(candidate: any): number {
+  const q = candidate?.groundingMetadata?.webSearchQueries;
+  return Array.isArray(q) ? q.length : 0;
 }
 
 export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult> {

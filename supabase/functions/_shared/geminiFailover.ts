@@ -30,6 +30,7 @@ import {
   type SearchBudget,
   searchUnitUsdFor,
 } from "./searchBudget.ts";
+import { groundedQueriesToReserve } from "./geminiSearch.ts";
 import type { GuardedResult, ServiceRpc } from "./financialLedger.ts";
 import { type GuardSpec, type ProviderRun, withSearchSpendGuard } from "./searchGuard.ts";
 
@@ -130,25 +131,20 @@ export type FailoverEnv = {
 /**
  * May this request fail over to Gemini?
  *
- * The fourth condition is the one worth reading twice. ONIQ's searching
- * functions ask Anthropic for its server-side `web_search_20250305` tool.
- * Gemini has no such tool — its equivalent is Grounding with Google Search,
- * which is a different request shape AND a separately-billed line item whose
- * rate could not be established (see SEARCH_UNIT_USD_BY_MODEL). Two things
- * follow, and both point the same way:
+ * The searching case USED to be refused outright, on two grounds that have
+ * both since been resolved by measurement:
  *
- *   1. FINANCIAL. A grounded Gemini call cannot be reserved honestly, and a
- *      reservation covering only tokens would under-reserve every hop — the
- *      exact defect the 51-request battery was run to eliminate.
- *   2. INTEGRITY. The existing bridge silently DROPS Anthropic server tools,
- *      so a search-shaped prompt would reach Gemini with no search at all,
- *      while its system prompt still demands `source_domain`, `url` and a
- *      cross-check. A model asked for citations it cannot look up invents
- *      them. Answering a price query from memory and presenting it as scouted
- *      is worse than returning nothing.
+ *   1. Google's grounding rate is now known per model generation — $14 per
+ *      1,000 queries on the 3.x family — so a grounded call can be reserved
+ *      rather than guessed at.
+ *   2. `geminiSearch.ts` now translates `web_search_20250305` into Google's
+ *      `google_search` tool instead of dropping it, and validates every
+ *      claimed source against the grounding chunks that came back.
  *
- * So a request that searches does not fail over. It fails, honestly, and the
- * user is told search is unavailable.
+ * The unpriceable check below is kept as a guard, not as dead code: if anyone
+ * points GEMINI_FAILOVER_MODEL at a model whose grounding rate is unknown, a
+ * searching request must go back to being refused rather than reserved
+ * against nothing.
  */
 export function failoverDecision(
   cls: ClaudeFailureClass,
@@ -157,11 +153,14 @@ export function failoverDecision(
 ): FailoverDecision {
   if (cls !== FAILOVER_TRIGGER) return { eligible: false, block: "not-credit-exhaustion" };
   // TWO LOCKS, checked in this order. `modelAvailable` is a MEASURED
-  // engineering fact; `enabled` is the owner's business decision. On
-  // 2026-08-25 the model 404'd on generateContent for ONIQ's key — "no longer
-  // available to new users" — while its metadata lookup returned a healthy
-  // 200. Flipping the owner's flag must not start calling a model that cannot
-  // answer, so availability is separate and comes first.
+  // engineering fact; `enabled` is the owner's business decision.
+  //
+  // They are separate because of how the first attempt failed. The originally
+  // specified gemini-2.5-flash-lite passes a free metadata lookup and then
+  // 404s on generateContent — catalogue presence is not availability. An
+  // operator flipping the owner's flag must never be able to start calling a
+  // model that cannot answer, so the measured fact is checked first and is
+  // not readable from the environment.
   if (!env.modelAvailable) return { eligible: false, block: "model-unavailable" };
   if (!env.enabled) return { eligible: false, block: "failover-disabled" };
   if (!env.configured) return { eligible: false, block: "gemini-not-configured" };
@@ -200,13 +199,22 @@ export function geminiRequestId(claudeRequestId: string): string {
 /**
  * The budget for the Gemini leg.
  *
- * Searches are forced to zero — not lowered, ZEROED — because a request that
- * searches never reaches here, and because a non-zero value would multiply an
- * unpriceable rate. `maxEstimatedUsd` is inherited unchanged: the failover does
- * not get a more generous ceiling than the call it replaces.
+ * Searches are no longer ZEROED — they are reserved WITH HEADROOM, because
+ * Google's `google_search` has no `max_uses`. On the Anthropic path the hop
+ * ceiling is enforced by the provider; here it is only an input to the
+ * reservation, and Gemini decides how many queries to run. Settlement then
+ * counts the queries Google actually reports.
+ *
+ * `maxEstimatedUsd` is inherited unchanged: the failover never gets a more
+ * generous ceiling than the call it replaces.
  */
 export function geminiBudgetFrom(b: SearchBudget): SearchBudget {
-  return { ...b, maxSearches: 0, maxProviderCalls: 1, maxLlmCalls: 1 };
+  return {
+    ...b,
+    maxSearches: groundedQueriesToReserve(b),
+    maxProviderCalls: 1,
+    maxLlmCalls: 1,
+  };
 }
 
 // ------------------------------------------------------------ orchestration

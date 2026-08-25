@@ -43,18 +43,36 @@ export const MODEL_RATES: Record<string, { inUsd: number; outUsd: number }> = {
   "claude-sonnet-5": { inUsd: 2 / 1e6, outUsd: 10 / 1e6 },
   "claude-sonnet-4-6": { inUsd: 3 / 1e6, outUsd: 15 / 1e6 },
   "claude-haiku-4-5": { inUsd: 1 / 1e6, outUsd: 5 / 1e6 },
-  // Google, added 2026-08-25 for the Anthropic-credit-exhaustion failover.
-  // $0.10 / MTok in, $0.40 / MTok out. See GEMINI_PRICING_PROVENANCE below —
-  // this rate is corroborated but was NOT read from a primary Google page,
+  // Google, for the Anthropic-credit-exhaustion failover. See
+  // GEMINI_PRICING_PROVENANCE — corroborated, not read from a primary page,
   // because every Google documentation host is egress-blocked here.
+  //
+  // 2.5-flash-lite is kept ONLY so the ledger can price historic rows. It
+  // 404s on ONIQ's key ("no longer available to new users"), which is why
+  // GEMINI_FAILOVER_MODEL is not it.
   "gemini-2.5-flash-lite": { inUsd: 0.1 / 1e6, outUsd: 0.4 / 1e6 },
+  // MEASURED CALLABLE 2026-08-25. $0.30 / MTok in, $2.50 / MTok out — 3x and
+  // 6.25x the 2.5-lite rates, so the failover is meaningfully dearer per token
+  // than the model the owner first named. It still fits the ceiling; see the
+  // worked figures in docs/video/ONIQ_AI_FINANCIAL_CONTROL.md §11.
+  "gemini-3.5-flash-lite": { inUsd: 0.3 / 1e6, outUsd: 2.5 / 1e6 },
 };
 
-/** The stable id. NOT `-preview-09-2025`, which Google shut down 2026-03-31. */
-export const GEMINI_FAILOVER_MODEL = "gemini-2.5-flash-lite";
+/**
+ * The failover model, chosen by MEASUREMENT rather than by catalogue.
+ *
+ * On 2026-08-25 six candidates were called against ONIQ's own key, cheapest
+ * first. `gemini-2.5-flash-lite` and `gemini-2.5-flash` both returned 404
+ * ("no longer available to new users"); `gemini-3.5-flash` and
+ * `gemini-3.6-flash` returned 200 but EMPTY content, having spent their whole
+ * 16-token output budget on thinking. `gemini-3.5-flash-lite` and
+ * `gemini-3.1-flash-lite` returned 200 with real text. The cheaper of those
+ * two is this one.
+ */
+export const GEMINI_FAILOVER_MODEL = "gemini-3.5-flash-lite";
 
 /**
- * How the Gemini rate above was established, recorded because it is weaker
+ * How every Google rate here was established, recorded because it is weaker
  * evidence than every Anthropic rate in this table and a future reader must
  * not mistake the two.
  *
@@ -62,67 +80,84 @@ export const GEMINI_FAILOVER_MODEL = "gemini-2.5-flash-lite";
  * rates were read off the published pricing page. `ai.google.dev`,
  * `cloud.google.com`, `docs.cloud.google.com` and `developers.googleblog.com`
  * are ALL blocked by the network egress proxy, so no primary Google page could
- * be opened. Two independently-worded web searches returned $0.10/$0.40 per
- * MTok, both attributing it to Google's own GA announcement, and the owner
- * stated the same two figures in the directive. That is three agreeing
- * secondary readings, not one primary one.
+ * be opened for any figure below.
+ *
+ *   2.5-flash-lite tokens  $0.10 / $0.40 per MTok — two independently worded
+ *                          searches attributing them to Google's GA
+ *                          announcement, plus the owner's directive.
+ *   3.5-flash-lite tokens  $0.30 / $2.50 per MTok — two independently worded
+ *                          searches, several third-party pricing trackers
+ *                          agreeing, consistent with the published three-lane
+ *                          structure (Pro $2/$12, Flash $1.50/$7.50,
+ *                          Flash-Lite $0.30/$2.50).
+ *   grounding              $14 per 1,000 queries on the 3.x family, $35 per
+ *                          1,000 on 2.x. An earlier reading treated these as
+ *                          contradictory; they are two schemes for two model
+ *                          generations, which is why the rate is per-model.
+ *
+ * Agreeing secondary readings, not primary ones. Every one of them should be
+ * re-checked against Google's own page the moment that page is reachable.
  */
 export const GEMINI_PRICING_PROVENANCE = "corroborated-secondary" as const;
 
 /**
- * MEASURED 2026-08-25: this model is NOT callable on ONIQ's Google key.
+ * MEASURED 2026-08-25 against ONIQ's own key: GEMINI_FAILOVER_MODEL answers.
  *
- * A free metadata lookup passes — `GET /v1beta/models/gemini-2.5-flash-lite`
- * returns 200 with version 001 and `thinking: true`. The generation call does
- * not:
+ *   POST .../gemini-3.5-flash-lite:generateContent  ->  200, real text
  *
- *   POST .../gemini-2.5-flash-lite:generateContent  →  404 NOT_FOUND
- *   "This model models/gemini-2.5-flash-lite is no longer available to new
- *    users. Please update your code to use models/gemini-3.5-flash-lite for
- *    the latest features and improvements."
+ * This is a SEPARATE fact from the owner's flag, and it is deliberately not
+ * readable from the environment, because of how the first attempt failed. The
+ * originally specified `gemini-2.5-flash-lite` passes a free metadata lookup
+ * (`GET /v1beta/models/...` returns 200, version 001) and then 404s on
+ * generateContent: "no longer available to new users." **Catalogue presence is
+ * not availability** — only the generation call separates them, and an
+ * operator flipping GEMINI_FAILOVER_ENABLED must never be able to start
+ * calling a 404.
  *
- * Two things to take from that. First, **catalogue presence is not
- * availability** — the cheap check that looked like proof was a false
- * positive, and only the generation call distinguishes them. Second, the rate
- * above is a real published rate for a model this account cannot call, which
- * makes it more dangerous than no rate at all: it looks priced and ready.
- *
- * So availability is a SEPARATE, explicitly measured fact, and the failover
- * has two locks rather than one. `GEMINI_FAILOVER_ENABLED` is the owner's
- * business decision; this constant is an engineering fact. Flipping the flag
- * alone cannot start calling a 404.
- *
- * Turning this true requires re-running the generation check against whatever
- * id is chosen — NOT the metadata lookup. Choosing a different model
- * (`gemini-3.5-flash-lite` is what Google suggests) is a provider-and-price
- * decision and belongs to the owner under `CLAUDE.md § Business decisions are
- * the owner's`, together with verifying that model's own rate.
+ * Changing GEMINI_FAILOVER_MODEL requires re-running the generation check
+ * against the new id — not the metadata lookup — and verifying its own rates.
  */
-export const GEMINI_FAILOVER_MODEL_AVAILABLE = false;
+export const GEMINI_FAILOVER_MODEL_AVAILABLE = true;
 
 /**
- * USD per web search, BY MODEL. `null` means "ONIQ cannot price a search on
- * this model", which is not the same as free.
+ * USD per web search, BY MODEL. `null` would mean "ONIQ cannot price a search
+ * on this model", which is not the same as free — no model is null today.
  *
  * Anthropic bills its server-side `web_search_20250305` tool at a flat
- * $10/1,000. Google bills Grounding with Google Search separately from tokens,
- * and the figure could not be established: the two searches that returned a
- * number disagreed ($14 per 1,000 vs $35 per 1,000), the free allowance and
- * the per-query-vs-per-prompt counting rule differ by model generation, and
- * no primary Google page was reachable to settle it.
- *
- * So a Gemini call that SEARCHES is refused rather than reserved against a
- * guessed rate. A Gemini call that does not search is priced exactly, because
- * tokens are the whole bill. This is the difference between "we have not
- * priced this model" and "this model cannot do this priced thing".
+ * $10/1,000. Google bills Grounding with Google Search per query, separately
+ * from tokens, and on a different scheme per model generation — so this is a
+ * per-model rate rather than one constant.
  */
 export const SEARCH_UNIT_USD_BY_MODEL: Record<string, number | null> = {
   "claude-opus-5": USD_PER_WEB_SEARCH,
   "claude-sonnet-5": USD_PER_WEB_SEARCH,
   "claude-sonnet-4-6": USD_PER_WEB_SEARCH,
   "claude-haiku-4-5": USD_PER_WEB_SEARCH,
-  "gemini-2.5-flash-lite": null,
+  // Google bills Grounding with Google Search per QUERY, separately from
+  // tokens, on two schemes by model generation:
+  //   3.x family  5,000 free prompts/month, then $14 per 1,000 queries
+  //   2.x family  1,500 free requests/day,  then $35 per 1,000 prompts
+  // The free allowances are deliberately NOT modelled: reserving as if every
+  // query is billed over-reserves inside a free tier, which is the safe
+  // direction, and a free allowance shared across a whole Google project is
+  // not something one edge function can account for.
+  "gemini-2.5-flash-lite": 35 / 1000,
+  "gemini-3.5-flash-lite": 14 / 1000,
 };
+
+/**
+ * Gemini decides how many searches to run; `google_search` has no `max_uses`.
+ *
+ * This is a REAL difference from the Anthropic path, where `max_uses` is
+ * enforced by the provider. Here `maxSearches` is a reservation input, not a
+ * server-side ceiling, so the reservation carries headroom and settlement
+ * counts the queries Google actually reports in `webSearchQueries`.
+ *
+ * 2x, because both searching functions still fit the $0.50 ceiling at double
+ * their hop budget: smart-scout at 12 grounded queries reserves ~$0.214 and
+ * hotel-scout at 22 reserves ~$0.375.
+ */
+export const GROUNDING_QUERY_HEADROOM = 2;
 
 /** Thrown when a model is priced for tokens but not for the searches asked of it. */
 export const UNPRICED_SEARCH_UNIT = "unpriced-search-unit";
@@ -301,13 +336,20 @@ export function actualUsdFromUsage(model: string, m: MeasuredUsage): number | nu
 export function geminiOutputTokens(usage: {
   promptTokenCount?: unknown;
   candidatesTokenCount?: unknown;
+  thoughtsTokenCount?: unknown;
   totalTokenCount?: unknown;
 }): number {
   const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v > 0 ? v : 0);
   const prompt = n(usage?.promptTokenCount);
   const candidates = n(usage?.candidatesTokenCount);
+  const thoughts = n(usage?.thoughtsTokenCount);
   const total = n(usage?.totalTokenCount);
-  return Math.max(candidates, total > prompt ? total - prompt : 0);
+  // Two ways Google can report thoughts, and this covers both without
+  // under-counting either. If thoughts are OUTSIDE candidates but inside the
+  // total, `total - prompt` catches them; if they are outside BOTH,
+  // `candidates + thoughts` does; if they are already inside candidates the
+  // two agree and the max is harmless.
+  return Math.max(candidates + thoughts, total > prompt ? total - prompt : 0);
 }
 
 // ------------------------------------------------------------ termination

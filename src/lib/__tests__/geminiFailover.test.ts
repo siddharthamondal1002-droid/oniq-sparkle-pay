@@ -1,5 +1,5 @@
 /**
- * GEMINI 2.5 FLASH-LITE FAILOVER — owner loop, 2026-08-25.
+ * GEMINI FAILOVER — owner loops, 2026-08-25.
  *
  * The thing being defended is narrow and easy to lose: a fallback provider is
  * a way to spend money on a request that has already failed. If the trigger is
@@ -41,6 +41,14 @@ import {
   isAnthropicCreditExhaustion,
   withCreditExhaustionFailover,
 } from "../../../supabase/functions/_shared/geminiFailover.ts";
+import {
+  crossCheckSatisfied,
+  dropUnbackedRows,
+  groundedQueriesToReserve,
+  readGrounding,
+  searchCapabilityFor,
+  translateSearchTools,
+} from "../../../supabase/functions/_shared/geminiSearch.ts";
 
 /** The owner's SEARCH request ceiling. Not a variable in this experiment. */
 const REQUEST_CAP_USD = 0.5;
@@ -140,7 +148,7 @@ const CHAT_BUDGET: SearchBudget = {
   maxEstimatedUsd: REQUEST_CAP_USD,
 };
 
-/** A scouting request: it searches, so it may not. */
+/** A scouting request: it searches, so it needs grounding. */
 const SEARCH_BUDGET: SearchBudget = { ...CHAT_BUDGET, maxSearches: 6 };
 
 const spec = (over: Partial<GuardSpec> = {}): GuardSpec => ({
@@ -165,9 +173,9 @@ const CREDIT_EXHAUSTED = {
 };
 
 /**
- * The ladder with both locks open. Production NEVER looks like this today —
- * GEMINI_FAILOVER_MODEL_AVAILABLE is false because the model 404s on ONIQ's
- * key. This exists so the mechanism below the lock is still provable.
+ * The ladder with every lock open. `modelAvailable` is passed explicitly so
+ * these tests exercise the mechanism regardless of what the measured constant
+ * currently says — production always reads the constant.
  */
 const ON = { enabled: true, configured: true, modelAvailable: true };
 
@@ -181,14 +189,17 @@ const geminiOk =
   });
 
 // ============================================================ §2/§3 pricing
-describe("Gemini 2.5 Flash-Lite is a priced model, and priced honestly", () => {
-  it("is in the rate table at the published $0.10 / $0.40 per MTok", () => {
-    expect(MODEL_RATES[GEMINI_FAILOVER_MODEL]).toEqual({ inUsd: 0.1 / 1e6, outUsd: 0.4 / 1e6 });
+describe("the Gemini failover model is priced, and priced honestly", () => {
+  it("is the MEASURED-CALLABLE model, at its published $0.30 / $2.50 per MTok", () => {
+    expect(GEMINI_FAILOVER_MODEL).toBe("gemini-3.5-flash-lite");
+    expect(MODEL_RATES[GEMINI_FAILOVER_MODEL]).toEqual({ inUsd: 0.3 / 1e6, outUsd: 2.5 / 1e6 });
   });
 
-  it("uses the STABLE id, not the preview Google shut down on 2026-03-31", () => {
-    expect(GEMINI_FAILOVER_MODEL).toBe("gemini-2.5-flash-lite");
+  it("is not the preview, and not the 2.5 id that 404s on our key", () => {
     expect(GEMINI_FAILOVER_MODEL).not.toMatch(/preview/);
+    expect(GEMINI_FAILOVER_MODEL).not.toBe("gemini-2.5-flash-lite");
+    // The 2.5 rate stays in the table so historic ledger rows can be priced.
+    expect(MODEL_RATES["gemini-2.5-flash-lite"]).toBeTruthy();
   });
 
   it("records that the rate is corroborated, NOT read from a primary page", () => {
@@ -205,23 +216,35 @@ describe("Gemini 2.5 Flash-Lite is a priced model, and priced honestly", () => {
       inputTokens: 1_000_000,
       outputTokens: 1_000_000,
     });
-    expect(usd).toBeCloseTo(0.5, 10);
+    expect(usd).toBeCloseTo(0.3 + 2.5, 10);
   });
 
-  it("REFUSES to price a Gemini call that searches, rather than guessing", () => {
-    // Google bills Search grounding separately from tokens and the rate could
-    // not be established — two searches returned $14/1k and $35/1k, and no
-    // primary page was reachable. Reserving tokens only would under-reserve
-    // every hop, which is the defect the Haiku battery existed to remove.
-    expect(searchUnitUsdFor(GEMINI_FAILOVER_MODEL)).toBeNull();
-    expect(() =>
-      estimateSearchUsd({
-        model: GEMINI_FAILOVER_MODEL,
-        searches: 1,
-        inputTokens: 10,
-        outputTokens: 10,
-      }),
-    ).toThrow(/unpriced-search-unit/);
+  it("prices grounding per QUERY, on the scheme for this model's generation", () => {
+    // $14 per 1,000 on the 3.x family; $35 per 1,000 on 2.x. The earlier
+    // reading of these as contradictory was wrong — they are two schemes.
+    expect(searchUnitUsdFor("gemini-3.5-flash-lite")).toBeCloseTo(0.014, 10);
+    expect(searchUnitUsdFor("gemini-2.5-flash-lite")).toBeCloseTo(0.035, 10);
+  });
+
+  it("still REFUSES a searching call on a model whose grounding rate is unknown", () => {
+    // The guard that used to block every Gemini search. Kept live, not
+    // deleted: pointing the failover at an unpriced model must go back to
+    // refusing rather than reserving against nothing.
+    SEARCH_UNIT_USD_BY_MODEL["gemini-test-unpriced"] = null;
+    MODEL_RATES["gemini-test-unpriced"] = { inUsd: 1 / 1e6, outUsd: 1 / 1e6 };
+    try {
+      expect(() =>
+        estimateSearchUsd({
+          model: "gemini-test-unpriced",
+          searches: 1,
+          inputTokens: 10,
+          outputTokens: 10,
+        }),
+      ).toThrow(/unpriced-search-unit/);
+    } finally {
+      delete SEARCH_UNIT_USD_BY_MODEL["gemini-test-unpriced"];
+      delete MODEL_RATES["gemini-test-unpriced"];
+    }
   });
 
   it("does not disturb any Anthropic rate", () => {
@@ -307,18 +330,16 @@ describe("every non-trigger failure class refuses to fail over", () => {
     ).toEqual({ eligible: false, block: "gemini-not-configured" });
   });
 
-  it("a SEARCHING request never fails over, however the gate is set", () => {
-    expect(failoverDecision("CREDIT_EXHAUSTION", SEARCH_BUDGET, ON)).toEqual({
-      eligible: false,
-      block: "search-request-unpriceable-on-gemini",
-    });
+  it("a SEARCHING request now DOES fail over — grounding is priced and translated", () => {
+    expect(failoverDecision("CREDIT_EXHAUSTION", SEARCH_BUDGET, ON)).toEqual({ eligible: true });
   });
 
   it("the MODEL-AVAILABILITY lock blocks before the owner's gate is consulted", () => {
-    // Measured 2026-08-25: POST gemini-2.5-flash-lite:generateContent returns
-    // 404 "no longer available to new users" on ONIQ's key, while the free
-    // metadata lookup returns 200. Catalogue presence is not availability.
-    expect(GEMINI_FAILOVER_MODEL_AVAILABLE).toBe(false);
+    // Measured 2026-08-25: gemini-3.5-flash-lite returns 200 with real text,
+    // so the lock is OPEN for the current model. It exists because
+    // gemini-2.5-flash-lite passes a metadata lookup and then 404s on
+    // generateContent — catalogue presence is not availability.
+    expect(GEMINI_FAILOVER_MODEL_AVAILABLE).toBe(true);
     expect(
       failoverDecision("CREDIT_EXHAUSTION", CHAT_BUDGET, { ...ON, modelAvailable: false }),
     ).toEqual({ eligible: false, block: "model-unavailable" });
@@ -329,11 +350,9 @@ describe("every non-trigger failure class refuses to fail over", () => {
     // start calling a model that returns 404.
     const live = failoverEnvFrom(() => "true");
     expect(live.enabled).toBe(true);
-    expect(live.modelAvailable).toBe(false);
-    expect(failoverDecision("CREDIT_EXHAUSTION", CHAT_BUDGET, live)).toEqual({
-      eligible: false,
-      block: "model-unavailable",
-    });
+    // Comes from the measured constant, NOT from the environment string.
+    expect(live.modelAvailable).toBe(GEMINI_FAILOVER_MODEL_AVAILABLE);
+    expect(failoverEnvFrom(() => "true").modelAvailable).not.toBe("true");
   });
 
   it("the owner gate is OFF unless explicitly 'true'", () => {
@@ -403,8 +422,8 @@ describe("B. Claude credit exhaustion — release, reserve Gemini, settle Gemini
     expect(gem?.state).toBe("SETTLED");
     expect(gem?.provider).toBe("google");
     expect(gem?.model).toBe(GEMINI_FAILOVER_MODEL);
-    // 30,000 in @ $0.10/MTok + 900 out @ $0.40/MTok.
-    expect(gem?.actualUsd).toBeCloseTo(30_000 * 1e-7 + 900 * 4e-7, 10);
+    // 30,000 in @ $0.30/MTok + 900 out @ $2.50/MTok, zero grounded queries.
+    expect(gem?.actualUsd).toBeCloseTo(30_000 * 3e-7 + 900 * 2.5e-6, 10);
 
     // Exactly one admit per leg, in order, never overlapping.
     expect(led.order).toEqual([
@@ -425,7 +444,7 @@ describe("B. Claude credit exhaustion — release, reserve Gemini, settle Gemini
       async () => ({ value: null, attempt: CREDIT_EXHAUSTED }),
       geminiOk(30_000, 900),
     );
-    expect(led.committed()).toBeCloseTo(30_000 * 1e-7 + 900 * 4e-7, 10);
+    expect(led.committed()).toBeCloseTo(30_000 * 3e-7 + 900 * 2.5e-6, 10);
   });
 });
 
@@ -621,9 +640,9 @@ describe("G. Gemini exceeds the financial ceiling", () => {
   it("the Gemini leg inherits the ceiling, it does not get a wider one", () => {
     const g = geminiBudgetFrom({ ...CHAT_BUDGET, maxEstimatedUsd: REQUEST_CAP_USD });
     expect(g.maxEstimatedUsd).toBe(REQUEST_CAP_USD);
-    // And its searches are ZEROED, so an unpriceable rate can never be
-    // multiplied by a non-zero count.
-    expect(geminiBudgetFrom(SEARCH_BUDGET).maxSearches).toBe(0);
+    // Searches are no longer zeroed — they carry HEADROOM, because Google's
+    // google_search has no max_uses and Gemini decides how many to run.
+    expect(geminiBudgetFrom(SEARCH_BUDGET).maxSearches).toBe(SEARCH_BUDGET.maxSearches * 2);
   });
 });
 
@@ -647,7 +666,7 @@ describe("H. concurrency — no double reservation, no cross-request leakage", (
     expect(led.row("req-a-gx")?.state).toBe("SETTLED");
     expect(led.row("req-b-gx")?.state).toBe("SETTLED");
     // Two Gemini legs, each charged once.
-    expect(led.committed()).toBeCloseTo(2 * (10_000 * 1e-7 + 100 * 4e-7), 10);
+    expect(led.committed()).toBeCloseTo(2 * (10_000 * 3e-7 + 100 * 2.5e-6), 10);
   });
 
   it("a retry under the same id cannot double-reserve either leg", async () => {
@@ -827,5 +846,239 @@ describe("Gemini output tokens include thinking", () => {
         totalTokenCount: 100,
       }),
     ).toBe(300);
+  });
+});
+
+// ==================================================== PHASE 4 — grounded search
+/**
+ * The source-integrity layer, and why it is not optional.
+ *
+ * The first real grounded call ONIQ ever made (2026-08-25, gemini-3.5-flash-lite,
+ * "current price of 1kg Tata Salt") returned ONE grounding chunk —
+ * bigbasket.com — and prose asserting TWO prices, the second from Blinkit,
+ * which nothing supported. That is the exact shape these tests exist to catch:
+ * the model searched once and then filled the rest in from memory.
+ */
+describe("Anthropic's web-search tool translates instead of vanishing", () => {
+  it("maps web_search_20250305 onto Google's google_search", () => {
+    const t = translateSearchTools([
+      { type: "web_search_20250305", name: "web_search", max_uses: 6 },
+    ]);
+    expect(t.ok).toBe(true);
+    expect(t.ok === true && t.searchRequired).toBe(true);
+    expect(t.ok === true && t.tools).toEqual([{ google_search: {} }]);
+  });
+
+  it("REFUSES an Anthropic server tool it cannot translate", () => {
+    // The old bridge dropped these silently, which is how a request that
+    // demands citations reached a model that could not look anything up.
+    const t = translateSearchTools([{ type: "code_execution_20250522", name: "code" }]);
+    expect(t.ok).toBe(false);
+    expect(t.ok === false && t.reason).toBe("search-tool-untranslatable");
+  });
+
+  it("a no-tools request is fine and simply does not require search", () => {
+    const t = translateSearchTools([]);
+    expect(t.ok === true && t.searchRequired).toBe(false);
+  });
+});
+
+describe("the fail-closed gate rejects before generation", () => {
+  it("refuses a search-required request with no search tool", () => {
+    const cap = searchCapabilityFor([], SEARCH_BUDGET);
+    expect(cap.ok).toBe(false);
+    expect(cap.ok === false && cap.reason).toBe("search-required-without-search-tool");
+  });
+
+  it("passes a search-required request that carries the tool", () => {
+    const cap = searchCapabilityFor(
+      [{ type: "web_search_20250305", name: "web_search", max_uses: 6 }],
+      SEARCH_BUDGET,
+    );
+    expect(cap.ok).toBe(true);
+    expect(cap.ok === true && cap.tools).toEqual([{ google_search: {} }]);
+  });
+
+  it("passes a chat request that needs no sources", () => {
+    expect(searchCapabilityFor([], CHAT_BUDGET).ok).toBe(true);
+  });
+});
+
+/** The real grounding block from the 2026-08-25 call, field-for-field. */
+const REAL_CANDIDATE = {
+  groundingMetadata: {
+    webSearchQueries: ["Tata Salt 1kg price BigBasket India 2026"],
+    groundingChunks: [
+      {
+        web: {
+          title: "bigbasket.com",
+          uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQHBelWZRFPFkXcQYKz9tDypDTRRiZ96dAuJ",
+        },
+      },
+    ],
+  },
+};
+
+describe("reading what Gemini actually retrieved", () => {
+  it("recovers the publisher domain from the chunk title", () => {
+    // Google puts the real host in `title`; `uri` is its own redirect.
+    const g = readGrounding(REAL_CANDIDATE);
+    expect([...g.domains]).toEqual(["bigbasket.com"]);
+    expect(g.sources[0].redirectUrl).toMatch(/^https:\/\/vertexaisearch\.cloud\.google\.com\//);
+  });
+
+  it("counts the grounded queries, because usageMetadata does not", () => {
+    // Verified against the real response: no search/grounding count field
+    // exists in usageMetadata, so this IS the billable unit count.
+    expect(readGrounding(REAL_CANDIDATE).queryCount).toBe(1);
+    expect(readGrounding({}).queryCount).toBe(0);
+  });
+
+  it("ignores chunks whose title is not a host", () => {
+    const g = readGrounding({
+      groundingMetadata: {
+        groundingChunks: [{ web: { title: "Best salt prices 2026", uri: "https://x.test/a" } }],
+      },
+    });
+    expect(g.domains.size).toBe(0);
+  });
+});
+
+describe("Gemini may only claim sources it actually received", () => {
+  const grounding = readGrounding(REAL_CANDIDATE);
+
+  it("drops the row the measured failure would have produced", () => {
+    const rows = [
+      { site: "BigBasket", price_inr: 28, source_domain: "bigbasket.com" },
+      // The Blinkit price. No chunk backed it.
+      { site: "Blinkit", price_inr: 30, source_domain: "blinkit.com" },
+    ];
+    const v = dropUnbackedRows(rows, grounding);
+    expect(v.kept.map((r) => r.site)).toEqual(["BigBasket"]);
+    expect(v.dropped).toHaveLength(1);
+    expect(v.dropped[0].claimed).toBe("blinkit.com");
+    expect(v.dropped[0].why).toBe("unbacked");
+  });
+
+  it("accepts a subdomain of a backed host, and ignores www", () => {
+    const v = dropUnbackedRows(
+      [
+        { source_domain: "shop.bigbasket.com" },
+        { source_domain: "www.bigbasket.com" },
+        { source_domain: "BIGBASKET.COM" },
+      ],
+      grounding,
+    );
+    expect(v.kept).toHaveLength(3);
+  });
+
+  it("drops a row with no source at all", () => {
+    const v = dropUnbackedRows([{ site: "Somewhere", price_inr: 25 }], grounding);
+    expect(v.kept).toHaveLength(0);
+    expect(v.dropped[0].why).toBe("no-domain");
+  });
+
+  it("does not let a lookalike domain pass as backed", () => {
+    // "bigbasket.com.evil.test" ends with neither ".bigbasket.com" nor equals it.
+    const v = dropUnbackedRows([{ source_domain: "bigbasket.com.evil.test" }], grounding);
+    expect(v.kept).toHaveLength(0);
+  });
+
+  it("cross-check needs two DISTINCT hosts, not two rows", () => {
+    expect(crossCheckSatisfied(grounding)).toBe(false);
+    const two = readGrounding({
+      groundingMetadata: {
+        groundingChunks: [
+          { web: { title: "bigbasket.com", uri: "https://v.test/1" } },
+          { web: { title: "blinkit.com", uri: "https://v.test/2" } },
+        ],
+      },
+    });
+    expect(crossCheckSatisfied(two)).toBe(true);
+  });
+});
+
+// ==================================================== PHASE 5 — grounded money
+describe("grounding is reserved and settled as a billable unit", () => {
+  it("reserves headroom because google_search has no max_uses", () => {
+    // Anthropic enforces max_uses server-side; Google does not. Gemini decides
+    // how many queries to run, so the reservation cannot assume the budget.
+    expect(groundedQueriesToReserve(SEARCH_BUDGET)).toBe(SEARCH_BUDGET.maxSearches * 2);
+  });
+
+  it("the worst case for BOTH searching functions still fits $0.50", () => {
+    // smart-scout: 6 hops, 20k base + 6x14k input, 6k output reserve.
+    const scout: SearchBudget = {
+      ...SEARCH_BUDGET,
+      maxSearches: 6,
+      maxInputTokens: 20_000 + 6 * 14_000,
+      maxOutputTokens: 6_000,
+    };
+    // hotel-scout: 11 hops — the widest thing ONIQ runs.
+    const stay: SearchBudget = {
+      ...SEARCH_BUDGET,
+      maxSearches: 11,
+      maxInputTokens: 20_000 + 11 * 14_000,
+      maxOutputTokens: 6_000,
+    };
+    for (const [name, b] of [
+      ["smart-scout", scout],
+      ["hotel-scout", stay],
+    ] as const) {
+      const worst = worstCaseUsd(GEMINI_FAILOVER_MODEL, geminiBudgetFrom(b));
+      expect(worst, name).toBeLessThanOrEqual(REQUEST_CAP_USD);
+    }
+  });
+
+  it("prices grounded queries into the estimate at $14/1,000", () => {
+    const noSearch = estimateSearchUsd({
+      model: GEMINI_FAILOVER_MODEL,
+      searches: 0,
+      inputTokens: 1_000,
+      outputTokens: 100,
+    });
+    const sixSearches = estimateSearchUsd({
+      model: GEMINI_FAILOVER_MODEL,
+      searches: 6,
+      inputTokens: 1_000,
+      outputTokens: 100,
+    });
+    expect(sixSearches - noSearch).toBeCloseTo(6 * 0.014, 10);
+  });
+});
+
+describe("thinking tokens reach settlement", () => {
+  it("counts thoughts reported OUTSIDE both candidates and the total", () => {
+    // gemini-3.5-flash and 3.6-flash spent their whole 16-token budget on
+    // thinking and returned empty content — thoughts are real output spend.
+    expect(
+      geminiOutputTokens({
+        promptTokenCount: 100,
+        candidatesTokenCount: 0,
+        thoughtsTokenCount: 13,
+        totalTokenCount: 100,
+      }),
+    ).toBe(13);
+  });
+
+  it("counts thoughts reported inside the total but outside candidates", () => {
+    expect(
+      geminiOutputTokens({
+        promptTokenCount: 26,
+        candidatesTokenCount: 49,
+        totalTokenCount: 200,
+      }),
+    ).toBe(174);
+  });
+
+  it("matches the real ungrounded shape exactly — no thoughts, no inflation", () => {
+    // Verbatim from the 2026-08-25 grounded response.
+    expect(
+      geminiOutputTokens({
+        promptTokenCount: 26,
+        candidatesTokenCount: 49,
+        totalTokenCount: 75,
+      }),
+    ).toBe(49);
   });
 });
