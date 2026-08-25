@@ -568,6 +568,77 @@ each. The per-request measurement is unaffected — but the daily totals are not
 a running sum across the two, and reading them as one would understate what a
 single day can hold.
 
+### 8e. HAIKU 4.5 — the 51-request battery, and the economic gate
+
+Run 2026-08-25: the single-request gate plus a 50-request battery across short,
+medium, long, multi-part, local and multilingual queries.
+
+|                             |               |
+| --------------------------- | ------------- |
+| requests                    | **51**        |
+| total actual                | $5.984745     |
+| average                     | $0.119695     |
+| median                      | $0.123078     |
+| **P95**                     | **$0.134487** |
+| **P99**                     | **$0.136387** |
+| **max actual**              | **$0.136424** |
+| max reserved                | $0.195625     |
+| **over-cap requests**       | **0**         |
+| **under-reserved requests** | **0**         |
+| tightest reserve headroom   | $0.059201     |
+| average hops                | 5.51 · max 6  |
+
+**ECONOMIC GATE: PASS.** Max actual is **$0.136424** — 27% of the $0.50
+ceiling, with the worst request in 51 still leaving 73% unused. Zero over-cap
+settlements, and `provider_spend_over_cap` still holds exactly one row: the
+Opus control.
+
+**The reservation covered actual on every single request.** `under_reserved`
+is 0 across 51, tightest headroom $0.059201. Compare the control, which
+under-reserved by $0.085058. That is the difference between an estimator that
+models the workload and one that guesses at it.
+
+The termination breakdown shows the depth cap doing the work:
+
+| outcome  | termination       | n   | avg input tokens | max input |
+| -------- | ----------------- | --- | ---------------- | --------- |
+| ACCEPTED | `BUDGET_SEARCHES` | 35  | 73,514           | 95,559    |
+| ACCEPTED | `COMPLETED`       | 15  | 61,580           | 81,108    |
+| FAILED   | `PROVIDER_ERROR`  | 1   | 0                | 0         |
+
+Max observed input was **95,559 against a 104,000 reserve** — the reserve held
+with room on the worst case in the set, which is what a reserve is for. 35 of
+51 hit the 6-hop cap; 15 finished early on their own. Nothing exceeded 6 hops.
+
+The one `PROVIDER_ERROR` is failure isolation behaving correctly: it **settled
+rather than released**, because a provider error may still have been billed and
+this ledger never assumes an inconvenient cost away.
+
+### 8f. The same defect is still live in two other functions
+
+The battery measured the mechanism precisely: **~13,220 extra input tokens per
+search hop**. Applying that to the functions still on their original
+configuration, none of which were touched by this experiment:
+
+| function      | model      | hops | projected actual       | verdict                            |
+| ------------- | ---------- | ---- | ---------------------- | ---------------------------------- |
+| `smart-scout` | haiku-4-5  | 6    | **$0.136424 measured** | deployed, proven                   |
+| `health-scan` | sonnet-4-6 | 4    | ~$0.280                | under the ceiling; reserve too low |
+| `ting`        | **opus-5** | 5    | **~$0.506**            | **breaches $0.50**                 |
+| `hotel-scout` | **opus-5** | 11   | **~$1.033**            | **breaches by 2x**                 |
+
+`ting` and `hotel-scout` are therefore **deliberately not deployed**. Shipping
+them unchanged would push real user requests over the owner's ceiling — the
+precise failure this work exists to prevent — and the fact that a deploy was
+requested does not make a projected $1.03 request acceptable. They need the
+same three-part fix `smart-scout` received (cheaper model, explicit depth cap,
+depth-scaled reserve), and choosing their model is a product decision, not an
+agent's.
+
+`health-scan` is safe to deploy on cost: sonnet-4-6 at 4 hops stays under the
+ceiling. Its $0.067 reserve is too low and it will under-reserve, which is an
+accounting inaccuracy rather than a breach.
+
 ## 9. Deployment ladder — four rungs, and SEARCH is on the first
 
 Three states get conflated, and each conflation has its own way of being wrong:
