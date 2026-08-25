@@ -242,6 +242,11 @@ export type CallClaudeOpts = {
   // sonnet baseline pass model:"claude-sonnet-4-6" explicitly (translate,
   // health-scan). The Gemini fallback path ignores this flag.
   model?: string;
+  // Optional GOOGLE model id, used only by callGemini. Deliberately separate
+  // from `model`: callGeminiFallback forwards an Anthropic caller's whole opts
+  // object to callGemini, so honouring `model` there would post a Claude id to
+  // Google. Absent, callGemini uses GEMINI_FALLBACK_MODEL as before.
+  geminiModel?: string;
   // When true, make EXACTLY ONE attempt: skip the built-in retry on a
   // timeout/network error and on a retryable 5xx. Default (undefined) keeps the
   // retry for every existing caller. Set by a caller that owns its own retry
@@ -455,6 +460,7 @@ function translateGeminiResponseToAnthropic(gem: any): any {
 }
 
 export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult> {
+  const geminiModel = opts.geminiModel ?? GEMINI_FALLBACK_MODEL;
   const timeoutMs = opts.timeoutMs ?? 12000;
   const key = Deno.env.get("GOOGLE_AI_API_KEY");
   if (!key) {
@@ -473,7 +479,7 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
   if (tools) body.tools = tools;
   if (toolConfig) body.toolConfig = toolConfig;
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_FALLBACK_MODEL}:generateContent?key=${encodeURIComponent(key)}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${encodeURIComponent(key)}`;
 
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -497,7 +503,7 @@ export async function callGemini(opts: CallClaudeOpts): Promise<CallClaudeResult
     }
     const translated = translateGeminiResponseToAnthropic(parsed);
     console.info(
-      `callGemini: ok model=${GEMINI_FALLBACK_MODEL} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
+      `callGemini: ok model=${geminiModel} stop_reason=${translated.stop_reason} blocks=${translated.content.length}`,
     );
     return { ok: true, data: translated, provider: "gemini" };
   } catch (e) {

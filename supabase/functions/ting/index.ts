@@ -1,6 +1,13 @@
 // Ting edge function — Gemini primary, Anthropic (Claude) fallback + web search
 import { langInstruction, callGemini, type ClaudeMessage } from "../_shared/llm.ts";
-import type { SearchBudget } from "../_shared/searchBudget.ts";
+import { GEMINI_FAILOVER_MODEL, type SearchBudget } from "../_shared/searchBudget.ts";
+import {
+  classifyClaudeFailure,
+  failoverDecision,
+  failoverEnvFrom,
+  geminiBudgetFrom,
+  geminiRequestId,
+} from "../_shared/geminiFailover.ts";
 import {
   attachmentTokenCeiling,
   refusalMessage,
@@ -240,32 +247,56 @@ Deno.serve(async (req) => {
         console.info("Ting answered via Claude Opus 5 (primary)");
       } else {
         console.error("anthropic error", res.status, res.text.slice(0, 200));
-        if (!hasAttachment) {
+        // ---- FAILOVER GATE, 2026-08-25 -----------------------------------
+        // This used to read `if (!hasAttachment)`, i.e. ANY Anthropic failure
+        // became a Gemini retry — a 429, a 500, or a malformed request of our
+        // own would all have bought a second call on a second key. It was
+        // inert only because gemini-3.6-flash had no rate, and would have
+        // switched itself on the moment anyone priced it.
+        //
+        // Now the trigger is one classified failure class, and three further
+        // conditions must hold: the owner's gate is on, the request needed no
+        // live sources (a sourceless model asked for citations invents them),
+        // and there is no attachment (Gemini gets the text-only bridge).
+        const failureClass = classifyClaudeFailure({
+          ok: false,
+          status: res.status,
+          body: res.body,
+        });
+        const gate = failoverDecision(
+          failureClass,
+          tingBudget(search, attachmentTokens),
+          failoverEnvFrom((k) => Deno.env.get(k)),
+        );
+        if (!gate.eligible) {
+          console.info(`Ting: no failover (${gate.block}, class=${failureClass})`);
+        }
+        if (gate.eligible && !hasAttachment) {
           const geminiMsgs: ClaudeMessage[] = outMessages.map((m) => ({
             role: m.role as "user" | "assistant",
             content: typeof m.content === "string" ? m.content : "",
           }));
           // The fallback is a SECOND billable call, on a different key, and it
-          // needs its own reservation. gemini-3.6-flash has no verified rate in
-          // MODEL_RATES, so this refuses with "unpriced-model" and Ting returns
-          // the primary failure instead. That is deliberate: an unpriced
-          // provider resolving to free is the bug the ledger exists to stop.
-          // Adding a verified Google rate to MODEL_RATES re-enables it.
+          // needs its own reservation. The request id is DERIVED from the
+          // primary one rather than freshly generated, so a client retry of
+          // the same request collides with itself in the ledger instead of
+          // reserving twice.
           const fb = await withSearchSpendGuard(
             rpc,
             {
-              requestId: requestIdFrom(null),
+              requestId: geminiRequestId(requestIdFrom(body?.requestId)),
               provider: "google",
-              model: "gemini-3.6-flash",
+              model: GEMINI_FAILOVER_MODEL,
               searchType: "ting-fallback",
               userId: UUID_RE.test(uid) ? uid : undefined,
-              budget: tingBudget(false, attachmentTokens),
+              budget: geminiBudgetFrom(tingBudget(search, attachmentTokens)),
             },
             async () => {
               const g = await callGemini({
                 system: systemPrompt,
                 messages: geminiMsgs,
                 maxTokens: TING_MAX_TOKENS,
+                geminiModel: GEMINI_FAILOVER_MODEL,
               });
               return {
                 value: g,

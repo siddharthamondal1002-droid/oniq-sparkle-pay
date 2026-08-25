@@ -686,3 +686,71 @@ describe("the production gate is closed", () => {
     expect(llm).toMatch(/opts\.model \?\? "claude-opus-5"/);
   });
 });
+
+// ============================================================ the ting wiring
+/**
+ * Source-level guards on the one caller that has a fallback.
+ *
+ * ting's trigger used to be `if (!hasAttachment)` inside `else` on `!res.ok`,
+ * which is to say: ANY Anthropic failure bought a second call on a second key.
+ * It never fired only because gemini-3.6-flash had no rate — so pricing any
+ * Google model would have switched it on by accident. These assertions exist
+ * so that cannot come back silently.
+ */
+describe("ting's fallback is gated, classified, and priced", () => {
+  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+  const { join } = require("node:path") as typeof import("node:path");
+  const TING = readFileSync(join(process.cwd(), "supabase/functions/ting/index.ts"), "utf8");
+
+  it("goes through the classifier and the decision, not a bare !res.ok", () => {
+    expect(TING).toMatch(/classifyClaudeFailure\(/);
+    expect(TING).toMatch(/failoverDecision\(/);
+    expect(TING).toMatch(/if \(gate\.eligible && !hasAttachment\)/);
+  });
+
+  it("reads the owner gate from the environment", () => {
+    expect(TING).toMatch(/failoverEnvFrom\(\(k\) => Deno\.env\.get\(k\)\)/);
+  });
+
+  it("calls the priced model, never the unpriced one it used to name", () => {
+    expect(TING).toMatch(/model: GEMINI_FAILOVER_MODEL/);
+    expect(TING).toMatch(/geminiModel: GEMINI_FAILOVER_MODEL/);
+    // As a string LITERAL. The name survives in a comment explaining the
+    // trap, which is the point of the comment.
+    expect(TING).not.toMatch(/"gemini-3\.6-flash"/);
+  });
+
+  it("derives the fallback request id instead of minting a fresh one", () => {
+    // A fresh uuid per attempt would let a client retry reserve twice.
+    expect(TING).toMatch(/requestId: geminiRequestId\(/);
+    expect(TING).not.toMatch(/requestId: requestIdFrom\(null\)/);
+  });
+
+  it("zeroes the fallback's searches through geminiBudgetFrom", () => {
+    expect(TING).toMatch(/budget: geminiBudgetFrom\(/);
+  });
+
+  it("keeps Claude as the primary — the failover does not demote Haiku", () => {
+    expect(TING).toMatch(/const TING_MODEL = "claude-haiku-4-5"/);
+  });
+});
+
+describe("callGemini's model is separate from callClaude's", () => {
+  const { readFileSync } = require("node:fs") as typeof import("node:fs");
+  const { join } = require("node:path") as typeof import("node:path");
+  const LLM = readFileSync(join(process.cwd(), "supabase/functions/_shared/llm.ts"), "utf8");
+
+  it("uses a distinct geminiModel option", () => {
+    // callGeminiFallback forwards an Anthropic caller's whole opts to
+    // callGemini. If callGemini honoured `model`, that path would POST a
+    // Claude id to generativelanguage.googleapis.com.
+    expect(LLM).toMatch(/geminiModel\?: string/);
+    expect(LLM).toMatch(/opts\.geminiModel \?\? GEMINI_FALLBACK_MODEL/);
+    expect(LLM).toMatch(/models\/\$\{geminiModel\}:generateContent/);
+  });
+
+  it("leaves the Anthropic default exactly as it was", () => {
+    expect(LLM).toMatch(/model: opts\.model \?\? "claude-opus-5"/);
+    expect(LLM).toMatch(/const GEMINI_FALLBACK_MODEL = "gemini-3\.6-flash"/);
+  });
+});
