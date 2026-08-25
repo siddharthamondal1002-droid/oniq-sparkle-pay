@@ -1624,3 +1624,165 @@ startup time, no inference measurement, no VRAM peak, no actual billing, no
 $0.00.**
 
 The unblock is one decision — which GPU to rent when the A5000 has none free.
+
+## 16. The GPU worker exists and is not yet an artifact
+
+Owner loop, 2026-08-25 (RTX 3090 chosen, task #147): build the worker as its
+own repository, build the container, prove CUDA, then rent one card.
+
+The worker is written and its logic is proven — 39/39 tests, no GPU involved.
+It is still **not a deployable artifact**, and the gap between those two
+sentences is the entire content of this section. The loop's own final rule
+names it: _do not confuse "worker code exists" with "worker is a deployable
+GPU artifact."_
+
+### 16a. Three egress denials, each ending a different chain
+
+Every remaining phase stops at the network policy of the container this agent
+runs in. Verbatim from `$HTTPS_PROXY/__agentproxy/status`:
+
+| host                                                                | verdict                | what it ends                            |
+| ------------------------------------------------------------------- | ---------------------- | --------------------------------------- |
+| `production.cloudfront.docker.com`                                  | 403 CONNECT            | Docker Hub **blob** CDN — no base layer |
+| `pkg-containers.githubusercontent.com`                              | 403 CONNECT            | GHCR blob CDN — no mirror either        |
+| `download.pytorch.org`                                              | 403 CONNECT            | the cu121 torch wheel                   |
+| `rest.runpod.io`, `api.runpod.io`, `api.runpod.ai`, `www.runpod.io` | 403 CONNECT (all four) | pricing, auth, provisioning, billing    |
+
+`RUNPOD_API_KEY` is also **absent from this container's environment**. So
+Phases 33–34 are blocked twice over, and §15's live pod/endpoint/pricing figures
+— which did reach RunPod's API — were gathered under different conditions than
+this session has. Those numbers are still the last measured ones; they are not
+re-confirmable from here and **$0.22/h must be re-queried before it is used as
+a reservation input**, exactly as $0.27 had to be.
+
+These are **policy denials on the blob CDNs, not on the registries**.
+`registry-1.docker.io` answers 401 (a normal auth challenge) and manifest
+resolution begins; the pull then dies fetching layer bytes. So "can I reach
+Docker Hub" and "can I pull an image" have different answers, and only the
+second one matters.
+
+**A correction to §15's environment note.** An earlier report in this
+workstream recorded "docker CLI present but no daemon" and treated the
+container build as impossible. That was wrong in a way worth writing down: the
+daemon was merely _not running_. This session started it —
+`dockerd --iptables=false --bridge=none`, 29.3.1, overlayfs, 4 CPUs, 15.7GiB —
+and it works. The build still cannot happen, but for a completely different
+reason, and "no daemon" would have sent the next person to fix the wrong thing.
+Enumerating a failure is not the same as diagnosing it.
+
+The pytorch denial is **local only**. RunPod builds the image on its own
+builder from the repository, and `download.pytorch.org` is a normal host there.
+The Dockerfile is correct as written and must not be repointed at PyPI to suit
+this container's policy — that would change what production builds in order to
+make a development environment happy.
+
+### 16b. The repository cannot be created from here, by design
+
+`create_repository` returns `403 Resource not accessible by integration`. The
+raw API call is more explicit about why:
+
+```
+POST https://api.github.com/user/repos  →  403
+"sessions are bound to their configured repositories.
+ Use repository-scoped endpoints (repos/{owner}/{repo}/...)."
+```
+
+This is not a GitHub permission that could be widened; it is the session
+boundary. The identity resolves to the owner's own account and still cannot
+create a repository, because _no_ repository outside the configured set is
+addressable. Creating `oniq-gpu-worker` is an owner action and there is no
+version of this agent that performs it.
+
+Nothing was worked around. Committing the worker into `oniq-sparkle-pay` would
+have put `runpod.serverless.start()` on that repository's default branch and
+made RunPod's pre-deploy scan pass there — which is exactly the outcome the
+owner prohibited, reached sideways. The prohibition is on the outcome, not on
+the phrasing of the commit.
+
+### 16c. What the image can be judged on without building it
+
+Phase 30 asks for secrets, credentials, history and shell surface. Some of that
+needs layers that do not exist yet. Some of it does not, and the part that does
+not comes back clean:
+
+| check                                                                | result                                                                                                |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| credentials or private keys in any worker file                       | **none** — the only three hits are prose saying `RUNPOD_API_KEY` must never be here                   |
+| env vars the worker reads                                            | exactly four: `R2_S3_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `ONIQ_ALLOW_CPU_FALLBACK` |
+| database / Firebase / Anthropic / Gemini / Serper / Razorpay clients | **none**                                                                                              |
+| `ARG` in the Dockerfile                                              | **none** — so no build argument can bake a secret into a layer                                        |
+| `ENTRYPOINT` / shell form `CMD`                                      | **none** — `CMD ["python3","-u","handler.py"]`, exec form                                             |
+| `eval`, `exec`, `subprocess`, `os.system`, `pickle`, `shell=True`    | **none**                                                                                              |
+
+The strongest of these is not in the table. `COPY` names five files
+individually — `requirements.txt`, `contract.py`, `preprocess.py`,
+`storage.py`, `handler.py`. There is no `COPY . .`, so the image cannot receive
+a stray `.env` even if `.dockerignore` were wrong. `.dockerignore` is a second
+lock, not the only one.
+
+**One finding, not fixed.** There is no `USER` directive, so the container runs
+as root. That is the RunPod serverless norm and the worker has no shell to
+escape into, but it is a real hardening gap and it is the owner's call whether
+to close it — the loop said not to rewrite the worker, and quietly adding a
+`USER` line ahead of a build that has never run is how a working image becomes
+an image with a permissions bug nobody attributes.
+
+Undeterminable until the image exists: `docker history`, the resolved
+dependency tree, and the final image digest.
+
+### 16d. `torch.cuda.is_available()` is not a question this machine can answer
+
+Phase 29 requires that call to return TRUE inside the container, and to stop if
+it returns FALSE. On CPU-only hardware it returns FALSE **whatever the image
+contains** — the answer carries no information about the container and must not
+be read as a failed gate. The check is meaningful on exactly one machine: the
+rented 3090, at Phase 37.
+
+Two claims are worth keeping apart, because a build log satisfies the first and
+only a card satisfies the second:
+
+- _CUDA-enabled torch is installed_ — provable at build time (`torch.version.cuda == "12.1"`).
+- _CUDA is available_ — provable only on a GPU.
+
+The worker already encodes this distinction. `run_gpu_op(require_cuda=True)` is
+the default and raises `cuda-unavailable` rather than falling back, so a CPU
+host cannot produce a green job that looks like GPU proof.
+
+### 16e. R2: the bucket exists, the credentials do not
+
+`oniq-gpu` created 2026-08-25, ENAM, Standard, default jurisdiction. Empty, so
+its cost today is $0.00.
+
+It is a **separate bucket from `oniq-chat-media`**, which is the only other
+bucket on the account. Reusing that one would have handed a rented, internet-
+reachable GPU worker read/write access to users' chat media in exchange for
+saving one API call.
+
+Phase 32's live test cannot run. Scoped R2 S3 credentials have to be minted in
+the Cloudflare dashboard — bucket CRUD is available to this agent, API-token
+creation is not — so the keys are an owner action. Until they exist the worker
+fails closed with `storage-not-configured`, naming the missing variables and
+never their values.
+
+### 16f. Verdict
+
+**BLOCKED at PHASE 27**, on repository creation, which is the first link of a
+chain where every later link is also blocked from here.
+
+| link                                          | state                                                |
+| --------------------------------------------- | ---------------------------------------------------- |
+| private repo                                  | blocked — owner action                               |
+| push                                          | blocked on repo                                      |
+| Docker image                                  | blocked — blob CDN 403 (and torch index 403)         |
+| CUDA container                                | blocked on image                                     |
+| real R2                                       | bucket ✅, scoped credentials blocked — owner action |
+| real RTX 3090                                 | blocked — `rest.runpod.io` 403                       |
+| GPU inference, bill, termination, reliability | blocked on all of the above                          |
+
+**Total RunPod spend this loop: $0.00. Total R2 spend: $0.00.** No GPU was
+provisioned, so there is no startup time, no VRAM peak, no cost per job and no
+orphan count — and none of those numbers will be estimated to fill a table.
+
+Production stays **DISABLED**. Nineteen of the twenty-four Phase 46 gates are
+unmet, and four of the five that are met are the ONIQ-side ones (tests, lint,
+tsc, git) that were never in doubt.
