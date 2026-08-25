@@ -51,6 +51,8 @@ import {
   readGrounding,
   searchCapabilityFor,
   translateSearchTools,
+  urlBackedByEvidence,
+  validateEvidenceBound,
 } from "../../../supabase/functions/_shared/geminiSearch.ts";
 
 /** The owner's SEARCH request ceiling. Not a variable in this experiment. */
@@ -193,14 +195,24 @@ const geminiOk =
 
 // ============================================================ §2/§3 pricing
 describe("the Gemini failover model is priced, and priced honestly", () => {
-  it("is the MEASURED-CALLABLE model, at its published $0.30 / $2.50 per MTok", () => {
-    expect(GEMINI_FAILOVER_MODEL).toBe("gemini-3.5-flash-lite");
-    expect(MODEL_RATES[GEMINI_FAILOVER_MODEL]).toEqual({ inUsd: 0.3 / 1e6, outUsd: 2.5 / 1e6 });
+  it("is the CHEAPEST callable model, at its published $0.25 / $1.50 per MTok", () => {
+    expect(GEMINI_FAILOVER_MODEL).toBe("gemini-3.1-flash-lite");
+    expect(MODEL_RATES[GEMINI_FAILOVER_MODEL]).toEqual({ inUsd: 0.25 / 1e6, outUsd: 1.5 / 1e6 });
+  });
+
+  it("is cheaper than the other callable id, on BOTH token directions", () => {
+    // Cheapness is the point of a fallback that only runs when the primary is
+    // down. 3.5-flash-lite also works and costs more either way.
+    const pick = MODEL_RATES[GEMINI_FAILOVER_MODEL];
+    const alt = MODEL_RATES["gemini-3.5-flash-lite"];
+    expect(pick.inUsd).toBeLessThan(alt.inUsd);
+    expect(pick.outUsd).toBeLessThan(alt.outUsd);
   });
 
   it("is not the preview, and not the 2.5 id that 404s on our key", () => {
     expect(GEMINI_FAILOVER_MODEL).not.toMatch(/preview/);
     expect(GEMINI_FAILOVER_MODEL).not.toBe("gemini-2.5-flash-lite");
+    expect(GEMINI_FAILOVER_MODEL).not.toBe("gemini-3.5-flash-lite");
     // The 2.5 rate stays in the table so historic ledger rows can be priced.
     expect(MODEL_RATES["gemini-2.5-flash-lite"]).toBeTruthy();
   });
@@ -219,12 +231,13 @@ describe("the Gemini failover model is priced, and priced honestly", () => {
       inputTokens: 1_000_000,
       outputTokens: 1_000_000,
     });
-    expect(usd).toBeCloseTo(0.3 + 2.5, 10);
+    expect(usd).toBeCloseTo(0.25 + 1.5, 10);
   });
 
   it("prices grounding per QUERY, on the scheme for this model's generation", () => {
     // $14 per 1,000 on the 3.x family; $35 per 1,000 on 2.x. The earlier
     // reading of these as contradictory was wrong — they are two schemes.
+    expect(searchUnitUsdFor("gemini-3.1-flash-lite")).toBeCloseTo(0.014, 10);
     expect(searchUnitUsdFor("gemini-3.5-flash-lite")).toBeCloseTo(0.014, 10);
     expect(searchUnitUsdFor("gemini-2.5-flash-lite")).toBeCloseTo(0.035, 10);
   });
@@ -338,7 +351,7 @@ describe("every non-trigger failure class refuses to fail over", () => {
   });
 
   it("the MODEL-AVAILABILITY lock blocks before the owner's gate is consulted", () => {
-    // Measured 2026-08-25: gemini-3.5-flash-lite returns 200 with real text,
+    // Measured 2026-08-25: gemini-3.1-flash-lite returns 200 with real text,
     // so the lock is OPEN for the current model. It exists because
     // gemini-2.5-flash-lite passes a metadata lookup and then 404s on
     // generateContent — catalogue presence is not availability.
@@ -425,8 +438,8 @@ describe("B. Claude credit exhaustion — release, reserve Gemini, settle Gemini
     expect(gem?.state).toBe("SETTLED");
     expect(gem?.provider).toBe("google");
     expect(gem?.model).toBe(GEMINI_FAILOVER_MODEL);
-    // 30,000 in @ $0.30/MTok + 900 out @ $2.50/MTok, zero grounded queries.
-    expect(gem?.actualUsd).toBeCloseTo(30_000 * 3e-7 + 900 * 2.5e-6, 10);
+    // 30,000 in @ $0.25/MTok + 900 out @ $1.50/MTok, zero grounded queries.
+    expect(gem?.actualUsd).toBeCloseTo(30_000 * 2.5e-7 + 900 * 1.5e-6, 10);
 
     // Exactly one admit per leg, in order, never overlapping.
     expect(led.order).toEqual([
@@ -447,7 +460,7 @@ describe("B. Claude credit exhaustion — release, reserve Gemini, settle Gemini
       async () => ({ value: null, attempt: CREDIT_EXHAUSTED }),
       geminiOk(30_000, 900),
     );
-    expect(led.committed()).toBeCloseTo(30_000 * 3e-7 + 900 * 2.5e-6, 10);
+    expect(led.committed()).toBeCloseTo(30_000 * 2.5e-7 + 900 * 1.5e-6, 10);
   });
 });
 
@@ -669,7 +682,7 @@ describe("H. concurrency — no double reservation, no cross-request leakage", (
     expect(led.row("req-a-gx")?.state).toBe("SETTLED");
     expect(led.row("req-b-gx")?.state).toBe("SETTLED");
     // Two Gemini legs, each charged once.
-    expect(led.committed()).toBeCloseTo(2 * (10_000 * 3e-7 + 100 * 2.5e-6), 10);
+    expect(led.committed()).toBeCloseTo(2 * (10_000 * 2.5e-7 + 100 * 1.5e-6), 10);
   });
 
   it("a retry under the same id cannot double-reserve either leg", async () => {
@@ -1141,13 +1154,32 @@ describe("callGemini sends search instead of dropping it", () => {
  */
 describe("a response that never searched is rejected whole", () => {
   it("records what was measured, so the gate is not mistaken for paranoia", () => {
-    expect(GROUNDING_FABRICATION_EVIDENCE).toEqual({
-      model: "gemini-3.5-flash-lite",
-      queries: 3,
-      rowsReturned: 13,
-      rowsBacked: 0,
-      groundedQueriesIssued: 0,
-    });
+    const e = GROUNDING_FABRICATION_EVIDENCE;
+    // Four models, twelve scout-shaped queries, ONIQ's real system prompt.
+    expect(e.callsTotal).toBe(12);
+    expect(e.callsThatSearched).toBe(3);
+    expect(e.totalRows).toBe(49);
+    expect(e.totalBacked).toBe(1);
+    expect(e.perModel).toHaveLength(4);
+  });
+
+  it("the model this loop selected scored ZERO backed rows", () => {
+    // gemini-3.1-flash-lite: 0 searches on 3 of 3, 12 of 12 rows unbacked.
+    // Identical to 3.5-flash-lite. Being cheaper did not make it safer.
+    const pick = GROUNDING_FABRICATION_EVIDENCE.perModel.find(
+      (m) => m.model === GEMINI_FAILOVER_MODEL,
+    );
+    expect(pick, "the failover model must have been measured").toBeTruthy();
+    expect(pick!.searched).toBe(0);
+    expect(pick!.backed).toBe(0);
+    expect(pick!.rows).toBe(12);
+  });
+
+  it("no measured model reached the zero-fabrication bar", () => {
+    // PHASE 13: any fabricated source stops the loop. None passed.
+    for (const m of GROUNDING_FABRICATION_EVIDENCE.perModel) {
+      expect(m.backed, `${m.model} would have to back every row`).toBeLessThan(m.rows);
+    }
   });
 
   it("rejects the exact shape that came back: 200, no queries, no chunks", () => {
@@ -1219,5 +1251,169 @@ describe("Gemini cached input is knowingly over-charged, not guessed at", () => 
     // Folding it in at full input rate settles above Google's charge, which
     // is the safe direction; inventing a discount is not.
     expect(GEMINI_CACHE_DISCOUNT_UNPRICED).toBe(true);
+  });
+});
+
+// ==================================================== PHASE 6 — evidence-bound
+/**
+ * A whole-response verdict, distinct from row filtering.
+ *
+ * A response can look plausible row by row and still be inadmissible: the
+ * model never searched, or it composed a URL from nowhere, or it claimed a
+ * two-source cross-check on one source. None of these is repaired — a
+ * fabricated URL is never swapped for a guessed one.
+ */
+describe("evidence-bound validation rejects rather than repairs", () => {
+  const grounded = {
+    groundingMetadata: {
+      webSearchQueries: ["tata salt 1kg price"],
+      groundingChunks: [
+        {
+          web: {
+            title: "bigbasket.com",
+            uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AAA",
+          },
+        },
+        {
+          web: {
+            title: "blinkit.com",
+            uri: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/BBB",
+          },
+        },
+      ],
+    },
+  };
+
+  it("accepts rows whose domain AND url both came from the evidence", () => {
+    const v = validateEvidenceBound(
+      grounded,
+      [
+        {
+          source_domain: "bigbasket.com",
+          url: "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AAA",
+        },
+      ],
+      { minSources: 1 },
+    );
+    expect(v.ok).toBe(true);
+    expect(v.ok === true && v.rows).toHaveLength(1);
+  });
+
+  it("REJECTS a URL the model composed itself", () => {
+    // This is the one that looks completely ordinary. Google never returns a
+    // merchant link — only its own redirect — so a real-looking product URL
+    // on a real retailer is still invented.
+    const v = validateEvidenceBound(
+      grounded,
+      [{ source_domain: "bigbasket.com", url: "https://www.amazon.in/dp/B0XXXXXXX" }],
+      { minSources: 1 },
+    );
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.violations).toContain("url-not-in-evidence");
+  });
+
+  it("REJECTS a domain that was never retrieved", () => {
+    const v = validateEvidenceBound(grounded, [{ source_domain: "croma.com" }], { minSources: 1 });
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.violations).toContain("domain-not-in-evidence");
+  });
+
+  it("REJECTS a cross-check claim that the evidence cannot support", () => {
+    const oneSource = {
+      groundingMetadata: {
+        webSearchQueries: ["q"],
+        groundingChunks: [{ web: { title: "bigbasket.com", uri: "https://v.test/1" } }],
+      },
+    };
+    const v = validateEvidenceBound(oneSource, [{ source_domain: "bigbasket.com" }], {
+      claimsCrossCheck: true,
+    });
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.violations).toContain("cross-check-unsupported");
+  });
+
+  it("accepts a cross-check when two DISTINCT hosts were retrieved", () => {
+    const v = validateEvidenceBound(
+      grounded,
+      [{ source_domain: "bigbasket.com" }, { source_domain: "blinkit.com" }],
+      { claimsCrossCheck: true },
+    );
+    expect(v.ok).toBe(true);
+  });
+
+  it("REJECTS the whole response when nothing was retrieved, before looking at rows", () => {
+    const v = validateEvidenceBound({ groundingMetadata: { webSearchQueries: [] } }, [
+      { source_domain: "amazon.in", url: "https://amazon.in/x" },
+    ]);
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.violations).toEqual(["no-evidence-retrieved"]);
+  });
+
+  it("does not repair — offending claims are reported, never rewritten", () => {
+    const v = validateEvidenceBound(grounded, [{ source_domain: "croma.com", url: "nonsense" }], {
+      minSources: 1,
+    });
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.offending.join(" ")).toMatch(/croma\.com/);
+    // No "rows" field at all on a rejection: there is nothing to render.
+    expect(v.ok === false && "rows" in v).toBe(false);
+  });
+
+  it("treats an absent url as no claim, not as a violation", () => {
+    const v = validateEvidenceBound(grounded, [{ source_domain: "bigbasket.com" }], {
+      minSources: 1,
+    });
+    expect(v.ok).toBe(true);
+  });
+
+  it("accepts a url on an evidence host even when it is not the redirect", () => {
+    expect(urlBackedByEvidence("https://shop.bigbasket.com/p/1", readGrounding(grounded))).toBe(
+      true,
+    );
+    expect(urlBackedByEvidence("https://bigbasket.com.evil.test/p", readGrounding(grounded))).toBe(
+      false,
+    );
+  });
+});
+
+// ==================================================== PHASE 8 — 3.1 economics
+describe("gemini-3.1-flash-lite fits the unchanged $0.50 ceiling", () => {
+  it("reserves grounding AND tokens for both searching functions", () => {
+    const scout: SearchBudget = {
+      ...SEARCH_BUDGET,
+      maxSearches: 6,
+      maxInputTokens: 20_000 + 6 * 14_000,
+      maxOutputTokens: 6_000,
+    };
+    const stay: SearchBudget = {
+      ...SEARCH_BUDGET,
+      maxSearches: 11,
+      maxInputTokens: 20_000 + 11 * 14_000,
+      maxOutputTokens: 6_000,
+    };
+    for (const [name, b] of [
+      ["smart-scout", scout],
+      ["hotel-scout", stay],
+    ] as const) {
+      const worst = worstCaseUsd(GEMINI_FAILOVER_MODEL, geminiBudgetFrom(b));
+      expect(worst, name).toBeLessThanOrEqual(REQUEST_CAP_USD);
+      // And grounding is genuinely in there — not a token-only reservation.
+      const tokensOnly = worstCaseUsd(GEMINI_FAILOVER_MODEL, {
+        ...geminiBudgetFrom(b),
+        maxSearches: 0,
+      });
+      expect(worst - tokensOnly, name).toBeCloseTo(geminiBudgetFrom(b).maxSearches * 0.014, 9);
+    }
+  });
+
+  it("is cheaper than the 3.5-lite alternative at the same workload", () => {
+    const b = geminiBudgetFrom({
+      ...SEARCH_BUDGET,
+      maxInputTokens: 104_000,
+      maxOutputTokens: 6_000,
+    });
+    expect(worstCaseUsd("gemini-3.1-flash-lite", b)).toBeLessThan(
+      worstCaseUsd("gemini-3.5-flash-lite", b),
+    );
   });
 });

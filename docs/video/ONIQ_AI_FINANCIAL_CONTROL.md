@@ -1187,3 +1187,127 @@ results to Gemini as tool results. That needs a search provider ONIQ does not
 have, which is new credentials and new spend, and therefore the owner's call.
 
 Production stays **disabled**. `GEMINI_FAILOVER_ENABLED` is unset.
+
+## 12. Gemini 3.1 Flash-Lite — the cheapest callable model, and the same wall
+
+Owner loop, 2026-08-25: make `gemini-3.1-flash-lite` the cheapest safe fallback.
+Do not use 3.5, do not use 2.5, do not weaken source validation.
+
+The model change is done and the economics are better. The contract still
+fails, for the same reason, on the same measurement.
+
+### 12a. The model, priced
+
+`gemini-3.1-flash-lite` is confirmed callable — HTTP 200 with real generated
+text on ONIQ's own key — and it is the cheapest id this key can call:
+
+|                       | input            | output           | grounding            |
+| --------------------- | ---------------- | ---------------- | -------------------- |
+| gemini-3.1-flash-lite | **$0.25** / MTok | **$1.50** / MTok | $14 / 1,000 queries  |
+| gemini-3.5-flash-lite | $0.30            | $2.50            | $14 / 1,000          |
+| gemini-2.5-flash-lite | $0.10            | $0.40            | _404 — not callable_ |
+
+Cheaper than the previous pick on both token directions, which is the whole
+point of a fallback that only runs when the primary is down. Worst-case
+reservations, grounding included, at 2x hop headroom: smart-scout **$0.203**,
+hotel-scout **$0.361** — both inside the unchanged $0.50 ceiling.
+
+Provenance remains corroborated-secondary. Every Google documentation host is
+still egress-blocked; the `$0.25/$1.50` figures come from the owner's directive
+plus two independently worded searches across several third-party trackers.
+
+`thoughtsTokenCount` does not appear on this model at all — `totalTokenCount`
+equals prompt plus candidates on all three probes. The thinking-token
+accounting stays, because it is present and large on the non-lite models, and
+because a reserve that only works on one model is not a reserve.
+
+### 12b. The same wall, measured again
+
+Three scout-shaped queries, ONIQ's real system prompt, `google_search` in the
+posted body — verified by printing the actual request, not by trusting the
+translator:
+
+| query                    | searches issued | rows | rows backed by retrieved evidence |
+| ------------------------ | --------------- | ---- | --------------------------------- |
+| Tata Salt 1kg            | **0**           | 5    | **0**                             |
+| Fortune sunflower oil 5L | **0**           | 4    | **0**                             |
+| Redmi Note 14 5G         | **0**           | 3    | **0**                             |
+
+**12 of 12 rows fabricated.** All three parsed as valid JSON. blinkit.com,
+zeptonow.com, amazon.in, flipkart.com, jiomart.com, mi.com — every price from
+memory, every row carrying `source_domain` as though scouted.
+
+Across all four models now measured:
+
+```
+calls                     12
+calls that issued a query  3
+result rows               49
+rows naming a retrieved source   1
+```
+
+`gemini-3.1-flash-lite` is not worse than the others. It is the same failure,
+and PHASE 13's rule is unambiguous: any fabricated source stops the loop, and
+the fix is the evidence architecture, not the prompt.
+
+### 12c. What was built anyway, because it will be needed
+
+PHASE 6's evidence-bound validation is implemented and tested regardless of
+which provider eventually supplies the evidence. `validateEvidenceBound`
+returns a whole-response verdict and never repairs:
+
+- **`no-evidence-retrieved`** — nothing was retrieved; refused before rows are
+  even examined.
+- **`domain-not-in-evidence`** — a row names a source that never came back.
+- **`url-not-in-evidence`** — a URL the model composed. This is the subtle one:
+  Google returns only its own `vertexaisearch.cloud.google.com` redirect, never
+  a merchant link, so a perfectly ordinary-looking `amazon.in/dp/B0XXXX` is
+  invented by construction.
+- **`cross-check-unsupported`** — a two-source claim on fewer than two distinct
+  retrieved hosts. Two rows from one domain are one source.
+
+A fabricated URL is never swapped for a guessed one, and a rejection carries no
+`rows` field at all — there is nothing to render.
+
+### 12d. PHASE 7 — ONIQ owns no retrieval, and here is what one costs
+
+Checked before proposing any spend. ONIQ's full credential inventory holds no
+web-search capability:
+
+- `GOOGLE_MAPS_API_KEY` — Geocoding only (`maps/api/geocode/json`). No web search.
+- `AMADEUS_API_KEY` — flight offers, and pointed at **`test.api.amadeus.com`**,
+  the sandbox. Not production data, and not hotels.
+- `GOOGLE_AI_API_KEY` — Gemini itself.
+- Everything else is payments, SMS, storage, TURN, push.
+
+So the evidence-owning architecture needs a search provider ONIQ does not have.
+**Nothing was onboarded.** The two candidates, for the owner's decision:
+
+|                      | per 1,000 | free tier          | index                             |
+| -------------------- | --------- | ------------------ | --------------------------------- |
+| **Serper**           | **$1**    | 2,500 / month      | scrapes a Big Tech (Google) index |
+| **Brave Search API** | **$5**    | ~$5 credit / month | Brave's own independent index     |
+
+Impact on the $0.50 ceiling is small either way — at 6 hops, $0.006 with Serper
+or $0.03 with Brave, against $0.084 for Google's own grounding. A full
+smart-scout request on 3.1-flash-lite with Serper evidence models at roughly
+**$0.041**, about a third of Haiku's measured $0.119695 average.
+
+One thing the owner should weigh beyond price: Serper is cheaper because it
+resells a scraped Google index, which sits awkwardly beside the earlier
+directive not to scrape search-engine result pages. Brave sells its own index
+at 5x. That is a policy choice, not an engineering one.
+
+Required credential: one API key in Supabase secrets. Expected monthly minimum:
+none on either — both are usage-metered with a free allowance.
+
+### 12e. Verdict
+
+**BLOCKED**, at the same wall as §11f and now with the cheapest model.
+
+The RULE was: _real retrieval → real evidence → evidence-bound Gemini output →
+validated JSON → financial settlement._ Links two through five are built and
+tested. Link one does not exist, because no Gemini model ONIQ can call will
+reliably perform the retrieval, and ONIQ owns no retrieval of its own.
+
+`GEMINI_FAILOVER_ENABLED` stays unset.

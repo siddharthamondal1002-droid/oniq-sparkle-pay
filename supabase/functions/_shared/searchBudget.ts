@@ -56,6 +56,10 @@ export const MODEL_RATES: Record<string, { inUsd: number; outUsd: number }> = {
   // than the model the owner first named. It still fits the ceiling; see the
   // worked figures in docs/video/ONIQ_AI_FINANCIAL_CONTROL.md §11.
   "gemini-3.5-flash-lite": { inUsd: 0.3 / 1e6, outUsd: 2.5 / 1e6 },
+  // THE FAILOVER MODEL, owner directive 2026-08-25: cheapest callable.
+  // $0.25 / MTok in, $1.50 / MTok out — below 3.5-flash-lite on both, and the
+  // cheapest of the ids this key can actually call.
+  "gemini-3.1-flash-lite": { inUsd: 0.25 / 1e6, outUsd: 1.5 / 1e6 },
 };
 
 /**
@@ -66,10 +70,13 @@ export const MODEL_RATES: Record<string, { inUsd: number; outUsd: number }> = {
  * ("no longer available to new users"); `gemini-3.5-flash` and
  * `gemini-3.6-flash` returned 200 but EMPTY content, having spent their whole
  * 16-token output budget on thinking. `gemini-3.5-flash-lite` and
- * `gemini-3.1-flash-lite` returned 200 with real text. The cheaper of those
- * two is this one.
+ * `gemini-3.1-flash-lite` returned 200 with real text.
+ *
+ * Owner directive 2026-08-25 takes the cheaper of the two that work:
+ * $0.25/$1.50 against 3.5-lite's $0.30/$2.50. Cheapness is the point of a
+ * fallback that only runs when the primary provider is down.
  */
-export const GEMINI_FAILOVER_MODEL = "gemini-3.5-flash-lite";
+export const GEMINI_FAILOVER_MODEL = "gemini-3.1-flash-lite";
 
 /**
  * How every Google rate here was established, recorded because it is weaker
@@ -90,6 +97,10 @@ export const GEMINI_FAILOVER_MODEL = "gemini-3.5-flash-lite";
  *                          agreeing, consistent with the published three-lane
  *                          structure (Pro $2/$12, Flash $1.50/$7.50,
  *                          Flash-Lite $0.30/$2.50).
+ *   3.1-flash-lite tokens  $0.25 / $1.50 per MTok — the owner's directive plus
+ *                          two independently worded searches over several
+ *                          third-party trackers. This is the model ONIQ
+ *                          actually falls back to.
  *   grounding              $14 per 1,000 queries on the 3.x family, $35 per
  *                          1,000 on 2.x. An earlier reading treated these as
  *                          contradictory; they are two schemes for two model
@@ -103,7 +114,7 @@ export const GEMINI_PRICING_PROVENANCE = "corroborated-secondary" as const;
 /**
  * MEASURED 2026-08-25 against ONIQ's own key: GEMINI_FAILOVER_MODEL answers.
  *
- *   POST .../gemini-3.5-flash-lite:generateContent  ->  200, real text
+ *   POST .../gemini-3.1-flash-lite:generateContent  ->  200, real text
  *
  * This is a SEPARATE fact from the owner's flag, and it is deliberately not
  * readable from the environment, because of how the first attempt failed. The
@@ -143,6 +154,7 @@ export const SEARCH_UNIT_USD_BY_MODEL: Record<string, number | null> = {
   // not something one edge function can account for.
   "gemini-2.5-flash-lite": 35 / 1000,
   "gemini-3.5-flash-lite": 14 / 1000,
+  "gemini-3.1-flash-lite": 14 / 1000,
 };
 
 /**
