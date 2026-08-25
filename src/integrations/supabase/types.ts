@@ -3754,7 +3754,9 @@ export type Database = {
           job_id: string | null
           model: string
           outcome: string | null
+          over_cap: boolean
           provider: string
+          request_cap_usd_at_settle: number | null
           request_id: string
           settled_at: string | null
           state: string
@@ -3775,7 +3777,9 @@ export type Database = {
           job_id?: string | null
           model: string
           outcome?: string | null
+          over_cap?: boolean
           provider: string
+          request_cap_usd_at_settle?: number | null
           request_id: string
           settled_at?: string | null
           state?: string
@@ -3796,7 +3800,9 @@ export type Database = {
           job_id?: string | null
           model?: string
           outcome?: string | null
+          over_cap?: boolean
           provider?: string
+          request_cap_usd_at_settle?: number | null
           request_id?: string
           settled_at?: string | null
           state?: string
@@ -5293,6 +5299,48 @@ export type Database = {
           unit: string | null
           units: number | null
           usd_per_accepted_unit: number | null
+        }
+        Relationships: []
+      }
+      provider_spend_over_cap: {
+        Row: {
+          actual_usd: number | null
+          capability: string | null
+          day: string | null
+          detail: Json | null
+          estimated_usd: number | null
+          model: string | null
+          over_by_usd: number | null
+          provider: string | null
+          request_cap_usd_at_settle: number | null
+          request_id: string | null
+          settled_at: string | null
+        }
+        Insert: {
+          actual_usd?: number | null
+          capability?: string | null
+          day?: string | null
+          detail?: Json | null
+          estimated_usd?: number | null
+          model?: string | null
+          over_by_usd?: never
+          provider?: string | null
+          request_cap_usd_at_settle?: number | null
+          request_id?: string | null
+          settled_at?: string | null
+        }
+        Update: {
+          actual_usd?: number | null
+          capability?: string | null
+          day?: string | null
+          detail?: Json | null
+          estimated_usd?: number | null
+          model?: string | null
+          over_by_usd?: never
+          provider?: string | null
+          request_cap_usd_at_settle?: number | null
+          request_id?: string | null
+          settled_at?: string | null
         }
         Relationships: []
       }
