@@ -1311,3 +1311,123 @@ tested. Link one does not exist, because no Gemini model ONIQ can call will
 reliably perform the retrieval, and ONIQ owns no retrieval of its own.
 
 `GEMINI_FAILOVER_ENABLED` stays unset.
+
+## 13. Retrieval-first — ONIQ owns the evidence, and a policy gate fires
+
+Owner loop, 2026-08-25: give ONIQ deterministic retrieval through Serper, use
+`gemini-3.1-flash-lite` only for synthesis, and **stop before onboarding if
+project policy prohibits that index source**.
+
+The architecture is built and tested. The onboarding did not happen, because
+the policy check the loop asked for came back positive.
+
+### 13a. The policy conflict, stated plainly
+
+**Serper resells a scraped Google index.** ONIQ would not scrape anything —
+the adapter calls Serper's documented JSON endpoint with an API key — but the
+data on the other side of that endpoint was obtained by scraping Google's
+result pages. Recording that is a condition of the loop and it is right.
+
+`SEARCH_PROVIDER_MATRIX.md` §3, already in this repository, reads:
+
+> **Scraping is out, and stays out** — The loop says: do not scrape SERPs or
+> bypass anti-bot controls. … any "DuckDuckGo adapter" would in practice be
+> scraping **or an unofficial reseller**. It stays `UNVERIFIED` and should not
+> be built on that basis.
+
+That clause names an unofficial reseller of scraped SERPs, which is exactly
+what Serper is. So this is the case the loop pre-committed to stopping on:
+_"If project policy prohibits this type of index source, STOP before onboarding
+and report the policy conflict. Do NOT silently substitute Brave."_
+
+Nothing was onboarded, no credential was created, no substitute was chosen.
+Two things would each clear it, and both are the owner's:
+
+1. **Lift or scope §3** — e.g. "ONIQ does not scrape; procuring from a
+   reseller is permitted" — and add `SERPER_API_KEY`.
+2. **Choose a provider with its own index.** Brave at $5/1,000 against Serper's
+   $1/1,000; at a six-call ceiling that is $0.03 versus $0.006, both immaterial
+   against a $0.50 ceiling.
+
+A second, independent blocker stands either way: **no retrieval credential
+exists**. `SERPER_API_KEY` is absent from ONIQ's secrets, so the live micro
+battery could not have run even with policy cleared.
+
+### 13b. What was built, and why it survives the provider choice
+
+Everything upstream of the credential is provider-independent, so the owner's
+decision plugs into a `RetrievalProvider` interface rather than reshaping the
+architecture. `webRetrieval.ts` implements:
+
+**ONIQ owns the queries and the ceiling.** `buildQueries` is deliberately dull
+and deterministic — the user's ask plus fixed framings — so the number of
+billable retrievals is known _before_ any of them run. `MAX_RETRIEVAL_CALLS` is
+6, matching smart-scout's existing hop budget, and `gatherEvidence` truncates
+to it however many queries it is handed.
+
+**Native grounding is off on this path.** `retrievalFirstBudget` ZEROES
+`maxSearches`, so a grounded query cannot be billed, and
+`RETRIEVAL_FIRST_FORBIDS_GROUNDING` records why: leaving it on would give the
+model a second source of "evidence" ONIQ never saw and could not validate
+against.
+
+**The evidence package carries exact URLs**, plus an instruction written as
+prohibitions — never invent a URL, never build a listing URL from a domain,
+never name a source you were not given, never present a remembered price as a
+retrieved one — and `insufficient_evidence` as a permitted answer, so "not
+enough" is a shape the model can return instead of invention.
+
+**Retrieval is reserved before it runs**: 1 call $0.001, 2 calls $0.002,
+6 calls $0.006, and `null` from an unpriced provider fails the request closed
+rather than running against a guessed rate. One attempt per query, no
+pagination, no retry — a retry on a metered API is unaccounted spend.
+
+### 13c. The validator got stricter, because supplied evidence allows it
+
+On the grounding path the best available check was "is this domain one that
+came back", because Google returned only a redirect and a publisher name. With
+ONIQ holding the exact retrieved URLs, the check becomes exact-match, and three
+rules exist specifically for near-misses that look completely ordinary:
+
+| claim                                                     | verdict                             |
+| --------------------------------------------------------- | ----------------------------------- |
+| `amazon.in/dp/B0XXXXXXX`, never retrieved                 | **REJECT**                          |
+| a real, retrieved domain + a URL that was not retrieved   | **REJECT**                          |
+| a retrieved URL + a price absent from its snippet         | **REJECT**                          |
+| a retrieved URL whose host contradicts the claimed domain | **REJECT**                          |
+| one backed source while claiming a two-source cross-check | **REJECT**                          |
+| two retrieved URLs with prices present in their snippets  | **ACCEPT**                          |
+| no evidence retrieved                                     | **REJECT before rows are examined** |
+
+A domain alone does not prove a source was retrieved, and neither does a
+syntactically valid URL. Nothing is repaired: a rejection reports the offending
+claims and carries no `rows` field at all.
+
+### 13d. Economics, as a projection and labelled as one
+
+Not measured — no credential, so no live run. On the published rates:
+
+```
+retrieval   6 x $0.001                    = $0.006
+gemini      104,000 in  @ $0.25/MTok      = $0.026
+             6,000 out  @ $1.50/MTok      = $0.009
+                                    total ≈ $0.041
+```
+
+against Haiku's **measured** $0.119695 average. Roughly a third, and about an
+eighth of the $0.50 ceiling. hotel-scout's wider shape projects to ~$0.065.
+These are projections; the Haiku figures are invoices. They must not be
+compared as though they were the same kind of number.
+
+### 13e. Verdict
+
+**BLOCKED**, on a policy gate rather than an engineering one — a different
+wall from §11f and §12e, and a lower one.
+
+Links two through five of the RULE — evidence-bound output, validated JSON,
+financial settlement, and a validator that catches a composed product URL — are
+built, tested, and provider-agnostic. Link one, real retrieval, needs a
+provider ONIQ may use and pay for. That is one owner decision, not another
+engineering loop.
+
+`GEMINI_FAILOVER_ENABLED` stays unset.
