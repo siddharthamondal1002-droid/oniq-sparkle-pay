@@ -246,6 +246,7 @@ export function retrievalFirstBudget(b: SearchBudget): SearchBudget {
  */
 export type SourceViolation =
   | "no-evidence"
+  | "url-required"
   | "url-not-retrieved"
   | "domain-mismatch"
   | "domain-not-retrieved"
@@ -261,12 +262,30 @@ export type SourceRules = {
   claimsCrossCheck?: boolean;
   /** Rows carrying a price must have it supported by the snippet. */
   requirePriceSupport?: boolean;
+  /**
+   * The schema demands a URL, so a domain alone will not do.
+   *
+   * smart-scout and hotel-scout both render a link. A row that names a
+   * retailer and omits the link is not a weaker citation — it is a citation
+   * the user cannot check, sitting next to a price.
+   */
+  requireUrl?: boolean;
   urlKey?: string;
   domainKey?: string;
   priceKey?: string;
 };
 
-/** Is this the EXACT url of something ONIQ retrieved? */
+/**
+ * Is this the EXACT url of something ONIQ retrieved?
+ *
+ * Byte-for-byte, and deliberately no canonicalisation. Stripping query
+ * parameters, following a redirect, or normalising a trailing slash would each
+ * turn "close to something we fetched" into "something we fetched", and every
+ * one of those transformations can change which page is being cited —
+ * `?variant=2` is a different product, a shortener resolves wherever its owner
+ * points it. If an equivalence rule is ever wanted it has to be argued for and
+ * proven, not assumed here.
+ */
 export function isRetrievedUrl(url: unknown, evidence: EvidencePackage): boolean {
   return typeof url === "string" && evidence.sources.some((s) => s.url === url);
 }
@@ -322,6 +341,11 @@ export function validateAgainstEvidence<T extends Record<string, unknown>>(
     // A row may cite a domain without a URL, but then that domain must be one
     // ONIQ retrieved — a domain alone is the weaker claim, not a free pass.
     if (url === undefined || url === null || url === "") {
+      if (rules.requireUrl) {
+        violations.push("url-required");
+        offending.push(`${domainKey}=${claimedDomain ?? "(absent)"} has no url`);
+        continue;
+      }
       if (!claimedDomain || !retrievedDomains.has(claimedDomain)) {
         violations.push("domain-not-retrieved");
         offending.push(`${domainKey}=${claimedDomain ?? "(absent)"}`);

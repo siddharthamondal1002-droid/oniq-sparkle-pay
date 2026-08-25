@@ -1431,3 +1431,92 @@ provider ONIQ may use and pay for. That is one owner decision, not another
 engineering loop.
 
 `GEMINI_FAILOVER_ENABLED` stays unset.
+
+## 14. Serper authorised — policy scoped, credential absent
+
+Owner directive, 2026-08-25: proceed with Serper. The policy is to be scoped so
+it prohibits ONIQ-operated scraping, not documented third-party search APIs.
+
+### 14a. The policy now says what it meant
+
+`SEARCH_PROVIDER_MATRIX.md` §3 previously read as barring any provider whose
+index was built by scraping, which was broader than intended. It is now stated
+at the level it was meant for — what ONIQ itself does:
+
+> **ONIQ-operated scraping is prohibited.** No fetching of search-result HTML,
+> no browser automation against a search engine, no bypassing anti-bot or
+> access controls, no unofficial endpoints.
+>
+> **Documented third-party search APIs are permitted** when ONIQ calls the
+> documented API, does not scrape result HTML, does not bypass provider
+> controls, preserves attribution where required, accounts for the spend, and
+> stores credentials as secrets.
+
+The general prohibition is unchanged and stays. Two facts are recorded side by
+side, because collapsing them misleads in one direction or the other: **ONIQ
+performs no scraping**, and **Serper's underlying index is built from Google's
+result pages**. Serper is an external API provider, not an ONIQ scraper, and
+the owner has made the call knowing the provenance.
+
+### 14b. `SERPER_API_KEY` does not exist
+
+The loop's baseline states the credential has been added. It has not. Checked
+two ways in the project that holds every other ONIQ secret:
+
+```
+sandbox environment      SERPER_API_KEY: MISSING
+project secret store     21 secrets present, no Serper entry
+```
+
+`GOOGLE_AI_API_KEY` and `ANTHROPIC_API_KEY` are both in that same store and
+both work, so this is the right project and the key is genuinely absent.
+
+PHASE 2 says stop there, so the live probe, the pricing verification, the micro
+battery and the economic measurement did not run. Nothing was invented in their
+place. Adding the secret in Project Settings → Secrets is the whole unblock.
+
+### 14c. Everything that does not need the key was done
+
+**PHASE 8 gained four cases**, and they are the ones that matter most, because
+each is a URL that is real, well-formed, and on a host ONIQ genuinely
+retrieved — while being a page ONIQ never fetched:
+
+| claim                                                             | verdict |
+| ----------------------------------------------------------------- | ------- |
+| a retrieved URL **plus `?variant=2`**                             | REJECT  |
+| a retrieved URL **minus its trailing slash**                      | REJECT  |
+| a shortener (`bit.ly/…`) whose target is not in evidence          | REJECT  |
+| a retailer + price with **no URL**, where the schema requires one | REJECT  |
+| a retrieved URL with the price **quietly changed** 28 → 27        | REJECT  |
+
+`isRetrievedUrl` matches byte-for-byte and deliberately performs **no
+canonicalisation**. Stripping query parameters, following redirects or
+normalising slashes would each convert "close to something we fetched" into
+"something we fetched", and every one of those transformations can change which
+page is being cited. If an equivalence rule is ever wanted it has to be argued
+for and proven, not assumed.
+
+`requireUrl` is new: a domain alone is permitted when the schema has no URL
+field and refused when it has one. A row naming a retailer and a price without
+a link is a claim the user cannot check.
+
+**Secret hygiene is tested, not asserted.** The credential travels in an
+`X-API-KEY` header and never in a URL; a test drives all three failure paths —
+HTTP error, unparseable body, thrown exception — and asserts the key value
+appears in none of the returned error shapes.
+
+### 14d. Verdict
+
+**BLOCKED at PHASE 2**, on a missing credential — the shallowest blocker yet
+and the only one that is a single action away.
+
+Every gate that can be closed without the key is closed: policy scoped, adapter
+built on the documented endpoint, ONIQ-owned queries with a six-call ceiling,
+retrieval reserved before execution, native grounding forced off, validator
+extended to the near-miss cases, secret hygiene proven. 2,793 tests.
+
+Unmeasurable until the key exists: the live Serper probe, Serper's current
+documented price, evidence normalisation against a real response shape, whether
+Serper reports `credits` consumed per call, the 3×3 micro battery, hotel-scout's
+special gate, and every actual-cost figure. `GEMINI_FAILOVER_ENABLED` stays
+unset.

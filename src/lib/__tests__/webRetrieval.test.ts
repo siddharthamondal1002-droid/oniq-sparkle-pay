@@ -420,3 +420,126 @@ describe("supporting checks", () => {
     expect(domainOf("")).toBeNull();
   });
 });
+
+// ==================================================== PHASE 8 H-K — near misses
+/**
+ * The four that get through a careless validator.
+ *
+ * Each of these is a URL that is real, well-formed, and on a host ONIQ
+ * genuinely retrieved. None of them is a page ONIQ fetched. The whole point of
+ * exact-match is that "nearly the thing we fetched" is not the thing we
+ * fetched, and a price rendered next to a link is a claim the user will click.
+ */
+describe("PHASE 8 H-K — URLs that look retrieved and are not", () => {
+  const BB = "https://www.bigbasket.com/pd/126906/tata-salt-1-kg-pouch/";
+  const BL = "https://blinkit.com/prn/tata-salt/prid/12345";
+
+  it("H. same URL plus a query parameter → REJECT, no canonicalisation", () => {
+    // ?variant=2 can be a different product. Stripping params to make this
+    // match would be inventing an equivalence nobody proved.
+    const v = validateAgainstEvidence(
+      [{ source_domain: "bigbasket.com", url: `${BB}?variant=2` }],
+      EVIDENCE,
+    );
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.violations).toContain("url-not-retrieved");
+  });
+
+  it("H2. the same URL differing only by a trailing slash → REJECT", () => {
+    const v = validateAgainstEvidence(
+      [{ source_domain: "bigbasket.com", url: BB.replace(/\/$/, "") }],
+      EVIDENCE,
+    );
+    expect(v.ok).toBe(false);
+  });
+
+  it("I. a redirect/shortener whose target is not in evidence → REJECT", () => {
+    // ONIQ never fetched this, and a shortener resolves wherever its owner
+    // points it — including somewhere else tomorrow.
+    const v = validateAgainstEvidence(
+      [{ source_domain: "bigbasket.com", url: "https://bit.ly/3xAbCdE" }],
+      EVIDENCE,
+    );
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.violations).toContain("url-not-retrieved");
+  });
+
+  it("J. a domain with no URL → REJECT when the schema requires a URL", () => {
+    // Permitted when the schema has no url field; refused when it does. A row
+    // naming a retailer and a price without a link is a claim nobody can check.
+    const rows = [{ source_domain: "bigbasket.com", price_inr: 28 }];
+    expect(validateAgainstEvidence(rows, EVIDENCE).ok).toBe(true);
+    const strict = validateAgainstEvidence(rows, EVIDENCE, { requireUrl: true });
+    expect(strict.ok).toBe(false);
+    expect(strict.ok === false && strict.violations).toContain("url-required");
+  });
+
+  it("K. a retrieved URL with the price quietly changed → REJECT", () => {
+    // The evidence snippet says Rs 28. This row says 27 — close enough to look
+    // like a rounding or a different pack, and it is not in the evidence.
+    const v = validateAgainstEvidence(
+      [{ source_domain: "bigbasket.com", url: BB, price_inr: 27 }],
+      EVIDENCE,
+      { requirePriceSupport: true },
+    );
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.violations).toContain("price-unsupported");
+    // And the unchanged price still passes, so this is not just "reject prices".
+    expect(
+      validateAgainstEvidence(
+        [{ source_domain: "bigbasket.com", url: BB, price_inr: 28 }],
+        EVIDENCE,
+        {
+          requirePriceSupport: true,
+        },
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("all four report the offending claim and repair none of it", () => {
+    const v = validateAgainstEvidence(
+      [
+        { source_domain: "bigbasket.com", url: `${BB}?variant=2` },
+        { source_domain: "blinkit.com", url: BL, price_inr: 9999 },
+      ],
+      EVIDENCE,
+      { requirePriceSupport: true },
+    );
+    expect(v.ok).toBe(false);
+    expect(v.ok === false && v.offending.length).toBeGreaterThanOrEqual(2);
+    expect(v.ok === false && "rows" in v).toBe(false);
+  });
+});
+
+// ==================================================== PHASE 16 — secret hygiene
+describe("the credential never leaves the header", () => {
+  it("does not appear in the module source", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const src = readFileSync(
+      join(process.cwd(), "supabase/functions/_shared/webRetrieval.ts"),
+      "utf8",
+    );
+    // The name may appear; a value must not, and the key must never be
+    // interpolated into a URL or a log line.
+    expect(src).not.toMatch(/serper\.dev\/search\?[^"`]*key=/i);
+    expect(src).not.toMatch(/console\.[a-z]+\([^)]*apiKey/);
+  });
+
+  it("is absent from the error surface on every failure path", async () => {
+    for (const [label, impl] of [
+      ["http error", async () => new Response("x", { status: 500 })],
+      ["bad json", async () => new Response("not json", { status: 200 })],
+      [
+        "throw",
+        async () => {
+          throw new Error("boom");
+        },
+      ],
+    ] as const) {
+      const out = await serperProvider("SUPER-SECRET-VALUE", impl as typeof fetch).search("q", 5);
+      expect(JSON.stringify(out), label).not.toContain("SUPER-SECRET-VALUE");
+      expect(out.ok, label).toBe(false);
+    }
+  });
+});

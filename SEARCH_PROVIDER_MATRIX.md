@@ -37,7 +37,7 @@ Consequences that shape everything below:
 - **There is no search cache**, no URL canonicaliser, no deduplicator, no
   cross-provider ranker, and no citation normaliser. §7, §8, §9 and part of §3
   describe things that do not exist rather than things needing repair.
-- What *does* exist, and works: the spend ledger (`admit` → call → `settle`),
+- What _does_ exist, and works: the spend ledger (`admit` → call → `settle`),
   per-capability ceilings, fail-closed admission, and a per-request cost
   record. That is the foundation a gateway would sit on, and it is real.
 
@@ -80,15 +80,15 @@ Status vocabulary is §2's. `UNVERIFIED` is added because the loop's five
 statuses all assert knowledge this container cannot obtain, and inventing one
 would be worse than admitting the gap.
 
-| Provider | Status | Credential | Verified from official docs? |
-| --- | --- | --- | --- |
-| **Anthropic `web_search`** | **ENABLED** | `ANTHROPIC_API_KEY` present | Behaviour verified **empirically in production** (below) |
-| Google Search / Gemini grounding | UNVERIFIED | none | ✗ host blocked |
-| Bing Search API | UNVERIFIED | none | ✗ host blocked |
-| Brave Search API | UNVERIFIED | none | ✗ host blocked |
-| DuckDuckGo | UNVERIFIED | none | ✗ host blocked |
-| Google Programmable Search | UNVERIFIED | none | ✗ host blocked |
-| Serper / SerpAPI | UNVERIFIED | none | ✗ host blocked |
+| Provider                         | Status      | Credential                  | Verified from official docs?                             |
+| -------------------------------- | ----------- | --------------------------- | -------------------------------------------------------- |
+| **Anthropic `web_search`**       | **ENABLED** | `ANTHROPIC_API_KEY` present | Behaviour verified **empirically in production** (below) |
+| Google Search / Gemini grounding | UNVERIFIED  | none                        | ✗ host blocked                                           |
+| Bing Search API                  | UNVERIFIED  | none                        | ✗ host blocked                                           |
+| Brave Search API                 | UNVERIFIED  | none                        | ✗ host blocked                                           |
+| DuckDuckGo                       | UNVERIFIED  | none                        | ✗ host blocked                                           |
+| Google Programmable Search       | UNVERIFIED  | none                        | ✗ host blocked                                           |
+| Serper / SerpAPI                 | UNVERIFIED  | none                        | ✗ host blocked                                           |
 
 Anthropic's row is ENABLED on **measured production evidence**, not on
 documentation: a real search on 2026-08-24 admitted, called, settled and
@@ -106,13 +106,38 @@ Every other row needs three things this container cannot supply:
    §7 says "cache only what the provider permits"; that sentence is
    unimplementable until someone has read the permission.
 
-## 3. Scraping is out, and stays out
+## 3. ONIQ does not scrape. Documented third-party APIs are permitted.
 
-The loop says: do not scrape SERPs or bypass anti-bot controls. Nothing in this
-repository does, nothing proposed here would, and DuckDuckGo in particular has
-no official commercial search API — any "DuckDuckGo adapter" would in practice
-be scraping or an unofficial reseller. It stays `UNVERIFIED` and should not be
-built on that basis.
+**Scoped by owner directive, 2026-08-25.** The original rule said scraping was
+out and read, in practice, as barring any provider whose own index was built by
+scraping. That was broader than intended and it blocked a retrieval provider the
+owner wants. The rule is now stated at the level it was meant for — what ONIQ
+itself does.
+
+**ONIQ-operated scraping is prohibited.** No fetching of search-result HTML, no
+browser automation against a search engine, no bypassing anti-bot or access
+controls, no unofficial endpoints. That part is unchanged and stays.
+
+**Documented third-party search APIs are permitted**, when all of the
+following hold:
+
+- ONIQ calls the provider's documented API;
+- ONIQ does not scrape search-result HTML;
+- ONIQ does not bypass provider controls;
+- provider attribution/provenance is preserved where required;
+- provider use is financially accounted for;
+- provider credentials are stored as secrets, never in source or logs.
+
+**Serper is an external API provider, not an ONIQ scraper.** ONIQ posts to
+`https://google.serper.dev/search` with a header credential and reads JSON. It
+is worth being exact about the two separate facts, because collapsing them is
+how a record becomes misleading in either direction: ONIQ performs no scraping,
+**and** Serper's underlying index is built from Google's result pages. The
+provenance is acknowledged, not concealed, and the owner has made the call
+knowing it.
+
+DuckDuckGo still has no official commercial search API, so it remains
+`UNVERIFIED` — that entry was never about the reseller clause.
 
 ## 4. The gate that stops this loop before the architecture
 
