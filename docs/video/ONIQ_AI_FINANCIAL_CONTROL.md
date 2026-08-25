@@ -2092,3 +2092,62 @@ environments are all **per-repository**:
 Two earlier dispatches in the worker repo failed honestly at the
 credential guard (14:05 and 14:09 UTC) while the key sat in this repo —
 per-repository scoping, not a broken gate. Spend so far: **RunPod $0.00.**
+
+### 16m. The first live job — real spend, real worker, one fix away
+
+2026-08-25, 18:23 UTC, run gpu-validation #23 on `oniq-sparkle-pay@2e002e4`
+(vendored harness `oniq-gpu-worker@077a793`). The owner authorized one
+job twice over in writing; two structural decisions preceded the
+dispatch, both owner directives recorded next to the code they govern:
+
+- **No separate preflight job.** Three consecutive runs had stopped
+  fail-closed before the spend job could start. Every check now runs
+  INSIDE the spend job, immediately before provisioning; nothing
+  financial was removed, and the sweep still always runs.
+- **owner-dispatch approval mode.** The screenshot-verified fact: the
+  Deployment protection rules section does not render on this private
+  repository's GitHub plan, so a required-reviewer pause cannot exist
+  here. The owner chose: their authenticated dispatch typing `SPEND` is
+  the approval. Declared in the workflow as
+  `APPROVAL_MODE: owner-dispatch` beside a comment carrying this
+  directive; deleting that line restores the recorded-approval evidence
+  requirement the moment the plan supports reviewers.
+
+What the money actually did, measured:
+
+- Live quote at dispatch: **$0.50/h** secure cloud, reservation
+  **$0.13** (CEIL, full 900 s window), headroom $0.37 — ADMITTED, then
+  re-quoted at Phase 12 before submit.
+- One `image_preprocess` job submitted to endpoint `p3zmlv8ek10dzt`:
+  job `ea308ecd-f7e7-4703-b546-5c3144e3eafe-u1`, worker
+  `g5dmfa67fbtueo`, delayTime **9415 ms**, executionTime **391 ms**,
+  status **FAILED**, worker error class `ValueError`, handler output
+  `unexpected-exception`. The driver stopped at `job-failed`; the sweep
+  then confirmed **pods 0, endpoint min workers 0**.
+- Billed compute: roughly ten seconds of worker wall clock (cold start
+  plus execution) — order **$0.001–0.002** at the live rate, far under
+  the reservation. The exact cents live on the RunPod billing console;
+  this ledger does not estimate them as zero.
+
+The diagnosis the 391 ms gives away: the typed `storage-not-configured`
+path did NOT fire, so all three R2 variables exist on the endpoint —
+but boto3 raises a bare `ValueError` («Invalid endpoint») at client
+construction when `R2_S3_ENDPOINT` lacks its `https://` scheme, and
+construction sat outside every wrap in `storage.py`. 391 ms is
+client-construction time, not CUDA time; the job died before touching
+the card. Two fixes:
+
+- Worker (`oniq-gpu-worker@ab3def9`, on main): `storage.client()` now
+  validates the endpoint shape and wraps construction — any bad R2
+  value stops as **`r2-misconfigured`**, naming the VARIABLE and never
+  its value. 199 tests.
+- Owner (RunPod console): set `R2_S3_ENDPOINT` on the endpoint to the
+  full S3 API URL including `https://`, and while there confirm the
+  Workers tab shows 0 running (the endpoint still reports
+  `workersStandby: 1`, not the intended 0).
+
+**STATUS: STOPPED — the single authorized job is consumed.** A retry is
+new spending and waits for a new owner decision, per the owner's own
+rule. RunPod spend to date: **≈$0.002, bounded by one ~10 s worker**
+(console shows exact cents). R2 spend $0.00. GPU production remains
+DISABLED.
