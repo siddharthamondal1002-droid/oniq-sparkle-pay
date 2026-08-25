@@ -1,7 +1,7 @@
 # GPU validation, run from this repository — owner directive 2026-08-25:
 # RUNPOD_API_KEY lives in THIS repo's Actions secrets, so the gated
 # pipeline runs here, over the vendored harness in gpu-validation/
-# (byte-identical to oniq-gpu-worker@e708d79, where it is tested).
+# (byte-identical to oniq-gpu-worker@7e123e7, where it is tested).
 #
 # The six spend gates hold unchanged in this location:
 # 1. workflow_dispatch ONLY — no push/schedule/pull_request trigger, so a
@@ -139,8 +139,13 @@ jobs:
     needs: discover
     if: inputs.mode == 'spend'
     runs-on: ubuntu-latest
+    # deployments/actions read: reading back gpu-spend's protection rules
+    # via the environments API needs more than contents — with contents
+    # alone the API answered 403 (measured 2026-08-25, run #16). Read-only.
     permissions:
       contents: read
+      deployments: read
+      actions: read
     defaults:
       run:
         working-directory: gpu-validation
@@ -164,6 +169,12 @@ jobs:
     if: inputs.mode == 'spend' && inputs.spend == 'SPEND'
     runs-on: ubuntu-latest
     environment: gpu-spend
+    # The run path re-preflights (fail-closed), so it re-reads the
+    # environment's protection rules and needs the same read scopes.
+    permissions:
+      contents: read
+      deployments: read
+      actions: read
     defaults:
       run:
         working-directory: gpu-validation
