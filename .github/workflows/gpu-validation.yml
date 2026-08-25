@@ -81,9 +81,15 @@ jobs:
           python-version: "3.11"
 
       - name: Credential present (owner action if not)
+        env:
+          KEY_SAVED_AS_VARIABLE: ${{ vars.RUNPOD_API_KEY != '' }}
         run: |
           if [ -z "$RUNPOD_API_KEY" ]; then
-            echo "::error::RUNPOD_API_KEY secret is not configured on this repository (oniq-sparkle-pay). Discovery cannot run without it; nothing was spent."
+            if [ "$KEY_SAVED_AS_VARIABLE" = "true" ]; then
+              echo "::error::RUNPOD_API_KEY exists as a repository VARIABLE, not a Secret. An API key must never be a variable (variables are not masked). Delete it from the Variables tab and re-add it under Settings -> Secrets and variables -> Actions -> Repository secrets. Nothing was spent."
+            else
+              echo "::error::RUNPOD_API_KEY secret is not readable by Actions on this repository (oniq-sparkle-pay). It must be a Repository secret under Settings -> Secrets and variables -> Actions -> the Secrets tab (not Codespaces/Dependabot secrets, not the Lovable project's secret store). Nothing was spent."
+            fi
             exit 1
           fi
           echo "credential present"
