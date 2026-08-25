@@ -12,21 +12,40 @@ import {
 } from "../_shared/searchGuard.ts";
 
 // --- spend shape of ONE stay-scout query ------------------------------------
-// Identical call shape to smart-scout (opus-5, 11 searches, 3.5k output, cached
-// system prompt), so the reservation is derived the same way and for the same
-// reasons. Depth stays at the production value of 11.
-const STAY_MODEL = "claude-opus-5";
+//
+// HAIKU 4.5 — owner directive, 2026-08-25 ("change all to haiku").
+//
+// This function carried the worst instance of the flat-reserve defect in the
+// fleet. On opus-5 at 11 hops, with the per-hop context growth measured across
+// 51 real requests (~13,220 input tokens per hop), a real query projected to
+// **~$1.03** — more than twice the $0.50 ceiling — against a reserve of
+// $0.445625 that would not have covered even half of it. It was never
+// deployed in that state.
+const STAY_MODEL = "claude-haiku-4-5";
+// Depth stays at 11. It did not need cutting: on Haiku the full 11-hop search
+// reserves $0.315625, comfortably inside the ceiling. Reducing depth would
+// have traded away answer quality to fix a problem the model change already
+// solves, which is the wrong lever to reach for first.
 const STAY_MAX_SEARCHES = 11;
 const STAY_MAX_TOKENS = 3500;
 const STAY_SYSTEM_CACHE_TOKENS = 1300;
-const STAY_INPUT_TOKEN_RESERVE = 48_000;
+
+// The reserve scales with depth, because that is the mechanism: every hop
+// feeds its results back into context. Measured on smart-scout's battery, and
+// 14,000 is that measurement rounded up.
+const STAY_BASE_INPUT_TOKENS = 20_000;
+const STAY_TOKENS_PER_SEARCH = 14_000;
+// Output is reserved ABOVE max_tokens: smart-scout's control billed 4,295
+// output tokens against a 3,500 max_tokens, so reserving at max_tokens is
+// demonstrably optimistic.
+const STAY_OUTPUT_TOKEN_RESERVE = 6_000;
 
 const STAY_BUDGET: SearchBudget = {
   maxSearches: STAY_MAX_SEARCHES,
   maxProviderCalls: 1,
   maxLlmCalls: 1,
-  maxInputTokens: STAY_INPUT_TOKEN_RESERVE,
-  maxOutputTokens: STAY_MAX_TOKENS,
+  maxInputTokens: STAY_BASE_INPUT_TOKENS + STAY_MAX_SEARCHES * STAY_TOKENS_PER_SEARCH,
+  maxOutputTokens: STAY_OUTPUT_TOKEN_RESERVE,
   maxWallClockMs: 180_000,
   maxEstimatedUsd: 0.5,
 };

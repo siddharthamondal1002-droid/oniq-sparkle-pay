@@ -9,14 +9,23 @@ import {
 } from "../_shared/searchGuard.ts";
 
 // --- spend shape of ONE report scan -----------------------------------------
-// claude-sonnet-4-6 was the one model in the fleet MODEL_RATES could not price;
-// its published rate ($3/$15 per MTok, verified 2026-08-24) is now recorded, so
-// this call can be reserved instead of being exempt from the ledger.
-const SCAN_MODEL = "claude-sonnet-4-6";
+//
+// HAIKU 4.5 — owner directive, 2026-08-25 ("change all to haiku").
+// This one was not breaching: on sonnet-4-6 at 4 hops it projected to ~$0.28,
+// inside the ceiling. It moves for consistency, not rescue.
+const SCAN_MODEL = "claude-haiku-4-5";
 const SCAN_MAX_SEARCHES = 4;
 const SCAN_MAX_TOKENS = 1400;
 // System prompt + the wrapper text, generously.
 const SCAN_PROMPT_TOKEN_RESERVE = 2_000;
+// Per-hop search-result context. This function had NO per-hop allowance at all
+// — it reserved for the prompt and the attachment and nothing for the four
+// searches it is permitted to run, so a scan that actually searched was
+// guaranteed to under-reserve. 14,000/hop is smart-scout's measured ~13,220
+// rounded up.
+const SCAN_TOKENS_PER_SEARCH = 14_000;
+// Reserved above max_tokens, for the reason smart-scout's control demonstrated.
+const SCAN_OUTPUT_TOKEN_RESERVE = 2_500;
 
 function scanBudget(kind: "image" | "pdf", data: string): SearchBudget {
   return {
@@ -25,8 +34,11 @@ function scanBudget(kind: "image" | "pdf", data: string): SearchBudget {
     maxLlmCalls: 1,
     // The attachment IS the input here — reserving a flat number would be
     // reserving for a request nobody is making.
-    maxInputTokens: SCAN_PROMPT_TOKEN_RESERVE + attachmentTokenCeiling(kind, data),
-    maxOutputTokens: SCAN_MAX_TOKENS,
+    maxInputTokens:
+      SCAN_PROMPT_TOKEN_RESERVE +
+      attachmentTokenCeiling(kind, data) +
+      SCAN_MAX_SEARCHES * SCAN_TOKENS_PER_SEARCH,
+    maxOutputTokens: SCAN_OUTPUT_TOKEN_RESERVE,
     maxWallClockMs: 120_000,
     maxEstimatedUsd: 0.5,
   };

@@ -17,6 +17,14 @@ import { describe, expect, it } from "vitest";
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 const SCOUT = read("supabase/functions/smart-scout/index.ts");
 
+/** Owner directive 2026-08-25: every searching function runs Haiku 4.5. */
+const SEARCH_FNS = [
+  "supabase/functions/smart-scout/index.ts",
+  "supabase/functions/ting/index.ts",
+  "supabase/functions/health-scan/index.ts",
+  "supabase/functions/hotel-scout/index.ts",
+] as const;
+
 /** The owner's SEARCH request ceiling. Not a variable in this experiment. */
 const REQUEST_CAP_USD = 0.5;
 
@@ -97,5 +105,74 @@ describe("smart-scout SEARCH economics fit under the ceiling", () => {
     // The business ceiling is not a variable in this experiment.
     expect(SCOUT).toMatch(/maxEstimatedUsd:\s*0\.5\b/);
     expect(REQUEST_CAP_USD).toBe(0.5);
+  });
+});
+
+// ============================================ the whole fleet, not one function
+/**
+ * OWNER DIRECTIVE, 2026-08-25: "change all to haiku".
+ *
+ * Before this, three functions still carried the flat-reserve defect the
+ * battery measured. Projected against ~13,220 input tokens per hop:
+ *
+ *   ting          5 hops, opus-5     ~$0.506   breached the $0.50 ceiling
+ *   hotel-scout  11 hops, opus-5     ~$1.033   breached it by 2x
+ *   health-scan   4 hops, sonnet-4-6 ~$0.280   under, but reserved nothing
+ *                                              at all for its four searches
+ *
+ * These assertions exist so a single function drifting back to an expensive
+ * model, or losing its per-hop allowance, fails the build rather than
+ * discovering it in a settled invoice.
+ */
+describe("every searching function is on Haiku and reserves per hop", () => {
+  it("no searching function references an expensive model", () => {
+    for (const p of SEARCH_FNS) {
+      const src = read(p);
+      const models = [...src.matchAll(/"(claude-[a-z0-9-]+)"/g)].map((m) => m[1]);
+      expect(models.length, `${p} must name a model`).toBeGreaterThan(0);
+      expect([...new Set(models)], p).toEqual(["claude-haiku-4-5"]);
+    }
+  });
+
+  it("each one reserves input for the search results it permits", () => {
+    // The defect was reserving for the prompt and nothing for the hops. Every
+    // function must multiply its own search ceiling by a per-hop allowance.
+    const perHop = /MAX_SEARCHES \* [A-Z_]*TOKENS_PER_SEARCH/;
+    for (const p of SEARCH_FNS) {
+      expect(read(p), `${p} must scale its reserve with search depth`).toMatch(perHop);
+    }
+  });
+
+  it("the per-hop allowance is at least what was measured", () => {
+    // 51 real requests put it near 13,220 tokens per hop. Reserving less is
+    // how the control came to settle over cap.
+    for (const p of SEARCH_FNS) {
+      const m = read(p).match(/TOKENS_PER_SEARCH\s*=\s*([\d_]+)/);
+      expect(m, `${p} must declare a per-hop allowance`).toBeTruthy();
+      expect(Number(m![1].replace(/_/g, "")), p).toBeGreaterThanOrEqual(13_220);
+    }
+  });
+
+  it("every function keeps the $0.50 ceiling in its budget", () => {
+    for (const p of SEARCH_FNS) {
+      expect(read(p), p).toMatch(/maxEstimatedUsd:\s*0\.5\b/);
+    }
+  });
+
+  it("the fleet's worst-case reservation still fits under the ceiling", () => {
+    // hotel-scout is the widest: 11 hops. Recomputed here rather than trusted.
+    const stay = read("supabase/functions/hotel-scout/index.ts");
+    const n = (name: string) =>
+      Number(stay.match(new RegExp(`const ${name}\\s*=\\s*([\\d_]+)`))![1].replace(/_/g, ""));
+    const hops = n("STAY_MAX_SEARCHES");
+    const worst =
+      hops * USD_PER_SEARCH +
+      n("STAY_SYSTEM_CACHE_TOKENS") * RATE["claude-haiku-4-5"].inUsd * CACHE_WRITE_MULTIPLIER +
+      (n("STAY_BASE_INPUT_TOKENS") + hops * n("STAY_TOKENS_PER_SEARCH")) *
+        RATE["claude-haiku-4-5"].inUsd +
+      n("STAY_OUTPUT_TOKEN_RESERVE") * RATE["claude-haiku-4-5"].outUsd;
+    expect(worst).toBeLessThanOrEqual(REQUEST_CAP_USD);
+    // And it kept its full 11-hop depth — Haiku made cutting quality unnecessary.
+    expect(hops).toBe(11);
   });
 });

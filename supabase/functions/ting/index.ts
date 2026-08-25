@@ -16,12 +16,24 @@ import {
 // billed searches as the model wants, on claude-opus-5. That is not a ceiling
 // anyone chose; it is the absence of one, and it cannot be reserved for.
 // TING_MAX_SEARCHES exists so the reservation can describe the call.
-const TING_MODEL = "claude-opus-5";
+// HAIKU 4.5 — owner directive, 2026-08-25 ("change all to haiku").
+// On opus-5 at 5 hops this projected to ~$0.506 against the $0.50 ceiling:
+// marginal, and marginal in the direction that breaches.
+const TING_MODEL = "claude-haiku-4-5";
 const TING_MAX_SEARCHES = 5;
 const TING_MAX_TOKENS = 1024;
 // 30 messages x 4,000 chars is the validated ceiling above; ~3 chars/token is a
 // deliberately pessimistic conversion so the bound stays above the real count.
 const TING_HISTORY_TOKEN_RESERVE = (30 * 4000) / 3;
+// Per-hop search-result context. The old 3,600 was a guess and it was low by
+// almost 4x: smart-scout's 51-request battery measured ~13,220 input tokens per
+// hop, because every hop feeds its results back into the conversation. 14,000
+// is that measurement rounded up.
+const TING_TOKENS_PER_SEARCH = 14_000;
+// Reserved above max_tokens — a searching turn's control tokens are billed as
+// output too, and smart-scout's control proved reserving at max_tokens
+// under-counts.
+const TING_OUTPUT_TOKEN_RESERVE = 2_500;
 
 function tingBudget(search: boolean, attachmentTokens: number): SearchBudget {
   return {
@@ -31,8 +43,10 @@ function tingBudget(search: boolean, attachmentTokens: number): SearchBudget {
     // Search results re-enter context on every hop, so a searching turn
     // reserves room for them; a non-searching turn does not need to.
     maxInputTokens:
-      TING_HISTORY_TOKEN_RESERVE + attachmentTokens + (search ? TING_MAX_SEARCHES * 3_600 : 0),
-    maxOutputTokens: TING_MAX_TOKENS,
+      TING_HISTORY_TOKEN_RESERVE +
+      attachmentTokens +
+      (search ? TING_MAX_SEARCHES * TING_TOKENS_PER_SEARCH : 0),
+    maxOutputTokens: TING_OUTPUT_TOKEN_RESERVE,
     maxWallClockMs: 120_000,
     maxEstimatedUsd: 0.5,
   };
