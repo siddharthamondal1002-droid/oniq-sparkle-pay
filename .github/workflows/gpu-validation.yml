@@ -1,0 +1,211 @@
+# GPU validation, run from this repository — owner directive 2026-08-25:
+# RUNPOD_API_KEY lives in THIS repo's Actions secrets, so the gated
+# pipeline runs here, over the vendored harness in gpu-validation/
+# (byte-identical to oniq-gpu-worker@e708d79, where it is tested).
+#
+# The six spend gates hold unchanged in this location:
+# 1. workflow_dispatch ONLY — no push/schedule/pull_request trigger, so a
+#    merge (including a Lovable sync commit) can never rent a GPU. This
+#    workflow must remain the ONLY one in the repo that references
+#    secrets.RUNPOD_API_KEY.
+# 2. Default mode is read-only discovery, $0. Spending additionally
+#    requires typing SPEND into the run input.
+# 3. cancel-in-progress: false — cancelling a run that holds a worker is
+#    how an orphan is created.
+# 4. The orphan sweep runs if: always() and fails when it cannot confirm
+#    zero — None is never 0.
+# 5. CI verifies the endpoint (min 0 / max 1, RTX 3090), never creates one.
+# 6. R2 credentials are NOT GitHub secrets — they live in the RunPod
+#    endpoint's environment.
+#
+# The spend job requires the gpu-spend environment OF THIS REPOSITORY
+# (required reviewer = the approval click), and preflight verifies via
+# the API that the environment really carries a reviewer rule, because
+# GitHub silently creates an unprotected environment on first reference.
+# The GPU_TEST_INPUT_REF / GPU_TEST_OUTPUT_PREFIX repository variables
+# must also exist on this repository.
+
+name: gpu-validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "discover = read-only, $0. spend = the gated live path."
+        type: choice
+        options: [discover, spend]
+        default: discover
+      spend:
+        description: "Type SPEND (exactly) to allow the spend job."
+        type: string
+        default: ""
+      through_phase:
+        description: "Last phase when spending: 16 = one job, 17 = +failure battery, 18 = +5-job, 19 = +20-job."
+        type: choice
+        options: ["16", "17", "18", "19"]
+        default: "16"
+      endpoint_id:
+        description: "Endpoint id (optional; must match the single live endpoint)."
+        type: string
+        default: ""
+      test_input_key:
+        description: "Overrides the GPU_TEST_INPUT_REF repository variable."
+        type: string
+        default: ""
+      test_output_prefix:
+        description: "Overrides the GPU_TEST_OUTPUT_PREFIX repository variable."
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gpu-validation
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    name: "Phase 4-7: read-only discovery, $0"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gpu-validation
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Credential present (owner action if not)
+        run: |
+          if [ -z "$RUNPOD_API_KEY" ]; then
+            echo "::error::RUNPOD_API_KEY secret is not configured on this repository (oniq-sparkle-pay). Discovery cannot run without it; nothing was spent."
+            exit 1
+          fi
+          echo "credential present"
+
+      - name: Discover — RAW first, parsed second
+        run: python runpod_client.py discover --json discovery.json
+
+      - name: "Phase 6-7: live 3090 figures and the financial gate"
+        run: |
+          python - <<'EOF'
+          import json
+          from validation import admission
+
+          report = json.load(open("discovery.json"))
+          catalogue = report["gpu_catalogue_parsed"]
+
+          try:
+              target = admission.require_available(catalogue)
+          except admission.UnavailableGpu as exc:
+              print("STOP:", exc)
+              raise SystemExit(1)
+
+          price = target["secure_price"]
+          reservation = admission.admit(
+              gpu_name=target["id"],
+              vram_gb=target["memory_gb"],
+              runtime_seconds=admission.RUNTIME_CEILING_SECONDS,
+              price_per_hour=price,
+          )
+          print("LIVE target :", target["id"], f"{target['memory_gb']}GB")
+          print("LIVE price  : $", price, "/h (secure cloud) — quoted now, not historical")
+          print("Reservation : $", reservation.reserved_usd,
+                f"for the full {reservation.runtime_seconds}s ceiling")
+          print("Job cap     : $", admission.JOB_CAP_USD, "-> ADMITTED")
+          EOF
+
+      - name: Keep the raw payloads
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: discovery
+          path: gpu-validation/discovery.json
+          if-no-files-found: ignore
+
+  preflight:
+    name: "Phase 9-10: free pre-spend verification (no approval needed, $0)"
+    needs: discover
+    if: inputs.mode == 'spend'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: gpu-validation
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      GITHUB_TOKEN: ${{ github.token }}
+      ENDPOINT_ID: ${{ inputs.endpoint_id }}
+      GPU_TEST_INPUT_REF: ${{ inputs.test_input_key || vars.GPU_TEST_INPUT_REF }}
+      GPU_TEST_OUTPUT_PREFIX: ${{ inputs.test_output_prefix || vars.GPU_TEST_OUTPUT_PREFIX }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Preflight — every free gate, no spend
+        run: python -m validation.spend_run preflight
+
+  spend:
+    name: "Phase 12-19: gated live validation"
+    needs: preflight
+    if: inputs.mode == 'spend' && inputs.spend == 'SPEND'
+    runs-on: ubuntu-latest
+    environment: gpu-spend
+    defaults:
+      run:
+        working-directory: gpu-validation
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+      GITHUB_TOKEN: ${{ github.token }}
+      ENDPOINT_ID: ${{ inputs.endpoint_id }}
+      GPU_TEST_INPUT_REF: ${{ inputs.test_input_key || vars.GPU_TEST_INPUT_REF }}
+      GPU_TEST_OUTPUT_PREFIX: ${{ inputs.test_output_prefix || vars.GPU_TEST_OUTPUT_PREFIX }}
+      THROUGH_PHASE: ${{ inputs.through_phase }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: "Phases 12-19 (re-preflighted, re-quoted, fail-closed)"
+        run: python -m validation.spend_run run
+
+  sweep:
+    name: "orphan sweep — None is never 0"
+    needs: [discover, preflight, spend]
+    if: always()
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gpu-validation
+    env:
+      RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Sweep
+        run: |
+          python - <<'EOF'
+          import runpod_client as rp
+          result = None
+          try:
+              result = rp.sweep_orphans()
+          except Exception as exc:
+              print("sweep raised:", type(exc).__name__)
+          if result is None:
+              print("STOP: cannot confirm zero orphans (sweep reports None, never 0)")
+              raise SystemExit(1)
+          print("pods:", result["pods"], "endpoint min workers:", result["endpoint_min_workers"])
+          if result["pods"] != 0 or result["endpoint_min_workers"] != 0:
+              print("ORPHAN ALARM: something can still bill")
+              raise SystemExit(1)
+          print("orphan count = 0, confirmed")
+          EOF

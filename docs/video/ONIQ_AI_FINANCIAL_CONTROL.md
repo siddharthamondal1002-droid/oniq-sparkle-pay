@@ -2061,3 +2061,34 @@ approve the gpu-spend gate when the run pauses. Preflight can be exercised
 for free at any time (mode `spend`, `spend` left empty) and will name the
 first gate that fails. **RunPod spend $0.00. R2 spend $0.00. GPU
 production remains DISABLED.**
+
+### 16l. The credential's home — owner directive, 2026-08-25
+
+The owner authorized the first live spend (one job, batteries excluded)
+and placed `RUNPOD_API_KEY` in **this repository's** Actions secrets, not
+the worker repo's — then directed: run the test from `oniq-sparkle-pay`.
+Recorded here because where the provisioning credential lives is a
+money-path decision, and this ledger is where those go.
+
+What that means mechanically, since Actions secrets, variables and
+environments are all **per-repository**:
+
+- `.github/workflows/gpu-validation.yml` now exists in this repo,
+  mirroring the worker repo's gated pipeline over a vendored harness
+  (`gpu-validation/`, byte-identical to `oniq-gpu-worker@e708d79`, where
+  the 176 tests live). The deployable worker files stay out; nothing in
+  this repo contains a serverless entrypoint — the §16b prohibition is
+  about that outcome and still holds.
+- The `gpu-spend` environment (with its required reviewer) and the
+  `GPU_TEST_INPUT_REF` / `GPU_TEST_OUTPUT_PREFIX` variables must exist on
+  **this** repository now. Preflight names whichever is missing.
+- The six gates hold unchanged, and one line of residual risk is recorded
+  once rather than re-litigated: in a repo that many actors push to
+  (Lovable's sync included), any future workflow edit could reference the
+  secret. Gate 1's guarantee therefore now rests on a convention this
+  ledger states explicitly: **gpu-validation.yml must remain the only
+  workflow in this repository that references `RUNPOD_API_KEY`.**
+
+Two earlier dispatches in the worker repo failed honestly at the
+credential guard (14:05 and 14:09 UTC) while the key sat in this repo —
+per-repository scoping, not a broken gate. Spend so far: **RunPod $0.00.**
