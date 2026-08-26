@@ -1,7 +1,7 @@
 # GPU validation, run from this repository — owner directive 2026-08-25:
 # RUNPOD_API_KEY lives in THIS repo's Actions secrets, so the gated
 # pipeline runs here, over the vendored harness in gpu-validation/
-# (byte-identical to oniq-gpu-worker@bebaf8a, where it is tested).
+# (byte-identical to oniq-gpu-worker@7cd5306, where it is tested).
 #
 # The six spend gates hold unchanged in this location:
 # 1. workflow_dispatch ONLY — no push/schedule/pull_request trigger, so a
