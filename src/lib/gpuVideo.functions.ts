@@ -47,3 +47,13 @@ export const gpuVideoSign = createServerFn({ method: "POST" })
     const { signGenerated } = await import("./gpuVideo.server");
     return signGenerated(context.supabase, context.userId, data.path);
   });
+
+// Auth-gated, NOT admin-gated on purpose: it reports booleans, variable
+// names and bounded error codes so the tool page can say WHICH link broke
+// even when the admin chain itself is the broken link. No values, ever.
+export const gpuVideoDiag = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { diagGeneration } = await import("./gpuVideo.server");
+    return diagGeneration(context.supabase, context.userId);
+  });
