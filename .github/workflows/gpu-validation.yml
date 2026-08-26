@@ -1,7 +1,7 @@
 # GPU validation, run from this repository — owner directive 2026-08-25:
 # RUNPOD_API_KEY lives in THIS repo's Actions secrets, so the gated
 # pipeline runs here, over the vendored harness in gpu-validation/
-# (byte-identical to oniq-gpu-worker@077a793, where it is tested).
+# (byte-identical to oniq-gpu-worker@d3dc9d6, where it is tested).
 #
 # The six spend gates hold unchanged in this location:
 # 1. workflow_dispatch ONLY — no push/schedule/pull_request trigger, so a
@@ -46,6 +46,11 @@ on:
         type: choice
         options: ["16", "17", "18", "19"]
         default: "16"
+      op:
+        description: "Workload for the spend job. video_generate = one LTX image-to-video."
+        type: choice
+        options: [image_preprocess, video_generate]
+        default: image_preprocess
       endpoint_id:
         description: "Endpoint id (optional; must match the single live endpoint)."
         type: string
@@ -161,6 +166,7 @@ jobs:
       GPU_TEST_INPUT_REF: ${{ inputs.test_input_key || vars.GPU_TEST_INPUT_REF }}
       GPU_TEST_OUTPUT_PREFIX: ${{ inputs.test_output_prefix || vars.GPU_TEST_OUTPUT_PREFIX }}
       THROUGH_PHASE: ${{ inputs.through_phase }}
+      OP: ${{ inputs.op }}
       # Owner directive 2026-08-25: required reviewers are not offered on
       # this private repository's GitHub plan (the protection-rules
       # section does not render), so the owner's authenticated SPEND
