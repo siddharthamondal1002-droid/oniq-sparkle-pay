@@ -189,6 +189,25 @@ function AdminInbox() {
         ))}
       </div>
 
+      {/* The generation tools live on their own unlinked routes; these are the
+          only ways in, added after the owner could not find the GPU tool
+          (2026-08-26). Links, not gates — every call is refused server-side
+          for a non-admin regardless. */}
+      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+        <Link
+          to="/app/admin/gpu-video"
+          className="rounded-full border border-border bg-card px-4 py-2 font-semibold"
+        >
+          Generate video — in-house GPU 🎬
+        </Link>
+        <Link
+          to="/app/admin/video"
+          className="rounded-full border border-border bg-card px-4 py-2 font-semibold text-muted-foreground"
+        >
+          Runway tool
+        </Link>
+      </div>
+
       {section === "kyc" && <PartnerKycPanel />}
 
       {section === "takedowns" && <TakedownPanel />}
