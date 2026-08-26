@@ -474,6 +474,69 @@ export async function listGenerations(
   };
 }
 
+/**
+ * Server-side wiring check, built because production has NO readable server
+ * logs: when a link in the chain breaks (env, admin flag, the service-role
+ * client), the browser sees an opaque 500 and this page is the only place
+ * the truth can surface. Booleans, variable NAMES and bounded error codes
+ * only — never a value. Auth-gated but deliberately NOT admin-gated: it
+ * must keep working when the admin chain itself is what is broken.
+ */
+export type GpuDiag = {
+  env: Record<
+    | "SUPABASE_URL"
+    | "SUPABASE_SERVICE_ROLE_KEY"
+    | "RUNPOD_API_KEY"
+    | "RUNPOD_ENDPOINT_ID"
+    | "R2_PUBLIC_BASE_URL",
+    boolean
+  >;
+  isAdmin: boolean | string;
+  adminClient: string;
+  table: string;
+};
+
+export async function diagGeneration(
+  userSupabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<GpuDiag> {
+  const env = {
+    SUPABASE_URL: Boolean(process.env["SUPABASE_URL"]),
+    SUPABASE_SERVICE_ROLE_KEY: Boolean(process.env["SUPABASE_SERVICE_ROLE_KEY"]),
+    RUNPOD_API_KEY: Boolean(process.env["RUNPOD_API_KEY"]),
+    RUNPOD_ENDPOINT_ID: Boolean(process.env["RUNPOD_ENDPOINT_ID"]),
+    R2_PUBLIC_BASE_URL: Boolean(process.env["R2_PUBLIC_BASE_URL"]),
+  };
+
+  let isAdmin: boolean | string;
+  try {
+    const { data, error } = await userSupabase.rpc("is_admin", { _uid: userId });
+    isAdmin = error ? `error:${error.message.slice(0, 80)}` : data === true;
+  } catch (e) {
+    isAdmin = `error:${(e as Error).message.slice(0, 80)}`;
+  }
+
+  let adminClient = "ok";
+  let table = "unchecked";
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    void supabaseAdmin;
+    try {
+      const { error } = await (supabaseAdmin as unknown as SupabaseClient<Database>)
+        .from("gpu_video_jobs" as never)
+        .select("id", { count: "exact", head: true });
+      table = error ? `error:${error.message.slice(0, 120)}` : "ok";
+    } catch (e) {
+      table = `error:${(e as Error).message.slice(0, 120)}`;
+    }
+  } catch (e) {
+    // client.server's own error text names variables, never values.
+    adminClient = `error:${(e as Error).message.slice(0, 140)}`;
+  }
+
+  return { env, isAdmin, adminClient, table };
+}
+
 /** Signed playback URL for a completed generation's custody copy. */
 export async function signGenerated(
   userSupabase: SupabaseClient<Database>,

@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useState } from "react";
 import {
+  gpuVideoDiag,
   gpuVideoPoll,
   gpuVideoSign,
   gpuVideoStatus,
@@ -46,6 +47,7 @@ function GpuVideoTool() {
   const submit = useServerFn(gpuVideoSubmit);
   const poll = useServerFn(gpuVideoPoll);
   const sign = useServerFn(gpuVideoSign);
+  const diag = useServerFn(gpuVideoDiag);
 
   const referenceIds = Object.keys(STAGED_REFERENCES);
   const [referenceId, setReferenceId] = useState(referenceIds[0] ?? "");
@@ -61,6 +63,14 @@ function GpuVideoTool() {
     queryKey: ["gpu-video-status"],
     queryFn: () => status({ data: undefined }),
     retry: false,
+  });
+  // Production has no readable server logs, so when the status call fails
+  // the wiring check below is the only way to see WHICH link broke.
+  const diagQuery = useQuery({
+    queryKey: ["gpu-video-diag"],
+    queryFn: () => diag({ data: undefined }),
+    retry: false,
+    enabled: statusQuery.isError,
   });
   const jobs = statusQuery.data?.jobs ?? [];
   const hasLive = jobs.some((j) => !TERMINAL_STATUSES.has(j.status as JobStatus));
@@ -86,7 +96,8 @@ function GpuVideoTool() {
       if (!r.reused) setIdempotencyKey(freshKey());
       qc.invalidateQueries({ queryKey: ["gpu-video-status"] });
     },
-    onError: (e) => setMessage((e as Error).message),
+    onError: (e) =>
+      setMessage((e as Error).message || "The server rejected the call without a reason."),
   });
 
   const promptOk = promptText.trim().length > 0 && promptText.length <= MAX_PROMPT_CHARS;
@@ -118,6 +129,34 @@ function GpuVideoTool() {
       <p>AI-generated video 🤖 — {AI_OUTPUT_LABEL}</p>
       <AiOutputReport surface="gpu_video_ai_output" targetId="gpu-video-tool" />
 
+      {statusQuery.isError && (
+        <div role="alert">
+          <p>
+            Status check failed:{" "}
+            {(statusQuery.error as Error)?.message || "the server returned an unnamed error"}
+          </p>
+          {diagQuery.data && (
+            <pre style={{ whiteSpace: "pre-wrap" }}>
+              {[
+                "Server wiring check (names and booleans only):",
+                ...Object.entries(diagQuery.data.env).map(
+                  ([name, present]) => `  ${name}: ${present ? "present" : "MISSING"}`,
+                ),
+                `  admin flag for this account: ${String(diagQuery.data.isAdmin)}`,
+                `  admin database client: ${diagQuery.data.adminClient}`,
+                `  gpu_video_jobs table: ${diagQuery.data.table}`,
+              ].join("\n")}
+            </pre>
+          )}
+          {diagQuery.isError && (
+            <p>
+              The wiring check itself also failed (
+              {(diagQuery.error as Error)?.message || "unnamed error"}) — the break is before the
+              server code runs: auth, routing, or an old cached build. Try a hard reload.
+            </p>
+          )}
+        </div>
+      )}
       {statusQuery.data && !statusQuery.data.configured && (
         <p role="alert">
           Not configured on this server yet: RUNPOD_API_KEY, RUNPOD_ENDPOINT_ID and
