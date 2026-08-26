@@ -23,6 +23,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchTimeout.ts";
 import { GPU_JOB_CAP_USD, gpuActualUsd } from "../_shared/gpuJob.ts";
 import {
+  TARGET_GPU_ID,
   WATCHDOG_SECONDS,
   admitGeneration,
   buildAudioMuxPayload,
@@ -68,13 +69,17 @@ function runpodHeaders(): Record<string, string> {
 }
 
 /**
- * Live RTX 3090 Secure Cloud price — quoted NOW, never reused, never
- * defaulted. A null lowestPrice is RunPod saying it has none to allocate,
- * and an unprovisionable GPU must refuse admission rather than queue blind.
+ * Live secure-cloud price for THE production card — quoted NOW, never
+ * reused, never defaulted. THE SERVERLESS RULE (owner directive
+ * 2026-08-26): serverless jobs bill the SECURE price against an endpoint
+ * that manages its own worker pool; the pod-market lowestPrice field is
+ * not consulted, because one evening's record showed it flapping null on
+ * three cards in turn while every secure price stayed firm. A missing or
+ * non-positive secure price still returns null, and null still refuses
+ * admission — a null price is never free.
  */
-async function live3090PriceUsd(): Promise<number | null> {
-  const query =
-    "query { gpuTypes { id securePrice lowestPrice(input: {gpuCount: 1}) { uninterruptablePrice } } }";
+async function liveTargetGpuPriceUsd(): Promise<number | null> {
+  const query = "query { gpuTypes { id securePrice } }";
   const res = await fetchWithTimeout(
     RUNPOD_GRAPHQL,
     { method: "POST", headers: runpodHeaders(), body: JSON.stringify({ query }) },
@@ -85,13 +90,10 @@ async function live3090PriceUsd(): Promise<number | null> {
     return null;
   }
   const doc = (await res.json()) as { data?: { gpuTypes?: Array<Record<string, unknown>> } };
-  const gpu = doc.data?.gpuTypes?.find((g) => g.id === "NVIDIA GeForce RTX 3090");
+  const gpu = doc.data?.gpuTypes?.find((g) => g.id === TARGET_GPU_ID);
   if (!gpu) return null;
   const secure = gpu.securePrice;
-  const lowest = (gpu.lowestPrice as { uninterruptablePrice?: unknown } | null)
-    ?.uninterruptablePrice;
   if (typeof secure !== "number" || secure <= 0) return null;
-  if (typeof lowest !== "number" || lowest <= 0) return null; // no capacity to allocate
   return secure;
 }
 
@@ -231,7 +233,7 @@ async function salvageSilent(
 async function submitAudioRun(admin: AnyClient, job: Record<string, unknown>): Promise<void> {
   let price: number | null = null;
   try {
-    price = await live3090PriceUsd();
+    price = await liveTargetGpuPriceUsd();
   } catch (e) {
     console.error("[gpu-video] audio quote failed", (e as Error).message);
   }
@@ -309,7 +311,12 @@ async function pollAudioRun(admin: AnyClient, job: Record<string, unknown>): Pro
     return;
   }
   if (billed !== null && billed > 900) {
-    await salvageSilent(admin, job, "audio-billing-anomaly: executionTime exceeds the 900s ceiling", audioBilling);
+    await salvageSilent(
+      admin,
+      job,
+      "audio-billing-anomaly: executionTime exceeds the 900s ceiling",
+      audioBilling,
+    );
     return;
   }
 
@@ -325,8 +332,7 @@ async function pollAudioRun(admin: AnyClient, job: Record<string, unknown>): Pro
       status: "completed",
       stored_path: stored,
       output_bytes: out.output_bytes as number,
-      narration_seconds:
-        typeof out.narration_seconds === "number" ? out.narration_seconds : null,
+      narration_seconds: typeof out.narration_seconds === "number" ? out.narration_seconds : null,
       ...audioBilling,
       audio_error: null,
       error: null,
@@ -418,6 +424,10 @@ async function submitGeneration(
       input_ref: request.referenceId,
       output_ref: "pending",
       status: "queued",
+      // Recorded explicitly from the same canonical constant admission and
+      // proof use — never left to a column default that can go stale on a
+      // card move (the 3090-era default did exactly that).
+      gpu_type: TARGET_GPU_ID,
       audio_mode: request.audio,
       narration_text: request.audio === "narration" ? request.narrationText : null,
     })
@@ -440,7 +450,7 @@ async function submitGeneration(
   // --- live quote + admission, fail closed ---------------------------------
   let price: number | null = null;
   try {
-    price = await live3090PriceUsd();
+    price = await liveTargetGpuPriceUsd();
   } catch (e) {
     console.error("[gpu-video] quote failed", (e as Error).message);
   }

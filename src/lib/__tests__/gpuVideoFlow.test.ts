@@ -11,6 +11,7 @@ import {
   LAUNCH,
   MAX_PROMPT_CHARS,
   STAGED_REFERENCES,
+  TARGET_GPU_ID,
   TERMINAL_STATUSES,
   UI_LABELS,
   WATCHDOG_SECONDS,
@@ -47,12 +48,17 @@ const A_REQUEST = {
   audio: "off" as const,
 };
 
-/** The measured run #39 worker output, as a fixture shape. */
+/**
+ * The measured run #39 worker output, as a fixture shape. Every number is
+ * that run's; gpu_name is the one field retargeted since — the owner moved
+ * the endpoint to the A5000 (2026-08-26), so this is what a good output
+ * names today.
+ */
 function goodWorkerOutput(): Record<string, unknown> {
   return {
     ok: true,
     device: "cuda",
-    gpu_name: "NVIDIA GeForce RTX 3090",
+    gpu_name: "NVIDIA RTX A5000",
     model: "Lightricks/LTX-Video",
     model_load_ms: 8900,
     inference_ms: 25700,
@@ -71,10 +77,10 @@ function mp4Bytes(total: number): Uint8Array {
 
 // 1 ------------------------------------------------------- provider selection
 describe("provider selection", () => {
-  it("the tool runs on the launch decision: in-house primary, LTX 2B, 3090", () => {
+  it("the tool runs on the launch decision: in-house primary, LTX 2B, A5000", () => {
     expect(LAUNCH.provider).toBe("in_house");
     expect(LAUNCH.model).toBe("LTX_VIDEO_2B");
-    expect(LAUNCH.gpu).toBe("RTX_3090");
+    expect(LAUNCH.gpu).toBe("RTX_A5000");
     expect(selectVideoProvider()).toBe(VIDEO_PROVIDERS.in_house);
   });
 });
@@ -286,6 +292,18 @@ describe("provider failure", () => {
       ok: false,
       reason: "wrong-gpu",
     });
+    // Yesterday's card is wrong today: after the A5000 retarget a 3090-named
+    // output must refuse, not silently pass on old affinity.
+    expect(
+      verifyWorkerOutput({ ...goodWorkerOutput(), gpu_name: "NVIDIA GeForce RTX 3090" }),
+    ).toEqual({
+      ok: false,
+      reason: "wrong-gpu",
+    });
+    // No identity at all is not a pass either.
+    const anonymous = goodWorkerOutput();
+    delete anonymous.gpu_name;
+    expect(verifyWorkerOutput(anonymous)).toEqual({ ok: false, reason: "wrong-gpu" });
     expect(verifyWorkerOutput({ ...goodWorkerOutput(), model: "missing" })).toEqual({
       ok: false,
       reason: "model-unproven",
@@ -381,8 +399,11 @@ describe("client cannot select GPU", () => {
 
   it("the GPU is a server constant fed to the shared admission gate", () => {
     expect(SERVER_SRC).not.toMatch(/gpuType\s*:\s*(raw|data|request)\./);
-    // admitGeneration takes only a price; the card is fixed inside it.
+    // admitGeneration takes only a price; the card is fixed inside it — and
+    // the card is the owner's 2026-08-26 pick, pinned here so a drive-by
+    // edit cannot quietly move production to another GPU.
     expect(admitGeneration.length).toBe(1);
+    expect(TARGET_GPU_ID).toBe("NVIDIA RTX A5000");
   });
 });
 
@@ -433,6 +454,11 @@ describe("client cannot override budget or runtime", () => {
       expect(ok.reservationUsd).toBeCloseTo(0.055, 5);
       expect(ok.maxRuntimeSeconds).toBe(900);
     }
+    // The A5000's measured secure price (2026-08-26, the card production
+    // actually runs): a full 900s reservation is $0.0675, well inside cap.
+    const a5000 = admitGeneration(0.27);
+    expect(a5000.ok).toBe(true);
+    if (a5000.ok) expect(a5000.reservationUsd).toBeCloseTo(0.0675, 5);
     // A price spike that busts the ceiling refuses — it does not re-budget.
     expect(admitGeneration(2.01)).toEqual({ ok: false, reason: "over-job-cap" });
   });

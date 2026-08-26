@@ -87,7 +87,7 @@ export const AI_SURFACES = [
   },
   {
     // The in-house GPU generation tool (LTX-Video on ONIQ's own rented
-    // 3090). Admin-gated today, and declared BEFORE any wider rollout —
+    // A5000). Admin-gated today, and declared BEFORE any wider rollout —
     // the ordering Lores originally got wrong.
     id: "gpu_video_ai_output",
     screen: "Admin — in-house GPU video tool (moderation-inbox panel)",

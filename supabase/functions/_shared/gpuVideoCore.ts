@@ -7,7 +7,7 @@
 // both runtimes load.
 //
 // Owner directive 2026-08-26 (production launch): the in-house path is
-// PRIMARY — LTX-Video 2B on a RunPod-serverless RTX 3090, R2 in/out, custody
+// PRIMARY — LTX-Video 2B on a RunPod-serverless card, R2 in/out, custody
 // copy in Supabase storage. The client's only degrees of freedom are the
 // motion prompt, a reference chosen from the server-side registry, and an
 // idempotency key. Everything else is decided here or refused here.
@@ -70,7 +70,11 @@ export const NARRATION_MAX_WORDS = Math.floor(VIDEO_CLOCK_SECONDS * NARRATION_FA
 
 /** Words as the estimator counts them — NBSP is a space, like the SQL gate. */
 export function narrationWordCount(text: string): number {
-  const words = text.replace(/\u00a0/g, " ").trim().split(/\s+/).filter(Boolean);
+  const words = text
+    .replace(/\u00a0/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
   return words.length;
 }
 
@@ -198,13 +202,23 @@ export function buildAudioMuxPayload(narration: string, jobId: string) {
 
 // ------------------------------------------------------------ the admission
 /**
+ * The production card — owner-settled 2026-08-26 after the endpoint's GPU
+ * swap (3090 pool flap → L4 → A5000): the RTX A5000, 24GB, secure cloud.
+ * One canonical id, used by BOTH the admission below and the worker-output
+ * proof, so the card the app authorizes and the card it accepts evidence
+ * from can never drift apart. The endpoint (p3zmlv8ek10dzt) offers exactly
+ * this card; a worker reporting anything else fails closed.
+ */
+export const TARGET_GPU_ID = "NVIDIA RTX A5000";
+
+/**
  * Financial admission for one generation: the SAME admitGpuJob gate the GPU
  * contract module defines, fed a LIVE price. LTX 2B measured 15.9GB peak on
- * the card, so 16GB is the honest VRAM floor.
+ * the card, so 16GB is the honest VRAM floor (the A5000 carries 24GB).
  */
 export function admitGeneration(livePricePerHourUsd: number | null): GpuAdmission {
   return admitGpuJob({
-    gpuType: "NVIDIA GeForce RTX 3090",
+    gpuType: TARGET_GPU_ID,
     pricePerHourUsd: livePricePerHourUsd,
     maxRuntimeSeconds: MAX_GPU_RUNTIME_SECONDS,
     requiredVramGb: 16,
@@ -288,7 +302,10 @@ export function verifyWorkerOutput(output: unknown): OutputVerdict {
   const o = output as Record<string, unknown>;
   if (o.ok !== true) return { ok: false, reason: `worker-not-ok:${String(o.code ?? "unknown")}` };
   if (o.device !== "cuda") return { ok: false, reason: "not-cuda" };
-  if (!/3090/.test(String(o.gpu_name ?? ""))) return { ok: false, reason: "wrong-gpu" };
+  // Explicit canonical identity, not a substring: the worker's reported
+  // card must BE the card the app authorized. Any other name — including
+  // yesterday's card — fails closed.
+  if (String(o.gpu_name ?? "") !== TARGET_GPU_ID) return { ok: false, reason: "wrong-gpu" };
   const model = String(o.model ?? "");
   if (!model || model === "missing") return { ok: false, reason: "model-unproven" };
   if (!o.model_load_ms) return { ok: false, reason: "model-unproven" };
