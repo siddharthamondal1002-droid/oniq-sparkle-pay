@@ -18,6 +18,7 @@ import {
   admitGpuJob,
   type GpuAdmission,
 } from "./gpuJob.ts";
+import { verifyFinalMedia } from "./videoAudio.ts";
 
 // ------------------------------------------------------------ the request
 /** What a client may say. Anything beyond these fields is refused, not ignored. */
@@ -27,9 +28,51 @@ export type GenerationRequest = {
   referenceId: string;
   /** One per user gesture. Repeats return the existing job. */
   idempotencyKey: string;
+  /** Voice-over mode — "off" (the default) or "narration". Nothing else. */
+  audio: AudioMode;
+  /** The narration line, required when audio is "narration". */
+  narrationText?: string;
 };
 
-const REQUEST_FIELDS = new Set(["prompt", "referenceId", "idempotencyKey"]);
+const REQUEST_FIELDS = new Set([
+  "prompt",
+  "referenceId",
+  "idempotencyKey",
+  "audio",
+  "narrationText",
+]);
+
+// ------------------------------------------------------------------ audio
+/** The audio choices a client has. Voice, model, rate, format: server's. */
+export const AUDIO_MODES = ["off", "narration"] as const;
+export type AudioMode = (typeof AUDIO_MODES)[number];
+
+/**
+ * The generated video's fixed length — the worker contract's 97 frames at
+ * 24fps. For this tool the VIDEO is the clock (the inverse of Stories,
+ * where narration is), so the narration must fit inside it.
+ */
+export const VIDEO_CLOCK_SECONDS = 97 / 24;
+
+/** Mirrors the worker contract's MAX_NARRATION_CHARS — an input fence. */
+export const NARRATION_MAX_CHARS = 300;
+
+/**
+ * The estimate pre-gate, from the Story pipeline's measured speech rates:
+ * across four real films the FASTEST measured narration ran 2.672 words
+ * per second. A line that would overflow the 4.04s video even at that
+ * fastest rate is certainly doomed, so it is refused before any money
+ * moves; anything shorter passes to the worker's MEASURED gate, which is
+ * authoritative and refuses (never truncates) after the voice is spoken.
+ */
+export const NARRATION_FASTEST_WPS = 2.672;
+export const NARRATION_MAX_WORDS = Math.floor(VIDEO_CLOCK_SECONDS * NARRATION_FASTEST_WPS);
+
+/** Words as the estimator counts them — NBSP is a space, like the SQL gate. */
+export function narrationWordCount(text: string): number {
+  const words = text.replace(/\u00a0/g, " ").trim().split(/\s+/).filter(Boolean);
+  return words.length;
+}
 
 /**
  * Reference images the worker can reach, by id. The worker reads from the
@@ -53,7 +96,11 @@ export type RequestRefusal =
   | "prompt-too-long"
   | "reference-unknown"
   | "idempotency-key-missing"
-  | "infrastructure-not-selectable";
+  | "infrastructure-not-selectable"
+  | "audio-mode-unknown"
+  | "narration-missing"
+  | "narration-too-long"
+  | "narration-estimate-too-long";
 
 /**
  * Validate a client request. GPU/provider/model/budget/runtime/bucket words
@@ -83,7 +130,27 @@ export function validateRequest(
   if (!idempotencyKey || idempotencyKey.length > 128) {
     return { ok: false, reason: "idempotency-key-missing" };
   }
-  return { ok: true, request: { prompt, referenceId, idempotencyKey } };
+
+  // Audio: absent means off. Anything not on the list is a refusal, not a
+  // coercion — an unknown mode silently becoming "off" would hide a bug.
+  const audioRaw = raw.audio === undefined ? "off" : raw.audio;
+  if (audioRaw !== "off" && audioRaw !== "narration") {
+    return { ok: false, reason: "audio-mode-unknown" };
+  }
+  const audio: AudioMode = audioRaw;
+  let narrationText: string | undefined;
+  if (audio === "narration") {
+    narrationText = typeof raw.narrationText === "string" ? raw.narrationText.trim() : "";
+    if (!narrationText) return { ok: false, reason: "narration-missing" };
+    if (narrationText.length > NARRATION_MAX_CHARS) {
+      return { ok: false, reason: "narration-too-long" };
+    }
+    if (narrationWordCount(narrationText) > NARRATION_MAX_WORDS) {
+      return { ok: false, reason: "narration-estimate-too-long" };
+    }
+  }
+
+  return { ok: true, request: { prompt, referenceId, idempotencyKey, audio, narrationText } };
 }
 
 // ------------------------------------------------------------- the payload
@@ -106,6 +173,27 @@ export function buildWorkerPayload(request: GenerationRequest, jobId: string) {
 /** Server-generated output reference — media/video/<job_id>/, per §16q. */
 export function outputRefFor(jobId: string): string {
   return `media/video/${jobId}/ltx-001.mp4`;
+}
+
+/** The voiced final's reference — same server-owned namespace as the source. */
+export function finalRefFor(jobId: string): string {
+  return `media/video/${jobId}/final-001.mp4`;
+}
+
+/**
+ * The audio_mux payload: the SILENT video this same job already generated
+ * (by its server-owned key) in, the voiced final out, and the narration as
+ * the only parameter. Voice, rate and format are the worker's decisions.
+ */
+export function buildAudioMuxPayload(narration: string, jobId: string) {
+  return {
+    input: {
+      op: "audio_mux",
+      input_key: outputRefFor(jobId),
+      output_key: finalRefFor(jobId),
+      params: { narration },
+    },
+  };
 }
 
 // ------------------------------------------------------------ the admission
@@ -131,6 +219,7 @@ export type JobStatus =
   | "provisioning"
   | "running"
   | "uploading"
+  | "audio_generating"
   | "completed"
   | "failed"
   | "timed-out"
@@ -153,6 +242,7 @@ export const UI_LABELS: Record<JobStatus, string> = {
   provisioning: "Starting GPU…",
   running: "Generating…",
   uploading: "Uploading…",
+  audio_generating: "Adding voice…",
   completed: "Ready",
   failed: "Failed",
   "timed-out": "Failed (took too long)",
@@ -210,6 +300,38 @@ export function verifyWorkerOutput(output: unknown): OutputVerdict {
   if (!(typeof o.output_bytes === "number" && o.output_bytes > 0)) {
     return { ok: false, reason: "no-artifact" };
   }
+  return { ok: true };
+}
+
+/**
+ * The audio_mux success proof. The worker measured the OUTPUT's streams
+ * (it decodes them, header trust is banned there too); this re-judges
+ * those measurements with the SAME shared verdict the rest of ONIQ media
+ * uses — verifyFinalMedia from videoAudio.ts — so a track that is silence
+ * with extra steps, or a drifted mux, is refused at the application
+ * boundary even if a future worker regression let it through.
+ */
+export function verifyAudioMuxOutput(output: unknown): OutputVerdict {
+  if (!output || typeof output !== "object") return { ok: false, reason: "no-output" };
+  const o = output as Record<string, unknown>;
+  if (o.ok !== true) return { ok: false, reason: `worker-not-ok:${String(o.code ?? "unknown")}` };
+  if (o.has_audio !== true) return { ok: false, reason: "no-audio-stream" };
+  if (!(typeof o.narration_seconds === "number" && o.narration_seconds > 0)) {
+    return { ok: false, reason: "no-narration" };
+  }
+  if (!(typeof o.output_bytes === "number" && o.output_bytes > 0)) {
+    return { ok: false, reason: "no-artifact" };
+  }
+  const videoSeconds = typeof o.video_seconds === "number" ? o.video_seconds : 0;
+  const audioSeconds = typeof o.audio_seconds === "number" ? o.audio_seconds : 0;
+  const verdict = verifyFinalMedia("ONIQ_SOUND", {
+    hasVideoStream: videoSeconds > 0,
+    hasAudioStream: true,
+    videoSeconds,
+    audioSeconds,
+    audioPeakDb: typeof o.audio_peak_dbfs === "number" ? o.audio_peak_dbfs : undefined,
+  });
+  if (!verdict.ok) return { ok: false, reason: `media:${verdict.failures[0]}` };
   return { ok: true };
 }
 
