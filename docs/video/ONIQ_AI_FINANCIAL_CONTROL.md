@@ -2256,3 +2256,75 @@ encode proves a real video exists; it does not prove it is good.
 Wan 14B, no GPU-class increase, no production enablement — the next
 experiment is a separate owner decision. RunPod spend this run:
 **$0.01 computed** (+ the cold pull's non-execution delay); R2 $0.00.
+
+### 16p. The five-scene battery stopped at its own gate — standby is not settable by API
+
+2026-08-26, 07:02–07:21 UTC, runs gpu-validation #34–#38, $0.00 spent.
+The owner's Phase-17 battery (five LTX scenes, sequential, no retry)
+shipped complete and tested — `VIDEO_BATTERY` server constants,
+`video_battery()` through `through_phase=18`, 258 worker tests — but
+its own first gate refused to let it spend, exactly as designed.
+
+The gate: the battery may not start while `workersStandby` reads
+anything but 0, because every job's termination check would end
+TERMINATION_UNKNOWN after the money was spent (runs #31 and #33 both
+did). The owner directed "set/verify workersStandby = 0"; the harness
+gained its ONLY endpoint mutation — hard-coded to the literal zero, no
+value parameter, fresh-read verified — and the attempt produced a
+three-surface proof instead of a change:
+
+- **REST** `PATCH /v1/endpoints/{id}` exists and answered 400:
+  "key provided in request body which is not in input schema:
+  'workersStandby'".
+- **GraphQL** `saveEndpoint` answered 400: "Field workersStandby is
+  not defined by type EndpointInput" (and EndpointInput.name is
+  required — but the missing field is the decisive half).
+- **RunPod's own OpenAPI document** (fetched credential-less) lists
+  the PATCH schema's complete property set — allowedCudaVersions,
+  cpuFlavorIds, dataCenterIds, executionTimeoutMs, flashboot,
+  gpuCount, gpuTypeIds, idleTimeout, minCudaVersion, name,
+  networkVolumeId(s), scalerType, scalerValue, templateId, vcpuCount,
+  workersMax, workersMin — and workersStandby is not among them.
+  GraphQL introspection is blocked (400), so a hidden mutation cannot
+  be ruled in or out; both documented write paths lack the field.
+
+**Conclusion, measured: workersStandby cannot be set by any API this
+key reaches.** It is a console-internal or derived field. The value
+has read 1 continuously since the endpoint's creation
+(2026-08-25T15:23Z) through every read since, including after the
+owner's earlier console attempt.
+
+Billing observation (inference, for the owner to confirm against the
+RunPod billing console — not a provider guarantee): the idle standby
+worker has existed ~16 hours; measured total spend across the whole
+program remains ≈ $0.10–0.15, not the ≈ $8 that 16 idle hours at
+$0.50/h would cost — so the standby worker does not appear to bill.
+What it certainly does is make a workers-sum-to-zero termination
+confirmation impossible.
+
+A second, independent stop also fired during this window: discovery at
+07:11 and 07:16 read the RTX 3090's lowestPrice as null (secure price
+still listed at $0.50/h) and `require_available` refused —
+"not provisionable (unlisted or unpriced)". Availability is re-quoted
+fresh on every dispatch; this blip does not persist state.
+
+**Owner actions that unblock the battery** (then dispatch
+`standby-zero` to verify, then the battery:
+mode=spend, SPEND, through_phase=18, op=video_generate,
+test_input_key=IMG-20260825-WA0002.jpg,
+test_output_prefix=validation/video-test):
+
+1. RunPod console → endpoint `oniq-gpu-worker` (p3zmlv8ek10dzt) →
+   find the standby/warm-worker control and set it to 0. If the
+   console offers no such control, that is itself the answer — tell
+   the next loop, and the termination criterion becomes a business
+   decision (accept running+initializing=0 + pods=0 + min=0 as
+   CONFIRMED while standby stays provider-managed), which is the
+   owner's to make, not the harness's.
+2. Nothing else: price, image, model, prompts and gates are ready;
+   worker main aa8c6c0, sparkle-pay main 2a8fcca, 258 tests green.
+
+**STATUS: BATTERY NOT RUN — blocked before any spend by its own
+safety gate.** Runs #34–#38 were all $0 (config/verification only).
+The five-scene battery remains armed behind through_phase=18 and
+spends nothing until dispatched again.
