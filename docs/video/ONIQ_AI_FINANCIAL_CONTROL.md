@@ -2151,3 +2151,47 @@ new spending and waits for a new owner decision, per the owner's own
 rule. RunPod spend to date: **≈$0.002, bounded by one ~10 s worker**
 (console shows exact cents). R2 spend $0.00. GPU production remains
 DISABLED.
+
+### 16n. The first verified GPU job — measured on the card
+
+2026-08-26, 04:16 UTC, run gpu-validation #31, job
+`279d53da-749c-44e9-a211-6212748c755d-u2`. After the storage chain
+proved itself (the r2.dev-vs-S3-API endpoint correction, the bucket's
+own listing revealing the object at the root as
+`IMG-20260825-WA0002.jpg`, and numpy joining the image pins when the
+first job to reach the GPU path found torch 2.x ships without it), the
+single owner-authorized job ran end to end:
+
+- Live price **$0.50/h** secure cloud, quoted at preflight and again at
+  Phase 12 immediately before submit; reservation **$0.13** (CEIL, full
+  900 s window).
+- **GPU: NVIDIA GeForce RTX 3090** — read from the card by the worker,
+  not from configuration. Peak VRAM **50 MB** during the CUDA resize
+  and the depthwise `F.conv2d` proof op. Device `cuda`; the output
+  whitelist verified ok/device/gpu_name/vram/output_bytes together —
+  no single field was accepted alone.
+- Latency: **9.15 s** queue-to-start, **4.23 s** execution. Input read
+  from `oniq-gpu` by reference; output written back under
+  `validation/out/` (the log shows the key redacted — the redactor
+  blanks any field whose NAME contains "key", a cosmetic
+  over-redaction recorded here as a known nit, not a leak).
+- **Actual cost $0.01** — computed from measured seconds at the live
+  rate, CEIL'd, and compared against the $0.13 reservation as a
+  separate number, never conflated with it.
+- **Termination: TERMINATION_UNKNOWN, reported as UNKNOWN.** Endpoint
+  health after the job: 1 idle / 1 ready / 0 running / 0 initializing.
+  The idle worker is the endpoint's `workersStandby: 1` — the field the
+  owner has twice intended to be 0 — so a workers-sum-to-zero
+  confirmation cannot pass while it stands. UNKNOWN was not converted
+  to success. The always-on sweep still measured **pods 0, endpoint
+  min workers 0** (eleven sweeps, eleven clean).
+
+Spend, measured and bounded: this job **$0.01** computed; the day's
+eleven worker boots (six of them ~10 s warm probes at ~$0.001, three
+carrying 2-4 minute image pulls) total order **$0.07–0.12** — the
+RunPod billing console holds the exact cents, and this ledger does not
+round them to zero. R2 spend $0.00. **STOPPED after the single job:**
+no failure battery, no 5-job or 20-job battery, no WAN, no production
+integration. The batteries and production remain separate owner
+decisions, as does setting `workersStandby` to 0 so the termination
+confirmation can reach zero on a future run.
