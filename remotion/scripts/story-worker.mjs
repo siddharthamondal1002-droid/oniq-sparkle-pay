@@ -96,7 +96,7 @@ import {
   walkFor,
 } from '../../src/lib/puppetPerformance.ts';
 import { MAX_STORY_SECONDS, MIN_STORY_SECONDS, planStory } from '../../src/lib/storyPlan.ts';
-import { preflight, STORY_FPS, STORY_WIDTH, STORY_HEIGHT } from '../../src/lib/storyPreflight.ts';
+import { DURATION_MAX_RATIO, DURATION_MIN_RATIO, preflight, STORY_FPS, STORY_WIDTH, STORY_HEIGHT } from '../../src/lib/storyPreflight.ts';
 import { castShot } from '../../src/lib/storyActorCasting.ts';
 import { ONIQ_ASSET_ORIGIN } from '../../src/data/storyActorAssets.ts';
 import { planPortrait, PORTRAIT_W, PORTRAIT_H } from '../../src/lib/portraitReframe.ts';
@@ -1701,6 +1701,132 @@ if (offline) {
     // as no-vfx).
     const directed = directShots(plan.shots.map((s) => s.still), String(job.id));
 
+    // VOICES FIRST — the whole clock is spoken and MEASURED before a single
+    // still is drawn (owner directive 2026-08-26). Job 76d09a89 cleared every
+    // predictive gate by 2.4 ESTIMATED seconds, then measured 142.6s against
+    // 300 requested — after all 43 stills were paid for. Speech rate measured
+    // across four real films runs 1.86–2.67 words/second (English prose to
+    // romanized Hindi), so no estimator can hold that boundary; only the
+    // measured audio can. TTS is the cheap half, so it goes first, and the
+    // authoritative band is checked on the MEASUREMENT before the expensive
+    // half begins. The post-PREPARE preflight still runs unchanged — this is
+    // the same rule applied earlier, not a replacement for it.
+    const voicedShots = [];
+    for (const [i, shot] of plan.shots.entries()) {
+      const stem = `shot${String(i).padStart(3, '0')}`;
+      // NARRATION: the cloud voice first, the in-house voice when the cloud
+      // cannot answer. A story-voice 502 that survives every paced retry is
+      // the daily bucket gone — waiting will not fix it inside this run —
+      // and a fourteen-shot film died exactly there with every frame paid
+      // for. Piper speaks the line instead, and the ENGINE STAYS SWITCHED
+      // for the rest of the film: a narrator changing voice once, at the
+      // moment the bucket died, beats one flip-flopping minute to minute.
+      // Anything that is not a 502 (a refusal, a missing key) still throws.
+      let wav = path.join(assetRoot, `${stem}.wav`);
+      if (ttsEngine === 'cloud') {
+        try {
+          const voiced = await voiceWithRetry({ text: shot.narration, voice }, 4);
+          fs.writeFileSync(wav, voiceBytesToFile(voiced.data, voiced.mime));
+        } catch (err) {
+          // The switch fires when the cloud voice is EXHAUSTED, whatever the
+          // exhaustion's shape: the gateway's 502 wrap, or story-voice's own
+          // 429 limiter surviving every paced retry. Refusals and missing
+          // keys still throw — Piper is for a dry bucket, not a bad request.
+          const msg = String(err?.message ?? err);
+          const dry = /story-voice: 502/.test(msg) || /story-voice: 429/.test(msg);
+          if (!dry) throw err;
+          if (!(await localTts())) throw err;
+          ttsEngine = 'local';
+          console.log(`  voice ${i + 1}: cloud quota dry — in-house piper carries the film from here`);
+        }
+      }
+      if (ttsEngine === 'local') {
+        const tts = await localTts();
+        if (!tts) throw new Error('in-house tts unavailable and cloud voice exhausted');
+        synthLocal(ffmpeg, tts, shot.narration, wav);
+      }
+
+      // The shot's spoken line, if the plan wrote one. Appended AFTER the
+      // narration with a 350ms breath, into ONE wav — the measured duration
+      // below then includes it automatically, so narration-as-clock, the Ken
+      // Burns length and the mouth spans all keep working unchanged. A failure
+      // here downgrades the shot to narration-only rather than failing the
+      // film: dialogue is seasoning, not structure. Local dialogue draws a
+      // stable speaker from the 904-voice cast model by name hash — the same
+      // voice-lock idea as voiceFor() on the cloud path.
+      // Whether the line was actually VOICED, not merely planned — the
+      // rung 4 `speaking` flag keys off this, because a skipped dialogue
+      // line leaves narration-only audio and a full-gain oration over it
+      // would be a body performing a line nobody hears.
+      let dialogueVoiced = false;
+      if (shot.dialogue && shot.dialogue.line && shot.dialogue.speaker) {
+        try {
+          const dwav = path.join(assetRoot, `${stem}.line.wav`);
+          let spokenBy = voiceFor(shot.dialogue.speaker);
+          if (ttsEngine === 'cloud') {
+            try {
+              const dv = await voiceWithRetry(
+                { text: shot.dialogue.line, voice: spokenBy },
+                2,
+              );
+              fs.writeFileSync(dwav, voiceBytesToFile(dv.data, dv.mime));
+            } catch (err) {
+              if (!/story-voice: 502/.test(String(err?.message ?? err))) throw err;
+              if (!(await localTts())) throw err;
+              ttsEngine = 'local';
+            }
+          }
+          if (ttsEngine === 'local') {
+            const tts = await localTts();
+            if (!tts) throw new Error('in-house tts unavailable');
+            const speaker = speakerFor(shot.dialogue.speaker, tts.castSpeakers);
+            synthLocal(ffmpeg, tts, shot.dialogue.line, dwav, { speaker });
+            spokenBy = `piper#${speaker}`;
+          }
+          const mixed = path.join(assetRoot, `${stem}.mix.wav`);
+          execFileSync(ffmpeg, [
+            '-y', '-i', wav, '-i', dwav,
+            '-filter_complex', '[0:a]apad=pad_dur=0.35[a0];[a0][1:a]concat=n=2:v=0:a=1[a]',
+            '-map', '[a]', mixed,
+          ], { stdio: 'pipe' });
+          wav = mixed;
+          dialogueVoiced = true;
+          console.log(`  dialogue ${i + 1}: ${shot.dialogue.speaker} (${spokenBy})`);
+        } catch (err) {
+          console.log(`  dialogue ${i + 1} skipped: ${err?.message ?? err}`);
+        }
+      }
+
+      // MEASURED, both of them. The duration decides how long the shot is on
+      // screen — narration is the clock and a word-count estimate drifts
+      // further out of sync with every shot. The spans decide when the mouth
+      // moves, and they come from the same envelope the episodes use, imported
+      // rather than reimplemented so the two cannot disagree.
+      const seconds = secondsOf(wav);
+      const durationFrames = Math.max(1, Math.round(seconds * FPS));
+      const spans = speechSpans(envelope(ffmpeg, wav)).filter(([a]) => a < durationFrames);
+      voicedShots.push({ wav, seconds, durationFrames, spans, dialogueVoiced });
+      console.log(`  voice ${i + 1}/${plan.shots.length} — ${seconds.toFixed(2)}s, ${spans.length} spans`);
+    }
+    const voicedTimeline = voicedShots.reduce((a, v) => a + v.seconds, 0);
+    const voicedExpected = Math.min(
+      MAX_STORY_SECONDS,
+      Math.max(MIN_STORY_SECONDS, job.requestedSeconds),
+    );
+    const voicedRatio = voicedTimeline / voicedExpected;
+    if (voicedRatio < DURATION_MIN_RATIO || voicedRatio > DURATION_MAX_RATIO) {
+      throw new Error(
+        `PREFLIGHT_DURATION_MISMATCH: measured narration ${voicedTimeline.toFixed(1)}s is ` +
+          `${Math.round(voicedRatio * 100)}% of the requested ${voicedExpected}s — outside the ` +
+          `${DURATION_MIN_RATIO * 100}-${DURATION_MAX_RATIO * 100}% band ` +
+          `(caught after voices, before any still was drawn)`,
+      );
+    }
+    console.log(
+      `  duration gate: measured ${voicedTimeline.toFixed(1)}s against ` +
+        `${voicedExpected}s requested — inside the band, stills may begin`,
+    );
+
     const rendered = [];
     // One entry per shot: the motion-runtime plan plus what became of any
     // clip attempt, resolved into the explicit contract after the loop. Null
@@ -1945,97 +2071,10 @@ if (offline) {
       const framing = framingFor(shot.still, movingShots);
       if (isSlide(framing)) movingShots += 1;
 
-      // NARRATION: the cloud voice first, the in-house voice when the cloud
-      // cannot answer. A story-voice 502 that survives every paced retry is
-      // the daily bucket gone — waiting will not fix it inside this run —
-      // and a fourteen-shot film died exactly there with every frame paid
-      // for. Piper speaks the line instead, and the ENGINE STAYS SWITCHED
-      // for the rest of the film: a narrator changing voice once, at the
-      // moment the bucket died, beats one flip-flopping minute to minute.
-      // Anything that is not a 502 (a refusal, a missing key) still throws.
-      let wav = path.join(assetRoot, `${stem}.wav`);
-      if (ttsEngine === 'cloud') {
-        try {
-          const voiced = await voiceWithRetry({ text: shot.narration, voice }, 4);
-          fs.writeFileSync(wav, voiceBytesToFile(voiced.data, voiced.mime));
-        } catch (err) {
-          // The switch fires when the cloud voice is EXHAUSTED, whatever the
-          // exhaustion's shape: the gateway's 502 wrap, or story-voice's own
-          // 429 limiter surviving every paced retry. Refusals and missing
-          // keys still throw — Piper is for a dry bucket, not a bad request.
-          const msg = String(err?.message ?? err);
-          const dry = /story-voice: 502/.test(msg) || /story-voice: 429/.test(msg);
-          if (!dry) throw err;
-          if (!(await localTts())) throw err;
-          ttsEngine = 'local';
-          console.log(`  voice ${i + 1}: cloud quota dry — in-house piper carries the film from here`);
-        }
-      }
-      if (ttsEngine === 'local') {
-        const tts = await localTts();
-        if (!tts) throw new Error('in-house tts unavailable and cloud voice exhausted');
-        synthLocal(ffmpeg, tts, shot.narration, wav);
-      }
-
-      // The shot's spoken line, if the plan wrote one. Appended AFTER the
-      // narration with a 350ms breath, into ONE wav — the measured duration
-      // below then includes it automatically, so narration-as-clock, the Ken
-      // Burns length and the mouth spans all keep working unchanged. A failure
-      // here downgrades the shot to narration-only rather than failing the
-      // film: dialogue is seasoning, not structure. Local dialogue draws a
-      // stable speaker from the 904-voice cast model by name hash — the same
-      // voice-lock idea as voiceFor() on the cloud path.
-      // Whether the line was actually VOICED, not merely planned — the
-      // rung 4 `speaking` flag keys off this, because a skipped dialogue
-      // line leaves narration-only audio and a full-gain oration over it
-      // would be a body performing a line nobody hears.
-      let dialogueVoiced = false;
-      if (shot.dialogue && shot.dialogue.line && shot.dialogue.speaker) {
-        try {
-          const dwav = path.join(assetRoot, `${stem}.line.wav`);
-          let spokenBy = voiceFor(shot.dialogue.speaker);
-          if (ttsEngine === 'cloud') {
-            try {
-              const dv = await voiceWithRetry(
-                { text: shot.dialogue.line, voice: spokenBy },
-                2,
-              );
-              fs.writeFileSync(dwav, voiceBytesToFile(dv.data, dv.mime));
-            } catch (err) {
-              if (!/story-voice: 502/.test(String(err?.message ?? err))) throw err;
-              if (!(await localTts())) throw err;
-              ttsEngine = 'local';
-            }
-          }
-          if (ttsEngine === 'local') {
-            const tts = await localTts();
-            if (!tts) throw new Error('in-house tts unavailable');
-            const speaker = speakerFor(shot.dialogue.speaker, tts.castSpeakers);
-            synthLocal(ffmpeg, tts, shot.dialogue.line, dwav, { speaker });
-            spokenBy = `piper#${speaker}`;
-          }
-          const mixed = path.join(assetRoot, `${stem}.mix.wav`);
-          execFileSync(ffmpeg, [
-            '-y', '-i', wav, '-i', dwav,
-            '-filter_complex', '[0:a]apad=pad_dur=0.35[a0];[a0][1:a]concat=n=2:v=0:a=1[a]',
-            '-map', '[a]', mixed,
-          ], { stdio: 'pipe' });
-          wav = mixed;
-          dialogueVoiced = true;
-          console.log(`  dialogue ${i + 1}: ${shot.dialogue.speaker} (${spokenBy})`);
-        } catch (err) {
-          console.log(`  dialogue ${i + 1} skipped: ${err?.message ?? err}`);
-        }
-      }
-
-      // MEASURED, both of them. The duration decides how long the shot is on
-      // screen — narration is the clock and a word-count estimate drifts
-      // further out of sync with every shot. The spans decide when the mouth
-      // moves, and they come from the same envelope the episodes use, imported
-      // rather than reimplemented so the two cannot disagree.
-      const seconds = secondsOf(wav);
-      const durationFrames = Math.max(1, Math.round(seconds * FPS));
-      const spans = speechSpans(envelope(ffmpeg, wav)).filter(([a]) => a < durationFrames);
+      // Voices were spoken and MEASURED before any still was drawn (owner
+      // directive 2026-08-26, voices-first) — this shot's clock arrives
+      // ready-made from that pass.
+      const { wav, seconds, durationFrames, spans, dialogueVoiced } = voicedShots[i];
 
       // RUNG 8 — the sound stage, movie grade only. The shot's own words
       // earn an ambient bed (or nothing), synthesized deterministically
@@ -2405,7 +2444,6 @@ if (offline) {
             }
           : {}),
       });
-      console.log(`  voice ${i + 1}/${plan.shots.length} — ${seconds.toFixed(2)}s, ${spans.length} spans`);
     }
 
     // RUNG 11 — the score, movie grade only. The film's shots vote on a
