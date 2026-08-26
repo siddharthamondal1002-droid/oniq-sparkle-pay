@@ -246,6 +246,22 @@ describe("edge function orchestration (source-pinned)", () => {
     expect(failBranch).toContain('status: "failed"');
   });
 
+  it("the audio submit marks BEFORE it spends, so a died invocation can never retry", () => {
+    const fn = EDGE_SRC.slice(
+      EDGE_SRC.indexOf("async function submitAudioRun"),
+      EDGE_SRC.indexOf("async function pollAudioRun"),
+    );
+    const mark = fn.indexOf('status: "audio_generating"');
+    const spend = fn.indexOf("runpodSubmit(");
+    expect(mark).toBeGreaterThan(-1);
+    expect(spend).toBeGreaterThan(mark);
+    // ...and the poller's answer to an interrupted submit is salvage,
+    // never a second submit.
+    const poll = EDGE_SRC.slice(EDGE_SRC.indexOf("async function pollAudioRun"));
+    expect(poll).toContain("audio-submit:interrupted-before-provider-id");
+    expect(poll.indexOf("runpodSubmit(")).toBe(-1);
+  });
+
   it("the watchdog's cancel follows whichever provider run is live", () => {
     expect(EDGE_SRC).toContain(
       'job.status === "audio_generating" ? job.audio_runpod_job_id : job.runpod_job_id',

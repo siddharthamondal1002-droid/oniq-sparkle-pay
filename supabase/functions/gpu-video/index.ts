@@ -245,17 +245,21 @@ async function submitAudioRun(admin: AnyClient, job: Record<string, unknown>): P
     await salvageSilent(admin, job, "audio-admission:job-cap-exhausted");
     return;
   }
+  // Mark BEFORE submitting: a poller that finds audio_generating with no
+  // provider id knows a submit was interrupted and salvages — it never
+  // submits again. The reverse order would let a died invocation turn the
+  // 5s poll into an automatic paid retry, which is banned.
+  await setJob(admin, job.id as string, {
+    status: "audio_generating",
+    // The audio run's OWN live quote — the video step's rate is history
+    // by now, and history is exactly what a bill must never be priced on.
+    audio_price_per_hour_usd: price,
+  });
   try {
     const runpodJobId = await runpodSubmit(
       buildAudioMuxPayload(job.narration_text as string, job.id as string),
     );
-    await setJob(admin, job.id as string, {
-      status: "audio_generating",
-      audio_runpod_job_id: runpodJobId,
-      // The audio run's OWN live quote — the video step's rate is history
-      // by now, and history is exactly what a bill must never be priced on.
-      audio_price_per_hour_usd: price,
-    });
+    await setJob(admin, job.id as string, { audio_runpod_job_id: runpodJobId });
   } catch (e) {
     await salvageSilent(admin, job, `audio-submit:${(e as Error).message.slice(0, 120)}`);
   }
@@ -263,6 +267,16 @@ async function submitAudioRun(admin: AnyClient, job: Record<string, unknown>): P
 
 /** One voice-over job's audio run, polled to its verdict. */
 async function pollAudioRun(admin: AnyClient, job: Record<string, unknown>): Promise<void> {
+  if (!job.audio_runpod_job_id) {
+    // audio_generating with no provider id: the submit was interrupted.
+    // After a grace window (a concurrent poller may be mid-submit right
+    // now) this salvages the silent video; it NEVER submits again.
+    const markedAt = Date.parse(String(job.updated_at ?? ""));
+    if (Number.isFinite(markedAt) && Date.now() - markedAt > 120_000) {
+      await salvageSilent(admin, job, "audio-submit:interrupted-before-provider-id");
+    }
+    return;
+  }
   let state: RunpodStatus;
   try {
     state = await runpodStatus(job.audio_runpod_job_id as string);
