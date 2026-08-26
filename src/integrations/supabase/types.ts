@@ -2155,6 +2155,12 @@ export type Database = {
       gpu_video_jobs: {
         Row: {
           actual_cost_usd: number | null
+          audio_billed_seconds: number | null
+          audio_cost_usd: number | null
+          audio_error: string | null
+          audio_mode: string
+          audio_price_per_hour_usd: number | null
+          audio_runpod_job_id: string | null
           billed_seconds: number | null
           completed_at: string | null
           created_at: string
@@ -2165,6 +2171,8 @@ export type Database = {
           idempotency_key: string
           input_ref: string
           model: string
+          narration_seconds: number | null
+          narration_text: string | null
           output_bytes: number | null
           output_ref: string
           price_per_hour_usd: number | null
@@ -2181,6 +2189,12 @@ export type Database = {
         }
         Insert: {
           actual_cost_usd?: number | null
+          audio_billed_seconds?: number | null
+          audio_cost_usd?: number | null
+          audio_error?: string | null
+          audio_mode?: string
+          audio_price_per_hour_usd?: number | null
+          audio_runpod_job_id?: string | null
           billed_seconds?: number | null
           completed_at?: string | null
           created_at?: string
@@ -2191,6 +2205,8 @@ export type Database = {
           idempotency_key: string
           input_ref: string
           model?: string
+          narration_seconds?: number | null
+          narration_text?: string | null
           output_bytes?: number | null
           output_ref: string
           price_per_hour_usd?: number | null
@@ -2207,6 +2223,12 @@ export type Database = {
         }
         Update: {
           actual_cost_usd?: number | null
+          audio_billed_seconds?: number | null
+          audio_cost_usd?: number | null
+          audio_error?: string | null
+          audio_mode?: string
+          audio_price_per_hour_usd?: number | null
+          audio_runpod_job_id?: string | null
           billed_seconds?: number | null
           completed_at?: string | null
           created_at?: string
@@ -2217,6 +2239,8 @@ export type Database = {
           idempotency_key?: string
           input_ref?: string
           model?: string
+          narration_seconds?: number | null
+          narration_text?: string | null
           output_bytes?: number | null
           output_ref?: string
           price_per_hour_usd?: number | null
@@ -5193,6 +5217,7 @@ export type Database = {
       }
       video_gen_config: {
         Row: {
+          audio_enabled: boolean
           daily_cap: number
           enabled: boolean
           episode_daily_cap: number
@@ -5201,6 +5226,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          audio_enabled?: boolean
           daily_cap?: number
           enabled?: boolean
           episode_daily_cap?: number
@@ -5209,6 +5235,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          audio_enabled?: boolean
           daily_cap?: number
           enabled?: boolean
           episode_daily_cap?: number
