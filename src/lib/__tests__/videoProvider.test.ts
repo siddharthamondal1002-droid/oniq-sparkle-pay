@@ -23,7 +23,7 @@ describe("video provider — production launch flags (owner directive 2026-08-26
     expect(MEDIA_VIDEO_GENERATION_ENABLED).toBe(true);
     expect(VIDEO_PROVIDER).toBe("in_house");
     expect(VIDEO_MODEL).toBe("LTX_VIDEO_2B");
-    expect(VIDEO_GPU).toBe("RTX_3090");
+    expect(VIDEO_GPU).toBe("RTX_A5000");
     expect(selectVideoProvider()).toBe(VIDEO_PROVIDERS.in_house);
     expect(VIDEO_PROVIDERS.in_house.role).toBe("primary");
   });

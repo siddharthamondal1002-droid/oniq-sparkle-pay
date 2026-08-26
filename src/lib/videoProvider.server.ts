@@ -1,11 +1,13 @@
 // Video provider selection — server-only half. Never imported by the client.
 //
 // Owner directive 2026-08-26 (production launch): ONIQ's IN-HOUSE video
-// generation — LTX-Video 2B on a RunPod-serverless RTX 3090, I/O through
-// the oniq-gpu R2 bucket — is the PRIMARY video path. Google/Veo is
-// OPTIONAL: available for fallback or a future premium tier, never
-// required, and no video request may fail merely because Google video is
-// unavailable. Wan 2.1 14B is FUTURE/EXPERIMENTAL and disabled.
+// generation — LTX-Video 2B on a RunPod-serverless RTX A5000, I/O through
+// the oniq-gpu R2 bucket — is the PRIMARY video path. (Launched on a 3090;
+// the owner retargeted the endpoint to the A5000 the same day after the
+// 3090's serverless availability flapped — see gpuVideoCore.TARGET_GPU_ID.)
+// Google/Veo is OPTIONAL: available for fallback or a future premium tier,
+// never required, and no video request may fail merely because Google video
+// is unavailable. Wan 2.1 14B is FUTURE/EXPERIMENTAL and disabled.
 //
 // Provider selection is SERVER-CONTROLLED: selectVideoProvider() takes no
 // caller input, so a client cannot choose infrastructure — the same
@@ -33,7 +35,7 @@ export const VIDEO_PROVIDERS: Record<VideoProviderId, VideoProviderDescriptor> =
     id: "in_house",
     label: "ONIQ in-house GPU inference",
     role: "primary",
-    engine: "LTX-Video 2B on RunPod-serverless RTX 3090, R2 storage",
+    engine: "LTX-Video 2B on RunPod-serverless RTX A5000, R2 storage",
   },
   google_veo: {
     id: "google_veo",
@@ -47,7 +49,7 @@ export const VIDEO_PROVIDERS: Record<VideoProviderId, VideoProviderDescriptor> =
 export const MEDIA_VIDEO_GENERATION_ENABLED = true;
 export const VIDEO_PROVIDER: VideoProviderId = "in_house";
 export const VIDEO_MODEL = "LTX_VIDEO_2B";
-export const VIDEO_GPU = "RTX_3090";
+export const VIDEO_GPU = "RTX_A5000";
 export const WAN_GENERATION_ENABLED = false;
 export const EXPERIMENTAL_MODELS_ENABLED = false;
 export const GOOGLE_VIDEO_REQUIRED = false;

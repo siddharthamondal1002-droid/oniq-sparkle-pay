@@ -12,7 +12,7 @@
 // billed per SECOND OF WALL CLOCK, from the moment it boots, whether it is
 // computing or idling or stuck. That inverts the risk. The dangerous failure
 // is not an expensive job, it is a cheap job whose worker never stopped —
-// $0.22/hour is nothing for four minutes and $158 for a month.
+// $0.27/hour is nothing for four minutes and $194 for a month.
 //
 // Everything below follows from that: a reservation is a TIME budget, every
 // job carries a hard runtime ceiling before it is admitted, and termination is
@@ -46,6 +46,14 @@ import type { Capability } from "./financialLedger.ts";
  * choosing less VRAM to save two cents produces a job that cannot run. The
  * V100 is additionally a Volta part without bf16, which modern video models
  * assume.
+ *
+ * SUPERSEDED for serverless, measured 2026-08-26: the null above was the
+ * POD-market signal, and the owner's serverless rule (gpu-worker
+ * validation/admission.py) reads secure_cloud + secure_price instead — the
+ * A5000's secure list price measured $0.27/h live, the owner pinned
+ * endpoint p3zmlv8ek10dzt to exactly that card, and the audio canary
+ * admitted and billed against it the same day. This note stays as the
+ * dated 08-25 evidence for why the pod signal is never the quote.
  */
 export const GPU_AVAILABILITY_NOTE = {
   measuredAt: "2026-08-25",
@@ -62,6 +70,11 @@ export const GPU_CAPABILITY: Capability = "GPU";
  * An ALLOW-LIST, not a preference. A caller — including an authenticated user
  * driving a request — must never be able to name a GPU type, because "give me
  * 8x H100" is a $30/hour sentence typed by someone who does not pay the bill.
+ *
+ * WHICH card production runs on is not decided here: the app names exactly
+ * one, gpuVideoCore's TARGET_GPU_ID (the A5000, owner-settled 2026-08-26),
+ * and there is no fallback across rows. These rows only bound what may ever
+ * be requested, with each card's real VRAM.
  */
 export const ALLOWED_GPU_TYPES: Record<string, { vramGb: number; secureCloud: boolean }> = {
   "NVIDIA RTX A5000": { vramGb: 24, secureCloud: true },
@@ -82,7 +95,7 @@ export const GPU_JOB_CAP_USD = 0.5;
 /**
  * The longest any single job may hold a GPU, before admission.
  *
- * 15 minutes at $0.22/h is $0.055 — comfortably inside the ceiling, and short
+ * 15 minutes at $0.27/h is $0.0675 — comfortably inside the ceiling, and short
  * enough that a stuck worker is a rounding error rather than an incident. It
  * is a starting bound to be raised against measured runtimes, not a guess at
  * what video generation needs.

@@ -19,6 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { RUNWAY_BUCKET, requireAdmin } from "./runway.server";
 import {
+  TARGET_GPU_ID,
   TERMINAL_STATUSES,
   WATCHDOG_SECONDS,
   admitGeneration,
@@ -93,14 +94,15 @@ function runpodHeaders(): Record<string, string> {
 }
 
 /**
- * Live RTX 3090 Secure Cloud price — quoted NOW, never reused, never
- * defaulted. Mirrors the validation harness's availability rule: a null
- * lowestPrice is RunPod saying it has none to allocate, and an
- * unprovisionable GPU must refuse admission rather than queue blind.
+ * Live secure-cloud price for THE production card — quoted NOW, never
+ * reused, never defaulted. THE SERVERLESS RULE (owner directive
+ * 2026-08-26): serverless bills the SECURE price; the pod-market
+ * lowestPrice is not consulted (its null flapped across three cards in
+ * one evening while every secure price stayed firm). A missing or
+ * non-positive secure price returns null, and null refuses admission.
  */
-export async function live3090PriceUsd(): Promise<number | null> {
-  const query =
-    "query { gpuTypes { id securePrice lowestPrice(input: {gpuCount: 1}) { uninterruptablePrice } } }";
+export async function liveTargetGpuPriceUsd(): Promise<number | null> {
+  const query = "query { gpuTypes { id securePrice } }";
   const res = await fetch(RUNPOD_GRAPHQL, {
     method: "POST",
     headers: runpodHeaders(),
@@ -113,13 +115,10 @@ export async function live3090PriceUsd(): Promise<number | null> {
   const doc = (await res.json()) as {
     data?: { gpuTypes?: Array<Record<string, unknown>> };
   };
-  const gpu = doc.data?.gpuTypes?.find((g) => g.id === "NVIDIA GeForce RTX 3090");
+  const gpu = doc.data?.gpuTypes?.find((g) => g.id === TARGET_GPU_ID);
   if (!gpu) return null;
   const secure = gpu.securePrice;
-  const lowest = (gpu.lowestPrice as { uninterruptablePrice?: unknown } | null)
-    ?.uninterruptablePrice;
   if (typeof secure !== "number" || secure <= 0) return null;
-  if (typeof lowest !== "number" || lowest <= 0) return null; // no capacity to allocate
   return secure;
 }
 
@@ -262,6 +261,9 @@ export async function submitGeneration(
       input_ref: request.referenceId,
       output_ref: "pending",
       status: "queued",
+      // Same canonical constant admission and proof use — never the column
+      // default, which can go stale on a card move.
+      gpu_type: TARGET_GPU_ID,
     })
     .select("id")
     .single();
@@ -287,7 +289,7 @@ export async function submitGeneration(
   // --- live quote + admission, fail closed ---------------------------------
   let price: number | null = null;
   try {
-    price = await live3090PriceUsd();
+    price = await liveTargetGpuPriceUsd();
   } catch (e) {
     console.error("[gpu-video] quote failed", (e as Error).message);
   }

@@ -1,6 +1,6 @@
 // ADMIN-ONLY tool: in-house GPU video generation (owner directive
 // 2026-08-26 — the PRIMARY video path: LTX-Video 2B on a RunPod-serverless
-// RTX 3090). Deliberately unstyled, like the Runway tool beside it.
+// RTX A5000). Deliberately unstyled, like the Runway tool beside it.
 //
 // The screen is not the gate. Every call is refused server-side for a
 // non-admin, gpu_video_jobs RLS is admin-only, and nothing here can name a
