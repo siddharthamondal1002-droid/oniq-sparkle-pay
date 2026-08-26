@@ -2152,6 +2152,87 @@ export type Database = {
         }
         Relationships: []
       }
+      gpu_video_jobs: {
+        Row: {
+          actual_cost_usd: number | null
+          billed_seconds: number | null
+          completed_at: string | null
+          created_at: string
+          created_by: string
+          error: string | null
+          gpu_type: string
+          id: string
+          idempotency_key: string
+          input_ref: string
+          model: string
+          output_bytes: number | null
+          output_ref: string
+          price_per_hour_usd: number | null
+          prompt: string
+          provider: string
+          reservation_usd: number | null
+          runpod_job_id: string | null
+          started_at: string | null
+          status: string
+          stored_path: string | null
+          updated_at: string
+          video_seconds: number | null
+          workload: string
+        }
+        Insert: {
+          actual_cost_usd?: number | null
+          billed_seconds?: number | null
+          completed_at?: string | null
+          created_at?: string
+          created_by: string
+          error?: string | null
+          gpu_type?: string
+          id?: string
+          idempotency_key: string
+          input_ref: string
+          model?: string
+          output_bytes?: number | null
+          output_ref: string
+          price_per_hour_usd?: number | null
+          prompt: string
+          provider?: string
+          reservation_usd?: number | null
+          runpod_job_id?: string | null
+          started_at?: string | null
+          status?: string
+          stored_path?: string | null
+          updated_at?: string
+          video_seconds?: number | null
+          workload?: string
+        }
+        Update: {
+          actual_cost_usd?: number | null
+          billed_seconds?: number | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string
+          error?: string | null
+          gpu_type?: string
+          id?: string
+          idempotency_key?: string
+          input_ref?: string
+          model?: string
+          output_bytes?: number | null
+          output_ref?: string
+          price_per_hour_usd?: number | null
+          prompt?: string
+          provider?: string
+          reservation_usd?: number | null
+          runpod_job_id?: string | null
+          started_at?: string | null
+          status?: string
+          stored_path?: string | null
+          updated_at?: string
+          video_seconds?: number | null
+          workload?: string
+        }
+        Relationships: []
+      }
       grievances: {
         Row: {
           acknowledge_due_at: string | null
