@@ -191,21 +191,24 @@ function AdminInbox() {
 
       {/* The generation tools live on their own unlinked routes; these are the
           only ways in, added after the owner could not find the GPU tool
-          (2026-08-26). Links, not gates — every call is refused server-side
-          for a non-admin regardless. */}
+          (2026-08-26). Plain anchors, not router Links, on purpose: a tap on
+          the SPA Link version did nothing on the owner's device (measured
+          2026-08-26, cause in the client navigation layer), while a full page
+          load of the same path always works — the tool page is SSR'd. Links,
+          not gates — every call is refused server-side for a non-admin. */}
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <Link
-          to="/app/admin/gpu-video"
+        <a
+          href="/app/admin/gpu-video"
           className="rounded-full border border-border bg-card px-4 py-2 font-semibold"
         >
           Generate video — in-house GPU 🎬
-        </Link>
-        <Link
-          to="/app/admin/video"
+        </a>
+        <a
+          href="/app/admin/video"
           className="rounded-full border border-border bg-card px-4 py-2 font-semibold text-muted-foreground"
         >
           Runway tool
-        </Link>
+        </a>
       </div>
 
       {section === "kyc" && <PartnerKycPanel />}
