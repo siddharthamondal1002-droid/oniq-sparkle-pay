@@ -29,6 +29,8 @@ export type AiSurface =
   | "stories_ai_output"
   /** Lores — "Your videos", the library where a finished Story is watched. */
   | "stories_library_output"
+  /** The in-house GPU tool (LTX on ONIQ's own 3090). Admin-gated, labelled anyway. */
+  | "gpu_video_ai_output"
   /** The internal Runway tool. An admin screen still generates AI content. */
   | "runway_admin_output"
   /** Home — the Originals face of the front-door loop card. */

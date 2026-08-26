@@ -218,6 +218,10 @@ export default tseslint.config(
       // Same tool, same private bucket, same service-role/short-TTL shape:
       // the admin episode assembler signs its own finished MP4 for preview.
       "src/lib/episode.server.ts",
+      // Same shape again: the admin in-house GPU tool signs its custody copy
+      // from "video-gen" with the service role, server-side, 1h TTL, behind
+      // requireAdmin — not on the user-facing path resolveMedia.ts governs.
+      "src/lib/gpuVideo.server.ts",
     ],
     rules: { "oniq/media-url-fence": "error" },
   },

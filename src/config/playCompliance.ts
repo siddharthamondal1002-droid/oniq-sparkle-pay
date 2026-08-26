@@ -86,6 +86,14 @@ export const AI_SURFACES = [
     file: "src/components/stories/StoryStudio.tsx",
   },
   {
+    // The in-house GPU generation tool (LTX-Video on ONIQ's own rented
+    // 3090). Admin-gated today, and declared BEFORE any wider rollout —
+    // the ordering Lores originally got wrong.
+    id: "gpu_video_ai_output",
+    screen: "Admin — in-house GPU video tool",
+    file: "src/routes/_authenticated/app.admin.gpu-video.tsx",
+  },
+  {
     // "Your videos" — the library where a finished Story is watched and saved.
     // A SEPARATE SURFACE FROM THE STUDIO, because it is where the generated
     // video is actually WATCHED. The studio only ever shows a progress line;

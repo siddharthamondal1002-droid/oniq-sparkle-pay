@@ -66,18 +66,20 @@ function createdTables(): string[] {
 /**
  * Names that match CAREER_TABLE by accident and hold no career data.
  * public.video_jobs is the admin-only Runway render queue,
- * public.episode_jobs is the admin-only episode render queue, and
- * public.story_jobs is the user-facing Story render queue — "jobs" as in
- * background tasks. All three are gated by RLS (admin, admin, and own-row) and
- * carry nothing about a person's employment, so an 18+ restriction is
- * meaningless there. Nothing else may be added here without the same argument.
+ * public.episode_jobs is the admin-only episode render queue,
+ * public.story_jobs is the user-facing Story render queue, and
+ * public.gpu_video_jobs is the admin-only in-house GPU render queue — "jobs"
+ * as in background tasks. All four are gated by RLS (admin, admin, own-row,
+ * and admin) and carry nothing about a person's employment, so an 18+
+ * restriction is meaningless there. Nothing else may be added here without
+ * the same argument.
  *
  * story_jobs is not an argument that Stories needs no age consideration. It is
  * an argument that THIS gate — the one protecting career data — is not where
  * that consideration belongs. If user-generated video turns out to need a
  * minimum age, it needs its own gate for its own reason.
  */
-const NOT_CAREER = new Set(["video_jobs", "episode_jobs", "story_jobs"]);
+const NOT_CAREER = new Set(["video_jobs", "episode_jobs", "story_jobs", "gpu_video_jobs"]);
 
 const careerTables = createdTables().filter((t) => CAREER_TABLE.test(t) && !NOT_CAREER.has(t));
 
@@ -107,8 +109,6 @@ describe("career/jobs tables are 18+ gated at the data layer", () => {
   it("today matches exactly the known CV tables", () => {
     expect([...careerTables].sort()).toEqual(["cv_attestations", "cv_documents"]);
   });
-
-
 
   it("has RLS enabled and a RESTRICTIVE is_adult_18 policy on every match", () => {
     const offenders = careerTables
