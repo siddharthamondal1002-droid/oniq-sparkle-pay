@@ -3,7 +3,7 @@
 Owner directive, 2026-08-25: the live GPU validation runs from this
 repository, because `RUNPOD_API_KEY` lives in this repository's Actions
 secrets. These five files are byte-identical vendored copies of the
-tested harness in `oniq-gpu-worker@aa8c6c0` (258 tests there, including
+tested harness in `oniq-gpu-worker@f9f79a6` (260 tests there, including
 a uid-10001 read-only rig):
 
 - `runpod_client.py` — RunPod transport; raw bytes first, parser second
