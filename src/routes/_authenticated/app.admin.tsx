@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
+import { GpuVideoPanel } from "@/components/admin/GpuVideoPanel";
 
 export const Route = createFileRoute("/_authenticated/app/admin")({
   component: AdminInbox,
@@ -30,7 +31,7 @@ type ReporterMap = Record<string, { username: string | null; display_name: strin
 function AdminInbox() {
   const qc = useQueryClient();
   const [section, setSection] = useState<
-    "reports" | "kyc" | "takedowns" | "proofs" | "payouts" | "errors" | "billing"
+    "reports" | "kyc" | "takedowns" | "proofs" | "payouts" | "errors" | "billing" | "gpuvideo"
   >("reports");
   const [statusFilter, setStatusFilter] = useState<"open" | "resolved" | "dismissed" | "all">(
     "open",
@@ -177,6 +178,7 @@ function AdminInbox() {
             ["payouts", "payouts 💸"],
             ["errors", "errors 🐞"],
             ["billing", "billing 🧾"],
+            ["gpuvideo", "gpu video 🎬"],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -189,20 +191,11 @@ function AdminInbox() {
         ))}
       </div>
 
-      {/* The generation tools live on their own unlinked routes; these are the
-          only ways in, added after the owner could not find the GPU tool
-          (2026-08-26). Plain anchors, not router Links, on purpose: a tap on
-          the SPA Link version did nothing on the owner's device (measured
-          2026-08-26, cause in the client navigation layer), while a full page
-          load of the same path always works — the tool page is SSR'd. Links,
-          not gates — every call is refused server-side for a non-admin. */}
+      {/* Runway stays a separate page; the GPU tool is the "gpu video" chip
+          above — INLINE, because on the owner's device both a router Link and
+          a plain anchor to its route did nothing (measured 2026-08-26), while
+          these section chips demonstrably work. */}
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        <a
-          href="/app/admin/gpu-video"
-          className="rounded-full border border-border bg-card px-4 py-2 font-semibold"
-        >
-          Generate video — in-house GPU 🎬
-        </a>
         <a
           href="/app/admin/video"
           className="rounded-full border border-border bg-card px-4 py-2 font-semibold text-muted-foreground"
@@ -210,6 +203,8 @@ function AdminInbox() {
           Runway tool
         </a>
       </div>
+
+      {section === "gpuvideo" && <GpuVideoPanel />}
 
       {section === "kyc" && <PartnerKycPanel />}
 

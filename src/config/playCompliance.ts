@@ -90,7 +90,17 @@ export const AI_SURFACES = [
     // 3090). Admin-gated today, and declared BEFORE any wider rollout —
     // the ordering Lores originally got wrong.
     id: "gpu_video_ai_output",
-    screen: "Admin — in-house GPU video tool",
+    screen: "Admin — in-house GPU video tool (moderation-inbox panel)",
+    // Moved from the standalone route (which stays as a fallback surface and
+    // still renders the same label + report control) when the tool became an
+    // inline inbox panel, 2026-08-26.
+    file: "src/components/admin/GpuVideoPanel.tsx",
+  },
+  {
+    // The standalone route remains as a fallback surface for the same tool;
+    // it renders the identical label + report control.
+    id: "gpu_video_ai_output",
+    screen: "Admin — in-house GPU video tool (standalone fallback page)",
     file: "src/routes/_authenticated/app.admin.gpu-video.tsx",
   },
   {
