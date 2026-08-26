@@ -2195,3 +2195,64 @@ no failure battery, no 5-job or 20-job battery, no WAN, no production
 integration. The batteries and production remain separate owner
 decisions, as does setting `workersStandby` to 0 so the termination
 confirmation can reach zero on a future run.
+
+### 16o. The first generated video — LTX-Video 2B on the 3090, measured
+
+2026-08-26, 06:34 UTC, run gpu-validation #33, job
+`242948dc-2f35-4473-8a68-07bd4604b590-u2`, worker `5mve7gibf0cpc5`.
+The owner's media-inference superloop: one image-to-video generation on
+the proven pipeline, every gate intact, and the driver's own stop rule
+ending the run after the single job.
+
+What ran, all server-decided (the dispatch chose only `op` — the
+contract accepts nothing but a bounded motion prompt, and the workflow
+does not even expose that):
+
+- **Model `Lightricks/LTX-Video`** (2B, diffusers snapshot), baked into
+  the image at build time behind a metadata survey — candidates are
+  size-checked via the HF API before a byte downloads, and a
+  transformer over 16 GiB is refused as a 13B wearing a 2B name. Both
+  distilled candidates fell to the survey; the fallback carried no
+  `#distilled` tag, so inference ran the full 30 steps. Weights loaded
+  `local_files_only` from `/app/models` in **11.5 s** — no network
+  fetch at job time, ever.
+- **One clip: 97 frames (8k+1), 704x480, 24 fps = 4.04 s of video.**
+  Inference **29.0 s** of CUDA on a real **NVIDIA GeForce RTX 3090**
+  (read from the card), peak VRAM **15,916 MB** of 24,126. h264 encode
+  **1.0 s**; artifact **330,061 bytes**, written to R2 as
+  `validation/video-test/ltx-001.mp4` (log shows the key redacted — the
+  known over-redaction nit). Input was the existing real image
+  `IMG-20260825-WA0002.jpg`, untouched.
+- Verification demanded the full chain, not an HTTP 200:
+  ok/device/gpu_name/vram/output_bytes AND model/model_load/inference/
+  frames/video_seconds/encode each measured — `verify_video_success`
+  refuses any missing proof with its own stop code.
+
+Money, measured: live price **$0.50/h** (quoted at preflight and again
+immediately before submit), reservation **$0.13**, execution 45.5 s →
+**actual $0.01** (CEIL). **$0.0025 per generated second, $0.15 per
+generated minute** — both ceiled, computed only from this job's real
+numbers, extrapolated to nothing. One-time cold pull of the new
+~20 GB weight-baked image: 399 s of delayTime (not billed as
+execution).
+
+**Termination: TERMINATION_UNKNOWN, reported as UNKNOWN** — the same
+`workersStandby: 1` that blocked run #31's confirmation still stands
+(final health: 1 idle / 1 ready / 0 running), so workers cannot sum to
+zero and the driver refused to call that success, failing the run on
+principle after the artifact was already safe. The always-on sweep
+still measured **pods 0, endpoint min workers 0**. Setting
+`workersStandby` to 0 in the RunPod console remains the one owner
+action that lets a future run confirm termination.
+
+**Visual quality: not yet judged.** This container cannot reach R2 (by
+design it holds no credentials, and the egress proxy blocks the public
+r2.dev host), so identity preservation, motion quality and temporal
+consistency await the owner's eyes on
+`oniq-gpu/validation/video-test/ltx-001.mp4`. A 330 KB, 97-frame
+encode proves a real video exists; it does not prove it is good.
+
+**STATUS: STOPPED after the one video.** No second generation, no
+Wan 14B, no GPU-class increase, no production enablement — the next
+experiment is a separate owner decision. RunPod spend this run:
+**$0.01 computed** (+ the cold pull's non-execution delay); R2 $0.00.
