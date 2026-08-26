@@ -257,7 +257,10 @@ describe("edge function orchestration (source-pinned)", () => {
     expect(spend).toBeGreaterThan(mark);
     // ...and the poller's answer to an interrupted submit is salvage,
     // never a second submit.
-    const poll = EDGE_SRC.slice(EDGE_SRC.indexOf("async function pollAudioRun"));
+    const poll = EDGE_SRC.slice(
+      EDGE_SRC.indexOf("async function pollAudioRun"),
+      EDGE_SRC.indexOf("async function submitGeneration"),
+    );
     expect(poll).toContain("audio-submit:interrupted-before-provider-id");
     expect(poll.indexOf("runpodSubmit(")).toBe(-1);
   });
