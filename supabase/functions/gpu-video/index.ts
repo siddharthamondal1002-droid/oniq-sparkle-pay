@@ -21,15 +21,18 @@
 // information; no value ever is.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchWithTimeout } from "../_shared/fetchTimeout.ts";
-import { gpuActualUsd } from "../_shared/gpuJob.ts";
+import { GPU_JOB_CAP_USD, gpuActualUsd } from "../_shared/gpuJob.ts";
 import {
   WATCHDOG_SECONDS,
   admitGeneration,
+  buildAudioMuxPayload,
   buildWorkerPayload,
+  finalRefFor,
   idempotentReuse,
   outputRefFor,
   statusFromPoll,
   validateRequest,
+  verifyAudioMuxOutput,
   verifyStoredArtifact,
   verifyWorkerOutput,
   watchdogExpired,
@@ -153,6 +156,193 @@ async function setJob(admin: AnyClient, id: string, patch: Record<string, unknow
   if (error) console.error("[gpu-video] row update failed", error.message);
 }
 
+/**
+ * Fetch one artifact from R2 by its server-owned reference, verify it is
+ * the exact object the worker measured, and put the custody copy where
+ * every generated clip lives. Throws rather than storing anything less.
+ */
+async function custodyArtifact(
+  admin: AnyClient,
+  jobId: string,
+  ref: string,
+  expectedBytes: number,
+): Promise<string> {
+  const base = envOrThrow("R2_PUBLIC_BASE_URL").replace(/\/$/, "");
+  const res = await fetchWithTimeout(`${base}/${ref}`, {}, EXTERNAL_TIMEOUT_MS);
+  if (!res.ok) throw new Error(`artifact fetch ${res.status}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const artifact = verifyStoredArtifact(bytes, expectedBytes);
+  if (!artifact.ok) throw new Error(artifact.reason);
+  const path = `gpu/${jobId}.mp4`;
+  const { error } = await admin.storage
+    .from(RUNWAY_BUCKET)
+    .upload(path, bytes, { contentType: "video/mp4", upsert: true });
+  if (error) throw new Error(`store: ${error.message}`);
+  return path;
+}
+
+/**
+ * The audio salvage rule (voice-over jobs only): the VIDEO money is spent
+ * and the silent clip is real, so an audio-stage failure DELIVERS THE
+ * SILENT VIDEO with the failure recorded on the row — same philosophy as
+ * a Story shot whose dialogue fails and downgrades to narration-only.
+ * Nothing retries by itself, and no second video is ever rented for a
+ * voice that failed.
+ */
+async function salvageSilent(
+  admin: AnyClient,
+  job: Record<string, unknown>,
+  audioError: string,
+  audioBilling: Record<string, unknown> = {},
+): Promise<void> {
+  try {
+    const stored = await custodyArtifact(
+      admin,
+      job.id as string,
+      job.output_ref as string,
+      job.output_bytes as number,
+    );
+    await setJob(admin, job.id as string, {
+      status: "completed",
+      stored_path: stored,
+      audio_error: audioError.slice(0, 160),
+      ...audioBilling,
+      error: null,
+      completed_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    await setJob(admin, job.id as string, {
+      status: "failed",
+      audio_error: audioError.slice(0, 160),
+      ...audioBilling,
+      error: `artifact:${(e as Error).message.slice(0, 140)}`,
+      completed_at: new Date().toISOString(),
+    });
+  }
+}
+
+/**
+ * The SECOND paid step of a voice-over job: its own live quote, its own
+ * admission, and a combined-exposure check against the SAME per-job cap —
+ * video already spent plus the audio reservation may not exceed it. Any
+ * refusal or submit failure salvages the silent video; it never blocks
+ * what the first step already produced.
+ */
+async function submitAudioRun(admin: AnyClient, job: Record<string, unknown>): Promise<void> {
+  let price: number | null = null;
+  try {
+    price = await live3090PriceUsd();
+  } catch (e) {
+    console.error("[gpu-video] audio quote failed", (e as Error).message);
+  }
+  const admission = admitGeneration(price);
+  if (!admission.ok) {
+    await salvageSilent(admin, job, `audio-admission:${admission.reason}`);
+    return;
+  }
+  const spent = typeof job.actual_cost_usd === "number" ? job.actual_cost_usd : 0;
+  if (spent + admission.reservationUsd > GPU_JOB_CAP_USD) {
+    await salvageSilent(admin, job, "audio-admission:job-cap-exhausted");
+    return;
+  }
+  // Mark BEFORE submitting: a poller that finds audio_generating with no
+  // provider id knows a submit was interrupted and salvages — it never
+  // submits again. The reverse order would let a died invocation turn the
+  // 5s poll into an automatic paid retry, which is banned.
+  await setJob(admin, job.id as string, {
+    status: "audio_generating",
+    // The audio run's OWN live quote — the video step's rate is history
+    // by now, and history is exactly what a bill must never be priced on.
+    audio_price_per_hour_usd: price,
+  });
+  try {
+    const runpodJobId = await runpodSubmit(
+      buildAudioMuxPayload(job.narration_text as string, job.id as string),
+    );
+    await setJob(admin, job.id as string, { audio_runpod_job_id: runpodJobId });
+  } catch (e) {
+    await salvageSilent(admin, job, `audio-submit:${(e as Error).message.slice(0, 120)}`);
+  }
+}
+
+/** One voice-over job's audio run, polled to its verdict. */
+async function pollAudioRun(admin: AnyClient, job: Record<string, unknown>): Promise<void> {
+  if (!job.audio_runpod_job_id) {
+    // audio_generating with no provider id: the submit was interrupted.
+    // After a grace window (a concurrent poller may be mid-submit right
+    // now) this salvages the silent video; it NEVER submits again.
+    const markedAt = Date.parse(String(job.updated_at ?? ""));
+    if (Number.isFinite(markedAt) && Date.now() - markedAt > 120_000) {
+      await salvageSilent(admin, job, "audio-submit:interrupted-before-provider-id");
+    }
+    return;
+  }
+  let state: RunpodStatus;
+  try {
+    state = await runpodStatus(job.audio_runpod_job_id as string);
+  } catch (e) {
+    console.warn("[gpu-video] audio status read failed", (e as Error).message);
+    return; // transient read failure changes nothing
+  }
+
+  const billed = state.executionTime !== null ? state.executionTime / 1000 : null;
+  const audioBilling: Record<string, unknown> = {
+    audio_billed_seconds: billed,
+    audio_cost_usd: gpuActualUsd(job.audio_price_per_hour_usd as number | null, billed),
+  };
+
+  const mapped = statusFromPoll(state.status);
+  if (mapped === "provisioning" || mapped === "running") return; // still audio_generating
+  if (mapped === "failed" || mapped === "cancelled" || mapped === "timed-out") {
+    const code =
+      state.output && typeof state.output === "object"
+        ? String((state.output as Record<string, unknown>).code ?? state.status)
+        : state.status;
+    await salvageSilent(admin, job, `audio-worker:${code}`, audioBilling);
+    return;
+  }
+  if (mapped !== "uploading") return; // unknown provider vocabulary: leave it
+
+  const verdict = verifyAudioMuxOutput(state.output);
+  if (!verdict.ok) {
+    await salvageSilent(admin, job, `audio-proof:${verdict.reason}`, audioBilling);
+    return;
+  }
+  if (billed !== null && billed > 900) {
+    await salvageSilent(admin, job, "audio-billing-anomaly: executionTime exceeds the 900s ceiling", audioBilling);
+    return;
+  }
+
+  const out = state.output as Record<string, unknown>;
+  try {
+    const stored = await custodyArtifact(
+      admin,
+      job.id as string,
+      finalRefFor(job.id as string),
+      out.output_bytes as number,
+    );
+    await setJob(admin, job.id as string, {
+      status: "completed",
+      stored_path: stored,
+      output_bytes: out.output_bytes as number,
+      narration_seconds:
+        typeof out.narration_seconds === "number" ? out.narration_seconds : null,
+      ...audioBilling,
+      audio_error: null,
+      error: null,
+      completed_at: new Date().toISOString(),
+    });
+  } catch (e) {
+    // The voiced final could not reach custody; the silent source still can.
+    await salvageSilent(
+      admin,
+      job,
+      `audio-artifact:${(e as Error).message.slice(0, 120)}`,
+      audioBilling,
+    );
+  }
+}
+
 // ---------------------------------------------------------------- submit
 async function submitGeneration(
   admin: AnyClient,
@@ -162,7 +352,7 @@ async function submitGeneration(
   // --- kill switch: the SAME config row that governs every video tool ------
   const { data: cfg } = await admin
     .from("video_gen_config")
-    .select("enabled, daily_cap")
+    .select("enabled, daily_cap, audio_enabled")
     .eq("id", true)
     .maybeSingle();
   if (!cfg || cfg.enabled === false) throw new Error("video generation is disabled");
@@ -187,6 +377,11 @@ async function submitGeneration(
   const validated = validateRequest(raw);
   if (!validated.ok) throw new Error(`request refused: ${validated.reason}`);
   const request = validated.request;
+
+  // --- audio production gate (owner flip, Phase 21): default OFF -----------
+  if (request.audio === "narration" && cfg.audio_enabled !== true) {
+    throw new Error("voice-over is not enabled yet");
+  }
 
   // --- idempotency: a repeat returns the job it already has ----------------
   const { data: existing } = await admin
@@ -223,6 +418,8 @@ async function submitGeneration(
       input_ref: request.referenceId,
       output_ref: "pending",
       status: "queued",
+      audio_mode: request.audio,
+      narration_text: request.audio === "narration" ? request.narrationText : null,
     })
     .select("id")
     .single();
@@ -286,20 +483,28 @@ async function pollGenerations(admin: AnyClient): Promise<{ checked: number }> {
 
   for (const job of jobs ?? []) {
     // Watchdog first: nothing waits forever, and nothing re-submits itself.
+    // One wall-clock window covers BOTH paid steps of a voice-over job; the
+    // cancel targets whichever provider run is currently live.
     if (watchdogExpired(job.created_at, Date.now())) {
+      const liveRunId =
+        job.status === "audio_generating" ? job.audio_runpod_job_id : job.runpod_job_id;
       let cancelled = false;
-      if (job.runpod_job_id) {
+      if (liveRunId) {
         try {
-          cancelled = await runpodCancel(job.runpod_job_id);
+          cancelled = await runpodCancel(liveRunId);
         } catch {
           cancelled = false;
         }
       }
       await setJob(admin, job.id, {
-        status: cancelled || !job.runpod_job_id ? "timed-out" : "orphaned",
+        status: cancelled || !liveRunId ? "timed-out" : "orphaned",
         error: `watchdog: exceeded ${WATCHDOG_SECONDS}s wall clock`,
         completed_at: new Date().toISOString(),
       });
+      continue;
+    }
+    if (job.status === "audio_generating") {
+      await pollAudioRun(admin, job);
       continue;
     }
     if (!job.runpod_job_id) continue;
@@ -341,34 +546,8 @@ async function pollGenerations(admin: AnyClient): Promise<{ checked: number }> {
       });
       continue;
     }
-    await setJob(admin, job.id, { status: "uploading" });
-
     const out = state.output as Record<string, unknown>;
     const expectedBytes = out.output_bytes as number;
-    let stored: string | null = null;
-    try {
-      const base = envOrThrow("R2_PUBLIC_BASE_URL").replace(/\/$/, "");
-      const res = await fetchWithTimeout(`${base}/${job.output_ref}`, {}, EXTERNAL_TIMEOUT_MS);
-      if (!res.ok) throw new Error(`artifact fetch ${res.status}`);
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      const artifact = verifyStoredArtifact(bytes, expectedBytes);
-      if (!artifact.ok) throw new Error(artifact.reason);
-      const path = `gpu/${job.id}.mp4`;
-      const { error } = await admin.storage
-        .from(RUNWAY_BUCKET)
-        .upload(path, bytes, { contentType: "video/mp4", upsert: true });
-      if (error) throw new Error(`store: ${error.message}`);
-      stored = path;
-    } catch (e) {
-      // completed is never reported without a verified artifact in custody.
-      await setJob(admin, job.id, {
-        status: "failed",
-        error: `artifact:${(e as Error).message.slice(0, 140)}`,
-        completed_at: new Date().toISOString(),
-      });
-      continue;
-    }
-
     const billedSeconds = state.executionTime !== null ? state.executionTime / 1000 : null;
     const actual = gpuActualUsd(job.price_per_hour_usd, billedSeconds);
     // The worker enforces the 900s execution ceiling; a bill implying it was
@@ -381,13 +560,40 @@ async function pollGenerations(admin: AnyClient): Promise<{ checked: number }> {
       });
       continue;
     }
-    await setJob(admin, job.id, {
-      status: "completed",
-      stored_path: stored,
+
+    const videoBilling = {
       billed_seconds: billedSeconds,
       actual_cost_usd: actual,
       output_bytes: expectedBytes,
       video_seconds: typeof out.video_seconds === "number" ? out.video_seconds : null,
+    };
+
+    // --- the fork: silent jobs finish here; voice-over jobs speak next -----
+    if (job.audio_mode === "narration" && job.narration_text) {
+      // The silent source STAYS in R2 as the mux input; the row records the
+      // video step's billing before the second paid step begins.
+      await setJob(admin, job.id, videoBilling);
+      await submitAudioRun(admin, { ...job, ...videoBilling });
+      continue;
+    }
+
+    await setJob(admin, job.id, { status: "uploading" });
+    let stored: string | null = null;
+    try {
+      stored = await custodyArtifact(admin, job.id, job.output_ref, expectedBytes);
+    } catch (e) {
+      // completed is never reported without a verified artifact in custody.
+      await setJob(admin, job.id, {
+        status: "failed",
+        error: `artifact:${(e as Error).message.slice(0, 140)}`,
+        completed_at: new Date().toISOString(),
+      });
+      continue;
+    }
+    await setJob(admin, job.id, {
+      status: "completed",
+      stored_path: stored,
+      ...videoBilling,
       error: null,
       completed_at: new Date().toISOString(),
     });
@@ -447,11 +653,16 @@ Deno.serve(async (req) => {
             .select("*")
             .order("created_at", { ascending: false })
             .limit(25),
-          admin.from("video_gen_config").select("enabled").eq("id", true).maybeSingle(),
+          admin
+            .from("video_gen_config")
+            .select("enabled, audio_enabled")
+            .eq("id", true)
+            .maybeSingle(),
         ]);
         return json({
           jobs: jobs ?? [],
           enabled: cfg?.enabled ?? false,
+          audioEnabled: cfg?.audio_enabled === true,
           // Presence of the NAMES only — never values.
           configured: Boolean(
             Deno.env.get("RUNPOD_API_KEY") &&

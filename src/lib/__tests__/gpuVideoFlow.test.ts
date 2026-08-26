@@ -44,6 +44,7 @@ const A_REQUEST = {
   prompt: "The character slowly turns toward the camera and smiles.",
   referenceId: "reference-001",
   idempotencyKey: "11111111-2222-3333-4444-555555555555",
+  audio: "off" as const,
 };
 
 /** The measured run #39 worker output, as a fixture shape. */
@@ -155,8 +156,16 @@ describe("idempotency", () => {
 // 5 ----------------------------------------------------------- job persistence
 describe("job persistence", () => {
   it("the table pins the full state machine and the idempotency identity", () => {
+    // The state machine now spans two migrations: the original table plus
+    // the 2026-08-26 voice-over extension, which re-creates the status
+    // CHECK with audio_generating added. The pin holds over their union.
+    const AUDIO_MIGRATION_SQL = readFileSync(
+      join(ROOT, "supabase/migrations/20260826150000_gpu_video_audio.sql"),
+      "utf8",
+    );
+    const schema = MIGRATION_SQL + AUDIO_MIGRATION_SQL;
     for (const status of Object.keys(UI_LABELS)) {
-      expect(MIGRATION_SQL, status).toContain(`'${status}'`);
+      expect(schema, status).toContain(`'${status}'`);
     }
     expect(MIGRATION_SQL).toMatch(/unique index[\s\S]{0,90}\(created_by, idempotency_key\)/i);
   });

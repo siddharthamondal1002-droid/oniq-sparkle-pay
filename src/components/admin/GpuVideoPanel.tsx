@@ -17,9 +17,13 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   LAUNCH,
   MAX_PROMPT_CHARS,
+  NARRATION_MAX_CHARS,
+  NARRATION_MAX_WORDS,
   STAGED_REFERENCES,
   TERMINAL_STATUSES,
   UI_LABELS,
+  narrationWordCount,
+  type AudioMode,
   type JobStatus,
 } from "@/lib/gpuVideoFlow";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
@@ -33,9 +37,18 @@ type GpuJobRow = {
   actual_cost_usd: number | null;
   error: string | null;
   created_at: string;
+  audio_mode: AudioMode | null;
+  narration_text: string | null;
+  audio_cost_usd: number | null;
+  audio_error: string | null;
 };
 
-type StatusPayload = { jobs: GpuJobRow[]; enabled: boolean; configured: boolean };
+type StatusPayload = {
+  jobs: GpuJobRow[];
+  enabled: boolean;
+  configured: boolean;
+  audioEnabled?: boolean;
+};
 
 /** One transport for every call; the server's own message survives to the UI. */
 async function callGpuVideo<T>(body: Record<string, unknown>): Promise<T> {
@@ -64,6 +77,8 @@ export function GpuVideoPanel() {
   const referenceIds = Object.keys(STAGED_REFERENCES);
   const [referenceId, setReferenceId] = useState(referenceIds[0] ?? "");
   const [promptText, setPromptText] = useState("");
+  const [audioMode, setAudioMode] = useState<AudioMode>("off");
+  const [narrationText, setNarrationText] = useState("");
   // One key per user gesture: minted when the form is (re)armed, spent on
   // submit. A double-click, refresh retry or network retry re-sends the SAME
   // key and gets the same job back instead of renting a second GPU.
@@ -125,7 +140,13 @@ export function GpuVideoPanel() {
     try {
       const r = await callGpuVideo<{ id: string; status: JobStatus; reused: boolean }>({
         action: "submit",
-        request: { prompt: promptText, referenceId, idempotencyKey },
+        request: {
+          prompt: promptText,
+          referenceId,
+          idempotencyKey,
+          audio: audioMode,
+          ...(audioMode === "narration" ? { narrationText } : {}),
+        },
       });
       setMessage(r.reused ? "Already running — showing the existing job." : "Submitted.");
       // Arm the NEXT gesture with its own key; the submitted one stays bound
@@ -137,10 +158,16 @@ export function GpuVideoPanel() {
     } finally {
       setSubmitting(false);
     }
-  }, [promptText, referenceId, idempotencyKey, refreshStatus]);
+  }, [promptText, referenceId, idempotencyKey, audioMode, narrationText, refreshStatus]);
 
   const promptOk = promptText.trim().length > 0 && promptText.length <= MAX_PROMPT_CHARS;
-  const generateDisabled = submitting || !promptOk || !referenceId || hasLive;
+  const narrationWords = narrationWordCount(narrationText);
+  const narrationOk =
+    audioMode === "off" ||
+    (narrationText.trim().length > 0 &&
+      narrationText.length <= NARRATION_MAX_CHARS &&
+      narrationWords <= NARRATION_MAX_WORDS);
+  const generateDisabled = submitting || !promptOk || !narrationOk || !referenceId || hasLive;
 
   return (
     <div className="mt-4 rounded-2xl border border-border bg-card p-4 text-sm">
@@ -200,6 +227,45 @@ export function GpuVideoPanel() {
             Type a motion prompt to switch the button on.
           </p>
         )}
+        <label className="mt-3 block text-xs font-semibold">
+          Voice-over
+          <select
+            value={audioMode}
+            onChange={(e) => setAudioMode(e.target.value === "narration" ? "narration" : "off")}
+            disabled={status ? status.audioEnabled !== true : false}
+            className="mt-1 block w-full rounded-xl border border-border bg-background p-2 disabled:opacity-50"
+          >
+            <option value="off">Off — silent video</option>
+            <option value="narration">Narration (in-house voice)</option>
+          </select>
+        </label>
+        {status && status.audioEnabled !== true && (
+          <p className="mt-1 text-xs text-muted-foreground">
+            Voice-over is not enabled yet (owner switch).
+          </p>
+        )}
+        {audioMode === "narration" && (
+          <label className="mt-3 block text-xs font-semibold">
+            Narration line (spoken over the clip — it must fit inside the ~4s video)
+            <textarea
+              rows={2}
+              maxLength={NARRATION_MAX_CHARS}
+              value={narrationText}
+              onChange={(e) => setNarrationText(e.target.value)}
+              placeholder="He turns to face the light."
+              className="mt-1 block w-full rounded-xl border border-border bg-background p-2"
+            />
+            <span
+              className={
+                narrationWords > NARRATION_MAX_WORDS ? "text-red-500" : "text-muted-foreground"
+              }
+            >
+              {narrationWords}/{NARRATION_MAX_WORDS} words
+              {narrationWords > NARRATION_MAX_WORDS &&
+                " — too long to fit the clip even at the fastest measured speech rate"}
+            </span>
+          </label>
+        )}
         <button
           type="button"
           disabled={generateDisabled}
@@ -232,7 +298,17 @@ export function GpuVideoPanel() {
               <>
                 {" "}
                 · {j.video_seconds ?? "?"}s
-                {j.actual_cost_usd !== null && <> · ${Number(j.actual_cost_usd).toFixed(2)}</>}
+                {j.audio_mode === "narration" && !j.audio_error && <> · voiced 🔊</>}
+                {j.actual_cost_usd !== null && (
+                  <> · ${(Number(j.actual_cost_usd) + Number(j.audio_cost_usd ?? 0)).toFixed(2)}</>
+                )}
+                {j.audio_mode === "narration" && j.audio_error && (
+                  <>
+                    {" "}
+                    · <span className="text-red-500">voice failed — delivered silent</span>{" "}
+                    <span className="text-muted-foreground">({j.audio_error})</span>
+                  </>
+                )}
                 {playback[j.id] ? (
                   <div className="mt-1">
                     <video
@@ -259,6 +335,8 @@ export function GpuVideoPanel() {
                     // Explicit retry only: a NEW idempotency key, the same
                     // words. Nothing retries by itself.
                     setPromptText(j.prompt);
+                    setAudioMode(j.audio_mode === "narration" ? "narration" : "off");
+                    setNarrationText(j.narration_text ?? "");
                     setIdempotencyKey(freshKey());
                     setMessage("Ready to retry — press Generate video.");
                   }}
