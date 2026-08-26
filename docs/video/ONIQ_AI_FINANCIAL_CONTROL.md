@@ -2328,3 +2328,59 @@ test_output_prefix=validation/video-test):
 safety gate.** Runs #34–#38 were all $0 (config/verification only).
 The five-scene battery remains armed behind through_phase=18 and
 spends nothing until dispatched again.
+
+### 16q. Production launch — the canary passed and in-house video is ON
+
+2026-08-26, 08:04 UTC, run gpu-validation #39: **the first fully green
+spend run in the program's history**, and the production readiness
+canary of the owner's launch directive. In-house video generation —
+LTX-Video 2B on a RunPod-serverless RTX 3090, R2 in and out — is now
+ONIQ's PRIMARY video path; Google/Veo is optional and never required;
+Wan stays future/experimental and disabled.
+
+The canary, measured (job `b9f37248-ea7e-491b-aa30-d3b26575cf73-u2`,
+worker `g53nrjwbon6dvw`):
+
+- Real ONIQ reference image in by reference; output
+  `oniq-gpu/media/video/canary-001/ltx-001.mp4` — the production key
+  convention's first object. 97 frames, 704×480, 24 fps, 4.04 s,
+  330,061 bytes (byte count identical to the baseline clip —
+  consistent with the fixed seed 42: same input, same prompt, same
+  configuration).
+- CUDA on `NVIDIA GeForce RTX 3090`; model load **8.9 s**, inference
+  **25.7 s**, encode **0.75 s**; peak VRAM 15,916 MB of 24,124.
+- Live price $0.50/h quoted twice; reservation $0.13; execution
+  38.8 s → **actual $0.01**; $0.0025 per generated second, $0.15 per
+  generated minute. Cold pull on a fresh worker: 204 s of delayTime.
+- **Termination CONFIRMED under the production rule** (owner directive
+  2026-08-26, Phase 6): active compute zero — running 0,
+  initializing 0, throttled 0, unhealthy 0 — with
+  `STANDBY_PROVIDER_MANAGED: 1` recorded, never claimed as zero.
+  Sweep: pods 0, endpoint min workers 0. Orphans 0.
+- Quality: the canary reproduces the baseline configuration the owner
+  judged "awesome"; the object is at the reference above for eyes-on
+  confirmation.
+
+Launch state committed to main: `src/lib/videoProvider.server.ts`
+(VIDEO_PROVIDER=in_house, GOOGLE_VIDEO_REQUIRED=false,
+WAN_GENERATION_ENABLED=false, EXPERIMENTAL_MODELS_ENABLED=false,
+min 0 / max 1, the 704×480/24fps/3–5s/900s/$0.50 envelope; selection
+server-controlled, pinned by five vitest guards) and
+`docs/video/MEDIA_INFERENCE_PRODUCTION.md` (engine, revision lock,
+financial control, termination rule, client contract, LTX community
+license status with the reassess-at-threshold standing rule).
+
+Security (Phase 22): secret-signature sweep over every tracked file in
+both repositories — clean (two known benign matches: the Firebase
+client config, an identifier by design, and a PEM-header-stripping
+regex literal in parked code); worker-ci's per-push shell-surface and
+credential scans green; RUNPOD_API_KEY only in Actions secrets; R2
+credentials only in the RunPod endpoint environment; spend logs
+redacted.
+
+Rollout posture (Phase 26): concurrency 1, one job at a time, no
+automatic scaling. The story-pipeline wiring onto this engine is the
+next build and consumes `videoProvider.server.ts` as its source of
+truth. Program GPU spend to date ≈ **$0.11–0.16 total** (three
+completed GPU jobs at $0.01 computed each + the diagnostic-era boots);
+R2 $0.00.
