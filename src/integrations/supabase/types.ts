@@ -4254,6 +4254,42 @@ export type Database = {
           },
         ]
       }
+      story_actor_assets: {
+        Row: {
+          created_at: string
+          id: string
+          lock: string
+          mime: string
+          name: string
+          source: string
+          storage_path: string
+          style: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lock: string
+          mime: string
+          name: string
+          source?: string
+          storage_path: string
+          style?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lock?: string
+          mime?: string
+          name?: string
+          source?: string
+          storage_path?: string
+          style?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       story_addons: {
         Row: {
           active: boolean
@@ -6073,6 +6109,16 @@ export type Database = {
       }
       rotate_profile_qr_token: { Args: never; Returns: string }
       run_creator_payouts: { Args: { _pool_paise?: number }; Returns: Json }
+      save_story_actor: {
+        Args: {
+          _lock: string
+          _mime: string
+          _name: string
+          _path: string
+          _style: string
+        }
+        Returns: Json
+      }
       send_friend_request: { Args: { _to: string }; Returns: undefined }
       set_payout_vpa: { Args: { _vpa: string }; Returns: Json }
       set_show_purchase_surfaces: { Args: { _on: boolean }; Returns: Json }
