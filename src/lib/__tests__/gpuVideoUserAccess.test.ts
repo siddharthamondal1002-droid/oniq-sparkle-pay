@@ -130,6 +130,14 @@ describe("finished-video-time accounting (owner directive 2026-08-27)", () => {
     expect(EDGE).toContain("no_watermark: cleanFlag === true");
   });
 
+  it("video asks the VIDEO authority, never the story free-for-all", () => {
+    // has_entitlement is `select true` for everyone by the story product's
+    // 2026-08-20 decision; job e010372d proved every video came out
+    // clean-entitled through it. The video path has its own function.
+    expect(EDGE).toContain('rpc("has_video_entitlement"');
+    expect(EDGE).not.toContain('rpc("has_entitlement"');
+  });
+
   it("the entitlement rides the worker payload and the artifact is proven against it", () => {
     // Submit passes the server-derived flag into the proven contract...
     expect(EDGE).toContain("buildWorkerPayload(request, jobId, cleanFlag === true)");
