@@ -29,6 +29,7 @@ export {
   verifyStoredArtifact,
   verifyWorkerOutput,
   watchdogExpired,
+  watermarkVerdict,
   type AudioMode,
   type GenerationRequest,
   type JobStatus,

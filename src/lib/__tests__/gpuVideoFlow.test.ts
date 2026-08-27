@@ -24,6 +24,7 @@ import {
   verifyStoredArtifact,
   verifyWorkerOutput,
   watchdogExpired,
+  watermarkVerdict,
   type JobStatus,
 } from "@/lib/gpuVideoFlow";
 import { VIDEO_PROVIDERS, selectVideoProvider } from "@/lib/videoProvider.server";
@@ -91,8 +92,13 @@ describe("server-side infrastructure control", () => {
     const payload = buildWorkerPayload(A_REQUEST, "job-1");
     expect(Object.keys(payload)).toEqual(["input"]);
     expect(Object.keys(payload.input).sort()).toEqual(["input_key", "op", "output_key", "params"]);
-    // params is the prompt and nothing else — no runtime, no model, no size.
-    expect(Object.keys(payload.input.params)).toEqual(["prompt"]);
+    // params is the prompt plus the SERVER-derived watermark entitlement
+    // and nothing else — no runtime, no model, no size.
+    expect(Object.keys(payload.input.params).sort()).toEqual(["prompt", "watermark"]);
+    // The default is the marked product; only the server's deliberate
+    // noWatermark=true produces a clean export request.
+    expect(payload.input.params.watermark).toBe(true);
+    expect(buildWorkerPayload(A_REQUEST, "job-1", true).input.params.watermark).toBe(false);
   });
 
   it("client-reachable files hold no secret reads and no secret names", () => {
@@ -125,6 +131,29 @@ describe("submit request", () => {
       "media/video/0b0b0b0b-aaaa-bbbb-cccc-121212121212/ltx-001.mp4",
     );
     expect(payload.input.params.prompt).toBe(A_REQUEST.prompt);
+  });
+
+  it("the artifact's watermark state must match the entitlement of record", () => {
+    // The wrong product is a failure, not a delivery.
+    expect(watermarkVerdict({ watermarked: true }, false)).toEqual({ ok: true });
+    expect(watermarkVerdict({ watermarked: false }, true)).toEqual({ ok: true });
+    expect(watermarkVerdict({ watermarked: true }, true)).toEqual({
+      ok: false,
+      reason: "wrong-watermark",
+    });
+    expect(watermarkVerdict({ watermarked: false }, false)).toEqual({
+      ok: false,
+      reason: "wrong-watermark",
+    });
+    // Evidence must be a real boolean — a truthy string proves nothing.
+    expect(watermarkVerdict({ watermarked: "true" }, false)).toEqual({
+      ok: false,
+      reason: "watermark-evidence-invalid",
+    });
+    // The pre-watermark worker image reports nothing: status quo ante,
+    // accepted — the canary reads it as "image not rebuilt", never clean.
+    expect(watermarkVerdict({ ok: true }, false)).toEqual({ ok: true });
+    expect(watermarkVerdict(null, false)).toEqual({ ok: false, reason: "no-output" });
   });
 
   it("output references are server-minted under media/video/<job>/", () => {
