@@ -1,14 +1,18 @@
-// story-still — one frame of a Story, generated through the Lovable gateway.
+// story-still — one frame of a Story, drawn by ONIQ'S OWN image engine.
 //
-// OWNER DIRECTIVE, 2026-08-14: Story generation runs through Lovable
-// (ai.gateway.lovable.dev on LOVABLE_API_KEY), spending the Lovable credit
-// pool — reversing the 2026-08-09 engineering call that routed it onto the
-// metered Google key without asking. Provider and payment-source choices
-// are the owner's; this one is now made and recorded.
+// OWNER DIRECTIVE, 2026-08-27 (fully in-house generation): the still comes
+// from ONIQ's GPU worker — the image_generate op, LTX over the model baked
+// into that image, frame 0 at the video canvas — and from no external image
+// provider. This SUPERSEDES the 2026-08-14 routing of stills through the
+// Lovable gateway (which itself reversed a 2026-08-09 engineering call onto
+// the metered Google key). Provider choices are the owner's; this one is
+// made, and the previous provider is gone from this file rather than left
+// as a fallback: a stage that can silently outsource is the behaviour the
+// directive ends.
 //
 // `story-plot` returns the still prompts; this turns one of them into an
 // actual image. The worker's contract is unchanged: { configured, mime,
-// data } with base64 bytes, refusals as 422 with the upstream's why.
+// data } with base64 bytes, refusals as 422 with the reason why.
 //
 // ONE IMAGE PER CALL, ON PURPOSE. The guard order this project enforces —
 // admin/auth, kill switch, cap, validation, then the billable call — exists
@@ -17,10 +21,10 @@
 // the rate limit individually and a runaway plan stops at the limit rather than
 // at the bill.
 //
-// NO RETRY HERE EITHER. Same reasoning as runwayOps: a prompt that trips a
-// safety filter trips it identically the second time, and retrying spends money
-// to reach the same answer. A caller that wants a retry can make one, having
-// seen why the first failed.
+// NO RETRY HERE EITHER. Same reasoning as runwayOps: a prompt that fails
+// fails identically the second time, and retrying spends GPU seconds to reach
+// the same answer. A caller that wants a retry can make one, having seen why
+// the first failed — and the Story worker's ladder does exactly that.
 //
 // THE IMAGE COMES BACK AS BASE64 AND IS NOT STORED. Storage is the caller's
 // decision, because a Story's bytes are governed by storyLifecycle.ts — every
@@ -28,6 +32,7 @@
 // create files nothing is tracking.
 
 import { verifyJobToken } from "../_shared/jobToken.ts";
+import { generateStill } from "../_shared/oniqImage.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -42,7 +47,6 @@ const corsHeaders = {
  * file rather than a wrong model name.
  */
 /** Same underlying model as before the reroute, addressed by gateway id. */
-const IMAGE_MODEL = "google/gemini-2.5-flash-image";
 
 /**
  * Portrait, matching the episode pipeline. The gateway's OpenRouter-shaped
@@ -95,110 +99,60 @@ Deno.serve(async (req) => {
     // at a sensible pace and still bounds what a single account can spend.
     if (!_rateLimit(_subFromAuth(req), 30)) return json({ error: "slow down bestie 😅" }, 429);
 
-    const key = Deno.env.get("LOVABLE_API_KEY");
-    if (!key) return json({ configured: false }, 200);
+    // ONIQ'S OWN IMAGE ENGINE (owner directive 2026-08-27, fully in-house
+    // generation). The still is drawn by ONIQ's GPU worker — image_generate,
+    // LTX over the baked snapshot, frame 0 at the video canvas — and by
+    // nothing else. There is deliberately no cloud branch left below: a
+    // failure here fails clearly, because silently outsourcing the request
+    // is the exact behaviour the directive ends.
+    const apiKey = Deno.env.get("RUNPOD_API_KEY");
+    const endpointId = Deno.env.get("RUNPOD_ENDPOINT_ID");
+    const publicBase = Deno.env.get("R2_PUBLIC_BASE_URL");
+    if (!apiKey || !endpointId || !publicBase) {
+      return json({ configured: false }, 200);
+    }
 
     const body = await req.json().catch(() => ({}));
     const prompt = typeof body?.prompt === "string" ? body.prompt.trim() : "";
     if (!prompt) return json({ error: "No prompt." }, 400);
     if (prompt.length > MAX_PROMPT) return json({ error: "That prompt is too long." }, 400);
 
-    // OWNER-ASSET CONDITIONING (character-as-actor). An optional reference image
-    // establishes WHO the character is; the prompt establishes scene, action,
-    // camera and lighting. The gateway holds identity from the reference — a
-    // capability probe (2026-08-20) confirmed google/gemini-2.5-flash-image
-    // keeps the face/hair/clothing/palette when the frame is inlined, and the
-    // reply still lands in the data[].b64_json pocket firstImage() already reads.
-    //
-    // TWO HARD GUARDS, because "use the owner asset, never source a new face"
-    // is the whole point:
-    //   1. Only an inlined `data:image/*;base64,` URL is accepted — NEVER an
-    //      external http(s) URL. The owner frame is fetched upstream and handed
-    //      over as bytes, so this stage can never be pointed at a Google / stock
-    //      / web image, and Vertex is never asked to crawl a URL (it rejects one
-    //      anyway: URL_REJECTED).
-    //   2. A size cap, so a caller cannot smuggle a giant payload through.
+    // REFERENCE CONDITIONING IS NOT AVAILABLE IN-HOUSE YET, and this says so
+    // rather than drawing an unconditioned frame and letting the caller
+    // believe it was conditioned. 422 is the caller's own step-down signal:
+    // the ask ladder drops the reference and asks again, which is how a film
+    // stays alive. The in-house route to conditioning is a character asset
+    // the engine itself drew, addressed by its key — not an inlined upload,
+    // because the bucket's write credentials live in the endpoint alone.
     const referenceImage =
       typeof body?.referenceImage === "string" ? body.referenceImage.trim() : "";
-    if (referenceImage && !/^data:image\/(png|jpe?g|webp);base64,/i.test(referenceImage)) {
-      return json({ error: "referenceImage must be an inlined data:image/*;base64 URL." }, 400);
-    }
-    if (referenceImage.length > MAX_REFERENCE) {
-      return json({ error: "referenceImage is too large." }, 400);
-    }
-
-    // Multimodal content only when a reference rode along; otherwise the exact
-    // text-only shape the pipeline has always sent, so an unconditioned still
-    // is byte-for-byte the previous behaviour.
-    const content = referenceImage
-      ? [
-          { type: "text", text: prompt + ASPECT_SUFFIX },
-          { type: "image_url", image_url: { url: referenceImage } },
-        ]
-      : prompt + ASPECT_SUFFIX;
-
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 60000);
-    let res: Response;
-    try {
-      res = await fetch("https://ai.gateway.lovable.dev/v1/images/generations", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          Authorization: `Bearer ${key}`,
-        },
-        signal: ctrl.signal,
-        body: JSON.stringify({
-          model: IMAGE_MODEL,
-          messages: [{ role: "user", content }],
-          modalities: ["image", "text"],
-        }),
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-
-    if (res.status === 401 || res.status === 403) return json({ configured: false }, 200);
-    // The pool itself running dry is ITS OWN failure, named plainly: the
-    // worker's log must say "credits", not "the model refused the frame".
-    if (res.status === 402 || res.status === 429) {
-      const detail = await res.text().catch(() => "");
-      console.error("story-still gateway limit", res.status, detail.slice(0, 200));
-      return json({ error: "Image credits exhausted or rate limited — try again later." }, 502);
-    }
-    if (!res.ok) {
-      const detail = await res.text().catch(() => "");
-      console.error("story-still upstream", res.status, detail.slice(0, 300));
-      return json({ error: "Could not draw that frame." }, 502);
-    }
-
-    const data = await res.json();
-    const image = firstImage(data);
-    if (!image) {
-      // A refusal comes back as a 200 with no image part rather than an error
-      // status, so "ok but empty" has to be treated as a failure here or the
-      // caller stores an undefined and finds out at assembly. The WHY rides
-      // in the body: the worker retries refused frames down a ladder of
-      // safer prompts, and a bare "refused" left it (and the runner log)
-      // guessing whether the trigger was the wording, the safety filter or
-      // the prompt being blocked outright.
-      const d = data as {
-        choices?: { finish_reason?: string; message?: { content?: string } }[];
-      };
-      const why = [
-        d?.choices?.[0]?.finish_reason,
-        (d?.choices?.[0]?.message?.content ?? "").slice(0, 120),
-      ]
-        .filter(Boolean)
-        .join("/");
-      console.error("story-still no image part", why, JSON.stringify(data).slice(0, 300));
+    if (referenceImage) {
       return json(
-        { error: `That frame was refused (${why || "no image part"}). Try rewording the shot.` },
+        { error: "The in-house image engine does not condition on a reference yet." },
         422,
       );
     }
 
-    return json({ configured: true, mime: image.mime, data: image.data });
+    try {
+      const still = await generateStill(
+        prompt + ASPECT_SUFFIX,
+        { apiKey, endpointId, publicBase },
+        {
+          fetchImpl: fetch,
+          now: () => Date.now(),
+          sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+          newId: () => crypto.randomUUID(),
+        },
+      );
+      return json({ configured: true, mime: still.mime, data: still.data });
+    } catch (err) {
+      // Named plainly, and NEVER converted into a cloud call. The caller's
+      // ladder reads 5xx as "the service hiccuped" and retries once, which
+      // is the right verdict for a cold worker or a busy endpoint.
+      const why = err instanceof Error ? err.message : String(err);
+      console.error("story-still in-house engine", why.slice(0, 300));
+      return json({ error: `Could not draw that frame: ${why}` }, 502);
+    }
   } catch (e) {
     if (e instanceof DOMException && e.name === "AbortError") {
       return json({ error: "That frame took too long." }, 504);
@@ -207,47 +161,6 @@ Deno.serve(async (req) => {
     return json({ error: "Something went sideways — try again" }, 500);
   }
 });
-
-/**
- * The first image in a gateway reply, if there is one. MEASURED FROM THE
- * LIVE RESPONSE, not the docs: the first film through the gateway failed
- * with every frame "refused" while the logs showed perfect PNGs arriving
- * in the OpenAI images shape — { data: [{ b64_json }] } — which the docs
- * summary had called choices/message/images. Both shapes are read below,
- * live-observed first, so a gateway-side format change degrades to the
- * other pocket instead of to a dead film. Mime is sniffed from the bytes'
- * own magic: b64_json carries no content type.
- */
-function firstImage(data: unknown): { mime: string; data: string } | null {
-  const openai = (data as { data?: { b64_json?: string }[] })?.data;
-  if (Array.isArray(openai)) {
-    for (const item of openai) {
-      if (typeof item?.b64_json === "string" && item.b64_json.length > 0) {
-        return { mime: mimeOfB64(item.b64_json), data: item.b64_json };
-      }
-    }
-  }
-  const images = (
-    data as { choices?: { message?: { images?: { image_url?: { url?: string } }[] } }[] }
-  )?.choices?.[0]?.message?.images;
-  if (Array.isArray(images)) {
-    for (const img of images) {
-      const url = img?.image_url?.url;
-      if (typeof url !== "string") continue;
-      const m = url.match(/^data:([^;]+);base64,(.+)$/s);
-      if (m) return { mime: m[1] || "image/png", data: m[2] };
-    }
-  }
-  return null;
-}
-
-/** PNG and JPEG announce themselves in the first base64 characters. */
-function mimeOfB64(b64: string): string {
-  if (b64.startsWith("iVBORw0KGgo")) return "image/png";
-  if (b64.startsWith("/9j/")) return "image/jpeg";
-  return "image/png";
-}
-
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,

@@ -188,6 +188,15 @@ jobs:
           # no token and no key, and exits with a message naming both.
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           STORY_VOICE: ${{ inputs.voice || 'Charon' }}
+          # THE PRODUCTION VOICE IS ONIQ'S OWN (owner directive 2026-08-27,
+          # fully in-house generation): piper on this runner, sha256-pinned
+          # and MIT, speaking every narration and every character line. It
+          # was already here as the quota-free switch and the dry-bucket
+          # fallback; 'only' makes it the path itself, so no cloud TTS
+          # provider is required for a film to finish. The engine never
+          # flips to cloud from here — 'only' is checked before the first
+          # line is spoken, not after a failure.
+          STORY_LOCAL_TTS: only
           # OWNER-ACTOR conditioning, opt-in per JOB — never globally on.
           #   repository_dispatch: on ONLY when story-dispatch marks THIS job's
           #     client_payload.actor_refs true (a story_jobs.actor_refs flag);
