@@ -50,6 +50,20 @@ describe("with no local model, story generation fails — it does not outsource"
     }
   });
 
+  it("carries a researched recommendation that is NOT marked approved", () => {
+    // Owner directive: do not bake a model because it looks good. The
+    // recommendation is recorded with the two facts that decide it — the
+    // licence and the integration cost — and approval stays the owner's.
+    const rec = REQUIRED_LOCAL_MODEL.recommended;
+    expect(rec.approved).toBe(false);
+    expect(rec.license).toBe("Apache-2.0");
+    expect(rec.contextTokens).toBeGreaterThanOrEqual(8192);
+    expect(rec.vramGbAt4Bit).toBeLessThanOrEqual(REQUIRED_LOCAL_MODEL.vramBudgetGb);
+    // The integration cost is recorded because it is a build risk that
+    // must be proven before anything is baked.
+    expect(rec.requiresTransformers).toMatch(/4\.51/);
+  });
+
   it("records the checkpoint requirement as a build input, not a wish", () => {
     expect(REQUIRED_LOCAL_MODEL.bakedAtBuild).toBe(true);
     expect(REQUIRED_LOCAL_MODEL.stagedExecution).toBe(true);

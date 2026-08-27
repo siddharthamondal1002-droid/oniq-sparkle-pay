@@ -98,3 +98,79 @@ describe("the cap is never bypassed, and never set here", () => {
     expect(src).not.toMatch(/concurrency\s*[:=]\s*\d/);
   });
 });
+
+// ── REDUCING THE JOB COUNT, from the worker's own source ─────────────────────
+//
+// Owner directive 2026-08-27: "make one movie require dramatically fewer GPU
+// jobs" BEFORE reconsidering the cap. These pin the arithmetic behind each
+// option so the plan is reproducible rather than prose.
+
+describe("stages that do no GPU work need not spend the GPU day", () => {
+  it("audio and concat are 35% of a film's jobs and neither touches CUDA", () => {
+    const now = costFilm(60, { grade: "movie" });
+    const offGpu = costFilm(60, {
+      grade: "movie",
+      placement: { audioOnGpu: false, concatOnGpu: false, stillPerScene: false },
+    });
+    expect(now.totalJobs).toBe(46);
+    expect(offGpu.totalJobs).toBe(30);
+    expect(offGpu.audioJobs).toBe(0);
+    expect(offGpu.concatJobs).toBe(0);
+    // ...and the GPU seconds fall with them, because they were never GPU work.
+    expect(offGpu.estimatedGpuSeconds).toBeLessThan(now.estimatedGpuSeconds);
+  });
+
+  it("the same move on a five-minute film", () => {
+    expect(costFilm(300, { grade: "movie" }).totalJobs).toBe(231);
+    expect(
+      costFilm(300, {
+        grade: "movie",
+        placement: { audioOnGpu: false, concatOnGpu: false, stillPerScene: false },
+      }).totalJobs,
+    ).toBe(150);
+  });
+});
+
+describe("one conditioning still per scene instead of per shot", () => {
+  it("cuts the stills without touching the motion", () => {
+    const perShot = costFilm(60, {
+      grade: "movie",
+      placement: { audioOnGpu: false, concatOnGpu: false, stillPerScene: false },
+    });
+    const perScene = costFilm(60, {
+      grade: "movie",
+      placement: { audioOnGpu: false, concatOnGpu: false, stillPerScene: true },
+    });
+    expect(perScene.imageJobs).toBeLessThan(perShot.imageJobs);
+    expect(perScene.videoJobs).toBe(perShot.videoJobs); // motion is untouched
+    expect(perScene.totalJobs).toBe(19);
+  });
+});
+
+describe("longer clips per job — the option that needs a measurement first", () => {
+  it("halving the shot count halves the motion jobs", () => {
+    // 8.04s per clip instead of the measured 4.04s. NOT adopted here: the
+    // VRAM and time scaling of a longer LTX generation has never been
+    // measured on this card, and the owner has not authorised a run.
+    const cheap = costFilm(60, {
+      grade: "movie",
+      secondsPerClip: 8.04,
+      placement: { audioOnGpu: false, concatOnGpu: false, stillPerScene: true },
+    });
+    expect(cheap.videoJobs).toBe(7);
+    expect(cheap.totalJobs).toBeLessThan(12);
+  });
+});
+
+describe("the plan does not change what the policy allows", () => {
+  it("a reduced film still faces the same admission rules", () => {
+    const reduced = costFilm(60, {
+      grade: "movie",
+      placement: { audioOnGpu: false, concatOnGpu: false, stillPerScene: true },
+    });
+    // 19 jobs against a 20/day cap: this is what makes a one-minute film
+    // a same-day film instead of a three-day one — WITHOUT moving the cap.
+    expect(admitFilm(reduced, POLICY).decision).toBe("ADMIT");
+    expect(admitFilm(reduced, { ...POLICY, usedToday: 10 }).decision).toBe("QUEUE");
+  });
+});

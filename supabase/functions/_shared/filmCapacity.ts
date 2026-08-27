@@ -27,6 +27,39 @@ export type CapacityPolicy = {
   concurrency: number;
 };
 
+/**
+ * Where a stage RUNS, which decides whether it spends the GPU day.
+ *
+ * Measured from the worker's own source, not assumed:
+ *   audio_mux   — "piper ... on the CPU) speaks the narration, PyAV muxes
+ *                 it under the video". No CUDA in the path.
+ *   video_concat— "Ordered stream-copy assembly ... no re-encode, packets
+ *                 are copied". No CUDA in the path.
+ *
+ * Both nevertheless occupy a slot in the endpoint's daily job cap today,
+ * which is 35% of a film's jobs spending the GPU allowance on work no GPU
+ * performs. The story runner already carries piper (sha256-pinned) and
+ * ffmpeg and has done 43 voices plus a full assembly in one run, so
+ * moving them is a placement decision, not new capability.
+ */
+export type StagePlacement = {
+  /** false = runs on the story runner's CPU and never touches the cap. */
+  audioOnGpu: boolean;
+  concatOnGpu: boolean;
+  /**
+   * One conditioning still per SCENE instead of per shot. The still exists
+   * to anchor identity; sharing it across a scene's shots anchors them to
+   * each other as well. Fewer stills, and the same face for longer.
+   */
+  stillPerScene: boolean;
+};
+
+export const CURRENT_PLACEMENT: StagePlacement = {
+  audioOnGpu: true,
+  concatOnGpu: true,
+  stillPerScene: false,
+};
+
 export type FilmCost = {
   shots: number;
   imageJobs: number;
@@ -63,13 +96,24 @@ export const GPU_SECONDS = {
  */
 export function costFilm(
   targetSeconds: number,
-  opts: { grade: "classic" | "movie"; speakingShots?: number } = { grade: "movie" },
+  opts: {
+    grade: "classic" | "movie";
+    speakingShots?: number;
+    placement?: StagePlacement;
+    /** Finished seconds one video job produces. Measured today: 4.04. */
+    secondsPerClip?: number;
+  } = { grade: "movie" },
 ): FilmCost {
+  const placement = opts.placement ?? CURRENT_PLACEMENT;
   const budget = budgetFor(targetSeconds);
-  const shots = budget.shots;
-  const imageJobs = shots;
+  const shots = opts.secondsPerClip
+    ? Math.max(1, Math.round(targetSeconds / opts.secondsPerClip))
+    : budget.shots;
+  const scenes = Math.max(1, Math.ceil(shots / budget.shotsPerScene));
+  const imageJobs = placement.stillPerScene ? scenes : shots;
   const videoJobs = opts.grade === "movie" ? shots : 0;
-  const audioJobs = opts.speakingShots ?? shots;
+  const speaking = opts.speakingShots ?? shots;
+  const audioJobs = placement.audioOnGpu ? speaking : 0;
 
   let concatJobs = 0;
   let segments = opts.grade === "movie" ? shots : 0;
@@ -79,19 +123,20 @@ export function costFilm(
     segments = groups;
   }
 
-  const totalJobs = imageJobs + videoJobs + audioJobs + concatJobs;
+  const gpuConcatJobs = placement.concatOnGpu ? concatJobs : 0;
+  const totalJobs = imageJobs + videoJobs + audioJobs + gpuConcatJobs;
   return {
     shots,
     imageJobs,
     videoJobs,
     audioJobs,
-    concatJobs,
+    concatJobs: gpuConcatJobs,
     totalJobs,
     estimatedGpuSeconds: Math.round(
       imageJobs * GPU_SECONDS.imageEstimated +
         videoJobs * GPU_SECONDS.video +
         audioJobs * GPU_SECONDS.audio +
-        concatJobs * GPU_SECONDS.concatEstimated,
+        gpuConcatJobs * GPU_SECONDS.concatEstimated,
     ),
   };
 }
