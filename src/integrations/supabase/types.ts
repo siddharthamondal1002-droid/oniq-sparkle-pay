@@ -2125,6 +2125,32 @@ export type Database = {
           },
         ]
       }
+      free_month_grants: {
+        Row: {
+          granted_at: string
+          plan_key: string
+          user_id: string
+        }
+        Insert: {
+          granted_at?: string
+          plan_key: string
+          user_id: string
+        }
+        Update: {
+          granted_at?: string
+          plan_key?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "free_month_grants_plan_key_fkey"
+            columns: ["plan_key"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["key"]
+          },
+        ]
+      }
       friendships: {
         Row: {
           accepted_at: string | null
@@ -2173,6 +2199,7 @@ export type Database = {
           model: string
           narration_seconds: number | null
           narration_text: string | null
+          no_watermark: boolean
           output_bytes: number | null
           output_ref: string
           price_per_hour_usd: number | null
@@ -2207,6 +2234,7 @@ export type Database = {
           model?: string
           narration_seconds?: number | null
           narration_text?: string | null
+          no_watermark?: boolean
           output_bytes?: number | null
           output_ref: string
           price_per_hour_usd?: number | null
@@ -2241,6 +2269,7 @@ export type Database = {
           model?: string
           narration_seconds?: number | null
           narration_text?: string | null
+          no_watermark?: boolean
           output_bytes?: number | null
           output_ref?: string
           price_per_hour_usd?: number | null
@@ -4815,6 +4844,7 @@ export type Database = {
           label: string
           price_paise: number
           sort_order: number
+          video_included_seconds: number
         }
         Insert: {
           active?: boolean
@@ -4826,6 +4856,7 @@ export type Database = {
           label: string
           price_paise?: number
           sort_order?: number
+          video_included_seconds?: number
         }
         Update: {
           active?: boolean
@@ -4837,6 +4868,7 @@ export type Database = {
           label?: string
           price_paise?: number
           sort_order?: number
+          video_included_seconds?: number
         }
         Relationships: []
       }
@@ -5341,6 +5373,171 @@ export type Database = {
         }
         Relationships: []
       }
+      video_purchases: {
+        Row: {
+          created_at: string
+          currency: string
+          error: string | null
+          id: string
+          minutes: number
+          origin: string
+          paid_at: string | null
+          price_paise: number
+          provider: string
+          provider_order_id: string | null
+          provider_payment_id: string | null
+          seconds: number
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          error?: string | null
+          id?: string
+          minutes: number
+          origin?: string
+          paid_at?: string | null
+          price_paise: number
+          provider?: string
+          provider_order_id?: string | null
+          provider_payment_id?: string | null
+          seconds: number
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          error?: string | null
+          id?: string
+          minutes?: number
+          origin?: string
+          paid_at?: string | null
+          price_paise?: number
+          provider?: string
+          provider_order_id?: string | null
+          provider_payment_id?: string | null
+          seconds?: number
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      video_sale_config: {
+        Row: {
+          clean_addon_paise_per_minute: number
+          id: boolean
+          payg_paise_per_minute: number
+          sales_enabled: boolean
+          trial_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          clean_addon_paise_per_minute?: number
+          id?: boolean
+          payg_paise_per_minute?: number
+          sales_enabled?: boolean
+          trial_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          clean_addon_paise_per_minute?: number
+          id?: boolean
+          payg_paise_per_minute?: number
+          sales_enabled?: boolean
+          trial_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      video_time_accounts: {
+        Row: {
+          paid_ms: number
+          period_start: string | null
+          period_used_ms: number
+          trial_ms_granted: number
+          trial_ms_used: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          paid_ms?: number
+          period_start?: string | null
+          period_used_ms?: number
+          trial_ms_granted?: number
+          trial_ms_used?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          paid_ms?: number
+          period_start?: string | null
+          period_used_ms?: number
+          trial_ms_granted?: number
+          trial_ms_used?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      video_time_reservations: {
+        Row: {
+          created_at: string
+          job_id: string
+          reserved_paid_ms: number
+          reserved_plan_ms: number
+          reserved_trial_ms: number
+          settled_ms: number
+          source: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          job_id: string
+          reserved_paid_ms?: number
+          reserved_plan_ms?: number
+          reserved_trial_ms?: number
+          settled_ms?: number
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          job_id?: string
+          reserved_paid_ms?: number
+          reserved_plan_ms?: number
+          reserved_trial_ms?: number
+          settled_ms?: number
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "video_time_reservations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "gpu_video_cogs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "video_time_reservations_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "gpu_video_jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       watermark_purchases: {
         Row: {
           applied: boolean
@@ -5399,6 +5596,42 @@ export type Database = {
       }
     }
     Views: {
+      gpu_video_cogs: {
+        Row: {
+          actual_cost_usd: number | null
+          audio_billed_seconds: number | null
+          audio_cost_usd: number | null
+          billed_seconds: number | null
+          cogs_usd_per_finished_minute: number | null
+          created_at: string | null
+          id: string | null
+          status: string | null
+          video_seconds: number | null
+        }
+        Insert: {
+          actual_cost_usd?: number | null
+          audio_billed_seconds?: number | null
+          audio_cost_usd?: number | null
+          billed_seconds?: number | null
+          cogs_usd_per_finished_minute?: never
+          created_at?: string | null
+          id?: string | null
+          status?: string | null
+          video_seconds?: number | null
+        }
+        Update: {
+          actual_cost_usd?: number | null
+          audio_billed_seconds?: number | null
+          audio_cost_usd?: number | null
+          billed_seconds?: number | null
+          cogs_usd_per_finished_minute?: never
+          created_at?: string | null
+          id?: string | null
+          status?: string | null
+          video_seconds?: number | null
+        }
+        Relationships: []
+      }
       profiles_public: {
         Row: {
           avatar_url: string | null
@@ -5567,6 +5800,10 @@ export type Database = {
         Args: { _provider_order_id: string; _purchase_id: string }
         Returns: Json
       }
+      attach_video_purchase_order: {
+        Args: { _provider_order_id: string; _purchase_id: string }
+        Returns: Json
+      }
       attach_watermark_purchase_order: {
         Args: { _provider_order_id: string; _purchase_id: string }
         Returns: undefined
@@ -5686,6 +5923,10 @@ export type Database = {
         Args: { _grade?: string; _origin?: string; _seconds: number }
         Returns: Json
       }
+      create_video_purchase: {
+        Args: { _minutes: number; _origin?: string }
+        Returns: Json
+      }
       create_watermark_purchase: { Args: { _job_id: string }; Returns: Json }
       creator_activity_days: {
         Args: { _days?: number; _uid: string }
@@ -5717,6 +5958,14 @@ export type Database = {
         }
         Returns: Json
       }
+      credit_video_purchase: {
+        Args: {
+          _confirmed_by?: string
+          _provider_order_id: string
+          _provider_payment_id?: string
+        }
+        Returns: Json
+      }
       delete_chat: { Args: { _conversation_id: string }; Returns: undefined }
       delete_email: {
         Args: { message_id: number; queue_name: string }
@@ -5738,6 +5987,10 @@ export type Database = {
       }
       fail_story_purchase: {
         Args: { _error: string; _provider_order_id: string }
+        Returns: Json
+      }
+      fail_video_purchase: {
+        Args: { _error?: string; _provider_order_id: string }
         Returns: Json
       }
       fail_watermark_purchase: {
@@ -6082,6 +6335,7 @@ export type Database = {
       }
       refund_story_seconds: { Args: { _job_id: string }; Returns: Json }
       release_provider_spend: { Args: { _request_id: string }; Returns: Json }
+      release_video_time: { Args: { _job_id: string }; Returns: Json }
       remove_group_member: {
         Args: { _conversation_id: string; _user_id: string }
         Returns: undefined
@@ -6097,6 +6351,10 @@ export type Database = {
       }
       request_parental_consent: {
         Args: { _method?: string; _parent_email: string }
+        Returns: Json
+      }
+      reserve_video_time: {
+        Args: { _job_id: string; _ms: number; _user: string }
         Returns: Json
       }
       respond_booking: {
@@ -6150,6 +6408,10 @@ export type Database = {
         }
         Returns: Json
       }
+      settle_video_time: {
+        Args: { _actual_ms: number; _job_id: string }
+        Returns: Json
+      }
       settle_watermark_purchase: {
         Args: {
           _confirmed_by?: string
@@ -6165,6 +6427,7 @@ export type Database = {
           status: string
         }[]
       }
+      start_free_video_month: { Args: { _plan_key: string }; Returns: Json }
       storage_object_name: {
         Args: { bucket: string; url: string }
         Returns: string
@@ -6198,6 +6461,7 @@ export type Database = {
           rows_checked: number
         }[]
       }
+      video_time_status: { Args: never; Returns: Json }
       viewer_views_series: { Args: { _days?: number }; Returns: Json }
       wipe_my_chat_media: { Args: never; Returns: number }
       wipe_my_clips: { Args: never; Returns: number }
