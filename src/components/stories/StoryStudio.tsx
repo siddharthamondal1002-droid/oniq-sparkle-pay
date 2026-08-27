@@ -51,6 +51,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
+import { CharacterBuilder } from "@/components/stories/CharacterBuilder";
+import { StoryWriter } from "@/components/stories/StoryWriter";
 import { openInApp } from "@/lib/miniapps";
 import { MAX_PROMPT_CHARS, packNarrations, verbatimFits } from "@/lib/verbatimNarration";
 import {
@@ -423,9 +425,7 @@ export function StoryStudio() {
       // excludes it (the prompt is the narration there), and the attach is
       // fail-closed: invalid picks or a full prompt send the user's words
       // untouched.
-      const intentAttach = verbatim
-        ? null
-        : attachIntentToPrompt(prompt.trim(), shotIntent);
+      const intentAttach = verbatim ? null : attachIntentToPrompt(prompt.trim(), shotIntent);
       const { data, error: rpcError } = await supabase.rpc("claim_story_seconds", {
         _requested_seconds: plan_.seconds,
         _prompt: intentAttach?.applied ? intentAttach.prompt : prompt.trim(),
@@ -471,7 +471,9 @@ export function StoryStudio() {
         if (plate) {
           const up = await uploadPlate(plate);
           if (!up.ok) {
-            setPlateError(`Your photo did not upload (${up.message}) — the film opens on a drawn frame instead.`);
+            setPlateError(
+              `Your photo did not upload (${up.message}) — the film opens on a drawn frame instead.`,
+            );
           } else {
             const { data: setRes } = await supabase.rpc(
               "set_story_plate" as never,
@@ -479,7 +481,9 @@ export function StoryStudio() {
             );
             const res = setRes as { ok?: boolean } | null;
             if (!res?.ok) {
-              setPlateError("Your photo did not reach this film in time — it opens on a drawn frame.");
+              setPlateError(
+                "Your photo did not reach this film in time — it opens on a drawn frame.",
+              );
             }
           }
         }
@@ -880,7 +884,28 @@ export function StoryStudio() {
             looking the same as in your last one.
           </p>
         )}
+        {/* Portraits are a separate, explicit product: one tap, one image,
+            stored as a reusable reference. Drawing never starts a film. */}
+        <CharacterBuilder cast={cast} />
       </div>
+
+      {/* STORY FIRST — generation without rendering (mega loop, 2026-08-27).
+          Writes the structured story through story-plot and stops. Making the
+          film remains this studio's own explicit, paid Generate tap. */}
+      <StoryWriter
+        prompt={prompt}
+        seconds={plan_.seconds}
+        shots={plan_.shots.length}
+        reuse={cast
+          .filter((m) => pickedCast.has(m.id))
+          .slice(0, MAX_CAST_PER_FILM)
+          .map((m) => ({ name: m.name, lock: m.lock }))}
+        onUseDraft={(draftPrompt, draftSeconds) => {
+          setPrompt(draftPrompt);
+          setSeconds(draftSeconds);
+        }}
+        onCastSaved={() => setCast(listCast())}
+      />
 
       {/*
         THE DISCLAIMER SITS ABOVE THE BUTTON, not below it and not behind a
