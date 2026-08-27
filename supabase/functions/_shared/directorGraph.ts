@@ -14,9 +14,41 @@
  * job rather than paying for the first three shots again.
  */
 
-import type { StoryIr } from "./storyIr.ts";
+import type { IrShot, StoryIr } from "./storyIr.ts";
 
 export type JobKind = "image" | "video" | "audio" | "assembly";
+
+/**
+ * Which resource a job actually consumes (owner directive 2026-08-27,
+ * capacity option A).
+ *
+ * Measured from the worker's own source, not assumed: audio_mux speaks
+ * with piper ON THE CPU and muxes with PyAV, and video_concat is a
+ * stream copy with no re-encode. Neither touches CUDA — yet both spent a
+ * slot in the GPU endpoint's daily cap, which was 35% of a film's jobs
+ * consuming the GPU allowance for work no GPU performs.
+ *
+ * The fix is CLASSIFICATION, not deletion: CPU work is still counted,
+ * still queued and still bounded, but against its own resource. The GPU
+ * cap keeps its exact meaning — how much GENERATION the endpoint may do
+ * in a day — and Video Clips keeps the protection that number is for.
+ */
+export type ResourceClass = "gpu" | "cpu";
+
+export const JOB_RESOURCE: Record<JobKind, ResourceClass> = {
+  /** ONIQ's image engine: LTX text-to-video on CUDA. */
+  image: "gpu",
+  /** LTX image-to-video on CUDA. */
+  video: "gpu",
+  /** piper + PyAV mux. No CUDA in the path. */
+  audio: "cpu",
+  /** Stream-copy concat. No re-encode, no CUDA in the path. */
+  assembly: "cpu",
+};
+
+export function resourceOf(job: { kind: JobKind }): ResourceClass {
+  return JOB_RESOURCE[job.kind];
+}
 
 export type JobState =
   | "pending"
@@ -67,27 +99,74 @@ export function jobId(filmId: string, kind: JobKind, shotId?: string): string {
  * silently downgrade a movie, and must never silently upgrade a classic
  * into GPU spend nobody asked for.
  */
+/**
+ * Does this shot need its OWN conditioning still, or can it animate the
+ * one its scene already has? (Owner directive 2026-08-27, capacity B.)
+ *
+ * Sharing is the default because it is both cheaper AND better: the
+ * still exists to anchor identity, so anchoring a scene's shots to one
+ * frame anchors them to each other. But a shared frame is only valid
+ * while it still depicts the shot — the owner's own list — so a new
+ * still is required when the visual STATE changes:
+ *
+ *   - the location changes (a different place is a different frame)
+ *   - the cast in frame changes (a frame cannot condition a person who
+ *     is not in it)
+ *   - the story marks a continuity break
+ *
+ * When in doubt this returns TRUE: an unnecessary still costs one job,
+ * while a wrongly shared one costs a whole shot that shows the wrong
+ * place or the wrong person.
+ */
+export function needsOwnStill(shot: IrShot, anchor: IrShot | null): boolean {
+  if (!anchor) return true;
+  if (shot.locationId !== anchor.locationId) return true;
+  const cast = [...(shot.characters ?? [])].sort().join(",");
+  const anchorCast = [...(anchor.characters ?? [])].sort().join(",");
+  return cast !== anchorCast;
+}
+
 export function buildGraph(
   ir: StoryIr,
-  opts: { filmId: string; grade: "classic" | "movie" },
+  opts: {
+    filmId: string;
+    grade: "classic" | "movie";
+    /**
+     * One conditioning still per SCENE where the shots allow it. Off
+     * keeps the previous shape, so the change is reversible without a
+     * rebuild of anything downstream.
+     */
+    stillPerScene?: boolean;
+  },
 ): FilmGraph {
   const jobs: GraphJob[] = [];
   const shotOrder: string[] = [];
   const key = (kind: JobKind, shotId?: string) => `${opts.filmId}|${kind}|${shotId ?? "film"}`;
 
   for (const scene of ir.scenes) {
+    /** The shot whose still the rest of this scene may animate. */
+    let anchor: IrShot | null = null;
+    let anchorImage: string | null = null;
     for (const shot of scene.shots) {
       shotOrder.push(shot.id);
-      const image = jobId(opts.filmId, "image", shot.id);
-      jobs.push({
-        id: image,
-        kind: "image",
-        shotId: shot.id,
-        needs: [],
-        state: "pending",
-        attempts: 0,
-        idempotencyKey: key("image", shot.id),
-      });
+      const ownStill: boolean =
+        !opts.stillPerScene || anchorImage === null || needsOwnStill(shot, anchor);
+      const image: string = ownStill
+        ? jobId(opts.filmId, "image", shot.id)
+        : (anchorImage as string);
+      if (ownStill) {
+        jobs.push({
+          id: image,
+          kind: "image",
+          shotId: shot.id,
+          needs: [],
+          state: "pending",
+          attempts: 0,
+          idempotencyKey: key("image", shot.id),
+        });
+        anchor = shot;
+        anchorImage = image;
+      }
       let last = image;
       if (opts.grade === "movie") {
         const video = jobId(opts.filmId, "video", shot.id);
@@ -146,7 +225,10 @@ const byId = (graph: FilmGraph) => new Map(graph.jobs.map((j) => [j.id, j]));
  * needs is done. `limit` is the caller's capacity, never a suggestion:
  * the Director queues within the cap rather than around it.
  */
-export function readyJobs(graph: FilmGraph, limit = Infinity): GraphJob[] {
+export function readyJobs(
+  graph: FilmGraph,
+  limit: number | { gpu: number; cpu: number } = Infinity,
+): GraphJob[] {
   const jobs = byId(graph);
   const ready = graph.jobs.filter(
     (j) =>
@@ -158,7 +240,20 @@ export function readyJobs(graph: FilmGraph, limit = Infinity): GraphJob[] {
     (a, b) =>
       (shotRank.get(a.shotId ?? "") ?? Infinity) - (shotRank.get(b.shotId ?? "") ?? Infinity),
   );
-  return ready.slice(0, limit === Infinity ? undefined : Math.max(0, limit));
+  if (typeof limit === "number") {
+    return ready.slice(0, limit === Infinity ? undefined : Math.max(0, limit));
+  }
+  // Per-resource allowances: CPU work never consumes a GPU slot, and a
+  // spent GPU day does not stop a film's narration from being spoken.
+  const left = { gpu: Math.max(0, limit.gpu), cpu: Math.max(0, limit.cpu) };
+  const out: GraphJob[] = [];
+  for (const job of ready) {
+    const resource = resourceOf(job);
+    if (left[resource] <= 0) continue;
+    left[resource] -= 1;
+    out.push(job);
+  }
+  return out;
 }
 
 /** A film is finished when its assembly is done. */

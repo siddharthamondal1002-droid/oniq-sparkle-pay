@@ -6,6 +6,7 @@
 // film that cannot be delivered, don't dispatch past the cap.
 import { describe, expect, it } from "vitest";
 import {
+  JOB_RESOURCE,
   MAX_SHOT_ATTEMPTS,
   buildGraph,
   completeJob,
@@ -15,6 +16,8 @@ import {
   progress,
   readyJobs,
   rejectJob,
+  needsOwnStill,
+  resourceOf,
   resumeGraph,
   startJob,
 } from "../../../supabase/functions/_shared/directorGraph.ts";
@@ -180,5 +183,117 @@ describe("a film is complete only when it is assembled", () => {
     expect(filmComplete(g)).toBe(false);
     g = completeJob(g, "f1:assembly", { outputRef: "film.mp4", measuredMs: 12000 });
     expect(filmComplete(g)).toBe(true);
+  });
+});
+
+// ── CAPACITY A: what a job actually consumes ────────────────────────────────
+//
+// Owner directive 2026-08-27: CPU-only work must not consume the GPU
+// generation allowance — and must not stop being counted either.
+
+describe("jobs are classified by the resource they really use", () => {
+  it("image and video are GPU; audio and assembly are not", () => {
+    // From the worker's source: piper speaks on the CPU, concat is a
+    // stream copy. Neither touches CUDA.
+    expect(JOB_RESOURCE.image).toBe("gpu");
+    expect(JOB_RESOURCE.video).toBe("gpu");
+    expect(JOB_RESOURCE.audio).toBe("cpu");
+    expect(JOB_RESOURCE.assembly).toBe("cpu");
+  });
+
+  it("a spent GPU day does not stop the CPU work of a film", () => {
+    let g = movie();
+    // Finish shot 1's picture so its audio becomes ready.
+    g = completeJob(g, "f1:sh1:image", { outputRef: "i" });
+    g = completeJob(g, "f1:sh1:video", { outputRef: "v" });
+
+    const noGpuLeft = readyJobs(g, { gpu: 0, cpu: 4 });
+    expect(noGpuLeft.map((j) => j.id)).toContain("f1:sh1:audio");
+    expect(noGpuLeft.every((j) => resourceOf(j) === "cpu")).toBe(true);
+  });
+
+  it("CPU work never consumes a GPU slot", () => {
+    let g = movie();
+    g = completeJob(g, "f1:sh1:image", { outputRef: "i" });
+    g = completeJob(g, "f1:sh1:video", { outputRef: "v" });
+
+    const oneEach = readyJobs(g, { gpu: 1, cpu: 1 });
+    expect(oneEach.filter((j) => resourceOf(j) === "gpu")).toHaveLength(1);
+    expect(oneEach.filter((j) => resourceOf(j) === "cpu")).toHaveLength(1);
+  });
+
+  it("CPU work is still bounded — classified, not exempted", () => {
+    let g = movie();
+    g = completeJob(g, "f1:sh1:image", { outputRef: "i" });
+    g = completeJob(g, "f1:sh1:video", { outputRef: "v" });
+    expect(readyJobs(g, { gpu: 0, cpu: 0 })).toHaveLength(0);
+  });
+});
+
+// ── CAPACITY B: one conditioning still per scene ────────────────────────────
+
+describe("a scene's shots share one conditioning still where they can", () => {
+  function sceneIr(shots: Partial<StoryIr["scenes"][0]["shots"][0]>[]): StoryIr {
+    const base = ir(1);
+    base.scenes[0].shots = shots.map((s, i) => ({
+      id: `sh${i + 1}`,
+      visualDescription: "a lamp",
+      motionDescription: "push in",
+      cameraDescription: "push-in",
+      characters: [],
+      locationId: "l1",
+      durationSeconds: 4,
+      ...s,
+    })) as StoryIr["scenes"][0]["shots"];
+    return base;
+  }
+
+  it("three shots in one place with one cast need ONE still, not three", () => {
+    const g = buildGraph(sceneIr([{}, {}, {}]), {
+      filmId: "f1",
+      grade: "movie",
+      stillPerScene: true,
+    });
+    expect(g.jobs.filter((j) => j.kind === "image")).toHaveLength(1);
+    // ...and every shot still gets its own motion job.
+    expect(g.jobs.filter((j) => j.kind === "video")).toHaveLength(3);
+  });
+
+  it("every video animates the still it was actually anchored to", () => {
+    const g = buildGraph(sceneIr([{}, {}, {}]), {
+      filmId: "f1",
+      grade: "movie",
+      stillPerScene: true,
+    });
+    for (const v of g.jobs.filter((j) => j.kind === "video")) {
+      expect(v.needs).toEqual(["f1:sh1:image"]);
+    }
+  });
+
+  it("a location change forces a new still — a frame cannot show two places", () => {
+    const g = buildGraph(sceneIr([{}, { locationId: "l2" }, { locationId: "l2" }]), {
+      filmId: "f1",
+      grade: "movie",
+      stillPerScene: true,
+    });
+    expect(g.jobs.filter((j) => j.kind === "image")).toHaveLength(2);
+  });
+
+  it("a cast change forces a new still — a frame cannot condition who is absent", () => {
+    const g = buildGraph(sceneIr([{ characters: ["c1"] }, { characters: ["c1", "c2"] }]), {
+      filmId: "f1",
+      grade: "movie",
+      stillPerScene: true,
+    });
+    expect(g.jobs.filter((j) => j.kind === "image")).toHaveLength(2);
+  });
+
+  it("when in doubt it draws: no anchor yet always means a new still", () => {
+    expect(needsOwnStill({ locationId: "l1", characters: [] } as never, null)).toBe(true);
+  });
+
+  it("the previous shape is still available and unchanged", () => {
+    const g = buildGraph(sceneIr([{}, {}, {}]), { filmId: "f1", grade: "movie" });
+    expect(g.jobs.filter((j) => j.kind === "image")).toHaveLength(3);
   });
 });
