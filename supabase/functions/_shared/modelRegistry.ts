@@ -224,7 +224,7 @@ export const IMAGE_STILL: ModelEntry = {
   provider: "oniq-gpu-worker",
   keyEnv: null,
   usedBy: "story-still",
-  status: "active",
+  status: "current",
   shutdownOn: null,
   note:
     "In-house. Baked into the worker image at build time and loaded with " +
