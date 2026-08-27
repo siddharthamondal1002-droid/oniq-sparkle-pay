@@ -908,6 +908,13 @@ export function StoryStudio() {
         onUseDraft={(draftPrompt, draftSeconds) => {
           setPrompt(draftPrompt);
           setSeconds(draftSeconds);
+          // The story panel sits far below the prompt on a phone; without
+          // this the tap looks dead (owner report, 2026-08-27). Mirrors the
+          // clip seed's scroll — loading a form, never generating.
+          document
+            .getElementById("story-prompt")
+            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+          toast.success("Story loaded — press Generate film when you are ready");
         }}
         onCastSaved={() => setCast(listCast())}
         onFilmShot={setClipSeed}
