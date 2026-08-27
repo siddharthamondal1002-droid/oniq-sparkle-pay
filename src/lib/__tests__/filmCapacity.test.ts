@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  CURRENT_PLACEMENT,
   GPU_SECONDS,
   MAX_CONCAT_SEGMENTS,
   admitFilm,
@@ -172,5 +173,39 @@ describe("the plan does not change what the policy allows", () => {
     // a same-day film instead of a three-day one — WITHOUT moving the cap.
     expect(admitFilm(reduced, POLICY).decision).toBe("ADMIT");
     expect(admitFilm(reduced, { ...POLICY, usedToday: 10 }).decision).toBe("QUEUE");
+  });
+});
+
+// Owner directive 2026-08-27 (capacity A/B separation): "Never set
+// audioOnGpu=false merely to obtain the arithmetic improvement. The
+// scheduler's accounting must match actual execution placement."
+//
+// CURRENT_PLACEMENT is not a feature switch. It is a claim about WHERE
+// WORK ACTUALLY RUNS, and capacity admission is computed from it. Flip a
+// flag here without moving the corresponding stage off the GPU and
+// admission stops counting GPU work it is still doing — the film is
+// admitted against a budget it will exceed. That is a safety regression
+// wearing the costume of a capacity win, so the values are pinned.
+//
+// This test is meant to fail when someone edits that constant. Editing
+// THIS TEST to match is the wrong fix. The right fix is the separate
+// rollout loop that first proves audio_mux and video_concat execute on
+// the story runner rather than the GPU worker.
+
+describe("capacity A and B are implemented but NOT active", () => {
+  it("pins the placement that admission is computed from", () => {
+    expect(CURRENT_PLACEMENT).toEqual({
+      audioOnGpu: true,
+      concatOnGpu: true,
+      stillPerScene: false,
+    });
+  });
+
+  it("so the live cost of a one-minute film is still the unreduced count", () => {
+    // 19 is the POST-ACTIVATION figure and is not what production costs
+    // today. Asserting the live number here is what keeps the two apart.
+    expect(costFilm(60, { grade: "movie" }).totalJobs).toBe(46);
+    expect(costFilm(60, { grade: "movie" }).audioJobs).toBeGreaterThan(0);
+    expect(costFilm(60, { grade: "movie" }).concatJobs).toBeGreaterThan(0);
   });
 });
