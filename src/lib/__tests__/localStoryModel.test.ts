@@ -50,18 +50,38 @@ describe("with no local model, story generation fails — it does not outsource"
     }
   });
 
-  it("carries a researched recommendation that is NOT marked approved", () => {
-    // Owner directive: do not bake a model because it looks good. The
-    // recommendation is recorded with the two facts that decide it — the
-    // licence and the integration cost — and approval stays the owner's.
+  it("carries the owner's approval with the facts it was conditional on", () => {
+    // Owner directive 2026-08-27: approved conditionally, subject to the
+    // licence verification and the transformers compatibility build. The
+    // recommendation is recorded with the facts that decided it, so the
+    // approval can be re-checked rather than remembered.
     const rec = REQUIRED_LOCAL_MODEL.recommended;
-    expect(rec.approved).toBe(false);
+    expect(rec.approved).toBe(true);
     expect(rec.license).toBe("Apache-2.0");
     expect(rec.contextTokens).toBeGreaterThanOrEqual(8192);
     expect(rec.vramGbAt4Bit).toBeLessThanOrEqual(REQUIRED_LOCAL_MODEL.vramBudgetGb);
-    // The integration cost is recorded because it is a build risk that
-    // must be proven before anything is baked.
+    // The integration cost stays recorded: it is the version the worker
+    // must carry, and the build gate that proves it keys off this number.
     expect(rec.requiresTransformers).toMatch(/4\.51/);
+  });
+
+  it("approval does not make the engine live", () => {
+    // The sharp edge of the flag above. `approved` records a DECISION; it
+    // is not a runtime switch, and nothing may read it as one. Owner
+    // directive 2026-08-27: "Do not declare the local Story LLM live
+    // until the model has actually generated a Story IR locally." So the
+    // seam must behave identically either side of approval — it does,
+    // because no code path consults the flag at all.
+    expect(REQUIRED_LOCAL_MODEL.recommended.approved).toBe(true);
+    const consulted = SRC.split("\n").filter(
+      (line) => /\bapproved\b/.test(line) && !/^\s*(\*|\/\*|\/\/)/.test(line),
+    );
+    // The only non-comment mention is the field's own declaration.
+    expect(consulted).toEqual(["    approved: true,"]);
+  });
+
+  it("still refuses to generate, approved or not, without a real model", async () => {
+    await expect(generateStoryIr(BRIEF)).rejects.toThrow(LocalModelUnavailable);
   });
 
   it("records the checkpoint requirement as a build input, not a wish", () => {

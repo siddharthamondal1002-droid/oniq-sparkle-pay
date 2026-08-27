@@ -50,7 +50,9 @@ export const REQUIRED_LOCAL_MODEL = {
     "7-8B class at 4-bit, or smaller — it must not need the whole card",
   ],
   /**
-   * The RECOMMENDATION, researched 2026-08-27 and not yet approved.
+   * APPROVED by the owner, 2026-08-27, conditionally — and the two
+   * conditions are now met. See `approved` at the foot of this block for
+   * what approval does and does not mean.
    *
    * Qwen3-8B: Apache 2.0 (unrestricted commercial use, no user cap, no
    * royalty, explicit patent grant, and redistributable inside a private
@@ -80,7 +82,34 @@ export const REQUIRED_LOCAL_MODEL = {
     contextTokens: 32768,
     vramGbAt4Bit: 4.6,
     requiresTransformers: ">=4.51.0",
-    approved: false,
+    /**
+     * Owner directive 2026-08-27: "Approve Qwen3-8B conditionally,
+     * subject to the licence/model-card verification and the Transformers
+     * compatibility build."
+     *
+     * Both conditions were then met, and neither on the strength of a
+     * search result:
+     *
+     * - LICENCE. Verified against the authors' own repository
+     *   (github.com/QwenLM/Qwen3): "All our open-weight models are
+     *   licensed under Apache 2.0", 8B among the released dense models.
+     *   More to the point, believing it is no longer load-bearing: the
+     *   worker's bake reads the licence from the registry metadata and
+     *   REFUSES to download anything that is not apache-2.0, so an image
+     *   carrying weights ONIQ may not redistribute cannot be built.
+     * - COMPATIBILITY. transformers 4.51.3 alongside diffusers 0.33.1 and
+     *   torch 2.5.1, proven by a build that asserts Qwen3 is a known
+     *   architecture and both LTX pipelines still import — not by a
+     *   version-number comparison.
+     *
+     * APPROVED IS NOT LIVE, and this flag must never be read as "live".
+     * It records a decision, gates nothing, and the code around it is
+     * unchanged: generateStoryIr still throws LocalModelUnavailable
+     * without a real invoke. The engine becomes live when the worker
+     * image is rebuilt with the weights baked and a local generation
+     * actually returns a valid Story IR — which has NOT happened.
+     */
+    approved: true,
   },
 } as const;
 
