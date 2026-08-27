@@ -160,18 +160,47 @@ export function validateRequest(
 // ------------------------------------------------------------- the payload
 /**
  * The worker-contract payload, byte for byte what the proven pipeline runs:
- * op + object references + a prompt-only params object. Assembled ONLY from
- * validated parts; there is no spread of client input anywhere near it.
+ * op + object references + a params object assembled ONLY from validated
+ * parts — there is no spread of client input anywhere near it.
+ *
+ * `noWatermark` is the SERVER-derived entitlement (has_entitlement at
+ * submit, recorded on the job row) — never a client flag. The worker's
+ * contract defaults an absent watermark to TRUE, so the only way to a
+ * clean export is this server passing false deliberately.
  */
-export function buildWorkerPayload(request: GenerationRequest, jobId: string) {
+export function buildWorkerPayload(
+  request: GenerationRequest,
+  jobId: string,
+  noWatermark: boolean = false,
+) {
   return {
     input: {
       op: "video_generate",
       input_key: STAGED_REFERENCES[request.referenceId].key,
       output_key: outputRefFor(jobId),
-      params: { prompt: request.prompt },
+      params: { prompt: request.prompt, watermark: !noWatermark },
     },
   };
+}
+
+/**
+ * The watermark proof (monetization resolution loop, 2026-08-27): when the
+ * worker reports whether it burned the mark, that report must match the
+ * entitlement of record — a Pro clip that came back marked, or a free clip
+ * that came back clean, is the WRONG PRODUCT and fails closed (released,
+ * never charged, never delivered). An output with no `watermarked` key is
+ * the pre-watermark worker image still serving: accepted as the status quo
+ * ante, and the canary reads it as "image not yet rebuilt", never as clean.
+ */
+export function watermarkVerdict(output: unknown, noWatermark: boolean): OutputVerdict {
+  if (!output || typeof output !== "object") return { ok: false, reason: "no-output" };
+  const o = output as Record<string, unknown>;
+  if (!("watermarked" in o)) return { ok: true };
+  if (typeof o.watermarked !== "boolean") {
+    return { ok: false, reason: "watermark-evidence-invalid" };
+  }
+  if (o.watermarked !== !noWatermark) return { ok: false, reason: "wrong-watermark" };
+  return { ok: true };
 }
 
 /** Server-generated output reference — media/video/<job_id>/, per §16q. */

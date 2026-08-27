@@ -46,6 +46,7 @@ import {
   verifyStoredArtifact,
   verifyWorkerOutput,
   watchdogExpired,
+  watermarkVerdict,
   type JobStatus,
 } from "../_shared/gpuVideoCore.ts";
 
@@ -567,7 +568,7 @@ async function submitGeneration(
 
   // --- exactly one billable submission -------------------------------------
   try {
-    const runpodJobId = await runpodSubmit(buildWorkerPayload(request, jobId));
+    const runpodJobId = await runpodSubmit(buildWorkerPayload(request, jobId, cleanFlag === true));
     await setJob(admin, jobId, {
       status: "provisioning",
       runpod_job_id: runpodJobId,
@@ -667,6 +668,19 @@ async function pollGenerations(
       await setJob(admin, job.id, {
         status: "failed",
         error: `proof:${verdict.reason}`,
+        completed_at: new Date().toISOString(),
+      });
+      await releaseTime(admin, job.id);
+      continue;
+    }
+    // The watermark proof: the artifact's reported state must match the
+    // entitlement of record. The wrong product is a failure, not a
+    // delivery — released in full, charged nothing.
+    const wm = watermarkVerdict(state.output, job.no_watermark === true);
+    if (!wm.ok) {
+      await setJob(admin, job.id, {
+        status: "failed",
+        error: `proof:${wm.reason}`,
         completed_at: new Date().toISOString(),
       });
       await releaseTime(admin, job.id);

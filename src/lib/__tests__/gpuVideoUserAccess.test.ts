@@ -82,7 +82,7 @@ describe("the financial gates did not move", () => {
       "if (usedToday >= cfg.daily_cap)",
       "const validated = validateRequest(raw)",
       "const admission = admitGeneration(price)",
-      "await runpodSubmit(buildWorkerPayload(request, jobId))",
+      "await runpodSubmit(",
     ];
     let last = -1;
     for (const gate of order) {
@@ -113,11 +113,12 @@ describe("finished-video-time accounting (owner directive 2026-08-27)", () => {
 
   it("every delivery settles and every dead end releases", () => {
     // Three deliveries: the silent completion, the salvage-to-silent, and
-    // the voiced final. Seven dead ends: admission refusal, submit failure,
-    // watchdog, provider failure, proof failure, custody failure, and the
-    // salvage that could not even store the silent source.
+    // the voiced final. Eight dead ends: admission refusal, submit failure,
+    // watchdog, provider failure, GPU-proof failure, WATERMARK-proof
+    // failure (the wrong product is never delivered or charged), custody
+    // failure, and the salvage that could not even store the silent source.
     expect(EDGE.match(/await settleTime\(/g)).toHaveLength(3);
-    expect(EDGE.match(/await releaseTime\(/g)).toHaveLength(7);
+    expect(EDGE.match(/await releaseTime\(/g)).toHaveLength(8);
   });
 
   it("the reservation is the fixed clip clock — customer time, not GPU time", () => {
@@ -127,6 +128,21 @@ describe("finished-video-time accounting (owner directive 2026-08-27)", () => {
   it("the watermark entitlement of record is derived server-side at submit", () => {
     expect(EDGE).toContain('_key: "no_watermark"');
     expect(EDGE).toContain("no_watermark: cleanFlag === true");
+  });
+
+  it("the entitlement rides the worker payload and the artifact is proven against it", () => {
+    // Submit passes the server-derived flag into the proven contract...
+    expect(EDGE).toContain("buildWorkerPayload(request, jobId, cleanFlag === true)");
+    // ...and the poll refuses the wrong product before custody: a marked
+    // Pro clip or a clean free clip fails closed, released and uncharged.
+    const pollFn = EDGE.slice(
+      EDGE.indexOf("async function pollGenerations"),
+      EDGE.indexOf("Deno.serve"),
+    );
+    const wmAt = pollFn.indexOf("watermarkVerdict(state.output, job.no_watermark === true)");
+    const custodyAt = pollFn.indexOf("custodyArtifact(admin, job.id");
+    expect(wmAt).toBeGreaterThan(-1);
+    expect(custodyAt).toBeGreaterThan(wmAt);
   });
 });
 
