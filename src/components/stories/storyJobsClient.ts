@@ -44,7 +44,7 @@ export function isWatchable(status: string): boolean {
  */
 export const PROGRESS: Record<string, string> = {
   queued: "Waiting for a free renderer…",
-  generating: "Ting is writing your film, and drawing every shot…",
+  generating: "ONIQ is writing your film, and drawing every shot…",
   assembling: "Putting it together — this is the slow part.",
 };
 

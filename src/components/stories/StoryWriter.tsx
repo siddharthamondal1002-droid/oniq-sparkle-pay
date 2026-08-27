@@ -40,6 +40,12 @@ type StoryWriterProps = {
   onUseDraft: (prompt: string, seconds: number) => void;
   /** A character from a story was saved into the library. */
   onCastSaved?: () => void;
+  /**
+   * Hand ONE shot to the studio's video-clip panel — prefill only, exactly
+   * like onUseDraft. This callback loads a form; it spends nothing and
+   * generates nothing. The clip still needs its own explicit Generate press.
+   */
+  onFilmShot?: (seed: { prompt: string; narration: string; label: string }) => void;
 };
 
 export function StoryWriter({
@@ -49,6 +55,7 @@ export function StoryWriter({
   reuse,
   onUseDraft,
   onCastSaved,
+  onFilmShot,
 }: StoryWriterProps) {
   const [writing, setWriting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -80,7 +87,7 @@ export function StoryWriter({
         error?: string;
       };
       if (fnError || payload.error) {
-        setError(payload.error ?? fnError?.message ?? "Ting could not write that one.");
+        setError(payload.error ?? fnError?.message ?? "ONIQ could not write that one.");
         return;
       }
       if (payload.configured === false) {
@@ -90,7 +97,7 @@ export function StoryWriter({
       const parsed = parseStoryPlan(payload.plan);
       if (!parsed) {
         // A malformed story is rejected, never stored half-broken.
-        setError("Ting's reply did not come back as a story — try again.");
+        setError("That reply did not come back as a story — try again.");
         return;
       }
       setPlan(parsed);
@@ -119,7 +126,7 @@ export function StoryWriter({
         <BookOpenText className="h-3.5 w-3.5" /> story first
       </div>
       <p className="mt-1 text-[11px] text-muted-foreground">
-        Ting writes the story — title, characters, every shot — and stops. No film is made and no
+        ONIQ writes the story — title, characters, every shot — and stops. No film is made and no
         story seconds are used until you generate one yourself.
       </p>
       <button
@@ -196,6 +203,24 @@ export function StoryWriter({
                     <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {sh.dialogue.speaker}: “{sh.dialogue.line}”
                     </p>
+                  )}
+                  {onFilmShot && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        // The shot's own words, verbatim — frame first, then
+                        // what moves, then atmosphere. Prefill only: the clip
+                        // panel's Generate press is still the only spender.
+                        onFilmShot({
+                          prompt: [sh.still, sh.motion, sh.vfx].filter(Boolean).join(" — "),
+                          narration: sh.narration,
+                          label: `Shot ${i + 1} of “${plan.title}”`,
+                        })
+                      }
+                      className="mt-1 rounded-lg border border-primary/50 px-2 py-0.5 text-[11px] font-semibold text-primary"
+                    >
+                      Use in a video clip
+                    </button>
                   )}
                 </li>
               ))}
