@@ -49,6 +49,39 @@ export const REQUIRED_LOCAL_MODEL = {
     "context window >= 8k tokens (brief + budget + schema + output)",
     "7-8B class at 4-bit, or smaller — it must not need the whole card",
   ],
+  /**
+   * The RECOMMENDATION, researched 2026-08-27 and not yet approved.
+   *
+   * Qwen3-8B: Apache 2.0 (unrestricted commercial use, no user cap, no
+   * royalty, explicit patent grant, and redistributable inside a private
+   * container image — which matters because ONIQ BAKES the weights);
+   * 32,768 native context against a requirement of 8k; ~4.6GB at 4-bit
+   * against an 8GB budget; GGUF/AWQ/GPTQ quantisations published; JSON
+   * response_format supported, though WITHOUT schema enforcement, which
+   * is why the Story IR validator stays authoritative rather than trusted
+   * to the model.
+   *
+   * The licence is what decides it. Llama-class weights permit commercial
+   * use but attach naming and attribution conditions and an MAU trigger;
+   * Gemma-class weights attach a use policy the licensor can revise.
+   * Apache 2.0 attaches none of that to a product that ships the weights
+   * inside its own image.
+   *
+   * KNOWN INTEGRATION COST, verified rather than assumed: Qwen3 needs
+   * transformers >= 4.51.0 and this worker pins 4.48.3 — below that the
+   * config raises KeyError: 'qwen3'. The bump has to be proven against
+   * the diffusers 0.33.1 / torch 2.5.1 pins that LTX runs on, in a build,
+   * before anything is baked. That is the first task if this is approved,
+   * and it is a build risk, not a runtime one.
+   */
+  recommended: {
+    id: "Qwen/Qwen3-8B",
+    license: "Apache-2.0",
+    contextTokens: 32768,
+    vramGbAt4Bit: 4.6,
+    requiresTransformers: ">=4.51.0",
+    approved: false,
+  },
 } as const;
 
 /** The transport a worker op provides. The ONLY way tokens are produced. */
