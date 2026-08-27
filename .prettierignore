@@ -7,3 +7,9 @@ package-lock.json
 bun.lock
 routeTree.gen.ts
 src/integrations/supabase/types.ts
+
+# GENERATED DATA, not authored code: the Story DNA library is 1,000 rows
+# written by a loader from the delivered corpus. Prettier would explode
+# each tuple onto its own set of lines, quadrupling a file no one reads
+# by hand and making every future regeneration an unreviewable diff.
+supabase/functions/_shared/storyDnaLibrary.ts
