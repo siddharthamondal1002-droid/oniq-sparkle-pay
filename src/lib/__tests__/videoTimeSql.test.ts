@@ -178,6 +178,37 @@ describe("PAYG purchases", () => {
   });
 });
 
+describe("the video entitlement authority (owner directive 2026-08-27)", () => {
+  const AUTHORITY = readFileSync(
+    join(process.cwd(), "supabase/migrations/20260827210000_video_entitlement_authority.sql"),
+    "utf8",
+  );
+  const AUTH_EXEC = stripSqlComments(AUTHORITY);
+
+  it("video asks its own function — admin rides free, then VIDEO plans only", () => {
+    expect(AUTHORITY).toContain("create or replace function public.has_video_entitlement");
+    expect(AUTH_EXEC).toContain("select is_admin(_user) or exists");
+    // The load-bearing predicate: the legacy story Plus plans carry
+    // no_watermark for the STORY product and hold video_included_seconds = 0,
+    // so without this line their subscribers would get clean video priced
+    // far under Pro.
+    expect(AUTH_EXEC).toContain("p.video_included_seconds > 0");
+  });
+
+  it("the story free-for-all is not touched, and the panel reads the same authority", () => {
+    expect(AUTH_EXEC).not.toMatch(/function public\.has_entitlement\s*\(/);
+    expect(AUTH_EXEC).toContain(
+      "'watermarkFree', has_video_entitlement(me, 'no_watermark')",
+    );
+  });
+
+  it("locked down like every money function", () => {
+    expect(AUTHORITY).toContain(
+      "revoke all on function public.has_video_entitlement(uuid, text) from public, anon",
+    );
+  });
+});
+
 describe("operator cost view", () => {
   it("exists for COGS-per-finished-minute and is not client-readable", () => {
     expect(SQL).toContain("cogs_usd_per_finished_minute");

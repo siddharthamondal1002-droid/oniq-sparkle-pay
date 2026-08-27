@@ -489,9 +489,11 @@ async function submitGeneration(
 
   // --- the watermark entitlement OF RECORD, derived server-side ------------
   // Read at submit and burned onto the row: the export layer reads THIS,
-  // never a client flag. (Clip exports do not carry a burned mark yet; the
-  // column is the entitlement the burn capability will honor.)
-  const { data: cleanFlag } = await admin.rpc("has_entitlement", {
+  // never a client flag. VIDEO has its own authority (owner directive
+  // 2026-08-27): has_entitlement is the STORY product's free-for-all and
+  // must stay that way, so this path asks has_video_entitlement — admin
+  // rides free, otherwise only a VIDEO plan's entitlements count.
+  const { data: cleanFlag } = await admin.rpc("has_video_entitlement", {
     _user: userId,
     _key: "no_watermark",
   });
