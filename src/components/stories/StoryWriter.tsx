@@ -144,7 +144,7 @@ export function StoryWriter({
               <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 characters
               </div>
-              <ul className="mt-1 grid gap-1">
+              <ul className="mt-1 grid grid-cols-1 gap-1">
                 {plan.cast.map((m) => {
                   const inShots = shotsFeaturing(plan, m);
                   const kept = savedCastNames.has(m.name);
@@ -217,7 +217,7 @@ export function StoryWriter({
           <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
             your stories
           </div>
-          <ul className="mt-1 grid gap-1">
+          <ul className="mt-1 grid grid-cols-1 gap-1">
             {drafts.map((d) => {
               const open = openDraft === d.id;
               return (
