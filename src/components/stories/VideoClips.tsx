@@ -33,9 +33,16 @@ import {
   STAGED_REFERENCES,
   TERMINAL_STATUSES,
   UI_LABELS,
+  VIDEO_CLOCK_SECONDS,
   narrationWordCount,
   type JobStatus,
 } from "@/lib/gpuVideoFlow";
+import {
+  readVideoTimeStatus,
+  sayVideoTime,
+  totalRemainingMs,
+  type VideoTimeStatus,
+} from "@/lib/videoPricing";
 import { AI_OUTPUT_LABEL, AiOutputReport } from "@/components/safety/AiOutputReport";
 
 /** A shot handed over from the story plan — prefill only, never a submission. */
@@ -101,6 +108,7 @@ export function VideoClips({ seed }: VideoClipsProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [seedNote, setSeedNote] = useState<string | null>(null);
   const [status, setStatus] = useState<StatusPayload | null>(null);
+  const [timeStatus, setTimeStatus] = useState<VideoTimeStatus | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
   const [playback, setPlayback] = useState<Record<string, string>>({});
   const lastSeed = useRef<ClipSeed | null>(null);
@@ -114,6 +122,10 @@ export function VideoClips({ seed }: VideoClipsProps) {
     } catch (e) {
       setStatusError((e as Error).message);
     }
+    // The finished-video-time balance — the customer's unit, never a GPU
+    // number. Read fresh alongside jobs so a settlement shows up promptly.
+    const { data: time, error: timeError } = await supabase.rpc("video_time_status" as never);
+    if (!timeError) setTimeStatus(readVideoTimeStatus(time));
   }, []);
 
   useEffect(() => {
@@ -215,8 +227,19 @@ export function VideoClips({ seed }: VideoClipsProps) {
     (narrationText.trim().length > 0 &&
       narrationText.length <= NARRATION_MAX_CHARS &&
       narrationWords <= NARRATION_MAX_WORDS);
+  // One clip spends its full clock from the balance; the server re-checks
+  // and is the authority — this only saves a doomed round trip.
+  const clipCostMs = Math.ceil(VIDEO_CLOCK_SECONDS * 1000);
+  const outOfTime =
+    timeStatus !== null && !timeStatus.admin && totalRemainingMs(timeStatus) < clipCostMs;
   const generateDisabled =
-    submitting || !promptOk || !narrationOk || !referenceId || hasLive || status?.enabled === false;
+    submitting ||
+    !promptOk ||
+    !narrationOk ||
+    !referenceId ||
+    hasLive ||
+    outOfTime ||
+    status?.enabled === false;
 
   return (
     <div ref={rootRef} className="mt-4 rounded-2xl border border-border bg-card/50 p-3">
@@ -245,6 +268,26 @@ export function VideoClips({ seed }: VideoClipsProps) {
       {status && !status.enabled && (
         <p role="alert" className="mt-2 text-[11px] text-amber-300">
           Video clips are switched off right now.
+        </p>
+      )}
+      {timeStatus && !timeStatus.admin && (
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          <span className="font-semibold text-foreground">
+            {sayVideoTime(totalRemainingMs(timeStatus))}
+          </span>{" "}
+          of video time left
+          {timeStatus.trialRemainingMs > 0 &&
+            timeStatus.planRemainingMs === 0 &&
+            timeStatus.paidMs === 0 &&
+            " — your free minute"}
+          . Only finished video counts; a failed clip costs nothing.
+        </p>
+      )}
+      {outOfTime && (
+        <p className="mt-1 text-[11px] text-amber-300">
+          {timeStatus?.salesEnabled
+            ? "You are out of video time — add more below."
+            : "Your free video minute is used up. Plans and top-ups open soon."}
         </p>
       )}
 

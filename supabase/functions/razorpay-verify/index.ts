@@ -94,14 +94,21 @@ Deno.serve(async (req) => {
       isWatermark = !!row;
     }
     if (!row) {
-      // Monthly plans. Last in the chain because it is the newest product, not
-      // because it matters least — the order of these lookups is only a search
-      // for which table holds this provider order id, and the ids are unique
-      // across all four.
+      // Monthly plans. The order of these lookups is only a search for which
+      // table holds this provider order id — the ids are unique across all
+      // of them.
       const planHit = await findIn("plan_purchases", "user_id,plan_key,status");
       if ("failed" in planHit) return json({ error: "could not read that payment" }, 502);
       row = planHit.row;
       isPlan = !!row;
+    }
+    let isVideo = false;
+    if (!row) {
+      // Finished video time (PAYG minutes, 2026-08-27) — the newest product.
+      const videoHit = await findIn("video_purchases", "user_id,seconds,status");
+      if ("failed" in videoHit) return json({ error: "could not read that payment" }, 502);
+      row = videoHit.row;
+      isVideo = !!row;
     }
 
     // THE SIGNATURE PROVES A PAYMENT HAPPENED, NOT WHOSE IT WAS. A valid
@@ -120,7 +127,9 @@ Deno.serve(async (req) => {
         ? "settle_watermark_purchase"
         : isPlan
           ? "credit_plan_purchase"
-          : "mark_order_paid";
+          : isVideo
+            ? "credit_video_purchase"
+            : "mark_order_paid";
     const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
       method: "POST",
       headers: { ...svc, "content-type": "application/json" },
@@ -144,7 +153,9 @@ Deno.serve(async (req) => {
           ? "watermark_removal"
           : isPlan
             ? "plan_month"
-            : "order",
+            : isVideo
+              ? "video_seconds"
+              : "order",
       ...result,
     });
   } catch (e) {

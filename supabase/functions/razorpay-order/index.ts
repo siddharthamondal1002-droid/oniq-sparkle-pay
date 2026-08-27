@@ -177,14 +177,17 @@ Deno.serve(async (req) => {
     const wantsStory = body?.seconds !== undefined && body?.seconds !== null;
     const wantsWatermark = body?.watermarkJobId !== undefined && body?.watermarkJobId !== null;
     const wantsPlan = body?.planKey !== undefined && body?.planKey !== null;
+    const wantsVideo = body?.videoMinutes !== undefined && body?.videoMinutes !== null;
 
     // EXACTLY ONE PRODUCT PER REQUEST. Several together, or none, is refused
     // rather than resolved by precedence — a request that names a food order
     // AND a Story length is a client bug, and picking one of them silently is
     // how the wrong thing gets charged for.
-    if ([wantsOrder, wantsStory, wantsWatermark, wantsPlan].filter(Boolean).length !== 1) {
+    if (
+      [wantsOrder, wantsStory, wantsWatermark, wantsPlan, wantsVideo].filter(Boolean).length !== 1
+    ) {
       return json(
-        { error: "name exactly one of orderId, seconds, watermarkJobId, or planKey" },
+        { error: "name exactly one of orderId, seconds, watermarkJobId, planKey, or videoMinutes" },
         400,
       );
     }
@@ -414,6 +417,104 @@ Deno.serve(async (req) => {
         providerOrderId: createdPlan.id,
         purchaseId: start.purchaseId,
         planKey: start.planKey,
+        label: start.label,
+        amountMinor,
+        currency: start.currency ?? "INR",
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // FINISHED VIDEO TIME — PAYG minutes for the in-house video product
+    // (owner directive 2026-08-27). Same discipline as every product on this
+    // rail: the row exists before the Razorpay order, the price is the
+    // server's rate off video_sale_config times the minutes, and
+    // credit_video_purchase — service role only, idempotent — moves the
+    // balance once money has actually moved. The client names MINUTES from a
+    // fixed tier list; it can never name a price.
+    // -----------------------------------------------------------------------
+    if (wantsVideo) {
+      const minutes = Number(body.videoMinutes);
+      if (!Number.isInteger(minutes) || minutes <= 0) return json({ error: "bad length" }, 400);
+      const origin = body?.origin === "native-handoff" ? "native-handoff" : "web";
+
+      const startRes = await fetch(`${supabaseUrl}/rest/v1/rpc/create_video_purchase`, {
+        method: "POST",
+        headers: {
+          ...svc,
+          "content-type": "application/json",
+          // Caller-auth: auth.uid() inside the RPC is this user.
+          Authorization: authHeader,
+        },
+        body: JSON.stringify({ _minutes: minutes, _origin: origin }),
+      });
+      if (!startRes.ok) {
+        const detail = await startRes.text().catch(() => "");
+        console.error("razorpay-order video create", startRes.status, detail.slice(0, 200));
+        return json({ error: "Could not start that payment." }, 502);
+      }
+      const start = (await startRes.json()) as {
+        ok?: boolean;
+        reason?: string;
+        purchaseId?: string;
+        seconds?: number;
+        label?: string;
+        amountMinor?: number;
+        currency?: string;
+      };
+      if (!start?.ok || !start.purchaseId) {
+        if (start?.reason === "disabled") {
+          return json({ error: "Buying video time is not open yet." }, 503);
+        }
+        return json({ error: "That length is not for sale." }, 400);
+      }
+
+      const amountMinor = Number(start.amountMinor);
+      if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+        return json({ error: "Could not start that payment." }, 502);
+      }
+      if (
+        amountMinor < Number(cfg.min_amount_minor) ||
+        amountMinor > Number(cfg.max_amount_minor)
+      ) {
+        console.error("razorpay-order video outside bounds", minutes, amountMinor);
+        return json({ error: "That length is not for sale." }, 409);
+      }
+
+      const createdVideo = await createRazorpayOrder(
+        creds,
+        amountMinor,
+        String(start.currency ?? "INR"),
+        String(start.purchaseId),
+        { kind: "video_seconds", purchase_id: String(start.purchaseId) },
+      );
+      if ("error" in createdVideo) {
+        console.error("razorpay-order video razorpay", createdVideo.error);
+        return json({ error: "Could not start that payment." }, 502);
+      }
+
+      const attachVideo = await fetch(`${supabaseUrl}/rest/v1/rpc/attach_video_purchase_order`, {
+        method: "POST",
+        headers: { ...svc, "content-type": "application/json" },
+        body: JSON.stringify({
+          _purchase_id: start.purchaseId,
+          _provider_order_id: createdVideo.id,
+        }),
+      });
+      if (!attachVideo.ok) {
+        // A Razorpay order whose id we cannot record is a payment no webhook
+        // will ever find. Refusing is honest: nothing has been charged yet.
+        const detail = await attachVideo.text().catch(() => "");
+        console.error("razorpay-order video attach", attachVideo.status, detail.slice(0, 200));
+        return json({ error: "Could not start that payment." }, 502);
+      }
+
+      return json({
+        configured: true,
+        kind: "video_seconds",
+        keyId: creds.keyId,
+        providerOrderId: createdVideo.id,
+        purchaseId: start.purchaseId,
+        seconds: start.seconds,
         label: start.label,
         amountMinor,
         currency: start.currency ?? "INR",

@@ -106,6 +106,9 @@ Deno.serve(async (req) => {
     // event carrying it is one we made — the RPC still re-reads the row by
     // provider order id and never trusts this string for anything but routing.
     const isPlan = kindNote === "plan_month";
+    // Finished video time (PAYG minutes, 2026-08-27). Routing only, same as
+    // every other kind: the amount and owner come from our own row.
+    const isVideo = kindNote === "video_seconds";
 
     const svc = { apikey: serviceKey, Authorization: `Bearer ${serviceKey}` };
 
@@ -116,7 +119,9 @@ Deno.serve(async (req) => {
           ? "settle_watermark_purchase"
           : isPlan
             ? "credit_plan_purchase"
-            : "mark_order_paid";
+            : isVideo
+              ? "credit_video_purchase"
+              : "mark_order_paid";
       const marked = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
         method: "POST",
         headers: { ...svc, "content-type": "application/json" },
@@ -143,7 +148,9 @@ Deno.serve(async (req) => {
               ? "watermark_removal"
               : isPlan
                 ? "plan_month"
-                : "order",
+                : isVideo
+                  ? "video_seconds"
+                  : "order",
           ...(await marked.json()),
         },
         200,
@@ -157,7 +164,9 @@ Deno.serve(async (req) => {
           ? "fail_watermark_purchase"
           : isPlan
             ? "fail_plan_purchase"
-            : "mark_payment_failed";
+            : isVideo
+              ? "fail_video_purchase"
+              : "mark_payment_failed";
       await fetch(`${supabaseUrl}/rest/v1/rpc/${rpc}`, {
         method: "POST",
         headers: { ...svc, "content-type": "application/json" },
