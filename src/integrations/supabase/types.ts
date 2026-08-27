@@ -6066,6 +6066,10 @@ export type Database = {
         Args: { _key: string; _user: string }
         Returns: boolean
       }
+      has_video_entitlement: {
+        Args: { _key: string; _user: string }
+        Returns: boolean
+      }
       health_data_allowed: { Args: { _user_id: string }; Returns: boolean }
       health_request_region_ok: { Args: never; Returns: boolean }
       is_admin: { Args: { _uid: string }; Returns: boolean }
