@@ -32,7 +32,8 @@ type Entry = {
   name: string;
   id: string;
   provider: string;
-  keyEnv: string;
+  /** null for an in-house model — there is no third party to authenticate to. */
+  keyEnv: string | null;
   status: string;
   shutdownOn: string | null;
 };
@@ -46,9 +47,13 @@ function parseRegistry(src: string): Entry[] {
     const field = (k: string) => block.match(new RegExp(`${k}:\\s*"([^"]*)"`))?.[1] ?? null;
     const id = field("id");
     const provider = field("provider");
-    const keyEnv = field("keyEnv");
     const status = field("status");
-    if (!id || !provider || !keyEnv || !status) continue;
+    // keyEnv is a NAME or an explicit null (in-house), so it is read
+    // separately from the string fields — treating null as "unparsed"
+    // would silently drop ONIQ's own models out of every check below.
+    const keyEnvRaw = block.match(/keyEnv:\s*(null|"[A-Z0-9_]*")/)?.[1] ?? null;
+    const keyEnv = !keyEnvRaw || keyEnvRaw === "null" ? null : keyEnvRaw.replace(/"/g, "");
+    if (!id || !provider || !status) continue;
     const shutdownRaw = block.match(/shutdownOn:\s*(null|"[\d-]+")/)?.[1] ?? "null";
     out.push({
       name,
@@ -73,8 +78,17 @@ describe("the registry parses and is complete", () => {
 
   it("records a provider and a key ENV NAME for every model", () => {
     for (const e of ENTRIES) {
-      expect(["anthropic", "google-direct", "lovable-gateway"], `${e.name}`).toContain(e.provider);
-      expect(e.keyEnv, `${e.name} has no key env`).toMatch(/^[A-Z0-9_]+$/);
+      expect(
+        ["anthropic", "google-direct", "lovable-gateway", "oniq-gpu-worker"],
+        `${e.name}`,
+      ).toContain(e.provider);
+      if (e.provider === "oniq-gpu-worker") {
+        // In-house: no credential exists, and claiming one would be a lie
+        // about where the model runs.
+        expect(e.keyEnv, `${e.name} must not claim a credential`).toBeNull();
+      } else {
+        expect(e.keyEnv, `${e.name} has no key env`).toMatch(/^[A-Z0-9_]+$/);
+      }
     }
   });
 
@@ -130,10 +144,20 @@ describe("the registry matches what the code actually sends", () => {
     expect(inCode).toBe(inRegistry);
   });
 
-  it("story-still's image id", () => {
+  it("story-still's image engine is ONIQ's own, so there is no id to send", () => {
+    // Fully in-house directive, 2026-08-27. The still is drawn by the
+    // worker's baked model, chosen inside the worker image — so unlike a
+    // gateway model there is deliberately NO model string in this function
+    // to drift from the registry. What is pinned instead is that the
+    // function names no provider model at all, and that the registry entry
+    // records the in-house engine.
     const still = read("supabase/functions/story-still/index.ts");
-    const inCode = still.match(/const IMAGE_MODEL = "([^"]+)"/)?.[1];
-    expect(inCode).toBe(ENTRIES.find((e) => e.name === "IMAGE_STILL")?.id);
+    expect(still).not.toMatch(/const IMAGE_MODEL = /);
+    expect(still).toContain("generateStill(");
+
+    const entry = ENTRIES.find((e) => e.name === "IMAGE_STILL");
+    expect(entry?.provider).toBe("oniq-gpu-worker");
+    expect(entry?.keyEnv).toBeNull();
   });
 
   it("story-voice's tts id", () => {
@@ -157,9 +181,20 @@ describe("the provider split the owner chose is not quietly moved", () => {
   // failing test rather than a comment nobody reads.
   const by = (n: string) => ENTRIES.find((e) => e.name === n);
 
-  it("stills and voice spend LOVABLE credits", () => {
-    expect(by("IMAGE_STILL")?.provider).toBe("lovable-gateway");
-    expect(by("IMAGE_STILL")?.keyEnv).toBe("LOVABLE_API_KEY");
+  it("stills spend NOTHING but ONIQ's own GPU seconds", () => {
+    // Fully in-house directive, 2026-08-27, superseding the 2026-08-14
+    // routing of stills through the Lovable gateway. The provider split
+    // the owner chose is still what is pinned — the choice simply moved.
+    expect(by("IMAGE_STILL")?.provider).toBe("oniq-gpu-worker");
+    expect(by("IMAGE_STILL")?.keyEnv).toBeNull();
+  });
+
+  it("the voice entry still records the gateway it was routed to", () => {
+    // The story runner speaks with in-house piper (STORY_LOCAL_TTS=only,
+    // pinned in inHouseGeneration.test.ts). This registry entry describes
+    // the story-voice EDGE FUNCTION, which still holds the gateway model
+    // for a run that explicitly asks for it — so it is recorded honestly
+    // rather than renamed to look in-house.
     expect(by("VOICE_TTS")?.provider).toBe("lovable-gateway");
     expect(by("VOICE_TTS")?.keyEnv).toBe("LOVABLE_API_KEY");
   });

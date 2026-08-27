@@ -1,59 +1,69 @@
 /**
- * story-still owner-asset conditioning — the adapter that makes a registered
- * character the visual source instead of a fresh face per shot.
+ * story-still and the owner-asset reference — what the in-house engine
+ * does with it, which is refuse it honestly.
  *
- * story-still is a Deno edge function (it reads Deno.env and serves an HTTP
- * handler), so it cannot be imported into vitest; it is pinned by source
- * assertion, the repo's established discipline for the edge functions. The
- * behaviour proven here is exactly what the 2026-08-20 capability probe
- * established against the live gateway: a reference image inlined as a
- * data: URL conditions the generation and holds identity, while a text-only
- * call stays byte-for-byte the previous behaviour.
+ * HISTORY, kept because it is the reason this file's rules exist. Under
+ * the gateway (2026-08-20 capability probe) a reference image inlined as
+ * a data: URL conditioned the generation and held identity, and two
+ * guards made that safe: only an inlined data:image/*;base64 URL was ever
+ * accepted — never an external http(s) URL a model could crawl — under a
+ * size cap.
  *
- * The two guards are the point — "use the owner asset, never source a new
- * face": only an inlined data:image/*;base64 URL is accepted (never an external
- * http(s) URL a model could crawl), under a size cap.
+ * FULLY IN-HOUSE DIRECTIVE, 2026-08-27. The still now comes from ONIQ's
+ * own GPU worker, whose image_generate op is text-only, so conditioning
+ * is not available. The guards are not weakened by that — they are
+ * SUPERSEDED by something stricter: EVERY reference is refused, so no
+ * reference of any shape reaches any model. What must never happen is the
+ * quiet version, drawing an unconditioned frame while the caller believes
+ * it was conditioned; the refusal is a 422, which is exactly the caller's
+ * own step-down signal, and its ask ladder drops the reference and asks
+ * again — which is how a film stays alive.
+ *
+ * The in-house route BACK to conditioning is recorded next to the refusal
+ * in the function: a character asset the engine itself drew, addressed by
+ * its key — not an inlined upload, because the bucket's write credentials
+ * live in the endpoint alone.
+ *
+ * story-still is a Deno edge function (it reads Deno.env and serves an
+ * HTTP handler), so it cannot be imported into vitest; it is pinned by
+ * source assertion, the repo's established discipline for edge functions.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const SRC = readFileSync(
-  join(process.cwd(), "supabase/functions/story-still/index.ts"),
-  "utf8",
-);
+const SRC = readFileSync(join(process.cwd(), "supabase/functions/story-still/index.ts"), "utf8");
 
-describe("story-still accepts an optional owner reference image", () => {
-  it("reads a referenceImage field from the request body", () => {
-    expect(SRC).toMatch(/body\?\.referenceImage/);
+describe("a reference is refused, never quietly ignored", () => {
+  it("any reference at all stops the call with the caller's step-down code", () => {
+    const at = SRC.indexOf("referenceImage");
+    expect(at).toBeGreaterThan(-1);
+    const block = SRC.slice(at, at + 700);
+    expect(block).toMatch(/does not condition on a reference yet/);
+    expect(block).toMatch(/422/);
   });
 
-  it("builds multimodal content ONLY when a reference is present, text-only otherwise", () => {
-    // The ternary keeps the unconditioned path exactly as it was (a bare string
-    // content) and adds the image_url part only when conditioning.
-    expect(SRC).toMatch(/const content = referenceImage/);
-    expect(SRC).toMatch(/type:\s*"image_url"/);
-    expect(SRC).toMatch(/image_url:\s*\{\s*url:\s*referenceImage\s*\}/);
-    expect(SRC).toMatch(/messages:\s*\[\{\s*role:\s*"user",\s*content\s*\}\]/);
-  });
-});
-
-describe("the guards — owner bytes only, never an external URL", () => {
-  it("rejects anything that is not an inlined data:image/*;base64 URL", () => {
-    // The regex admits data: image URLs and nothing else; an http(s) URL (the
-    // shape a Google/stock/web image would take) fails the check.
-    expect(SRC).toMatch(/\^data:image\\\/\(png\|jpe\?g\|webp\);base64,/);
-    expect(SRC).toMatch(/referenceImage must be an inlined data:image/);
+  it("no shape of reference is validated INTO the request — all are refused", () => {
+    // The old guards allowed a data: URL through. Nothing goes through now,
+    // so the request body must carry the prompt and nothing else.
+    const call = SRC.slice(SRC.indexOf("generateStill("), SRC.indexOf("generateStill(") + 400);
+    expect(call).not.toMatch(/referenceImage/);
   });
 
-  it("caps the reference size so a giant payload cannot be smuggled through", () => {
-    expect(SRC).toMatch(/const MAX_REFERENCE =/);
-    expect(SRC).toMatch(/referenceImage\.length > MAX_REFERENCE/);
+  it("the engine's own contract is text-only, so nothing can smuggle bytes in", () => {
+    const engine = readFileSync(
+      join(process.cwd(), "supabase/functions/_shared/oniqImage.ts"),
+      "utf8",
+    );
+    expect(engine).toMatch(/params:\s*\{\s*prompt\s*\}/);
+    expect(engine).not.toMatch(/input_key/);
   });
 
-  it("still parses the gateway's data[].b64_json reply the conditioning uses", () => {
-    // The probe returned images in the data[].b64_json pocket; firstImage must
-    // still read it, so conditioned and unconditioned replies land the same way.
-    expect(SRC).toMatch(/b64_json/);
+  it("an external http(s) URL still cannot reach a model — now by construction", () => {
+    // The original guard's whole point, preserved: this function may open a
+    // socket only to ONIQ's own endpoint.
+    for (const url of SRC.match(/https?:\/\/[^"'`\s]+/g) ?? []) {
+      expect(url, url).toMatch(/^https:\/\/(api\.runpod\.ai|\$\{)|auth\/v1\/user/);
+    }
   });
 });

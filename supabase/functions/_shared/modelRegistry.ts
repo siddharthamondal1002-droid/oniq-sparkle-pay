@@ -106,9 +106,18 @@ export type ModelEntry = {
   /** The exact string sent to the provider. */
   id: string;
   /** Who serves it, and therefore whose money it spends. */
-  provider: "anthropic" | "google-direct" | "lovable-gateway";
-  /** The environment variable holding the credential. Never the value. */
-  keyEnv: string;
+  provider:
+    | "anthropic"
+    | "google-direct"
+    | "lovable-gateway"
+    /** ONIQ's own GPU worker: no provider, no credit pool, only GPU seconds. */
+    | "oniq-gpu-worker";
+  /**
+   * The environment variable holding the credential. Never the value.
+   * `null` for an in-house model — there is no credential, because there is
+   * no third party to authenticate to.
+   */
+  keyEnv: string | null;
   /** Where it is called from, so a reader can find the caller. */
   usedBy: string;
   status: ModelStatus;
@@ -199,23 +208,28 @@ export const TEXT_FALLBACK: ModelEntry = {
 /**
  * IMAGE — the still each shot is animated from.
  *
- * Runs on the LOVABLE GATEWAY, on Lovable credits, per the 2026-08-14 owner
- * directive. The `google/` prefix is the gateway's addressing, not a Google
- * API id, which is why a Google deprecation does not automatically apply:
- * what Lovable serves under that name is Lovable's to say.
+ * ONIQ'S OWN ENGINE since the 2026-08-27 fully-in-house directive: the
+ * `image_generate` op on ONIQ's GPU worker, which is LTX-Video over the
+ * snapshot baked into that image, sampled at the shortest legal length with
+ * frame 0 kept. It is the SAME model id the motion stage uses, because it is
+ * literally the same weights opened as a different pipeline class — so there
+ * is one model in the image, not two.
+ *
+ * This entry supersedes the gateway-served google/gemini-2.5-flash-image that
+ * ran here under the 2026-08-14 directive. No key, no provider, no credit
+ * pool: the only cost is this worker's own GPU seconds.
  */
 export const IMAGE_STILL: ModelEntry = {
-  id: "google/gemini-2.5-flash-image",
-  provider: "lovable-gateway",
-  keyEnv: "LOVABLE_API_KEY",
+  id: "Lightricks/LTX-Video",
+  provider: "oniq-gpu-worker",
+  keyEnv: null,
   usedBy: "story-still",
-  status: "deprecated",
+  status: "active",
   shutdownOn: null,
   note:
-    "Google recommends migrating the DIRECT model off Nano Banana (2.5 Flash " +
-    "Image) to gemini-3.1-flash-image or gemini-3-pro-image. This runs through " +
-    "the gateway, so the migration is a question for Lovable AND a cost " +
-    "question for the owner — see GOOGLE_AI_RESEARCH.md. Not changed here.",
+    "In-house. Baked into the worker image at build time and loaded with " +
+    "local_files_only, so no registry, hub or gateway is reachable at job " +
+    "time and no external deprecation applies to it.",
   capabilities: {
     modality: "text-to-image",
     durationsSec: null,
@@ -224,9 +238,12 @@ export const IMAGE_STILL: ModelEntry = {
     audioSupport: false,
     commercialUse: null,
     note:
-      "Text-to-image: story-still sends a prompt, gets a base64 frame. Output " +
-      "resolution not recorded here (gateway-served); the film's 1080x1920 is set " +
-      "by the Remotion render, not this model.",
+      "Text-to-image by way of text-to-video: LTXPipeline at the shortest " +
+      "legal frame count, frame 0 kept as a png at the VIDEO canvas so the " +
+      "motion stage can animate it without a rescale at the seam. " +
+      "referenceSupport is false and that is enforced, not assumed: " +
+      "story-still refuses a reference with 422 rather than quietly drawing " +
+      "an unconditioned frame.",
   },
 };
 
