@@ -86,9 +86,19 @@ export const AI_SURFACES = [
     file: "src/components/stories/StoryStudio.tsx",
   },
   {
-    // The in-house GPU generation tool (LTX-Video on ONIQ's own rented
-    // A5000). Admin-gated today, and declared BEFORE any wider rollout —
-    // the ordering Lores originally got wrong.
+    // The USER-FACING half of the in-house GPU generation path (LTX-Video on
+    // ONIQ's own rented A5000): the video-clips panel on the Stories studio,
+    // opened to signed-in users 2026-08-27 after the path passed its full
+    // production proof. Same surface id as the admin tool below — one
+    // generation path, one report bucket.
+    id: "gpu_video_ai_output",
+    screen: "Lores — Stories studio (video clips panel)",
+    file: "src/components/stories/VideoClips.tsx",
+  },
+  {
+    // The in-house GPU generation tool's ADMIN operator view. Declared
+    // BEFORE the wider rollout above — the ordering Lores originally got
+    // wrong.
     id: "gpu_video_ai_output",
     screen: "Admin — in-house GPU video tool (moderation-inbox panel)",
     // Moved from the standalone route (which stays as a fallback surface and

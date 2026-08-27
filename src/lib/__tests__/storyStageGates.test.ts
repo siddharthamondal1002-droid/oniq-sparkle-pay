@@ -18,6 +18,8 @@ const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
 const WRITER = stripComments(read("src/components/stories/StoryWriter.tsx"));
 const BUILDER = stripComments(read("src/components/stories/CharacterBuilder.tsx"));
 const STUDIO = stripComments(read("src/components/stories/StoryStudio.tsx"));
+const CLIPS = stripComments(read("src/components/stories/VideoClips.tsx"));
+const JOBS_CLIENT = stripComments(read("src/components/stories/storyJobsClient.ts"));
 const PLOT_FN = stripComments(read("supabase/functions/story-plot/index.ts"));
 const STILL_FN = stripComments(read("supabase/functions/story-still/index.ts"));
 
@@ -84,10 +86,58 @@ describe("Build Character → stops at Character", () => {
   });
 });
 
+describe("Generate video → the ONE user door into GPU generation", () => {
+  it("the clips panel calls gpu-video, once, and nothing else that spends", () => {
+    // One invoke call site (the shared transport helper) aimed at gpu-video.
+    expect(CLIPS.match(/functions\.invoke\(/g)).toHaveLength(1);
+    expect(CLIPS).toContain('invoke("gpu-video"');
+    for (const other of [
+      "claim_story_seconds",
+      "story-plot",
+      "story-still",
+      "story-voice",
+      "story-clip",
+      "story_jobs",
+      "save_story_actor",
+      ".insert(",
+      ".upload(",
+      "runpod",
+    ]) {
+      expect(CLIPS, other).not.toContain(other);
+    }
+  });
+
+  it("the panel cannot name infrastructure — id from the server registry only", () => {
+    expect(CLIPS).toContain("Object.keys(STAGED_REFERENCES)[0]");
+    for (const infra of ["gpu_type", "provider:", "budget", "bucket", "endpoint"]) {
+      expect(CLIPS, infra).not.toContain(infra);
+    }
+  });
+
+  it("a handed-over shot only prefills — the writer never names the transport", () => {
+    expect(WRITER).toContain("onFilmShot");
+    // The existing writer pin already refuses "gpu-video"; the hand-off is a
+    // callback, so the writer cannot reach the paid function even by name.
+    expect(STUDIO).toContain("onFilmShot={setClipSeed}");
+    expect(STUDIO).toContain("<VideoClips seed={clipSeed} />");
+  });
+
+  it("a failed clip is shown, never auto-retried", () => {
+    expect(CLIPS).not.toMatch(/backoff/i);
+    // The one "retry" the file may mention is the idempotency comment; in
+    // executable text the only path back is the explicit Try-again button.
+    expect(CLIPS).toContain("Try again");
+  });
+});
+
 describe("the stages stay independently callable", () => {
   it("story generation and character build do not import each other", () => {
     expect(WRITER).not.toContain("CharacterBuilder");
     expect(BUILDER).not.toContain("StoryWriter");
+    expect(CLIPS).not.toContain("StoryWriter");
+    expect(CLIPS).not.toContain("CharacterBuilder");
+    expect(WRITER).not.toContain("VideoClips");
+    expect(BUILDER).not.toContain("VideoClips");
   });
 
   it("rendering keeps exactly one entry: the studio's own claim call", () => {
@@ -97,8 +147,22 @@ describe("the stages stay independently callable", () => {
     expect(BUILDER).not.toContain("claim_story_seconds");
   });
 
-  it("the studio mounts both panels — capabilities, not a chain", () => {
+  it("the studio mounts the panels — capabilities, not a chain", () => {
     expect(STUDIO).toContain("<CharacterBuilder cast={cast} />");
     expect(STUDIO).toContain("<StoryWriter");
+  });
+});
+
+describe("the stack speaks as ONIQ (owner directive 2026-08-27)", () => {
+  it("no internal engine name reaches generation-surface copy", () => {
+    // Comments may explain history; executable strings say ONIQ.
+    for (const [name, src] of [
+      ["StoryWriter", WRITER],
+      ["StoryStudio", STUDIO],
+      ["VideoClips", CLIPS],
+      ["storyJobsClient", JOBS_CLIENT],
+    ] as const) {
+      expect(src, name).not.toContain("Ting");
+    }
   });
 });

@@ -8,13 +8,21 @@
 // story function reads its keys from and proves in production daily. The
 // transport changed; not one gate did.
 //
-// The order is the same one every ONIQ generation tool enforces: admin gate
+// The order is the same one every ONIQ generation tool enforces: caller gate
 // -> kill switch -> daily cap -> validation -> financial admission on a LIVE
 // quote -> one billable call. No batching, no retry.
 //
+// USER-FACING since 2026-08-27 (owner directive: "make video production live
+// for users", issued after the path passed its full production proof). Any
+// signed-in user may submit and may see, poll and sign THEIR OWN jobs; the
+// admin keeps the unscoped operator view. Not one financial gate moved: the
+// kill switch, the shared daily cap, the live-quote admission, the per-job
+// cap, one-generation-at-a-time and per-user idempotency all sit exactly
+// where the admin-only era put them.
+//
 // DELIBERATELY ABSENT from config.toml: the caller is a signed-in person, so
 // the platform's verify_jwt gate applies, and the function still re-derives
-// the user and checks is_admin itself — same shape as story-deliver.
+// the user and reads is_admin itself — same shape as story-deliver.
 //
 // RUNPOD_API_KEY is read here and only here. Never returned, never logged,
 // never in an error message — the NAME of a missing variable is operator
@@ -53,6 +61,15 @@ const RUNPOD_SERVERLESS = "https://api.runpod.ai/v2";
 const USER_AGENT = "oniq-gpu-video/1.0 (oniq server)";
 const RUNWAY_BUCKET = "video-gen";
 const EXTERNAL_TIMEOUT_MS = 20_000;
+
+/**
+ * What a NON-ADMIN status read returns, column by column: the fields the
+ * user panel renders and nothing operator-grade — no provider job ids, no
+ * price quotes, no reservation or actual cost, no refs, no idempotency key.
+ */
+const USER_JOB_COLUMNS =
+  "id, status, prompt, stored_path, video_seconds, error, created_at, " +
+  "audio_mode, narration_text, audio_error";
 
 function envOrThrow(name: "RUNPOD_API_KEY" | "RUNPOD_ENDPOINT_ID" | "R2_PUBLIC_BASE_URL"): string {
   const v = Deno.env.get(name);
@@ -484,12 +501,22 @@ async function submitGeneration(
 }
 
 // ------------------------------------------------------------------ poll
-async function pollGenerations(admin: AnyClient): Promise<{ checked: number }> {
-  const { data: jobs } = await admin
+/**
+ * Advance open jobs. A NON-ADMIN caller advances only their own — so the
+ * only clients that can ever race on one job's paid audio fork are the same
+ * user's own tabs, exactly the exposure the admin-only era already carried.
+ * The operator view still advances everything.
+ */
+async function pollGenerations(
+  admin: AnyClient,
+  scopeUserId: string | null,
+): Promise<{ checked: number }> {
+  const openQuery = admin
     .from("gpu_video_jobs")
     .select("*")
     .not("status", "in", "(completed,failed,timed-out,cancelled,orphaned)")
     .limit(5);
+  const { data: jobs } = await (scopeUserId ? openQuery.eq("created_by", scopeUserId) : openQuery);
 
   for (const job of jobs ?? []) {
     // Watchdog first: nothing waits forever, and nothing re-submits itself.
@@ -642,11 +669,11 @@ Deno.serve(async (req) => {
   if (userErr || !userRes?.user) return json({ error: "Unauthorized" }, 401);
   const userId = userRes.user.id;
 
-  const { data: adminFlag, error: adminErr } = await asCaller.rpc("is_admin", { _uid: userId });
-  if (adminErr || adminFlag !== true) {
-    console.warn(`[gpu-video] refused: non-admin caller ${userId}`);
-    return json({ error: "forbidden" }, 403);
-  }
+  // Admin is a VIEW, not the gate (owner directive 2026-08-27): signed-in
+  // users generate; only the unscoped operator view stays admin. A failed
+  // flag read degrades to the scoped user view rather than refusing.
+  const { data: adminFlag } = await asCaller.rpc("is_admin", { _uid: userId });
+  const isAdmin = adminFlag === true;
 
   const admin = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -657,12 +684,16 @@ Deno.serve(async (req) => {
   try {
     switch (payload.action) {
       case "status": {
+        // A user sees ONLY their own jobs, and only the columns the panel
+        // renders — never provider ids, quotes or ONIQ's costs. The admin
+        // keeps the full operator view the tool always had.
+        const jobsQuery = admin
+          .from("gpu_video_jobs")
+          .select(isAdmin ? "*" : USER_JOB_COLUMNS)
+          .order("created_at", { ascending: false })
+          .limit(25);
         const [{ data: jobs }, { data: cfg }] = await Promise.all([
-          admin
-            .from("gpu_video_jobs")
-            .select("*")
-            .order("created_at", { ascending: false })
-            .limit(25),
+          isAdmin ? jobsQuery : jobsQuery.eq("created_by", userId),
           admin
             .from("video_gen_config")
             .select("enabled, audio_enabled")
@@ -686,12 +717,23 @@ Deno.serve(async (req) => {
         return json(result);
       }
       case "poll": {
-        const result = await pollGenerations(admin);
+        const result = await pollGenerations(admin, isAdmin ? null : userId);
         return json(result);
       }
       case "sign": {
         const path = String(payload.path ?? "");
-        if (!/^gpu\/[0-9a-f-]{36}\.mp4$/.test(path)) return json({ url: null });
+        const match = /^gpu\/([0-9a-f-]{36})\.mp4$/.exec(path);
+        if (!match) return json({ url: null });
+        if (!isAdmin) {
+          // A signed URL is delivery: only the job's own creator gets one.
+          const { data: owned } = await admin
+            .from("gpu_video_jobs")
+            .select("id")
+            .eq("id", match[1])
+            .eq("created_by", userId)
+            .maybeSingle();
+          if (!owned) return json({ url: null });
+        }
         const { data } = await admin.storage.from(RUNWAY_BUCKET).createSignedUrl(path, 60 * 60);
         return json({ url: data?.signedUrl ?? null });
       }
