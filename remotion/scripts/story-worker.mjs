@@ -1657,11 +1657,14 @@ if (offline) {
     // the audio version of the character drift the cast locks exist to fix.
     const voice = process.env.STORY_VOICE ?? 'Charon';
 
-    // Which engine speaks. 'cloud' is Gemini, the primary; 'local' is Piper
-    // on this runner's own CPU. STORY_LOCAL_TTS=only starts the film fully
-    // in-house (the owner's quota-free switch); otherwise the engine flips
-    // to local exactly once, mid-film, if the cloud bucket dies — and stays
-    // there so voices do not flip-flop between shots.
+    // Which engine speaks. OWNER DIRECTIVE 2026-08-27 (fully in-house
+    // generation): production dispatches set STORY_LOCAL_TTS=only, so
+    // 'local' — piper on this runner's own CPU — IS the production voice
+    // and no cloud TTS provider is required for a film to finish. The
+    // cloud branch below survives for a run that explicitly asks for it;
+    // when it is used at all it still flips to local exactly once,
+    // mid-film, if the bucket dies, and stays there so voices do not
+    // flip-flop between shots.
     let ttsEngine = process.env.STORY_LOCAL_TTS === 'only' ? 'local' : 'cloud';
 
     // DIALOGUE VOICES. A shot may carry a spoken line (plan.shots[i].dialogue,
